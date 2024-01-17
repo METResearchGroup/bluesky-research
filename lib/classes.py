@@ -5,12 +5,12 @@ import requests
 
 from lib.endpoints import ENDPOINTS_MAP
 
-BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
-BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_PASSWORD")
-
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 env_path = os.path.abspath(os.path.join(current_file_directory, "../.env"))
 load_dotenv(env_path)
+
+BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
+BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_PASSWORD")
 
 class BlueskyBaseClass:
     def __init__(self) -> None:
@@ -20,9 +20,9 @@ class BlueskyBaseClass:
 
     def auth(self) -> bool:
         try:
+            payload = {"identifier": self.username, "password": self.password}
             resp = requests.post(
-                ENDPOINTS_MAP["createSession"],
-                json={"identifier": self.username, "password": self.password},
+                url=ENDPOINTS_MAP["createSession"], json=payload
             )
             resp.raise_for_status()
             session = resp.json()
