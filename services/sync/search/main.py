@@ -11,7 +11,11 @@ user_profiles_fp = os.path.join(current_file_directory, user_profiles_filename)
 
 
 def write_user_profiles_to_file(user_profiles: list[dict]) -> None:
-    """Write user profiles to a file."""
+    """Write user profiles to a file.
+    
+    TODO: if we want more users, we can add pagination.
+    Example: https://github.com/kojira/bluesky-chan/blob/main/util.py#L244
+    """
     with open(user_profiles_fp, "w") as f:
         for user_profile in user_profiles:
             f.write(json.dumps(user_profile) + "\n")
@@ -71,7 +75,7 @@ def main(event: dict, context: dict) -> int:
 
 if __name__ == "__main__":
     event = {
-        "sync_sample_user_profiles": True
+        "sync_sample_user_profiles": False
     }
     context = {}
     main(event=event, context=context)
