@@ -83,6 +83,26 @@ def export_author_feeds(user_profiles: list[dict], count=1) -> None:
     print(f"Exported {total} author feeds.")
 
 
+def load_author_feeds_from_file() -> list[dict]:
+    """Load existing author feeds from files.
+    
+    These will be in the form of "feed_*.json".
+    """
+    list_filenames = os.listdir(current_file_directory)
+    feed_filenames = [
+        filename for filename in list_filenames
+        if filename.startswith("feed_")
+        and filename.endswith(".json")
+    ]
+    author_feeds = []
+    for filename in feed_filenames:
+        with open(filename, "r") as f:
+            author_feed = json.load(f)
+            author_feeds.append(author_feed)
+    print(f"Loaded {len(author_feeds)} author feeds.")
+    return author_feeds
+
+
 def main(event: dict, context: dict) -> int:
     """Fetches data from the Bluesky API and stores it in the database."""
 
@@ -94,11 +114,20 @@ def main(event: dict, context: dict) -> int:
         print("Loading existing user profiles from file...")
         user_profiles: list[dict] = load_user_profiles_from_file()
 
-    # export the author feed for each user profile
-    export_author_feeds(
-        user_profiles=user_profiles,
-        count=event["total_author_feeds_to_export"]
-    )
+    if event["export_author_feeds"]:
+        print("Exporting author feeds...")
+        # export the author feed for each user profile
+        export_author_feeds(
+            user_profiles=user_profiles,
+            count=event["total_author_feeds_to_export"]
+        )
+
+    if event["load_author_feeds"]:
+        # load author feed from file
+        print("Loading author feeds from file...")
+        author_feeds: list[dict] = load_author_feeds_from_file()
+
+    breakpoint()
 
     return 0
 
@@ -106,7 +135,9 @@ def main(event: dict, context: dict) -> int:
 if __name__ == "__main__":
     event = {
         "sync_sample_user_profiles": False,
-        "total_author_feeds_to_export": 1
+        "total_author_feeds_to_export": 1,
+        "export_author_feeds": False,
+        "load_author_feeds": True
     }
     context = {}
     main(event=event, context=context)
