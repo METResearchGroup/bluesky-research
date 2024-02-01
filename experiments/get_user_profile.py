@@ -1,5 +1,5 @@
-from lib.classes import BlueskyBaseClass
+from lib.classes import client
 
 if __name__ == "__main__":
-    bluesky = BlueskyBaseClass()
-    print(bluesky.authenticated)
+    print(client)
+    breakpoint()

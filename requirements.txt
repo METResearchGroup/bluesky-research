@@ -4,15 +4,63 @@
 #
 #    pip-compile requirements.in
 #
+annotated-types==0.6.0
+    # via pydantic
+anyio==4.2.0
+    # via httpx
+atproto==0.0.38
+    # via -r requirements.in
 certifi==2023.11.17
-    # via requests
+    # via
+    #   httpcore
+    #   httpx
+    #   requests
+cffi==1.16.0
+    # via cryptography
 charset-normalizer==3.3.2
     # via requests
+click==8.1.7
+    # via atproto
+cryptography==41.0.7
+    # via atproto
+dnspython==2.5.0
+    # via atproto
+exceptiongroup==1.2.0
+    # via anyio
+h11==0.14.0
+    # via httpcore
+httpcore==1.0.2
+    # via httpx
+httpx==0.25.2
+    # via atproto
 idna==3.6
-    # via requests
+    # via
+    #   anyio
+    #   httpx
+    #   requests
+libipld==1.1.0
+    # via atproto
+pycparser==2.21
+    # via cffi
+pydantic==2.6.0
+    # via atproto
+pydantic-core==2.16.1
+    # via pydantic
 python-dotenv==0.21.0
     # via -r requirements.in
 requests==2.31.0
     # via -r requirements.in
+sniffio==1.3.0
+    # via
+    #   anyio
+    #   httpx
+typing-extensions==4.9.0
+    # via
+    #   anyio
+    #   atproto
+    #   pydantic
+    #   pydantic-core
 urllib3==2.1.0
     # via requests
+websockets==12.0
+    # via atproto

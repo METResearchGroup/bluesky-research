@@ -1,7 +1,8 @@
 from dotenv import load_dotenv
 
 import os
-import requests
+
+from atproto import Client, models, client_utils
 
 from lib.endpoints import ENDPOINTS_MAP
 
@@ -12,6 +13,11 @@ load_dotenv(env_path)
 BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_PASSWORD")
 
+client = Client()
+client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
+client.send_post("Hello World (from Python client)")
+
+"""
 class BlueskyBaseClass:
     def __init__(self) -> None:
         self.username = BLUESKY_HANDLE
@@ -26,8 +32,10 @@ class BlueskyBaseClass:
             )
             resp.raise_for_status()
             session = resp.json()
+            breakpoint()
             print(session["accessJwt"])
             return True
         except requests.exceptions.HTTPError as err:
             print(f"Error during auth: {err}")
             return False
+"""
