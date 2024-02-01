@@ -59,6 +59,30 @@ def sync_did_user_profiles() -> list[dict]:
     return user_profiles
 
 
+def get_author_feed(user_profile: dict) -> dict:
+    """Given an author, get their feed."""
+    # https://atproto.blue/en/latest/atproto_client/index.html#atproto_client.Client.get_author_feed
+    feed = client.get_author_feed(actor=user_profile["did"])
+    return feed.dict()
+
+
+def export_author_feed(user_profile) -> None:
+    """Export the author feed to a file."""
+    feed: dict = get_author_feed(user_profile=user_profile)
+    with open(f"feed_{user_profile['did']}.json", "w") as f:
+        json.dump(feed, f)
+
+
+def export_author_feeds(user_profiles: list[dict], count=1) -> None:
+    """Export the author feeds to files."""
+    total = 0
+    while total < count:
+        user_profile = user_profiles[total]
+        export_author_feed(user_profile=user_profile)
+        total += 1
+    print(f"Exported {total} author feeds.")
+
+
 def main(event: dict, context: dict) -> int:
     """Fetches data from the Bluesky API and stores it in the database."""
 
@@ -70,12 +94,19 @@ def main(event: dict, context: dict) -> int:
         print("Loading existing user profiles from file...")
         user_profiles: list[dict] = load_user_profiles_from_file()
 
+    # export the author feed for each user profile
+    export_author_feeds(
+        user_profiles=user_profiles,
+        count=event["total_author_feeds_to_export"]
+    )
+
     return 0
 
 
 if __name__ == "__main__":
     event = {
-        "sync_sample_user_profiles": False
+        "sync_sample_user_profiles": False,
+        "total_author_feeds_to_export": 1
     }
     context = {}
     main(event=event, context=context)
