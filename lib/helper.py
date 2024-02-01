@@ -15,7 +15,7 @@ BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_PASSWORD")
 
 client = Client()
 client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
-client.send_post("Hello World (from Python client)")
+#client.send_post("Hello World (from Python client)")
 
 """
 class BlueskyBaseClass:
