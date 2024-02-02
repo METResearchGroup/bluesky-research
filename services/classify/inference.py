@@ -87,7 +87,8 @@ def perform_classification(text: str) -> dict:
 
 
 def perform_inference(flattened_posts: list[FlattenedFeedViewPost]) -> list[dict]:
+    print(f"Performing inference on {len(flattened_posts)} posts...")
     return [
-        {**post, **perform_classification([post["text"]])}
+        {**post, **perform_classification(post["text"])}
         for post in flattened_posts
     ]

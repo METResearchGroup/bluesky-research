@@ -5,11 +5,12 @@ from typing import Literal
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost
 import pandas as pd
 
-from services.transform.transform_raw_data import hydrate_feed_view_post
 from services.classify.helper import preprocess_posts_for_inference
 from services.classify.inference import perform_inference
 from services.sync.search.helper import load_author_feeds_from_file
-from services.transform.transform_raw_data import FlattenedFeedViewPost
+from services.transform.transform_raw_data import (
+    hydrate_feed_view_post, FlattenedFeedViewPost
+)
 
 
 current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

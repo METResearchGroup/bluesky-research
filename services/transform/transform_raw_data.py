@@ -2,11 +2,17 @@
 
 Based on https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.defs.json
 """
-from typing import TypedDict
+from typing import TypedDict, Union
 
 from atproto_client.models.app.bsky.actor.defs import ProfileViewBasic
+from atproto_client.models.app.bsky.feed.post import Main
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, PostView
 from atproto_client.models.dot_dict import DotDict
+
+
+def hydrate_feed_view_post(feed_post: dict) -> FeedViewPost:
+    """Hydrate a FeedViewPost from a dictionary."""
+    return FeedViewPost(**feed_post)
 
 
 def get_post_author_info(post_author: ProfileViewBasic) -> dict:
@@ -19,8 +25,8 @@ def get_post_author_info(post_author: ProfileViewBasic) -> dict:
     }
 
 
-def get_post_record_info(post_record: DotDict) -> dict:
-    assert isinstance(post_record, DotDict)
+def get_post_record_info(post_record: Union[DotDict, Main]) -> dict:
+    assert isinstance(post_record, DotDict) or isinstance(post_record, Main)
     return {
         "created_at": post_record["created_at"],
         "text": post_record["text"],
@@ -64,6 +70,7 @@ class FlattenedFeedViewPost(TypedDict):
 
 def flatten_feed_view_post(post: FeedViewPost) -> dict:
     # TODO: figure out what "reason" means in the FeedViewPost?
+    # TODO: still need to figure out what the ID of a post is?
     assert isinstance(post, FeedViewPost)
     post: FlattenedFeedViewPost = flatten_post(post.post)
     return post
