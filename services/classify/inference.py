@@ -9,6 +9,7 @@ import json
 from googleapiclient import discovery
 
 from lib.helper import GOOGLE_API_KEY, logger
+from services.transform.transform_raw_data import FlattenedFeedViewPost
 
 google_client = discovery.build(
   "commentanalyzer",
@@ -66,23 +67,27 @@ def classify_text_toxicity(text: str) -> dict:
     )
 
     return {
-        "prob": toxicity_prob_score,
-        "label": 0 if toxicity_prob_score < 0.5 else 1
+        "prob_toxic": toxicity_prob_score,
+        "label_toxic": 0 if toxicity_prob_score < 0.5 else 1
     }
 
 
-def classify_texts_toxicity(texts: list[str]) -> list[dict]:
-    """Classify texts toxicity."""
-    classified_texts: list[dict] = []
-    logger.info(
-        f"Classifying {len(texts)} texts for toxicity..."
-    )
-    for text in texts:
-        label_dict = classify_text_toxicity(text)
-        classified_texts.append(
-            {
-                "text": text,
-                **label_dict
-            }
-        )
-    return classified_texts
+def perform_classification(text: str) -> dict:
+    """Perform classifications on text.
+    
+    Able to eventually support different inference functions.
+    """
+    classification_functions = [classify_text_toxicity]
+    classification_probs_and_labels = {}
+    for inference_func in classification_functions:
+        res = inference_func(text)
+        classification_probs_and_labels.update(res)
+
+    return classification_probs_and_labels
+
+
+def perform_inference(flattened_posts: list[FlattenedFeedViewPost]) -> list[dict]:
+    return [
+        {**post, **perform_classification([post["text"]])}
+        for post in flattened_posts
+    ]

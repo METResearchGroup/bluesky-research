@@ -2,10 +2,15 @@ from datetime import datetime
 import os
 from typing import Literal
 
+from atproto_client.models.app.bsky.feed.defs import FeedViewPost
 import pandas as pd
 
-from services.classify.inference import classify_texts_toxicity
+from services.transform.transform_raw_data import hydrate_feed_view_post
+from services.classify.helper import preprocess_posts_for_inference
+from services.classify.inference import perform_inference
 from services.sync.search.helper import load_author_feeds_from_file
+from services.transform.transform_raw_data import FlattenedFeedViewPost
+
 
 current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 classifications_filename = f"classified_posts_{current_datetime}.jsonl"
@@ -13,20 +18,17 @@ current_file_directory = os.path.dirname(os.path.abspath(__file__))
 classifications_fp = os.path.join(current_file_directory, classifications_filename) # noqa
 
 
-# unpack this into a load_post_from_author_feed function
-# and then call that function repeatedly.
-def load_posts_from_author_feeds(limit: int = None) -> list[str]:
-    """Get post text from author feeds."""
+def load_posts_from_author_feeds(limit: int = None) -> list[FeedViewPost]:
+    """Get individual posts from the author feeds."""
     all_author_feeds = load_author_feeds_from_file()
-    author_feeds = [
-        feed_list["feed"] for feed_list in all_author_feeds
-    ]
-    lists_of_posts = [post_list for post_list in author_feeds]
-    posts_texts = [
-        post["post"]["record"]["text"]
-        for post_list in lists_of_posts for post in post_list
-    ]
-    return posts_texts[:limit] if limit else posts_texts
+    posts: list[FeedViewPost] = []
+    for author_feed in all_author_feeds:
+        feed = author_feed["feed"]
+        for feed_post in feed:
+            post = hydrate_feed_view_post(feed_post)
+            posts.append(post)
+
+    return posts[:limit] if limit else posts
 
 
 def export_classified_posts(
@@ -48,10 +50,11 @@ def export_classified_posts(
 
 def main(event: dict, context: dict) -> int:
     """Run analyses"""
-    posts: list[dict] = load_posts_from_author_feeds(
+    raw_posts: list[FeedViewPost] = load_posts_from_author_feeds(
         limit=event.get("limit")
     )
-    classified_posts: list[dict] = classify_texts_toxicity(posts)
+    posts: list[FlattenedFeedViewPost] = preprocess_posts_for_inference(raw_posts)
+    classified_posts: list[dict] = perform_inference(posts)
     export_classified_posts(
         classified_posts=classified_posts,
         export_format=event.get("export_format")
