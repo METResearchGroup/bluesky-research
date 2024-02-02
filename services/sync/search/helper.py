@@ -96,7 +96,8 @@ def load_author_feeds_from_file() -> list[dict]:
     ]
     author_feeds = []
     for filename in feed_filenames:
-        with open(filename, "r") as f:
+        full_fp = os.path.join(search_file_directory, filename)
+        with open(full_fp, "r") as f:
             author_feed = json.load(f)
             author_feeds.append(author_feed)
     print(f"Loaded {len(author_feeds)} author feeds.")
