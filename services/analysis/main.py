@@ -26,7 +26,7 @@ def load_posts_from_author_feeds(limit: int = None) -> list[str]:
         post["post"]["record"]["text"]
         for post_list in lists_of_posts for post in post_list
     ]
-    return posts_texts[:limit] if limit else post_texts
+    return posts_texts[:limit] if limit else posts_texts
 
 
 def export_classified_posts(
