@@ -46,19 +46,12 @@ def export_classified_posts(
         print(f"Wrote {len(classified_posts)} classified posts to {df_filename}") # noqa
 
 
-def classify_posts(posts: list[str]) -> list[dict]:
-    return [
-        classify_texts_toxicity(post) for post in posts
-    ]
-
-
 def main(event: dict, context: dict) -> int:
     """Run analyses"""
     posts: list[dict] = load_posts_from_author_feeds(
         limit=event.get("limit")
     )
-    breakpoint() # assert only 10
-    classified_posts: list[dict] = classify_posts(posts)
+    classified_posts: list[dict] = classify_texts_toxicity(posts)
     export_classified_posts(
         classified_posts=classified_posts,
         export_format=event.get("export_format")

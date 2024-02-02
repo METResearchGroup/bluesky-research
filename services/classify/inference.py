@@ -60,13 +60,10 @@ def classify_text_toxicity(text: str) -> dict:
     response = request_comment_analyzer(
         text=text, requested_attributes={"TOXICITY": {}}
     )
-    try:
-        toxicity_prob_score = (
-            response["attributeScores"]["TOXICITY"]["summaryScore"]["value"]
-        )
-    except Exception as e:
-        print(f"Error in trying to get toxicity score: {e}")
-        breakpoint()
+    response_obj = json.loads(response)
+    toxicity_prob_score = (
+        response_obj["attributeScores"]["TOXICITY"]["summaryScore"]["value"]
+    )
 
     return {
         "prob": toxicity_prob_score,
