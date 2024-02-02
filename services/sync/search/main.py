@@ -1,4 +1,5 @@
-from services.sync.search import (
+from lib.helper import track_function_runtime
+from services.sync.search.helper import (
     sync_did_user_profiles,
     load_user_profiles_from_file,
     export_author_feeds,
@@ -6,6 +7,7 @@ from services.sync.search import (
 )
 
 
+@track_function_runtime
 def main(event: dict, context: dict) -> int:
     """Fetches data from the Bluesky API and stores it in the database."""
 
@@ -33,12 +35,14 @@ def main(event: dict, context: dict) -> int:
     return 0
 
 
+# TODO: implement deduplication of feeds? Should include a functionality for
+# if we want to sync new feeds or if we want to resync old ones (or both).
 if __name__ == "__main__":
     event = {
-        "sync_sample_user_profiles": False,
-        "total_author_feeds_to_export": 1,
-        "export_author_feeds": False,
-        "load_author_feeds": True
+        "sync_sample_user_profiles": True,
+        "total_author_feeds_to_export": 5,
+        "export_author_feeds": True,
+        "load_author_feeds": False
     }
     context = {}
     main(event=event, context=context)

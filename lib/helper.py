@@ -1,8 +1,9 @@
 from dotenv import load_dotenv
 import logging
 import os
+import time
 
-from atproto import Client, models, client_utils
+from atproto import Client
 
 from lib.endpoints import ENDPOINTS_MAP
 
@@ -20,3 +21,20 @@ client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
+
+
+def track_function_runtime(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+
+        execution_time_seconds = round(end_time - start_time)
+        execution_time_minutes = execution_time_seconds // 60
+        execution_time_leftover_seconds = execution_time_seconds - (60 * execution_time_minutes)
+
+        print(f"Execution time: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds")
+
+        return result
+
+    return wrapper

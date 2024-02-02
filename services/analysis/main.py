@@ -5,6 +5,7 @@ from typing import Literal
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost
 import pandas as pd
 
+from lib.helper import track_function_runtime
 from services.classify.helper import preprocess_posts_for_inference
 from services.classify.inference import perform_inference
 from services.sync.search.helper import load_author_feeds_from_file
@@ -49,6 +50,7 @@ def export_classified_posts(
         print(f"Wrote {len(classified_posts)} classified posts to {df_filename}") # noqa
 
 
+@track_function_runtime
 def main(event: dict, context: dict) -> int:
     """Run analyses"""
     raw_posts: list[FeedViewPost] = load_posts_from_author_feeds(
@@ -63,7 +65,8 @@ def main(event: dict, context: dict) -> int:
     return 0
 
 
+# TODO: do I need to include rate-limiting for the Google API inference?
 if __name__ == "__main__":
-    event = {"limit": 10, "export_format": "csv"}
+    event = {"limit": 250, "export_format": "csv"}
     context = {}
     main(event=event, context=context)

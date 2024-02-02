@@ -102,3 +102,13 @@ def load_author_feeds_from_file() -> list[dict]:
             author_feeds.append(author_feed)
     print(f"Loaded {len(author_feeds)} author feeds.")
     return author_feeds
+
+
+def get_posts_by_author():
+    """Get posts by author."""
+    pass
+
+
+def get_posts_by_hashtag():
+    """Get posts by hashtag."""
+    pass
