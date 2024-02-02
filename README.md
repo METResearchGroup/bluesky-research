@@ -34,6 +34,7 @@ Helpful project links:
   - https://github.com/bluesky-astronomy/astronomy-feeds
   - https://github.com/MarshalX/bluesky-feed-generator
   - https://github.com/whyrusleeping/algoz
+  - https://github.com/snarfed/arroba/blob/main/arroba/did.py
 
 [(Community-made) Bluesky new user onboarding](https://from-over-the-horizon.ghost.io/bluesky-social-new-user-guide/)
 [DID record lookup](https://web.plc.directory/resolve)
