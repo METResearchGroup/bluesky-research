@@ -62,13 +62,20 @@ def sync_did_user_profiles() -> list[dict]:
 def get_author_feed(user_profile: dict) -> dict:
     """Given an author, get their feed."""
     # https://atproto.blue/en/latest/atproto_client/index.html#atproto_client.Client.get_author_feed
-    feed = client.get_author_feed(actor=user_profile["did"])
+    try:
+        feed = client.get_author_feed(actor=user_profile["did"])
+    except Exception as e:
+        # for cases where profile can't be found.
+        print(f"Error getting feed for {user_profile['did']}: {e}")
+        return {}
     return feed.dict()
 
 
 def export_author_feed(user_profile) -> None:
     """Export the author feed to a file."""
     feed: dict = get_author_feed(user_profile=user_profile)
+    if len(feed) == 0:
+        return
     with open(f"feed_{user_profile['did']}.json", "w") as f:
         json.dump(feed, f)
 

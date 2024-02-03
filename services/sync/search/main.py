@@ -40,7 +40,7 @@ def main(event: dict, context: dict) -> int:
 if __name__ == "__main__":
     event = {
         "sync_sample_user_profiles": True,
-        "total_author_feeds_to_export": 5,
+        "total_author_feeds_to_export": 20,
         "export_author_feeds": True,
         "load_author_feeds": False
     }
