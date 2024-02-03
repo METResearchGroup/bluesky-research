@@ -18,6 +18,10 @@ raw_data_url = "https://raw.githubusercontent.com/mark-torres10/redditResearch/m
 current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 export_filename = f"reddit_comments_labeled_with_perspective_classifiers_{current_datetime}.csv" # noqa
 
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_colwidth', None)
+
 
 def load_previously_classified_comments() -> list[dict]:
     df = pd.read_csv(raw_data_url)
@@ -38,13 +42,51 @@ def perform_inference(comments: list[dict]) -> list[dict]:
     return labeled_comments
 
 
-def main() -> None:
-    comments = load_previously_classified_comments()
-    labeled_comments = perform_inference(comments)
-    # export comments
-    df = pd.DataFrame(labeled_comments)
-    df.to_csv(export_filename, index=False)
-    print(f"Exported {len(labeled_comments)} labeled comments.")
+def main(event: dict, context: dict) -> None:
+    if event.get("classify_comments", False):
+        comments = load_previously_classified_comments()
+        labeled_comments = perform_inference(comments)
+        # export comments
+        df = pd.DataFrame(labeled_comments)
+        df.to_csv(export_filename, index=False)
+        print(f"Exported {len(labeled_comments)} labeled comments.")
+    if event.get("qa_comments", False):
+        print("QA-ing comments...")
+        df = pd.read_csv("reddit_comments_labeled_with_perspective_classifiers_2024-02-03_12-10-26.csv") # noqa
+        print('\n')
+        # count of comments with label = 1
+        print(f'Count of comments that our moral outrage classifier labeled = 1: {len(df[df["label"] == 1])}') # noqa
+        # count of comments that the Google Perspective API labeled = 1
+        print(f"Count of comments that Google labeled = 1: {len(df[df['label_moral_outrage'] == 1])}") # noqa
+        # get count of comments with label = 0 but label_moral_outrage = 1
+        print(f'Count of comments that our moral outrage classifier labeled = 0 but Google labeled = 1: {len(df[(df["label"] == 0) & (df["label_moral_outrage"] == 1)])}') # noqa
+        # print examples of comments with label = 0 but label_moral_outrage = 1
+        print("Examples of comments that our moral outrage classifier labeled = 0 but Google labeled = 1:") # noqa
+        print(df[(df["label"] == 0) & (df["label_moral_outrage"] == 1)]["body"].head()) # noqa
+        print('\n')
+        # get count of comments with label = 1 but label_moral_outrage = 0
+        print(f'Count of comments that our moral outrage classifier labeled = 1 but Google labeled = 0: {len(df[(df["label"] == 1) & (df["label_moral_outrage"] == 0)])}') # noqa
+        # print examples of comments with label = 1 but label_moral_outrage = 0
+        print("Examples of comments that our moral outrage classifier labeled = 1 but Google labeled = 0:") # noqa
+        print(df[(df["label"] == 1) & (df["label_moral_outrage"] == 0)]["body"].head()) # noqa
+        print('\n')
+        # get count of comments with label = 1 and label_moral_outrage = 1
+        print(f'Count of comments that our moral outrage classifier labeled = 1 and Google labeled = 1: {len(df[(df["label"] == 1) & (df["label_moral_outrage"] == 1)])}') # noqa
+        # print examples of comments with label = 1 and label_moral_outrage = 1
+        print("Examples of comments that our moral outrage classifier labeled = 1 and Google labeled = 1:") # noqa
+        print(df[(df["label"] == 1) & (df["label_moral_outrage"] == 1)]["body"].head()) # noqa
+        print('\n')
+        # get count of comments with label = 0 and label_moral_outrage = 0
+        print(f'Count of comments that our moral outrage classifier labeled = 0 and Google labeled = 0: {len(df[(df["label"] == 0) & (df["label_moral_outrage"] == 0)])}')
+        # print examples of comments with label = 0 and label_moral_outrage = 0
+        print("Examples of comments that our moral outrage classifier labeled = 0 and Google labeled = 0:") # noqa
+        print(df[(df["label"] == 0) & (df["label_moral_outrage"] == 0)]["body"].head()) # noqa
+
 
 if __name__ == "__main__":
-    main()
+    event = {
+        "classify_comments": False,
+        "qa_comments": True
+    }
+    context = {}
+    main(event=event, context=context)
