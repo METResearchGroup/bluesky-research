@@ -175,10 +175,9 @@ def perform_classification(text: str) -> dict:
 def perform_inference(flattened_posts: list[FlattenedFeedViewPost]) -> list[dict]:
     print(f"Performing inference on {len(flattened_posts)} posts...")
     processed_posts = []
-    max_num = 30
     for idx, post in enumerate(flattened_posts):
-        if idx > max_num:
-            break
+        if idx % 30 == 0:
+            print(f"Processed {idx} posts...")
         processed_post = {**post, **perform_classification(post["text"])}
         processed_posts.append(processed_post)
         # Wait for 1.1 seconds before making the next request, due to rate
