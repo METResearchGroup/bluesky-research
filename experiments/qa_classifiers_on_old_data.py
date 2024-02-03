@@ -4,6 +4,8 @@ data that we previously classified with an in-house moral outrage classifier.
 We previously classified comments on Reddit with the in-house classifier. Let's
 run the Google Perspective API classifiers on the same data and compare the
 results.
+
+We will classify ~1,000 posts that we've previously classified.
 """
 from datetime import datetime
 import time
@@ -27,8 +29,6 @@ def perform_inference(comments: list[dict]) -> list[dict]:
     for idx, comment in enumerate(comments):
         if idx % 30 == 0:
             print(f"Processed {idx} posts...")
-        if idx >= 30:
-            break
         processed_comment = {**perform_classification(comment["body"])}
         comment_plus_labels = {**comment, **processed_comment}
         labeled_comments.append(comment_plus_labels)
