@@ -5,6 +5,7 @@ found at https://developers.perspectiveapi.com/s/about-the-api-attributes-and-la
 (the default is TOXICITY).
 """ # noqa
 import json
+import time
 
 from googleapiclient import discovery
 
@@ -20,7 +21,76 @@ google_client = discovery.build(
 )
 
 default_requested_attributes = {
-    "TOXICITY": {}
+    "TOXICITY": {},
+    # constructive attributes, from Perspective API
+    "AFFINITY_EXPERIMENTAL": {},
+    "COMPASSION_EXPERIMENTAL": {},
+    "CONSTRUCTIVE_EXPERIMENTAL": {},
+    "CURIOSITY_EXPERIMENTAL": {},
+    "NUANCE_EXPERIMENTAL": {},
+    "PERSONAL_STORY_EXPERIMENTAL": {},
+    # persuasion attributes, from Perspective API
+    "ALIENATION_EXPERIMENTAL": {},
+    "FEARMONGERING_EXPERIMENTAL": {},
+    "GENERALIZATION_EXPERIMENTAL": {},
+    "MORAL_OUTRAGE_EXPERIMENTAL": {},
+    "POWER_APPEAL_EXPERIMENTAL": {},
+    "SCAPEGOATING_EXPERIMENTAL": {}
+}
+
+attribute_to_labels_map = {
+    "TOXICITY": {
+        "prob": "prob_toxic",
+        "label": "label_toxic"
+    },
+    "AFFINITY_EXPERIMENTAL": {
+        "prob": "prob_affinity",
+        "label": "label_affinity"
+    },
+    "COMPASSION_EXPERIMENTAL": {
+        "prob": "prob_compassion",
+        "label": "label_compassion"
+    },
+    "CONSTRUCTIVE_EXPERIMENTAL": {
+        "prob": "prob_constructive",
+        "label": "label_constructive"
+    },
+    "CURIOSITY_EXPERIMENTAL": {
+        "prob": "prob_curiosity",
+        "label": "label_curiosity"
+    },
+    "NUANCE_EXPERIMENTAL": {
+        "prob": "prob_nuance",
+        "label": "label_nuance"
+    },
+    "PERSONAL_STORY_EXPERIMENTAL": {
+        "prob": "prob_personal_story",
+        "label": "label_personal_story"
+    },
+    "ALIENATION_EXPERIMENTAL": {
+        "prob": "prob_alienation",
+        "label": "label_alienation"
+    },
+    "FEARMONGERING_EXPERIMENTAL": {
+        "prob": "prob_fearmongering",
+        "label": "label_fearmongering"
+    },
+    "GENERALIZATION_EXPERIMENTAL": {
+        "prob": "prob_generalization",
+        "label": "label_generalization"
+    },
+    "MORAL_OUTRAGE_EXPERIMENTAL": {
+        "prob": "prob_moral_outrage",
+        "label": "label_moral_outrage"
+    },
+    "POWER_APPEAL_EXPERIMENTAL": {
+        "prob": "prob_power_appeal",
+        "label": "label_power_appeal"
+    },
+    "SCAPEGOATING_EXPERIMENTAL": {
+        "prob": "prob_scapegoating",
+        "label": "label_scapegoating"
+    }
 }
 
 
@@ -72,12 +142,28 @@ def classify_text_toxicity(text: str) -> dict:
     }
 
 
+def classify_text(text: str) -> dict:
+    """Classify text using all the attributes from the Google Perspectives API.""" # noqa
+    response = request_comment_analyzer(
+        text=text, requested_attributes=default_requested_attributes
+    )
+    response_obj = json.loads(response)
+    classification_probs_and_labels = {}
+    for attribute, labels in attribute_to_labels_map.items():
+        prob_score = (
+            response_obj["attributeScores"][attribute]["summaryScore"]["value"]
+        )
+        classification_probs_and_labels[labels["prob"]] = prob_score
+        classification_probs_and_labels[labels["label"]] = 0 if prob_score < 0.5 else 1
+    return classification_probs_and_labels
+
+
 def perform_classification(text: str) -> dict:
     """Perform classifications on text.
     
     Able to eventually support different inference functions.
     """
-    classification_functions = [classify_text_toxicity]
+    classification_functions = [classify_text]
     classification_probs_and_labels = {}
     for inference_func in classification_functions:
         res = inference_func(text)
@@ -88,7 +174,14 @@ def perform_classification(text: str) -> dict:
 
 def perform_inference(flattened_posts: list[FlattenedFeedViewPost]) -> list[dict]:
     print(f"Performing inference on {len(flattened_posts)} posts...")
-    return [
-        {**post, **perform_classification(post["text"])}
-        for post in flattened_posts
-    ]
+    processed_posts = []
+    max_num = 30
+    for idx, post in enumerate(flattened_posts):
+        if idx > max_num:
+            break
+        processed_post = {**post, **perform_classification(post["text"])}
+        processed_posts.append(processed_post)
+        # Wait for 1.1 seconds before making the next request, due to rate
+        # limit of 60 queries per minute for Perspective API
+        time.sleep(1.2)
+    return processed_posts

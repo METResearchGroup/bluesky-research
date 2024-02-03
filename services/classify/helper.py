@@ -10,10 +10,22 @@ def preprocess_post_for_inference(post: FeedViewPost) -> FlattenedFeedViewPost:
     well as doing any processing.
     """
     flattened_post = flatten_feed_view_post(post)
-    if "langs" in flattened_post and flattened_post["langs"] is not None:
-        lang = flattened_post["langs"][0]
-        if lang == "en": # return only English-language posts
-            return flattened_post
+    # return only English-language posts
+    if "langs" not in flattened_post or flattened_post["langs"] is None:
+        return
+    lang = flattened_post["langs"][0]
+    if lang != "en":
+        return
+    # return only posts with content
+    if (
+        "text" not in flattened_post
+        or flattened_post["text"] is None
+        or flattened_post["text"] == ""
+        or len(flattened_post["text"]) == 0
+    ):
+        return
+    return flattened_post
+    
 
 
 def preprocess_posts_for_inference(
@@ -24,3 +36,4 @@ def preprocess_posts_for_inference(
         preprocessed_post = preprocess_post_for_inference(post)
         if preprocessed_post:
             preprocessed_posts.append(preprocessed_post)
+    return preprocessed_posts
