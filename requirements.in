@@ -1,5 +1,7 @@
 atproto==0.0.38
+Flask==3.0.2
 google-api-python-client==2.116.0
 pandas==2.2.0
+peewee==3.17.1
 python-dotenv==0.21.0 
 requests==2.31.0
