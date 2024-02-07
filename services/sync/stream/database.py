@@ -2,7 +2,7 @@
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/database.py
 
-# NOTE: we can convert this to a different DB eventually. This is OK for now.
+# TODO: we can convert this to a different DB eventually. This is OK for now.
 """ # noqa
 from datetime import datetime
 
@@ -20,10 +20,10 @@ class BaseModel(peewee.Model):
 class Post(BaseModel):
     uri = peewee.CharField(unique=True)
     created_at = peewee.TextField()
-    text = peewee.TextField() # for long text
-    langs = peewee.CharField(null=True) # sometimes the langs aren't provided
+    text = peewee.TextField()  # for long text
+    langs = peewee.CharField(null=True)  # sometimes the langs aren't provided
     entities = peewee.CharField(null=True)
-    facets = peewee.CharField(null=True) # https://www.pfrazee.com/blog/why-facets
+    facets = peewee.CharField(null=True)  # https://www.pfrazee.com/blog/why-facets # noqa
     labels = peewee.CharField(null=True)
     reply = peewee.CharField(null=True)
     reply_parent = peewee.CharField(null=True)

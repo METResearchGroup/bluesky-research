@@ -99,7 +99,7 @@ def request_comment_analyzer(
     text: str, requested_attributes: dict = None
 ) -> dict:
     """Sends request to commentanalyzer endpoint.
-    
+
     Docs at https://developers.perspectiveapi.com/s/docs-sample-requests?language=en_US
 
     Example request:
@@ -160,7 +160,7 @@ def classify_text(text: str) -> dict:
 
 def perform_classification(text: str) -> dict:
     """Perform classifications on text.
-    
+
     Able to eventually support different inference functions.
     """
     classification_functions = [classify_text]

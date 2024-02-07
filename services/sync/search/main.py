@@ -31,6 +31,7 @@ def main(event: dict, context: dict) -> int:
         # load author feed from file
         print("Loading author feeds from file...")
         author_feeds: list[dict] = load_author_feeds_from_file()
+        print(f"Loaded {len(author_feeds)} author feeds.")
 
     return 0
 

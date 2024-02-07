@@ -4,11 +4,23 @@
 #
 #    pip-compile dev_requirements.in
 #
+exceptiongroup==1.2.0
+    # via pytest
+iniconfig==2.0.0
+    # via pytest
 joblib==1.3.2
     # via -r dev_requirements.in
 keras-preprocessing==1.1.2
     # via -r dev_requirements.in
 numpy==1.26.3
     # via keras-preprocessing
+packaging==23.2
+    # via pytest
+pluggy==1.4.0
+    # via pytest
+pytest==8.0.0
+    # via -r dev_requirements.in
 six==1.16.0
     # via keras-preprocessing
+tomli==2.0.1
+    # via pytest

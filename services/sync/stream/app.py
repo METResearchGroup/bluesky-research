@@ -11,9 +11,10 @@ from services.sync.stream.data_filter import operations_callback
 app = Flask(__name__)
 
 stream_stop_event = threading.Event()
-stream_args=("test", operations_callback, stream_stop_event,)
+stream_args=("test", operations_callback, stream_stop_event)
 stream_thread = threading.Thread(target=firehose.run, args=stream_args)
 stream_thread.start()
+
 
 def sigint_handler(*_):
     print('Stopping data stream...')

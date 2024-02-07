@@ -31,7 +31,7 @@ def get_post_record_info(post_record: Union[DotDict, Record]) -> dict:
     return {
         "created_at": post_record["created_at"],
         "text": post_record["text"],
-        "langs": post_record["langs"], # needs to be ["en"]
+        "langs": post_record["langs"],
     }
 
 
@@ -48,11 +48,7 @@ def flatten_post(post: PostView) -> dict:
         "reply_count": post.reply_count,
         "repost_count": post.repost_count,
     }
-    return {
-        **post_author_info,
-        **post_record_info,
-        **other_info,   
-    }
+    return {**post_author_info, **post_record_info, **other_info}
 
 
 class FlattenedFirehosePost(TypedDict):
@@ -61,7 +57,7 @@ class FlattenedFirehosePost(TypedDict):
     text: str
     langs: str
     entities: str
-    facets: str # https://www.pfrazee.com/blog/why-facets
+    facets: str  # https://www.pfrazee.com/blog/why-facets
     labels: str
     reply: str
     reply_parent: str
@@ -74,7 +70,7 @@ class FlattenedFirehosePost(TypedDict):
 
 def process_facet(facet: Facet) -> str:
     """Processes a facet.
-    
+
     A facet is a richtext element. This is Bluesky's way of not having to
     explicitly support Markdown.
 
@@ -133,8 +129,7 @@ def process_facet(facet: Facet) -> str:
         'cid': 'bafyreid6ef2yjudqlqgrloxyqfduqfqjerfeqr65moj4bvufypodpjsgee',
         'author': 'did:plc:joynts37i4ez3qpavk3p3gzj'
     }
-    
-    """
+    """ # noqa
     # tags
     if facet.py_type == "app.bsky.richtext.facet":
         features = facet["features"]
@@ -176,7 +171,7 @@ def process_replies(reply: Optional[ReplyRef]) -> dict:
 
 def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
     """Flattens a post from the firehose.
-    
+
     For some reason, the post format from the firehose is different from the
     post format when the post is part of a feed?
 

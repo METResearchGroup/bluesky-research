@@ -1,5 +1,5 @@
 """Filters used during streaming."""
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
 
 from atproto_client.models.app.bsky.feed.post import Main as Record
@@ -15,7 +15,7 @@ from services.transform.transform_raw_data import flatten_firehose_post
 
 def has_inappropriate_content(record: Record) -> bool:
     """Determines if a post has inappropriate content.
-    
+
     Example post that should be filtered out:
     {
         'record': Main(
@@ -57,7 +57,7 @@ def has_inappropriate_content(record: Record) -> bool:
         'cid': 'bafyreihs3gw5cldg6p77vq3sauzl65nmbrqyai6et4dmwxry4wh66235ci',
         'author': 'did:plc:yrslt6ypx6pa2sw5dddi2uum'
     }
-    """
+    """ # noqa
     if hasattr(record, "labels") and record.labels is not None:
         labels: SelfLabels = record.labels
         for label in labels:
@@ -101,7 +101,7 @@ def filter_created_post(post: dict) -> Optional[dict]:
 def filter_incoming_posts(operations_by_type: dict) -> list[dict]:
     """Performs filtering on incoming posts and determines which posts have
     to be created or deleted.
-    
+
     Returns a dictionary of the format:
     {
         "posts_to_create": list[dict],

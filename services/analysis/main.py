@@ -36,7 +36,7 @@ def load_posts_from_author_feeds(limit: int = None) -> list[FeedViewPost]:
 
 def export_classified_posts(
     classified_posts: list[dict],
-    export_format: Literal["json", "csv"]="json"
+    export_format: Literal["json", "csv"] = "json"
 ) -> None:
     if export_format == "json":
         with open(classifications_fp, "w", encoding="utf-8") as f:

@@ -29,7 +29,6 @@ def preprocess_post_for_inference(
     ):
         return None
     return flattened_post
-    
 
 
 def preprocess_posts_for_inference(
