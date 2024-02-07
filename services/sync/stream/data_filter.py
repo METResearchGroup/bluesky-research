@@ -3,7 +3,10 @@
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_filter.py
 """  # noqa
 from datetime import datetime, timedelta, timezone
+from dateutil import parser
 from typing import Optional
+
+import peewee
 
 from atproto_client.models.app.bsky.feed.post import Main as Record
 from atproto_client.models.com.atproto.label.defs import SelfLabels
@@ -22,17 +25,19 @@ def manage_post_creation(posts_to_create: list[dict]) -> None:
     """Manage post insertion into DB."""
     with db.atomic():
         for post_dict in posts_to_create:
-            Post.create(**post_dict)
-    print(f'Added to feed: {len(posts_to_create)}')
+            try:
+                Post.create(**post_dict)
+            except peewee.IntegrityError:
+                print(f"Post with URI {post_dict['uri']} already exists in DB.")
+                continue
 
 
 def manage_post_deletes(posts_to_delete: list[str]) -> None:
     """Manage post deletion from DB."""
     Post.delete().where(Post.uri.in_(posts_to_delete))
-    print(f'Deleted from feed: {len(posts_to_delete)}')
 
 
-def has_inappropriate_content(post: dict) -> bool:
+def has_inappropriate_content(record: Record) -> bool:
     """Determines if a post has inappropriate content.
     
     Example post that should be filtered out:
@@ -77,16 +82,22 @@ def has_inappropriate_content(post: dict) -> bool:
         'author': 'did:plc:yrslt6ypx6pa2sw5dddi2uum'
     }
     """
-    if "labels" in post["record"] and post["record"]["labels"] is not None:
-        labels: SelfLabels = post["record"]["labels"]
+    if hasattr(record, "labels") and record.labels is not None:
+        labels: SelfLabels = record.labels
         for label in labels:
             if label.val in INAPPROPRIATE_TERMS:
                 return True
-    text = post["record"]["text"].lower()
+    text = record.text.lower()
     for term in INAPPROPRIATE_TERMS:
         if term in text:
             return True
     return False
+
+
+def parse_datetime_string(datetime_str: str) -> datetime:
+    """Parses the different types of datetime strings in Bluesky (for some 
+    reason, there are different datetime string formats used)."""
+    return parser.parse(datetime_str).replace(tzinfo=timezone.utc)
 
 
 def filter_created_post(post: dict) -> Optional[dict]:
@@ -97,25 +108,22 @@ def filter_created_post(post: dict) -> Optional[dict]:
     if record.langs is not None:
         langs: list[str] = record.langs
         if "en" not in langs:
-            return
+            return None
 
     # filter out posts from blocked authors
     if post["author"] in BLOCKED_AUTHORS:
-        return
+        return None
 
     # do basic content moderation
-    if has_inappropriate_content(post):
-        return
+    if has_inappropriate_content(record):
+        return None
 
     # filter out posts that don't pass our recency filter:
-    date_object = datetime.strptime(
-        record["created_at"],
-        "%Y-%m-%dT%H:%M:%S.%fZ"
-    ).replace(tzinfo=timezone.utc)
+    date_object = parse_datetime_string(record.created_at)
     time_difference = current_datetime - date_object
     time_threshold = timedelta(days=NUM_DAYS_POST_RECENCY)
     if time_difference > time_threshold:
-        return
+        return None
 
     return post
 
@@ -142,7 +150,7 @@ def filter_incoming_posts(operations_by_type: dict) -> list[dict]:
 
     for created_post in operations_by_type['posts']['created']:
         filtered_post = filter_created_post(created_post)
-        if filtered_post:
+        if filtered_post is not None:
             flattened_post = flatten_firehose_post(filtered_post)
             enriched_post = enrich_post(flattened_post)
             post_text = enriched_post["text"]

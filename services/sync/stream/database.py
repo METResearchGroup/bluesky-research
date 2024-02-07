@@ -21,7 +21,7 @@ class Post(BaseModel):
     uri = peewee.CharField(unique=True)
     created_at = peewee.TextField()
     text = peewee.TextField() # for long text
-    langs = peewee.CharField()
+    langs = peewee.CharField(null=True) # sometimes the langs aren't provided
     entities = peewee.CharField(null=True)
     facets = peewee.CharField(null=True) # https://www.pfrazee.com/blog/why-facets
     labels = peewee.CharField(null=True)

@@ -2,10 +2,10 @@
 
 Based on https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.defs.json
 """
-from typing import TypedDict, Union
+from typing import Optional, TypedDict, Union
 
 from atproto_client.models.app.bsky.actor.defs import ProfileViewBasic
-from atproto_client.models.app.bsky.feed.post import Main
+from atproto_client.models.app.bsky.feed.post import Main as Record, ReplyRef
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, PostView
 from atproto_client.models.app.bsky.richtext.facet import Main as Facet
 from atproto_client.models.dot_dict import DotDict
@@ -26,8 +26,8 @@ def get_post_author_info(post_author: ProfileViewBasic) -> dict:
     }
 
 
-def get_post_record_info(post_record: Union[DotDict, Main]) -> dict:
-    assert isinstance(post_record, DotDict) or isinstance(post_record, Main)
+def get_post_record_info(post_record: Union[DotDict, Record]) -> dict:
+    assert isinstance(post_record, DotDict) or isinstance(post_record, Record)
     return {
         "created_at": post_record["created_at"],
         "text": post_record["text"],
@@ -156,6 +156,24 @@ def process_facets(facets: list[Facet]) -> str:
     return ','.join([process_facet(facet) for facet in facets])
 
 
+def process_replies(reply: Optional[ReplyRef]) -> dict:
+    """Manages any replies if the post is part of a larger thread."""
+    reply_parent = None
+    reply_root = None
+    
+    if reply is not None:
+        if hasattr(reply, "parent"):
+            reply_parent: str = reply["parent"]["uri"]
+    if reply is not None:
+        if hasattr(reply, "root"):
+            reply_root: str = reply["root"]["uri"]
+
+    return {
+        "reply_parent": reply_parent,
+        "reply_root": reply_root,
+    }
+
+
 def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
     """Flattens a post from the firehose.
     
@@ -188,15 +206,10 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
         'cid': 'bafyreidmb5wsupl6iz5wo2xjgusjpsrduug6qkpytjjckupdttot6jrbna',
         'author': 'did:plc:sjeosezgc7mpqn6sfc7neabg'
     }
-    """
-    # manage if post is part of a thread
-    reply_parent = None
-    reply_root = None
-    if "reply" in post["record"] and "parent" in post["record"]["reply"]:
-        reply_parent = post["record"]["reply"]["parent"]["uri"]
-    if "reply" in post["record"] and "root" in post["record"]["reply"]:
-        reply_root = post["record"]["reply"]["root"]["uri"]
+    """ # noqa
+    processed_replies: dict = process_replies(post["record"].reply)
 
+    # flatten the post
     try:
         flattened_firehose_dict = {
             "uri": post["uri"],
@@ -219,8 +232,8 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
                 if post["record"]["labels"] else None
             ),
             "reply": post["record"]["reply"],
-            "reply_parent": reply_parent,
-            "reply_root": reply_root,
+            "reply_parent": processed_replies["reply_parent"],
+            "reply_root": processed_replies["reply_root"],
             "tags": (
                 ','.join(post["record"]["tags"])
                 if post["record"]["tags"] else None
