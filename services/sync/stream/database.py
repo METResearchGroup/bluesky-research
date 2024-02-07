@@ -2,7 +2,7 @@
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/database.py
 
-# TODO: we can convert this to a different DB eventually. This is OK for now.
+# NOTE: we can convert this to a different DB eventually. This is OK for now.
 """ # noqa
 from datetime import datetime
 

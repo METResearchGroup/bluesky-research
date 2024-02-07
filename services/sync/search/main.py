@@ -35,7 +35,7 @@ def main(event: dict, context: dict) -> int:
     return 0
 
 
-# TODO: implement deduplication of feeds? Should include a functionality for
+# NOTE: implement deduplication of feeds? Should include a functionality for
 # if we want to sync new feeds or if we want to resync old ones (or both).
 if __name__ == "__main__":
     event = {

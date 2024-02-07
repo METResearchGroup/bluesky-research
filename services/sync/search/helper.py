@@ -13,7 +13,7 @@ user_profiles_fp = os.path.join(search_file_directory, user_profiles_filename)
 def write_user_profiles_to_file(user_profiles: list[dict]) -> None:
     """Write user profiles to a file.
     
-    TODO: if we want more users, we can add pagination.
+    NOTE: f we want more users, we can add pagination.
     Example: https://github.com/kojira/bluesky-chan/blob/main/util.py#L244
     """
     with open(user_profiles_fp, "w") as f:

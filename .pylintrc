@@ -1,2 +1,3 @@
 [MASTER]
 ignore=experiments
+disable=import-error,fixme,missing-docstring
