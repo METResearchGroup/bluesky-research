@@ -55,18 +55,18 @@ def flatten_post(post: PostView) -> dict:
 
 
 class FlattenedFirehosePost(TypedDict):
+    uri: str
     created_at: str
     text: str
-    langs: list[str]
-    entities: list[str]
-    facets: list[str]
-    labels: list[str]
+    langs: str
+    entities: str
+    facets: str
+    labels: str
     reply: str
     reply_parent: str
     reply_root: str
-    tags: list[str]
+    tags: str
     py_type: str
-    uri: str
     cid: str
     author: str
 
@@ -113,18 +113,33 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
         reply_root = post["record"]["reply"]["root"]["uri"]
 
     flattened_firehose_dict = {
+        "uri": post["uri"],
         "created_at": post["record"]["created_at"],
         "text": post["record"]["text"],
-        "langs": post["record"]["langs"],
-        "entities": post["record"]["entities"],
-        "facets": post["record"]["facets"],
-        "labels": post["record"]["labels"],
+        "langs": (
+            ','.join(post["record"]["langs"])
+            if post["record"]["langs"] is not None else None
+        ),
+        "entities": (
+            ','.join(post["record"]["entities"])
+            if post["record"]["entities"] is not None else None
+        ),
+        "facets": (
+            ','.join(post["record"]["facets"])
+            if post["record"]["facets"] is not None else None
+        ),
+        "labels": (
+            ','.join(post["record"]["labels"])
+            if post["record"]["labels"] is not None else None
+        ),
         "reply": post["record"]["reply"],
         "reply_parent": reply_parent,
         "reply_root": reply_root,
-        "tags": post["record"]["tags"],
+        "tags": (
+            ','.join(post["record"]["tags"])
+            if post["record"]["tags"] is not None else None
+        ),
         "py_type": post["record"]["py_type"],
-        "uri": post["uri"],
         "cid": post["cid"],
         "author": post["author"],
     }
@@ -137,7 +152,7 @@ class FlattenedFeedViewPost(TypedDict):
     author_display_name: str
     created_at: str
     text: str
-    langs: list[str]
+    langs: str
     cid: str
     indexed_at: str
     like_count: int

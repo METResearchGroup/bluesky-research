@@ -1,6 +1,8 @@
 """Database logic for storing streamed feeds
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/database.py
+
+# TODO: we can convert this to a different DB eventually. This is OK for now.
 """ # noqa
 from datetime import datetime
 
@@ -16,10 +18,20 @@ class BaseModel(peewee.Model):
 
 
 class Post(BaseModel):
-    uri = peewee.CharField(index=True)
-    cid = peewee.CharField()
-    reply_parent = peewee.CharField(null=True, default=None)
-    reply_root = peewee.CharField(null=True, default=None)
+    uri = peewee.CharField(unique=True)
+    created_at = peewee.TextField()
+    text = peewee.TextField() # for long text
+    langs = peewee.CharField()
+    entities = peewee.CharField(null=True)
+    facets = peewee.CharField(null=True)
+    labels = peewee.CharField(null=True)
+    reply = peewee.CharField(null=True)
+    reply_parent = peewee.CharField(null=True)
+    reply_root = peewee.CharField(null=True)
+    tags = peewee.CharField(null=True)
+    py_type = peewee.CharField()
+    cid = peewee.CharField(index=True)
+    author = peewee.CharField()
     indexed_at = peewee.DateTimeField(default=datetime.utcnow)
 
 
