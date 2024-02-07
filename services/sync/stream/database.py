@@ -23,7 +23,7 @@ class Post(BaseModel):
     text = peewee.TextField() # for long text
     langs = peewee.CharField()
     entities = peewee.CharField(null=True)
-    facets = peewee.CharField(null=True)
+    facets = peewee.CharField(null=True) # https://www.pfrazee.com/blog/why-facets
     labels = peewee.CharField(null=True)
     reply = peewee.CharField(null=True)
     reply_parent = peewee.CharField(null=True)

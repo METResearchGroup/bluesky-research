@@ -11,7 +11,7 @@ from services.transform.transform_raw_data import flatten_firehose_post
 BLOCKED_AUTHORS = [] # likely that we will want to filter out some authors (e.g., spam accounts)
 NUM_DAYS_POST_RECENCY = 3 # we only want recent posts (Bluesky docs recommend 3 days, see )
 current_datetime = current_datetime = datetime.now(timezone.utc)
-
+INAPPROPRIATE_LABELS = ["porn"]
 
 def manage_post_creation(posts_to_create: list[dict]) -> None:
     """Manage post insertion into DB."""
@@ -21,23 +21,80 @@ def manage_post_creation(posts_to_create: list[dict]) -> None:
     print(f'Added to feed: {len(posts_to_create)}')
 
 
-def manage_post_deletes(posts: list[dict]) -> None:
+def manage_post_deletes(posts_to_delete: list[str]) -> None:
     """Manage post deletion from DB."""
-    posts_to_delete = [p['uri'] for p in posts['posts']['deleted']]
     Post.delete().where(Post.uri.in_(posts_to_delete))
     print(f'Deleted from feed: {len(posts_to_delete)}')
 
+
+def has_inappropriate_content(post: dict) -> bool:
+    """Determines if a post has inappropriate content.
+    
+    Example post that should be filtered out:
+    {
+        'record': Main(
+            created_at='2024-02-07T10:14:49.074Z',
+            text='Im usually more active on twitter.. so please consider following me there nwn\n\nHere is my bussiness https://varknakfrery.carrd.co/ :3c https://varknakfrery.carrd.co/\n\n #vore #big #bigbutt #bigbelly #thicc',
+            embed=Main(
+                images=[
+                    Image(
+                        alt='Mreow meow Prrr',
+                        image=BlobRef(
+                            mime_type='image/png',
+                            size=583044,
+                            ref='bafkreidp4lzhdbd5o7lwubh3vy33vpb66s6reifca3z3c6feebxjprqnai',
+                            py_type='blob'
+                        ),
+                        aspect_ratio=None,
+                        py_type='app.bsky.embed.images#image'
+                    )
+                ],
+                py_type='app.bsky.embed.images'
+            ),
+            entities=None,
+            facets=None,
+            labels=SelfLabels(
+                values=[
+                    SelfLabel(
+                        val='porn',
+                        py_type='com.atproto.label.defs#selfLabel'
+                    )
+                ],
+                py_type='com.atproto.label.defs#selfLabels'
+            ),
+            langs=None,
+            reply=None,
+            tags=None,
+            py_type='app.bsky.feed.post'
+        ),
+        'uri': 'at://did:plc:yrslt6ypx6pa2sw5dddi2uum/app.bsky.feed.post/3kkszvglywu2c',
+        'cid': 'bafyreihs3gw5cldg6p77vq3sauzl65nmbrqyai6et4dmwxry4wh66235ci',
+        'author': 'did:plc:yrslt6ypx6pa2sw5dddi2uum'
+    }
+    """
+    if "labels" in post["record"] and post["record"]["labels"] is not None:
+        labels = post["record"]["labels"]
+        for label in labels:
+            if label.val in INAPPROPRIATE_LABELS:
+                return True
+    return False
 
 def filter_created_post(post: dict) -> dict:
     """Filters any post that we could write to our DB. Also flattens our
     dictionary."""
     record = post['record']
     # get only posts that are English-language
-    if "en" not in record.langs:
-        return
+    if "langs" in record:
+        lang: list[str] = record["langs"]
+        if "en" not in lang:
+            return
 
     # filter out posts from blocked authors
-    if record.author in BLOCKED_AUTHORS:
+    if post["author"] in BLOCKED_AUTHORS:
+        return
+
+    # do basic content moderation
+    if has_inappropriate_content(post):
         return
 
     # filter out posts that don't pass our recency filter:
@@ -50,10 +107,7 @@ def filter_created_post(post: dict) -> dict:
     if time_difference > time_threshold:
         return
 
-    # flatten post
-    post_dict = flatten_firehose_post(post)
-
-    return post_dict
+    return post
 
 
 def enrich_post(post: dict) -> dict:
@@ -71,14 +125,17 @@ def filter_incoming_posts(operations_by_type: dict) -> list[dict]:
         "posts_to_delete": list[dict]
     }
     """
-    posts_to_create = []
-    posts_to_delete = [p['uri'] for p in operations_by_type['posts']['deleted']] # noqa
+    posts_to_create: list[dict] = []
+    posts_to_delete: list[str] = [
+        p['uri'] for p in operations_by_type['posts']['deleted']
+    ]
 
     for created_post in operations_by_type['posts']['created']:
         filtered_post = filter_created_post(created_post)
         if filtered_post:
-            enriched_post = enrich_post(filtered_post)
-            post_text = enriched_post["record"]["text"]
+            flattened_post = flatten_firehose_post(filtered_post)
+            enriched_post = enrich_post(flattened_post)
+            post_text = enriched_post["text"]
             print(f"Writing post  with text: {post_text}")
             posts_to_create.append(enriched_post)
 
@@ -142,5 +199,12 @@ def operations_callback(operations_by_type: dict) -> None:
     }
     """
     post_updates = filter_incoming_posts(operations_by_type)
-    manage_post_deletes(post_updates["posts_to_delete"])
-    manage_post_creation(post_updates["posts_to_update"])
+    posts_to_create = post_updates["posts_to_create"]
+    posts_to_delete = post_updates["posts_to_delete"]
+
+    if posts_to_create:
+        print(f"Creating {len(posts_to_create)} posts...")
+        manage_post_creation(posts_to_create)
+    if posts_to_delete:
+        print(f"Deleting {len(posts_to_delete)} posts...")
+        manage_post_deletes(posts_to_delete)

@@ -7,6 +7,7 @@ from typing import TypedDict, Union
 from atproto_client.models.app.bsky.actor.defs import ProfileViewBasic
 from atproto_client.models.app.bsky.feed.post import Main
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, PostView
+from atproto_client.models.app.bsky.richtext.facet import Main as Facet
 from atproto_client.models.dot_dict import DotDict
 
 
@@ -60,7 +61,7 @@ class FlattenedFirehosePost(TypedDict):
     text: str
     langs: str
     entities: str
-    facets: str
+    facets: str # https://www.pfrazee.com/blog/why-facets
     labels: str
     reply: str
     reply_parent: str
@@ -69,6 +70,32 @@ class FlattenedFirehosePost(TypedDict):
     py_type: str
     cid: str
     author: str
+
+
+def process_facet(facet: Facet) -> str:
+    """Processes a facet.
+    
+    A facet is a richtext element. This is Bluesky's way of not having to
+    explicitly support Markdown.
+
+    See the following:
+    - https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py#L64
+    - https://www.pfrazee.com/blog/why-facets
+    """
+    # tags
+    if facet.py_type == "app.bsky.richtext.facet#tag":
+        return f"tag:{facet['tag']}"
+    # links
+    if facet.py_type == "app.bsky.richtext.facet#link":
+        return f"link:{facet['uri']}"
+    # mentions
+    if facet.py_type == "app.bsky.richtext.facet#mention":
+        return f"mention:{facet['did']}"
+
+
+def process_facets(facets: list[Facet]) -> str:
+    """Processes a list of facets."""
+    return ','.join([process_facet(facet) for facet in facets])
 
 
 def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
@@ -125,7 +152,7 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
             if post["record"]["entities"] is not None else None
         ),
         "facets": (
-            ','.join(post["record"]["facets"])
+            process_facets(post["record"]["facets"])
             if post["record"]["facets"] is not None else None
         ),
         "labels": (

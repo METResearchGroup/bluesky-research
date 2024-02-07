@@ -8,7 +8,6 @@ from services.sync.stream import firehose
 from services.sync.stream.data_filter import operations_callback
 
 
-
 app = Flask(__name__)
 
 stream_stop_event = threading.Event()
