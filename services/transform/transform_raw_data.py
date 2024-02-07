@@ -54,6 +54,83 @@ def flatten_post(post: PostView) -> dict:
     }
 
 
+class FlattenedFirehosePost(TypedDict):
+    created_at: str
+    text: str
+    langs: list[str]
+    entities: list[str]
+    facets: list[str]
+    labels: list[str]
+    reply: str
+    reply_parent: str
+    reply_root: str
+    tags: list[str]
+    py_type: str
+    uri: str
+    cid: str
+    author: str
+
+
+def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
+    """Flattens a post from the firehose.
+    
+    For some reason, the post format from the firehose is different from the
+    post format when the post is part of a feed?
+
+    Here is an example of this format:
+
+    {
+        'record': Main(
+            created_at='2024-02-07T05:10:02.159Z',
+            text='こんなポストするとBANされそうで怖いです',
+            embed=Main(
+                record=Main(
+                    cid='bafyreidy6bxkwxbjvw6mqfxivp7rjywk3gpnzvbg2vaks2qhljzs6manyq',
+                    uri='at://did:plc:sjeosezgc7mpqn6sfc7neabg/app.bsky.feed.post/3kksirfddwa2z',
+                    py_type='com.atproto.repo.strongRef'
+                ),
+                py_type='app.bsky.embed.record'
+            ),
+            entities=None,
+            facets=None,
+            labels=None,
+            langs=['ja'],
+            reply=None,
+            tags=None,
+            py_type='app.bsky.feed.post'
+        ),
+        'uri': 'at://did:plc:sjeosezgc7mpqn6sfc7neabg/app.bsky.feed.post/3kksiuknorv2u',
+        'cid': 'bafyreidmb5wsupl6iz5wo2xjgusjpsrduug6qkpytjjckupdttot6jrbna',
+        'author': 'did:plc:sjeosezgc7mpqn6sfc7neabg'
+    }
+    """
+    # manage if post is part of a thread
+    reply_parent = None
+    reply_root = None
+    if "reply" in post["record"] and "parent" in post["record"]["reply"]:
+        reply_parent = post["record"]["reply"]["parent"]["uri"]
+    if "reply" in post["record"] and "root" in post["record"]["reply"]:
+        reply_root = post["record"]["reply"]["root"]["uri"]
+
+    flattened_firehose_dict = {
+        "created_at": post["record"]["created_at"],
+        "text": post["record"]["text"],
+        "langs": post["record"]["langs"],
+        "entities": post["record"]["entities"],
+        "facets": post["record"]["facets"],
+        "labels": post["record"]["labels"],
+        "reply": post["record"]["reply"],
+        "reply_parent": reply_parent,
+        "reply_root": reply_root,
+        "tags": post["record"]["tags"],
+        "py_type": post["record"]["py_type"],
+        "uri": post["uri"],
+        "cid": post["cid"],
+        "author": post["author"],
+    }
+    return flattened_firehose_dict
+
+
 class FlattenedFeedViewPost(TypedDict):
     author_did: str
     author_handle: str
