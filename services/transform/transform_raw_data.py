@@ -81,16 +81,74 @@ def process_facet(facet: Facet) -> str:
     See the following:
     - https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py#L64
     - https://www.pfrazee.com/blog/why-facets
+
+    Examples:
+    {
+        'record': Main(
+            created_at='2024-02-07T12:13:04.826Z',
+            text='@horhaa37m.bsky.social 温泉♨️の後の🥛美味いよ。こちらでもよろしくお願いします。',
+            embed=Main(images=[Image(alt='', image=BlobRef(mime_type='image/jpeg', size=799055, ref='bafkreidtepeeezypyvsk4yi7vmlv3gclpe5aizuerzkj2ok4karm5pgydm', py_type='blob'), aspect_ratio=AspectRatio(height=2000, width=1500, py_type='app.bsky.embed.images#aspectRatio'),py_type='app.bsky.embed.images#image')],py_type='app.bsky.embed.images'),
+            entities=None,
+            facets=[
+                Main(
+                    features=[Mention(did='did:plc:beitbj4for3pe4babgntgfjc', py_type='app.bsky.richtext.facet#mention')],
+                    index=ByteSlice(byte_end=22, byte_start=0, py_type='app.bsky.richtext.facet#byteSlice'),
+                    py_type='app.bsky.richtext.facet'
+                )
+            ],
+            labels=None,
+            langs=['ja'],
+            reply=None,
+            tags=None,
+            py_type='app.bsky.feed.post'
+        ), 
+        'uri': 'at://did:plc:wxx27pahlilipwya5pnfdtvm/app.bsky.feed.post/3kktaiztebx2b',
+        'cid': 'bafyreifralpf5msynbyix2r2beenubmcz5lzktejzvviq4bwx2ehqt6pzi',
+        'author': 'did:plc:wxx27pahlilipwya5pnfdtvm'
+    }
+    {
+        'record': Main(
+            created_at='2024-02-07T12:13:03.916Z',
+            text='soner\n\n#furry #furryart',
+            embed=Main(images=[Image(alt='', image=BlobRef(mime_type='image/jpeg', size=234804, ref='bafkreiaobrt6spib7ijvk3pximy4o7ijvcistrwdyg6canqixo6xxzsv4u', py_type='blob'), aspect_ratio=AspectRatio(height=719, width=1280, py_type='app.bsky.embed.images#aspectRatio'), py_type='app.bsky.embed.images#image')], py_type='app.bsky.embed.images'),
+            entities=None,
+            facets=[
+                Main(
+                    features=[Tag(tag='furry', py_type='app.bsky.richtext.facet#tag')],
+                    index=ByteSlice(byte_end=13, byte_start=7, py_type='app.bsky.richtext.facet#byteSlice'),
+                    py_type='app.bsky.richtext.facet'
+                ), Main(
+                    features=[Tag(tag='furryart', py_type='app.bsky.richtext.facet#tag')],
+                    index=ByteSlice(byte_end=23, byte_start=14, py_type='app.bsky.richtext.facet#byteSlice'),
+                    py_type='app.bsky.richtext.facet'
+                )
+            ],
+            labels=None,
+            langs=['en'],
+            reply=None,
+            tags=None,
+            py_type='app.bsky.feed.post'
+        ),
+        'uri': 'at://did:plc:joynts37i4ez3qpavk3p3gzj/app.bsky.feed.post/3kktaiyxqfv2c',
+        'cid': 'bafyreid6ef2yjudqlqgrloxyqfduqfqjerfeqr65moj4bvufypodpjsgee',
+        'author': 'did:plc:joynts37i4ez3qpavk3p3gzj'
+    }
+    
     """
     # tags
-    if facet.py_type == "app.bsky.richtext.facet#tag":
-        return f"tag:{facet['tag']}"
-    # links
-    if facet.py_type == "app.bsky.richtext.facet#link":
-        return f"link:{facet['uri']}"
-    # mentions
-    if facet.py_type == "app.bsky.richtext.facet#mention":
-        return f"mention:{facet['did']}"
+    if facet.py_type == "app.bsky.richtext.facet":
+        features = facet["features"]
+        features_list = []
+        for feature in features:
+            if feature.py_type == "app.bsky.richtext.facet#tag":
+                features_list.append(f"tag:{feature['tag']}")
+            # links
+            if feature.py_type == "app.bsky.richtext.facet#link":
+                features_list.append(f"link:{feature['uri']}")
+            # mentions
+            if feature.py_type == "app.bsky.richtext.facet#mention":
+                features_list.append(f"mention:{feature['did']}")
+    return ",".join(features_list)
 
 
 def process_facets(facets: list[Facet]) -> str:
@@ -139,37 +197,42 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
     if "reply" in post["record"] and "root" in post["record"]["reply"]:
         reply_root = post["record"]["reply"]["root"]["uri"]
 
-    flattened_firehose_dict = {
-        "uri": post["uri"],
-        "created_at": post["record"]["created_at"],
-        "text": post["record"]["text"],
-        "langs": (
-            ','.join(post["record"]["langs"])
-            if post["record"]["langs"] is not None else None
-        ),
-        "entities": (
-            ','.join(post["record"]["entities"])
-            if post["record"]["entities"] is not None else None
-        ),
-        "facets": (
-            process_facets(post["record"]["facets"])
-            if post["record"]["facets"] is not None else None
-        ),
-        "labels": (
-            ','.join(post["record"]["labels"])
-            if post["record"]["labels"] is not None else None
-        ),
-        "reply": post["record"]["reply"],
-        "reply_parent": reply_parent,
-        "reply_root": reply_root,
-        "tags": (
-            ','.join(post["record"]["tags"])
-            if post["record"]["tags"] is not None else None
-        ),
-        "py_type": post["record"]["py_type"],
-        "cid": post["cid"],
-        "author": post["author"],
-    }
+    try:
+        flattened_firehose_dict = {
+            "uri": post["uri"],
+            "created_at": post["record"]["created_at"],
+            "text": post["record"]["text"],
+            "langs": (
+                ','.join(post["record"]["langs"])
+                if post["record"]["langs"] else None
+            ),
+            "entities": (
+                ','.join(post["record"]["entities"])
+                if post["record"]["entities"] else None
+            ),
+            "facets": (
+                process_facets(post["record"]["facets"])
+                if post["record"]["facets"] else None
+            ),
+            "labels": (
+                ','.join(post["record"]["labels"])
+                if post["record"]["labels"] else None
+            ),
+            "reply": post["record"]["reply"],
+            "reply_parent": reply_parent,
+            "reply_root": reply_root,
+            "tags": (
+                ','.join(post["record"]["tags"])
+                if post["record"]["tags"] else None
+            ),
+            "py_type": post["record"]["py_type"],
+            "cid": post["cid"],
+            "author": post["author"],
+        }
+    except Exception as e:
+        print(f"Exception in flattening firehose post: {e}")
+        print(f"Post: {post}")
+        print('-' * 10)
     return flattened_firehose_dict
 
 

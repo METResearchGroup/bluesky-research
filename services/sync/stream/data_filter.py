@@ -3,6 +3,10 @@
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_filter.py
 """  # noqa
 from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+from atproto_client.models.app.bsky.feed.post import Main as Record
+from atproto_client.models.com.atproto.label.defs import SelfLabels
 
 from services.sync.stream.database import db, Post
 from services.transform.transform_raw_data import flatten_firehose_post
@@ -11,7 +15,8 @@ from services.transform.transform_raw_data import flatten_firehose_post
 BLOCKED_AUTHORS = [] # likely that we will want to filter out some authors (e.g., spam accounts)
 NUM_DAYS_POST_RECENCY = 3 # we only want recent posts (Bluesky docs recommend 3 days, see )
 current_datetime = current_datetime = datetime.now(timezone.utc)
-INAPPROPRIATE_LABELS = ["porn"]
+INAPPROPRIATE_TERMS = ["porn", "furry"]
+
 
 def manage_post_creation(posts_to_create: list[dict]) -> None:
     """Manage post insertion into DB."""
@@ -73,20 +78,25 @@ def has_inappropriate_content(post: dict) -> bool:
     }
     """
     if "labels" in post["record"] and post["record"]["labels"] is not None:
-        labels = post["record"]["labels"]
+        labels: SelfLabels = post["record"]["labels"]
         for label in labels:
-            if label.val in INAPPROPRIATE_LABELS:
+            if label.val in INAPPROPRIATE_TERMS:
                 return True
+    text = post["record"]["text"].lower()
+    for term in INAPPROPRIATE_TERMS:
+        if term in text:
+            return True
     return False
 
-def filter_created_post(post: dict) -> dict:
+
+def filter_created_post(post: dict) -> Optional[dict]:
     """Filters any post that we could write to our DB. Also flattens our
     dictionary."""
-    record = post['record']
+    record: Record = post['record']
     # get only posts that are English-language
-    if "langs" in record:
-        lang: list[str] = record["langs"]
-        if "en" not in lang:
+    if record.langs is not None:
+        langs: list[str] = record.langs
+        if "en" not in langs:
             return
 
     # filter out posts from blocked authors
