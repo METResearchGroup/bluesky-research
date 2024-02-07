@@ -1,0 +1,4 @@
+[tool.flake8]
+exclude = [
+  "experiments/",
+]
