@@ -210,42 +210,37 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
     processed_replies: dict = process_replies(post["record"].reply)
 
     # flatten the post
-    try:
-        flattened_firehose_dict = {
-            "uri": post["uri"],
-            "created_at": post["record"]["created_at"],
-            "text": post["record"]["text"],
-            "langs": (
-                ','.join(post["record"]["langs"])
-                if post["record"]["langs"] else None
-            ),
-            "entities": (
-                ','.join(post["record"]["entities"])
-                if post["record"]["entities"] else None
-            ),
-            "facets": (
-                process_facets(post["record"]["facets"])
-                if post["record"]["facets"] else None
-            ),
-            "labels": (
-                ','.join(post["record"]["labels"])
-                if post["record"]["labels"] else None
-            ),
-            "reply": post["record"]["reply"],
-            "reply_parent": processed_replies["reply_parent"],
-            "reply_root": processed_replies["reply_root"],
-            "tags": (
-                ','.join(post["record"]["tags"])
-                if post["record"]["tags"] else None
-            ),
-            "py_type": post["record"]["py_type"],
-            "cid": post["cid"],
-            "author": post["author"],
-        }
-    except Exception as e:
-        print(f"Exception in flattening firehose post: {e}")
-        print(f"Post: {post}")
-        print('-' * 10)
+    flattened_firehose_dict = {
+        "uri": post["uri"],
+        "created_at": post["record"]["created_at"],
+        "text": post["record"]["text"],
+        "langs": (
+            ','.join(post["record"]["langs"])
+            if post["record"]["langs"] else None
+        ),
+        "entities": (
+            ','.join(post["record"]["entities"])
+            if post["record"]["entities"] else None
+        ),
+        "facets": (
+            process_facets(post["record"]["facets"])
+            if post["record"]["facets"] else None
+        ),
+        "labels": (
+            ','.join(post["record"]["labels"])
+            if post["record"]["labels"] else None
+        ),
+        "reply": post["record"]["reply"],
+        "reply_parent": processed_replies["reply_parent"],
+        "reply_root": processed_replies["reply_root"],
+        "tags": (
+            ','.join(post["record"]["tags"])
+            if post["record"]["tags"] else None
+        ),
+        "py_type": post["record"]["py_type"],
+        "cid": post["cid"],
+        "author": post["author"],
+    }
     return flattened_firehose_dict
 
 

@@ -1,3 +1,4 @@
+"""Main file for managing analyses."""
 from datetime import datetime
 import os
 from typing import Literal
@@ -38,7 +39,7 @@ def export_classified_posts(
     export_format: Literal["json", "csv"]="json"
 ) -> None:
     if export_format == "json":
-        with open(classifications_fp, "w") as f:
+        with open(classifications_fp, "w", encoding="utf-8") as f:
             for post in classified_posts:
                 f.write(post + "\n")
         print(f"Wrote {len(classified_posts)} classified posts to {classifications_filename}") # noqa
@@ -65,7 +66,6 @@ def main(event: dict, context: dict) -> int:
     return 0
 
 
-# TODO: do I need to include rate-limiting for the Google API inference?
 if __name__ == "__main__":
     event = {"limit": 250, "export_format": "csv"}
     context = {}

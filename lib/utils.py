@@ -1,3 +1,4 @@
+"""Generic utilities."""
 from datetime import datetime, timezone
 from dateutil import parser
 

@@ -1,3 +1,4 @@
+"""Helper functions."""
 from dotenv import load_dotenv
 import logging
 import os
@@ -29,9 +30,11 @@ def track_function_runtime(func):
 
         execution_time_seconds = round(end_time - start_time)
         execution_time_minutes = execution_time_seconds // 60
-        execution_time_leftover_seconds = execution_time_seconds - (60 * execution_time_minutes)
+        execution_time_leftover_seconds = (
+            execution_time_seconds - (60 * execution_time_minutes)
+        )
 
-        print(f"Execution time: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds")
+        print(f"Execution time: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds") # noqa
 
         return result
 

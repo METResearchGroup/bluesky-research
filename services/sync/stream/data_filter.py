@@ -2,12 +2,10 @@
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_filter.py
 """  # noqa
-from datetime import datetime, timedelta, timezone
-from dateutil import parser
-
 import peewee
 
 from services.sync.stream.database import db, Post
+from services.sync.stream.filters import filter_incoming_posts
 
 
 def manage_post_creation(posts_to_create: list[dict]) -> None:
@@ -84,8 +82,6 @@ def operations_callback(operations_by_type: dict) -> None:
     posts_to_delete = post_updates["posts_to_delete"]
 
     if posts_to_create:
-        print(f"Creating {len(posts_to_create)} posts...")
         manage_post_creation(posts_to_create)
     if posts_to_delete:
-        print(f"Deleting {len(posts_to_delete)} posts...")
         manage_post_deletes(posts_to_delete)

@@ -1,5 +1,5 @@
 """Filters used during streaming."""
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional
 
 from atproto_client.models.app.bsky.feed.post import Main as Record
@@ -9,7 +9,7 @@ from lib.constants import (
     BLOCKED_AUTHORS, NUM_DAYS_POST_RECENCY, INAPPROPRIATE_TERMS,
     current_datetime
 )
-from lib.helper import parse_datetime_string
+from lib.utils import parse_datetime_string
 from services.transform.transform_raw_data import flatten_firehose_post
 
 

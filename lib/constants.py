@@ -1,3 +1,4 @@
+"""Constants for general use."""
 from datetime import datetime, timezone
 
 BLOCKED_AUTHORS = [] # likely that we will want to filter out some authors (e.g., spam accounts)
