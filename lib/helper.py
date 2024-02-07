@@ -5,8 +5,6 @@ import time
 
 from atproto import Client
 
-from lib.endpoints import ENDPOINTS_MAP
-
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 env_path = os.path.abspath(os.path.join(current_file_directory, "../.env"))
 load_dotenv(env_path)
