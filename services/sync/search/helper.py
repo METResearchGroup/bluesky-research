@@ -12,7 +12,7 @@ user_profiles_fp = os.path.join(search_file_directory, user_profiles_filename)
 
 def write_user_profiles_to_file(user_profiles: list[dict]) -> None:
     """Write user profiles to a file.
-    
+
     NOTE: f we want more users, we can add pagination.
     Example: https://github.com/kojira/bluesky-chan/blob/main/util.py#L244
     """
@@ -92,7 +92,7 @@ def export_author_feeds(user_profiles: list[dict], count=1) -> None:
 
 def load_author_feeds_from_file() -> list[dict]:
     """Load existing author feeds from files.
-    
+
     These will be in the form of "feed_*.json".
     """
     list_filenames = os.listdir(search_file_directory)

@@ -77,7 +77,7 @@ def main(event: dict, context: dict) -> None:
         print(df[(df["label"] == 1) & (df["label_moral_outrage"] == 1)]["body"].head()) # noqa
         print('\n')
         # get count of comments with label = 0 and label_moral_outrage = 0
-        print(f'Count of comments that our moral outrage classifier labeled = 0 and Google labeled = 0: {len(df[(df["label"] == 0) & (df["label_moral_outrage"] == 0)])}')
+        print(f'Count of comments that our moral outrage classifier labeled = 0 and Google labeled = 0: {len(df[(df["label"] == 0) & (df["label_moral_outrage"] == 0)])}') # noqa
         # print examples of comments with label = 0 and label_moral_outrage = 0
         print("Examples of comments that our moral outrage classifier labeled = 0 and Google labeled = 0:") # noqa
         print(df[(df["label"] == 0) & (df["label_moral_outrage"] == 0)]["body"].head()) # noqa

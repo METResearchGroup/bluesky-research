@@ -94,7 +94,6 @@ attribute_to_labels_map = {
 }
 
 
-
 def request_comment_analyzer(
     text: str, requested_attributes: dict = None
 ) -> dict:

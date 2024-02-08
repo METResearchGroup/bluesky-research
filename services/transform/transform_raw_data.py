@@ -155,7 +155,7 @@ def process_replies(reply: Optional[ReplyRef]) -> dict:
     """Manages any replies if the post is part of a larger thread."""
     reply_parent = None
     reply_root = None
-    
+
     if reply is not None:
         if hasattr(reply, "parent"):
             reply_parent: str = reply["parent"]["uri"]

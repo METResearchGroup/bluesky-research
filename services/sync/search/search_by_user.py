@@ -36,7 +36,7 @@ def get_posts_by_user(
     endpoint has a maximmum of 100 posts per request.
 
     Example code for handling pagination: https://github.com/MarshalX/atproto/blob/main/examples/advanced_usage/handle_cursor_pagination.py
-    """
+    """ # noqa
     actor = author_handle or author_did
     if not actor:
         raise ValueError("Must provide an author handle or author did.")
