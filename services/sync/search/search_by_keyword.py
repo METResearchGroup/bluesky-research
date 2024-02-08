@@ -1,16 +1,14 @@
 """Search by keyword."""
-from lib.helper import client
 
 
 def search_by_query(query: str, limit: int = 25):
     """Search by query. Uses the same endpoint as the search bar on the app.
     
     Corresponding lexicon:
-    - https://github.com/MarshalX/atproto/blob/3bbfa43c20adf78640abb7ab8cced42fc2e62418/lexicons/app.bsky.feed.searchPosts.json
-    
-    """
-    if limit < 1 or limit > 100:
-        raise ValueError("Limit must be between 1 and 100.")
+    - https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.searchPosts.json
+    - https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/feed/search_posts.py
+    """ # noqa
+    pass
 
 
 def main():

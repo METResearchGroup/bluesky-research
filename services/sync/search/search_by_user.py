@@ -94,6 +94,42 @@ def get_profile_of_user(
     return client.get_profile(did=actor)
 
 
+def get_user_follows(
+    author_handle: Optional[str] = None,
+    author_did: Optional[str] = None,
+    limit: Optional[int] = DEFAULT_LIMIT_RESULTS_PER_REQUEST
+) -> list[ProfileView]:
+    """Get a list of the user's follows.
+
+    Corresponding lexicon:
+    - https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.graph.getFollows.json
+    - https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/graph/get_follows.py
+
+    Example "ProfileView" object from `getFollows` endpoint:
+    {
+        'did': 'did:plc:ayiedn5wwlwpwab62irpwjt4',
+        'handle': 'wlamb76.bsky.social',
+        'avatar': 'https://cdn.bsky.app/img/avatar/plain/did:plc:ayiedn5wwlwpwab62irpwjt4/bafkreihwynif3fuqoeqggxkjhcw4hdwg3srerzz5ybfvnj5q33verlehau@jpeg',
+        'description': 'Senior Staff Editor, general-assignment and breaking news, The New York Times.',
+        'display_name': 'William Lamb',
+        'indexed_at': '2024-01-26T00:28:00.693Z',
+        'labels': [],
+        'viewer': ViewerState(blocked_by=False, blocking=None, blocking_by_list=None, followed_by=None, following=None, muted=False, muted_by_list=None, py_type='app.bsky.actor.defs#viewerState'),
+        'py_type': 'app.bsky.actor.defs#profileView'
+    }
+    """ # noqa
+    actor = author_handle or author_did
+    if not actor:
+        raise ValueError("Must provide an author handle or author did.")
+    follows_list: list[ProfileView] = send_request_with_pagination(
+        func=client.get_follows,
+        kwargs={"actor": actor},
+        response_key="follows",
+        limit=limit
+    )
+    return follows_list
+
+
 def get_user_followers(
     author_handle: Optional[str] = None,
     author_did: Optional[str] = None,
@@ -103,10 +139,10 @@ def get_user_followers(
 
     Corresponding lexicon:
     - https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.graph.getFollowers.json#L4
-    
+
     Returns a list of followers to a user.
 
-    Example "ProfileView" object:
+    Example "ProfileView" object from `getFollowers` endpoint:
     {
         'did': 'did:plc:6wfgxeck2rqqxmnlbnt45rem',
         'handle': 'mnam.bsky.social',
