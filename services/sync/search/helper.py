@@ -9,7 +9,8 @@ def send_request_with_pagination(
     kwargs: dict,
     response_key: str,
     args: Optional[tuple] = (),
-    limit: Optional[int] = DEFAULT_LIMIT_RESULTS_PER_REQUEST
+    limit: Optional[int] = DEFAULT_LIMIT_RESULTS_PER_REQUEST,
+    update_params_directly: bool = False
 ) -> list:
     """Implement a request with pagination.
     
@@ -54,7 +55,10 @@ def send_request_with_pagination(
         print(
             f"Fetching {request_limit} results, out of total max of {limit}..."
         )
-        kwargs.update({"cursor": cursor, "limit": request_limit})
+        if update_params_directly:
+            kwargs["params"].update({"cursor": cursor, "limit": request_limit})
+        else:
+            kwargs.update({"cursor": cursor, "limit": request_limit})
         res = func(*args, **kwargs)
         # get results from pagination
         # get attribute "response_key" from response, not using brackets
