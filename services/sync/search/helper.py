@@ -1,121 +1,74 @@
-import json
-import os
-import requests
+from typing import Callable, Optional
 
-from lib.helper import client
-
-
-user_profiles_filename = "user_profiles.jsonl"
-search_file_directory = os.path.dirname(os.path.abspath(__file__))
-user_profiles_fp = os.path.join(search_file_directory, user_profiles_filename)
+DEFAULT_LIMIT_RESULTS_PER_REQUEST = 50
+MAX_POSTS_PER_REQUEST = 100
 
 
-def write_user_profiles_to_file(user_profiles: list[dict]) -> None:
-    """Write user profiles to a file.
-
-    NOTE: f we want more users, we can add pagination.
-    Example: https://github.com/kojira/bluesky-chan/blob/main/util.py#L244
-    """
-    with open(user_profiles_fp, "w") as f:
-        for user_profile in user_profiles:
-            f.write(json.dumps(user_profile) + "\n")
-    print(f"Wrote {len(user_profiles)} user profiles to {user_profiles_filename}") # noqa
-
-
-def load_user_profiles_from_file() -> list[dict]:
-    """Load user profiles from a file."""
-    with open(user_profiles_fp, "r") as f:
-        user_profiles = [json.loads(line) for line in f]
-    return user_profiles
-
-
-def sync_did_user_profiles() -> list[dict]:
-    """Sync data from https://plc.directory/export, a data dump of DID data,
-    and get some sample user profiles.
+def send_request_with_pagination(
+    func: Callable,
+    kwargs: dict,
+    response_key: str,
+    args: Optional[tuple] = (),
+    limit: Optional[int] = DEFAULT_LIMIT_RESULTS_PER_REQUEST
+) -> list:
+    """Implement a request with pagination.
     
-    Example:
+    Useful for endpoints that return a cursor and a list of results.
+
+    Example result (from getFollowers endpoint):
     {
-        "did":"did:plc:gwpm3pe7p2xigazbkjf3eu7g",
-        "operation":{
-            "sig":"hdv0ZZaBiFSexncjD_xLL7BrjCqcuZ83_QGOr1dpMeZEDhC3IWH7EkKT4UgPtHi595ErG8JgbWlQIclVmZXX4w",
-            "prev":null,
-            "type":"create",
-            "handle":"ancapalex.bsky.social",
-            "service":"https://bsky.social",
-            "signingKey":"did:key:zQ3shP5TBe1sQfSttXty15FAEHV1DZgcxRZNxvEWnPfLFwLxJ",
-            "recoveryKey":"did:key:zQ3shhCGUqDKjStzuDxPkTxN6ujddP4RkEKJJouJGRRkaLGbg"
-        },
-        "cid":"bafyreibvt3g3zh36v2bqgiksjozfhzs2vzpagpjxjn25qvlbluipiill2q",
-        "nullified":false,
-        "createdAt":"2023-01-18T08:49:23.662Z"
+        'followers': [
+            ProfileView(did='did:plc:5dhg2sndfjcz7yltxxsb4grs', handle='simoduki301.bsky.social', avatar=None, description=None, display_name='', indexed_at='2024-02-08T09:02:34.745Z', labels=[], viewer=ViewerState(blocked_by=False, blocking=None, blocking_by_list=None, followed_by=None, following=None, muted=False, muted_by_list=None, py_type='app.bsky.actor.defs#viewerState'), py_type='app.bsky.actor.defs#profileView'),
+            ProfileView(did='did:plc:kn4e5ek3t2ox6aj65zjuhxwe', handle='kusanmark4.bsky.social', avatar=None, description=None, display_name='', indexed_at='2024-02-08T09:02:28.944Z', labels=[], viewer=ViewerState(blocked_by=False, blocking=None, blocking_by_list=None, followed_by=None, following=None, muted=False, muted_by_list=None, py_type='app.bsky.actor.defs#viewerState'), py_type='app.bsky.actor.defs#profileView')
+        ],
+        'subject': ProfileView(did='did:plc:eclio37ymobqex2ncko63h4r', handle='nytimes.com', avatar='https://cdn.bsky.app/img/avatar/plain/did:plc:eclio37ymobqex2ncko63h4r/bafkreidvvqj5jymmpaeklwkpq6gi532el447mjy2yultuukypzqm5ohfju@jpeg', description='In-depth, independent reporting to better understand the world, now on Bluesky. News tips? Share them here: http://nyti.ms/2FVHq9v', display_name='The New York Times', indexed_at='2024-01-25T23:46:23.929Z', labels=[], viewer=ViewerState(blocked_by=False, blocking=None, blocking_by_list=None, followed_by=None, following='at://did:plc:w5mjarupsl6ihdrzwgnzdh4y/app.bsky.graph.follow/3kkvauysemf2p', muted=False, muted_by_list=None, py_type='app.bsky.actor.defs#viewerState'), py_type='app.bsky.actor.defs#profileView'),
+        'cursor': '3kkvgejfrew2y'
     }
+
+    Example result (from getAuthorFeed endpoint):
+    {
+        'feed': [
+            FeedViewPost(post=PostView(author=ProfileViewBasic(did='did:plc:eclio37ymobqex2ncko63h4r', handle='nytimes.com', avatar='https://cdn.bsky.app/img/avatar/plain/did:plc:eclio37ymobqex2ncko63h4r/bafkreidvvqj5jymmpaeklwkpq6gi532el447mjy2yultuukypzqm5ohfju@jpeg', display_name='The New York Times', labels=[], viewer=ViewerState(blocked_by=False, blocking=None, blocking_by_list=None, followed_by=None, following='at://did:plc:w5mjarupsl6ihdrzwgnzdh4y/app.bsky.graph.follow/3kkvauysemf2p', muted=False, muted_by_list=None, py_type='app.bsky.actor.defs#viewerState'), py_type='app.bsky.actor.defs#profileViewBasic'), cid='bafyreih5v5yirvzs3dv3bfb3vzwja2tquemgw5jtajjy7kekxvoowkiv5y', indexed_at='2024-02-07T22:42:20.003Z', record=Main(created_at='2024-02-07T22:42:20.003Z', text='A listeria outbreak that sickened at least 26 people in 11 states since 2014 has been linked to queso fresco and cotija cheese made by Rizo-López Foods, a California-based food supplier, officials said. The company recalled its dairy products this week.', embed=Main(external=External(description='Rizo-López Foods recalled its dairy products this week, as officials linked some of them to an outbreak that has sickened 26 people since 2014.', title='Dairy Products Are Linked to Listeria Outbreak', uri='https://www.nytimes.com/2024/02/07/business/cheese-listeria-outbreak-recall.html?smtyp=cur&smid=bsky-nytimes', thumb=BlobRef(mime_type='image/jpeg', size=363715, ref=IpldLink(link='bafkreihntuin5roaann33qkn6ulsvlbf6lolw3uk6ylj4njip3i5tuthwu'), py_type='blob'), py_type='app.bsky.embed.external#external'), py_type='app.bsky.embed.external'), entities=None, facets=None, labels=None, langs=['en'], reply=None, tags=None, py_type='app.bsky.feed.post'), uri='at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3kkudo7lqma2v', embed=View(external=ViewExternal(description='Rizo-López Foods recalled its dairy products this week, as officials linked some of them to an outbreak that has sickened 26 people since 2014.', title='Dairy Products Are Linked to Listeria Outbreak', uri='https://www.nytimes.com/2024/02/07/business/cheese-listeria-outbreak-recall.html?smtyp=cur&smid=bsky-nytimes', thumb='https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:eclio37ymobqex2ncko63h4r/bafkreihntuin5roaann33qkn6ulsvlbf6lolw3uk6ylj4njip3i5tuthwu@jpeg', py_type='app.bsky.embed.external#viewExternal'), py_type='app.bsky.embed.external#view'), labels=[], like_count=46, reply_count=5, repost_count=23, threadgate=None, viewer=ViewerState(like=None, reply_disabled=None, repost=None, py_type='app.bsky.feed.defs#viewerState'), py_type='app.bsky.feed.defs#postView'), reason=None, reply=None, py_type='app.bsky.feed.defs#feedViewPost'),
+            FeedViewPost(post=PostView(author=ProfileViewBasic(did='did:plc:eclio37ymobqex2ncko63h4r', handle='nytimes.com', avatar='https://cdn.bsky.app/img/avatar/plain/did:plc:eclio37ymobqex2ncko63h4r/bafkreidvvqj5jymmpaeklwkpq6gi532el447mjy2yultuukypzqm5ohfju@jpeg', display_name='The New York Times', labels=[], viewer=ViewerState(blocked_by=False, blocking=None, blocking_by_list=None, followed_by=None, following='at://did:plc:w5mjarupsl6ihdrzwgnzdh4y/app.bsky.graph.follow/3kkvauysemf2p', muted=False, muted_by_list=None, py_type='app.bsky.actor.defs#viewerState'), py_type='app.bsky.actor.defs#profileViewBasic'), cid='bafyreicb35ugbubqbkwpadfbkyzjisrshvi66tyxs2igfzj4ilj3bz5fi4', indexed_at='2024-02-07T22:26:59.642Z', record=Main(created_at='2024-02-07T22:26:59.642Z', text='Male elephant seals are not known for their paternal instincts. But in 2022, a rising tide pulled a pup out to sea, where it was struggling to stay afloat. A male used his body to nudge it back to the beach — probably saving its life.\n\nResearchers said they had never seen anything like this before.', embed=Main(external=External(description='In an unlikely act of altruism observed two years ago, a male elephant seal prevented a younger animal from drowning.', title='A Two-Ton Lifeguard That Saved a Young Pup', uri='https://www.nytimes.com/2024/02/07/science/elephant-seals-pup-drowning.html?smtyp=cur&smid=bsky-nytimes', thumb=BlobRef(mime_type='image/jpeg', size=276206, ref=IpldLink(link='bafkreiaxxjeln2vjjfccjepy4gsvzpsb6seutgxjc6j5p2fydcvtprm4pq'), py_type='blob'), py_type='app.bsky.embed.external#external'), py_type='app.bsky.embed.external'), entities=None, facets=None, labels=None, langs=['en'], reply=None, tags=None, py_type='app.bsky.feed.post'), uri='at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3kkucsrva2i2v', embed=View(external=ViewExternal(description='In an unlikely act of altruism observed two years ago, a male elephant seal prevented a younger animal from drowning.', title='A Two-Ton Lifeguard That Saved a Young Pup', uri='https://www.nytimes.com/2024/02/07/science/elephant-seals-pup-drowning.html?smtyp=cur&smid=bsky-nytimes', thumb='https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:eclio37ymobqex2ncko63h4r/bafkreiaxxjeln2vjjfccjepy4gsvzpsb6seutgxjc6j5p2fydcvtprm4pq@jpeg', py_type='app.bsky.embed.external#viewExternal'), py_type='app.bsky.embed.external#view'), labels=[], like_count=100, reply_count=1, repost_count=16, threadgate=None, viewer=ViewerState(like=None, reply_disabled=None, repost=None, py_type='app.bsky.feed.defs#viewerState'), py_type='app.bsky.feed.defs#postView'), reason=None, reply=None, py_type='app.bsky.feed.defs#feedViewPost')
+        ],
+        'cursor': '2024-02-07T22:26:59.642Z'
+    }
+
+    Based on https://github.com/MarshalX/atproto/blob/main/examples/advanced_usage/handle_cursor_pagination.py
     """ # noqa
-    with requests.get("https://plc.directory/export") as r:
-        r.raise_for_status()
-        lines = r.text.split('\n')
-        user_profiles = [json.loads(line) for line in lines if line.strip()]
-        write_user_profiles_to_file(user_profiles=user_profiles)
+    cursor = None
+    total_fetched: int = 0
+    total_to_fetch: int = limit
 
-    return user_profiles
+    total_results = []
 
+    if limit > MAX_POSTS_PER_REQUEST:
+        print(
+            f"Limit of {limit} exceeds the maximum of {MAX_POSTS_PER_REQUEST}."
+        )
+        print(f"Will batch requests in chunks of {MAX_POSTS_PER_REQUEST}.")
 
-def get_author_feed(user_profile: dict) -> dict:
-    """Given an author, get their feed."""
-    # https://atproto.blue/en/latest/atproto_client/index.html#atproto_client.Client.get_author_feed
-    try:
-        feed = client.get_author_feed(actor=user_profile["did"])
-    except Exception as e:
-        # for cases where profile can't be found.
-        print(f"Error getting feed for {user_profile['did']}: {e}")
-        return {}
-    return feed.dict()
+    request_limit = min(limit, MAX_POSTS_PER_REQUEST)
 
+    while True:
+        print(
+            f"Fetching {request_limit} results, out of total max of {limit}..."
+        )
+        kwargs.update({"cursor": cursor, "limit": request_limit})
+        res = func(*args, **kwargs)
+        # get results from pagination
+        # get attribute "response_key" from response, not using brackets
+        results: list = getattr(res, response_key)
+        assert isinstance(results, list)
+        num_fetched = len(results)
+        total_fetched += num_fetched
+        total_results.extend(results[:total_to_fetch])
+        total_to_fetch -= num_fetched
+        if not res.cursor:
+            break
+        if total_fetched >= limit:
+            print(f"Total fetched results: {total_fetched}")
+            break
+        cursor = res.cursor
 
-def export_author_feed(user_profile) -> None:
-    """Export the author feed to a file."""
-    feed: dict = get_author_feed(user_profile=user_profile)
-    if len(feed) == 0:
-        return
-    with open(f"feed_{user_profile['did']}.json", "w") as f:
-        json.dump(feed, f)
-
-
-def export_author_feeds(user_profiles: list[dict], count=1) -> None:
-    """Export the author feeds to files."""
-    total = 0
-    while total < count:
-        user_profile = user_profiles[total]
-        export_author_feed(user_profile=user_profile)
-        total += 1
-    print(f"Exported {total} author feeds.")
-
-
-def load_author_feeds_from_file() -> list[dict]:
-    """Load existing author feeds from files.
-
-    These will be in the form of "feed_*.json".
-    """
-    list_filenames = os.listdir(search_file_directory)
-    feed_filenames = [
-        filename for filename in list_filenames
-        if filename.startswith("feed_")
-        and filename.endswith(".json")
-    ]
-    author_feeds = []
-    for filename in feed_filenames:
-        full_fp = os.path.join(search_file_directory, filename)
-        with open(full_fp, "r") as f:
-            author_feed = json.load(f)
-            author_feeds.append(author_feed)
-    print(f"Loaded {len(author_feeds)} author feeds.")
-    return author_feeds
-
-
-def get_posts_by_author():
-    """Get posts by author."""
-    pass
-
-
-def get_posts_by_hashtag():
-    """Get posts by hashtag."""
-    pass
+    return total_results

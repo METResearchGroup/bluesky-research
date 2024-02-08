@@ -1,17 +1,17 @@
 """Search by user."""
 from typing import Literal, Optional
 
-from atproto_client.models.app.bsky.actor.defs import ProfileViewDetailed
-from atproto_client.models.app.bsky.feed.defs import FeedViewPost
-from atproto_client.models.app.bsky.feed.get_author_feed import Response as AuthorFeedResponse # noqa
+from atproto_client.models.app.bsky.actor.defs import (
+    ProfileView, ProfileViewDetailed
+)
 
 from lib.helper import client
+from services.sync.search.helper import (
+    DEFAULT_LIMIT_RESULTS_PER_REQUEST, send_request_with_pagination
+)
 from services.transform.transform_raw_data import (
     flatten_feed_view_post, FlattenedFeedViewPost
 )
-
-
-MAX_POSTS_PER_REQUEST = 100
 
 
 def get_posts_by_user(
@@ -23,7 +23,7 @@ def get_posts_by_user(
         "posts_with_media",
         "posts_and_author_threads"
     ] = "posts_with_replies",
-    limit: Optional[str] = 50
+    limit: Optional[str] = DEFAULT_LIMIT_RESULTS_PER_REQUEST
 ) -> list[FlattenedFeedViewPost]:
     """Get all the posts written by a user (and appears in their feed).
 
@@ -35,39 +35,30 @@ def get_posts_by_user(
     The endpoint returns 50 posts by default and then returns a cursor. The
     endpoint has a maximmum of 100 posts per request.
 
-    Example code for handling pagination: https://github.com/MarshalX/atproto/blob/main/examples/advanced_usage/handle_cursor_pagination.py
+    Example output post (after flattening):
+    {
+        'author_did': 'did:plc:e4itbqoxctxwrrfqgs2rauga',
+        'author_handle': 'williambrady.bsky.social',
+        'author_display_name': 'William J. Brady',
+        'created_at': '2024-01-19T16:08:25.789Z',
+        'text': 'Review: "14 studies implicated the YouTube recommender system in facilitating problematic content pathways, 7 produced mixed results, and two did not implicate the recommender system in facilitating pathways to problematic content" | osf.io/preprints/ps...',
+        'langs': ['en'],
+        'cid': 'bafyreialxgly7e5pqhzhfflqjn3wzmojhqlstuvylkaahtkxxw2p5nch3u',
+        'indexed_at': '2024-01-19T16:08:25.789Z',
+        'like_count': 2,
+        'reply_count': 0,
+        'repost_count': 0
+    }
     """ # noqa
     actor = author_handle or author_did
     if not actor:
         raise ValueError("Must provide an author handle or author did.")
-
-    author_feed: list[FeedViewPost] = []
-    total_fetched_posts: int = 0
-    total_posts_to_fetch: int = limit
-    cursor = None
-
-    if limit > MAX_POSTS_PER_REQUEST:
-        print(
-            f"Limit of {limit} exceeds the maximum of {MAX_POSTS_PER_REQUEST}."
-        )
-        print(f"Will batch requests in chunks of {MAX_POSTS_PER_REQUEST}.")
-
-    while True:
-        print(f"Fetching {limit} posts for {actor}...")
-        request_limit = min(limit, MAX_POSTS_PER_REQUEST)
-        fetched: AuthorFeedResponse = client.get_author_feed(
-            actor=actor, cursor=cursor, filter=filter, limit=request_limit
-        )
-        num_fetched_posts = len(fetched.feed)
-        total_fetched_posts += num_fetched_posts
-        author_feed.extend(fetched.feed[:total_posts_to_fetch])
-        total_posts_to_fetch -= num_fetched_posts
-        if not fetched.cursor:
-            break
-        if total_fetched_posts >= limit:
-            print(f"Total fetched posts: {total_fetched_posts}")
-            break
-        cursor = fetched.cursor
+    author_feed = send_request_with_pagination(
+        func=client.get_author_feed,
+        kwargs={"actor": actor, "filter": filter},
+        response_key="feed",
+        limit=limit
+    )
     return [flatten_feed_view_post(post) for post in author_feed]
 
 
@@ -103,8 +94,48 @@ def get_profile_of_user(
     return client.get_profile(did=actor)
 
 
+def get_user_followers(
+    author_handle: Optional[str] = None,
+    author_did: Optional[str] = None,
+    limit: Optional[int] = DEFAULT_LIMIT_RESULTS_PER_REQUEST
+) -> list[ProfileView]:
+    """Get a list of the user's followers.
+
+    Corresponding lexicon:
+    - https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.graph.getFollowers.json#L4
+    
+    Returns a list of followers to a user.
+
+    Example "ProfileView" object:
+    {
+        'did': 'did:plc:6wfgxeck2rqqxmnlbnt45rem',
+        'handle': 'mnam.bsky.social',
+        'avatar': None,
+        'description': None,
+        'display_name': '',
+        'indexed_at': '2024-02-08T08:48:45.242Z',
+        'labels': [],
+        'viewer': ViewerState(blocked_by=False, blocking=None, blocking_by_list=None, followed_by=None, following=None, muted=False, muted_by_list=None, py_type='app.bsky.actor.defs#viewerState'),
+        'py_type': 'app.bsky.actor.defs#profileView'
+    }
+    """ # noqa
+    actor = author_handle or author_did
+    if not actor:
+        raise ValueError("Must provide an author handle or author did.")
+    followers_list: list[ProfileView] = send_request_with_pagination(
+        func=client.get_followers,
+        kwargs={"actor": actor},
+        response_key="followers",
+        limit=limit
+    )
+    return followers_list
+
+
 def main() -> None:
-    pass
+    author_handle = "nytimes.com"
+    limit = 200
+    posts = get_posts_by_user(author_handle=author_handle, limit=limit)
+    print(f"Got {len(posts)} posts by {author_handle} (expected {limit}).")
 
 
 if __name__ == "__main__":
