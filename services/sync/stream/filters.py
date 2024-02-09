@@ -102,7 +102,7 @@ def filter_created_post(post: dict) -> Optional[dict]:
     time_threshold = timedelta(days=NUM_DAYS_POST_RECENCY)
     if time_difference > time_threshold:
         return None
-    
+
     # filter out posts based on whether they are within-network or
     # are in similar networks
     if not is_within_similar_networks(post):

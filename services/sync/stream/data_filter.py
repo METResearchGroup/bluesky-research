@@ -109,7 +109,7 @@ def operations_callback(operations_by_type: dict) -> None:
         'likes': {'created': [], 'deleted': []},
         'follows': {'created': [], 'deleted': []}
     }
-    """
+    """ # noqa
     post_updates = filter_incoming_posts(operations_by_type)
     posts_to_create = post_updates["posts_to_create"]
     posts_to_delete = post_updates["posts_to_delete"]
