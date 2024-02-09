@@ -2,6 +2,7 @@
 from dotenv import load_dotenv
 import logging
 import os
+import threading
 import time
 
 from atproto import Client
@@ -39,3 +40,22 @@ def track_function_runtime(func):
         return result
 
     return wrapper
+
+
+class ThreadSafeCounter:
+    def __init__(self):
+        self.counter = 0
+        self.lock = threading.Lock()
+
+    def increment(self):
+        with self.lock:
+            self.counter += 1
+            return self.counter
+
+    def reset(self):
+        with self.lock:
+            self.counter = 0
+
+    def get_value(self):
+        with self.lock:
+            return self.counter

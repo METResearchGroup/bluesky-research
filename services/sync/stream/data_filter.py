@@ -2,22 +2,14 @@
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_filter.py
 """  # noqa
+import json
 import os
-import threading
-import time
-
 import peewee
 
-from lib.aws.s3 import ROOT_BUCKET, S3
-from services.sync.stream.constants import (
-    POST_BATCH_SIZE, S3_FIREHOSE_KEY_ROOT
-)
+from services.sync.stream.constants import tmp_data_dir
 from services.sync.stream.database import db, Post
 from services.sync.stream.filters import filter_incoming_posts
 
-
-s3_client = S3()
-thread_lock = threading.Lock()
 
 
 def manage_post_creation(posts_to_create: list[dict]) -> None:
@@ -36,28 +28,27 @@ def manage_post_deletes(posts_to_delete: list[str]) -> None:
     Post.delete().where(Post.uri.in_(posts_to_delete))
 
 
-def write_batch_posts_to_s3(
-    posts: list[dict], batch_size: int = POST_BATCH_SIZE
-) -> None:
-    """Writes batch of posts to s3."""
-    with thread_lock:
-        print(f"Writing batch of {len(posts)} posts to S3 in chunks of {batch_size}...") # noqa
-        while posts:
-            batch = posts[:batch_size]
-            timestamp = str(int(time.time()))
-            key = os.path.join(
-                S3_FIREHOSE_KEY_ROOT, f"posts_{timestamp}.jsonl"
-            )
-            if not isinstance(batch, list):
-                raise ValueError("Data must be a list of dictionaries.")
-            s3_client.write_dicts_jsonl_to_s3(
-               data=batch, bucket=ROOT_BUCKET, key=key
-            )
-            posts = posts[batch_size:]
-        print(f"Finished writing {len(posts)} posts to S3.")
+def write_posts_to_local_storage(posts_to_create: list[dict]) -> bool:
+    """Our data stream callback operates on individual posts. We want
+    to write the posts to local storage, and then write them to S3 in batches.
+
+    This function dumps the post to local storage as a dictionary. In case we
+    have a change of functionality, this is capable of handling multiple posts
+    within the same callback.
+    """
+    has_written_post_with_data: bool = False
+    for post in posts_to_create:
+        hashed_filename = f"{hash(post['uri'])}.json"
+        file_path = os.path.join(tmp_data_dir, hashed_filename)
+        with open(file_path, "w") as f:
+            json_str = json.dumps(post)
+            if json_str:
+                f.write(json_str)
+                has_written_post_with_data = True
+    return has_written_post_with_data
 
 
-def operations_callback(operations_by_type: dict) -> None:
+def operations_callback(operations_by_type: dict) -> bool:
     """Callback for managing posts during stream. We perform the first pass
     of filtering here.
 
@@ -114,7 +105,17 @@ def operations_callback(operations_by_type: dict) -> None:
     posts_to_create = post_updates["posts_to_create"]
     posts_to_delete = post_updates["posts_to_delete"]
 
+    # add to DB (TODO: will have to swap this out for a bulk insert)
+    # or add only to S3 and then add to DB later. TBD.
     if posts_to_create:
         manage_post_creation(posts_to_create)
     if posts_to_delete:
         manage_post_deletes(posts_to_delete)
+
+    has_written_data = False
+
+    # write to storage
+    if posts_to_create:
+        has_written_data = write_posts_to_local_storage(posts_to_create)
+
+    return has_written_data

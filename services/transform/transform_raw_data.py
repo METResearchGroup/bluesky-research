@@ -152,7 +152,11 @@ def process_facets(facets: list[Facet]) -> str:
 
 
 def process_replies(reply: Optional[ReplyRef]) -> dict:
-    """Manages any replies if the post is part of a larger thread."""
+    """Manages any replies if the post is part of a larger thread.
+
+    Returns the parent comment that the reply is responding to as well as the
+    root post of the reply.
+    """
     reply_parent = None
     reply_root = None
 
@@ -225,7 +229,6 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
             ','.join(post["record"]["labels"])
             if post["record"]["labels"] else None
         ),
-        "reply": post["record"]["reply"],
         "reply_parent": processed_replies["reply_parent"],
         "reply_root": processed_replies["reply_root"],
         "tags": (

@@ -89,6 +89,8 @@ pandas==2.2.0
     # via -r requirements.in
 peewee==3.17.1
     # via -r requirements.in
+polars==0.20.7
+    # via -r requirements.in
 protobuf==4.25.2
     # via
     #   google-api-core
