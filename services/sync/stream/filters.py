@@ -70,6 +70,14 @@ def has_inappropriate_content(record: Record) -> bool:
     return False
 
 
+def is_within_similar_networks(post: dict) -> bool:
+    """Determines if a post is within a similar network.
+    
+    Inspired by https://blog.twitter.com/engineering/en_us/topics/open-source/2023/twitter-recommendation-algorithm
+    """ # noqa
+    return True
+
+
 def filter_created_post(post: dict) -> Optional[dict]:
     """Filters any post that we could write to our DB. Also flattens our
     dictionary."""
@@ -93,6 +101,11 @@ def filter_created_post(post: dict) -> Optional[dict]:
     time_difference = current_datetime - date_object
     time_threshold = timedelta(days=NUM_DAYS_POST_RECENCY)
     if time_difference > time_threshold:
+        return None
+    
+    # filter out posts based on whether they are within-network or
+    # are in similar networks
+    if not is_within_similar_networks(post):
         return None
 
     return post
