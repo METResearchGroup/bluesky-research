@@ -30,7 +30,7 @@ def retry_on_aws_rate_limit(
             return func(*args, **kwargs)
         except Exception as e:
             if "Rate exceeded" in str(e):
-                print(f"Rate limit exceeded. Retrying...")
+                print("Rate limit exceeded. Retrying...")
                 if retries > 0:
                     if use_exponential_backoff:
                         time.sleep(2 ** (3 - retries))

@@ -103,7 +103,7 @@ def _run(name, operations_callback, stream_stop_event=None):
             current_counter_value > 0
             and current_counter_value % POST_BATCH_SIZE == 0
         ):
-            print(f"Writing batch of posts to S3...")
+            print("Writing batch of posts to S3...")
             timestamp = str(int(time.time()))
             filename = f"posts_{timestamp}.jsonl"
             s3_client.write_local_jsons_to_s3(

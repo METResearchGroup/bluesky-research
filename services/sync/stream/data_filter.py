@@ -11,7 +11,6 @@ from services.sync.stream.database import db, Post
 from services.sync.stream.filters import filter_incoming_posts
 
 
-
 def manage_post_creation(posts_to_create: list[dict]) -> None:
     """Manage post insertion into DB."""
     with db.atomic():

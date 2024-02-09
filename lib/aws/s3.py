@@ -14,6 +14,7 @@ S3_FIREHOSE_KEY_ROOT = "firehose"
 
 thread_lock = threading.Lock()
 
+
 class S3:
     """Wrapper class for all S3-related access."""
 
@@ -73,7 +74,7 @@ class S3:
         """Reads JSON from S3."""
         blob = self.read_from_s3(bucket, key)
         return json.loads(blob)
-    
+
     def write_batch_posts_to_s3(
         self, posts: list[dict], batch_size: int = POST_BATCH_SIZE
     ) -> None:
