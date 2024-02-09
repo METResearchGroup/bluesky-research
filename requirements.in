@@ -1,4 +1,5 @@
 atproto==0.0.38
+boto3==1.34.38
 Flask==3.0.2
 google-api-python-client==2.116.0
 pandas==2.2.0
