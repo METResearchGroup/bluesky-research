@@ -2,10 +2,22 @@
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_filter.py
 """  # noqa
+import os
+import threading
+import time
+
 import peewee
 
+from lib.aws.s3 import ROOT_BUCKET, S3
+from services.sync.stream.constants import (
+    POST_BATCH_SIZE, S3_FIREHOSE_KEY_ROOT
+)
 from services.sync.stream.database import db, Post
 from services.sync.stream.filters import filter_incoming_posts
+
+
+s3_client = S3()
+thread_lock = threading.Lock()
 
 
 def manage_post_creation(posts_to_create: list[dict]) -> None:
@@ -22,6 +34,27 @@ def manage_post_creation(posts_to_create: list[dict]) -> None:
 def manage_post_deletes(posts_to_delete: list[str]) -> None:
     """Manage post deletion from DB."""
     Post.delete().where(Post.uri.in_(posts_to_delete))
+
+
+def write_batch_posts_to_s3(
+    posts: list[dict], batch_size: int = POST_BATCH_SIZE
+) -> None:
+    """Writes batch of posts to s3."""
+    with thread_lock:
+        print(f"Writing batch of {len(posts)} posts to S3 in chunks of {batch_size}...") # noqa
+        while posts:
+            batch = posts[:batch_size]
+            timestamp = str(int(time.time()))
+            key = os.path.join(
+                S3_FIREHOSE_KEY_ROOT, f"posts_{timestamp}.jsonl"
+            )
+            if not isinstance(batch, list):
+                raise ValueError("Data must be a list of dictionaries.")
+            s3_client.write_dicts_jsonl_to_s3(
+               data=batch, bucket=ROOT_BUCKET, key=key
+            )
+            posts = posts[batch_size:]
+        print(f"Finished writing {len(posts)} posts to S3.")
 
 
 def operations_callback(operations_by_type: dict) -> None:

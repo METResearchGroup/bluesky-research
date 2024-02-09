@@ -111,6 +111,8 @@ def filter_created_post(post: dict) -> Optional[dict]:
     return post
 
 
+# TODO: I should track all URIs, which would simplify determining which posts
+# to write/delete. I can load it into memory for this function.
 def filter_incoming_posts(operations_by_type: dict) -> list[dict]:
     """Performs filtering on incoming posts and determines which posts have
     to be created or deleted.

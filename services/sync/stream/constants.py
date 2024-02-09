@@ -1,0 +1,2 @@
+POST_BATCH_SIZE = 100
+S3_FIREHOSE_KEY_ROOT = "firehose"

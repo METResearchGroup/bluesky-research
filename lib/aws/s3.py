@@ -2,6 +2,8 @@ import json
 
 from lib.aws.helper import create_client
 
+ROOT_BUCKET = "bluesky-research"
+
 class S3:
     """Wrapper class for all S3-related access."""
 
@@ -28,9 +30,27 @@ class S3:
         self, data: dict, bucket: str, key: str
     ) -> None:
         """Writes dictionary as JSON to S3."""
+        if not data:
+            return
+        if not key.endswith(".json"):
+            key = f"{key}.json"
         json_body = json.dumps(data)
         json_body_bytes = bytes(json_body, "utf-8")
         self.write_to_s3(json_body_bytes, bucket, key)
+
+
+    def write_dicts_jsonl_to_s3(
+        self, data: list[dict], bucket: str, key: str
+    ) -> None:
+        """Writes list of dictionaries as JSONL to S3."""
+        if not data:
+            return
+        if not key.endswith(".jsonl"):
+            key = f"{key}.jsonl"
+        jsonl_body = "\n".join([json.dumps(d) for d in data])
+        jsonl_body_bytes = bytes(jsonl_body, "utf-8")
+        self.write_to_s3(jsonl_body_bytes, bucket, key
+    )
 
 
     def read_from_s3(self, bucket: str, key: str) -> bytes:

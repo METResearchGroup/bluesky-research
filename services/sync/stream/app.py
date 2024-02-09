@@ -19,6 +19,7 @@ stream_thread.start()
 def sigint_handler(*_):
     print('Stopping data stream...')
     stream_stop_event.set()
+    stream_thread.join() # wait for thread to finish
     sys.exit(0)
 
 
