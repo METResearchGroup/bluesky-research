@@ -16,15 +16,3 @@ session = boto3.Session(profile_name=AWS_PROFILE_NAME)
 def create_client(client_name: str) -> BaseClient:
     """Creates generic AWS client."""
     return session.client(client_name)
-
-
-def list_buckets(s3_client: BaseClient) -> list[str]:
-    """Lists buckets available in S3."""
-    response = s3_client.list_buckets()
-    return [bucket['Name'] for bucket in response['Buckets']]
-
-
-if __name__ == "__main__":
-    s3_client = create_client("s3")
-    buckets = list_buckets(s3_client)
-    print(buckets)
