@@ -7,6 +7,7 @@ def main(event: dict, context: dict) -> int:
     generate_recommendations(algorithm=event["algorithm"])
     return 0
 
+
 if __name__ == "__main__":
     event = {"algorithm": "reverse_chronological"}
     context = {}

@@ -98,6 +98,6 @@ def create_and_insert_new_users(filepath: str) -> None:
 def load_all_user_dids() -> list[str]:
     """Loads all user DIDs from S3."""
     return [
-        key.split("/")[1] # format: "users/<user_did>/..."
+        key.split("/")[1]  # format: "users/<user_did>/..."
         for key in s3_client.get_keys_given_prefix(prefix=USERS_KEY_ROOT)
     ]

@@ -11,7 +11,7 @@ ROOT_BUCKET = "bluesky-research"
 POST_BATCH_SIZE = 100
 
 # S3 key roots
-FEED_KEY_ROOT = "feeds" # final feeds after postprocessing
+FEED_KEY_ROOT = "feeds"  # final feeds after postprocessing
 PREPROCESSED_DATA_KEY_ROOT = "preprocessed_data"
 RECOMMENDATIONS_KEY_ROOT = "recommendations"
 S3_FIREHOSE_KEY_ROOT = "firehose"
@@ -86,7 +86,7 @@ class S3:
         """Reads JSON from S3."""
         blob = self.read_from_s3(bucket, key)
         return json.loads(blob)
-    
+
     def read_jsonl_from_s3(
         self, key: str, bucket: str = ROOT_BUCKET
     ) -> list[dict]:
@@ -110,7 +110,7 @@ class S3:
             Bucket=ROOT_BUCKET, Prefix=prefix
         )
         return [obj["Key"] for obj in response["Contents"]]
-    
+
     def delete_from_s3(self, key: str, bucket: str = ROOT_BUCKET) -> None:
         """Deletes object from S3."""
         try:

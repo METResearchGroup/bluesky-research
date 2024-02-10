@@ -40,7 +40,7 @@ def write_recommendations(recommendations: dict[str, list[dict]]) -> None:
             key_root=RECOMMENDATIONS_KEY_ROOT,
             userid=user_id,
             timestamp=current_timestamp,
-            filename=f"recommendations.jsonl"
+            filename="recommendations.jsonl"
         )
         s3.write_dicts_jsonl_to_s3(
             data=user_recommendations, key=key
