@@ -8,19 +8,19 @@ annotated-types==0.6.0
     # via pydantic
 anyio==4.2.0
     # via httpx
-atproto==0.0.38
+atproto==0.0.41
     # via -r requirements.in
 blinker==1.7.0
     # via flask
 boto3==1.34.38
     # via -r requirements.in
-botocore==1.34.38
+botocore==1.34.39
     # via
     #   boto3
     #   s3transfer
 cachetools==5.3.2
     # via google-auth
-certifi==2023.11.17
+certifi==2024.2.2
     # via
     #   httpcore
     #   httpx
@@ -41,7 +41,7 @@ exceptiongroup==1.2.0
     # via anyio
 flask==3.0.2
     # via -r requirements.in
-google-api-core==2.16.1
+google-api-core==2.17.0
     # via google-api-python-client
 google-api-python-client==2.116.0
     # via -r requirements.in
@@ -83,7 +83,7 @@ markupsafe==2.1.5
     # via
     #   jinja2
     #   werkzeug
-numpy==1.26.3
+numpy==1.26.4
     # via pandas
 pandas==2.2.0
     # via -r requirements.in
@@ -103,9 +103,9 @@ pyasn1-modules==0.3.0
     # via google-auth
 pycparser==2.21
     # via cffi
-pydantic==2.6.0
+pydantic==2.6.1
     # via atproto
-pydantic-core==2.16.1
+pydantic-core==2.16.2
     # via pydantic
 pyparsing==3.1.1
     # via httplib2
