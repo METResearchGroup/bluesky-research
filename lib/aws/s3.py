@@ -28,7 +28,9 @@ class S3:
         return [bucket['Name'] for bucket in response['Buckets']]
 
     @retry_on_aws_rate_limit
-    def write_to_s3(self, blob: bytes, bucket: str, key: str) -> None:
+    def write_to_s3(
+        self, blob: bytes, key: str, bucket: str = ROOT_BUCKET
+    ) -> None:
         """Writes blob to S3."""
         try:
             self.client.put_object(Bucket=bucket, Key=key, Body=blob)
@@ -37,7 +39,7 @@ class S3:
             raise e
 
     def write_dict_json_to_s3(
-        self, data: dict, bucket: str, key: str
+        self, data: dict, key: str, bucket: str = ROOT_BUCKET
     ) -> None:
         """Writes dictionary as JSON to S3."""
         if not data:
@@ -49,7 +51,7 @@ class S3:
         self.write_to_s3(json_body_bytes, bucket, key)
 
     def write_dicts_jsonl_to_s3(
-        self, data: list[dict], bucket: str, key: str
+        self, data: list[dict], key: str, bucket: str = ROOT_BUCKET
     ) -> None:
         """Writes list of dictionaries as JSONL to S3."""
         if not data:
@@ -61,7 +63,7 @@ class S3:
         self.write_to_s3(jsonl_body_bytes, bucket, key)
 
     @retry_on_aws_rate_limit
-    def read_from_s3(self, bucket: str, key: str) -> bytes:
+    def read_from_s3(self, key: str, bucket: str = ROOT_BUCKET) -> bytes:
         """Reads blob from S3."""
         try:
             response = self.client.get_object(Bucket=bucket, Key=key)
@@ -70,10 +72,36 @@ class S3:
             print(f"Failure in getting object from S3: {e}")
             raise e
 
-    def read_json_from_s3(self, bucket: str, key: str) -> dict:
+    def read_json_from_s3(
+        self, key: str, bucket: str = ROOT_BUCKET
+    ) -> dict:
         """Reads JSON from S3."""
         blob = self.read_from_s3(bucket, key)
         return json.loads(blob)
+    
+    def read_jsonl_from_s3(
+        self, key: str, bucket: str = ROOT_BUCKET
+    ) -> list[dict]:
+        """Reads JSONL from S3."""
+        blob = self.read_from_s3(bucket, key)
+        jsons = blob.decode("utf-8").split("\n")
+        return [json.loads(j) for j in jsons]
+
+    @retry_on_aws_rate_limit
+    def get_keys_given_prefix(self, prefix: str) -> list[str]:
+        """Gets keys given a prefix."""
+        response = self.client.list_objects_v2(
+            Bucket=ROOT_BUCKET, Prefix=prefix
+        )
+        return [obj["Key"] for obj in response["Contents"]]
+    
+    def delete_from_s3(self, key: str, bucket: str = ROOT_BUCKET) -> None:
+        """Deletes object from S3."""
+        try:
+            self.client.delete_object(Bucket=bucket, Key=key)
+        except Exception as e:
+            print(f"Failure in deleting object from S3: {e}")
+            raise e
 
     def write_batch_posts_to_s3(
         self, posts: list[dict], batch_size: int = POST_BATCH_SIZE
@@ -100,9 +128,7 @@ class S3:
             print(f"Finished writing {len(posts)} posts to S3.")
 
     def write_local_jsons_to_s3(
-        self, dir: str,
-        filename: str,
-        clear_cache: bool = True
+        self, dir: str, filename: str, clear_cache: bool = True
     ) -> None:
         """Given a directory, pull all the JSONs and write them as a .jsonl.
 
@@ -128,7 +154,9 @@ class S3:
                 for fp in filepaths:
                     os.remove(fp)
 
-    def return_jsons_as_polars_df(self, bucket: str, key: str) -> pl.DataFrame:
+    def return_jsons_as_polars_df(
+        self, key: str, bucket: str = ROOT_BUCKET
+    ) -> pl.DataFrame:
         """Reads JSONL from S3 and returns as Polars DataFrame."""
         blob = self.read_from_s3(bucket, key)
         jsons = blob.decode("utf-8").split("\n")
