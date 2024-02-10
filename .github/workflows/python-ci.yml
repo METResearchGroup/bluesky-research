@@ -38,3 +38,14 @@ jobs:
     - name: Test with pytest
       run: |
         pytest --ignore=experiments --no-header -v
+    - name: Lint Dockerfiles with Hadolint
+      run: |
+        docker run --rm -i hadolint/hadolint < Dockerfiles/api.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/classify.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/data_pipeline_orchestration.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/feed_postprocessing.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/feed_preprocessing.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/manage_bluesky_feeds.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/manage_users.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/recommendation.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/sync.Dockerfile
