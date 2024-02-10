@@ -4,7 +4,9 @@ Based on https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.de
 """
 from typing import Optional, TypedDict, Union
 
-from atproto_client.models.app.bsky.actor.defs import ProfileViewBasic
+from atproto_client.models.app.bsky.actor.defs import (
+    ProfileView, ProfileViewBasic, ProfileViewDetailed
+)
 from atproto_client.models.app.bsky.feed.post import Main as Record, ReplyRef
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, PostView
 from atproto_client.models.app.bsky.richtext.facet import Main as Facet
@@ -262,3 +264,18 @@ def flatten_feed_view_post(post: FeedViewPost) -> dict:
     assert isinstance(post, FeedViewPost)
     post: FlattenedFeedViewPost = flatten_post(post.post)
     return post
+
+
+def flatten_user_profile(
+    user: Union[ProfileViewDetailed, ProfileView]
+) -> dict:
+    """Flattens a user profile. This is a profile view from Bluesky.
+
+    To flatten, we just remove the `viewer` field, which is a `ViewerState`,
+    especially since it doesn't give us any relevant information.
+    """
+    return {
+        field: getattr(user, field)
+        for field in user.__dict__.keys()
+        if field != "viewer"
+    }

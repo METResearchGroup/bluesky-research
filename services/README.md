@@ -16,3 +16,5 @@ These microservices will all be managed through a central API service via API Ga
 Any ML training/inference that needs to be done will be managed through the `classify` service.
 
 Orchestration will be handled using [Mage](https://docs.mage.ai/introduction/overview).
+
+We add new study participants using the `manage_users` service (this service can also be used to update info about the users or delete participants from the study).
