@@ -9,7 +9,13 @@ from lib.aws.helper import create_client, retry_on_aws_rate_limit
 
 ROOT_BUCKET = "bluesky-research"
 POST_BATCH_SIZE = 100
+
+# S3 key roots
+FEED_KEY_ROOT = "feeds" # final feeds after postprocessing
+PREPROCESSED_DATA_KEY_ROOT = "preprocessed_data"
+RECOMMENDATIONS_KEY_ROOT = "recommendations"
 S3_FIREHOSE_KEY_ROOT = "firehose"
+USERS_KEY_ROOT = "users"
 
 
 thread_lock = threading.Lock()

@@ -3,11 +3,10 @@ import os
 from atproto_client.models.app.bsky.actor.defs import ProfileViewDetailed
 import polars as pl
 
-from lib.aws.s3 import S3
+from lib.aws.s3 import S3, USERS_KEY_ROOT
 from services.sync.search.search_by_user import get_profile_of_user
 from services.transform.transform_raw_data import flatten_user_profile
 
-USERS_KEY_ROOT = "users"
 
 s3_client = S3()
 
@@ -93,3 +92,11 @@ def create_and_insert_new_users(filepath: str) -> None:
     for user in users:
         create_and_insert_new_user(user)
     print(f"Successfully added {len(users)} new users to S3")
+
+
+    def load_all_user_dids() -> list[str]:
+        """Loads all user DIDs from S3."""
+        return [
+            key.split("/")[1] # format: "users/<user_did>/..."
+            for key in s3_client.get_keys_given_prefix(prefix=USERS_KEY_ROOT)
+        ]

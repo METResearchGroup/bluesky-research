@@ -1,9 +1,7 @@
 """Helper file for recommendation service."""
 from typing import Literal
 
-from lib.aws.s3 import current_timestamp, S3
-
-RECOMMENDATIONS_KEY_ROOT = "recommendations"
+from lib.aws.s3 import current_timestamp, RECOMMENDATIONS_KEY_ROOT, S3
 
 
 # TODO: update preprocessing code to write posts to a directory based on

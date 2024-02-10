@@ -1,12 +1,13 @@
 """Helper functions for feed preprocessing."""
 import os
 
-from lib.aws.s3 import current_timestamp, S3, S3_FIREHOSE_KEY_ROOT
+from lib.aws.s3 import (
+    current_timestamp, PREPROCESSED_DATA_KEY_ROOT, S3, S3_FIREHOSE_KEY_ROOT
+)
 from services.feed_preprocessing.pipelines import (
     feed_preprocessing_pipeline, filtering_pipeline
 )
 
-PREPROCESSED_DATA_KEY_ROOT = "preprocessed_data"
 
 class DataLoader:
     """Loads raw data from S3 in batches, then yields them to the lambda
