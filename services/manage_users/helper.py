@@ -48,6 +48,11 @@ def insert_new_user_to_s3(
     """
     base_key = os.path.join(USERS_KEY_ROOT, user_did)
 
+    # check that base key doesn't already exist
+    if s3_client.check_if_prefix_exists(prefix=base_key):
+        print(f"User {user_did} already exists in S3. Exiting...")
+        return
+
     study_data_key = os.path.join(base_key, "study_data.json")
     s3_client.write_dict_json_to_s3(study_data, study_data_key)
 

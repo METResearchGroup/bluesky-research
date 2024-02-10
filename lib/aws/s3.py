@@ -90,6 +90,14 @@ class S3:
         return [json.loads(j) for j in jsons]
 
     @retry_on_aws_rate_limit
+    def check_if_prefix_exists(self, prefix: str) -> bool:
+        """Checks if prefix exists in S3."""
+        response = self.client.list_objects_v2(
+            Bucket=ROOT_BUCKET, Prefix=prefix
+        )
+        return "Contents" in response or 'CommonPrefixes' in response
+
+    @retry_on_aws_rate_limit
     def get_keys_given_prefix(self, prefix: str) -> list[str]:
         """Gets keys given a prefix."""
         response = self.client.list_objects_v2(
