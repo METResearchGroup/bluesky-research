@@ -1,7 +1,7 @@
 """Helper functions for feed preprocessing."""
 import os
 
-from lib.aws.s3 import S3, S3_FIREHOSE_KEY_ROOT
+from lib.aws.s3 import current_timestamp, S3, S3_FIREHOSE_KEY_ROOT
 from services.feed_preprocessing.pipelines import (
     feed_preprocessing_pipeline, filtering_pipeline
 )
@@ -48,17 +48,14 @@ class DataLoader:
             res.append((key, posts))
         return res
 
-    # TODO: the posts should be written to a folder corresponding to the
-    # timestamp of this batch preprocessing being done. This way, we can
-    # keep track of when the preprocessing was done and be able to pull
-    # only the most recent posts.
     def write_preprocessed_post_to_s3(self, post: dict) -> None:
         """Writes preprocessed post to S3.
 
-        Writes to a new "preprocessed" directory.
+        Writes to a new "preprocessed" directory, in a folder corresponding
+        to the latest timestamp.
         """
         hashed_filename = f"{hash(post['uri'])}.json"
-        key = os.path.join(PREPROCESSED_DATA_KEY_ROOT, hashed_filename)
+        key = os.path.join(PREPROCESSED_DATA_KEY_ROOT, current_timestamp, hashed_filename)
         self.s3.write_dict_json_to_s3(data=post, key=key)
 
     def preprocess_batch(
