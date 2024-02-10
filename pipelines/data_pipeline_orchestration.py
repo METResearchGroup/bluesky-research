@@ -6,7 +6,6 @@ Runs the services in the following order:
 3. Postprocess the data (`feed_postprocessing`)
 4. Manage the feeds (`manage_bluesky_feeds`)
 """
-# TODO: rewrite with Mage
 from airflow import DAG
 from airflow.operators.http_operator import SimpleHttpOperator
 from datetime import datetime, timedelta
