@@ -13,6 +13,8 @@ S3_FIREHOSE_KEY_ROOT = "firehose"
 
 
 thread_lock = threading.Lock()
+# current time, in YYYY-MM-DD:HH:MM:SS format
+current_timestamp = time.strftime("%Y-%m-%d:%H:%M:%S")
 
 
 class S3:
@@ -161,3 +163,19 @@ class S3:
         blob = self.read_from_s3(bucket, key)
         jsons = blob.decode("utf-8").split("\n")
         return pl.DataFrame(jsons)
+
+    def create_partitioned_key(
+        key_root: str, userid: str, timestamp: str, filename: str
+    ) -> str:
+        """Creates a partitioned key for data.
+
+        Used for feed recommendations from `recommendation` and `feed_postprocessing`
+        services.
+
+        Example partitioned keys:
+        - recommendations/userid={userid}/timestamp={timestamp}/recommendation.json
+        - feeds/userid={userid}/timestamp={timestamp}/feed.json
+        """ # noqa
+        return os.path.join(
+            key_root, f"userid={userid}", f"timestamp={timestamp}", filename
+        )

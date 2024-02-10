@@ -1,5 +1,5 @@
 """Feed preprocessing pipeline."""
-from typing import Optional
+
 
 def example_preprocessing_function(post: dict) -> dict:
     """Example preprocessing function."""

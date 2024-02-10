@@ -48,6 +48,10 @@ class DataLoader:
             res.append((key, posts))
         return res
 
+    # TODO: the posts should be written to a folder corresponding to the
+    # timestamp of this batch preprocessing being done. This way, we can
+    # keep track of when the preprocessing was done and be able to pull
+    # only the most recent posts.
     def write_preprocessed_post_to_s3(self, post: dict) -> None:
         """Writes preprocessed post to S3.
 
