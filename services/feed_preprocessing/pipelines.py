@@ -6,6 +6,14 @@ def example_preprocessing_function(post: dict) -> dict:
     return post
 
 
+def example_enrichment_function(post: dict) -> dict:
+    """Example enrichment function. In contrast to just the preprocessing,
+    the enrichment function is expected to return a post with additional
+    fields.
+    """
+    return post
+
+
 def example_filtering_function(post: dict) -> bool:
     """Example filtering function.
 
@@ -17,4 +25,6 @@ def example_filtering_function(post: dict) -> bool:
 
 
 filtering_pipeline: list[callable] = [example_filtering_function]
-feed_preprocessing_pipeline: list[callable] = [example_preprocessing_function]
+feed_preprocessing_pipeline: list[callable] = [
+    example_preprocessing_function, example_enrichment_function
+]

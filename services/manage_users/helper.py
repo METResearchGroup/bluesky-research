@@ -82,11 +82,12 @@ def create_and_insert_new_users(filepath: str) -> None:
 
     Requires the following fields in the .csv file specified in `csv_data`:
     - Demographic data
+    - condition: study condition of the participant ("reverse_chronological", "attention", "representation")
     - actor: Bluesky handle or DID of participant
 
     Assumes that each row is a new user. The only mandatory specified field
     is "actor", since this is used to fetch the user's profile from Bluesky.
-    """
+    """ # noqa
     df: pl.DataFrame = pl.read_csv(filepath)
     users = df.to_dicts()
     for user in users:
@@ -94,9 +95,9 @@ def create_and_insert_new_users(filepath: str) -> None:
     print(f"Successfully added {len(users)} new users to S3")
 
 
-    def load_all_user_dids() -> list[str]:
-        """Loads all user DIDs from S3."""
-        return [
-            key.split("/")[1] # format: "users/<user_did>/..."
-            for key in s3_client.get_keys_given_prefix(prefix=USERS_KEY_ROOT)
-        ]
+def load_all_user_dids() -> list[str]:
+    """Loads all user DIDs from S3."""
+    return [
+        key.split("/")[1] # format: "users/<user_did>/..."
+        for key in s3_client.get_keys_given_prefix(prefix=USERS_KEY_ROOT)
+    ]
