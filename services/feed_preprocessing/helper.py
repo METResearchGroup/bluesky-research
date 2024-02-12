@@ -2,6 +2,8 @@
 import os
 from typing import Optional
 
+import polars as pl
+
 from lib.aws.s3 import (
     current_timestamp, PREPROCESSED_DATA_KEY_ROOT, S3, S3_FIREHOSE_KEY_ROOT
 )
@@ -10,6 +12,7 @@ from services.feed_preprocessing.pipelines import (
     feed_preprocessing_pipeline, filtering_pipeline
 )
 
+s3_client = S3()
 
 class DataLoader:
     """Loads raw data from S3 in batches, then yields them to the lambda
@@ -150,3 +153,19 @@ def preprocess_raw_data(chunk_size: int = 5) -> None:
         filtering_pipeline=filtering_pipeline,
         preprocessing_pipeline=feed_preprocessing_pipeline
     )
+
+
+# TODO: Check Polars vs. Dask? Also investigate Polars more.
+@track_function_runtime
+def preprocess_raw_data_polars() -> None:
+    """Uses Polars to preprocess data in parallel."""
+    df = ""
+    #df = pl.read_json(source)
+    keys = s3_client.get_keys_given_prefix(prefix=S3_FIREHOSE_KEY_ROOT)
+    #breakpoint()
+    #df = s3_client.return_jsons_as_polars_df(key=key)
+    #df = s3_client.return_jsons_as_polars_df(key=prefix)
+    # TOOD: I need a way to stream in the bytes of the data into Polars. I
+    # don't want to load both the .jsonl and the Polars DataFrame into memory.
+    # (Though tbh it would be OK if it comes to that I suppose?)
+    breakpoint()

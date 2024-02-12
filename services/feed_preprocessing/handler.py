@@ -1,10 +1,11 @@
 """Handler for managing preprocessing of raw data before passing to ranking
 and recommendation algorithms."""
-from services.feed_preprocessing.helper import preprocess_raw_data
+from services.feed_preprocessing.helper import preprocess_raw_data, preprocess_raw_data_polars
 
 
 def main(event: dict, context: dict) -> int:
-    preprocess_raw_data(chunk_size=event.get("chunk_size", 5))
+    #preprocess_raw_data(chunk_size=event.get("chunk_size", 5))
+    preprocess_raw_data_polars()
     return 0
 
 

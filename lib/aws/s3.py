@@ -174,7 +174,7 @@ class S3:
         self, key: str, bucket: str = ROOT_BUCKET
     ) -> pl.DataFrame:
         """Reads JSONL from S3 and returns as Polars DataFrame."""
-        blob = self.read_from_s3(bucket, key)
+        blob = self.read_from_s3(bucket=bucket, key=key)
         jsons = blob.decode("utf-8").split("\n")
         return pl.DataFrame(jsons)
 
