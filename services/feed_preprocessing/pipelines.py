@@ -1,30 +1,26 @@
-"""Feed preprocessing pipeline."""
+from transform.preprocessing.filters import (
+    author_is_not_blocked,
+    example_filtering_function,
+    filter_nonenglish_posts,
+    has_no_explicit_content,
+    is_in_network,
+    is_within_similar_networks,
+    post_is_recent
+)
+from transform.preprocessing.preprocessing import (
+    example_preprocessing_function, example_enrichment_function
+)
 
 
-def example_preprocessing_function(post: dict) -> dict:
-    """Example preprocessing function."""
-    return post
-
-
-def example_enrichment_function(post: dict) -> dict:
-    """Example enrichment function. In contrast to just the preprocessing,
-    the enrichment function is expected to return a post with additional
-    fields.
-    """
-    return post
-
-
-def example_filtering_function(post: dict) -> bool:
-    """Example filtering function.
-
-    Returns the post if it passes filtering. Otherwise returns None.
-    """
-    if not post:
-        return False
-    return True
-
-
-filtering_pipeline: list[callable] = [example_filtering_function]
+filtering_pipeline: list[callable] = [
+    author_is_not_blocked,
+    example_filtering_function,
+    filter_nonenglish_posts,
+    has_no_explicit_content,
+    is_in_network,
+    is_within_similar_networks,
+    post_is_recent
+]
 feed_preprocessing_pipeline: list[callable] = [
     example_preprocessing_function, example_enrichment_function
 ]

@@ -5,6 +5,7 @@ from typing import Optional
 from lib.aws.s3 import (
     current_timestamp, PREPROCESSED_DATA_KEY_ROOT, S3, S3_FIREHOSE_KEY_ROOT
 )
+from lib.helper import track_function_runtime
 from services.feed_preprocessing.pipelines import (
     feed_preprocessing_pipeline, filtering_pipeline
 )
@@ -63,6 +64,7 @@ class DataLoader:
         self.s3.write_dict_json_to_s3(data=post, key=key)
 
     def preprocess_individual_post(
+        self,
         post: dict,
         filtering_pipeline: list[callable],
         preprocessing_pipeline: list[callable]
@@ -108,7 +110,8 @@ class DataLoader:
                     preprocessing_pipeline=preprocessing_pipeline
                 )
                 if preprocessed_post:
-                    self.write_preprocessed_post_to_s3(post)
+                    # TODO: uncomment later. Testing just CPU bound, not I/O
+                    #self.write_preprocessed_post_to_s3(post)
                     total_batch_posts_preprocessed += 1
                 if (
                     total_batch_posts_preprocessed > 0
@@ -139,6 +142,7 @@ class DataLoader:
             break
 
 
+@track_function_runtime
 def preprocess_raw_data(chunk_size: int = 5) -> None:
     """Preprocesses raw data from S3 and writes the processed data back to S3.""" # noqa
     dataloader = DataLoader(chunk_size=chunk_size)
