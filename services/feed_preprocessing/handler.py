@@ -4,7 +4,7 @@ from services.feed_preprocessing.helper import preprocess_raw_data
 
 
 def main(event: dict, context: dict) -> int:
-    preprocess_raw_data(batch_size=event.get("chunk_size", 5))
+    preprocess_raw_data(chunk_size=event.get("chunk_size", 5))
     return 0
 
 

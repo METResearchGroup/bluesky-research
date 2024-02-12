@@ -56,7 +56,7 @@ class S3:
             key = f"{key}.json"
         json_body = json.dumps(data)
         json_body_bytes = bytes(json_body, "utf-8")
-        self.write_to_s3(json_body_bytes, bucket, key)
+        self.write_to_s3(blob=json_body_bytes, bucket=bucket, key=key)
 
     def write_dicts_jsonl_to_s3(
         self, data: list[dict], key: str, bucket: str = ROOT_BUCKET
@@ -68,7 +68,7 @@ class S3:
             key = f"{key}.jsonl"
         jsonl_body = "\n".join([json.dumps(d) for d in data])
         jsonl_body_bytes = bytes(jsonl_body, "utf-8")
-        self.write_to_s3(jsonl_body_bytes, bucket, key)
+        self.write_to_s3(blob=jsonl_body_bytes, bucket=bucket, key=key)
 
     @retry_on_aws_rate_limit
     def read_from_s3(self, key: str, bucket: str = ROOT_BUCKET) -> bytes:
@@ -84,14 +84,14 @@ class S3:
         self, key: str, bucket: str = ROOT_BUCKET
     ) -> dict:
         """Reads JSON from S3."""
-        blob = self.read_from_s3(bucket, key)
+        blob = self.read_from_s3(bucket=bucket, key=key)
         return json.loads(blob)
 
     def read_jsonl_from_s3(
         self, key: str, bucket: str = ROOT_BUCKET
     ) -> list[dict]:
         """Reads JSONL from S3."""
-        blob = self.read_from_s3(bucket, key)
+        blob = self.read_from_s3(bucket=bucket, key=key)
         jsons = blob.decode("utf-8").split("\n")
         return [json.loads(j) for j in jsons]
 

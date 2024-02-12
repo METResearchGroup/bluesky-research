@@ -1,5 +1,6 @@
 """Helper functions for feed preprocessing."""
 import os
+from typing import Optional
 
 from lib.aws.s3 import (
     current_timestamp, PREPROCESSED_DATA_KEY_ROOT, S3, S3_FIREHOSE_KEY_ROOT
@@ -26,10 +27,10 @@ class DataLoader:
     """ # noqa
 
     def __init__(self, chunk_size: int = 5) -> None:
-        self.raw_keys: list[str] = self.get_all_raw_data_keys()
         self.chunk_size: int = chunk_size
         self.index: int = 0
         self.s3: S3 = S3()
+        self.raw_keys: list[str] = self.get_all_raw_data_keys()
 
     def get_all_raw_data_keys(
         self, root_key: str = S3_FIREHOSE_KEY_ROOT
@@ -55,9 +56,32 @@ class DataLoader:
         Writes to a new "preprocessed" directory, in a folder corresponding
         to the latest timestamp.
         """
-        hashed_filename = f"{hash(post['uri'])}.json"
-        key = os.path.join(PREPROCESSED_DATA_KEY_ROOT, current_timestamp, hashed_filename)
+        raw_uri = post["uri"]  # e.g., at://did:plc:dscuwp2xjka4tohijjelyl7c/app.bsky.feed.post/3kkyqv2emqs2i
+        hashed_uri = hash(raw_uri)  # need to hash, else we get / problems.
+        filename = f"{hashed_uri}.json"
+        key = os.path.join(PREPROCESSED_DATA_KEY_ROOT, current_timestamp, filename) # noqa
         self.s3.write_dict_json_to_s3(data=post, key=key)
+
+    def preprocess_individual_post(
+        post: dict,
+        filtering_pipeline: list[callable],
+        preprocessing_pipeline: list[callable]
+    ) -> Optional[dict]:
+        """Preprocesses an individual post.
+
+        Checks if the post passes filtering. If it does, do preprocessing on
+        the post and add any modified or enriched fields. Else return None.
+        """
+        post_passes_filtering = all(
+            [filter_func(post) for filter_func in filtering_pipeline]
+        )
+        # if post passes filtering, do necessary preprocessing and then
+        # write to s3
+        if post_passes_filtering:
+            for func in preprocessing_pipeline:
+                post = func(post)
+            return post
+        return None
 
     def preprocess_batch(
         self,
@@ -66,24 +90,33 @@ class DataLoader:
         preprocessing_pipeline: list[callable]
     ) -> None:
         """Perform batch preprocessing on the data and then writes them back
-        to S3."""
+        to S3.
+        
+        Runs in between 7-12 seconds per 10 posts in the naive case of having
+        pass-through filtering and preprocessing function. Will grow in runtime
+        with the complexity of the preprocessing pipeline and thus be batched
+        even more.
+        """
         total_batch_posts_preprocessed = 0
+        print(f"Batch size: {len(batch)}")
+        print(f"Size of first set of posts in the batch: {len(batch[0][1])}")
         for (key, posts) in batch:
             for post in posts:
-                # pass post through all filters concurrently. If any filter
-                # returns False, then the post is filtered out.
-                post_passes_filtering = all(
-                    [filter_func(post) for filter_func in filtering_pipeline]
+                preprocessed_post = self.preprocess_individual_post(
+                    post=post,
+                    filtering_pipeline=filtering_pipeline,
+                    preprocessing_pipeline=preprocessing_pipeline
                 )
-                # if post passes filtering, do necessary preprocessing and then
-                # write to s3
-                if post_passes_filtering:
-                    for func in preprocessing_pipeline:
-                        post = func(post)
+                if preprocessed_post:
                     self.write_preprocessed_post_to_s3(post)
                     total_batch_posts_preprocessed += 1
-            # remove the raw data from S3.
-            self.s3.delete_from_s3(key=key)
+                if (
+                    total_batch_posts_preprocessed > 0
+                    and total_batch_posts_preprocessed % 10 == 0
+                ):
+                    print(f"Preprocessed {total_batch_posts_preprocessed} posts in this batch.") # noqa
+            # remove the raw data for the entire batch from S3.
+            #self.s3.delete_from_s3(key=key) # TODO: delete after preprocessing is completed.
         print(f"Preprocessed {total_batch_posts_preprocessed} posts in this batch.") # noqa
 
     def preprocess_batches(
@@ -102,6 +135,8 @@ class DataLoader:
                 filtering_pipeline=filtering_pipeline,
                 preprocessing_pipeline=preprocessing_pipeline
             )
+            # do just 1 batch.
+            break
 
 
 def preprocess_raw_data(chunk_size: int = 5) -> None:
