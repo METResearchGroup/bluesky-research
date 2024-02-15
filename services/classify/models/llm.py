@@ -12,7 +12,7 @@ from langchain_core.messages.ai import AIMessage
 from langchain.prompts import PromptTemplate
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
-env_path = os.path.abspath(os.path.join(current_file_directory, "../../.env")) # noqa
+env_path = os.path.abspath(os.path.join(current_file_directory, "../../../.env")) # noqa
 load_dotenv(dotenv_path=env_path)
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
@@ -174,6 +174,31 @@ def process_llm_output(ai_message: AIMessage) -> list[dict]:
     return lst
 
 
+def perform_batch_inference(batch: list[str]) -> list[dict]:
+    """Performs inference using LLMs.
+
+    Returns a JSON of the following format:
+    {
+        "text": <text>,
+        "TOXICITY": <binary 0 or 1>,
+        "AFFINITY_EXPERIMENTAL": <binary 0 or 1>,
+        "COMPASSION_EXPERIMENTAL": <binary 0 or 1>,
+        "CONSTRUCTIVE_EXPERIMENTAL": <binary 0 or 1>,
+        "CURIOSITY_EXPERIMENTAL": <binary 0 or 1>,
+        "NUANCE_EXPERIMENTAL": <binary 0 or 1>,
+        "PERSONAL_STORY_EXPERIMENTAL": <binary 0 or 1>,
+        "ALIENATION_EXPERIMENTAL": <binary 0 or 1>,
+        "FEARMONGERING_EXPERIMENTAL": <binary 0 or 1>,
+        "GENERALIZATION_EXPERIMENTAL": <binary 0 or 1>,
+        "MORAL_OUTRAGE_EXPERIMENTAL": <binary 0 or 1>,
+        "POWER_APPEAL_EXPERIMENTAL": <binary 0 or 1>,
+        "SCAPEGOATING_EXPERIMENTAL": <binary 0 or 1>
+    }
+    """
+    ai_message: AIMessage = query_llm(list_text=batch)
+    return process_llm_output(ai_message=ai_message)
+
+
 if __name__ == "__main__":
     texts = [
         "In my hands is my first iPod. Steve Jobs is smiling at me. Everybody at the Apple Store is smiling. I take off my Apple Vision. I am back in the retirement home. Nobody has visited me for 12 years. I put it back on. I hold my iPod. Everybody in the Apple Store is smiling.",
@@ -267,4 +292,3 @@ if __name__ == "__main__":
         }
     ]
     output: AIMessage = query_llm(texts)
-    breakpoint()
