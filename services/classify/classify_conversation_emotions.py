@@ -19,8 +19,8 @@ We use the same attributes that are used in Google's Perspective API
 """
 from typing import Literal
 
-from services.classify.models.llm import perform_inference as llm_inference
-from services.classify.models.perspective_api import perform_inference as perspective_inference # noqa
+from services.classify.models.llm import perform_batch_inference as llm_inference
+from services.classify.models.perspective_api import perform_batch_inference as perspective_inference # noqa
 
 model_to_inference_func_map = {
     "perspective_api": perspective_inference,
