@@ -1,5 +1,6 @@
 from typing import Callable, Optional
 
+DEFAULT_MAX_TOTAL_RESULTS_LIMIT = 999999
 DEFAULT_LIMIT_RESULTS_PER_REQUEST = 50
 MAX_POSTS_PER_REQUEST = 100
 
@@ -9,8 +10,9 @@ def send_request_with_pagination(
     kwargs: dict,
     response_key: str,
     args: Optional[tuple] = (),
-    limit: Optional[int] = DEFAULT_LIMIT_RESULTS_PER_REQUEST,
-    update_params_directly: bool = False
+    limit: Optional[int] = None,
+    update_params_directly: bool = False,
+    silence_logs: bool = False
 ) -> list:
     """Implement a request with pagination.
     
@@ -39,11 +41,19 @@ def send_request_with_pagination(
     """ # noqa
     cursor = None
     total_fetched: int = 0
-    total_to_fetch: int = limit
 
     total_results = []
 
-    if limit > MAX_POSTS_PER_REQUEST:
+    if limit is None:
+        limit = DEFAULT_MAX_TOTAL_RESULTS_LIMIT
+
+    total_to_fetch: int = limit
+
+    if (
+        limit > MAX_POSTS_PER_REQUEST
+        and limit != DEFAULT_MAX_TOTAL_RESULTS_LIMIT
+        and not silence_logs
+    ):
         print(
             f"Limit of {limit} exceeds the maximum of {MAX_POSTS_PER_REQUEST}."
         )
@@ -52,9 +62,10 @@ def send_request_with_pagination(
     request_limit = min(limit, MAX_POSTS_PER_REQUEST)
 
     while True:
-        print(
-            f"Fetching {request_limit} results, out of total max of {limit}..."
-        )
+        if not silence_logs:
+            print(
+                f"Fetching {request_limit} results, out of total max of {limit}..."
+            )
         if update_params_directly:
             kwargs["params"].update({"cursor": cursor, "limit": request_limit})
         else:
