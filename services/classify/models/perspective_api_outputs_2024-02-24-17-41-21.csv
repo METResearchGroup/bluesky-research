@@ -1,0 +1,17 @@
+text,prob_toxic,label_toxic,prob_affinity,label_affinity,prob_compassion,label_compassion,prob_constructive,label_constructive,prob_curiosity,label_curiosity,prob_nuance,label_nuance,prob_personal_story,label_personal_story,prob_alienation,label_alienation,prob_fearmongering,label_fearmongering,prob_generalization,label_generalization,prob_moral_outrage,label_moral_outrage,prob_scapegoating,label_scapegoating
+People who vote for Trump have to educate themselves,0.33504707,0,0.09268759,0,0.079210214,0,0.12506537,0,0.05582326,0,0.08035743,0,0.036220085,0,0.7732165,1,0.15921786,0,0.69264215,1,0.42871243,0,0.38583788,0
+"
+Respectfully, let's just go through some history. 
+
+In 2000, Palestinians walk away from a very, very good peace deal which included a sovereign state (a “Free Palestine,” if you will.)
+
+They then launch the Second Intifada. Israeli civilians are living though five years of suicide bombings, mass shootings and rocket attacks. This massively deteriorated any chance at peace. 
+
+We both agree that Netanyahu has been horrible. But it's simply factual that Palestinians created the conditions that led to his rise.
+        ",0.2763787,0,0.3007459,0,0.58320326,1,0.7826624,1,0.35936442,0,0.6242932,1,0.07696096,0,0.3424617,0,0.6504677,1,0.54891557,1,0.39094135,0,0.49685693,0
+"If Israel has to be an apartheid state to exist.. then it should be destroyed. The fact the Bibi and his party keep getting re-elected means ""the only democracy in the middle east"" is populated with a majority that are evil fucks.",0.7105462,1,0.1066907,0,0.18952143,0,0.23091994,0,0.06954183,0,0.16451685,0,0.039638884,0,0.8887591,1,0.6034653,1,0.77864933,1,0.89478934,1,0.7386694,1
+What do you suggest they do about the part where Palestinian leadership's only goal is to destroy it?  We just ignore that?,0.20265625,0,0.1835935,0,0.22270027,0,0.16451685,0,0.74908763,1,0.13386764,0,0.032589752,0,0.42775583,0,0.31573644,0,0.5014728,1,0.48523438,0,0.56313807,1
+"I think a lot of non-Jews don't quite comprehend the Jewish people's emotional connection to Israel. We can condemn its government's actions but its existence is a core, or at least spiritual part of our religious identity. So we can't just... give it up.",0.16678599,0,0.4191726,0,0.41632205,0,0.7041606,1,0.35756785,0,0.54237837,1,0.2917871,0,0.27904204,0,0.22135042,0,0.6325031,1,0.112795524,0,0.20561528,0
+There is a very strong *legal* & ethnic connection that should also be emphasised. The State of Israel is the result of international agreement and binding statutes of law following UN Resolution 181 in 1947. Land was legally purchased and worked by Jews prior to this date.,0.077668175,0,0.12592298,0,0.12940247,0,0.7704645,1,0.14128152,0,0.5399543,1,0.08151978,0,0.044018675,0,0.23510863,0,0.3259496,0,0.034100443,0,0.07477004,0
+"This isn't racist elementary school. Open some books, read and find out why you know nothing about this subject.What good are those laws if the conflict continues anyway? What good are those laws if we constantly have endless terrorism and arguments about the settlements and such?",0.13388206,0,0.150029,0,0.18242536,0,0.2407752,0,0.40497822,0,0.15203233,0,0.033085957,0,0.69014186,1,0.37387624,0,0.39747086,0,0.6233765,1,0.3775408,0
+They forgot to ask the Palestinians. You know.. the only people whose opinion mattered when they decided,0.15435068,0,0.117572024,0,0.22541708,0,0.13846204,0,0.14706427,0,0.112795524,0,0.05834592,0,0.403567,0,0.31912184,0,0.60253024,1,0.32252637,0,0.3816807,0
