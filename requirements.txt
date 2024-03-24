@@ -48,8 +48,12 @@ click==8.1.7
     # via
     #   atproto
     #   flask
+contourpy==1.2.0
+    # via matplotlib
 cryptography==41.0.7
     # via atproto
+cycler==0.12.1
+    # via matplotlib
 dataclasses-json==0.6.4
     # via
     #   langchain
@@ -62,6 +66,8 @@ exceptiongroup==1.2.0
     # via anyio
 flask==3.0.2
     # via -r requirements.in
+fonttools==4.50.0
+    # via matplotlib
 frozenlist==1.4.1
     # via
     #   aiohttp
@@ -111,6 +117,8 @@ jsonpatch==1.33
     #   langchain-core
 jsonpointer==2.4
     # via jsonpatch
+kiwisolver==1.4.5
+    # via matplotlib
 langchain==0.1.7
     # via -r requirements.in
 langchain-community==0.0.20
@@ -132,6 +140,8 @@ markupsafe==2.1.5
     #   werkzeug
 marshmallow==3.20.2
     # via dataclasses-json
+matplotlib==3.8.3
+    # via -r requirements.in
 multidict==6.0.5
     # via
     #   aiohttp
@@ -140,8 +150,10 @@ mypy-extensions==1.0.0
     # via typing-inspect
 numpy==1.26.4
     # via
+    #   contourpy
     #   langchain
     #   langchain-community
+    #   matplotlib
     #   pandas
 openai==1.12.0
     # via -r requirements.in
@@ -149,10 +161,13 @@ packaging==23.2
     # via
     #   langchain-core
     #   marshmallow
+    #   matplotlib
 pandas==2.2.0
     # via -r requirements.in
 peewee==3.17.1
     # via -r requirements.in
+pillow==10.2.0
+    # via matplotlib
 polars==0.20.7
     # via -r requirements.in
 protobuf==4.25.2
@@ -177,10 +192,13 @@ pydantic==2.6.1
 pydantic-core==2.16.2
     # via pydantic
 pyparsing==3.1.1
-    # via httplib2
+    # via
+    #   httplib2
+    #   matplotlib
 python-dateutil==2.8.2
     # via
     #   botocore
+    #   matplotlib
     #   pandas
 python-dotenv==0.21.0
     # via -r requirements.in
