@@ -1,0 +1,1 @@
+Updates with current events from the NYTimes and creates vectorized representations of the articles.

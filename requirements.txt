@@ -64,6 +64,13 @@ dnspython==2.5.0
     # via atproto
 exceptiongroup==1.2.0
     # via anyio
+faiss-cpu==1.8.0
+    # via -r requirements.in
+filelock==3.13.3
+    # via
+    #   huggingface-hub
+    #   torch
+    #   transformers
 flask==3.0.2
     # via -r requirements.in
 fonttools==4.50.0
@@ -72,6 +79,10 @@ frozenlist==1.4.1
     # via
     #   aiohttp
     #   aiosignal
+fsspec==2024.3.1
+    # via
+    #   huggingface-hub
+    #   torch
 google-api-core==2.17.0
     # via google-api-python-client
 google-api-python-client==2.116.0
@@ -97,6 +108,11 @@ httpx==0.25.2
     # via
     #   atproto
     #   openai
+huggingface-hub==0.22.1
+    # via
+    #   sentence-transformers
+    #   tokenizers
+    #   transformers
 idna==3.6
     # via
     #   anyio
@@ -106,11 +122,15 @@ idna==3.6
 itsdangerous==2.1.2
     # via flask
 jinja2==3.1.3
-    # via flask
+    # via
+    #   flask
+    #   torch
 jmespath==1.0.1
     # via
     #   boto3
     #   botocore
+joblib==1.3.2
+    # via scikit-learn
 jsonpatch==1.33
     # via
     #   langchain
@@ -142,32 +162,45 @@ marshmallow==3.20.2
     # via dataclasses-json
 matplotlib==3.8.3
     # via -r requirements.in
+mpmath==1.3.0
+    # via sympy
 multidict==6.0.5
     # via
     #   aiohttp
     #   yarl
 mypy-extensions==1.0.0
     # via typing-inspect
+networkx==3.2.1
+    # via torch
 numpy==1.26.4
     # via
     #   contourpy
+    #   faiss-cpu
     #   langchain
     #   langchain-community
     #   matplotlib
     #   pandas
+    #   scikit-learn
+    #   scipy
+    #   sentence-transformers
+    #   transformers
 openai==1.12.0
     # via -r requirements.in
 packaging==23.2
     # via
+    #   huggingface-hub
     #   langchain-core
     #   marshmallow
     #   matplotlib
+    #   transformers
 pandas==2.2.0
     # via -r requirements.in
 peewee==3.17.1
     # via -r requirements.in
 pillow==10.2.0
-    # via matplotlib
+    # via
+    #   matplotlib
+    #   sentence-transformers
 polars==0.20.7
     # via -r requirements.in
 protobuf==4.25.2
@@ -206,21 +239,37 @@ pytz==2024.1
     # via pandas
 pyyaml==6.0.1
     # via
+    #   huggingface-hub
     #   langchain
     #   langchain-community
     #   langchain-core
+    #   transformers
+regex==2023.12.25
+    # via transformers
 requests==2.31.0
     # via
     #   -r requirements.in
     #   google-api-core
+    #   huggingface-hub
     #   langchain
     #   langchain-community
     #   langchain-core
     #   langsmith
+    #   transformers
 rsa==4.9
     # via google-auth
 s3transfer==0.10.0
     # via boto3
+safetensors==0.4.2
+    # via transformers
+scikit-learn==1.4.1.post1
+    # via sentence-transformers
+scipy==1.12.0
+    # via
+    #   scikit-learn
+    #   sentence-transformers
+sentence-transformers==2.6.1
+    # via -r requirements.in
 six==1.16.0
     # via python-dateutil
 sniffio==1.3.0
@@ -232,21 +281,39 @@ sqlalchemy==2.0.27
     # via
     #   langchain
     #   langchain-community
+sympy==1.12
+    # via torch
 tenacity==8.2.3
     # via
     #   langchain
     #   langchain-community
     #   langchain-core
+threadpoolctl==3.4.0
+    # via scikit-learn
+tokenizers==0.15.2
+    # via transformers
+torch==2.2.1
+    # via sentence-transformers
 tqdm==4.66.2
-    # via openai
+    # via
+    #   huggingface-hub
+    #   openai
+    #   sentence-transformers
+    #   transformers
+transformers==4.39.1
+    # via
+    #   -r requirements.in
+    #   sentence-transformers
 typing-extensions==4.9.0
     # via
     #   anyio
     #   atproto
+    #   huggingface-hub
     #   openai
     #   pydantic
     #   pydantic-core
     #   sqlalchemy
+    #   torch
     #   typing-inspect
 typing-inspect==0.9.0
     # via dataclasses-json

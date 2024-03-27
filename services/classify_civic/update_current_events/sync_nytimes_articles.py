@@ -136,5 +136,10 @@ def load_all_articles_as_df() -> pd.DataFrame:
     return df_articles
 
 
+def vectorize_articles(df: pd.DataFrame) -> pd.DataFrame:
+    """Vectorizes the articles."""
+    pass
+
+
 if __name__ == "__main__":
     sync_latest_nytimes_topstories()
