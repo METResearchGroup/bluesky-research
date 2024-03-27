@@ -15,6 +15,7 @@ from langchain_community.vectorstores.utils import DistanceStrategy
 from langchain.docstore.document import Document as LangchainDocument
 import pandas as pd
 
+from services.classify_civic.constants import FAISS_INDEX_PATH
 from services.classify_civic.update_current_events.sync_nytimes_articles import load_all_articles_as_df # noqa
 
 MAX_CHUNK_SIZE = 512
@@ -23,7 +24,7 @@ VECTOR_DB_NAME = "faiss_index_nytimes"
 
 embedding_model = HuggingFaceEmbeddings(
     model_name=DEFAULT_EMBEDDING_MODEL,
-    multi_process=True,
+    #multi_process=True,
     #model_kwargs={"device": "cuda"},
     encode_kwargs={"normalize_embeddings": True},  # set True for cosine similarity
 )
@@ -60,35 +61,26 @@ def load_all_articles_as_documents() -> list[LangchainDocument]:
 
 
 def create_vector_database(
-    raw_knowledge_base: list[LangchainDocument],
     embedding_model: HuggingFaceEmbeddings,
     distance_strategy: DistanceStrategy = DistanceStrategy.COSINE
 ) -> FAISS:
     """Creates a vector database from the raw knowledge base."""
+    raw_knowledge_base: list[LangchainDocument] = (
+        load_all_articles_as_documents()
+    )
     return FAISS.from_documents(
         raw_knowledge_base, embedding_model, distance_strategy=distance_strategy
     )
 
 
 def get_or_create_vector_database(
-    database_name: str,
-    embedding_model: HuggingFaceEmbeddings,
-    raw_knowledge_base: Optional[list[LangchainDocument]] = None
+    database_fp: Optional[str] = FAISS_INDEX_PATH,
+    embedding_model: Optional[HuggingFaceEmbeddings] = embedding_model,
 ) -> FAISS:
     """Get or create a FAISS vector database."""
     try:
-        return FAISS.load_local(database_name, embedding_model)
+        print("Loading existing FAISS index.")
+        return FAISS.load_local(database_fp, embedding_model)
     except FileNotFoundError:
-        create_vector_database(raw_knowledge_base, embedding_model)
-
-
-if __name__ == "__main__":
-    raw_knowledge_base: list[LangchainDocument] = (
-        load_all_articles_as_documents()
-    )
-    vector_db = get_or_create_vector_database(
-        database_name=VECTOR_DB_NAME,
-        embedding_model=embedding_model,
-        raw_knowledge_base=raw_knowledge_base
-    )
-    print("Finished creating vector database.")
+        print("Cannot find existing FAISS index. Creating a new vector database.") # noqa
+        create_vector_database(embedding_model)

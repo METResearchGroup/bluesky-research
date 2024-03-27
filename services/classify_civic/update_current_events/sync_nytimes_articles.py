@@ -11,7 +11,7 @@ from typing import Optional
 import pandas as pd
 
 from lib.constants import current_datetime
-from lib.helper import add_rate_limit, NYTIMES_API_KEY, track_function_runtime
+from lib.helper import NYTIMES_API_KEY, track_function_runtime
 from services.classify_civic.update_current_events.db import conn, cursor
 
 
@@ -136,10 +136,6 @@ def load_all_articles_as_df() -> pd.DataFrame:
     return df_articles
 
 
-def vectorize_articles(df: pd.DataFrame) -> pd.DataFrame:
-    """Vectorizes the articles."""
-    pass
-
-
 if __name__ == "__main__":
-    sync_latest_nytimes_topstories()
+    #sync_latest_nytimes_topstories()
+    pass

@@ -1,8 +1,9 @@
 """DB functionalities for civic classification."""
 import sqlite3
 
-NYTIMES_DB_NAME = "nytimes_articles.db"
-NYTIMES_ARTICLE_TABLE_NAME = "articles"
+from services.classify_civic.constants import (
+    NYTIMES_DB_NAME, NYTIMES_ARTICLE_TABLE_NAME
+)
 
 conn = sqlite3.connect(NYTIMES_DB_NAME)
 cursor = conn.cursor()
@@ -23,7 +24,3 @@ def create_db_and_table(table_name: str = NYTIMES_ARTICLE_TABLE_NAME) -> None:
     ''')
     conn.commit()
     conn.close()
-
-
-if __name__ == "__main__":
-    create_db_and_table()
