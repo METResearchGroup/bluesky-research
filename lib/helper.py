@@ -1,5 +1,6 @@
 """Helper functions."""
 from dotenv import load_dotenv
+from functools import wraps
 import logging
 import os
 import threading
@@ -14,6 +15,7 @@ load_dotenv(env_path)
 BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_PASSWORD")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+NYTIMES_API_KEY = os.getenv("NYTIMES_KEY")
 
 client = Client()
 client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
@@ -40,6 +42,18 @@ def track_function_runtime(func):
         return result
 
     return wrapper
+
+
+def add_rate_limit(rate_limit: float):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            res = func(*args, **kwargs)
+            print(f"Sleeping for {rate_limit} seconds...")
+            time.sleep(rate_limit)
+            return res
+        return wrapper
+    return decorator
 
 
 class ThreadSafeCounter:
