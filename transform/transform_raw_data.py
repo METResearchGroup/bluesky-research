@@ -263,12 +263,6 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
     }
     """ # noqa
     processed_replies: dict = process_replies(post["record"].reply)
-    if post["record"]["entities"] or post["record"]["labels"] or post["record"]["tags"]:
-        entities = post["record"]["entities"]
-        labels = post["record"]["labels"]
-        tags = post["record"]["tags"]
-        print("Either entities or labels to be managed.")
-        breakpoint()
     try:
         # flatten the post
         flattened_firehose_dict = {

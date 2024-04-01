@@ -37,7 +37,7 @@ def track_function_runtime(func):
             execution_time_seconds - (60 * execution_time_minutes)
         )
 
-        print(f"Execution time: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds") # noqa
+        print(f"Execution time for {func.__name__}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds") # noqa
 
         return result
 
