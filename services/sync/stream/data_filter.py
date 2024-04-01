@@ -25,9 +25,58 @@ def filter_by_user_in_study(bsky_did: str) -> bool:
     return bsky_did in existing_users_bsky_dids_set
 
 
-# TODO: I should track all URIs, which would simplify determining which posts
-# to write/delete. I can load it into memory for this function.
-def filter_incoming_posts(operations_by_type: dict) -> list[dict]:
+def manage_likes(likes: dict[str, list]) -> dict:
+    """Manages the likes and follows.
+    
+    We'll build this in later, but this is a placeholder function for when we
+    do manage the likes. We only want to do this when it involves a user in our
+    study (e.g., if a user likes a post)
+
+    Each like is a dictionary of the format:
+    {
+        "created": [], "deleted": []
+    }
+    """
+    return {}
+
+
+def manage_follows(follows: dict[str, list]) -> dict:
+    """Manages the follows.
+    
+    We'll build this in later, but this is a placeholder function for when we
+    do manage the follows. We only want to do this when it involves a user in
+    our study (e.g., if a user follows an account).
+
+    Each follow is a dictionary of the format:
+    {
+        "created": [], "deleted": []
+    }
+    """
+    return {}
+
+
+def manage_posts(posts: dict[str, list]) -> dict:
+    """Manages which posts to create or delete.
+    
+    We want to track any new posts in our database.
+    """
+    posts_to_create: list[dict] = []
+    posts_to_delete: list[str] = [
+        p['uri'] for p in posts['deleted']
+    ]
+
+    for new_post in posts["created"]:
+        if new_post is not None:
+            flattened_post = flatten_firehose_post(new_post)
+            posts_to_create.append(flattened_post)
+
+    return {
+        "posts_to_create": posts_to_create,
+        "posts_to_delete": posts_to_delete
+    }
+
+
+def filter_incoming_posts(operations_by_type: dict) -> dict:
     """Performs filtering on incoming posts and determines which posts have
     to be created or deleted.
 
@@ -40,27 +89,14 @@ def filter_incoming_posts(operations_by_type: dict) -> list[dict]:
     We want to store all new posts, and then process likes and follows only if
     they are from users in our study or from users in their network.
     """
-    new_posts = operations_by_type["posts"]["created"]
-    new_likes = operations_by_type["likes"]["created"]
-    new_follows = operations_by_type["follows"]["created"]
+    posts: dict[str, list] = operations_by_type["posts"]
+    likes: dict[str, list] = operations_by_type["likes"]
+    follows: dict[str, list] = operations_by_type["follows"]
 
-    if len(new_posts) > 0 or len(new_follows) > 0:
-        breakpoint()
-
-    posts_to_create: list[dict] = []
-    posts_to_delete: list[str] = [
-        p['uri'] for p in operations_by_type['posts']['deleted']
-    ]
-
-    for created_post in operations_by_type['posts']['created']:
-        if created_post is not None:
-            flattened_post = flatten_firehose_post(created_post)
-            posts_to_create.append(flattened_post)
-
-    return {
-        "posts_to_create": posts_to_create,
-        "posts_to_delete": posts_to_delete
-    }
+    manage_likes(likes=likes)
+    manage_follows(follows=follows)
+    post_updates: dict = manage_posts(posts=posts)
+    return post_updates
 
 
 def manage_post_creation(posts_to_create: list[dict]) -> None:
@@ -163,10 +199,13 @@ def operations_callback(operations_by_type: dict) -> bool:
     if posts_to_delete:
         manage_post_deletes(posts_to_delete)
 
-    has_written_data = False
+    has_written_data = True
 
-    # write to storage
-    if posts_to_create:
-        has_written_data = write_posts_to_local_storage(posts_to_create)
+    # write to storage: we may want to do this later but not for now. We do
+    # this in case we want to store the raw data as JSONs somewhere, which
+    # we may want to do?
+    #has_written_data = False
+    #if posts_to_create:
+    #    has_written_data = write_posts_to_local_storage(posts_to_create)
 
     return has_written_data

@@ -90,3 +90,14 @@ def get_all_table_results_as_df(conn: sqlite3.Connection, table_name: str) -> pd
         logger.info(f"Error getting all table results as df: {e}")
         logger.info("Returning empty df.")
         return pd.DataFrame()
+
+
+def get_all_tables_in_db(cursor: sqlite3.Cursor) -> list[str]:
+    query = """
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+    """
+    cursor.execute(query)
+    table_names = cursor.fetchall()
+    return [table[0] for table in table_names]

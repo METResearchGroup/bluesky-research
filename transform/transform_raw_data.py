@@ -7,9 +7,10 @@ from typing import Optional, TypedDict, Union
 from atproto_client.models.app.bsky.actor.defs import (
     ProfileView, ProfileViewBasic, ProfileViewDetailed
 )
-from atproto_client.models.app.bsky.feed.post import Main as Record, ReplyRef
+from atproto_client.models.app.bsky.feed.post import Entity, Main as Record, ReplyRef
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, PostView
 from atproto_client.models.app.bsky.richtext.facet import Main as Facet
+from atproto_client.models.com.atproto.label.defs import SelfLabel
 from atproto_client.models.dot_dict import DotDict
 
 
@@ -153,6 +154,59 @@ def process_facets(facets: list[Facet]) -> str:
     return ','.join([process_facet(facet) for facet in facets])
 
 
+def process_label(label: SelfLabel) -> str:
+    """Processes a single label.
+    
+    Example: 
+    SelfLabel(val='porn', py_type='com.atproto.label.defs#selfLabel'
+
+    Returns a single label.
+    """
+    return label.val
+
+
+def process_labels(labels: list[SelfLabel]) -> str:
+    """Processes labels.
+    
+    Example:
+    SelfLabels(
+        values=[SelfLabel(val='porn', py_type='com.atproto.label.defs#selfLabel')],
+        py_type='com.atproto.label.defs#selfLabels'
+    )
+    """
+    return ','.join([process_label(label) for label in labels.values])
+
+def process_entity(entity: Entity) -> str:
+    """Returns the value of an entity.
+
+    Example:
+
+    Entity(
+        index=TextSlice(end=81, start=39, py_type='app.bsky.feed.post#textSlice'),
+        type='link',
+        value='https://song.link/s/2Zh97yLVZeOpwzFoXtkfBt',
+        py_type='app.bsky.feed.post#entity'
+    )
+    """
+    return entity.value
+
+
+def process_entities(entities: list[Entity]) -> str:
+    """Processes entities.
+
+    Example:
+    [
+        Entity(
+            index=TextSlice(end=81, start=39, py_type='app.bsky.feed.post#textSlice'),
+            type='link',
+            value='https://song.link/s/2Zh97yLVZeOpwzFoXtkfBt',
+            py_type='app.bsky.feed.post#entity'
+        )
+    ]
+    """ # noqa
+    return ','.join([process_entity(entity) for entity in entities])
+
+
 def process_replies(reply: Optional[ReplyRef]) -> dict:
     """Manages any replies if the post is part of a larger thread.
 
@@ -209,38 +263,46 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
     }
     """ # noqa
     processed_replies: dict = process_replies(post["record"].reply)
-
-    # flatten the post
-    flattened_firehose_dict = {
-        "uri": post["uri"],
-        "created_at": post["record"]["created_at"],
-        "text": post["record"]["text"],
-        "langs": (
-            ','.join(post["record"]["langs"])
-            if post["record"]["langs"] else None
-        ),
-        "entities": (
-            ','.join(post["record"]["entities"])
-            if post["record"]["entities"] else None
-        ),
-        "facets": (
-            process_facets(post["record"]["facets"])
-            if post["record"]["facets"] else None
-        ),
-        "labels": (
-            ','.join(post["record"]["labels"])
-            if post["record"]["labels"] else None
-        ),
-        "reply_parent": processed_replies["reply_parent"],
-        "reply_root": processed_replies["reply_root"],
-        "tags": (
-            ','.join(post["record"]["tags"])
-            if post["record"]["tags"] else None
-        ),
-        "py_type": post["record"]["py_type"],
-        "cid": post["cid"],
-        "author": post["author"],
-    }
+    if post["record"]["entities"] or post["record"]["labels"] or post["record"]["tags"]:
+        entities = post["record"]["entities"]
+        labels = post["record"]["labels"]
+        tags = post["record"]["tags"]
+        print("Either entities or labels to be managed.")
+        breakpoint()
+    try:
+        # flatten the post
+        flattened_firehose_dict = {
+            "uri": post["uri"],
+            "created_at": post["record"]["created_at"],
+            "text": post["record"]["text"],
+            "langs": (
+                ','.join(post["record"]["langs"])
+                if post["record"]["langs"] else None
+            ),
+            "entities": (
+                process_entities(post["record"]["entities"])
+                if post["record"]["entities"] else None
+            ),
+            "facets": (
+                process_facets(post["record"]["facets"])
+                if post["record"]["facets"] else None
+            ),
+            "labels": (
+                process_labels(post["record"]["labels"])
+                if post["record"]["labels"] else None
+            ),
+            "reply_parent": processed_replies["reply_parent"],
+            "reply_root": processed_replies["reply_root"],
+            "tags": (
+                ','.join(post["record"]["tags"])
+                if post["record"]["tags"] else None
+            ),
+            "py_type": post["record"]["py_type"],
+            "cid": post["cid"],
+            "author": post["author"],
+        }
+    except Exception as e:
+        print(f"Exception in flattening post: {e}")
     return flattened_firehose_dict
 
 
@@ -259,8 +321,6 @@ class FlattenedFeedViewPost(TypedDict):
 
 
 def flatten_feed_view_post(post: FeedViewPost) -> dict:
-    # TODO: figure out what "reason" means in the FeedViewPost?
-    # TODO: still need to figure out what the ID of a post is?
     assert isinstance(post, FeedViewPost)
     post: FlattenedFeedViewPost = flatten_post(post.post)
     return post

@@ -2,23 +2,20 @@
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_stream.py
 """
-import time
-
 from atproto import AtUri, CAR, firehose_models, FirehoseSubscribeReposClient, models, parse_subscribe_repos_message
 from atproto.exceptions import FirehoseError
 
-from lib.aws.s3 import S3, POST_BATCH_SIZE
 from lib.helper import ThreadSafeCounter
-from services.sync.stream.constants import tmp_data_dir
 from services.sync.stream.database import SubscriptionState
 
-s3_client = S3()
-
+# number of events to stream before exiting
+# (should be ~5,000 posts, a 1:5 ratio of posts:events)
+stream_limit = 25000
 
 def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict:  # noqa: C901
     operation_by_type = {
         'posts': {'created': [], 'deleted': []},
-        'reposts': {'created': [], 'deleted': []},
+        'reposts': {'created': [], 'deleted': []}, # NOTE: is it possible to track reposts? 
         'likes': {'created': [], 'deleted': []},
         'follows': {'created': [], 'deleted': []},
     }
@@ -96,21 +93,6 @@ def _run(name, operations_callback, stream_stop_event=None):
         if not isinstance(commit, models.ComAtprotoSyncSubscribeRepos.Commit):
             return
 
-        # every batch size, we collect all the posts written to local storage
-        # and write to s3.
-        current_counter_value = counter.get_value()
-        if (
-            current_counter_value > 0
-            and current_counter_value % POST_BATCH_SIZE == 0
-        ):
-            print("Writing batch of posts to S3...")
-            timestamp = str(int(time.time()))
-            filename = f"posts_{timestamp}.jsonl"
-            s3_client.write_local_jsons_to_s3(
-                dir=tmp_data_dir, filename=filename
-            )
-            counter.reset()
-
         # update stored state every ~20 events
         if commit.seq % 20 == 0:
             print(f'Updated cursor for {name} to {commit.seq}')
@@ -122,11 +104,19 @@ def _run(name, operations_callback, stream_stop_event=None):
 
         has_written_data = operations_callback(_get_ops_by_type(commit))
 
+        # we assume that the write to DB has succeeded, though we may want to
+        # validate this check (i.e., has_written_data is always True, but
+        # we may want to see if this is actually the case.)
         if has_written_data:
-            # we only increment when there has been successful writes, since
-            # not all commits from the firehose will lead to a corresponding
-            # write of data to local storage.
             counter.increment()
-            print(f"Counter: {counter.get_value()}")
+            counter_value = counter.get_value()
+            if counter_value % 100 == 0:
+                print(f"Counter: {counter_value}")
+            if counter.get_value() > stream_limit:
+                print(f"Counter: {counter_value}. Exiting.")
+                import sys
+                sys.exit(0)
+
+        # looks like we get about 1 new post every 5 events in the firehose.
 
     client.start(on_message_handler)
