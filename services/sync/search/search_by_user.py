@@ -9,7 +9,7 @@ from lib.helper import client
 from services.sync.search.helper import (
     DEFAULT_LIMIT_RESULTS_PER_REQUEST, send_request_with_pagination
 )
-from services.transform.transform_raw_data import (
+from transform.transform_raw_data import (
     flatten_feed_view_post, FlattenedFeedViewPost
 )
 

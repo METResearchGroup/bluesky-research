@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 
+# example recommendation system setup: https://colab.research.google.com/github/google/eng-edu/blob/main/ml/recommendation-systems/recommendation-systems.ipynb
 class TwoTowerModel(nn.Module):
     """Two-tower model for recommendation system
     
@@ -20,7 +21,7 @@ class TwoTowerModel(nn.Module):
         )
 
         # Post (item) tower
-        self.user_tower = nn.Sequential(
+        self.post_tower = nn.Sequential(
             nn.Linear(user_feature_dim, embedding_dim),
             nn.ReLU(),
             nn.Linear(embedding_dim, embedding_dim)
@@ -31,6 +32,6 @@ class TwoTowerModel(nn.Module):
 
     def forward(self, user_features, item_features):
         user_embedding = self.user_tower(user_features)
-        item_embedding = self.item_tower(item_features)
+        item_embedding = self.post_tower(item_features)
         joint_embedding = user_embedding * item_embedding
         return self.final_layer(joint_embedding)

@@ -160,3 +160,5 @@ cython_debug/
 
 # avoid committing old training data to Github
 *.joblib
+
+*DS_Store
