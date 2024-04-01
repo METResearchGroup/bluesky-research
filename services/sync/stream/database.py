@@ -5,11 +5,20 @@ Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/dat
 # TODO: we can convert this to a different DB eventually. This is OK for now.
 """ # noqa
 from datetime import datetime
-
+import os
 import peewee
+import sqlite3
 
-db = peewee.SqliteDatabase('feed_database.db')
+from services.sync.stream.constants import current_file_directory
+
+SQLITE_DB_NAME = "firehose.db"
+SQLITE_DB_PATH = os.path.join(current_file_directory, SQLITE_DB_NAME)
+
+db = peewee.SqliteDatabase(SQLITE_DB_NAME)
 db_version = 2
+
+conn = sqlite3.connect(SQLITE_DB_NAME)
+cursor = conn.cursor()
 
 
 class BaseModel(peewee.Model):
@@ -17,7 +26,7 @@ class BaseModel(peewee.Model):
         database = db
 
 
-class Post(BaseModel):
+class FirehosePost(BaseModel):
     uri = peewee.CharField(unique=True)
     created_at = peewee.TextField()
     text = peewee.TextField()  # for long text
@@ -46,7 +55,7 @@ class DbMetadata(BaseModel):
 
 if db.is_closed():
     db.connect()
-    db.create_tables([Post, SubscriptionState, DbMetadata])
+    db.create_tables([FirehosePost, SubscriptionState, DbMetadata])
 
     # DB migration
 

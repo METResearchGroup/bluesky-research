@@ -6,9 +6,61 @@ import json
 import os
 import peewee
 
+import pandas as pd
+
+from services.participant_data.helper import get_map_participants_to_bsky_profiles # noqa
 from services.sync.stream.constants import tmp_data_dir
-from services.sync.stream.database import db, Post
-from services.sync.stream.filters import filter_incoming_posts
+from services.sync.stream.database import db, FirehosePost
+from transform.transform_raw_data import flatten_firehose_post
+
+
+study_participants_bsky_profiles_df: pd.DataFrame = (
+    get_map_participants_to_bsky_profiles()
+)
+existing_users_bsky_dids_set = set(
+    study_participants_bsky_profiles_df["bluesky_user_did"]
+)
+
+def filter_by_user_in_study(bsky_did: str) -> bool:
+    return bsky_did in existing_users_bsky_dids_set
+
+
+# TODO: I should track all URIs, which would simplify determining which posts
+# to write/delete. I can load it into memory for this function.
+def filter_incoming_posts(operations_by_type: dict) -> list[dict]:
+    """Performs filtering on incoming posts and determines which posts have
+    to be created or deleted.
+
+    Returns a dictionary of the format:
+    {
+        "posts_to_create": list[dict],
+        "posts_to_delete": list[dict]
+    }
+
+    We want to store all new posts, and then process likes and follows only if
+    they are from users in our study or from users in their network.
+    """
+    new_posts = operations_by_type["posts"]["created"]
+    new_likes = operations_by_type["likes"]["created"]
+    new_follows = operations_by_type["follows"]["created"]
+
+    if len(new_posts) > 0 or len(new_follows) > 0:
+        breakpoint()
+
+    posts_to_create: list[dict] = []
+    posts_to_delete: list[str] = [
+        p['uri'] for p in operations_by_type['posts']['deleted']
+    ]
+
+    for created_post in operations_by_type['posts']['created']:
+        if created_post is not None:
+            flattened_post = flatten_firehose_post(created_post)
+            posts_to_create.append(flattened_post)
+
+    return {
+        "posts_to_create": posts_to_create,
+        "posts_to_delete": posts_to_delete
+    }
 
 
 def manage_post_creation(posts_to_create: list[dict]) -> None:
@@ -16,7 +68,7 @@ def manage_post_creation(posts_to_create: list[dict]) -> None:
     with db.atomic():
         for post_dict in posts_to_create:
             try:
-                Post.create(**post_dict)
+                FirehosePost.create(**post_dict)
             except peewee.IntegrityError:
                 print(f"Post with URI {post_dict['uri']} already exists in DB.")
                 continue
@@ -24,7 +76,7 @@ def manage_post_creation(posts_to_create: list[dict]) -> None:
 
 def manage_post_deletes(posts_to_delete: list[str]) -> None:
     """Manage post deletion from DB."""
-    Post.delete().where(Post.uri.in_(posts_to_delete))
+    FirehosePost.delete().where(FirehosePost.uri.in_(posts_to_delete))
 
 
 def write_posts_to_local_storage(posts_to_create: list[dict]) -> bool:

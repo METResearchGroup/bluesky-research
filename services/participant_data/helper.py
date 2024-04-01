@@ -2,6 +2,8 @@
 import os
 import sqlite3
 
+import pandas as pd
+
 from lib.db.sql.helper import (
     check_if_table_exists, create_table, get_all_table_results_as_df,
     write_to_database
@@ -45,6 +47,12 @@ def generate_create_table_query(table_name: str) -> str:
     if schema is None:
         raise ValueError(f"Table name {table_name} not found in schema mapping.") # noqa
     return f"CREATE TABLE {table_name} ({schema});"
+
+
+def get_map_participants_to_bsky_profiles() -> pd.DataFrame:
+    map_table_name = "user_to_bsky_profile"
+    df = get_all_table_results_as_df(conn=conn, table_name=map_table_name)
+    return df
 
 
 def test_insertion() -> None:
