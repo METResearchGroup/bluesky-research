@@ -10,12 +10,15 @@ from lib.log.logger import Logger
 
 logger = Logger(__name__)
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
-
 SQLITE_DB_NAME = "data.db"
 SQLITE_DB_PATH = os.path.join(current_file_directory, SQLITE_DB_NAME)
 
-conn = sqlite3.connect(SQLITE_DB_PATH)
-cursor = conn.cursor()
+
+def get_default_conn_cursor() -> tuple:
+    conn = sqlite3.connect(SQLITE_DB_PATH)
+    cursor = conn.cursor()
+    return conn, cursor
+
 
 def generate_create_table_statement(table_name: str) -> str:
     schema = TABLE_NAME_TO_SCHEMA_MAP[table_name]
@@ -32,6 +35,7 @@ def create_table(
     create_table_statement = generate_create_table_statement(table_name)
     cursor.execute(create_table_statement)
     conn.commit()
+
 
 def check_if_table_exists(cursor: sqlite3.Cursor, table_name: str) -> bool:
     query = f"SELECT name FROM sqlite_master WHERE type='table' AND name=?"
@@ -51,7 +55,7 @@ def write_to_database(
     conn.commit()
 
 
-def get_column(table_name: str, column: str) -> list:
+def get_column(cursor: sqlite3.Cursor, table_name: str, column: str) -> list:
     query = f"SELECT {column} FROM {table_name}"
     cursor.execute(query)
     results = cursor.fetchall()
@@ -77,7 +81,7 @@ def single_row_insertion_is_valid(row_data: dict, table_name: str) -> bool:
     return row_pk_value not in col  # only insert if PK is unique.
 
 
-def get_all_table_results_as_df(table_name: str) -> pd.DataFrame:
+def get_all_table_results_as_df(conn: sqlite3.Connection, table_name: str) -> pd.DataFrame:
     try:
         query = f"SELECT * FROM {table_name}"
         df = pd.read_sql_query(query, conn)
@@ -86,4 +90,3 @@ def get_all_table_results_as_df(table_name: str) -> pd.DataFrame:
         logger.info(f"Error getting all table results as df: {e}")
         logger.info("Returning empty df.")
         return pd.DataFrame()
-    
