@@ -16,7 +16,7 @@ from langchain.docstore.document import Document as LangchainDocument
 import pandas as pd
 
 from services.classify_civic.constants import FAISS_INDEX_PATH
-from services.classify_civic.update_current_events.sync_nytimes_articles import load_all_articles_as_df # noqa
+from services.add_context.current_events_enrichment.sync_nytimes_articles import load_all_articles_as_df # noqa
 
 MAX_CHUNK_SIZE = 512
 DEFAULT_EMBEDDING_MODEL = "thenlper/gte-small"

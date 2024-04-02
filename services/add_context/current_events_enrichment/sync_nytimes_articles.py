@@ -6,13 +6,12 @@ once every 12 hours.
 Rate limit of 5 queries/min (https://developer.nytimes.com/faq)
 """
 import requests
+import time
 from typing import Optional
-
-import pandas as pd
 
 from lib.constants import current_datetime
 from lib.helper import NYTIMES_API_KEY, track_function_runtime
-from services.classify_civic.update_current_events.db import conn, cursor
+from services.add_context.current_events_enrichment.database import batch_write_articles # noqa
 
 
 SECTION_TOPSTORIES = ["arts", "automobiles", "books/review", "business", 
@@ -44,7 +43,7 @@ def load_section_topstories(section: str) -> dict:
 
 def load_all_section_topstories(sections: Optional[list] = DEFAULT_SECTIONS) -> dict:
     """Loads all the top stories from a list of sections.
-    
+
     Returns a dictionary with the following:
         keys:
             :section (str): the section that the articles relate to
@@ -56,9 +55,28 @@ def load_all_section_topstories(sections: Optional[list] = DEFAULT_SECTIONS) -> 
         print(f"Loading articles for {section} section...")
         res = load_section_topstories(section)
         top_stories[section] = res["results"]
+        time.sleep(20) # wait 20 seconds to avoid rate limiting
         print(f"Finished loading {res['num_results']} articles.")
         print('-' * 10)
     return top_stories
+
+
+def process_article_facets(article: dict) -> str:
+    """Processes article facets and returns a string.
+    
+    String is separated on ; as this is a much less common separator than , and
+    some text use ',' in their text.
+
+    Example:
+    {
+        'des_facet': ['New York State Civil Case Against Trump (452564/2022)'],
+        'org_facet': [],
+        'per_facet': ['Trump, Donald J', 'James, Letitia'],
+        'geo_facet': ['New York State']
+    }
+    """
+    facets = article["des_facet"] + article["org_facet"] + article["per_facet"] + article["geo_facet"]
+    return ';'.join(facets)
 
 
 def process_article(article: dict) -> dict:
@@ -77,6 +95,7 @@ def process_article(article: dict) -> dict:
     for multimedia in article["multimedia"]:
         set_captions.add(multimedia["caption"])
     lst_captions = list(set_captions)
+    facets = process_article_facets(article)
 
     return {
         "nytimes_uri": nytimes_uri,
@@ -84,7 +103,10 @@ def process_article(article: dict) -> dict:
         "abstract": abstract,
         "url": url,
         "published_date": published_date,
-        "captions": lst_captions
+        "captions": lst_captions,
+        "facets": facets,
+        "sync_timestamp": current_datetime.strftime("%Y-%m-%d %H:%M:%S"),
+        "sync_date": current_datetime.strftime("%Y-%m-%d")
     }
 
 
@@ -93,23 +115,11 @@ def process_articles(articles: list) -> list:
     return [process_article(article) for article in articles]
 
 
-def write_article_to_db(article: dict) -> None:
-    """Writes an article to the database."""
-    captions_str = ", ".join(article["captions"])
-    cursor.execute('''
-        INSERT INTO articles (nytimes_uri, title, abstract, url, published_date, captions)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (article["nytimes_uri"], article['title'], article['abstract'], article['url'], article['published_date'], captions_str) # noqa
-    )
-    conn.commit()
-
-
-def write_articles_to_db(articles: list) -> None:
+def write_articles_to_db(articles: list[dict]) -> None:
     """Writes articles to SQLite DB."""
     num_articles = len(articles)
     print(f"Writing {num_articles} articles to DB.")
-    for article in articles:
-        write_article_to_db(article)
+    batch_write_articles(articles=articles)
     print(f"Finished writing {num_articles} articles to DB.")
 
 
@@ -128,14 +138,5 @@ def sync_latest_nytimes_topstories(sections: Optional[list] = DEFAULT_SECTIONS) 
     print(f"Finished writing the latest topstories ")
 
 
-@track_function_runtime
-def load_all_articles_as_df() -> pd.DataFrame:
-    """Loads all existing articles as a Pandas DataFrame."""
-    query = "SELECT * FROM articles"
-    df_articles = pd.read_sql_query(query, conn)
-    return df_articles
-
-
 if __name__ == "__main__":
-    #sync_latest_nytimes_topstories()
-    pass
+    sync_latest_nytimes_topstories()
