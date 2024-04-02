@@ -1,58 +1,46 @@
 """Helper functions for participant data service."""
+import peewee
 import os
 import sqlite3
 
-import pandas as pd
-
-from lib.db.sql.helper import (
-    check_if_table_exists, create_table, get_all_table_results_as_df,
-    write_to_database
-)
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 SQLITE_DB_NAME = "study_participants.db"
 SQLITE_DB_PATH = os.path.join(current_file_directory, SQLITE_DB_NAME)
 
+db = peewee.SqliteDatabase(SQLITE_DB_PATH)
+db_version = 2
+
 conn = sqlite3.connect(SQLITE_DB_PATH)
 cursor = conn.cursor()
 
-
-study_users_schema = """
-    id INTEGER PRIMARY KEY,
-    name TEXT
-""" # to be updated later, just start with basic name and ID
-study_questionnaire_data_schema = """ 
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER,
-    questionnaire_data TEXT,
-    FOREIGN KEY(user_id) REFERENCES study_users(id)
-"""# to be defined later.
-user_to_bsky_profile_create_schema = """
-    study_user_id TEXT,
-    bluesky_handle TEXT,
-    bluesky_user_did TEXT,
-    PRIMARY KEY (study_user_id, bluesky_handle, bluesky_user_did)
-"""
-
-map_table_to_schema = {
-    "study_users": study_users_schema,
-    "study_questionnaire_data": study_questionnaire_data_schema,
-    "user_to_bsky_profile": user_to_bsky_profile_create_schema
-}
+class BaseModel(peewee.Model):
+    class Meta:
+        database = db
 
 
-def generate_create_table_query(table_name: str) -> str:
-    """Generates a CREATE TABLE query for the given table name."""
-    schema = map_table_to_schema.get(table_name)
-    if schema is None:
-        raise ValueError(f"Table name {table_name} not found in schema mapping.") # noqa
-    return f"CREATE TABLE {table_name} ({schema});"
+class StudyUser(BaseModel):
+    id = peewee.AutoField()
+    name = peewee.CharField(unique=True)
 
 
-def get_map_participants_to_bsky_profiles() -> pd.DataFrame:
-    map_table_name = "user_to_bsky_profile"
-    df = get_all_table_results_as_df(conn=conn, table_name=map_table_name)
-    return df
+class StudyQuestionnaireData(BaseModel):
+    id = peewee.AutoField()
+    user_id = peewee.ForeignKeyField(StudyUser, backref="questionnaire_data")
+    questionnaire_data = peewee.TextField()
+
+
+class UserToBlueskyProfile(BaseModel):
+    study_user_id = peewee.CharField()
+    bluesky_handle = peewee.CharField()
+    bluesky_user_did = peewee.CharField()
+    PRIMARY_KEY = peewee.CompositeKey("study_user_id", "bluesky_handle", "bluesky_user_did")
+
+
+def create_initial_tables() -> None:
+    """Create the initial tables."""
+    with db.atomic():
+        db.create_tables([StudyUser, StudyQuestionnaireData, UserToBlueskyProfile])
 
 
 def test_insertion() -> None:
@@ -69,18 +57,12 @@ def test_insertion() -> None:
         "bluesky_handle": bluesky_handle,
         "bluesky_user_did": bluesky_user_did   
     }
-    write_to_database(
-        conn=conn, cursor=cursor, table_name=map_table_name, data=data
-    )
-    df = get_all_table_results_as_df(conn=conn, table_name=map_table_name)
-    assert df.shape[0] == 1
-    print(f"Successfully inserted a user into the {map_table_name} table.")
+    with db.atomic():
+        UserToBlueskyProfile.create(**data)
 
 
 def initialize_study_tables() -> None:
-    """Initializes the three tables needed to store participant data."""
-    for table in map_table_to_schema.keys():
-        create_table(conn=conn, cursor=cursor, table_name=table)
-        check_if_table_exists(cursor=cursor, table_name=table)
-        print(f"Table {table} created successfully.")
+    """Initialize the study tables."""
+    create_initial_tables()
     test_insertion()
+    print("Tables created successfully.")

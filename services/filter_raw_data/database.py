@@ -8,10 +8,10 @@ SQLITE_DB_NAME = "filtered_posts.db"
 SQLITE_DB_PATH = os.path.join(current_file_directory, SQLITE_DB_NAME)
 DEFAULT_BATCH_WRITE_SIZE = 100
 
-db = peewee.SqliteDatabase(SQLITE_DB_NAME)
+db = peewee.SqliteDatabase(SQLITE_DB_PATH)
 db_version = 2
 
-conn = sqlite3.connect(SQLITE_DB_NAME)
+conn = sqlite3.connect(SQLITE_DB_PATH)
 cursor = conn.cursor()
 
 class BaseModel(peewee.Model):
