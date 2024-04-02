@@ -1,14 +1,10 @@
-"""Feed filtering functions."""
+"""Non-ML feature generation."""
 from datetime import timedelta
 
-from lib.constants import (
-    BLOCKED_AUTHORS, NUM_DAYS_POST_RECENCY, current_datetime
-)
+from lib.constants import NUM_DAYS_POST_RECENCY, current_datetime
 from lib.utils import parse_datetime_string
 
 
-
-# TODO: better as a feature, move to non-ML feature generation
 def is_in_network(post: dict) -> bool:
     """Determines if a post is within a network."""
     return True
@@ -35,3 +31,17 @@ def post_is_recent(post_dict) -> bool:
     #if time_difference > time_threshold:
     #    return False
     return True
+
+
+feature_funcs = [is_in_network, is_within_similar_networks, post_is_recent]
+
+
+def generate_non_ml_features(post: dict) -> dict:
+    """Generates non-ML features for a post."""
+    res = {}
+    res["uid"] = post["uid"]
+    res["text"] = post["text"]
+    for func in feature_funcs:
+        res[func.__name__] = func(post)
+    return res
+

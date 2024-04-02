@@ -105,7 +105,7 @@ def create_filtered_data_results(
 
 
 @track_function_runtime
-def write_filtered_data_to_db(uri_to_filter_status_df: pd.DataFrame):
+def write_filtered_data_to_db(uri_to_filter_status_df: pd.DataFrame) -> None:
     """Writes filtered data to DB.
     
     Writes in a table, `validated_posts_after_filters`, to track the status of the
