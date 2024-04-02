@@ -1,4 +1,8 @@
 """Helper code for generating features from raw (filtered) data."""
+import json
+
+import pandas as pd
+
 from lib.helper import track_function_runtime
 from services.generate_features.ml_feature_generation import generate_ml_features # noqa
 from services.generate_features.non_ml_feature_generation import generate_non_ml_features # noqa
@@ -36,6 +40,16 @@ def generate_features_for_posts(posts: list[dict]) -> list[dict]:
 
 @track_function_runtime
 def write_features_to_db(features_dicts: list[dict]) -> None:
+    """Writes features to the MongoDB database."""
+    for features_dict in features_dicts:
+        uid = features_dict.pop("uid")
+        timestamp = pd.Timestamp.now()
+        data = {
+            "uid": uid,
+            "timestamp": timestamp,
+            "features": json.dumps(features_dict)
+        }
+        pass
     pass
 
 
