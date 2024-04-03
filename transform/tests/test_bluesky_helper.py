@@ -8,8 +8,6 @@ from atproto_client.models.app.bsky.actor.defs import ProfileView, ProfileViewDe
 from atproto_client.models.app.bsky.feed.defs import ThreadViewPost
 from atproto_client.models.app.bsky.feed.post import GetRecordResponse
 from atproto_client.models.app.bsky.feed.get_likes import Like
-import pytest
-from unittest.mock import patch, MagicMock
 
 # Assuming the functions to test are in your_module.py
 from transform.bluesky_helper import (

@@ -5,17 +5,17 @@ from atproto_client.models.app.bsky.embed.external import External, Main as Exte
 from atproto_client.models.app.bsky.embed.images import Image, Main as ImageEmbed # noqa
 from atproto_client.models.app.bsky.embed.record import Main as RecordEmbed
 from atproto_client.models.app.bsky.embed.record_with_media import Main as RecordWithMediaEmbed # noqa
+from atproto_client.models.app.bsky.feed.post import Record
 
-# Assuming the functions to test are in helper.py
+from transform.bluesky_helper import get_post_record_from_post_link
 from transform.transform_raw_data import (
     process_mention, process_link, process_hashtag, process_facet,
     process_facets, process_label, process_labels, process_entity,
     process_entities, process_replies, process_image, process_images,
     process_strong_ref, process_record_embed, process_external_embed,
-    process_record_with_media_embed, process_embed
+    process_record_with_media_embed, process_embed, flatten_firehose_post
 )
 
-# Mock classes
 class Mention:
     def __init__(self, did):
         self.did = did
@@ -96,10 +96,10 @@ class ExternalEmbed:
         self.py_type = 'app.bsky.embed.external'
 
 class External:
-    def __init__(self, description, title, url):
+    def __init__(self, description, title, uri):
         self.description = description
         self.title = title
-        self.url = url
+        self.uri = uri
         self.py_type = 'app.bsky.embed.external#external'
 
 class RecordWithMediaEmbed:
@@ -108,7 +108,7 @@ class RecordWithMediaEmbed:
         self.record = record
         self.py_type = "app.bsky.embed.recordWithMedia"
 
-# Tests
+
 def test_process_mention():
     mention = Mention(did="did:plc:beitbj4for3pe4babgntgfjc")
     assert process_mention(mention) == "mention:did:plc:beitbj4for3pe4babgntgfjc"
@@ -178,9 +178,9 @@ def test_process_record_embed():
     assert json.loads(process_record_embed(record_embed)) == {"cid": "1234", "uri": "http://example.com"}
 
 def test_process_external_embed():
-    external = External(description="Description", title="Title", url="http://example.com")
+    external = External(description="Description", title="Title", uri="http://example.com")
     external_embed = ExternalEmbed(external=external)
-    assert json.loads(process_external_embed(external_embed)) == {"description": "Description", "title": "Title", "url": "http://example.com"}
+    assert json.loads(process_external_embed(external_embed)) == {"description": "Description", "title": "Title", "uri": "http://example.com"}
 
 def test_process_record_with_media_embed():
     image = ImageEmbed([Image(alt="An image")])
@@ -195,3 +195,97 @@ def test_process_embed():
     processed_embed = process_embed(image)
     expected_embed = {"has_image": True, "image_alt_text": "An image", "has_embedded_record": False, "embedded_record": None, "has_external": False, "external": None}
     assert json.loads(processed_embed) == expected_embed
+
+def test_flatten_firehose_post():
+    """Test our ability to flatten a firehost post.
+    
+    To test this, we'll use real posts. We'll then flatten it and compare the
+    result to the expected result.
+
+    Uses posts from the NYTimes, as these will be unlikely to change or be
+    deleted, plus they let us test for the existence of things like embeds
+    and facets, which are the most tricky to parse since they have different
+    variations.
+    """
+    # test 1
+    link = "https://bsky.app/profile/nytimes.com/post/3kowbajil7r2y"
+    record = get_post_record_from_post_link(link)
+    record_value = record.value
+    expected_post_uri = "at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3kowbajil7r2y" # available at record.uri
+    expoected_post_cid = "bafyreicmozjihgi5fbc76r6nfxdv4bvrhnpbglkfpzy7uv6l4suvxw2miu" # available at record.cid
+    expected_post_author_did = "did:plc:eclio37ymobqex2ncko63h4r"
+    post = {
+        "record": record_value,
+        "uri": expected_post_uri,
+        "cid": expoected_post_cid,
+        "author": expected_post_author_did
+    }
+    assert isinstance(record_value, Record)
+    assert isinstance(post, dict)
+    flattened_firehose_post = flatten_firehose_post(post)
+    expected_flattened_firehose_post = {
+        'author': 'did:plc:eclio37ymobqex2ncko63h4r',
+        'cid': 'bafyreicmozjihgi5fbc76r6nfxdv4bvrhnpbglkfpzy7uv6l4suvxw2miu',
+        'created_at': '2024-03-30T14:44:59.095Z',
+        'embed': '{"has_image": false, "image_alt_text": null, "has_embedded_record": '
+                'false, "embedded_record": null, "has_external": true, "external": '
+                '"{\\"description\\": \\"With Democrats holding a one-seat majority '
+                'and defending seats from Maryland to Arizona, control of the Senate '
+                'could easily flip to the G.O.P.\\", \\"title\\": \\"10 Senate Races '
+                'to Watch in 2024\\", \\"uri\\": '
+                '\\"https://www.nytimes.com/article/senate-races-2024-election.html?smtyp=cur&smid=bsky-nytimes\\"}"}',
+        'entities': None,
+        'facets': None,
+        'labels': None,
+        'langs': 'en',
+        'py_type': 'app.bsky.feed.post',
+        'reply_parent': None,
+        'reply_root': None,
+        'tags': None,
+        'text': 'With Democrats holding a one-seat majority and defending seats from '
+                'Maryland to Arizona, control of the Senate could easily flip to the '
+                'Republicans. Here are the Senate races to watch in 2024.',
+        'uri': 'at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3kowbajil7r2y'
+    }
+    assert flattened_firehose_post == expected_flattened_firehose_post
+
+    # test 2:
+    link = "https://bsky.app/profile/nytimes.com/post/3koueui3yld24"
+    record = get_post_record_from_post_link(link)
+    record_value = record.value
+    expected_post_uri = "at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3koueui3yld24" # available at record.uri
+    expoected_post_cid = "bafyreieuyk7ga7ldbvn3ayhe3c3ntnz7rlbgdqlfnp53v2wwjaanmrl3dm" # available at record.cid
+    expected_post_author_did = "did:plc:eclio37ymobqex2ncko63h4r"
+    post = {
+        "record": record_value,
+        "uri": expected_post_uri,
+        "cid": expoected_post_cid,
+        "author": expected_post_author_did
+    }
+    assert isinstance(record_value, Record)
+    assert isinstance(post, dict)
+    flattened_firehose_post = flatten_firehose_post(post)
+    expected_flattened_firehose_post = {
+        'author': 'did:plc:eclio37ymobqex2ncko63h4r',
+        'cid': 'bafyreieuyk7ga7ldbvn3ayhe3c3ntnz7rlbgdqlfnp53v2wwjaanmrl3dm',
+        'created_at': '2024-03-29T20:44:30.388Z',
+        'embed': '{"has_image": true, "image_alt_text": "UnitedHealth Group\\u2019s '
+                'headquarters in Minnetonka, Minnesota. A headline reads: \\"What to '
+                'Know About Health Care Cyberattacks.\\" Photo by Unitedhealth '
+                'Group, via Reuters.", "has_embedded_record": false, '
+                '"embedded_record": null, "has_external": false, "external": null}',
+        'entities': None,
+        'facets': 'link:https://www.nytimes.com/2024/03/29/health/cyber-attack-unitedhealth-hospital-patients.html?smtyp=cur&smid=bsky-nytimes',
+        'labels': None,
+        'langs': 'en',
+        'py_type': 'app.bsky.feed.post',
+        'reply_parent': None,
+        'reply_root': None,
+        'tags': None,
+        'text': 'A cyberattack shut down the largest U.S. health care payment system '
+                "last month. Here's what to know as hospitals, health insurers, "
+                'physician clinics and others in the industry increasingly become the '
+                'targets of significant hacks. www.nytimes.com/2024/03/29/h...',
+        'uri': 'at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3koueui3yld24'
+    }
+    assert flattened_firehose_post == expected_flattened_firehose_post

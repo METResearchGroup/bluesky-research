@@ -345,7 +345,7 @@ def process_external_embed(external_embed: ExternalEmbed) -> str:
     res = {
         "description": external.description,
         "title": external.title,
-        "url": external.url
+        "uri": external.uri
     }
     return json.dumps(res)
 
@@ -496,7 +496,7 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
         }
     except Exception as e:
         print(f"Exception in flattening post: {e}")
-    breakpoint()
+    #breakpoint()
     return flattened_firehose_dict
 
 
