@@ -496,6 +496,7 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
         }
     except Exception as e:
         print(f"Exception in flattening post: {e}")
+    breakpoint()
     return flattened_firehose_dict
 
 
