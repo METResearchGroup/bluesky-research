@@ -14,8 +14,8 @@ from atproto_client.models.app.bsky.embed.record import Main as RecordEmbed
 from atproto_client.models.app.bsky.embed.record_with_media import Main as RecordWithMediaEmbed # noqa
 from atproto_client.models.app.bsky.feed.post import Entity, Main as Record, ReplyRef # noqa
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, PostView
-from atproto_client.models.app.bsky.richtext.facet import Main as Facet
-from atproto_client.models.com.atproto.label.defs import SelfLabel
+from atproto_client.models.app.bsky.richtext.facet import Link, Main as Facet, Mention, Tag
+from atproto_client.models.com.atproto.label.defs import SelfLabel, SelfLabels
 from atproto_client.models.com.atproto.repo.strong_ref import Main as StrongRef
 from atproto_client.models.dot_dict import DotDict
 
@@ -78,6 +78,32 @@ class FlattenedFirehosePost(TypedDict):
     author: str
 
 
+def process_mention(mention: Mention) -> str:
+    """Processes a mention of another Bluesky user.
+
+    See https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py
+    """
+    return f"mention:{mention.did}"
+
+
+def process_link(link: Link) -> str:
+    """Processes a link. The URI here is the link itself.
+
+    See https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py
+    """
+    return f"link:{link.uri}"
+
+
+def process_hashtag(tag: Tag) -> str:
+    """Processes a hashtag. This is a tag that starts with a #, but the tag
+    won't have a '#' in the value. (e.g., if the hashtag is #red, the tag value
+    would be 'red').
+
+    See https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py
+    """
+    return f"tag:{tag.tag}"
+
+
 def process_facet(facet: Facet) -> str:
     """Processes a facet.
 
@@ -138,21 +164,40 @@ def process_facet(facet: Facet) -> str:
         'uri': 'at://did:plc:joynts37i4ez3qpavk3p3gzj/app.bsky.feed.post/3kktaiyxqfv2c',
         'cid': 'bafyreid6ef2yjudqlqgrloxyqfduqfqjerfeqr65moj4bvufypodpjsgee',
         'author': 'did:plc:joynts37i4ez3qpavk3p3gzj'
+    },
+    {
+        'created_at': '2024-03-30T16:25:14.902Z',
+        'text': 'A newspaper editor — Chris Quinn of the Cleveland Plain Dealer — says it as clearly as he can:\n\n"Our Trump reporting upsets some readers, but there aren’t two sides to facts." www.cleveland.com/news/2024/03...\n\nQuinn writes of a different kind of access. Access to our own eyes and ears:',
+        'embed': Main(images=[Image(alt='', image=BlobRef(mime_type='image/jpeg', size=399062, ref=IpldLink(link='bafkreiagbvatb77ka6hxsknjqpomcgfo7n3ext6fouzh66rlizt52aok6y'), py_type='blob'), aspect_ratio=AspectRatio(height=1040, width=1096, py_type='app.bsky.embed.images#aspectRatio'), py_type='app.bsky.embed.images#image')], py_type='app.bsky.embed.images'),
+        'entities': None,
+        'facets': [Main(features=[Link(uri='https://www.cleveland.com/news/2024/03/our-trump-reporting-upsets-some-readers-but-there-arent-two-sides-to-facts-letter-from-the-editor.html', py_type='app.bsky.richtext.facet#link')], index=ByteSlice(byte_end=215, byte_start=182, py_type='app.bsky.richtext.facet#byteSlice'), py_type='app.bsky.richtext.facet')],
+        'labels': None,
+        'langs': ['en'],
+        'reply': None,
+        'tags': None,
+        'py_type': 'app.bsky.feed.post'
     }
     """ # noqa
-    # tags
-    if facet.py_type == "app.bsky.richtext.facet":
-        features = facet["features"]
-        features_list = []
-        for feature in features:
-            if feature.py_type == "app.bsky.richtext.facet#tag":
-                features_list.append(f"tag:{feature['tag']}")
-            # links
-            if feature.py_type == "app.bsky.richtext.facet#link":
-                features_list.append(f"link:{feature['uri']}")
-            # mentions
-            if feature.py_type == "app.bsky.richtext.facet#mention":
-                features_list.append(f"mention:{feature['did']}")
+    features: list = facet.features
+    features_list = []
+    for feature in features:
+        if (
+            isinstance(feature, Tag)
+            or feature.py_type == "app.bsky.richtext.facet#tag"
+        ):
+            features_list.append(process_hashtag(feature))
+        elif (
+            isinstance(feature, Link)
+            or feature.py_type == "app.bsky.richtext.facet#link"
+        ):
+            features_list.append(process_link(feature))
+        elif (
+            isinstance(feature, Mention)
+            or feature.py_type == "app.bsky.richtext.facet#mention"
+        ):
+            features_list.append(process_mention(feature))
+        else:
+            raise ValueError(f"Unknown feature type: {feature.py_type}")
     return ",".join(features_list)
 
 
@@ -172,7 +217,7 @@ def process_label(label: SelfLabel) -> str:
     return label.val
 
 
-def process_labels(labels: list[SelfLabel]) -> str:
+def process_labels(labels: Optional[SelfLabels]) -> str:
     """Processes labels.
     
     Example:
@@ -180,8 +225,11 @@ def process_labels(labels: list[SelfLabel]) -> str:
         values=[SelfLabel(val='porn', py_type='com.atproto.label.defs#selfLabel')],
         py_type='com.atproto.label.defs#selfLabels'
     )
-    """
-    return ','.join([process_label(label) for label in labels.values])
+
+    Based off https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/com/atproto/label/defs.py#L38
+    """ # noqa
+    label_values: list[SelfLabel] = labels.values
+    return ','.join([process_label(label) for label in label_values])
 
 
 def process_entity(entity: Entity) -> str:
@@ -226,10 +274,12 @@ def process_replies(reply: Optional[ReplyRef]) -> dict:
 
     if reply is not None:
         if hasattr(reply, "parent"):
-            reply_parent: str = reply["parent"]["uri"]
+            parent: StrongRef = reply.parent
+            reply_parent: str = parent.uri
     if reply is not None:
         if hasattr(reply, "root"):
-            reply_root: str = reply["root"]["uri"]
+            root: StrongRef = reply.root
+            reply_root: str = root.uri
 
     return {
         "reply_parent": reply_parent,
@@ -311,7 +361,7 @@ def process_record_with_media_embed(
     image: ImageEmbed = record_with_media_embed.media
     record: RecordEmbed = record_with_media_embed.record
 
-    processed_image: str = process_image(image)
+    processed_image: str = process_images(image)
     processed_record: str = process_record_embed(record)
 
     return {
@@ -337,22 +387,34 @@ def process_embed(
         "has_external": False,
         "external": None,    
     }
-    if not embed:
+    if embed is None:
         return res
 
-    if isinstance(embed, ImageEmbed):
+    if (
+        isinstance(embed, ImageEmbed)
+        or embed.py_type == "app.bsky.embed.images"
+    ):
         res["has_image"] = True
         res["image_alt_text"] = process_images(embed)
 
-    if isinstance(embed, RecordEmbed):
+    if (
+        isinstance(embed, RecordEmbed)
+        or embed.py_type == "app.bsky.embed.record"
+    ):
         res["has_embedded_record"] = True
         res["embedded_record"] = process_record_embed(embed)
 
-    if isinstance(embed, ExternalEmbed):
+    if (
+        isinstance(embed, ExternalEmbed)
+        or embed.py_type == "app.bsky.embed.external"
+    ):
         res["has_external"] = True
         res["external"] = process_external_embed(embed)
 
-    if isinstance(embed, RecordWithMediaEmbed):
+    if (
+        isinstance(embed, RecordWithMediaEmbed)
+        or embed.py_type == "app.bsky.embed.recordWithMedia"
+    ):
         res["has_image"] = True
         res["has_embedded_record"] = True
         processed_embed = process_record_with_media_embed(embed)
