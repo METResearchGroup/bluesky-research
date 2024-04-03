@@ -6,8 +6,11 @@ Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/dat
 """ # noqa
 from datetime import datetime
 import os
-import peewee
 import sqlite3
+
+import peewee
+from peewee import TextField
+from playhouse.migrate import migrate, SqliteMigrator
 
 from services.sync.stream.constants import current_file_directory
 
@@ -30,6 +33,7 @@ class FirehosePost(BaseModel):
     uri = peewee.CharField(unique=True)
     created_at = peewee.TextField()
     text = peewee.TextField()  # for long text
+    embed = peewee.TextField() # for embedded content
     langs = peewee.CharField(null=True)  # sometimes the langs aren't provided
     entities = peewee.CharField(null=True)
     facets = peewee.CharField(null=True)  # https://www.pfrazee.com/blog/why-facets # noqa
@@ -51,6 +55,21 @@ class SubscriptionState(BaseModel):
 
 class DbMetadata(BaseModel):
     version = peewee.IntegerField()
+
+
+def add_new_column_to_table(colname: str) -> None:
+    """Adds a new column to the existing firehosepost table and backfills
+    existing records with a null default value."""
+    print(f"Adding new column {colname} to firehosepost table")
+    migrator = SqliteMigrator(db)
+    migrate(
+        migrator.add_column('firehosepost', colname, TextField(null=True))
+    )
+    print(f"Added new column {colname} to firehosepost table")
+    current_table_cols = [col[1] for col in cursor.execute("PRAGMA table_info(firehosepost)")]
+    print(f"Current columns in firehosepost table: {current_table_cols}")
+    #cursor.execute(f"ALTER TABLE firehosepost ADD COLUMN {colname} TEXT DEFAULT NULL")
+    #conn.commit()
 
 
 if db.is_closed():

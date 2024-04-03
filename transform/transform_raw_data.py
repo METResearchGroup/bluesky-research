@@ -2,15 +2,21 @@
 
 Based on https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.defs.json
 """
+import json
 from typing import Optional, TypedDict, Union
 
 from atproto_client.models.app.bsky.actor.defs import (
     ProfileView, ProfileViewBasic, ProfileViewDetailed
 )
-from atproto_client.models.app.bsky.feed.post import Entity, Main as Record, ReplyRef
+from atproto_client.models.app.bsky.embed.external import External, Main as ExternalEmbed # noqa
+from atproto_client.models.app.bsky.embed.images import Image, Main as ImageEmbed # noqa
+from atproto_client.models.app.bsky.embed.record import Main as RecordEmbed
+from atproto_client.models.app.bsky.embed.record_with_media import Main as RecordWithMediaEmbed # noqa
+from atproto_client.models.app.bsky.feed.post import Entity, Main as Record, ReplyRef # noqa
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, PostView
 from atproto_client.models.app.bsky.richtext.facet import Main as Facet
 from atproto_client.models.com.atproto.label.defs import SelfLabel
+from atproto_client.models.com.atproto.repo.strong_ref import Main as StrongRef
 from atproto_client.models.dot_dict import DotDict
 
 
@@ -58,6 +64,7 @@ class FlattenedFirehosePost(TypedDict):
     uri: str
     created_at: str
     text: str
+    embed: str
     langs: str
     entities: str
     facets: str  # https://www.pfrazee.com/blog/why-facets
@@ -176,6 +183,7 @@ def process_labels(labels: list[SelfLabel]) -> str:
     """
     return ','.join([process_label(label) for label in labels.values])
 
+
 def process_entity(entity: Entity) -> str:
     """Returns the value of an entity.
 
@@ -229,6 +237,131 @@ def process_replies(reply: Optional[ReplyRef]) -> dict:
     }
 
 
+def process_image(image: Image) -> str:
+    """Processes an image added to a post.
+
+    Follows specs in https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/embed/images.py
+    and https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.embed.images.json
+
+    Note: the only relevant field to us is the alt text. There's no way to get the
+    actual link of the image, and the link that I did find is a hash of the CID.
+    (as far as I can tell).
+    """ # noqa
+    return image.alt
+
+
+def process_images(image_embed: ImageEmbed) -> str:
+    """Processes images
+
+    For now, we just return the alt texts of the images, separated by ;
+    (since , is likely used in the text itself).
+    """
+    return ';'.join([process_image(image) for image in image_embed.images])
+
+
+def process_strong_ref(strong_ref: StrongRef) -> dict:
+    """Processes strong reference (a reference to another record)
+    
+    Follows specs in https://github.com/MarshalX/atproto/blob/main/lexicons/com.atproto.repo.strongRef.json#L4
+    and https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/com/atproto/repo/strong_ref.py#L15
+    """ # noqa
+    return {
+        "cid": strong_ref.cid,
+        "uri": strong_ref.uri,
+    }
+
+
+def process_record_embed(record_embed: RecordEmbed) -> str:
+    """Processes record embeds.
+    
+    Record embeds are posts that are embedded in other posts. This is a way to
+    reference another post in a post.
+    """
+    strong_ref = process_strong_ref(record_embed.record)
+    return json.dumps(strong_ref)
+
+
+def process_external_embed(external_embed: ExternalEmbed) -> str:
+    """Processes an "external" embed, which is some externally linked content
+    plus its preview card.
+
+    External embeds are links to external content, like a YouTube video or a
+    news article, which also has a preview card showing its content.
+
+    We don't need to include the image or other blobs since we don't have a way
+    to hydrate them anyways.
+    """
+    external: External = external_embed.external
+    res = {
+        "description": external.description,
+        "title": external.title,
+        "url": external.url
+    }
+    return json.dumps(res)
+
+
+def process_record_with_media_embed(
+    record_with_media_embed: RecordWithMediaEmbed
+) -> dict:
+    """Processes a record with media embed, which is when a post both
+    references another record as well as has media (i.e., image) attached.
+
+    Follows spec in https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/embed/record_with_media.py
+    """ # noqa
+    image: ImageEmbed = record_with_media_embed.media
+    record: RecordEmbed = record_with_media_embed.record
+
+    processed_image: str = process_image(image)
+    processed_record: str = process_record_embed(record)
+
+    return {
+        "image_alt_text": processed_image,
+        "embedded_record": processed_record,
+    }
+
+
+def process_embed(
+    embed: Union[ExternalEmbed, ImageEmbed, RecordEmbed, RecordWithMediaEmbed]
+) -> str:
+    """Processes embeds.
+
+    Follows specs in https://github.com/MarshalX/atproto/tree/main/packages/atproto_client/models/app/bsky/embed
+
+    Image embed class is a container class for an arbitrary amount of attached images (max=4)
+    """ # noqa
+    res = {
+        "has_image": False,
+        "image_alt_text": None,
+        "has_embedded_record": False,
+        "embedded_record": None,
+        "has_external": False,
+        "external": None,    
+    }
+    if not embed:
+        return res
+
+    if isinstance(embed, ImageEmbed):
+        res["has_image"] = True
+        res["image_alt_text"] = process_images(embed)
+
+    if isinstance(embed, RecordEmbed):
+        res["has_embedded_record"] = True
+        res["embedded_record"] = process_record_embed(embed)
+
+    if isinstance(embed, ExternalEmbed):
+        res["has_external"] = True
+        res["external"] = process_external_embed(embed)
+
+    if isinstance(embed, RecordWithMediaEmbed):
+        res["has_image"] = True
+        res["has_embedded_record"] = True
+        processed_embed = process_record_with_media_embed(embed)
+        res["image_alt_text"] = processed_embed["image_alt_text"]
+        res["embedded_record"] = processed_embed["embedded_record"]
+
+    return json.dumps(res)
+
+
 def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
     """Flattens a post from the firehose.
 
@@ -269,6 +402,10 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
             "uri": post["uri"],
             "created_at": post["record"]["created_at"],
             "text": post["record"]["text"],
+            "embed": (
+                process_embed(post["record"]["embed"])
+                if post["record"]["embed"] else None
+            ),
             "langs": (
                 ','.join(post["record"]["langs"])
                 if post["record"]["langs"] else None
