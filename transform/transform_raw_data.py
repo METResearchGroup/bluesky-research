@@ -19,6 +19,8 @@ from atproto_client.models.com.atproto.label.defs import SelfLabel, SelfLabels
 from atproto_client.models.com.atproto.repo.strong_ref import Main as StrongRef
 from atproto_client.models.dot_dict import DotDict
 
+from lib.constants import current_datetime
+
 
 def hydrate_feed_view_post(feed_post: dict) -> FeedViewPost:
     """Hydrate a FeedViewPost from a dictionary."""
@@ -76,6 +78,7 @@ class FlattenedFirehosePost(TypedDict):
     py_type: str
     cid: str
     author: str
+    synctimestamp: str
 
 
 def process_mention(mention: Mention) -> str:
@@ -493,6 +496,10 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
             "py_type": post["record"]["py_type"],
             "cid": post["cid"],
             "author": post["author"],
+            # synctimestamp, e.g., '2024-03-20-14:58:09', for when we synced
+            # the data. This is different than the "indexed_at" field from
+            # Bluesky, which is when they last indexed the PDS on their end.
+            "synctimestamp": current_datetime.strftime("%Y-%m-%d-%H:%M:%S")
         }
     except Exception as e:
         print(f"Exception in flattening post: {e}")

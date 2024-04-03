@@ -31,7 +31,9 @@ class NYTimesArticle(BaseModel):
     published_date = peewee.CharField()
     captions = peewee.TextField()
     facets = peewee.TextField()
+    # deprecated (use synctimestamp)
     sync_timestamp = peewee.DateTimeField(default=peewee.fn.now())
+    synctimestamp = peewee.CharField()
     sync_date = peewee.DateField(default=peewee.fn.now())
 
 
@@ -71,8 +73,12 @@ def get_all_articles_as_df() -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    create_initial_articles_table()
-    print("Created initial articles table.")
-    num_articles = len(get_all_articles())
-    print(f"Total number of articles: {num_articles}")
-    print("Finished running the script.")
+    #create_initial_articles_table()
+    #print("Created initial articles table.")
+    #num_articles = len(get_all_articles())
+    #print(f"Total number of articles: {num_articles}")
+    #print("Finished running the script.")
+    # how to add a new column to a table (here, 'synctimestamp')
+    #from lib.db.sql.helper import add_new_column_to_table
+    #add_new_column_to_table(cls=NYTimesArticle, cursor=cursor, db=db, colname="synctimestamp")
+    pass

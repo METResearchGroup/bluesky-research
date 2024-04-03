@@ -223,6 +223,7 @@ def test_flatten_firehose_post():
     assert isinstance(record_value, Record)
     assert isinstance(post, dict)
     flattened_firehose_post = flatten_firehose_post(post)
+    flattened_firehose_post.pop("synctimestamp") # we don't need to test for this
     expected_flattened_firehose_post = {
         'author': 'did:plc:eclio37ymobqex2ncko63h4r',
         'cid': 'bafyreicmozjihgi5fbc76r6nfxdv4bvrhnpbglkfpzy7uv6l4suvxw2miu',
@@ -265,6 +266,7 @@ def test_flatten_firehose_post():
     assert isinstance(record_value, Record)
     assert isinstance(post, dict)
     flattened_firehose_post = flatten_firehose_post(post)
+    flattened_firehose_post.pop("synctimestamp") # we don't need to test for this
     expected_flattened_firehose_post = {
         'author': 'did:plc:eclio37ymobqex2ncko63h4r',
         'cid': 'bafyreieuyk7ga7ldbvn3ayhe3c3ntnz7rlbgdqlfnp53v2wwjaanmrl3dm',

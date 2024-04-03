@@ -8,14 +8,14 @@ import peewee
 
 import pandas as pd
 
-from services.participant_data.helper import get_map_participants_to_bsky_profiles # noqa
+from services.participant_data.helper import get_user_to_bluesky_profiles_as_df
 from services.sync.stream.constants import tmp_data_dir
 from services.sync.stream.database import db, FirehosePost
 from transform.transform_raw_data import flatten_firehose_post
 
 
 study_participants_bsky_profiles_df: pd.DataFrame = (
-    get_map_participants_to_bsky_profiles()
+    get_user_to_bluesky_profiles_as_df()
 )
 existing_users_bsky_dids_set = set(
     study_participants_bsky_profiles_df["bluesky_user_did"]

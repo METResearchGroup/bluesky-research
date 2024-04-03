@@ -105,7 +105,7 @@ def process_article(article: dict) -> dict:
         "published_date": published_date,
         "captions": lst_captions,
         "facets": facets,
-        "sync_timestamp": current_datetime.strftime("%Y-%m-%d %H:%M:%S"),
+        "synctimestamp": current_datetime.strftime("%Y-%m-%d-%H:%M:%S"),
         "sync_date": current_datetime.strftime("%Y-%m-%d")
     }
 

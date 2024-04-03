@@ -3,6 +3,8 @@ import peewee
 import os
 import sqlite3
 
+import pandas as pd
+
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 SQLITE_DB_NAME = "study_participants.db"
@@ -31,15 +33,22 @@ class StudyQuestionnaireData(BaseModel):
 
 
 class UserToBlueskyProfile(BaseModel):
-    study_user_id = peewee.CharField()
-    bluesky_handle = peewee.CharField()
-    bluesky_user_did = peewee.CharField()
+    study_user_id = peewee.CharField(unique=True)
+    bluesky_handle = peewee.CharField(unique=True)
+    bluesky_user_did = peewee.CharField(unique=True)
     PRIMARY_KEY = peewee.CompositeKey("study_user_id", "bluesky_handle", "bluesky_user_did")
 
 
-def create_initial_tables() -> None:
-    """Create the initial tables."""
+def create_initial_tables(drop_all_tables: bool = False) -> None:
+    """Create the initial tables, optionally dropping all existing tables first.
+
+    :param drop_all_tables: If True, drops all existing tables before creating new ones.
+    """ # noqa
     with db.atomic():
+        if drop_all_tables:
+            print("Dropping all tables in database...")
+            db.drop_tables([StudyUser, StudyQuestionnaireData, UserToBlueskyProfile], safe=True)
+        print("Creating tables in database...")
         db.create_tables([StudyUser, StudyQuestionnaireData, UserToBlueskyProfile])
 
 
@@ -59,10 +68,29 @@ def test_insertion() -> None:
     }
     with db.atomic():
         UserToBlueskyProfile.create(**data)
+    # check that there is at least one row
+    num_users = UserToBlueskyProfile.select().count()
+    assert num_users > 0
+    print(f"Successfully inserted a user into the {map_table_name} table.")
+    print(f"Total number of users in the {map_table_name} table: {num_users}")
 
 
-def initialize_study_tables() -> None:
+def get_user_to_bluesky_profiles() -> list:
+    """Get all user to bluesky profiles."""
+    return UserToBlueskyProfile.select()
+
+
+def get_user_to_bluesky_profiles_as_df() -> pd.DataFrame:
+    """Get all user to bluesky profiles as a DataFrame."""
+    return pd.DataFrame(list(get_user_to_bluesky_profiles().dicts()))
+
+
+def initialize_study_tables(drop_all_tables: bool = False) -> None:
     """Initialize the study tables."""
-    create_initial_tables()
+    create_initial_tables(drop_all_tables=drop_all_tables)
     test_insertion()
     print("Tables created successfully.")
+
+
+if __name__ == "__main__":
+    initialize_study_tables(True)
