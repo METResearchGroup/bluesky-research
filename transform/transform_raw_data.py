@@ -62,25 +62,6 @@ def flatten_post(post: PostView) -> dict:
     return {**post_author_info, **post_record_info, **other_info}
 
 
-class FlattenedFirehosePost(TypedDict):
-    uri: str
-    created_at: str
-    text: str
-    embed: str
-    langs: str
-    entities: str
-    facets: str  # https://www.pfrazee.com/blog/why-facets
-    labels: str
-    reply: str
-    reply_parent: str
-    reply_root: str
-    tags: str
-    py_type: str
-    cid: str
-    author: str
-    synctimestamp: str
-
-
 def process_mention(mention: Mention) -> str:
     """Processes a mention of another Bluesky user.
 
@@ -427,7 +408,7 @@ def process_embed(
     return json.dumps(res)
 
 
-def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
+def flatten_firehose_post(post: dict) -> dict:
     """Flattens a post from the firehose.
 
     For some reason, the post format from the firehose is different from the
@@ -503,7 +484,6 @@ def flatten_firehose_post(post: dict) -> FlattenedFirehosePost:
         }
     except Exception as e:
         print(f"Exception in flattening post: {e}")
-    #breakpoint()
     return flattened_firehose_dict
 
 
