@@ -129,7 +129,7 @@ def get_author_profile_from_link(link: str) -> ProfileViewDetailed:
     """Given a link, get the author profile.
     
     Example:
-    >get_author_profile_from_link("https://bsky.app/profile/gbbranstetter.bsky.social/post/3knssi4ouko24)
+    >get_author_profile_from_link("https://bsky.app/profile/gbbranstetter.bsky.social/post/3knssi4ouko24")
     ProfileViewDetailed(
         did='did:plc:mlmouohgzbjofidukcp4pxf2',
         handle='gbbranstetter.bsky.social',
