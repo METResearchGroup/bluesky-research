@@ -21,11 +21,9 @@ db_version = 2
 conn = sqlite3.connect(SQLITE_DB_PATH)
 cursor = conn.cursor()
 
-
 class BaseModel(peewee.Model):
     class Meta:
         database = db
-
 
 class FirehosePost(BaseModel):
     uri = peewee.CharField(unique=True)
@@ -47,11 +45,9 @@ class FirehosePost(BaseModel):
     indexed_at = peewee.DateTimeField(default=datetime.utcnow)
     synctimestamp = peewee.CharField()
 
-
 class SubscriptionState(BaseModel):
     service = peewee.CharField(unique=True)
     cursor = peewee.IntegerField()
-
 
 class DbMetadata(BaseModel):
     version = peewee.IntegerField()
