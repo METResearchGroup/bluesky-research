@@ -59,6 +59,11 @@ def load_posts_to_generate_features(
             post["uri"] in valid_post_uris
             and post["uri"] not in posts_with_features_uris
         ):
+            # deserialize the embed so that we can generate features off it.
+            # NOTE: need to check if this is efficient - is it better to
+            # do this here or only when we need features that require
+            # the embed explicitly?
+            post["embed"] = json.loads(post["embed"])
             posts_to_generate_features_for.append(post)
     return posts_to_generate_features_for[:num_posts]
 
