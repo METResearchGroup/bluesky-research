@@ -2,15 +2,18 @@
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_stream.py
 """
+import sys
+
 from atproto import AtUri, CAR, firehose_models, FirehoseSubscribeReposClient, models, parse_subscribe_repos_message
 from atproto.exceptions import FirehoseError
 
 from lib.helper import ThreadSafeCounter
 from services.sync.stream.database import SubscriptionState
+from services.sync.stream.helper import get_num_posts
 
 # number of events to stream before exiting
-# (should be ~5,000 posts, a 1:5 ratio of posts:events)
-stream_limit = 25000
+# (should be ~10,000 posts, a 1:5 ratio of posts:events)
+stream_limit = 50000
 
 def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict:  # noqa: C901
     operation_by_type = {
@@ -113,10 +116,8 @@ def _run(name, operations_callback, stream_stop_event=None):
             if counter_value % 100 == 0:
                 print(f"Counter: {counter_value}")
             if counter.get_value() > stream_limit:
-                print(f"Counter: {counter_value}. Exiting.")
-                import sys
+                total_posts_in_db: int = get_num_posts()
+                print(f"Counter value {counter_value} > stream limit: {stream_limit}. Total posts in DB: {total_posts_in_db}. Exiting...")
                 sys.exit(0)
-
-        # looks like we get about 1 new post every 5 events in the firehose.
 
     client.start(on_message_handler)
