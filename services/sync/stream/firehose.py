@@ -14,6 +14,8 @@ from services.sync.stream.helper import get_num_posts
 # number of events to stream before exiting
 # (should be ~10,000 posts, a 1:5 ratio of posts:events)
 stream_limit = 50000
+# 50,000 posts, took about 2 hours to stream (3pm-5pm Eastern Time)
+# stream_limit = 250000
 
 def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict:  # noqa: C901
     operation_by_type = {
