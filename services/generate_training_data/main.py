@@ -13,8 +13,10 @@ import sys
 from services.generate_training_data.helper import set_up_labeling_session
 
 def main():
-    config_path: str = sys.argv[1] if len(sys.argv) > 1 else None
-    session_dict: dict = set_up_labeling_session(config_path=config_path)
+    config_filename: str = sys.argv[1] if len(sys.argv) > 1 else None
+    session_dict: dict = set_up_labeling_session(
+        config_filename=config_filename
+    )
 
 if __name__ == "__main__":
     main()

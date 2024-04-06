@@ -27,6 +27,7 @@ class AnnotatedTrainingData(BaseModel):
     uri = peewee.CharField()
     label = peewee.TextField() # serialized dict of training label
     task = peewee.CharField()
+    labeling_session_name = peewee.CharField()
     notes = peewee.CharField()
     timestamp = peewee.CharField()
 
@@ -47,6 +48,12 @@ def write_training_data_to_db(data: dict) -> None:
         AnnotatedTrainingData.create(**data)
 
 
+def batch_write_training_data_to_db(data: list[dict]) -> None:
+    """Write data to training data table."""
+    with db.atomic():
+        AnnotatedTrainingData.insert_many(data).execute()
+
+
 def load_ids_of_previous_annotated_samples(
     task_name: Optional[str] = None
 ) -> list[str]:
@@ -58,6 +65,14 @@ def load_ids_of_previous_annotated_samples(
     else:
         ids = AnnotatedTrainingData.select(AnnotatedTrainingData.id)
     return [id_ for id_ in ids]
+
+
+def load_data_from_previous_session(labeling_session_name: str) -> list[dict]:
+    """Load the data from a previous labeling session."""
+    res = AnnotatedTrainingData.select().where(
+        AnnotatedTrainingData.labeling_session_name == labeling_session_name
+    )
+    return [data.__dict__["__data__"] for data in res]
 
 
 if __name__ == "__main__":

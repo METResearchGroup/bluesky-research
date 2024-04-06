@@ -11,10 +11,12 @@ from services.sync.stream.database import DEPRECATED_FIELDS
 from services.sync.stream.helper import get_posts_as_list_dicts
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
+CONFIGS_DIR = os.path.join(current_file_directory, "labeling_session_configs")
+LABELING_DATA_DIR = os.path.join(current_file_directory, "data_to_label")
 DEFAULT_SESSION_NUM_SAMPLES = 100
 REQUIRED_FIELDS = ["task_name", "task_description", "label_options"]
 
-timestamp = current_datetime_str
+default_timestamp = current_datetime_str
 
 def config_is_valid(config: dict) -> bool:
     """Checks if a config file has the required fields."""
@@ -24,10 +26,12 @@ def config_is_valid(config: dict) -> bool:
     return True
 
 
-def load_config_for_labeling_session(config_path: str) -> dict:
+def load_config_for_labeling_session(config_filename: str) -> dict:
     """Load configuration for a labeling session."""
-    full_fp = os.path.join(current_file_directory, config_path)
-    if config_path.endswith(".json"):
+    full_fp = os.path.join(CONFIGS_DIR, config_filename)
+    breakpoint()
+    if config_filename.endswith(".json"):
+        breakpoint()
         with open(full_fp, "r") as full_fp:
             config = json.load(full_fp)
     else:
@@ -51,7 +55,7 @@ def define_config_for_labeling_session() -> dict:
     label_options: list[str] = label_options.split(",")
     label_options = [option.strip() for option in label_options]
 
-    default_labeling_session_name = f"{task_name}_{timestamp}"
+    default_labeling_session_name = f"{task_name}_{default_timestamp}"
     labeling_session_name = input(f"Name of the session (optional, default = {default_labeling_session_name}): ") # noqa
     if not labeling_session_name:
         labeling_session_name = default_labeling_session_name
@@ -62,10 +66,10 @@ def define_config_for_labeling_session() -> dict:
 
     notes = input("Notes (optional): ")
 
-    default_config_name = f"{labeling_session_name}.json"
-    config_name = input(f"Name of config file (optional, default = {default_config_name}): ")
-    if not config_name:
-        config_name = default_config_name
+    default_config_filename = f"{labeling_session_name}.json"
+    config_filename = input(f"Name of config file (optional, default = {default_config_filename}): ")
+    if not config_filename:
+        config_filename = default_config_filename
 
     return {
         "num_samples": num_samples,
@@ -75,17 +79,17 @@ def define_config_for_labeling_session() -> dict:
         "labeling_session_name": labeling_session_name,
         "data_to_label_filename": data_to_label_filename,
         "notes": notes,
-        "config_name": config_name
+        "config_filename": config_filename
     }
 
 
-def get_config_for_labeling_session(config_path: Optional[str]=None) -> dict:
+def get_config_for_labeling_session(config_filename: Optional[str]=None) -> dict:
     """Generate the configs for the current labeling session."""
-    if config_path:
+    if config_filename:
         try:
-            config: dict = load_config_for_labeling_session(config_path)
+            config: dict = load_config_for_labeling_session(config_filename)
         except FileNotFoundError:
-            print(f"Config file not found at {config_path}.")
+            print(f"Config file not found at {config_filename}.")
             config = define_config_for_labeling_session()
     else:    
         config = define_config_for_labeling_session()
@@ -101,8 +105,7 @@ def load_existing_labeled_data_ids(task_name: str) -> set[str]:
 
 def load_existing_data_to_label(data_to_label_filename: str) -> list[dict]:
     """Load the data that has already been labeled."""
-    local_fp = os.path.join("data_to_label", data_to_label_filename)
-    full_fp = os.path.join(current_file_directory, local_fp)
+    full_fp = os.path.join(LABELING_DATA_DIR, data_to_label_filename)
     with open(full_fp, "r") as f:
         data_to_label = [json.loads(line) for line in f.readlines()]
     return data_to_label
@@ -154,26 +157,24 @@ def preprocess_data_to_label(data: dict) -> dict:
 
 def export_data_to_label(data_to_label: list[dict], filename: str) -> None:
     """Export data to label as a .jsonl file."""
-    local_fp = os.path.join("data_to_label", filename)
-    full_fp = os.path.join(current_file_directory, local_fp)
+    full_fp = os.path.join(LABELING_DATA_DIR, filename)
     with open(full_fp, "w") as f:
         for data in data_to_label:
             preprocessed_data: dict = preprocess_data_to_label(data)
             json.dump(preprocessed_data, f)
             f.write("\n")
-    print(f"Exported data to label at {local_fp}")
+    print(f"Exported data to label at {full_fp}")
 
 
-def export_config(config: dict, config_name: str) -> None:
+def export_config(config: dict, config_filename: str) -> None:
     """Exports config file."""
-    local_fp = os.path.join("labeling_session_configs", config_name)
-    full_fp = os.path.join(current_file_directory, local_fp)
+    full_fp = os.path.join(CONFIGS_DIR, config_filename)
     with open(full_fp, "w") as f:
         json.dump(config, f)
-    print(f"Exported config at {local_fp}")
+    print(f"Exported config at {full_fp}")
 
 
-def set_up_labeling_session(config_path: Optional[str]=None) -> dict:
+def set_up_labeling_session(config_filename: Optional[str]=None) -> dict:
     """Set up a labeling session.
 
     Defines any configuration required for the training session, and adds
@@ -181,11 +182,14 @@ def set_up_labeling_session(config_path: Optional[str]=None) -> dict:
 
     Returns the paths to the config file as well as the data to label.
     """
-    config: dict = get_config_for_labeling_session(config_path=config_path)
+    config: dict = get_config_for_labeling_session(
+        config_filename=config_filename
+    )
     num_samples = config.get("num_samples", DEFAULT_SESSION_NUM_SAMPLES)
     task_name = config.get("task_name")
     task_description = config.get("task_description")
     label_options = config.get("label_options")
+    timestamp = config.get("timestamp", default_timestamp)
     labeling_session_name = config.get(
         "labeling_session_name", f"{task_name}_{timestamp}"
     )
@@ -193,7 +197,9 @@ def set_up_labeling_session(config_path: Optional[str]=None) -> dict:
         "data_to_label_filename", f"{labeling_session_name}.jsonl"
     )
     notes = config.get("notes", "")
-    config_name = config.get("config_name", f"{labeling_session_name}.json")
+    config_filename = config.get(
+        "config_filename", f"{labeling_session_name}.json"
+    )
 
     # load and export data to be labeled
     data_to_label: list[dict] = load_data_to_label(
@@ -215,10 +221,13 @@ def set_up_labeling_session(config_path: Optional[str]=None) -> dict:
         "data_to_label_filename": data_to_label_filename,
     }
 
-    export_config(config=config_to_export, config_name=config_name)
+    export_config(config=config_to_export, config_filename=config_filename)
 
-    print(f"Labeling session set up for config {config_name} to label data at {data_to_label_filename} at {timestamp}.") # noqa
+    print(f"Labeling session set up for config {config_filename} to label data at {data_to_label_filename} at {timestamp}.") # noqa
     return {
         "config": config_to_export,
         "data_to_label": data_to_label
     }
+
+
+## TODO: put the function here that setups of the posts for labeling
