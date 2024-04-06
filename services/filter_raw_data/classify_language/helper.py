@@ -3,7 +3,8 @@ from ml_tooling.inference_helpers import classify_posts
 from services.filter_raw_data.classify_language.model import classify
 
 
-DEFAULT_BATCH_SIZE = 100 # TODO: check behavior of our language model.
+# our model is fast enough to handle all posts at once without special batching
+DEFAULT_BATCH_SIZE = None
 
 
 def classify_single_post(post: dict) -> dict:
@@ -19,11 +20,8 @@ def classify_single_post(post: dict) -> dict:
             "uid": post["uid"],
             "is_english": True if "en" in langs else False
         }
-    lang = classify(post["text"])
-    return {
-        "uid": post["uid"],
-        "is_english": True if lang == "en" else False
-    }
+    text_is_english: bool = classify(post["text"])
+    return {"uid": post["uid"], "is_english": text_is_english}
 
 
 def classify_language_of_posts(
@@ -31,5 +29,6 @@ def classify_language_of_posts(
 ) -> list[dict]:
     """Classifies the language of multiple posts."""
     return classify_posts(
-        posts=posts, clf_func=classify_single_post, batch_size=batch_size
+        posts=posts, clf_func=classify_single_post,
+        batch_size=batch_size, rate_limit_per_minute=None
     )

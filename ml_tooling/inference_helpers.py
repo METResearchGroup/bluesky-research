@@ -43,9 +43,13 @@ def classify_posts(
     rate_limit_per_minute: Optional[int]=None
 ) -> list[dict]:
     """Classifies posts."""
-    batches: list[list[dict]] = generate_batches_of_posts(
-        posts=posts, batch_size=batch_size
-    )
+    if batch_size:
+        batches: list[list[dict]] = generate_batches_of_posts(
+            posts=posts, batch_size=batch_size
+        )
+    else:
+        batches: list[list[dict]] = [posts]
+
     classified_posts: list[dict] = []
     for batch in batches:
         classified_posts.extend(
