@@ -1,5 +1,5 @@
 """Classifies posts using the Perspective API."""
-from services.generate_features.helper import classify_posts
+from ml_tooling.inference_helpers import classify_posts
 from services.generate_features.classify_perspective_api.model import classify
 
 

@@ -1,7 +1,5 @@
 """Classifies the political ideology of posts."""
-from typing import Optional
-
-from services.generate_features.helper import classify_posts
+from ml_tooling.inference_helpers import classify_posts
 from services.generate_features.classify_political_ideology.model import classify # noqa
 
 DEFAULT_BATCH_SIZE = 100
