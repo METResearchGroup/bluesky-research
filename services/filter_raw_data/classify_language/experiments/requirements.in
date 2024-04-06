@@ -1,0 +1,4 @@
+fasttext==0.9.2
+langid==1.1.6
+spacy==3.7.4
+spacy-langdetect==0.1.2

@@ -65,8 +65,24 @@ def track_performance(func):
     """Tracks both the runtime and memory usage of a function."""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        func_decorated = track_memory_usage(track_function_runtime(func))
-        return func_decorated(*args, **kwargs)
+
+        start_time = time.time()
+        mem_before = memory_usage(-1, interval=0.1, timeout=1)
+
+        result = func(*args, **kwargs)
+
+        end_time = time.time()
+        mem_after = memory_usage(-1, interval=0.1, timeout=1)
+
+        execution_time_seconds = round(end_time - start_time)
+        execution_time_minutes = execution_time_seconds // 60
+        execution_time_leftover_seconds = (
+            execution_time_seconds - (60 * execution_time_minutes)
+        )
+
+        print(f"Execution time for {func.__name__}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds") # noqa
+        print(f"Memory usage for {func.__name__}: {max(mem_after) - min(mem_before)} MB") # noqa
+        return result
 
     return wrapper
 
