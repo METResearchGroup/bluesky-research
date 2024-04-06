@@ -4,25 +4,32 @@ import os
 from typing import Optional
 
 from lib.constants import current_datetime_str
+from services.generate_training_data.database import (
+    load_ids_of_previous_annotated_samples
+)
+from services.sync.stream.database import DEPRECATED_FIELDS
+from services.sync.stream.helper import get_posts_as_list_dicts
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_SESSION_NUM_SAMPLES = 100
+REQUIRED_FIELDS = ["task_name", "task_description", "label_options"]
 
 timestamp = current_datetime_str
 
 def config_is_valid(config: dict) -> bool:
-    """Checks if a config file has the required fields.
-
-    For now it's just a task name, but we can change this over time.
-    """
-    return "task_name" in config
+    """Checks if a config file has the required fields."""
+    for task in REQUIRED_FIELDS:
+        if task not in config:
+            return False
+    return True
 
 
 def load_config_for_labeling_session(config_path: str) -> dict:
     """Load configuration for a labeling session."""
     full_fp = os.path.join(current_file_directory, config_path)
     if config_path.endswith(".json"):
-        config = json.load(full_fp)
+        with open(full_fp, "r") as full_fp:
+            config = json.load(full_fp)
     else:
         raise ValueError("Config has to currently be a .json, other formats are not supported") # noqa
     return config
@@ -31,16 +38,40 @@ def load_config_for_labeling_session(config_path: str) -> dict:
 def define_config_for_labeling_session() -> dict:
     """Define the config for the labeling session, using interactive inputs."""
     num_samples = input(f"Number of samples to label (optional, default={DEFAULT_SESSION_NUM_SAMPLES}): ") # noqa
+    if num_samples:
+        num_samples = int(num_samples)
+    else:
+        num_samples = DEFAULT_SESSION_NUM_SAMPLES
+
     task_name = None
     while not task_name:
         task_name = input("Task name (required): ")
-    labeling_session_name = input(f"Name of the session (optional, default = {task_name}_{timestamp}): ") # noqa
-    data_to_label_filename = input(f"Name to give to the dataset that will be labeled (optional, default = {labeling_session_name}.jsonl): ")
+    task_description = input("Task description - what is the purpose of the labeling task? (required): ")
+    label_options = input("Label options, as a comma-separated string (required): ")
+    label_options: list[str] = label_options.split(",")
+    label_options = [option.strip() for option in label_options]
+
+    default_labeling_session_name = f"{task_name}_{timestamp}"
+    labeling_session_name = input(f"Name of the session (optional, default = {default_labeling_session_name}): ") # noqa
+    if not labeling_session_name:
+        labeling_session_name = default_labeling_session_name
+    default_data_to_label_filename = f"{labeling_session_name}.jsonl"
+    data_to_label_filename = input(f"Name to give to the dataset that will be labeled (optional, default = {default_data_to_label_filename}): ")
+    if not data_to_label_filename:
+        data_to_label_filename = default_data_to_label_filename
+
     notes = input("Notes (optional): ")
-    config_name = input(f"Name of config file (optional, default = {labeling_session_name}.json): ")
+
+    default_config_name = f"{labeling_session_name}.json"
+    config_name = input(f"Name of config file (optional, default = {default_config_name}): ")
+    if not config_name:
+        config_name = default_config_name
+
     return {
         "num_samples": num_samples,
         "task_name": task_name,
+        "task_description": task_description,
+        "label_options": label_options,
         "labeling_session_name": labeling_session_name,
         "data_to_label_filename": data_to_label_filename,
         "notes": notes,
@@ -52,7 +83,7 @@ def get_config_for_labeling_session(config_path: Optional[str]=None) -> dict:
     """Generate the configs for the current labeling session."""
     if config_path:
         try:
-            config = load_config_for_labeling_session(config_path)
+            config: dict = load_config_for_labeling_session(config_path)
         except FileNotFoundError:
             print(f"Config file not found at {config_path}.")
             config = define_config_for_labeling_session()
@@ -63,14 +94,62 @@ def get_config_for_labeling_session(config_path: Optional[str]=None) -> dict:
     return config
 
 
-# TODO: need to figure out the data to label
-# TODO: also should add support for other clauses, e.g., sort by most recent.
-def load_data_to_label(num_samples: Optional[int]=None) -> list[dict]:
-    """Returns a list of the data to label."""
-    if num_samples:
-        # put a limit on samples to label
-        return []
-    pass
+def load_existing_labeled_data_ids(task_name: str) -> set[str]:
+    """Load the IDs of the data that has been labeled for a given task."""
+    return set(load_ids_of_previous_annotated_samples(task_name=task_name))
+
+
+def load_existing_data_to_label(data_to_label_filename: str) -> list[dict]:
+    """Load the data that has already been labeled."""
+    local_fp = os.path.join("data_to_label", data_to_label_filename)
+    full_fp = os.path.join(current_file_directory, local_fp)
+    with open(full_fp, "r") as f:
+        data_to_label = [json.loads(line) for line in f.readlines()]
+    return data_to_label
+
+
+def load_data_to_label(
+    task_name: str,
+    data_to_label_filename: Optional[str] = None,
+    num_samples: Optional[int]=DEFAULT_SESSION_NUM_SAMPLES,
+    most_recent_posts: Optional[bool] = False
+) -> list[dict]:
+    """Returns a list of the data to label. Loads data that hasn't been labeled
+    yet (optionally can return the most recent posts that haven't been labeled).
+    
+    For now, we will load raw data from the database, but we can change this
+    to load only filtered data instead. By default, we'll take a subset of the
+    fields.
+    """
+    if data_to_label_filename:
+        try:
+            data_to_label: list[dict] = load_existing_data_to_label(data_to_label_filename) # noqa
+            return data_to_label
+        except FileNotFoundError:
+            print(f"Data to label not found at {data_to_label_filename}. Generating new set of data to label...") 
+    if most_recent_posts:
+        posts: list[dict] = get_posts_as_list_dicts(
+            k=num_samples, order_by="synctimestamp", desc=True
+        )
+    else:
+        posts: list[dict] = get_posts_as_list_dicts(k=num_samples)
+    set_previously_labeled_data_ids: set[str] = (
+        load_existing_labeled_data_ids(task_name)
+    )
+    res: list[dict] = [
+        post for post in posts
+        if post["id"] not in set_previously_labeled_data_ids
+    ]
+    return res
+
+
+def preprocess_data_to_label(data: dict) -> dict:
+    """Does any necessary preprocessing and field selection before dumping
+    the data as to be labeled."""
+    # drop deprecated fields
+    for field in DEPRECATED_FIELDS:
+        data.pop(field, None)
+    return data
 
 
 def export_data_to_label(data_to_label: list[dict], filename: str) -> None:
@@ -79,7 +158,8 @@ def export_data_to_label(data_to_label: list[dict], filename: str) -> None:
     full_fp = os.path.join(current_file_directory, local_fp)
     with open(full_fp, "w") as f:
         for data in data_to_label:
-            json.dump(data, f)
+            preprocessed_data: dict = preprocess_data_to_label(data)
+            json.dump(preprocessed_data, f)
             f.write("\n")
     print(f"Exported data to label at {local_fp}")
 
@@ -98,13 +178,14 @@ def set_up_labeling_session(config_path: Optional[str]=None) -> dict:
 
     Defines any configuration required for the training session, and adds
     appropriate logging.
+
+    Returns the paths to the config file as well as the data to label.
     """
-    if config_path:
-        # assumes a local path to the file (ideally same directory)
-        config_path = os.path.join(current_file_directory, config_path)
     config: dict = get_config_for_labeling_session(config_path=config_path)
     num_samples = config.get("num_samples", DEFAULT_SESSION_NUM_SAMPLES)
     task_name = config.get("task_name")
+    task_description = config.get("task_description")
+    label_options = config.get("label_options")
     labeling_session_name = config.get(
         "labeling_session_name", f"{task_name}_{timestamp}"
     )
@@ -115,7 +196,9 @@ def set_up_labeling_session(config_path: Optional[str]=None) -> dict:
     config_name = config.get("config_name", f"{labeling_session_name}.json")
 
     # load and export data to be labeled
-    data_to_label: list[dict] = load_data_to_label()
+    data_to_label: list[dict] = load_data_to_label(
+        task_name=task_name, data_to_label_filename=data_to_label_filename
+    )
     export_data_to_label(
         data_to_label=data_to_label, filename=data_to_label_filename
     )
@@ -125,6 +208,8 @@ def set_up_labeling_session(config_path: Optional[str]=None) -> dict:
         "labeling_session_name": labeling_session_name,
         "timestamp": timestamp,
         "task_name": task_name,
+        "task_description": task_description,
+        "label_options": label_options,
         "num_samples": num_samples,
         "notes": notes,
         "data_to_label_filename": data_to_label_filename,
@@ -133,3 +218,7 @@ def set_up_labeling_session(config_path: Optional[str]=None) -> dict:
     export_config(config=config_to_export, config_name=config_name)
 
     print(f"Labeling session set up for config {config_name} to label data at {data_to_label_filename} at {timestamp}.") # noqa
+    return {
+        "config": config_to_export,
+        "data_to_label": data_to_label
+    }

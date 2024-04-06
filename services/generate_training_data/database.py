@@ -6,6 +6,7 @@ the labels and have specific tasks that we specify.
 import os
 import peewee
 import sqlite3
+from typing import Optional
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 
@@ -44,6 +45,19 @@ def write_training_data_to_db(data: dict) -> None:
     """Write data to training data table."""
     with db.atomic():
         AnnotatedTrainingData.create(**data)
+
+
+def load_ids_of_previous_annotated_samples(
+    task_name: Optional[str] = None
+) -> list[str]:
+    """Load the ids of previously annotated samples."""
+    if task_name:
+        ids = AnnotatedTrainingData.select(AnnotatedTrainingData.id).where(
+            AnnotatedTrainingData.task == task_name
+        )
+    else:
+        ids = AnnotatedTrainingData.select(AnnotatedTrainingData.id)
+    return [id_ for id_ in ids]
 
 
 if __name__ == "__main__":

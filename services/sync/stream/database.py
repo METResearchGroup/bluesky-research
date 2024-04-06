@@ -14,6 +14,7 @@ from services.sync.stream.constants import current_file_directory
 
 SQLITE_DB_NAME = "firehose.db"
 SQLITE_DB_PATH = os.path.join(current_file_directory, SQLITE_DB_NAME)
+DEPRECATED_FIELDS = ["indexed_at"]
 
 db = peewee.SqliteDatabase(SQLITE_DB_PATH)
 db_version = 2

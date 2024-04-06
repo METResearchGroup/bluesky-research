@@ -12,9 +12,46 @@ def get_posts(k: Optional[int]=None) -> list[FirehosePost]:
     return list(FirehosePost.select())
 
 
-def get_posts_as_list_dicts(k: Optional[int]=None) -> list[dict]:
+def get_most_recent_posts(k: Optional[int]=None) -> list[FirehosePost]:
+    """Get the most recent posts from the database."""
+    if k:
+        return list(
+            FirehosePost
+            .select()
+            .order_by(FirehosePost.synctimestamp.desc())
+            .limit(k)
+        )
+    return list(
+        FirehosePost
+        .select()
+        .order_by(FirehosePost.synctimestamp.desc())
+    )
+
+
+def get_posts_as_list_dicts(
+    k: Optional[int]=None,
+    order_by: Optional[str]="synctimestamp",
+    desc: Optional[bool]=True
+) -> list[dict]:
     """Get all posts from the database as a list of dictionaries."""
-    return [post.__dict__['__data__'] for post in get_posts(k=k)]
+    if order_by:
+        if desc:
+            posts = (
+                FirehosePost
+                .select()
+                .order_by(getattr(FirehosePost, order_by).desc())
+                .limit(k)
+            )
+        else:
+            posts = (
+                FirehosePost
+                .select()
+                .order_by(getattr(FirehosePost, order_by))
+                .limit(k)
+            )
+    else:
+        posts = get_posts(k=k)
+    return [post.__dict__['__data__'] for post in posts]
 
 
 def get_posts_as_df(k: Optional[int]=None) -> pd.DataFrame:

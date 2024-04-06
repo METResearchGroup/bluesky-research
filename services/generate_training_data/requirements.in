@@ -1,4 +1,1 @@
-# note: this is 80MB btw, so just something to keep in mind.
-# might be worth it to just install the dependencies manually
-# or use the Docker image directly, depending on your use case.
-label-studio==1.11.0
+pigeon-jupyter
