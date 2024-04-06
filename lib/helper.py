@@ -2,6 +2,7 @@
 from dotenv import load_dotenv
 from functools import wraps
 import logging
+from memory_profiler import memory_usage
 import os
 import threading
 import time
@@ -26,6 +27,7 @@ logger.addHandler(logging.StreamHandler())
 
 
 def track_function_runtime(func):
+    """Tracks the runtime of a function."""
     def wrapper(*args, **kwargs):
         start_time = time.time()
         result = func(*args, **kwargs)
@@ -40,6 +42,31 @@ def track_function_runtime(func):
         print(f"Execution time for {func.__name__}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds") # noqa
 
         return result
+
+    return wrapper
+
+
+def track_memory_usage(func):
+    """Tracks the memory usage of a function."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        mem_before = memory_usage(-1, interval=0.1, timeout=1)
+        result = func(*args, **kwargs)
+        mem_after = memory_usage(-1, interval=0.1, timeout=1)
+
+        print(f"Memory usage for {func.__name__}: {max(mem_after) - min(mem_before)} MB")
+
+        return result
+
+    return wrapper
+
+
+def track_performance(func):
+    """Tracks both the runtime and memory usage of a function."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        func_decorated = track_memory_usage(track_function_runtime(func))
+        return func_decorated(*args, **kwargs)
 
     return wrapper
 

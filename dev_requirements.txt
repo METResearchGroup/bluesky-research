@@ -16,6 +16,8 @@ identify==2.5.33
     # via pre-commit
 iniconfig==2.0.0
     # via pytest
+memory-profiler==0.61.0
+    # via -r dev_requirements.in
 nodeenv==1.8.0
     # via pre-commit
 packaging==23.2
@@ -26,6 +28,8 @@ pluggy==1.4.0
     # via pytest
 pre-commit==3.6.0
     # via -r dev_requirements.in
+psutil==5.9.8
+    # via memory-profiler
 pytest==8.0.0
     # via -r dev_requirements.in
 pyyaml==6.0.1
