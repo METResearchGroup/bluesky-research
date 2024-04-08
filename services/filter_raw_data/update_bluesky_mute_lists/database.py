@@ -1,6 +1,5 @@
 """Database logic for storing users who are part of mute lists (and should
 therefore be muted in our system)."""
-from datetime import datetime
 import os
 import sqlite3
 
