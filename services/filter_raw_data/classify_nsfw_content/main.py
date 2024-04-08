@@ -4,9 +4,9 @@ from services.filter_raw_data.classify_nsfw_content.helper import (
 )
 
 
-def main(posts: list[dict]) -> None:
+def filter_posts_with_nsfw_content(posts: list[dict]) -> list[dict]:
     return classify_nsfw_of_posts(posts=posts)
 
 
 if __name__ == "__main__":
-    main()
+    filter_posts_with_nsfw_content()

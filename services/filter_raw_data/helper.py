@@ -1,16 +1,15 @@
 """Helper code for running filters on raw data."""
 import pandas as pd
 
-from lib.helper import track_function_runtime
+from lib.helper import track_performance
 
-from services.filter_raw_data.database import (
-    batch_create_filtered_posts, get_previously_filtered_post_uris
-)
-from services.sync.stream.helper import get_all_posts_as_df
+from services.filter_raw_data.database import get_previously_filtered_post_uris
+from services.filter_raw_data.filters import filter_posts, save_filtered_posts_to_db # noqa
+from services.sync.stream.helper import get_posts_as_df
 
 
-@track_function_runtime
-def load_latest_raw_data_as_df() -> pd.DataFrame:
+@track_performance
+def load_latest_raw_posts() -> list[dict]:
     """Loads raw data from the firehose DB.
 
     Excludes previously preprocessed data.
@@ -37,104 +36,30 @@ def load_latest_raw_data_as_df() -> pd.DataFrame:
     # we filter the IDs in a pandas dataframe, since adding them all to the
     # WHERE clause becomes really inefficient (due to SQL parsing constraints
     # plus query string limits).
-    all_raw_posts: pd.DataFrame = get_all_posts_as_df()
+    all_raw_posts: pd.DataFrame = get_posts_as_df()
+    # NOTE: faster to df -> filter -> dicts than dicts -> filter?
     latest_raw_data_df: pd.DataFrame = all_raw_posts[
         ~all_raw_posts["uri"].isin(previously_filtered_post_uris)
     ]
-    return latest_raw_data_df
+    latest_raw_data_dicts = latest_raw_data_df.to_dict(orient="records")
+    return latest_raw_data_dicts
 
 
-@track_function_runtime
-def filter_raw_data_non_ml(posts: pd.DataFrame) -> list[str]:
-    """Runs non-ML-powered filters on raw data.
-    
-    Returns a list of string URIs that passed the non-ML filters.
-    """
-    pass
-
-
-@track_function_runtime
-def filter_raw_data_ml(posts: pd.DataFrame) -> list[str]:
-    """Runs ML-powered filters on raw data.
-    
-    Returns a list of string URIs that passed the ML filters.
-    """
-    pass
-
-
-@track_function_runtime
-def combine_filtered_data_results(
-    non_ml_filter_results: list[str],
-    ml_filter_results: list[str]
-) -> pd.DataFrame:
-    """Combines the results of the non-ML and ML filters.
-    
-    Takes as input the list of URIs that passed the filtering steps
-    """
-    filter_results = [
-        (post_id, True)
-        for post_id in non_ml_filter_results + ml_filter_results
-    ]
-    filter_results_df = pd.DataFrame(
-        filter_results,
-        columns=["uri", "passed_filters"]
-    )
-    return filter_results_df
-
-
-@track_function_runtime
-def create_filtered_data_results(
-    latest_raw_data_df: pd.DataFrame, combined_filter_results_df: pd.DataFrame
-) -> pd.DataFrame:
-    """Creates an updated dataframe that has the results of all the uris and if
-    they passed the filters or not.
-    
-    Does a join of the posts that passed the filters with the latest raw data,
-    so that any uris that didn't pass the filters will be in the raw data and
-    be imputed with "False".
-    """
-    uri_to_filter_status_df = latest_raw_data_df["uri"].merge(
-        combined_filter_results_df,
-        on="uri",
-        how="left"
-    )
-    uri_to_filter_status_df["passed_filters"].fillna(False, inplace=True)
-    # add timestamp of filtering
-    uri_to_filter_status_df["filtered_at"] = pd.Timestamp.now()
-    return uri_to_filter_status_df
-
-
-@track_function_runtime
-def write_filtered_data_to_db(uri_to_filter_status_df: pd.DataFrame) -> None:
-    """Writes filtered data to DB.
-    
-    Writes in a table, `validated_posts_after_filters`, to track the status of the
-    filtered data.
-
-    Each row will have the post ID and TRUE or FALSE depending on whether
-    the post passed the filters (TRUE) or not (FALSE).
-    """
-    uri_to_filter_status_dicts: list[dict] = (
-        uri_to_filter_status_df.to_dict(orient="records")
-    )
-    batch_create_filtered_posts(uri_to_filter_status_dicts)
-
-
-@track_function_runtime
+@track_performance
 def filter_latest_raw_data():
-    """Filters the latest raw data."""
-    latest_raw_data_df: pd.DataFrame = load_latest_raw_data_as_df()
-    num_posts = latest_raw_data_df.shape[0]
+    """Filters the latest raw data.
+
+    Loads the latest posts, filters them, and writes the filtered data to the
+    database. Writes all posts and their filtered status, so we can track
+    which posts passed the filters and which ones didn't and so we don't
+    duplicate filtering in the future.
+    """
+    latest_raw_posts: list[dict] = load_latest_raw_posts()
+    num_posts: int = len(latest_raw_posts)
     print(f"Loaded {num_posts} posts for filtering.")
-    non_ml_filter_results: list[str] = filter_raw_data_non_ml(latest_raw_data_df)
-    ml_filter_results: list[str] = filter_raw_data_ml(latest_raw_data_df)
-    combined_filter_results_df: pd.DataFrame = combine_filtered_data_results(
-        non_ml_filter_results, ml_filter_results
+    filtered_posts: list[dict] = filter_posts(posts=latest_raw_posts)
+    save_filtered_posts_to_db(filtered_posts)
+    num_posts_passed_filters = sum(
+        post["passed_filters"] for post in filtered_posts
     )
-    uri_to_filter_status_df = create_filtered_data_results(
-        latest_raw_data_df=latest_raw_data_df,
-        combined_filter_results_df=combined_filter_results_df
-    )
-    write_filtered_data_to_db(uri_to_filter_status_df)
-    num_posts_passed_filters = uri_to_filter_status_df["passed_filters"].sum()
     print(f"Filtered data written to DB. After filtering, {num_posts_passed_filters} posts passed the filters (out of {num_posts} original posts).") # noqa

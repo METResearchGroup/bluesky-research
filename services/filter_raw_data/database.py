@@ -24,6 +24,7 @@ class FilteredFirehosePost(BaseModel):
     uri = peewee.CharField(unique=True)
     passed_filters = peewee.BooleanField(default=False)
     filtered_at = peewee.DateTimeField(default=datetime.utcnow)
+    filtered_by_func = peewee.CharField(null=True)
 
 
 if db.is_closed():

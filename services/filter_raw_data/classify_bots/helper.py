@@ -11,7 +11,7 @@ def classify_single_post(post: dict) -> dict:
     """Classifies a single post as written by a possible bot."""
     is_from_possible_bot_account: bool = classify(post=post)
     return {
-        "uid": post["uid"],
+        "uri": post["uri"],
         "is_from_possible_bot_account": is_from_possible_bot_account
     }
 
@@ -19,7 +19,7 @@ def classify_single_post(post: dict) -> dict:
 def classify_if_posts_from_bot_accounts(
     posts: list[dict], batch_size: Optional[int]=DEFAULT_BATCH_SIZE
 ) -> list[dict]:
-    """Classifies the language of multiple posts."""
+    """Classifies if posts come from bots."""
     return classify_posts(
         posts=posts, clf_func=classify_single_post,
         batch_size=batch_size, rate_limit_per_minute=None

@@ -11,8 +11,9 @@ from services.filter_raw_data.classify_nsfw_content.constants import (
 def classify(post: dict) -> bool:
     """Classifies if a post is NSFW or not."""
     labels = post.get("labels", None)
+    text = post.get("text", "")
     labels = labels.split(",") if labels else []
-    for label in labels:
-        if label in LABELS_TO_FILTER:
+    for label_to_filter in LABELS_TO_FILTER:
+        if label_to_filter in labels or label_to_filter in text:
             return True
     return False
