@@ -17,11 +17,11 @@ def classify_single_post(post: dict) -> dict:
     if langs:
         langs: list[str] = langs.split(",")
         return {
-            "uid": post["uid"],
+            "uri": post["uri"],
             "is_english": True if "en" in langs else False
         }
     text_is_english: bool = classify(post["text"])
-    return {"uid": post["uid"], "is_english": text_is_english}
+    return {"uri": post["uri"], "is_english": text_is_english}
 
 
 def classify_language_of_posts(

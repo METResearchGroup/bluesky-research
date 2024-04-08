@@ -5,4 +5,3 @@ BLOCKED_AUTHORS = []  # likely that we will want to filter out some authors (e.g
 NUM_DAYS_POST_RECENCY = 3  # we only want recent posts (Bluesky docs recommend 3 days, see )
 current_datetime = datetime.now(timezone.utc)
 current_datetime_str = current_datetime.strftime("%Y-%m-%d-%H:%M:%S")
-INAPPROPRIATE_TERMS = ["porn", "furry", "sexual", "nudity"]
