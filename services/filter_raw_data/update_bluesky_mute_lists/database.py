@@ -62,6 +62,16 @@ def batch_create_muted_users(muted_users: list[dict]):
     print(f"Inserted {len(muted_users)} muted users.")
 
 
+def get_muted_users() -> list[MutedUser]:
+    """Returns all the muted users."""
+    return list(MutedUser.select())
+
+
+def get_muted_users_as_list_dicts() -> list[dict]:
+    """Returns all the muted users."""
+    return [user.__dict__['__data__'] for user in get_muted_users()]
+
+
 if __name__ == "__main__":
     create_initial_tables()
     print("Tables created.")
