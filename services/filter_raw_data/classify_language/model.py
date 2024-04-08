@@ -1,7 +1,16 @@
 """Model for the classify_language service.
 
 We want to check if the language of a post is English.
-"""
+
+We use our own model (`fasttext`) for this, though it looks like Bluesky (as of 2024-04-08)
+is trying to classify the language of every post on their end
+- https://github.com/bluesky-social/atproto/pull/2301
+- https://github.com/bluesky-social/atproto/pull/2161/
+
+Our model only runs if the language isn't specificed by the record, so it
+could be the case that we don't have to run our model altogether, depending on
+how Bluesky proceeds.
+""" # noqa
 import os
 
 import fasttext

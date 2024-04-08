@@ -96,10 +96,11 @@ def filter_posts(posts: list[dict]) -> list[dict]:
         filter_posts_written_by_bot, filter_posts_with_nsfw_content,
         filter_posts_with_spam, filter_posts_with_hate_speech
     ]
+    labels = ["is_from_possible_bot_account", "is_nsfw", "has_spam", "has_hate_speech"] # noqa
 
-    for filter_func in filter_funcs:
+    for filter_func, label in zip(filter_funcs, labels):
         results = filter_posts_with_filter_func(
-            posts=posts_to_filter, filter_func=filter_func, label=filter_func.__name__
+            posts=posts_to_filter, filter_func=filter_func, label=label
         )
         res.extend([
             {
