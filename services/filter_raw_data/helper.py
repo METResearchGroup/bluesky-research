@@ -8,6 +8,8 @@ from services.filter_raw_data.database import get_previously_filtered_post_uris
 from services.filter_raw_data.filters import filter_posts, save_filtered_posts_to_db # noqa
 from services.sync.stream.helper import get_posts_as_df
 
+DEFAULT_BATCH_SIZE = 100000
+
 
 @track_performance
 def load_latest_raw_posts(
@@ -51,7 +53,9 @@ def load_latest_raw_posts(
 
 
 @track_performance
-def filter_latest_raw_data(max_num_raw_posts: Optional[int] = None):
+def filter_latest_raw_data(
+    max_num_raw_posts: Optional[int] = DEFAULT_BATCH_SIZE
+):
     """Filters the latest raw data.
 
     Loads the latest posts, filters them, and writes the filtered data to the
