@@ -12,11 +12,11 @@ def classify_single_post(post: dict) -> dict:
     is_from_possible_bot_account: bool = classify(post=post)
     return {
         "uri": post["uri"],
-        "is_from_possible_bot_account": is_from_possible_bot_account
+        "is_not_from_possible_bot_account": not is_from_possible_bot_account
     }
 
 
-def classify_if_posts_from_bot_accounts(
+def classify_if_posts_not_from_bot_accounts(
     posts: list[dict], batch_size: Optional[int]=DEFAULT_BATCH_SIZE
 ) -> list[dict]:
     """Classifies if posts come from bots."""

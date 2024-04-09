@@ -1,18 +1,18 @@
 """Performs filtering steps."""
 from lib.constants import current_datetime_str
 from lib.helper import track_performance
-from services.filter_raw_data.classify_bots.main import filter_posts_written_by_bot # noqa
-from services.filter_raw_data.classify_hate_speech.main import filter_posts_with_hate_speech # noqa
+from services.filter_raw_data.classify_bots.main import filter_posts_not_written_by_bot # noqa
+from services.filter_raw_data.classify_hate_speech.main import filter_posts_have_no_hate_speech # noqa
 from services.filter_raw_data.classify_language.main import filter_text_is_english # noqa
-from services.filter_raw_data.classify_nsfw_content.main import filter_posts_with_nsfw_content # noqa
-from services.filter_raw_data.classify_spam.main import filter_posts_with_spam
+from services.filter_raw_data.classify_nsfw_content.main import filter_posts_have_no_nsfw_content # noqa
+from services.filter_raw_data.classify_spam.main import filter_posts_have_no_spam
 from services.filter_raw_data.database import batch_create_filtered_posts
 
 
 @track_performance
 def filter_posts_with_filter_func(
     posts: list[dict], filter_func: callable, label: str
-) -> dict[str, set[str]]:
+) -> list[dict]:
     """Filters posts with a specific filtering function.
     
     Returns a dictionary of the following format:
@@ -24,17 +24,35 @@ def filter_posts_with_filter_func(
     """
     passed_filters_uris: set[str] = set()
     failed_filters_uris: set[str] = set()
-    for post in posts:
-        res: dict = filter_func(post)
-        label_results = res[label]
-        if label_results:
-            passed_filters_uris.add(post["uri"])
+
+    # batch classify posts and let each service manage batching accordingly.
+    results: list[dict] = filter_func(posts)
+    label_results = [res[label] for res in results]
+
+    for (label, res) in zip(label_results, results):
+        if label:
+            passed_filters_uris.add(res["uri"])
         else:
-            failed_filters_uris.add(post["uri"])
+            failed_filters_uris.add(res["uri"])
+
     return {
         "passed_filters": passed_filters_uris,
         "failed_filters": failed_filters_uris
     }
+
+
+def preprocess_post(post: dict) -> dict:
+    """Preprocesses a single post as necessary, before filtering."""
+    # preprocessing needed for language classifier
+    post["text"] = post["text"].replace("\n", " ").strip()
+    # remove deprecated field
+    post.pop("indexed_at")
+    return post
+
+
+def preprocess_posts(posts: list[dict]) -> list[dict]:
+    """Preprocesses the posts as necessary, before filtering."""
+    return [preprocess_post(post) for post in posts]
 
 
 @track_performance
@@ -65,6 +83,9 @@ def filter_posts(posts: list[dict]) -> list[dict]:
     After all the filters are done, we add the remaining URIs to the output
     as the URIs of the posts that have passed all the filters.
     """
+    # do any preprocessing for posts before filtering
+    posts: list[dict] = preprocess_posts(posts)
+
     # we need to run the language filter first since this will filter the
     # majority of posts (60% - 80% of posts per batch).
     results_after_english_filter = filter_posts_with_filter_func(
@@ -93,10 +114,10 @@ def filter_posts(posts: list[dict]) -> list[dict]:
     # the order of these filters doesn't particularly matter, unless we have
     # a specific reason to prefer one ordering over another.
     filter_funcs = [
-        filter_posts_written_by_bot, filter_posts_with_nsfw_content,
-        filter_posts_with_spam, filter_posts_with_hate_speech
+        filter_posts_not_written_by_bot, filter_posts_have_no_nsfw_content,
+        filter_posts_have_no_spam, filter_posts_have_no_hate_speech
     ]
-    labels = ["is_from_possible_bot_account", "is_nsfw", "has_spam", "has_hate_speech"] # noqa
+    labels = ["is_not_from_possible_bot_account", "has_no_nsfw_content", "has_no_spam", "has_no_hate_speech"] # noqa
 
     for filter_func, label in zip(filter_funcs, labels):
         results = filter_posts_with_filter_func(
@@ -127,7 +148,28 @@ def filter_posts(posts: list[dict]) -> list[dict]:
         for post in posts_to_filter
     ])
 
-    return res
+    # TODO: maybe we want to have the joined results and write the joined
+    # results so we can just directly use these instead of the raw posts?
+    # Unsure, but think that we really only need the IDs that passed the
+    # steps, but maybe for now we can just keep all the fields so we can avoid
+    # having to do filtering at each downstream service and just have a fully
+    # hydrated set of filtered posts? Will go back to this later but for now
+    # let's use a hydrated version of each post so that downstream services
+    # can just filter on the filter status. Don't think that this causes any
+    # storage issues but it does save us having to do joins or filters
+    # downstream where we have to grab the IDs into memory and join/filter them
+    # against the raw posts.
+
+    # join `res` and `posts`, based on uri
+    join_key = "uri"
+    res_dict = {post[join_key]: post for post in res}
+    posts_dict = {post[join_key]: post for post in posts}
+    joined_results = [
+        {**posts_dict[uri], **res_dict[uri]}
+        for uri in res_dict.keys()
+    ]
+
+    return joined_results
 
 
 def save_filtered_posts_to_db(filtered_posts: list[dict]) -> None:

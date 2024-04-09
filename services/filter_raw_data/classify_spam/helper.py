@@ -10,10 +10,10 @@ DEFAULT_BATCH_SIZE = None # we can do inference without batching
 def classify_single_post(post: dict) -> dict:
     """Classifies a single post as having spam."""
     has_spam: bool = classify(post=post)
-    return {"uri": post["uri"], "has_spam": has_spam}
+    return {"uri": post["uri"], "has_no_spam": not has_spam}
 
 
-def classify_if_posts_have_spam(
+def classify_if_posts_have_no_spam(
     posts: list[dict], batch_size: Optional[int]=DEFAULT_BATCH_SIZE
 ) -> list[dict]:
     """Classifies if posts have spam."""

@@ -23,8 +23,23 @@ class FilteredFirehosePost(BaseModel):
     """Filtered version of Firehose post."""
     uri = peewee.CharField(unique=True)
     passed_filters = peewee.BooleanField(default=False)
-    filtered_at = peewee.DateTimeField(default=datetime.utcnow)
+    filtered_at = peewee.CharField()
     filtered_by_func = peewee.CharField(null=True)
+    created_at = peewee.TextField()
+    text = peewee.TextField()  # for long text
+    embed = peewee.TextField(null=True) # for embedded content
+    langs = peewee.CharField(null=True)  # sometimes the langs aren't provided
+    entities = peewee.CharField(null=True)
+    facets = peewee.CharField(null=True)  # https://www.pfrazee.com/blog/why-facets # noqa
+    labels = peewee.CharField(null=True)
+    reply = peewee.CharField(null=True)
+    reply_parent = peewee.CharField(null=True)
+    reply_root = peewee.CharField(null=True)
+    tags = peewee.CharField(null=True)
+    py_type = peewee.CharField()
+    cid = peewee.CharField(index=True)
+    author = peewee.CharField()
+    synctimestamp = peewee.CharField()
 
 
 if db.is_closed():
@@ -55,9 +70,11 @@ def batch_create_filtered_posts(posts: list[dict]) -> None:
     """
     with db.atomic():
         for idx in range(0, len(posts), DEFAULT_BATCH_WRITE_SIZE):
-            FilteredFirehosePost.insert_many(posts[idx:idx + 100]).execute()
+            FilteredFirehosePost.insert_many(
+                posts[idx:idx + DEFAULT_BATCH_WRITE_SIZE]
+            ).on_conflict_ignore().execute()
     print(f"Batch created {len(posts)} posts.")
-        
+
 
 def create_filtered_posts_from_df(df) -> None:
     """Create filtered posts from a dataframe."""

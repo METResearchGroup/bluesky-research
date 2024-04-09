@@ -1,12 +1,12 @@
 """Classify if a post has any NSFW content."""
 from services.filter_raw_data.classify_nsfw_content.helper import (
-    classify_nsfw_of_posts
+    classify_if_posts_have_no_nsfw_content
 )
 
 
-def filter_posts_with_nsfw_content(posts: list[dict]) -> list[dict]:
-    return classify_nsfw_of_posts(posts=posts)
+def filter_posts_have_no_nsfw_content(posts: list[dict]) -> list[dict]:
+    return classify_if_posts_have_no_nsfw_content(posts=posts)
 
 
 if __name__ == "__main__":
-    filter_posts_with_nsfw_content()
+    filter_posts_have_no_nsfw_content()

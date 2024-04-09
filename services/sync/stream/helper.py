@@ -36,19 +36,33 @@ def get_posts_as_list_dicts(
     """Get all posts from the database as a list of dictionaries."""
     if order_by:
         if desc:
-            posts = (
-                FirehosePost
-                .select()
-                .order_by(getattr(FirehosePost, order_by).desc())
-                .limit(k)
-            )
+            if k:
+                posts = (
+                    FirehosePost
+                    .select()
+                    .order_by(getattr(FirehosePost, order_by).desc())
+                    .limit(k)
+                )
+            else:
+                posts = (
+                    FirehosePost
+                    .select()
+                    .order_by(getattr(FirehosePost, order_by).desc())
+                )
         else:
-            posts = (
-                FirehosePost
-                .select()
-                .order_by(getattr(FirehosePost, order_by))
-                .limit(k)
-            )
+            if k:
+                posts = (
+                    FirehosePost
+                    .select()
+                    .order_by(getattr(FirehosePost, order_by))
+                    .limit(k)
+                )
+            else:
+                posts = (
+                    FirehosePost
+                    .select()
+                    .order_by(getattr(FirehosePost, order_by))
+                )
     else:
         posts = get_posts(k=k)
     return [post.__dict__['__data__'] for post in posts]

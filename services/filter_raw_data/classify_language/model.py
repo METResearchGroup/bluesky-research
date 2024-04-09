@@ -23,6 +23,8 @@ model = fasttext.load_model(fp)
 
 def classify(text: str) -> bool:
     """Classifies if a text is English or not."""
+    if not text:
+        return False
     return (
         model.predict(text)[0][0] == "__label__eng_Latn"
         or model.predict(text)[0][0] == "__label__en"

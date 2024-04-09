@@ -7,8 +7,9 @@ Bot classification is in-progress but not yet on the Bluesky roadmap (as of 2024
 from services.filter_raw_data.classify_bots.update_bot_accounts import load_bot_accounts # noqa
 
 
-bot_user_ids: set = load_bot_accounts()
+bot_user_dids: set = load_bot_accounts()
 
 def classify(post: dict) -> bool:
     """Classifies a post as from a bot account."""
-    return post["author_id"] in bot_user_ids
+    #return post["author"] in bot_user_dids
+    return False

@@ -10,10 +10,10 @@ DEFAULT_BATCH_SIZE = None
 def classify_single_post(post: dict) -> dict:
     """Classifies post as NSFW or not."""
     post_is_nsfw: bool = classify(post=post)
-    return {"uri": post["uri"], "is_nsfw": post_is_nsfw}
+    return {"uri": post["uri"], "has_no_nsfw_content": not post_is_nsfw}
 
 
-def classify_nsfw_of_posts(
+def classify_if_posts_have_no_nsfw_content(
     posts: list[dict], batch_size: int=DEFAULT_BATCH_SIZE
 ) -> list[dict]:
     """Classifies multiple posts."""
