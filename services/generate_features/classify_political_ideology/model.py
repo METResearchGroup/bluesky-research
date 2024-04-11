@@ -6,6 +6,8 @@ For now, we'll use the Gemma7B instruct model.
 
 To run only on posts that are assumed to be civic.
 """
+from typing import Optional
+
 from transformers import AutoTokenizer, pipeline
 import torch
 
@@ -17,7 +19,10 @@ tokenizer = AutoTokenizer.from_pretrained(model)
 pipeline = pipeline(
     "text-generation",
     model=model,
+    tokenizer=tokenizer,
     model_kwargs={"torch_dtype": torch.bfloat16},
+    # temperature=0.0, # want deterministic results
+    max_new_tokens=100
     #device="cuda",
 )
 
@@ -33,42 +38,34 @@ response, no justification is necessary.
 {text}
 """
 
+DEFAULT_BATCH_SIZE = 1
 
 
 @track_function_runtime
-def classify(post: dict) -> dict:
-    prob = 0.0
-    label = 0
-    return {"prob": prob, "label": label}
-
-
-@track_function_runtime
-def classify_post_texts(post_texts: list[str]) -> list[dict]:
-    """
-    messages = [generate_message(post_text) for post_text in post_texts]
-    prompt = pipeline.tokenizer.apply_chat_template(
-        messages, tokenize=False, add_generation_prompt=True
-    )
-    outputs = pipeline(
-        prompt,
-        max_new_tokens=256,
-        do_sample=True,
-        temperature=0.7,
-        top_k=50,
-        top_p=0.95
-    )
-    res = [
-        {"text": text, "label": output["generated_text"]}
-        for (text, output) in zip(post_texts, outputs)
-    ]
-    return res
-    """
-    batch_prompts = [
-        base_prompt.format(text=post_text) for post_text in post_texts
-    ]
-    results = pipeline(batch_prompts)
-    breakpoint()
+def classify_post_texts(
+    post_texts: list[str],
+    batch_size: Optional[int]=DEFAULT_BATCH_SIZE
+) -> list[str]:
+    """Classify a batch of posts."""
+    results = []
+    for i in range(0, len(post_texts), batch_size):
+        batch_prompts = [
+            base_prompt.format(text=post_text) for post_text in post_texts[i:i+batch_size]
+        ]
+        batch_results = pipeline(batch_prompts)
+        results.extend(batch_results)
     return results
+
+
+def classify_posts(posts: list[dict]) -> list[dict]:
+    """Classify a batch of posts."""
+    post_texts = [post["text"] for post in posts]
+    labels = classify_post_texts(post_texts)
+    return [
+        {"uri": post["uri"], "label_political_ideology": label}
+        for post, label in zip(posts, labels)
+    ]
+
 
 if __name__ == "__main__":
     post_texts = [
