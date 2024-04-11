@@ -10,13 +10,21 @@ import time
 from atproto import Client
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
-env_path = os.path.abspath(os.path.join(current_file_directory, "../.env"))
-load_dotenv(env_path)
+
+
+def setup_env() -> None:
+    env_path = os.path.abspath(os.path.join(current_file_directory, "../.env"))
+    load_dotenv(env_path)
+
+
+setup_env()
 
 BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_PASSWORD")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 NYTIMES_API_KEY = os.getenv("NYTIMES_KEY")
+HF_TOKEN = os.getenv("HF_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 client = Client()
 client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)

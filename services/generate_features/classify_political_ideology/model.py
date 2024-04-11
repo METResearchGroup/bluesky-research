@@ -4,27 +4,35 @@ For now, we'll use the Gemma7B instruct model.
 - https://huggingface.co/blog/gemma
 - https://huggingface.co/google/gemma-7b
 
+Example:
+- https://huggingface.co/learn/cookbook/rag_with_hugging_face_gemma_mongodb
+
 To run only on posts that are assumed to be civic.
 """
 from typing import Optional
 
-from transformers import AutoTokenizer, pipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 import torch
 
 from lib.helper import track_function_runtime
 
-model = "google/gemma-7b-it"
+model_name = "google/gemma-7b-it"
 
-tokenizer = AutoTokenizer.from_pretrained(model)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
+
+"""
 pipeline = pipeline(
     "text-generation",
     model=model,
-    tokenizer=tokenizer,
+    #tokenizer=tokenizer,
     model_kwargs={"torch_dtype": torch.bfloat16},
     # temperature=0.0, # want deterministic results
-    max_new_tokens=100
+    #max_new_tokens=100,
+    max_length=512,
     #device="cuda",
 )
+"""
 
 base_prompt = """
 Pretend that you are a political ideology classifier. Please classify the \
@@ -41,6 +49,14 @@ response, no justification is necessary.
 DEFAULT_BATCH_SIZE = 1
 
 
+def classify_text(text: str):
+        prompt = base_prompt.format(text=text)
+        input_ids = tokenizer(prompt, return_tensors="pt")
+        outputs = model.generate(**input_ids, max_new_tokens=512)
+        print(f"Outputs: {outputs}")
+        return outputs
+
+
 @track_function_runtime
 def classify_post_texts(
     post_texts: list[str],
@@ -52,8 +68,12 @@ def classify_post_texts(
         batch_prompts = [
             base_prompt.format(text=post_text) for post_text in post_texts[i:i+batch_size]
         ]
-        batch_results = pipeline(batch_prompts)
-        results.extend(batch_results)
+        #batch_results = pipeline(batch_prompts)
+        input_ids = tokenizer(batch_prompts, return_tensors="pt")
+        outputs = model.generate(**input_ids, max_length=512, max_new_tokens=512)
+        #results.extend(batch_results)
+        print(f"Outputs: {outputs}")
+        results.extend(outputs)
     return results
 
 
@@ -70,11 +90,10 @@ def classify_posts(posts: list[dict]) -> list[dict]:
 if __name__ == "__main__":
     post_texts = [
         "I think that the government should provide more social services.",
-        "“Is it technically fascism?” “Is it technically rape?” “Is it technically genocide?” Remarkable the smug ease with which so many people have replaced moral inquiries with semantic ones.",
-        "I've reached out to the offices of all 22 Democrats who voted to censure Rep. Rashida Tlaib because of her comments on Israel/Palestine to see if they planned to do the same for her Republican colleague from Michigan.",
-        "This has been the fundamental problem the political press has had with Trump. They've been conditioned to believe it's only a scandal if it's a secret that's been exposed, so all the crimes that Trump does brazenly out in the open — bragging about them on camera even — somehow don't count."
+        #"“Is it technically fascism?” “Is it technically rape?” “Is it technically genocide?” Remarkable the smug ease with which so many people have replaced moral inquiries with semantic ones.",
+        #"I've reached out to the offices of all 22 Democrats who voted to censure Rep. Rashida Tlaib because of her comments on Israel/Palestine to see if they planned to do the same for her Republican colleague from Michigan.",
+        #"This has been the fundamental problem the political press has had with Trump. They've been conditioned to believe it's only a scandal if it's a secret that's been exposed, so all the crimes that Trump does brazenly out in the open — bragging about them on camera even — somehow don't count."
     ]
-    classifications: list[dict] = classify_post_texts(post_texts)
-    for classification in classifications:
-        print('-' * 10)
-        print(classification)
+    #classifications: list[dict] = classify_post_texts(post_texts)
+    for text in post_texts:
+        classify_text(text)

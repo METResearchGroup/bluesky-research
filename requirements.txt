@@ -8,6 +8,7 @@ aiohttp==3.9.3
     # via
     #   langchain
     #   langchain-community
+    #   litellm
 aiosignal==1.3.1
     # via aiohttp
 annotated-types==0.6.0
@@ -48,6 +49,7 @@ click==8.1.7
     # via
     #   atproto
     #   flask
+    #   litellm
 contourpy==1.2.0
     # via matplotlib
 cryptography==41.0.7
@@ -119,11 +121,14 @@ idna==3.6
     #   httpx
     #   requests
     #   yarl
+importlib-metadata==7.1.0
+    # via litellm
 itsdangerous==2.1.2
     # via flask
 jinja2==3.1.3
     # via
     #   flask
+    #   litellm
     #   torch
 jmespath==1.0.1
     # via
@@ -154,6 +159,8 @@ langsmith==0.0.87
     #   langchain-core
 libipld==1.1.0
     # via atproto
+litellm==1.35.0
+    # via -r requirements.in
 markupsafe==2.1.5
     # via
     #   jinja2
@@ -185,7 +192,9 @@ numpy==1.26.4
     #   sentence-transformers
     #   transformers
 openai==1.12.0
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   litellm
 packaging==23.2
     # via
     #   huggingface-hub
@@ -234,7 +243,9 @@ python-dateutil==2.8.2
     #   matplotlib
     #   pandas
 python-dotenv==0.21.0
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   litellm
 pytz==2024.1
     # via pandas
 pyyaml==6.0.1
@@ -245,7 +256,9 @@ pyyaml==6.0.1
     #   langchain-core
     #   transformers
 regex==2023.12.25
-    # via transformers
+    # via
+    #   tiktoken
+    #   transformers
 requests==2.31.0
     # via
     #   -r requirements.in
@@ -255,6 +268,8 @@ requests==2.31.0
     #   langchain-community
     #   langchain-core
     #   langsmith
+    #   litellm
+    #   tiktoken
     #   transformers
 rsa==4.9
     # via google-auth
@@ -290,8 +305,12 @@ tenacity==8.2.3
     #   langchain-core
 threadpoolctl==3.4.0
     # via scikit-learn
+tiktoken==0.6.0
+    # via litellm
 tokenizers==0.15.2
-    # via transformers
+    # via
+    #   litellm
+    #   transformers
 torch==2.2.1
     # via sentence-transformers
 tqdm==4.66.2
@@ -331,3 +350,5 @@ werkzeug==3.0.1
     # via flask
 yarl==1.9.4
     # via aiohttp
+zipp==3.18.1
+    # via importlib-metadata
