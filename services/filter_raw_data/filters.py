@@ -7,7 +7,7 @@ from services.filter_raw_data.classify_language.main import filter_text_is_engli
 from services.filter_raw_data.classify_nsfw_content.main import filter_posts_have_no_nsfw_content # noqa
 from services.filter_raw_data.classify_spam.main import filter_posts_have_no_spam
 from services.filter_raw_data.database import batch_create_filtered_posts
-
+from services.filter_raw_data.models import FilteredFirehosePostModel
 
 @track_performance
 def filter_posts_with_filter_func(
@@ -172,10 +172,16 @@ def filter_posts(posts: list[dict]) -> list[dict]:
     return joined_results
 
 
+
 def save_filtered_posts_to_db(filtered_posts: list[dict]) -> None:
     """Saves the filtered posts to the database.
 
     We save all posts, whether they passed the filters or not, to the database,
     so that we can track which posts have been filtered.
     """
-    batch_create_filtered_posts(filtered_posts)
+    validated_filtered_firehose_posts = [
+        FilteredFirehosePostModel(**post)
+        for post in filtered_posts
+    ]
+    posts_dict = [post.dict() for post in validated_filtered_firehose_posts]
+    batch_create_filtered_posts(posts_dict)

@@ -11,6 +11,7 @@ import pandas as pd
 from services.participant_data.helper import get_user_to_bluesky_profiles_as_df
 from services.sync.stream.constants import tmp_data_dir
 from services.sync.stream.database import db, FirehosePost
+from services.sync.stream.models import FirehosePost
 from transform.transform_raw_data import flatten_firehose_post
 
 
@@ -104,6 +105,7 @@ def manage_post_creation(posts_to_create: list[dict]) -> None:
     with db.atomic():
         for post_dict in posts_to_create:
             try:
+                validated_firehose_post = FirehosePost(**post_dict)
                 FirehosePost.create(**post_dict)
             except peewee.IntegrityError:
                 print(f"Post with URI {post_dict['uri']} already exists in DB.")

@@ -130,6 +130,7 @@ def load_data_to_label(
             return data_to_label
         except FileNotFoundError:
             print(f"Data to label not found at {data_to_label_filename}. Generating new set of data to label...") 
+    # TODO: update to get only filtered posts.
     if most_recent_posts:
         posts: list[dict] = get_posts_as_list_dicts(
             k=num_samples, order_by="synctimestamp", desc=True
