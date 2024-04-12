@@ -1,5 +1,5 @@
 """Classify if a post has any NSFW content."""
-from services.filter_raw_data.classify_nsfw_content.helper import (
+from services.preprocess_raw_data.classify_nsfw_content.helper import (
     classify_if_posts_have_no_nsfw_content
 )
 

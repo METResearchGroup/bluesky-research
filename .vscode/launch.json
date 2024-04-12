@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "pythonPath": "/Users/mark/anaconda3/envs/bluesky-research/bin/python",
+            "python": "/Users/mark/anaconda3/envs/bluesky-research/bin/python",
             "console": "integratedTerminal",
             "justMyCode": true
         }

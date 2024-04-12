@@ -1,5 +1,5 @@
 """Service for classifying the language of posts."""
-from services.filter_raw_data.classify_language.helper import (
+from services.preprocess_raw_data.classify_language.helper import (
     classify_language_of_posts
 )
 

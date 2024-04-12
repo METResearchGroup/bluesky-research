@@ -1,13 +1,13 @@
 """Performs filtering steps."""
 from lib.constants import current_datetime_str
 from lib.helper import track_performance
-from services.filter_raw_data.classify_bots.main import filter_posts_not_written_by_bot # noqa
-from services.filter_raw_data.classify_hate_speech.main import filter_posts_have_no_hate_speech # noqa
-from services.filter_raw_data.classify_language.main import filter_text_is_english # noqa
-from services.filter_raw_data.classify_nsfw_content.main import filter_posts_have_no_nsfw_content # noqa
-from services.filter_raw_data.classify_spam.main import filter_posts_have_no_spam
-from services.filter_raw_data.database import batch_create_filtered_posts
-from services.filter_raw_data.models import FilteredFirehosePostModel
+from services.preprocess_raw_data.classify_bots.main import filter_posts_not_written_by_bot # noqa
+from services.preprocess_raw_data.classify_hate_speech.main import filter_posts_have_no_hate_speech # noqa
+from services.preprocess_raw_data.classify_language.main import filter_text_is_english # noqa
+from services.preprocess_raw_data.classify_nsfw_content.main import filter_posts_have_no_nsfw_content # noqa
+from services.preprocess_raw_data.classify_spam.main import filter_posts_have_no_spam
+from services.preprocess_raw_data.database import batch_create_filtered_posts
+from services.preprocess_raw_data.models import FilteredFirehosePostModel
 
 @track_performance
 def filter_posts_with_filter_func(

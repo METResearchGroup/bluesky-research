@@ -1,5 +1,5 @@
 """Classify if a post has hate speech."""
-from services.filter_raw_data.classify_hate_speech.helper import (
+from services.preprocess_raw_data.classify_hate_speech.helper import (
     classify_if_posts_have_no_hate_speech
 )
 

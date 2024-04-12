@@ -4,8 +4,8 @@ from atproto_client.models.app.bsky.graph.get_list import Response as GetListRes
 
 from lib.constants import current_datetime_str
 from lib.helper import client
-from services.filter_raw_data.update_bluesky_mute_lists.constants import MUTE_LIST_LINKS # noqa
-from services.filter_raw_data.update_bluesky_mute_lists.database import (
+from services.preprocess_raw_data.update_bluesky_mute_lists.constants import MUTE_LIST_LINKS # noqa
+from services.preprocess_raw_data.update_bluesky_mute_lists.database import (
     batch_create_mute_lists, batch_create_muted_users
 )
 from transform.bluesky_helper import get_author_did_from_handle

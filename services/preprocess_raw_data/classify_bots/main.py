@@ -1,5 +1,5 @@
 """Classifies posts as coming from bot accounts"""
-from services.filter_raw_data.classify_bots.helper import (
+from services.preprocess_raw_data.classify_bots.helper import (
     classify_if_posts_not_from_bot_accounts
 )
 

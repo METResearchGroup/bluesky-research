@@ -1,6 +1,6 @@
 """Classifies the language of a post."""
 from ml_tooling.inference_helpers import classify_posts
-from services.filter_raw_data.classify_language.model import classify
+from services.preprocess_raw_data.classify_language.model import classify
 
 
 # our model is fast enough to handle all posts at once without special batching

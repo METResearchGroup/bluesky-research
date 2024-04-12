@@ -3,7 +3,7 @@
 We can use LLMs or Perspective API later on, but using user-applied labels
 seems to work for now.
 """
-from services.filter_raw_data.classify_nsfw_content.constants import (
+from services.preprocess_raw_data.classify_nsfw_content.constants import (
     LABELS_TO_FILTER
 )
 

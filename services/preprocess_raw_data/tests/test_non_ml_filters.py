@@ -1,6 +1,6 @@
 import pytest
-from services.filter_raw_data.non_ml_filters import (
-    has_no_explicit_terms, author_is_not_blocked, filter_raw_data_non_ml
+from services.preprocess_raw_data.non_ml_filters import (
+    has_no_explicit_terms, author_is_not_blocked, preprocess_raw_data_non_ml
 )
 
 # Mock data for testing
@@ -30,11 +30,11 @@ def test_has_no_explicit_terms(post, expected):
 def test_author_is_not_blocked(post, expected):
     assert author_is_not_blocked(post) == expected
 
-# Tests for filter_raw_data_non_ml function
+# Tests for preprocess_raw_data_non_ml function
 @pytest.mark.parametrize("post, expected", [
     (INAPPROPRIATE_POST, False),
     (BLOCKED_AUTHOR_POST, False),
     ({"author": "legit_account", "text": "This is a safe post.", "labels": []}, True)  # post that should pass
 ])
-def test_filter_raw_data_non_ml(post, expected):
-    assert filter_raw_data_non_ml(post) == expected
+def test_preprocess_raw_data_non_ml(post, expected):
+    assert preprocess_raw_data_non_ml(post) == expected

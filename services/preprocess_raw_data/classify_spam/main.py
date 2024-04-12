@@ -1,5 +1,5 @@
 """Classify if a post has spam."""
-from services.filter_raw_data.classify_spam.helper import (
+from services.preprocess_raw_data.classify_spam.helper import (
     classify_if_posts_have_no_spam
 )
 

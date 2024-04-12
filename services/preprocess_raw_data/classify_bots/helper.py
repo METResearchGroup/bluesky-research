@@ -2,7 +2,7 @@
 from typing import Optional
 
 from ml_tooling.inference_helpers import classify_posts
-from services.filter_raw_data.classify_bots.model import classify
+from services.preprocess_raw_data.classify_bots.model import classify
 
 DEFAULT_BATCH_SIZE = None # we can do inference without batching
 

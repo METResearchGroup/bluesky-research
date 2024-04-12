@@ -4,8 +4,8 @@ from typing import Optional
 import pandas as pd
 
 from lib.helper import track_performance
-from services.filter_raw_data.database import get_previously_filtered_post_uris
-from services.filter_raw_data.filters import filter_posts, save_filtered_posts_to_db # noqa
+from services.preprocess_raw_data.database import get_previously_filtered_post_uris
+from services.preprocess_raw_data.filters import filter_posts, save_filtered_posts_to_db # noqa
 from services.sync.stream.helper import get_posts_as_df
 
 DEFAULT_BATCH_SIZE = 100000
@@ -55,7 +55,7 @@ def load_latest_raw_posts(
 @track_performance
 def filter_latest_raw_data(
     max_num_raw_posts: Optional[int] = DEFAULT_BATCH_SIZE
-):
+) -> tuple(list[dict], int, int):
     """Filters the latest raw data.
 
     Loads the latest posts, filters them, and writes the filtered data to the
@@ -69,8 +69,40 @@ def filter_latest_raw_data(
     num_posts: int = len(latest_raw_posts)
     print(f"Loaded {num_posts} posts for filtering.")
     filtered_posts: list[dict] = filter_posts(posts=latest_raw_posts)
-    save_filtered_posts_to_db(filtered_posts)
+    total_raw_posts = len(latest_raw_posts)
     num_posts_passed_filters = sum(
         post["passed_filters"] for post in filtered_posts
     )
-    print(f"Filtered data written to DB. After filtering, {num_posts_passed_filters} posts passed the filters (out of {num_posts} original posts).") # noqa
+    return filtered_posts, total_raw_posts, num_posts_passed_filters
+
+
+def preprocess_posts(posts: list[dict]) -> list[dict]:
+    """Performs any preprocessing that needs to be done on the filtered posts.
+    
+    Takes as input all posts, including their filter status, but operates
+    on only posts that pass filtering.
+    """
+    return posts
+
+
+def validate_posts(posts: list[dict]) -> None:
+    """Performs data validation on the posts using Great Expectations."""
+    return posts
+
+
+def preprocess_raw_data(max_num_raw_posts: Optional[int]) -> None:
+    """Preprocesses raw data.
+    
+    We'll preprocess using the following steps:
+    1. Filter the raw data.
+    2. Preprocess the filtered data.
+    3. Validate the preprocessed data.
+    4. Write the filtered, preprocessed, validated data to the database.
+    """
+    filtered_posts, total_raw_posts,  num_posts_passed_filters = (
+        filter_latest_raw_data(max_num_raw_posts=max_num_raw_posts)
+    )
+    preprocessed_posts = preprocess_posts(filtered_posts)
+    validate_posts(preprocessed_posts)
+    save_filtered_posts_to_db(preprocessed_posts)
+    print(f"Filtered data written to DB. After filtering, {num_posts_passed_filters} posts passed the filters (out of {total_raw_posts} original posts).") # noqa
