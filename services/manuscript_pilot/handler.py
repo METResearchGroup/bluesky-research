@@ -1,5 +1,5 @@
 """Manage ranking of posts. """
-from services.rank_posts.helper import main as rank_posts
+from services.manuscript_pilot.helper import main as rank_posts
 
 
 def main(event: dict, context: dict) -> int:
