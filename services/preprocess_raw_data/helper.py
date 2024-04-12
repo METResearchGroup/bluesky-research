@@ -90,7 +90,9 @@ def validate_posts(posts: list[dict]) -> None:
     return posts
 
 
-def preprocess_raw_data(max_num_raw_posts: Optional[int]) -> None:
+def preprocess_raw_data(
+    max_num_raw_posts: Optional[int] = DEFAULT_BATCH_SIZE
+) -> None:
     """Preprocesses raw data.
     
     We'll preprocess using the following steps:
