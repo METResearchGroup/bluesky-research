@@ -7,6 +7,7 @@ from atproto_client.models.app.bsky.feed.get_post_thread import Response as Post
 
 from lib.helper import client
 from services.sync.search.helper import send_request_with_pagination
+from transform.transform_raw_data import flatten_firehose_post
 
 def get_author_handle_and_post_id_from_link(link: str) -> dict[str, str]:
     """Given a link, get the author and post ID.
@@ -52,6 +53,43 @@ def get_post_record_from_post_link(link: str) -> GetRecordResponse:
     post_rkey = author_and_post_id["post_id"]
     profile_identify = author_did
     print(f"Getting post record for {post_rkey} by {profile_identify}")
+    response = client.get_post(
+        post_rkey=post_rkey, profile_identify=profile_identify
+    )
+    return response
+
+
+def convert_post_link_to_post(post_link: str) -> dict:
+    """Gets post from the Record API and converts it to a FirehosePost.
+
+    The post record, by default, won't hydrate the author information, but we
+    can set a blank as we don't need that information if all we care about is
+    the post.
+    """
+    record = get_post_record_from_post_link(post_link)
+    # set up in the format expected by our FirehosePost class.
+    post_dict = {
+        "record": record.value,
+        "uri": record.uri,
+        "cid": record.cid,
+        "author": ""
+    }
+    flattened_firehose_post: dict = flatten_firehose_post(post_dict)
+    return flattened_firehose_post
+
+
+def get_post_record_given_post_uri(post_uri: str) -> GetRecordResponse:
+    """Given a post URI, get the post record.
+    
+    Example:
+    >post = get_post_record_given_post_uri("at://did:plc:mlmouohgzbjofidukcp4pxf2/app.bsky.feed.post/3knssi4ouko24")
+    GetRecordResponse(
+        uri='at://did:plc:mlmouohgzbjofidukcp4pxf2/app.bsky.feed.post/3knssi4ouko24',
+        value=Record(created_at='2024-03-16T12:17:36.784Z', text='A running theme in Woods\' telling is how even those who
+    """
+    split_uri = post_uri.split("/")
+    post_rkey = split_uri[-1]
+    profile_identify = split_uri[-3]
     response = client.get_post(
         post_rkey=post_rkey, profile_identify=profile_identify
     )

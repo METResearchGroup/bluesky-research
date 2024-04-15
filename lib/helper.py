@@ -25,6 +25,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 NYTIMES_API_KEY = os.getenv("NYTIMES_KEY")
 HF_TOKEN = os.getenv("HF_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GOOGLE_AI_STUDIO_KEY= os.getenv("GOOGLE_AI_STUDIO_KEY")
 
 client = Client()
 client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)

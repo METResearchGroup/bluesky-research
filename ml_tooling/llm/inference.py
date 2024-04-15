@@ -1,0 +1,32 @@
+"""Basic interface for doing LLM-based inference."""
+import os
+
+from litellm import completion
+from litellm.utils import ModelResponse
+
+from lib.helper import GOOGLE_AI_STUDIO_KEY
+
+# https://litellm.vercel.app/docs/providers/gemini
+os.environ['GEMINI_API_KEY'] = GOOGLE_AI_STUDIO_KEY
+
+
+def run_query(
+    prompt: str, role: str="user", model: str="gemini/gemini-pro"
+) -> str:
+    """Runs a query to an LLM model and returns the response."""
+    response: ModelResponse = completion(
+        model=model, messages=[{"role": role, "content": prompt}]
+    )
+    content: str = (
+        response.get('choices', [{}])[0].get('message', {}).get('content')
+    )
+    return content
+
+
+if __name__ == "__main__":
+    response = completion(
+        model="gemini/gemini-pro", 
+        messages=[{"role": "user", "content": "write code for saying hi from LiteLLM"}]
+    )
+    print(response)
+    breakpoint()

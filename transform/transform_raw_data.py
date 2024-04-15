@@ -22,6 +22,9 @@ from atproto_client.models.dot_dict import DotDict
 from lib.constants import current_datetime
 
 
+LIST_SEPARATOR_CHAR = ';' # we use a semicolon since it's unlikely for text to use semicolons.
+LEGACY_CHAR_SEPARATORS = [';', ','] # some old data might use commas, so this is here in case we want to support that.
+
 def hydrate_feed_view_post(feed_post: dict) -> FeedViewPost:
     """Hydrate a FeedViewPost from a dictionary."""
     return FeedViewPost(**feed_post)
@@ -182,12 +185,12 @@ def process_facet(facet: Facet) -> str:
             features_list.append(process_mention(feature))
         else:
             raise ValueError(f"Unknown feature type: {feature.py_type}")
-    return ",".join(features_list)
+    return LIST_SEPARATOR_CHAR.join(features_list)
 
 
 def process_facets(facets: list[Facet]) -> str:
     """Processes a list of facets."""
-    return ','.join([process_facet(facet) for facet in facets])
+    return LIST_SEPARATOR_CHAR.join([process_facet(facet) for facet in facets])
 
 
 def process_label(label: SelfLabel) -> str:
@@ -213,7 +216,7 @@ def process_labels(labels: Optional[SelfLabels]) -> str:
     Based off https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/com/atproto/label/defs.py#L38
     """ # noqa
     label_values: list[SelfLabel] = labels.values
-    return ','.join([process_label(label) for label in label_values])
+    return LIST_SEPARATOR_CHAR.join([process_label(label) for label in label_values])
 
 
 def process_entity(entity: Entity) -> str:
@@ -244,7 +247,7 @@ def process_entities(entities: list[Entity]) -> str:
         )
     ]
     """ # noqa
-    return ','.join([process_entity(entity) for entity in entities])
+    return LIST_SEPARATOR_CHAR.join([process_entity(entity) for entity in entities])
 
 
 def process_replies(reply: Optional[ReplyRef]) -> dict:
@@ -290,7 +293,7 @@ def process_images(image_embed: ImageEmbed) -> str:
     For now, we just return the alt texts of the images, separated by ;
     (since , is likely used in the text itself).
     """
-    return ';'.join([process_image(image) for image in image_embed.images])
+    return LIST_SEPARATOR_CHAR.join([process_image(image) for image in image_embed.images])
 
 
 def process_strong_ref(strong_ref: StrongRef) -> dict:
@@ -453,7 +456,7 @@ def flatten_firehose_post(post: dict) -> dict:
                 if post["record"]["embed"] else None
             ),
             "langs": (
-                ','.join(post["record"]["langs"])
+                LIST_SEPARATOR_CHAR.join(post["record"]["langs"])
                 if post["record"]["langs"] else None
             ),
             "entities": (
@@ -471,7 +474,7 @@ def flatten_firehose_post(post: dict) -> dict:
             "reply_parent": processed_replies["reply_parent"],
             "reply_root": processed_replies["reply_root"],
             "tags": (
-                ','.join(post["record"]["tags"])
+                LIST_SEPARATOR_CHAR.join(post["record"]["tags"])
                 if post["record"]["tags"] else None
             ),
             "py_type": post["record"]["py_type"],
