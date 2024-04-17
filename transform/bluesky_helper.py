@@ -1,10 +1,17 @@
 """Helper functions for processing Bluesky data."""
+from typing import Optional
+
 from atproto_client.models.app.bsky.actor.defs import ProfileView, ProfileViewDetailed
-from atproto_client.models.app.bsky.feed.defs import ThreadViewPost
+from atproto_client.models.app.bsky.feed.defs import FeedViewPost, GeneratorView, ThreadViewPost
 from atproto_client.models.app.bsky.feed.post import GetRecordResponse
+from atproto_client.models.app.bsky.feed.get_actor_feeds import Response as GetActorFeedsResponse # noqa
+from atproto_client.models.app.bsky.feed.get_feed import Response as FeedResponse
 from atproto_client.models.app.bsky.feed.get_likes import Like
 from atproto_client.models.app.bsky.feed.get_post_thread import Response as PostThreadResponse
+from atproto_client.models.app.bsky.graph.defs import ListItemView
+from atproto_client.models.app.bsky.graph.get_list import Response as GetListResponse
 
+from lib.constants import current_datetime_str
 from lib.helper import client
 from services.sync.search.helper import send_request_with_pagination
 from transform.transform_raw_data import flatten_firehose_post
@@ -188,3 +195,285 @@ def get_author_profile_from_link(link: str) -> ProfileViewDetailed:
     author_and_post_id: dict = get_author_handle_and_post_id_from_link(link)
     author_did: str = get_author_did_from_handle(author_and_post_id["author"])
     return client.get_profile(author_did)
+
+
+def get_user_info_from_list_item(list_item: ListItemView):
+    """Given a list item view (from the list view), return a dictionary with
+    the user's blocked user id (did) and their handle (username)"""
+    return {"did": list_item.subject.did, "handle": list_item.subject.handle}
+
+
+def get_users_added_to_list(list_items: list[ListItemView]) -> list[dict]:
+    """Given a list of list items, return a list of dictionaries with the user's
+    blocked user id (did) and their handle (username)"""
+    return [get_user_info_from_list_item(item) for item in list_items]
+
+
+def generate_list_uri_given_list_url(list_url: str) -> str:
+    """Given a list url, return the corresponding list uri.
+    
+    Example:
+    >> list_url = "https://bsky.app/profile/nickwrightdata.ntw.app/lists/3kmr32obinz2q"
+    >> generate_list_uri_given_list_url(list_url)
+    "at://did:plc:7allko6vtrpvyxxcd5beapou/app.bsky.graph.list/3kmr32obinz2q"
+    """
+    split_url = list_url.split("/")
+    author_handle: str = split_url[-3]
+    list_did: str = split_url[-1]
+
+    author_did: str = get_author_did_from_handle(author_handle)
+    list_uri = f"at://{author_did}/app.bsky.graph.list/{list_did}"
+    return list_uri
+
+
+def get_users_on_list_given_list_uri(list_uri: str) -> list[dict]:
+    """Given a list uri, return a list of dictionaries with the user's
+    blocked user id (did) and their handle (username)"""
+    res: GetListResponse = client.app.bsky.graph.get_list(params={"list": list_uri})
+    return get_users_added_to_list(res.items)
+
+
+def get_users_in_list_given_list_url(list_url: str) -> list[dict]:
+    """Given the URL to a list, return the users added to the list."""
+    list_uri: str = generate_list_uri_given_list_url(list_url)
+    return get_users_on_list_given_list_uri(list_uri)
+
+
+def get_list_info_given_list_url(list_url: str) -> dict:
+    """Given the URL of a list, get both the metadata for a list as well as
+    the users on the list."""
+    list_uri: str = generate_list_uri_given_list_url(list_url)
+    res: GetListResponse = client.app.bsky.graph.get_list(params={"list": list_uri})
+    list_metadata: dict = {
+        "cid": res.list.cid,
+        "name": res.list.name,
+        "uri": res.list.uri,
+        "description": res.list.description,
+        "author_did": res.list.creator.did,
+        "author_handle": res.list.creator.handle,
+    }
+    users: list[dict] = get_users_added_to_list(res.items)
+    return {"list_metadata": list_metadata, "users": users}
+
+
+def get_list_and_user_data_from_list_links(list_urls: list[str]) -> dict:
+    """Given a list of list URLs, return a list of dictionaries with the list
+    metadata and the users on the list."""
+    list_data_list = [get_list_info_given_list_url(url) for url in list_urls]
+    lists_list = []
+    users_list = []
+    for list_data in list_data_list:
+        # add the list metadata to the lists_list
+        lists_list.append(list_data["list_metadata"])
+        # for each user, get their data plus which list it cames from
+        for user in list_data["users"]:
+            user["source_list_uri"] = list_data["list_metadata"]["uri"]
+            user["source_list_name"] = list_data["list_metadata"]["name"]
+            user["timestamp_added"] = current_datetime_str
+            users_list.append(user)
+
+    # for each user in users_list, dedupe based on the "did" key. We only need
+    # one entry per user.
+    deduped_users_list = []
+    seen_dids = set()
+    for user in users_list:
+        if user["did"] not in seen_dids:
+            deduped_users_list.append(user)
+            seen_dids.add(user["did"])
+
+    return {"lists": lists_list, "users": deduped_users_list}
+
+
+def get_author_feeds(
+    author_handle: Optional[str]=None,
+    author_did: Optional[str]=None,
+    limit: Optional[int]=50,
+    cursor: Optional[str]=None
+) -> list[dict]:
+    """Given an author handle, get the feeds that they have.
+    
+    Example valid request to the endpoint:
+    client.app.bsky.feed.get_actor_feeds({"actor": "did:plc:tenurhgjptubkk5zf5qhi3og"})
+
+    We need to get the author DID given their handle.
+
+    Returns a list of GeneratorView objects, where each GeneratorView is a view
+    of the feed generator. Here is an example of a GeneratorView:
+
+    GeneratorView(
+        cid='bafyreifblss7nfly7dp4ubhq5qt4kxeo43kwhk27dd6bg37cpg4pqaf7z4',
+        creator=ProfileView(
+            did='did:plc:tenurhgjptubkk5zf5qhi3og',
+            handle='skyfeed.xyz',
+            avatar='https://cdn.bsky.app/img/avatar/plain/did:plc:tenurhgjptubkk5zf5qhi3og/bafkreif3xgkr6pq5r7k5oiw4dttwvgjeoqhhgzksxkxzojiwtgicf6zfeq@jpeg',
+            description='A collection of custom feeds to enhance your Bluesky experience ⛅\n\nSource code with all queries/algorithms: https://skyfeed.xyz/queries',
+            display_name='Sky Feeds',
+            indexed_at='2024-01-26T00:15:37.143Z',
+            labels=[],
+            viewer=ViewerState(
+                blocked_by=False,
+                blocking=None,
+                blocking_by_list=None,
+                followed_by=None,
+                following='at://did:plc:w5mjarupsl6ihdrzwgnzdh4y/app.bsky.graph.follow/3knu4u66ag32s',
+                muted=False,
+                muted_by_list=None,
+                py_type='app.bsky.actor.defs#viewerState'
+            ),
+            py_type='app.bsky.actor.defs#profileView'
+        ),
+        did='did:web:skyfeed.me',
+        display_name="What's Warm",
+        indexed_at='2023-05-22T13:53:19.996Z',
+        uri='at://did:plc:tenurhgjptubkk5zf5qhi3og/app.bsky.feed.generator/whats-warm',
+        avatar='https://cdn.bsky.app/img/avatar/plain/did:plc:tenurhgjptubkk5zf5qhi3og/bafkreibmc3eb7gkqvjmhmbkwnoisjf4lhs6gxm62yjehhgiyvuch3hs7oe@jpeg',
+        description='Trending content from the whole network with more noise', 
+        description_facets=None,
+        like_count=30,
+        viewer=GeneratorViewerState(
+            like=None,
+            py_type='app.bsky.feed.defs#generatorViewerState'
+        ),
+        py_type='app.bsky.feed.defs#generatorView',
+        labels=[]
+    )
+    """
+    if not author_did:
+        author_did = get_author_did_from_handle(author_handle)
+    payload = {"actor": author_did}
+    if limit:
+        payload["limit"] = limit
+    if cursor:
+        payload["cursor"] = cursor
+    response: GetActorFeedsResponse = (
+        client.app.bsky.feed.get_actor_feeds(payload)
+    )
+    feeds: list[GeneratorView] = response.feeds
+    return feeds
+
+
+def get_posts_from_custom_feed(
+    feed_uri: str,
+    limit: Optional[int]=50,
+    cursor: Optional[str]=None
+    ) -> list[FeedViewPost]:
+    """Given the URI of a post, get the posts from the feed.
+
+    Corresponding lexicon: https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.getFeed.json
+
+    Returns a list of posts in the feed, as a FeedViewPost. Here is an example:
+
+    example_feed_uri = "at://did:plc:tenurhgjptubkk5zf5qhi3og/app.bsky.feed.generator/catch-up"
+    feed = client.app.bsky.feed.get_feed({"feed": example_feed_uri})
+    post = feed.feed[0]
+    post:
+    FeedViewPost(
+        post=PostView(
+            author=ProfileViewBasic(
+                did='did:plc:ne454cutmmpesxbcvkvz375d',
+                handle='harrisj.bsky.social',
+                avatar='https://cdn.bsky.app/img/avatar/plain/did:plc:ne454cutmmpesxbcvkvz375d/bafkreibgjdbc6afa5fcql6q5t4ugmma3jyle5nwpfvmu65kkgj5tvpetde@jpeg',
+                display_name='Jacob Harris',
+                labels=[],
+                viewer=ViewerState(
+                    blocked_by=False,
+                    blocking=None,
+                    blocking_by_list=None,
+                    followed_by=None,
+                    following=None,
+                    muted=False,
+                    muted_by_list=None,
+                    py_type='app.bsky.actor.defs#viewerState'
+                ),
+                py_type='app.bsky.actor.defs#profileViewBasic'
+            ),
+            cid='bafyreihpcqtpclkr7klcchb4cdb2nvlvar2bjteyeo3h2vbwsgy6ayid3u',
+            indexed_at='2024-04-16T23:57:23.470Z',
+            record=Record(
+                created_at='2024-04-16T23:57:23.470Z',
+                text='“Before you croque” was right there',
+                embed=Main(
+                    images=[
+                        Image(
+                            alt='A Food & Wine feature titled “8 French Sandwiches to Eat Before You Die”',
+                            image=BlobRef(
+                                mime_type='image/jpeg',
+                                size=832962,
+                                ref=IpldLink(link='bafkreicp2mjfm747gffroto5dmdnp6dayrqwdkunn2mh6mlp5wfvvrt7x4'),
+                                py_type='blob'
+                            ),
+                            aspect_ratio=AspectRatio(height=1689, width=1170, py_type='app.bsky.embed.images#aspectRatio'),
+                            py_type='app.bsky.embed.images#image'
+                        )
+                    ],
+                    py_type='app.bsky.embed.images'
+                ),
+                entities=None,
+                facets=None,
+                labels=None,
+                langs=['en'],
+                reply=None,
+                tags=None,
+                py_type='app.bsky.feed.post'
+            ),
+            uri='at://did:plc:ne454cutmmpesxbcvkvz375d/app.bsky.feed.post/3kqbxzx74mp2h',
+            embed=View(
+                images=[
+                    ViewImage(
+                        alt='A Food & Wine feature titled “8 French Sandwiches to Eat Before You Die”',
+                        fullsize='https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:ne454cutmmpesxbcvkvz375d/bafkreicp2mjfm747gffroto5dmdnp6dayrqwdkunn2mh6mlp5wfvvrt7x4@jpeg',
+                        thumb='https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:ne454cutmmpesxbcvkvz375d/bafkreicp2mjfm747gffroto5dmdnp6dayrqwdkunn2mh6mlp5wfvvrt7x4@jpeg',
+                        aspect_ratio=AspectRatio(height=1689, width=1170, py_type='app.bsky.embed.images#aspectRatio'),
+                        py_type='app.bsky.embed.images#viewImage'
+                    )
+                ],
+                py_type='app.bsky.embed.images#view'
+            ),
+            labels=[],
+            like_count=3531,
+            reply_count=43,
+            repost_count=678,
+            threadgate=None,
+            viewer=ViewerState(like=None, reply_disabled=None, repost=None, py_type='app.bsky.feed.defs#viewerState'),
+            py_type='app.bsky.feed.defs#postView'
+        ),
+        reason=None,
+        reply=None,
+        py_type='app.bsky.feed.defs#feedViewPost'
+    )
+    """
+    payload = {"feed": feed_uri}
+    if limit:
+        payload["limit"] = limit
+    if cursor:
+        payload["cursor"] = cursor
+    response: FeedResponse = client.app.bsky.feed.get_feed(payload)
+    feed: list[FeedViewPost] = response.feed
+    return feed[:limit]
+
+
+def construct_feed_uri_from_feed_url(feed_url: str) -> str:
+    """Constructs the feed URI from the feed URL.
+    
+    Example:
+    >>> feed_url = "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/catch-up"
+    >>> construct_feed_uri_from_feed_url(feed_url)
+    "at://did:plc:tenurhgjptubkk5zf5qhi3og/app.bsky.feed.generator/catch-up"
+    """
+    split_url = feed_url.split("/")
+    author_did = split_url[-3]
+    feed_name = split_url[-1]
+    return f"at://{author_did}/app.bsky.feed.generator/{feed_name}"
+
+
+def get_posts_from_custom_feed_url(
+    feed_url: str,
+    limit: Optional[int]=50,
+    cursor: Optional[str]=None
+) -> list[FeedViewPost]:
+    """Given the link to a custom feed, get the posts from that feed.
+    
+    Example feed link: https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/catch-up-weekly
+    """ # noqa
+    feed_uri = construct_feed_uri_from_feed_url(feed_url)
+    return get_posts_from_custom_feed(feed_uri, limit, cursor)
