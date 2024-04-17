@@ -17,8 +17,33 @@ Please classify the following text denoted in <text> as "civic" or "not civic". 
 "not civic" in your response. Justifications are not necessary. \
 """
 
+civic_and_political_ideology_prompt = """
+Pretend that you are a classifier that predicts whether a post has civic content or not. Civic refers \
+to whether a given post is related to politics (government, elections, politicians, activism, etc.) or \
+social issues (major issues that affect a large group of people, such as the economy, inequality, \
+racism, education, immigration, human rights, the environment, etc.). We refer to any content \
+that is classified as being either of these two categories as “civic”; otherwise they are not civic. \
+Please classify the following text denoted in <text> as "civic" or "not civic". 
+
+Then, if the post is civic, classify the text based on the political lean of the opinion or argument \
+it presents. Your options are 'left-leaning', 'moderate', 'right-leaning', or 'unclear'. \
+You are analyzing text that has been pre-identified as 'political' in nature. \
+If the text is not civic, return "unclear".
+
+Think through your response step by step.
+
+Return in a JSON format in the following way:
+{
+    "civic": <two values, 'civic' or 'not civic',
+    "political_ideology": <four values, 'left-leaning', 'moderate', 'right-leaning', 'unclear'>,
+    "reason_civic": <optional, a 1 sentence reason for why the text is civic>,
+    "reason_political_ideology": <optional, a 1 sentence reason for why the text has the given political ideology>
+}
+"""
+
 
 task_name_to_task_prompt_map = {
     "political_ideology": political_ideology_prompt,
-    "civic": civic_prompt
+    "civic": civic_prompt,
+    "both": civic_and_political_ideology_prompt
 }

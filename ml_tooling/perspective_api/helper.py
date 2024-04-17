@@ -1,6 +1,6 @@
 """Classifies posts using the Perspective API."""
 from ml_tooling.inference_helpers import classify_posts
-from services.generate_features.classify_perspective_api.model import classify
+from ml_tooling.perspective_api.model import classify
 
 
 DEFAULT_BATCH_SIZE = 10
@@ -11,7 +11,8 @@ def classify_single_post(post: dict) -> dict:
     Returns multiple classifications from the Perspective API, depending on
     what combination of features we decide to use.
     """
-    probs_and_labels_dict: dict = classify(post)
+    text = post["text"]
+    probs_and_labels_dict: dict = classify(text=text)
     return {
         **{"uid": post["uid"]},
         **probs_and_labels_dict

@@ -1,4 +1,7 @@
-"""Helper tools for generating prompts."""
+"""Helper tools for generating prompts.
+
+Resource for all things prompting: https://github.com/dair-ai/Prompt-Engineering-Guide?tab=readme-ov-file
+""" # noqa
 import json
 
 from ml_tooling.llm.task_prompts import task_name_to_task_prompt_map

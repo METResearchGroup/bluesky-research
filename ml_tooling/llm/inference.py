@@ -10,12 +10,14 @@ from lib.helper import GOOGLE_AI_STUDIO_KEY
 os.environ['GEMINI_API_KEY'] = GOOGLE_AI_STUDIO_KEY
 
 
+# https://litellm.vercel.app/docs/completion/input
 def run_query(
     prompt: str, role: str="user", model: str="gemini/gemini-pro"
 ) -> str:
     """Runs a query to an LLM model and returns the response."""
     response: ModelResponse = completion(
-        model=model, messages=[{"role": role, "content": prompt}]
+        model=model, messages=[{"role": role, "content": prompt}],
+        temperature=0.0 # we want determinism where possible
     )
     content: str = (
         response.get('choices', [{}])[0].get('message', {}).get('content')
