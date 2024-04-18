@@ -34,7 +34,7 @@ def load_latest_raw_posts(
     published after the last filter timestamp" or something like that.
     """
     print("Loading latest raw data.")
-    # load IDs from FilteredFirehosePost table.
+    # load IDs from FilteredRawPost table.
     previously_filtered_post_uris: set[str] = set(
         get_previously_filtered_post_uris()
     )

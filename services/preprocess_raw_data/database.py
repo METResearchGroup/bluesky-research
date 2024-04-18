@@ -19,7 +19,7 @@ class BaseModel(peewee.Model):
         database = db
 
 
-class FilteredFirehosePost(BaseModel):
+class FilteredRawPost(BaseModel):
     """Filtered version of Firehose post."""
     uri = peewee.CharField(unique=True)
     passed_filters = peewee.BooleanField(default=False)
@@ -44,20 +44,20 @@ class FilteredFirehosePost(BaseModel):
 
 if db.is_closed():
     db.connect()
-    db.create_tables([FilteredFirehosePost])
+    db.create_tables([FilteredRawPost])
 
 
 def create_initial_filtered_posts_table() -> None:
     """Create the initial filtered posts table."""
     with db.atomic():
-        db.create_tables([FilteredFirehosePost])
+        db.create_tables([FilteredRawPost])
 
 
 def create_filtered_post(uri: str, passed_filters: bool) -> None:
     """Create a filtered post in the database."""
     with db.atomic():
         try:
-            FilteredFirehosePost.create(uri=uri, passed_filters=passed_filters)
+            FilteredRawPost.create(uri=uri, passed_filters=passed_filters)
         except peewee.IntegrityError:
             print(f"Post with URI {uri} already exists in DB.")
             return
@@ -70,7 +70,7 @@ def batch_create_filtered_posts(posts: list[dict]) -> None:
     """
     with db.atomic():
         for idx in range(0, len(posts), DEFAULT_BATCH_WRITE_SIZE):
-            FilteredFirehosePost.insert_many(
+            FilteredRawPost.insert_many(
                 posts[idx:idx + DEFAULT_BATCH_WRITE_SIZE]
             ).on_conflict_ignore().execute()
     print(f"Batch created {len(posts)} posts.")
@@ -85,18 +85,18 @@ def create_filtered_posts_from_df(df) -> None:
 
 def get_previously_filtered_post_uris() -> list:
     """Get previous IDs from the DB."""
-    previous_ids = FilteredFirehosePost.select(FilteredFirehosePost.uri)
+    previous_ids = FilteredRawPost.select(FilteredRawPost.uri)
     return [p.uri for p in previous_ids]
 
 
-def get_filtered_posts(k: Optional[int]=None) -> list[FilteredFirehosePost]:
+def get_filtered_posts(k: Optional[int]=None) -> list[FilteredRawPost]:
     """Get filtered posts from the database.
     
     Grab only posts th  tpassed filteres ("passed_filters=True)
     """
     if k:
-        return FilteredFirehosePost.select().limit(k)
-    return FilteredFirehosePost.select()
+        return FilteredRawPost.select().limit(k)
+    return FilteredRawPost.select()
 
 
 def get_filtered_posts_as_list_dicts(
@@ -109,30 +109,30 @@ def get_filtered_posts_as_list_dicts(
         if desc:
             if k:
                 posts = (
-                    FilteredFirehosePost
+                    FilteredRawPost
                     .select()
-                    .order_by(getattr(FilteredFirehosePost, order_by).desc())
+                    .order_by(getattr(FilteredRawPost, order_by).desc())
                     .limit(k)
                 )
             else:
                 posts = (
-                    FilteredFirehosePost
+                    FilteredRawPost
                     .select()
-                    .order_by(getattr(FilteredFirehosePost, order_by).desc())
+                    .order_by(getattr(FilteredRawPost, order_by).desc())
                 )
         else:
             if k:
                 posts = (
-                    FilteredFirehosePost
+                    FilteredRawPost
                     .select()
-                    .order_by(getattr(FilteredFirehosePost, order_by))
+                    .order_by(getattr(FilteredRawPost, order_by))
                     .limit(k)
                 )
             else:
                 posts = (
-                    FilteredFirehosePost
+                    FilteredRawPost
                     .select()
-                    .order_by(getattr(FilteredFirehosePost, order_by))
+                    .order_by(getattr(FilteredRawPost, order_by))
                 )
     else:
         posts = get_filtered_posts(k=k)

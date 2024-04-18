@@ -26,7 +26,7 @@ class BaseModel(peewee.Model):
     class Meta:
         database = db
 
-class FirehosePost(BaseModel):
+class RawPost(BaseModel):
     uri = peewee.CharField(unique=True)
     created_at = peewee.TextField()
     text = peewee.TextField()  # for long text
@@ -56,7 +56,7 @@ class DbMetadata(BaseModel):
 
 if db.is_closed():
     db.connect()
-    db.create_tables([FirehosePost, SubscriptionState, DbMetadata])
+    db.create_tables([RawPost, SubscriptionState, DbMetadata])
 
     # DB migration
 
@@ -81,5 +81,5 @@ if db.is_closed():
 if __name__ == "__main__":
     # how to add a new column to a table (here, 'synctimestamp')
     # from lib.db.sql.helper import add_new_column_to_table
-    # add_new_column_to_table(cls=FirehosePost, cursor=cursor, db=db, colname="synctimestamp")
+    # add_new_column_to_table(cls=RawPost, cursor=cursor, db=db, colname="synctimestamp")
     pass

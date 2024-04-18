@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 
-class FilteredFirehosePostModel(BaseModel):
+class FilteredRawPostModel(BaseModel):
     uri: str = Field(..., description="Unique identifier for the post")
     passed_filters: bool = Field(..., description="Indicates if the post passed the filters")
     filtered_at: str = Field(..., description="Timestamp when the post was filtered")

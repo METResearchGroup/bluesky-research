@@ -2,29 +2,29 @@
 from typing import Optional
 import pandas as pd
 
-from services.sync.stream.database import FirehosePost
+from services.sync.stream.database import RawPost
 
 
-def get_posts(k: Optional[int]=None) -> list[FirehosePost]:
+def get_posts(k: Optional[int]=None) -> list[RawPost]:
     """Get all posts from the database."""
     if k:
-        return list(FirehosePost.select().limit(k))
-    return list(FirehosePost.select())
+        return list(RawPost.select().limit(k))
+    return list(RawPost.select())
 
 
-def get_most_recent_posts(k: Optional[int]=None) -> list[FirehosePost]:
+def get_most_recent_posts(k: Optional[int]=None) -> list[RawPost]:
     """Get the most recent posts from the database."""
     if k:
         return list(
-            FirehosePost
+            RawPost
             .select()
-            .order_by(FirehosePost.synctimestamp.desc())
+            .order_by(RawPost.synctimestamp.desc())
             .limit(k)
         )
     return list(
-        FirehosePost
+        RawPost
         .select()
-        .order_by(FirehosePost.synctimestamp.desc())
+        .order_by(RawPost.synctimestamp.desc())
     )
 
 
@@ -38,30 +38,30 @@ def get_posts_as_list_dicts(
         if desc:
             if k:
                 posts = (
-                    FirehosePost
+                    RawPost
                     .select()
-                    .order_by(getattr(FirehosePost, order_by).desc())
+                    .order_by(getattr(RawPost, order_by).desc())
                     .limit(k)
                 )
             else:
                 posts = (
-                    FirehosePost
+                    RawPost
                     .select()
-                    .order_by(getattr(FirehosePost, order_by).desc())
+                    .order_by(getattr(RawPost, order_by).desc())
                 )
         else:
             if k:
                 posts = (
-                    FirehosePost
+                    RawPost
                     .select()
-                    .order_by(getattr(FirehosePost, order_by))
+                    .order_by(getattr(RawPost, order_by))
                     .limit(k)
                 )
             else:
                 posts = (
-                    FirehosePost
+                    RawPost
                     .select()
-                    .order_by(getattr(FirehosePost, order_by))
+                    .order_by(getattr(RawPost, order_by))
                 )
     else:
         posts = get_posts(k=k)
@@ -75,7 +75,7 @@ def get_posts_as_df(k: Optional[int]=None) -> pd.DataFrame:
 
 def get_num_posts() -> int:
     """Get the number of posts in the database."""
-    return FirehosePost.select().count()
+    return RawPost.select().count()
 
 
 if __name__ == "__main__":

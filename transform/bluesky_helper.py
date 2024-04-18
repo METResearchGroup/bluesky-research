@@ -67,14 +67,14 @@ def get_post_record_from_post_link(link: str) -> GetRecordResponse:
 
 
 def convert_post_link_to_post(post_link: str) -> dict:
-    """Gets post from the Record API and converts it to a FirehosePost.
+    """Gets post from the Record API and converts it to a RawPost.
 
     The post record, by default, won't hydrate the author information, but we
     can set a blank as we don't need that information if all we care about is
     the post.
     """
     record = get_post_record_from_post_link(post_link)
-    # set up in the format expected by our FirehosePost class.
+    # set up in the format expected by our RawPost class.
     post_dict = {
         "record": record.value,
         "uri": record.uri,
