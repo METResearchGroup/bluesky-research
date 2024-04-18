@@ -1,3 +1,3 @@
 # Demos
 
-Directory of demos.
+Directory of demo apps plus one-off projects.
