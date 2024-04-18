@@ -16,8 +16,28 @@ def run_query(
 ) -> str:
     """Runs a query to an LLM model and returns the response."""
     response: ModelResponse = completion(
-        model=model, messages=[{"role": role, "content": prompt}],
-        temperature=0.0 # we want determinism where possible
+        model=model,
+        messages=[{"role": role, "content": prompt}],
+        temperature=0.0, # we want determinism where possible
+        # we want to include harmful content since we're using this for toxicity classification
+        safety_settings=[
+            {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_NONE",
+            },
+            {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_NONE",
+            },
+            {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_NONE",
+            },
+            {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_NONE",
+            },
+        ]
     )
     content: str = (
         response.get('choices', [{}])[0].get('message', {}).get('content')
@@ -28,7 +48,25 @@ def run_query(
 if __name__ == "__main__":
     response = completion(
         model="gemini/gemini-pro", 
-        messages=[{"role": "user", "content": "write code for saying hi from LiteLLM"}]
+        messages=[{"role": "user", "content": "write code for saying hi from LiteLLM"}],
+        safety_settings=[
+            {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_NONE",
+            },
+            {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_NONE",
+            },
+            {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_NONE",
+            },
+            {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_NONE",
+            },
+        ]
     )
     print(response)
     breakpoint()

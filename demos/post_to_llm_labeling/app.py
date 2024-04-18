@@ -11,6 +11,7 @@ import streamlit as st
 
 from ml_tooling.llm.inference import run_query
 from ml_tooling.llm.prompt_helper import (
+    generate_complete_prompt,
     generate_complete_prompt_for_given_post,
     generate_context_details_list
 )
@@ -23,15 +24,23 @@ st.title("LLM labeling of Bluesky posts.")
 option_to_task_name_map = {
     "Civic": "civic",
     "Political Ideology": "political_ideology",
-    "Both": "both"
+    "Both Civic and Political": "both",
+    "Toxicity": "toxicity",
+    "Constructiveness": "constructiveness",
 }
 
 
 # Text box to accept user input for the link
-user_link = st.text_input('Enter your link')
+user_input = st.text_input('Enter your Bluesky link/text')
 
 # Dropdown menu
-option = st.selectbox('Choose your option', ('Civic', 'Political Ideology', "Both", "Perspective API"))
+option = st.selectbox(
+    'Choose your option',
+    (
+        'Civic', 'Political Ideology', "Both Civic and Political",
+        "Toxicity", "Constructiveness", "Perspective API"
+    )
+)
 
 if option == "Perspective API":
     include_context = st.checkbox('Include context in the prompt to the Perspective API?')
@@ -41,8 +50,16 @@ else:
 
 # run the labeling and print the result
 if st.button('Submit'):
+    is_text_bool = not (
+        user_input.startswith("http") or "bsky.app" in user_input
+    )
     st.subheader("The JSON of the post information:")
-    post: dict = convert_post_link_to_post(user_link)
+    if is_text_bool:
+        post = {}
+        post["text"] = user_input
+        post["uid"] = ""
+    else:
+        post: dict = convert_post_link_to_post(user_input)
     st.text(json.dumps(post))
 
     if option == "Perspective API":
@@ -54,7 +71,7 @@ if st.button('Submit'):
         post["uid"] = post.get("uid", default_uid)
         # if we want to include context as opposed to just using the text in
         # the post, we need to create the context string.
-        if include_context:
+        if include_context and not is_text_bool:
             context_details_list = generate_context_details_list(post)
             full_context = ""
             for context_type, context_details in context_details_list:
@@ -86,13 +103,23 @@ if st.button('Submit'):
 
     else:
         st.subheader("Prompt to the LLM:")
-        prompt: str = (
-            generate_complete_prompt_for_given_post(
-                post=post,
-                task_name=option_to_task_name_map[option],
-                justify_result=justify_result_bool
+        if is_text_bool:
+            context_details_list = []
+            prompt: str = (
+                generate_complete_prompt(
+                    post=post, task_prompt=option_to_task_name_map[option],
+                    context_details_list=context_details_list,
+                    justify_result=justify_result_bool
+                )
             )
-        )
+        else:
+            prompt: str = (
+                generate_complete_prompt_for_given_post(
+                    post=post,
+                    task_name=option_to_task_name_map[option],
+                    justify_result=justify_result_bool
+                )
+            )
         wrapped_prompt = textwrap.fill(prompt, width=100)
         st.text(wrapped_prompt)
 
