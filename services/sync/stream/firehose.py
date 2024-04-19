@@ -17,6 +17,8 @@ from services.sync.stream.helper import get_num_posts
 # 50,000 posts, took about 2 hours to stream (3pm-5pm Eastern Time)
 stream_limit = 250000
 
+cursor_update_frequency = 500
+
 def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict:  # noqa: C901
     operation_by_type = {
         'posts': {'created': [], 'deleted': []},
@@ -94,12 +96,15 @@ def _run(name, operations_callback, stream_stop_event=None):
             client.stop()
             return
 
+        # possible types of messages: https://github.com/bluesky-social/atproto/blob/main/packages/api/src/client/lexicons.ts#L3298
+        if message.type == "#identity":
+            return
         commit = parse_subscribe_repos_message(message)
         if not isinstance(commit, models.ComAtprotoSyncSubscribeRepos.Commit):
             return
 
-        # update stored state every ~20 events
-        if commit.seq % 20 == 0:
+        # update stored state
+        if commit.seq % cursor_update_frequency == 0:
             print(f'Updated cursor for {name} to {commit.seq}')
             client.update_params(models.ComAtprotoSyncSubscribeRepos.Params(cursor=commit.seq))
             SubscriptionState.update(cursor=commit.seq).where(SubscriptionState.service == name).execute()
@@ -115,7 +120,7 @@ def _run(name, operations_callback, stream_stop_event=None):
         if has_written_data:
             counter.increment()
             counter_value = counter.get_value()
-            if counter_value % 100 == 0:
+            if counter_value % cursor_update_frequency == 0:
                 print(f"Counter: {counter_value}")
             if counter.get_value() > stream_limit:
                 total_posts_in_db: int = get_num_posts()

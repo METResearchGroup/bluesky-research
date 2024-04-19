@@ -5,6 +5,7 @@ Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/dat
 import json
 import os
 import peewee
+import sqlite3
 
 import pandas as pd
 
@@ -107,8 +108,14 @@ def manage_post_creation(posts_to_create: list[dict]) -> None:
             try:
                 RawPostModel(**post_dict)
                 RawPost.create(**post_dict)
-            except peewee.IntegrityError:
-                print(f"Post with URI {post_dict['uri']} already exists in DB.")
+            except peewee.IntegrityError as e:
+                # can come from duplicate records, schema invalidation, etc.
+                print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}")
+                continue
+            except sqlite3.OperationalError as e:
+                # generally comes from sqlite3 errors itself, not just something
+                # with the schema or the DB.
+                print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}")
                 continue
 
 

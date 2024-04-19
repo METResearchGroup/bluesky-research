@@ -12,9 +12,8 @@ import peewee
 
 from services.sync.stream.constants import current_file_directory
 
-SQLITE_DB_NAME = "firehose.db"
+SQLITE_DB_NAME = "raw_posts.db"
 SQLITE_DB_PATH = os.path.join(current_file_directory, SQLITE_DB_NAME)
-DEPRECATED_FIELDS = ["indexed_at"]
 
 db = peewee.SqliteDatabase(SQLITE_DB_PATH)
 db_version = 2
@@ -29,8 +28,8 @@ class BaseModel(peewee.Model):
 class RawPost(BaseModel):
     uri = peewee.CharField(unique=True)
     created_at = peewee.TextField()
-    text = peewee.TextField()  # for long text
-    embed = peewee.TextField() # for embedded content
+    text = peewee.TextField(null=True)  # for long text. Technically a post can just be an image or video and not have text.
+    embed = peewee.TextField(null=True) # for embedded content
     langs = peewee.CharField(null=True)  # sometimes the langs aren't provided
     entities = peewee.CharField(null=True)
     facets = peewee.CharField(null=True)  # https://www.pfrazee.com/blog/why-facets # noqa

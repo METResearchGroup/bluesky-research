@@ -25,6 +25,19 @@ from lib.constants import current_datetime
 LIST_SEPARATOR_CHAR = ';' # we use a semicolon since it's unlikely for text to use semicolons.
 LEGACY_CHAR_SEPARATORS = [';', ','] # some old data might use commas, so this is here in case we want to support that.
 
+def get_object_type_str(obj: object) -> str:
+    """Get the object type as a string.
+    
+    The objects are often class instances (e.g., External), but they're also
+    denoted either as "$type" or "py_type")
+    """
+    if hasattr(obj, "$type"):
+        return getattr(obj, "$type")
+    elif hasattr(obj, "py_type"):
+        return obj.py_type
+    raise ValueError(f"Object does not have a type attribute: {obj}.")
+
+
 def hydrate_feed_view_post(feed_post: dict) -> FeedViewPost:
     """Hydrate a FeedViewPost from a dictionary."""
     return FeedViewPost(**feed_post)
@@ -167,24 +180,26 @@ def process_facet(facet: Facet) -> str:
     """ # noqa
     features: list = facet.features
     features_list = []
+
     for feature in features:
         if (
             isinstance(feature, Tag)
-            or feature.py_type == "app.bsky.richtext.facet#tag"
+            or get_object_type_str(feature) == "app.bsky.richtext.facet#tag"
         ):
             features_list.append(process_hashtag(feature))
         elif (
             isinstance(feature, Link)
-            or feature.py_type == "app.bsky.richtext.facet#link"
+            or get_object_type_str(feature) == "app.bsky.richtext.facet#link"
         ):
             features_list.append(process_link(feature))
         elif (
             isinstance(feature, Mention)
-            or feature.py_type == "app.bsky.richtext.facet#mention"
+            or get_object_type_str(feature) == "app.bsky.richtext.facet#mention"
         ):
             features_list.append(process_mention(feature))
         else:
-            raise ValueError(f"Unknown feature type: {feature.py_type}")
+            object_type = get_object_type_str(feature)
+            raise ValueError(f"Unknown feature type: {object_type}")
     return LIST_SEPARATOR_CHAR.join(features_list)
 
 
@@ -344,12 +359,18 @@ def process_record_with_media_embed(
     references another record as well as has media (i.e., image) attached.
 
     Follows spec in https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/embed/record_with_media.py
-    """ # noqa
-    image: ImageEmbed = record_with_media_embed.media
-    record: RecordEmbed = record_with_media_embed.record
 
-    processed_image: str = process_images(image)
-    processed_record: str = process_record_embed(record)
+    Media is normally an image, but it can also support other embeds
+    like links to songs or videos. We currently only process for now if it's an
+    image.
+    """ # noqa
+    media: Union[ExternalEmbed, ImageEmbed] = record_with_media_embed.media
+    record_embed: RecordEmbed = record_with_media_embed.record
+
+    processed_image = ""
+    if isinstance(media, ImageEmbed):
+        processed_image: str = process_images(media)
+    processed_record: str = process_record_embed(record_embed)
 
     return {
         "image_alt_text": processed_image,
