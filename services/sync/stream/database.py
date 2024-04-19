@@ -42,9 +42,8 @@ class RawPost(BaseModel):
     py_type = peewee.CharField()
     cid = peewee.CharField(index=True)
     author = peewee.CharField()
-    # deprecated field
-    indexed_at = peewee.DateTimeField(default=datetime.utcnow)
     synctimestamp = peewee.CharField()
+
 
 class SubscriptionState(BaseModel):
     service = peewee.CharField(unique=True)

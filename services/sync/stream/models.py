@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
 
-class RawPost(BaseModel):
+class RawPostModel(BaseModel):
     uri: str = "Unique identifier for the post."
     created_at: str = "Timestamp of when the post was created."
     text: str = "The main text content of the post."
