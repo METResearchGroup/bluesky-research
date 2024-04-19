@@ -105,37 +105,19 @@ def get_filtered_posts_as_list_dicts(
     desc: Optional[bool]=True
 ) -> list[dict]:
     """Get all filtered posts from the database as a list of dictionaries."""
+    base_query = FilteredRawPost.select().where(FilteredRawPost.passed_filters == True) # noqa
+    # Apply ordering based on the order_by and desc parameters
     if order_by:
         if desc:
-            if k:
-                posts = (
-                    FilteredRawPost
-                    .select()
-                    .order_by(getattr(FilteredRawPost, order_by).desc())
-                    .limit(k)
-                )
-            else:
-                posts = (
-                    FilteredRawPost
-                    .select()
-                    .order_by(getattr(FilteredRawPost, order_by).desc())
-                )
+            order_expression = getattr(FilteredRawPost, order_by).desc()
         else:
-            if k:
-                posts = (
-                    FilteredRawPost
-                    .select()
-                    .order_by(getattr(FilteredRawPost, order_by))
-                    .limit(k)
-                )
-            else:
-                posts = (
-                    FilteredRawPost
-                    .select()
-                    .order_by(getattr(FilteredRawPost, order_by))
-                )
-    else:
-        posts = get_filtered_posts(k=k)
+            order_expression = getattr(FilteredRawPost, order_by)
+        base_query = base_query.order_by(order_expression)
+
+    # Apply limit if k is specified
+    if k:
+        base_query = base_query.limit(k)
+    posts = base_query.execute()
     return [post.__dict__['__data__'] for post in posts]
 
 

@@ -12,3 +12,10 @@ The functionality is in the main.py file:
 ```{python}
 python main.py
 ```
+
+To reset the database of users, run:
+```{python}
+python helper.py
+```
+
+Be careful as this drops all users that are in the table. Be sure to have a list of all the users backed up if this is the case.

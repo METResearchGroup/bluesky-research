@@ -10,7 +10,8 @@ The steps, as planned so far, will look something like this:
     - Each ML service can expose its own API and manage its own database and (possibly) generate features offline.
     - Each ML service can manage its own retraining schedule (if needed).
 - Given the latest posts with features, generate embeddings from the candidate generation model and add to the vector database. Rerun the vector database logic to re-cluster posts.
-- Given the latest candidates in the vector database, generate up-to-date candidates per user. Then, generate feeds per user and store in the database and cache.
+- Given the latest candidates in the vector database, generate up-to-date candidates per user. 
+- Then, generate feeds per user and store in the database and cache.
 - Other pipelines:
     - Update latest context.
     - Update latest user engagement data.

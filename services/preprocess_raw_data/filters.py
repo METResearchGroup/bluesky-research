@@ -45,8 +45,6 @@ def preprocess_post(post: dict) -> dict:
     """Preprocesses a single post as necessary, before filtering."""
     # preprocessing needed for language classifier
     post["text"] = post["text"].replace("\n", " ").strip()
-    # remove deprecated field
-    post.pop("indexed_at")
     return post
 
 

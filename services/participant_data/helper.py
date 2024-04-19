@@ -33,10 +33,10 @@ class StudyQuestionnaireData(BaseModel):
 
 
 class UserToBlueskyProfile(BaseModel):
-    study_user_id = peewee.CharField(unique=True)
+    study_user_id = peewee.CharField(unique=True, primary_key=True)
     bluesky_handle = peewee.CharField(unique=True)
     bluesky_user_did = peewee.CharField(unique=True)
-    PRIMARY_KEY = peewee.CompositeKey("study_user_id", "bluesky_handle", "bluesky_user_did")
+    condition = peewee.CharField()
 
 
 def create_initial_tables(drop_all_tables: bool = False) -> None:
@@ -52,22 +52,28 @@ def create_initial_tables(drop_all_tables: bool = False) -> None:
         db.create_tables([StudyUser, StudyQuestionnaireData, UserToBlueskyProfile])
 
 
-def test_insertion() -> None:
-    """Tests if table creation is successful. Will fail if the test has already
-    been run before, so should only be run at the start.
-    """
-    map_table_name = "user_to_bsky_profile"
-    print(f"Testing insertion of a user into the {map_table_name} table...")
+def insert_test_user_to_bsky_profile() -> None:
+    """Inserts a test user to the bluesky profile table."""
     user_id = 999
     bluesky_handle = "markptorres.bsky.social"
     bluesky_user_did = "did:plc:w5mjarupsl6ihdrzwgnzdh4y"
     data = {
         "study_user_id": user_id,
+        "condition": "reverse_chronological",
         "bluesky_handle": bluesky_handle,
         "bluesky_user_did": bluesky_user_did   
     }
     with db.atomic():
         UserToBlueskyProfile.create(**data)
+
+
+def test_insertion() -> None:
+    """Tests if table creation is successful. Will fail if the test has already
+    been run before, so should only be run at the start.
+    """
+    map_table_name = UserToBlueskyProfile._meta.table_name
+    print(f"Testing insertion of a user into the {map_table_name} table...")
+    insert_test_user_to_bsky_profile()
     # check that there is at least one row
     num_users = UserToBlueskyProfile.select().count()
     assert num_users > 0
@@ -75,14 +81,19 @@ def test_insertion() -> None:
     print(f"Total number of users in the {map_table_name} table: {num_users}")
 
 
-def get_user_to_bluesky_profiles() -> list:
+def get_user_to_bluesky_profiles() -> list[UserToBlueskyProfile]:
     """Get all user to bluesky profiles."""
     return UserToBlueskyProfile.select()
 
 
+def get_user_to_bluesky_profiles_as_list_dicts() -> list[dict]:
+    """Get all user to bluesky profiles as a list of dictionaries."""
+    return list(get_user_to_bluesky_profiles().dicts())
+
+
 def get_user_to_bluesky_profiles_as_df() -> pd.DataFrame:
     """Get all user to bluesky profiles as a DataFrame."""
-    return pd.DataFrame(list(get_user_to_bluesky_profiles().dicts()))
+    return pd.DataFrame(get_user_to_bluesky_profiles_as_list_dicts())
 
 
 def initialize_study_tables(drop_all_tables: bool = False) -> None:
