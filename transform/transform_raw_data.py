@@ -498,7 +498,9 @@ def flatten_firehose_post(post: dict) -> dict:
                 LIST_SEPARATOR_CHAR.join(post["record"]["tags"])
                 if post["record"]["tags"] else None
             ),
-            "py_type": post["record"]["py_type"],
+            "py_type": (
+                post["record"]["py_type"] or get_object_type_str(post["record"])
+            ),
             "cid": post["cid"],
             "author": post["author"],
             # synctimestamp, e.g., '2024-03-20-14:58:09', for when we synced

@@ -8,6 +8,7 @@ import peewee
 import sqlite3
 
 import pandas as pd
+from pydantic import ValidationError as PydanticValidationError
 
 from services.participant_data.helper import get_user_to_bluesky_profiles_as_df
 from services.sync.stream.constants import tmp_data_dir
@@ -108,14 +109,23 @@ def manage_post_creation(posts_to_create: list[dict]) -> None:
             try:
                 RawPostModel(**post_dict)
                 RawPost.create(**post_dict)
+            except PydanticValidationError as e:
+                print(f"Pydantic error validating post with URI {post_dict['uri']}: {e}")
+                breakpoint()
+                continue
             except peewee.IntegrityError as e:
                 # can come from duplicate records, schema invalidation, etc.
-                print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}")
+                error_str = str(e)
+                if "UNIQUE constraint failed" in error_str:
+                    print(f"Post with URI {post_dict['uri']} already exists in DB.")
+                else:
+                    print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}")
                 continue
-            except sqlite3.OperationalError as e:
+            except peewee.OperationalError as e:
                 # generally comes from sqlite3 errors itself, not just something
                 # with the schema or the DB.
                 print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}")
+                breakpoint()
                 continue
 
 

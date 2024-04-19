@@ -4,7 +4,6 @@ Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/dat
 
 # TODO: we can convert this to a different DB eventually. This is OK for now.
 """ # noqa
-from datetime import datetime
 import os
 import sqlite3
 
