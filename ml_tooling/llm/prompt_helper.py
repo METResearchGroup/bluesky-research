@@ -5,6 +5,7 @@ Resource for all things prompting: https://github.com/dair-ai/Prompt-Engineering
 import json
 
 from ml_tooling.llm.task_prompts import task_name_to_task_prompt_map
+from services.add_context.current_events_enrichment.newsapi_context import url_is_to_news_domain # noqa
 from transform.bluesky_helper import get_post_record_given_post_uri
 from transform.transform_raw_data import flatten_firehose_post, LIST_SEPARATOR_CHAR
 
@@ -27,6 +28,7 @@ embedded_content_type_to_preamble_map = {
     "images": "The post contains the following alt text for its images:",
     "labels": "The post contains the following labels:",
     "tags": "The post contains the following tags:",
+    "linked_urls": "The post links to external URLs:",
     "parent_reply": "The post is a reply to another post with the following details:", # noqa
     "parent_root": "The post is part of a thread that starts with the following post:" # noqa
 }
@@ -264,9 +266,48 @@ def define_thread_context(post: dict) -> str:
     return output_str
 
 
-# TODO: NotImplementedError. Possibly this could just be us looking at the link
-# and seeing if it is a NYTimes link or something like that, and then if it is,
-# we can say something like "this references a NYTimes article".
+def context_embed_url(post: dict) -> str:
+    """Adds context for URLs that are added as embeds in the post.
+
+    These are for links that are embeds in the post, not just linked to in
+    the text of the post.
+
+    Example: https://bsky.app/profile/parismarx.bsky.social/post/3kpvlrkcr6m2q
+    """
+    output_str = ""
+    embed: str = post["embed"]
+    embed_dict = json.loads(embed)
+    if embed_dict["has_external"]:
+        external_content_json = embed_dict["external"]
+        external_content: dict = json.loads(external_content_json)
+        url = external_content["uri"]
+        if url_is_to_news_domain(url):
+            output_str = "This post links to a trustworthy news article.\n"
+    return output_str
+
+
+def context_url_in_text(post: dict) -> str:
+    """Adds context for URLs that are linked to in the text of the post.
+
+    URLs are included in the text of the post as "facets", as this is how
+    the Bluesky platform does links in lieu of markdown.
+
+    Example: https://bsky.app/profile/donmoyn.bsky.social/post/3kqfra54rt52z
+    """
+    output_str = ""
+    facets_str: str = post["facets"]
+    links: list[str] = []
+    if facets_str:
+        facets: list[str] = facets_str.split(LIST_SEPARATOR_CHAR)
+        for facet in facets:
+            if facet.startswith("link:"):
+                link = facet.replace("link:", "")
+                links.append(link)
+    if any([url_is_to_news_domain(link) for link in links]):
+        output_str = "This post links to a trustworthy news article.\n"
+    return output_str
+
+
 def post_linked_urls(post: dict) -> str:
     """Context if the post refers to any URLs in the text.
 
@@ -274,6 +315,20 @@ def post_linked_urls(post: dict) -> str:
     """
     output_str = ""
 
+    # check if there are any URLs in the text of the post
+    url_in_text_context: str = context_url_in_text(post)
+    embed_url_context: str = context_embed_url(post)
+
+    if url_in_text_context or embed_url_context:
+        output_str += f"{embedded_content_type_to_preamble_map['linked_urls']}\n" # noqa
+        # so far our context just checks to see if a link is to a news outlet
+        # regardless of whether it's in the text or an embed, so we can just
+        # see if the post has any reputable links at all. We keep those
+        # contexts separate in case we want to add more context to each.
+        context = (
+            url_in_text_context if url_in_text_context else embed_url_context
+        )
+        output_str += context
     return output_str
 
 
