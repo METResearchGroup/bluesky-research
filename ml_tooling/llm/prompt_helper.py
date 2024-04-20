@@ -7,7 +7,7 @@ import json
 from ml_tooling.llm.task_prompts import task_name_to_task_prompt_map
 from services.add_context.current_events_enrichment.newsapi_context import url_is_to_news_domain  # noqa
 from transform.bluesky_helper import get_post_record_given_post_uri
-from transform.transform_raw_data import flatten_firehose_post, LIST_SEPARATOR_CHAR # noqa
+from transform.transform_raw_data import flatten_firehose_post, LIST_SEPARATOR_CHAR  # noqa
 
 
 base_prompt = """
@@ -121,7 +121,7 @@ def process_record_embed(embed_dict: dict) -> str:
     if text:
         output_str += f"\n[embedded record text]: {text}"
     if embed_image_alt_text:
-        output_str += f"\n[embedded record image alt text]: {embed_image_alt_text}" # noqa
+        output_str += f"\n[embedded record image alt text]: {embed_image_alt_text}"  # noqa
     return output_str
 
 
@@ -156,7 +156,7 @@ def process_record_embed_with_media_embed(embed_dict: dict) -> dict:
     }
 
 
-def embedded_content_context(post: dict) -> str:
+def embedded_content_context(post: dict) -> str:  # noqa: C901
     """Context of the images and attachments of a post, if any.
 
     Returns a blank string if none.
@@ -176,22 +176,22 @@ def embedded_content_context(post: dict) -> str:
             images_context = context_dict["images_context"]
             embedded_record_context = context_dict["embedded_record_context"]
             if images_context:
-                output_str += f"\n{embedded_content_type_to_preamble_map['images']}\n```\n{images_context}\n```" # noqa
+                output_str += f"\n{embedded_content_type_to_preamble_map['images']}\n```\n{images_context}\n```"  # noqa
                 output_str += '\n'
             if embedded_record_context:
-                output_str += f"\n{embedded_content_type_to_preamble_map['record']}:\n```\n{embedded_record_context}\n```" # noqa
+                output_str += f"\n{embedded_content_type_to_preamble_map['record']}:\n```\n{embedded_record_context}\n```"  # noqa
                 output_str += '\n'
         else:
             context = process_record_embed(embed_dict)
-            output_str += f"\n{embedded_content_type_to_preamble_map['record']}\n```\n{context}\n```" # noqa
+            output_str += f"\n{embedded_content_type_to_preamble_map['record']}\n```\n{context}\n```"  # noqa
     elif embed_dict["has_image"]:
         context: str = process_images_embed(embed_dict)
         if context:
-            output_str += f"\n{embedded_content_type_to_preamble_map['images']}\n```\n{context}\n```" # noqa
+            output_str += f"\n{embedded_content_type_to_preamble_map['images']}\n```\n{context}\n```"  # noqa
     elif embed_dict["has_external"]:
         context: str = process_external_embed(embed_dict)
         if context:
-            output_str += f"\n{embedded_content_type_to_preamble_map['external']}\n```\n{context}\n```" # noqa
+            output_str += f"\n{embedded_content_type_to_preamble_map['external']}\n```\n{context}\n```"  # noqa
     if output_str:
         output_str += '\n'
     return output_str
@@ -209,11 +209,11 @@ def get_parent_reply_context(parent_reply_uri: str) -> str:
     text = record_context["text"]
     embed_image_alt_text = record_context["embed_image_alt_text"]
     text_context = f"\n[text]: {text}" if text else ""
-    embed_image_alt_text = f"\n[image alt text]: {embed_image_alt_text}" if embed_image_alt_text else "" # noqa
+    embed_image_alt_text = f"\n[image alt text]: {embed_image_alt_text}" if embed_image_alt_text else ""  # noqa
     if text_context or embed_image_alt_text:
         context = f"```{text_context} {embed_image_alt_text}\n```"
     if context:
-        output_str = f"\n{embedded_content_type_to_preamble_map['parent_reply']}\n{context}" # noqa
+        output_str = f"\n{embedded_content_type_to_preamble_map['parent_reply']}\n{context}"  # noqa
     return output_str
 
 
@@ -229,11 +229,11 @@ def get_parent_root_context(parent_root_uri: str) -> str:
     text = record_context["text"]
     embed_image_alt_text = record_context["embed_image_alt_text"]
     text_context = f"\n[text]: {text}\n" if text else ""
-    embed_image_alt_text = f"\n[image alt text]: {embed_image_alt_text}" if embed_image_alt_text else "" # noqa
+    embed_image_alt_text = f"\n[image alt text]: {embed_image_alt_text}" if embed_image_alt_text else ""  # noqa
     if text_context or embed_image_alt_text:
         context = f"```{text_context} {embed_image_alt_text}\n```"
     if context:
-        output_str = f"\n{embedded_content_type_to_preamble_map['parent_root']}\n{context}" # noqa
+        output_str = f"\n{embedded_content_type_to_preamble_map['parent_root']}\n{context}"  # noqa
     return output_str
 
 

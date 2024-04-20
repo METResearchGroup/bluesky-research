@@ -1,7 +1,7 @@
 """Firehose stream service.
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_stream.py
-""" # noqa
+"""  # noqa
 import sys
 
 from atproto import (
@@ -23,9 +23,7 @@ stream_limit = 250000
 cursor_update_frequency = 500
 
 
-def _get_ops_by_type(
-    commit: models.ComAtprotoSyncSubscribeRepos.Commit
-) -> dict:
+def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict:  # noqa
     operation_by_type = {
         'posts': {'created': [], 'deleted': []},
         # NOTE: is it possible to track reposts?
@@ -94,7 +92,7 @@ def run(name, operations_callback, stream_stop_event=None):
             raise e
 
 
-def _run(name, operations_callback, stream_stop_event=None):
+def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
     state = SubscriptionState.select(SubscriptionState.service == name).first()
 
     params = None
@@ -145,7 +143,7 @@ def _run(name, operations_callback, stream_stop_event=None):
                 print(f"Counter: {counter_value}")
             if counter.get_value() > stream_limit:
                 total_posts_in_db: int = get_num_posts()
-                print(f"Counter value {counter_value} > stream limit: {stream_limit}. Total posts in DB: {total_posts_in_db}. Exiting...") # noqa
+                print(f"Counter value {counter_value} > stream limit: {stream_limit}. Total posts in DB: {total_posts_in_db}. Exiting...")  # noqa
                 sys.exit(0)
 
     client.start(on_message_handler)
