@@ -78,6 +78,12 @@ def classify_post_texts(
     return results
 
 
+def classify_post(post: dict) -> dict:
+    """Classify a post."""
+    label = classify_text(post["text"])
+    return {"uri": post["uri"], "label": label}
+
+
 def classify_posts(posts: list[dict]) -> list[dict]:
     """Classify a batch of posts."""
     post_texts = [post["text"] for post in posts]
