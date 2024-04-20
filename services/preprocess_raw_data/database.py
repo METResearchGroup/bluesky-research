@@ -14,6 +14,7 @@ db_version = 2
 conn = sqlite3.connect(SQLITE_DB_PATH)
 cursor = conn.cursor()
 
+
 class BaseModel(peewee.Model):
     class Meta:
         database = db
@@ -27,7 +28,7 @@ class FilteredRawPost(BaseModel):
     filtered_by_func = peewee.CharField(null=True)
     created_at = peewee.TextField()
     text = peewee.TextField()  # for long text
-    embed = peewee.TextField(null=True) # for embedded content
+    embed = peewee.TextField(null=True)  # for embedded content
     langs = peewee.CharField(null=True)  # sometimes the langs aren't provided
     entities = peewee.CharField(null=True)
     facets = peewee.CharField(null=True)  # https://www.pfrazee.com/blog/why-facets # noqa
@@ -65,7 +66,7 @@ def create_filtered_post(uri: str, passed_filters: bool) -> None:
 
 def batch_create_filtered_posts(posts: list[dict]) -> None:
     """Batch create filtered posts in chunks.
-    
+
     Uses peewee's chunking functionality to write posts in chunks.
     """
     with db.atomic():
@@ -89,9 +90,9 @@ def get_previously_filtered_post_uris() -> list:
     return [p.uri for p in previous_ids]
 
 
-def get_filtered_posts(k: Optional[int]=None) -> list[FilteredRawPost]:
+def get_filtered_posts(k: Optional[int] = None) -> list[FilteredRawPost]:
     """Get filtered posts from the database.
-    
+
     Grab only posts th  tpassed filteres ("passed_filters=True)
     """
     if k:
@@ -100,12 +101,12 @@ def get_filtered_posts(k: Optional[int]=None) -> list[FilteredRawPost]:
 
 
 def get_filtered_posts_as_list_dicts(
-    k: Optional[int]=None,
-    order_by: Optional[str]="synctimestamp",
-    desc: Optional[bool]=True
+    k: Optional[int] = None,
+    order_by: Optional[str] = "synctimestamp",
+    desc: Optional[bool] = True
 ) -> list[dict]:
     """Get all filtered posts from the database as a list of dictionaries."""
-    base_query = FilteredRawPost.select().where(FilteredRawPost.passed_filters == True) # noqa
+    base_query = FilteredRawPost.select().where(FilteredRawPost.passed_filters == True)  # noqa
     # Apply ordering based on the order_by and desc parameters
     if order_by:
         if desc:

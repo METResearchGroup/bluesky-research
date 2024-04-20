@@ -1,6 +1,7 @@
 """Sets up test SQLite DB for the dump-db-to-parquet service."""
 pass
 
+
 def setup_new_db() -> None:
     pass
 

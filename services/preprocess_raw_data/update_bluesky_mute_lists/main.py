@@ -5,6 +5,7 @@ from services.preprocess_raw_data.update_bluesky_mute_lists.helper import (
     sync_users_from_mute_lists
 )
 
+
 def main() -> None:
     sync_users_from_mute_lists()
 

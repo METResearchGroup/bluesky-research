@@ -14,9 +14,9 @@ import pandas as pd
 
 from services.classify.inference import perform_classification
 
-raw_data_url = "https://raw.githubusercontent.com/mark-torres10/redditResearch/main/src/data/classified_comments/2023-10-16_0427.csv" # noqa
+raw_data_url = "https://raw.githubusercontent.com/mark-torres10/redditResearch/main/src/data/classified_comments/2023-10-16_0427.csv"  # noqa
 current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-export_filename = f"reddit_comments_labeled_with_perspective_classifiers_{current_datetime}.csv" # noqa
+export_filename = f"reddit_comments_labeled_with_perspective_classifiers_{current_datetime}.csv"  # noqa
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
@@ -52,35 +52,35 @@ def main(event: dict, context: dict) -> None:
         print(f"Exported {len(labeled_comments)} labeled comments.")
     if event.get("qa_comments", False):
         print("QA-ing comments...")
-        df = pd.read_csv("reddit_comments_labeled_with_perspective_classifiers_2024-02-03_12-10-26.csv") # noqa
+        df = pd.read_csv("reddit_comments_labeled_with_perspective_classifiers_2024-02-03_12-10-26.csv")  # noqa
         print('\n')
         # count of comments with label = 1
-        print(f'Count of comments that our moral outrage classifier labeled = 1: {len(df[df["label"] == 1])}') # noqa
+        print(f'Count of comments that our moral outrage classifier labeled = 1: {len(df[df["label"] == 1])}')  # noqa
         # count of comments that the Google Perspective API labeled = 1
-        print(f"Count of comments that Google labeled = 1: {len(df[df['label_moral_outrage'] == 1])}") # noqa
+        print(f"Count of comments that Google labeled = 1: {len(df[df['label_moral_outrage'] == 1])}")  # noqa
         # get count of comments with label = 0 but label_moral_outrage = 1
-        print(f'Count of comments that our moral outrage classifier labeled = 0 but Google labeled = 1: {len(df[(df["label"] == 0) & (df["label_moral_outrage"] == 1)])}') # noqa
+        print(f'Count of comments that our moral outrage classifier labeled = 0 but Google labeled = 1: {len(df[(df["label"] == 0) & (df["label_moral_outrage"] == 1)])}')  # noqa
         # print examples of comments with label = 0 but label_moral_outrage = 1
-        print("Examples of comments that our moral outrage classifier labeled = 0 but Google labeled = 1:") # noqa
-        print(df[(df["label"] == 0) & (df["label_moral_outrage"] == 1)]["body"].head()) # noqa
+        print("Examples of comments that our moral outrage classifier labeled = 0 but Google labeled = 1:")  # noqa
+        print(df[(df["label"] == 0) & (df["label_moral_outrage"] == 1)]["body"].head())  # noqa
         print('\n')
         # get count of comments with label = 1 but label_moral_outrage = 0
-        print(f'Count of comments that our moral outrage classifier labeled = 1 but Google labeled = 0: {len(df[(df["label"] == 1) & (df["label_moral_outrage"] == 0)])}') # noqa
+        print(f'Count of comments that our moral outrage classifier labeled = 1 but Google labeled = 0: {len(df[(df["label"] == 1) & (df["label_moral_outrage"] == 0)])}')  # noqa
         # print examples of comments with label = 1 but label_moral_outrage = 0
-        print("Examples of comments that our moral outrage classifier labeled = 1 but Google labeled = 0:") # noqa
-        print(df[(df["label"] == 1) & (df["label_moral_outrage"] == 0)]["body"].head()) # noqa
+        print("Examples of comments that our moral outrage classifier labeled = 1 but Google labeled = 0:")  # noqa
+        print(df[(df["label"] == 1) & (df["label_moral_outrage"] == 0)]["body"].head())  # noqa
         print('\n')
         # get count of comments with label = 1 and label_moral_outrage = 1
-        print(f'Count of comments that our moral outrage classifier labeled = 1 and Google labeled = 1: {len(df[(df["label"] == 1) & (df["label_moral_outrage"] == 1)])}') # noqa
+        print(f'Count of comments that our moral outrage classifier labeled = 1 and Google labeled = 1: {len(df[(df["label"] == 1) & (df["label_moral_outrage"] == 1)])}')  # noqa
         # print examples of comments with label = 1 and label_moral_outrage = 1
-        print("Examples of comments that our moral outrage classifier labeled = 1 and Google labeled = 1:") # noqa
-        print(df[(df["label"] == 1) & (df["label_moral_outrage"] == 1)]["body"].head()) # noqa
+        print("Examples of comments that our moral outrage classifier labeled = 1 and Google labeled = 1:")  # noqa
+        print(df[(df["label"] == 1) & (df["label_moral_outrage"] == 1)]["body"].head())  # noqa
         print('\n')
         # get count of comments with label = 0 and label_moral_outrage = 0
-        print(f'Count of comments that our moral outrage classifier labeled = 0 and Google labeled = 0: {len(df[(df["label"] == 0) & (df["label_moral_outrage"] == 0)])}') # noqa
+        print(f'Count of comments that our moral outrage classifier labeled = 0 and Google labeled = 0: {len(df[(df["label"] == 0) & (df["label_moral_outrage"] == 0)])}')  # noqa
         # print examples of comments with label = 0 and label_moral_outrage = 0
-        print("Examples of comments that our moral outrage classifier labeled = 0 and Google labeled = 0:") # noqa
-        print(df[(df["label"] == 0) & (df["label_moral_outrage"] == 0)]["body"].head()) # noqa
+        print("Examples of comments that our moral outrage classifier labeled = 0 and Google labeled = 0:")  # noqa
+        print(df[(df["label"] == 0) & (df["label_moral_outrage"] == 0)]["body"].head())  # noqa
 
 
 if __name__ == "__main__":

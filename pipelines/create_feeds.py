@@ -1,6 +1,7 @@
 """Pipeline logic for creating the latest feeds."""
 from services.create_feeds.main import main as create_latest_feeds
 
+
 def main(payload: dict) -> None:
     create_latest_feeds(payload)
 

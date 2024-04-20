@@ -2,7 +2,7 @@
 from atproto_client.models.app.bsky.actor.defs import ProfileViewDetailed
 
 from lib.helper import client
-from services.participant_data.helper import get_user_to_bluesky_profiles_as_list_dicts # noqa
+from services.participant_data.helper import get_user_to_bluesky_profiles_as_list_dicts  # noqa
 
 
 def get_aggregate_user_profile_metrics(profile: ProfileViewDetailed) -> dict:
@@ -48,4 +48,3 @@ def update_user_engagement_metrics():
 if __name__ == "__main__":
     users: list[dict] = get_user_to_bluesky_profiles_as_list_dicts()
     metrics_list: list[dict] = get_updated_metrics_for_users()
-    breakpoint()

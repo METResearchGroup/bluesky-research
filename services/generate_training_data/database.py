@@ -19,13 +19,15 @@ db_version = 2
 conn = sqlite3.connect(SQLITE_DB_PATH)
 cursor = conn.cursor()
 
+
 class BaseModel(peewee.Model):
     class Meta:
         database = db
 
+
 class AnnotatedTrainingData(BaseModel):
     uri = peewee.CharField()
-    label = peewee.TextField() # serialized dict of training label
+    label = peewee.TextField()  # serialized dict of training label
     task = peewee.CharField()
     labeling_session_name = peewee.CharField()
     notes = peewee.CharField()

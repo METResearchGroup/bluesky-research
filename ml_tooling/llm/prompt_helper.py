@@ -1,13 +1,13 @@
 """Helper tools for generating prompts.
 
 Resource for all things prompting: https://github.com/dair-ai/Prompt-Engineering-Guide?tab=readme-ov-file
-""" # noqa
+"""  # noqa
 import json
 
 from ml_tooling.llm.task_prompts import task_name_to_task_prompt_map
-from services.add_context.current_events_enrichment.newsapi_context import url_is_to_news_domain # noqa
+from services.add_context.current_events_enrichment.newsapi_context import url_is_to_news_domain  # noqa
 from transform.bluesky_helper import get_post_record_given_post_uri
-from transform.transform_raw_data import flatten_firehose_post, LIST_SEPARATOR_CHAR
+from transform.transform_raw_data import flatten_firehose_post, LIST_SEPARATOR_CHAR # noqa
 
 
 base_prompt = """
@@ -24,19 +24,19 @@ Here is the post text that needs to be classified:
 
 embedded_content_type_to_preamble_map = {
     "record": "The post references another post with the following details:",
-    "external": "The post contains a external link to content with the following details:", # noqa
+    "external": "The post contains a external link to content with the following details:",  # noqa
     "images": "The post contains the following alt text for its images:",
     "labels": "The post contains the following labels:",
     "tags": "The post contains the following tags:",
     "linked_urls": "The post links to external URLs:",
-    "parent_reply": "The post is a reply to another post with the following details:", # noqa
-    "parent_root": "The post is part of a thread that starts with the following post:" # noqa
+    "parent_reply": "The post is a reply to another post with the following details:",  # noqa
+    "parent_root": "The post is part of a thread that starts with the following post:"  # noqa
 }
 
 
 def process_images_embed(embed_dict: dict) -> str:
     """Processes image information and adds it to the prompt.
-    
+
     Currently, we only can get info about images from its alt text,
     and we combine all the alt text across images together, so we
     combine the alt text together and return the results (which is a
@@ -58,7 +58,7 @@ def process_images_embed(embed_dict: dict) -> str:
 
 def process_record_context(record_uri: str) -> dict:
     """Processes the context for any records that are referenced in a post.
-    
+
     This includes posts that are being referenced by another post as well as
     posts that are part of the thread that a post is a part of.
 
@@ -92,7 +92,7 @@ def process_record_context(record_uri: str) -> dict:
 
 def process_record_embed(embed_dict: dict) -> str:
     """Processes record embeds.
-    
+
     Record embeds are posts that are embedded in other posts. This is a way to
     reference another post in a post.
 
@@ -121,7 +121,7 @@ def process_record_embed(embed_dict: dict) -> str:
     if text:
         output_str += f"\n[embedded record text]: {text}"
     if embed_image_alt_text:
-        output_str += f"\n[embedded record image alt text]: {embed_image_alt_text}"
+        output_str += f"\n[embedded record image alt text]: {embed_image_alt_text}" # noqa
     return output_str
 
 
@@ -172,26 +172,26 @@ def embedded_content_context(post: dict) -> str:
         if embed_dict["has_image"]:
             # these have both images and embedded context, so we need to grab
             # both of these.
-            context_dict: dict = process_record_embed_with_media_embed(embed_dict) # noqa
+            context_dict: dict = process_record_embed_with_media_embed(embed_dict)  # noqa
             images_context = context_dict["images_context"]
             embedded_record_context = context_dict["embedded_record_context"]
             if images_context:
-                output_str += f"\n{embedded_content_type_to_preamble_map['images']}\n```\n{images_context}\n```"
+                output_str += f"\n{embedded_content_type_to_preamble_map['images']}\n```\n{images_context}\n```" # noqa
                 output_str += '\n'
             if embedded_record_context:
-                output_str += f"\n{embedded_content_type_to_preamble_map['record']}:\n```\n{embedded_record_context}\n```"
+                output_str += f"\n{embedded_content_type_to_preamble_map['record']}:\n```\n{embedded_record_context}\n```" # noqa
                 output_str += '\n'
         else:
             context = process_record_embed(embed_dict)
-            output_str += f"\n{embedded_content_type_to_preamble_map['record']}\n```\n{context}\n```"
+            output_str += f"\n{embedded_content_type_to_preamble_map['record']}\n```\n{context}\n```" # noqa
     elif embed_dict["has_image"]:
         context: str = process_images_embed(embed_dict)
         if context:
-            output_str += f"\n{embedded_content_type_to_preamble_map['images']}\n```\n{context}\n```"
+            output_str += f"\n{embedded_content_type_to_preamble_map['images']}\n```\n{context}\n```" # noqa
     elif embed_dict["has_external"]:
         context: str = process_external_embed(embed_dict)
         if context:
-            output_str += f"\n{embedded_content_type_to_preamble_map['external']}\n```\n{context}\n```"
+            output_str += f"\n{embedded_content_type_to_preamble_map['external']}\n```\n{context}\n```" # noqa
     if output_str:
         output_str += '\n'
     return output_str
@@ -209,11 +209,11 @@ def get_parent_reply_context(parent_reply_uri: str) -> str:
     text = record_context["text"]
     embed_image_alt_text = record_context["embed_image_alt_text"]
     text_context = f"\n[text]: {text}" if text else ""
-    embed_image_alt_text = f"\n[image alt text]: {embed_image_alt_text}" if embed_image_alt_text else ""
+    embed_image_alt_text = f"\n[image alt text]: {embed_image_alt_text}" if embed_image_alt_text else "" # noqa
     if text_context or embed_image_alt_text:
         context = f"```{text_context} {embed_image_alt_text}\n```"
     if context:
-        output_str = f"\n{embedded_content_type_to_preamble_map['parent_reply']}\n{context}"
+        output_str = f"\n{embedded_content_type_to_preamble_map['parent_reply']}\n{context}" # noqa
     return output_str
 
 
@@ -229,11 +229,11 @@ def get_parent_root_context(parent_root_uri: str) -> str:
     text = record_context["text"]
     embed_image_alt_text = record_context["embed_image_alt_text"]
     text_context = f"\n[text]: {text}\n" if text else ""
-    embed_image_alt_text = f"\n[image alt text]: {embed_image_alt_text}" if embed_image_alt_text else ""
+    embed_image_alt_text = f"\n[image alt text]: {embed_image_alt_text}" if embed_image_alt_text else "" # noqa
     if text_context or embed_image_alt_text:
         context = f"```{text_context} {embed_image_alt_text}\n```"
     if context:
-        output_str = f"\n{embedded_content_type_to_preamble_map['parent_root']}\n{context}"
+        output_str = f"\n{embedded_content_type_to_preamble_map['parent_root']}\n{context}" # noqa
     return output_str
 
 
@@ -320,7 +320,7 @@ def post_linked_urls(post: dict) -> str:
     embed_url_context: str = context_embed_url(post)
 
     if url_in_text_context or embed_url_context:
-        output_str += f"{embedded_content_type_to_preamble_map['linked_urls']}\n" # noqa
+        output_str += f"{embedded_content_type_to_preamble_map['linked_urls']}\n"  # noqa
         # so far our context just checks to see if a link is to a news outlet
         # regardless of whether it's in the text or an embed, so we can just
         # see if the post has any reputable links at all. We keep those
@@ -375,6 +375,7 @@ post_context_and_funcs = [
     ("Context about current events", additional_current_events_context)
 ]
 
+
 def generate_context_details_list(post: dict) -> list[tuple]:
     context_details_list = []
     for context_name, context_func in post_context_and_funcs:
@@ -388,7 +389,7 @@ def generate_complete_prompt(
     post: dict,
     task_prompt: str,
     context_details_list: list[tuple],
-    justify_result: bool=False
+    justify_result: bool = False
 ) -> str:
     """Given a task prompt and the details of the context, generate
     the resulting complete prompt.
@@ -410,14 +411,14 @@ Again, the text of the post that needs to be classified is:
 ```
 """
     if justify_result:
-        full_context += "\nAfter giving your label, start a new line and then justify your answer in 1 sentence." # noqa
+        full_context += "\nAfter giving your label, start a new line and then justify your answer in 1 sentence."  # noqa
     return base_prompt.format(
         task_prompt=task_prompt, post_text=post_text, context=full_context
     )
 
 
 def generate_complete_prompt_for_given_post(
-    post: dict, task_name: str, justify_result: bool=False
+    post: dict, task_name: str, justify_result: bool = False
 ) -> str:
     """Generates a complete prompt for a given post."""
     task_prompt = task_name_to_task_prompt_map[task_name]

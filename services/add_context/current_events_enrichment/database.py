@@ -16,6 +16,7 @@ db_version = 2
 conn = sqlite3.connect(SQLITE_DB_PATH)
 cursor = conn.cursor()
 
+
 class BaseModel(peewee.Model):
     class Meta:
         database = db
@@ -45,12 +46,13 @@ def create_initial_articles_table() -> None:
 
 def batch_write_articles(articles: list[dict]) -> None:
     """Batch create articles in chunks.
-    
+
     Uses peewee's chunking functionality to write articles in chunks.
     """
     with db.atomic():
         for idx in range(0, len(articles), DEFAULT_BATCH_WRITE_SIZE):
-            # Ignore insert for rows that would cause a unique constraint violation
+            # Ignore insert for rows that would cause a unique constraint
+            # violation
             NYTimesArticle.insert_many(
                 articles[idx:idx + DEFAULT_BATCH_WRITE_SIZE]
             ).on_conflict_ignore().execute()
@@ -73,12 +75,14 @@ def get_all_articles_as_df() -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    #create_initial_articles_table()
-    #print("Created initial articles table.")
-    #num_articles = len(get_all_articles())
-    #print(f"Total number of articles: {num_articles}")
-    #print("Finished running the script.")
+    # create_initial_articles_table()
+    # print("Created initial articles table.")
+    # num_articles = len(get_all_articles())
+    # print(f"Total number of articles: {num_articles}")
+    # print("Finished running the script.")
     # how to add a new column to a table (here, 'synctimestamp')
-    #from lib.db.sql.helper import add_new_column_to_table
-    #add_new_column_to_table(cls=NYTimesArticle, cursor=cursor, db=db, colname="synctimestamp")
+    # from lib.db.sql.helper import add_new_column_to_table
+    # add_new_column_to_table(
+    #     cls=NYTimesArticle, cursor=cursor, db=db, colname="synctimestamp"
+    # )
     pass

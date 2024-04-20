@@ -1,27 +1,28 @@
 """Performs filtering steps."""
 from lib.constants import current_datetime_str
 from lib.helper import track_performance
-from services.preprocess_raw_data.classify_bots.main import filter_posts_not_written_by_bot # noqa
-from services.preprocess_raw_data.classify_hate_speech.main import filter_posts_have_no_hate_speech # noqa
-from services.preprocess_raw_data.classify_language.main import filter_text_is_english # noqa
-from services.preprocess_raw_data.classify_nsfw_content.main import filter_posts_have_no_nsfw_content # noqa
-from services.preprocess_raw_data.classify_spam.main import filter_posts_have_no_spam
+from services.preprocess_raw_data.classify_bots.main import filter_posts_not_written_by_bot  # noqa
+from services.preprocess_raw_data.classify_hate_speech.main import filter_posts_have_no_hate_speech  # noqa
+from services.preprocess_raw_data.classify_language.main import filter_text_is_english  # noqa
+from services.preprocess_raw_data.classify_nsfw_content.main import filter_posts_have_no_nsfw_content  # noqa
+from services.preprocess_raw_data.classify_spam.main import filter_posts_have_no_spam # noqa
 from services.preprocess_raw_data.database import batch_create_filtered_posts
 from services.preprocess_raw_data.models import FilteredRawPostModel
+
 
 @track_performance
 def filter_posts_with_filter_func(
     posts: list[dict], filter_func: callable, label: str
 ) -> list[dict]:
     """Filters posts with a specific filtering function.
-    
+
     Returns a dictionary of the following format:
     :passed_filters: set[str]: the URIs of the posts that passed the filter.
     :failed_filters: set[str]: the URIs of the posts that failed the filter.
 
     Example:
     >>  filter_posts_with_filter_func(posts=post, filter_func=classify_spam, label="has_spam")
-    """
+    """ # noqa
     passed_filters_uris: set[str] = set()
     failed_filters_uris: set[str] = set()
 
@@ -57,7 +58,7 @@ def preprocess_posts(posts: list[dict]) -> list[dict]:
 def filter_posts(posts: list[dict]) -> list[dict]:
     """Applies the filtering steps and returns the posts along with their
     status.
-    
+
     Returns the following fields per dictionary:
     :uri: str: The URI of the post.
     :passed_filters: bool: Whether the post passed the filters or not.
@@ -80,7 +81,7 @@ def filter_posts(posts: list[dict]) -> list[dict]:
 
     After all the filters are done, we add the remaining URIs to the output
     as the URIs of the posts that have passed all the filters.
-    """
+    """ # noqa
     # do any preprocessing for posts before filtering
     posts: list[dict] = preprocess_posts(posts)
 
@@ -115,7 +116,7 @@ def filter_posts(posts: list[dict]) -> list[dict]:
         filter_posts_not_written_by_bot, filter_posts_have_no_nsfw_content,
         filter_posts_have_no_spam, filter_posts_have_no_hate_speech
     ]
-    labels = ["is_not_from_possible_bot_account", "has_no_nsfw_content", "has_no_spam", "has_no_hate_speech"] # noqa
+    labels = ["is_not_from_possible_bot_account", "has_no_nsfw_content", "has_no_spam", "has_no_hate_speech"]  # noqa
 
     for filter_func, label in zip(filter_funcs, labels):
         results = filter_posts_with_filter_func(
@@ -132,7 +133,9 @@ def filter_posts(posts: list[dict]) -> list[dict]:
         ])
         # update the posts to filter if it has passed all the filters so far.
         posts_to_filter = [
-            post for post in posts_to_filter if post["uri"] in results["passed_filters"]
+            post
+            for post in posts_to_filter
+            if post["uri"] in results["passed_filters"]
         ]
 
     # whatever posts are left, are the ones that have passed all filters.
@@ -168,7 +171,6 @@ def filter_posts(posts: list[dict]) -> list[dict]:
     ]
 
     return joined_results
-
 
 
 def save_filtered_posts_to_db(filtered_posts: list[dict]) -> None:

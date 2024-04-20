@@ -43,7 +43,8 @@ option = st.selectbox(
 )
 
 if option == "Perspective API":
-    include_context = st.checkbox('Include context in the prompt to the Perspective API?')
+    include_context = st.checkbox(
+        'Include context in the prompt to the Perspective API?')
 else:
     justify_result_bool = st.checkbox('Justify the result?')
 
@@ -129,7 +130,7 @@ if st.button('Submit'):
 
 
 if __name__ == "__main__":
-    # link = "https://bsky.app/profile/brendelbored.bsky.social/post/3kpp6rd7z3k2r"
+    # link = "https://bsky.app/profile/brendelbored.bsky.social/post/3kpp6rd7z3k2r" # noqa
     # post = convert_post_link_to_post(link)
     # prompt = generate_complete_prompt_for_given_post(post, "civic")
     # print(prompt)

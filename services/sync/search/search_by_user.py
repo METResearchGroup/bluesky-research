@@ -49,7 +49,7 @@ def get_posts_by_user(
         'reply_count': 0,
         'repost_count': 0
     }
-    """ # noqa
+    """  # noqa
     actor = author_handle or author_did
     if not actor:
         raise ValueError("Must provide an author handle or author did.")
@@ -87,7 +87,7 @@ def get_profile_of_user(
         'viewer': ViewerState(blocked_by=False, blocking=None, blocking_by_list=None, followed_by=None, following='at://did:plc:w5mjarupsl6ihdrzwgnzdh4y/app.bsky.graph.follow/3kkvauysemf2p', muted=False, muted_by_list=None, py_type='app.bsky.actor.defs#viewerState'),
         'py_type': 'app.bsky.actor.defs#profileViewDetailed'
     }
-    """ # noqa
+    """  # noqa
     actor = author_handle or author_did
     if not actor:
         raise ValueError("Must provide an author handle or author did.")
@@ -117,7 +117,7 @@ def get_user_follows(
         'viewer': ViewerState(blocked_by=False, blocking=None, blocking_by_list=None, followed_by=None, following=None, muted=False, muted_by_list=None, py_type='app.bsky.actor.defs#viewerState'),
         'py_type': 'app.bsky.actor.defs#profileView'
     }
-    """ # noqa
+    """  # noqa
     actor = author_handle or author_did
     if not actor:
         raise ValueError("Must provide an author handle or author did.")
@@ -154,7 +154,7 @@ def get_user_followers(
         'viewer': ViewerState(blocked_by=False, blocking=None, blocking_by_list=None, followed_by=None, following=None, muted=False, muted_by_list=None, py_type='app.bsky.actor.defs#viewerState'),
         'py_type': 'app.bsky.actor.defs#profileView'
     }
-    """ # noqa
+    """  # noqa
     actor = author_handle or author_did
     if not actor:
         raise ValueError("Must provide an author handle or author did.")

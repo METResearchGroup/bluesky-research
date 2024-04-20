@@ -5,7 +5,7 @@ Please classify the text denoted in <text> based on the political lean of the op
 it presents. Your options are 'left-leaning', 'moderate', 'right-leaning', or 'unclear'. \
 You are analyzing text that has been pre-identified as 'political' in nature. Only provide the label \
 ("left-leaning", "moderate", "right-leaning", "unclear") in your response. Justifications are not necessary. \
-""" # noqa
+"""  # noqa
 
 civic_prompt = """
 Pretend that you are a classifier that predicts whether a post has civic content or not. Civic refers \
@@ -15,7 +15,7 @@ racism, education, immigration, human rights, the environment, etc.). We refer t
 that is classified as being either of these two categories as “civic”; otherwise they are not civic. \
 Please classify the following text denoted in <text> as "civic" or "not civic". Only provide "civic" or \
 "not civic" in your response. Justifications are not necessary. \
-""" # noqa
+"""  # noqa
 
 civic_and_political_ideology_prompt = """
 Pretend that you are a classifier that predicts whether a post has civic content or not. Civic refers \
@@ -39,7 +39,7 @@ Return in a JSON format in the following way:
     "reason_civic": <optional, a 1 sentence reason for why the text is civic>,
     "reason_political_ideology": <optional, a 1 sentence reason for why the text has the given political ideology>
 }
-""" # noqa
+"""  # noqa
 
 toxicity_prompt = """
 Pretend that you are a toxicity classifer. We define a post having toxicity as \
@@ -71,7 +71,7 @@ Return in a JSON format in the following way:
     "toxicity": <two values, 'toxic' or 'not toxic'>,
     "reason": <optional, a 1 sentence reason for why the text is toxic>
 }
-""" # noqa
+"""  # noqa
 
 constructiveness_prompt = """
 Pretend that you are a constructiveness classifer. Our purpose is to promote \
@@ -110,7 +110,7 @@ Return in a JSON format in the following way:
     "constructiveness": <two values, 'constructive' or 'not constructive'>,
     "reason": <optional, a 1 sentence reason for why the text is constructive>
 }
-""" # noqa
+"""  # noqa
 
 
 task_name_to_task_prompt_map = {

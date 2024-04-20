@@ -5,14 +5,14 @@ import pandas as pd
 from services.sync.stream.database import RawPost
 
 
-def get_posts(k: Optional[int]=None) -> list[RawPost]:
+def get_posts(k: Optional[int] = None) -> list[RawPost]:
     """Get all posts from the database."""
     if k:
         return list(RawPost.select().limit(k))
     return list(RawPost.select())
 
 
-def get_most_recent_posts(k: Optional[int]=None) -> list[RawPost]:
+def get_most_recent_posts(k: Optional[int] = None) -> list[RawPost]:
     """Get the most recent posts from the database."""
     if k:
         return list(
@@ -29,9 +29,9 @@ def get_most_recent_posts(k: Optional[int]=None) -> list[RawPost]:
 
 
 def get_posts_as_list_dicts(
-    k: Optional[int]=None,
-    order_by: Optional[str]="synctimestamp",
-    desc: Optional[bool]=True
+    k: Optional[int] = None,
+    order_by: Optional[str] = "synctimestamp",
+    desc: Optional[bool] = True
 ) -> list[dict]:
     """Get all posts from the database as a list of dictionaries."""
     if order_by:
@@ -68,7 +68,7 @@ def get_posts_as_list_dicts(
     return [post.__dict__['__data__'] for post in posts]
 
 
-def get_posts_as_df(k: Optional[int]=None) -> pd.DataFrame:
+def get_posts_as_df(k: Optional[int] = None) -> pd.DataFrame:
     """Get all posts from the database as a pandas DataFrame."""
     return pd.DataFrame(get_posts_as_list_dicts(k=k))
 

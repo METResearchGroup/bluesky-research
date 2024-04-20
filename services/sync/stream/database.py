@@ -3,7 +3,7 @@
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/database.py
 
 # TODO: we can convert this to a different DB eventually. This is OK for now.
-""" # noqa
+"""  # noqa
 import os
 import sqlite3
 
@@ -20,15 +20,19 @@ db_version = 2
 conn = sqlite3.connect(SQLITE_DB_PATH)
 cursor = conn.cursor()
 
+
 class BaseModel(peewee.Model):
     class Meta:
         database = db
 
+
 class RawPost(BaseModel):
     uri = peewee.CharField(unique=True)
     created_at = peewee.TextField()
-    text = peewee.TextField(null=True)  # for long text. Technically a post can just be an image or video and not have text.
-    embed = peewee.TextField(null=True) # for embedded content
+    # for long text. Technically a post can just be an image or video and
+    # not have text.
+    text = peewee.TextField(null=True)
+    embed = peewee.TextField(null=True)  # for embedded content
     langs = peewee.CharField(null=True)  # sometimes the langs aren't provided
     entities = peewee.CharField(null=True)
     facets = peewee.CharField(null=True)  # https://www.pfrazee.com/blog/why-facets # noqa
@@ -46,6 +50,7 @@ class RawPost(BaseModel):
 class SubscriptionState(BaseModel):
     service = peewee.CharField(unique=True)
     cursor = peewee.IntegerField()
+
 
 class DbMetadata(BaseModel):
     version = peewee.IntegerField()
@@ -76,7 +81,4 @@ if db.is_closed():
 
 
 if __name__ == "__main__":
-    # how to add a new column to a table (here, 'synctimestamp')
-    # from lib.db.sql.helper import add_new_column_to_table
-    # add_new_column_to_table(cls=RawPost, cursor=cursor, db=db, colname="synctimestamp")
     pass

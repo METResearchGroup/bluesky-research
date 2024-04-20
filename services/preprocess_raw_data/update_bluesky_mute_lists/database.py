@@ -17,6 +17,7 @@ db_version = 2
 conn = sqlite3.connect(SQLITE_DB_PATH)
 cursor = conn.cursor()
 
+
 class BaseModel(peewee.Model):
     class Meta:
         database = db

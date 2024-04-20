@@ -1,5 +1,5 @@
 """Classifies the political ideology of posts."""
-from services.generate_features.classify_political_ideology.model import classify_posts # noqa
+from services.generate_features.classify_political_ideology.model import classify_posts  # noqa
 
 
 # TODO: add appropriate rate limiting for endpoint

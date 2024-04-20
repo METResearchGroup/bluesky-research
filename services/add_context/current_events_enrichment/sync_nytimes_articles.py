@@ -11,18 +11,20 @@ from typing import Optional
 
 from lib.constants import current_datetime
 from lib.helper import NYTIMES_API_KEY, track_function_runtime
-from services.add_context.current_events_enrichment.database import batch_write_articles # noqa
+from services.add_context.current_events_enrichment.database import batch_write_articles  # noqa
 
 
-SECTION_TOPSTORIES = ["arts", "automobiles", "books/review", "business", 
-    "fashion", "food", "health", "home", "insider", "magazine", "movies",
-    "nyregion", "obituaries", "opinion", "politics", "realestate", "science",
+SECTION_TOPSTORIES = [
+    "arts", "automobiles", "books/review", "business", "fashion", "food",
+    "health", "home", "insider", "magazine", "movies", "nyregion",
+    "obituaries", "opinion", "politics", "realestate", "science",
     "sports", "sundayreview", "technology", "theater", "t-magazine", "travel",
     "upshot", "us", "world"
 ]
 
 # probably the most relevant ones?
-DEFAULT_SECTIONS = ["home", "business", "politics", "us", "world", "technology"] # noqa
+DEFAULT_SECTIONS = ["home", "business", "politics", "us", "world", "technology"]  # noqa
+
 
 def generate_request_url(endpoint: str) -> str:
     """Generates the request URL."""
@@ -32,7 +34,7 @@ def generate_request_url(endpoint: str) -> str:
 # rate limit of 5 queries/min
 def load_section_topstories(section: str) -> dict:
     """Loads the top stories from a section."""
-    if not section in SECTION_TOPSTORIES:
+    if section not in SECTION_TOPSTORIES:
         raise ValueError(f"Section {section} is not a valid section.")
     endpoint = f"topstories/v2/{section}.json"
     url = generate_request_url(endpoint)
@@ -41,7 +43,7 @@ def load_section_topstories(section: str) -> dict:
     return response.json()
 
 
-def load_all_section_topstories(sections: Optional[list] = DEFAULT_SECTIONS) -> dict:
+def load_all_section_topstories(sections: Optional[list] = DEFAULT_SECTIONS) -> dict: # noqa
     """Loads all the top stories from a list of sections.
 
     Returns a dictionary with the following:
@@ -55,7 +57,7 @@ def load_all_section_topstories(sections: Optional[list] = DEFAULT_SECTIONS) -> 
         print(f"Loading articles for {section} section...")
         res = load_section_topstories(section)
         top_stories[section] = res["results"]
-        time.sleep(20) # wait 20 seconds to avoid rate limiting
+        time.sleep(20)  # wait 20 seconds to avoid rate limiting
         print(f"Finished loading {res['num_results']} articles.")
         print('-' * 10)
     return top_stories
@@ -63,7 +65,7 @@ def load_all_section_topstories(sections: Optional[list] = DEFAULT_SECTIONS) -> 
 
 def process_article_facets(article: dict) -> str:
     """Processes article facets and returns a string.
-    
+
     String is separated on ; as this is a much less common separator than , and
     some text use ',' in their text.
 
@@ -75,7 +77,8 @@ def process_article_facets(article: dict) -> str:
         'geo_facet': ['New York State']
     }
     """
-    facets = article["des_facet"] + article["org_facet"] + article["per_facet"] + article["geo_facet"]
+    facets = article["des_facet"] + article["org_facet"] + \
+        article["per_facet"] + article["geo_facet"]
     return ';'.join(facets)
 
 
@@ -124,7 +127,7 @@ def write_articles_to_db(articles: list[dict]) -> None:
 
 
 @track_function_runtime
-def sync_latest_nytimes_topstories(sections: Optional[list] = DEFAULT_SECTIONS) -> None:
+def sync_latest_nytimes_topstories(sections: Optional[list] = DEFAULT_SECTIONS) -> None: # noqa
     """Syncs the latest NYTimes top stories."""
     print(f"Syncing latest NYTimes stories at {current_datetime}")
     section_to_topstories_map: dict[str, list] = (
@@ -135,7 +138,7 @@ def sync_latest_nytimes_topstories(sections: Optional[list] = DEFAULT_SECTIONS) 
         processed_articles = process_articles(topstories_list)
         write_articles_to_db(processed_articles)
         print('-' * 10)
-    print(f"Finished writing the latest topstories ")
+    print("Finished writing the latest topstories")
 
 
 if __name__ == "__main__":

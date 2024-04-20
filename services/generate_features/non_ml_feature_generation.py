@@ -13,9 +13,9 @@ def is_in_network(post: dict) -> bool:
 # TODO: better as a feature, move to non-ML feature generation
 def is_within_similar_networks(post: dict) -> bool:
     """Determines if a post is within a similar network or community.
-    
+
     Inspired by https://blog.twitter.com/engineering/en_us/topics/open-source/2023/twitter-recommendation-algorithm
-    """ # noqa
+    """  # noqa
     return True
 
 
@@ -40,4 +40,3 @@ def generate_non_ml_features(post: dict) -> dict:
     for func in feature_funcs:
         res[func.__name__] = func(post)
     return res
-

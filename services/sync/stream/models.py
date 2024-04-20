@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
 
+
 class RawPostModel(BaseModel):
     uri: str = "Unique identifier for the post."
     created_at: str = "Timestamp of when the post was created."
@@ -18,4 +19,3 @@ class RawPostModel(BaseModel):
     cid: str = "The unique identifier of the post."
     author: str = "The author of the post."
     synctimestamp: str = "The timestamp of when the post was synchronized."
-

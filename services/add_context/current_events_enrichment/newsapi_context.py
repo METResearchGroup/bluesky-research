@@ -17,7 +17,7 @@ newsapi_client = NewsApiClient(api_key=NEWSAPI_API_KEY)
 
 def parse_domain_from_url(url: str) -> str:
     """Given a URL, parse the domain.
-    
+
     Example:
     >>> parse_domain_from_url("https://www.nytimes.com")
     "nytimes.com"
@@ -40,9 +40,9 @@ def parse_domain_from_url(url: str) -> str:
 
 def parse_url(url: str) -> str:
     """Given the URL, parse it. Grab domain plus do postprocessing.
-    
+
     Get the domain, plus remove anything like trailing subpages.
-    """ 
+    """
     parsed_url = parse_domain_from_url(url)
     parsed_url = parsed_url.split("/")[0]
     return parsed_url
@@ -77,6 +77,7 @@ def load_news_domains():
     with open(news_pickle_fp, "rb") as f:
         news_domains = pickle.load(f)
     return news_domains
+
 
 # combining news domains from API plus custom news domains
 api_news_domains: list[str] = load_news_domains()

@@ -6,10 +6,10 @@ enc = tiktoken.get_encoding("cl100k_base")
 
 def tokenize_text(text: str):
     """Uses tiktoken to tokenize text.
-    
+
     Source example from OpenAI:
     - https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
-    """
+    """ # noqa
     pass
 
 
@@ -22,7 +22,7 @@ def generate_enumerated_input_list(
     texts: list[str], max_token_length: int
 ) -> tuple:
     """Generates an enumerated list of inputs.
-    
+
     Returns a tuple of results and the number of enumerated values.
 
     Example:

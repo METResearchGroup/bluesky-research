@@ -15,7 +15,7 @@ def send_request_with_pagination(
     silence_logs: bool = False
 ) -> list:
     """Implement a request with pagination.
-    
+
     Useful for endpoints that return a cursor and a list of results.
 
     Example result (from getFollowers endpoint):
@@ -38,7 +38,7 @@ def send_request_with_pagination(
     }
 
     Based on https://github.com/MarshalX/atproto/blob/main/examples/advanced_usage/handle_cursor_pagination.py
-    """ # noqa
+    """  # noqa
     cursor = None
     total_fetched: int = 0
 
@@ -63,9 +63,7 @@ def send_request_with_pagination(
 
     while True:
         if not silence_logs:
-            print(
-                f"Fetching {request_limit} results, out of total max of {limit}..."
-            )
+            print(f"Fetching {request_limit} results, out of total max of {limit}...") # noqa
         if update_params_directly:
             kwargs["params"].update({"cursor": cursor, "limit": request_limit})
         else:

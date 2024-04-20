@@ -1,17 +1,15 @@
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
 
 
-# example recommendation system setup: https://colab.research.google.com/github/google/eng-edu/blob/main/ml/recommendation-systems/recommendation-systems.ipynb
+# example recommendation system setup: https://colab.research.google.com/github/google/eng-edu/blob/main/ml/recommendation-systems/recommendation-systems.ipynb # noqa
 class TwoTowerModel(nn.Module):
     """Two-tower model for recommendation system
-    
+
     Takes two towers, a "user" (query) and a "post" (item) tower, and learns
     a joint representation of the user-post embeddings.
     """
-    def __init__(self, user_feature_dim: int=100, item_feature_dim: int=100, embedding_dim: int=100): # noqa
+
+    def __init__(self, user_feature_dim: int = 100, item_feature_dim: int = 100, embedding_dim: int = 100):  # noqa
         super(TwoTowerModel, self).__init__()
         # User (query) tower
         self.user_tower = nn.Sequential(

@@ -4,8 +4,8 @@ from typing import Optional
 import pandas as pd
 
 from lib.helper import track_performance
-from services.preprocess_raw_data.database import get_previously_filtered_post_uris
-from services.preprocess_raw_data.filters import filter_posts, save_filtered_posts_to_db # noqa
+from services.preprocess_raw_data.database import get_previously_filtered_post_uris # noqa
+from services.preprocess_raw_data.filters import filter_posts, save_filtered_posts_to_db  # noqa
 from services.sync.stream.helper import get_posts_as_df
 
 DEFAULT_BATCH_SIZE = 100000
@@ -48,7 +48,7 @@ def load_latest_raw_posts(
         ~all_raw_posts["uri"].isin(previously_filtered_post_uris)
     ]
     latest_raw_data_dicts = latest_raw_data_df.to_dict(orient="records")
-    print(f"Finished loading {len(latest_raw_data_dicts)} raw posts for filtering.") # noqa
+    print(f"Finished loading {len(latest_raw_data_dicts)} raw posts for filtering.")  # noqa
     return latest_raw_data_dicts
 
 
@@ -78,7 +78,7 @@ def filter_latest_raw_data(
 
 def preprocess_posts(posts: list[dict]) -> list[dict]:
     """Performs any preprocessing that needs to be done on the filtered posts.
-    
+
     Takes as input all posts, including their filter status, but operates
     on only posts that pass filtering.
     """
@@ -94,7 +94,7 @@ def preprocess_raw_data(
     max_num_raw_posts: Optional[int] = DEFAULT_BATCH_SIZE
 ) -> None:
     """Preprocesses raw data.
-    
+
     We'll preprocess using the following steps:
     1. Filter the raw data.
     2. Preprocess the filtered data.
@@ -107,4 +107,4 @@ def preprocess_raw_data(
     preprocessed_posts = preprocess_posts(filtered_posts)
     validate_posts(preprocessed_posts)
     save_filtered_posts_to_db(preprocessed_posts)
-    print(f"Filtered data written to DB. After filtering, {num_posts_passed_filters} posts passed the filters (out of {total_raw_posts} original posts).") # noqa
+    print(f"Filtered data written to DB. After filtering, {num_posts_passed_filters} posts passed the filters (out of {total_raw_posts} original posts).")  # noqa

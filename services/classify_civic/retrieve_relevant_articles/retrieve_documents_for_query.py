@@ -19,7 +19,7 @@ def get_documents_for_query(
 
 
 if __name__ == "__main__":
-    user_query = "Can you believe what's happening with Democrats and IVF access?"
+    user_query = "Can you believe what's happening with Democrats and IVF access?" # noqa
     top_k_results = get_documents_for_query(user_query)
     print(f"Query: {user_query}")
     print(f"Top {TOP_K} results:")

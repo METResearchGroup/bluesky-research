@@ -14,7 +14,7 @@ def classify_single_post(post: dict) -> dict:
 
 
 def classify_if_posts_have_no_nsfw_content(
-    posts: list[dict], batch_size: int=DEFAULT_BATCH_SIZE
+    posts: list[dict], batch_size: int = DEFAULT_BATCH_SIZE
 ) -> list[dict]:
     """Classifies multiple posts."""
     return classify_posts(

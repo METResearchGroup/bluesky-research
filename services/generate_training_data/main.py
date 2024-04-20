@@ -12,11 +12,14 @@ import sys
 
 from services.generate_training_data.helper import set_up_labeling_session
 
+
 def main():
     config_filename: str = sys.argv[1] if len(sys.argv) > 1 else None
     session_dict: dict = set_up_labeling_session(
         config_filename=config_filename
     )
+    print(session_dict)
+
 
 if __name__ == "__main__":
     main()

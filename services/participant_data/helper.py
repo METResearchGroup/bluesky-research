@@ -16,6 +16,7 @@ db_version = 2
 conn = sqlite3.connect(SQLITE_DB_PATH)
 cursor = conn.cursor()
 
+
 class BaseModel(peewee.Model):
     class Meta:
         database = db
@@ -43,13 +44,15 @@ def create_initial_tables(drop_all_tables: bool = False) -> None:
     """Create the initial tables, optionally dropping all existing tables first.
 
     :param drop_all_tables: If True, drops all existing tables before creating new ones.
-    """ # noqa
+    """  # noqa
     with db.atomic():
         if drop_all_tables:
             print("Dropping all tables in database...")
-            db.drop_tables([StudyUser, StudyQuestionnaireData, UserToBlueskyProfile], safe=True)
+            db.drop_tables([StudyUser, StudyQuestionnaireData,
+                           UserToBlueskyProfile], safe=True)
         print("Creating tables in database...")
-        db.create_tables([StudyUser, StudyQuestionnaireData, UserToBlueskyProfile])
+        db.create_tables(
+            [StudyUser, StudyQuestionnaireData, UserToBlueskyProfile])
 
 
 def insert_test_user_to_bsky_profile() -> None:
@@ -61,7 +64,7 @@ def insert_test_user_to_bsky_profile() -> None:
         "study_user_id": user_id,
         "condition": "reverse_chronological",
         "bluesky_handle": bluesky_handle,
-        "bluesky_user_did": bluesky_user_did   
+        "bluesky_user_did": bluesky_user_did
     }
     with db.atomic():
         UserToBlueskyProfile.create(**data)

@@ -39,7 +39,7 @@ def batch_classify_posts(
 def batch_classify_posts_multiprocessing(
     batch: list[dict],
     clf_func: callable,
-    rate_limit_per_minute: Optional[int]=None
+    rate_limit_per_minute: Optional[int] = None
 ) -> list[dict]:
     """Classifies posts in batches using multiprocessing.
 
@@ -49,7 +49,8 @@ def batch_classify_posts_multiprocessing(
         60 / rate_limit_per_minute if rate_limit_per_minute else None
     )
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        classified_posts: list[dict] = pool.map(lambda post: clf_func(post), batch)
+        classified_posts: list[dict] = pool.map(
+            lambda post: clf_func(post), batch)
         if seconds_per_request:
             time.sleep(seconds_per_request)
     return classified_posts
@@ -59,9 +60,9 @@ def batch_classify_posts_multiprocessing(
 def classify_posts(
     posts: list[dict],
     clf_func: callable,
-    batch_size: Optional[int]=None,
-    rate_limit_per_minute: Optional[int]=None,
-    multiprocessing: Optional[bool]=False
+    batch_size: Optional[int] = None,
+    rate_limit_per_minute: Optional[int] = None,
+    multiprocessing: Optional[bool] = False
 ) -> list[dict]:
     """Classifies posts."""
     if batch_size:

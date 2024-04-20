@@ -31,13 +31,14 @@ def write_latest_feeds(user_bluesky_feeds: list[dict]):
 
 
 def create_latest_feeds(reverse_chronological_only: bool = False):
-    print(f"Creating latest feeds...")
+    print("Creating latest feeds...")
     if reverse_chronological_only:
         print("Creating reverse-chronological feeds only.")
         user_to_feed_dict: dict = create_only_reverse_chronological_feeds()
     else:
         user_to_feed_dict: dict = create_ranked_feeds_per_user()
-    user_to_postprocessed_feed_dict: dict = postprocess_feeds(user_to_feed_dict)
+    user_to_postprocessed_feed_dict: dict = postprocess_feeds(
+        user_to_feed_dict)
     validate_postprocessed_feeds(user_to_postprocessed_feed_dict)
     user_bluesky_feeds: list[dict] = convert_feeds_to_bluesky_format(
         user_to_postprocessed_feed_dict

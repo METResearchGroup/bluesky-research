@@ -1,10 +1,13 @@
 """Generates training data to be annotated."""
 
+
 def load_data_to_annotate() -> list[dict]:
     pass
 
 
 def prelabel_posts(posts: list[dict]) -> list[dict]:
+    # batch inference
+    # asve outputs so that I don't have to re-do it in the case of errors
     pass
 
 

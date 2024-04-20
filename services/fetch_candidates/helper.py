@@ -1,12 +1,15 @@
 """Helper functions for generating candidates."""
+
+
 def get_users() -> list[str]:
     return []
+
 
 def fetch_candidates_for_user(
     user_id: str, num_candidates: int
 ) -> list[dict]:
     """Generate candidates for a given user.
-    
+
     Pulls from vector database.
     """
     return []
@@ -14,7 +17,7 @@ def fetch_candidates_for_user(
 
 def write_latest_candidates_per_user(user_to_candidate_dict: dict) -> None:
     """Write the latest candidates per user to database.
-    
+
     We want to store all the candidate posts that we generated per user.
 
     We only need to store user and list of post URIs. Downstream, we can

@@ -9,11 +9,11 @@ from googleapiclient import discovery
 from lib.helper import GOOGLE_API_KEY, logger
 
 google_client = discovery.build(
-  "commentanalyzer",
-  "v1alpha1",
-  developerKey=GOOGLE_API_KEY,
-  discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",
-  static_discovery=False,
+    "commentanalyzer",
+    "v1alpha1",
+    developerKey=GOOGLE_API_KEY,
+    discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1", # noqa
+    static_discovery=False,
 )
 
 default_requested_attributes = {
@@ -100,6 +100,7 @@ attribute_to_labels_map = {
     },
 }
 
+
 def request_comment_analyzer(
     text: str, requested_attributes: dict = None
 ) -> dict:
@@ -116,7 +117,7 @@ def request_comment_analyzer(
 
     response = client.comments().analyze(body=analyze_request).execute()
     print(json.dumps(response, indent=2))
-    """
+    """ # noqa
     if not requested_attributes:
         requested_attributes = default_requested_attributes
     analyze_request = {
@@ -125,7 +126,7 @@ def request_comment_analyzer(
         "requestedAttributes": requested_attributes,
     }
     logger.info(
-        f"Sending request to commentanalyzer endpoint with request={analyze_request}...", # noqa
+        f"Sending request to commentanalyzer endpoint with request={analyze_request}...",  # noqa
     )
     response = google_client.comments().analyze(body=analyze_request).execute()
     return json.dumps(response)
@@ -149,8 +150,8 @@ def classify_text_toxicity(text: str) -> dict:
 
 def classify(
     text: str, attributes: Optional[dict] = default_requested_attributes
-  ) -> dict:
-    """Classify text using all the attributes from the Google Perspectives API.""" # noqa
+) -> dict:
+    """Classify text using all the attributes from the Google Perspectives API."""  # noqa
     response = request_comment_analyzer(
         text=text, requested_attributes=attributes
     )
@@ -158,9 +159,10 @@ def classify(
     classification_probs_and_labels = {}
     for attribute, labels in attribute_to_labels_map.items():
         if attribute in response_obj["attributeScores"]:
-          prob_score = (
-              response_obj["attributeScores"][attribute]["summaryScore"]["value"]
-          )
-          classification_probs_and_labels[labels["prob"]] = prob_score
-          classification_probs_and_labels[labels["label"]] = 0 if prob_score < 0.5 else 1
+            prob_score = (
+                response_obj["attributeScores"][attribute]["summaryScore"]["value"] # noqa
+            )
+            classification_probs_and_labels[labels["prob"]] = prob_score
+            classification_probs_and_labels[labels["label"]
+                                            ] = 0 if prob_score < 0.5 else 1
     return classification_probs_and_labels

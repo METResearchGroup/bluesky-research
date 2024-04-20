@@ -1,20 +1,20 @@
 """Transforms raw data.
 
 Based on https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.defs.json
-"""
+""" # noqa
 import json
 from typing import Optional, TypedDict, Union
 
 from atproto_client.models.app.bsky.actor.defs import (
     ProfileView, ProfileViewBasic, ProfileViewDetailed
 )
-from atproto_client.models.app.bsky.embed.external import External, Main as ExternalEmbed # noqa
-from atproto_client.models.app.bsky.embed.images import Image, Main as ImageEmbed # noqa
+from atproto_client.models.app.bsky.embed.external import External, Main as ExternalEmbed  # noqa
+from atproto_client.models.app.bsky.embed.images import Image, Main as ImageEmbed  # noqa
 from atproto_client.models.app.bsky.embed.record import Main as RecordEmbed
-from atproto_client.models.app.bsky.embed.record_with_media import Main as RecordWithMediaEmbed # noqa
-from atproto_client.models.app.bsky.feed.post import Entity, Main as Record, ReplyRef # noqa
+from atproto_client.models.app.bsky.embed.record_with_media import Main as RecordWithMediaEmbed  # noqa
+from atproto_client.models.app.bsky.feed.post import Entity, Main as Record, ReplyRef  # noqa
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, PostView
-from atproto_client.models.app.bsky.richtext.facet import Link, Main as Facet, Mention, Tag
+from atproto_client.models.app.bsky.richtext.facet import Link, Main as Facet, Mention, Tag # noqa
 from atproto_client.models.com.atproto.label.defs import SelfLabel, SelfLabels
 from atproto_client.models.com.atproto.repo.strong_ref import Main as StrongRef
 from atproto_client.models.dot_dict import DotDict
@@ -22,12 +22,15 @@ from atproto_client.models.dot_dict import DotDict
 from lib.constants import current_datetime
 
 
-LIST_SEPARATOR_CHAR = ';' # we use a semicolon since it's unlikely for text to use semicolons.
-LEGACY_CHAR_SEPARATORS = [';', ','] # some old data might use commas, so this is here in case we want to support that.
+# we use a semicolon since it's unlikely for text to use semicolons.
+LIST_SEPARATOR_CHAR = ';'
+# some old data might use commas, so this is here for backwards compatibility.
+LEGACY_CHAR_SEPARATORS = [';', ',']
+
 
 def get_object_type_str(obj: object) -> str:
     """Get the object type as a string.
-    
+
     The objects are often class instances (e.g., External), but they're also
     denoted either as "$type" or "py_type")
     """
@@ -82,7 +85,7 @@ def process_mention(mention: Mention) -> str:
     """Processes a mention of another Bluesky user.
 
     See https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py
-    """
+    """ # noqa
     return f"mention:{mention.did}"
 
 
@@ -90,7 +93,7 @@ def process_link(link: Link) -> str:
     """Processes a link. The URI here is the link itself.
 
     See https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py
-    """
+    """ # noqa
     return f"link:{link.uri}"
 
 
@@ -100,7 +103,7 @@ def process_hashtag(tag: Tag) -> str:
     would be 'red').
 
     See https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py
-    """
+    """ # noqa
     return f"tag:{tag.tag}"
 
 
@@ -177,7 +180,7 @@ def process_facet(facet: Facet) -> str:
         'tags': None,
         'py_type': 'app.bsky.feed.post'
     }
-    """ # noqa
+    """  # noqa
     features: list = facet.features
     features_list = []
 
@@ -194,7 +197,7 @@ def process_facet(facet: Facet) -> str:
             features_list.append(process_link(feature))
         elif (
             isinstance(feature, Mention)
-            or get_object_type_str(feature) == "app.bsky.richtext.facet#mention"
+            or get_object_type_str(feature) == "app.bsky.richtext.facet#mention" # noqa
         ):
             features_list.append(process_mention(feature))
         else:
@@ -210,18 +213,18 @@ def process_facets(facets: list[Facet]) -> str:
 
 def process_label(label: SelfLabel) -> str:
     """Processes a single label.
-    
-    Example: 
+
+    Example:
     SelfLabel(val='porn', py_type='com.atproto.label.defs#selfLabel'
 
     Returns a single label.
-    """
+    """ # noqa
     return label.val
 
 
 def process_labels(labels: Optional[SelfLabels]) -> str:
     """Processes labels.
-    
+
     Example:
     SelfLabels(
         values=[SelfLabel(val='porn', py_type='com.atproto.label.defs#selfLabel')],
@@ -231,7 +234,7 @@ def process_labels(labels: Optional[SelfLabels]) -> str:
     Based off https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/com/atproto/label/defs.py#L38
     """ # noqa
     label_values: list[SelfLabel] = labels.values
-    return LIST_SEPARATOR_CHAR.join([process_label(label) for label in label_values])
+    return LIST_SEPARATOR_CHAR.join([process_label(label) for label in label_values]) # noqa
 
 
 def process_entity(entity: Entity) -> str:
@@ -245,7 +248,7 @@ def process_entity(entity: Entity) -> str:
         value='https://song.link/s/2Zh97yLVZeOpwzFoXtkfBt',
         py_type='app.bsky.feed.post#entity'
     )
-    """
+    """ # noqa
     return entity.value
 
 
@@ -261,8 +264,8 @@ def process_entities(entities: list[Entity]) -> str:
             py_type='app.bsky.feed.post#entity'
         )
     ]
-    """ # noqa
-    return LIST_SEPARATOR_CHAR.join([process_entity(entity) for entity in entities])
+    """  # noqa
+    return LIST_SEPARATOR_CHAR.join([process_entity(entity) for entity in entities]) # noqa
 
 
 def process_replies(reply: Optional[ReplyRef]) -> dict:
@@ -298,7 +301,7 @@ def process_image(image: Image) -> str:
     Note: the only relevant field to us is the alt text. There's no way to get the
     actual link of the image, and the link that I did find is a hash of the CID.
     (as far as I can tell).
-    """ # noqa
+    """  # noqa
     return image.alt
 
 
@@ -308,15 +311,15 @@ def process_images(image_embed: ImageEmbed) -> str:
     For now, we just return the alt texts of the images, separated by ;
     (since , is likely used in the text itself).
     """
-    return LIST_SEPARATOR_CHAR.join([process_image(image) for image in image_embed.images])
+    return LIST_SEPARATOR_CHAR.join([process_image(image) for image in image_embed.images]) # noqa
 
 
 def process_strong_ref(strong_ref: StrongRef) -> dict:
     """Processes strong reference (a reference to another record)
-    
+
     Follows specs in https://github.com/MarshalX/atproto/blob/main/lexicons/com.atproto.repo.strongRef.json#L4
     and https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/com/atproto/repo/strong_ref.py#L15
-    """ # noqa
+    """  # noqa
     return {
         "cid": strong_ref.cid,
         "uri": strong_ref.uri,
@@ -325,7 +328,7 @@ def process_strong_ref(strong_ref: StrongRef) -> dict:
 
 def process_record_embed(record_embed: RecordEmbed) -> str:
     """Processes record embeds.
-    
+
     Record embeds are posts that are embedded in other posts. This is a way to
     reference another post in a post.
     """
@@ -363,12 +366,15 @@ def process_record_with_media_embed(
     Media is normally an image, but it can also support other embeds
     like links to songs or videos. We currently only process for now if it's an
     image.
-    """ # noqa
+    """  # noqa
     media: Union[ExternalEmbed, ImageEmbed] = record_with_media_embed.media
     record_embed: RecordEmbed = record_with_media_embed.record
 
     processed_image = ""
-    if isinstance(media, ImageEmbed):
+    if (
+        isinstance(media, ImageEmbed)
+        or get_object_type_str(media) == "app.bsky.embed.images"
+    ):
         processed_image: str = process_images(media)
     processed_record: str = process_record_embed(record_embed)
 
@@ -386,14 +392,14 @@ def process_embed(
     Follows specs in https://github.com/MarshalX/atproto/tree/main/packages/atproto_client/models/app/bsky/embed
 
     Image embed class is a container class for an arbitrary amount of attached images (max=4)
-    """ # noqa
+    """  # noqa
     res = {
         "has_image": False,
         "image_alt_text": None,
         "has_embedded_record": False,
         "embedded_record": None,
         "has_external": False,
-        "external": None,    
+        "external": None,
     }
     if embed is None:
         return res
@@ -464,7 +470,7 @@ def flatten_firehose_post(post: dict) -> dict:
         'cid': 'bafyreidmb5wsupl6iz5wo2xjgusjpsrduug6qkpytjjckupdttot6jrbna',
         'author': 'did:plc:sjeosezgc7mpqn6sfc7neabg'
     }
-    """ # noqa
+    """  # noqa
     processed_replies: dict = process_replies(post["record"].reply)
     try:
         # flatten the post
@@ -499,7 +505,8 @@ def flatten_firehose_post(post: dict) -> dict:
                 if post["record"]["tags"] else None
             ),
             "py_type": (
-                post["record"]["py_type"] or get_object_type_str(post["record"])
+                post["record"]["py_type"] or get_object_type_str(
+                    post["record"])
             ),
             "cid": post["cid"],
             "author": post["author"],

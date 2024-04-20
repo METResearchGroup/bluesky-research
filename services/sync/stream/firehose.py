@@ -1,10 +1,13 @@
 """Firehose stream service.
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_stream.py
-"""
+""" # noqa
 import sys
 
-from atproto import AtUri, CAR, firehose_models, FirehoseSubscribeReposClient, models, parse_subscribe_repos_message
+from atproto import (
+    AtUri, CAR, firehose_models, FirehoseSubscribeReposClient, models,
+    parse_subscribe_repos_message
+)
 from atproto.exceptions import FirehoseError
 
 from lib.helper import ThreadSafeCounter
@@ -19,10 +22,14 @@ stream_limit = 250000
 
 cursor_update_frequency = 500
 
-def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict:  # noqa: C901
+
+def _get_ops_by_type(
+    commit: models.ComAtprotoSyncSubscribeRepos.Commit
+) -> dict:
     operation_by_type = {
         'posts': {'created': [], 'deleted': []},
-        'reposts': {'created': [], 'deleted': []}, # NOTE: is it possible to track reposts? 
+        # NOTE: is it possible to track reposts?
+        'reposts': {'created': [], 'deleted': []},
         'likes': {'created': [], 'deleted': []},
         'follows': {'created': [], 'deleted': []},
     }
@@ -39,22 +46,32 @@ def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict
             if not op.cid:
                 continue
 
-            create_info = {'uri': str(uri), 'cid': str(op.cid), 'author': commit.repo}
+            create_info = {'uri': str(uri), 'cid': str(
+                op.cid), 'author': commit.repo}
 
             record_raw_data = car.blocks.get(op.cid)
             if not record_raw_data:
                 continue
 
             record = models.get_or_create(record_raw_data, strict=False)
-            if (uri.collection == models.ids.AppBskyFeedLike
-                    and models.is_record_type(record, models.AppBskyFeedLike)):
-                operation_by_type['likes']['created'].append({'record': record, **create_info})
-            elif (uri.collection == models.ids.AppBskyFeedPost
-                  and models.is_record_type(record, models.AppBskyFeedPost)):
-                operation_by_type['posts']['created'].append({'record': record, **create_info})
-            elif (uri.collection == models.ids.AppBskyGraphFollow
-                  and models.is_record_type(record, models.AppBskyGraphFollow)):
-                operation_by_type['follows']['created'].append({'record': record, **create_info})
+            if (
+                uri.collection == models.ids.AppBskyFeedLike
+                and models.is_record_type(record, models.AppBskyFeedLike)
+            ):
+                operation_by_type['likes']['created'].append(
+                    {'record': record, **create_info})
+            elif (
+                uri.collection == models.ids.AppBskyFeedPost
+                and models.is_record_type(record, models.AppBskyFeedPost)
+            ):
+                operation_by_type['posts']['created'].append(
+                    {'record': record, **create_info})
+            elif (
+                uri.collection == models.ids.AppBskyGraphFollow
+                and models.is_record_type(record, models.AppBskyGraphFollow)
+            ):
+                operation_by_type['follows']['created'].append(
+                    {'record': record, **create_info})
 
         if op.action == 'delete':
             if uri.collection == models.ids.AppBskyFeedLike:
@@ -62,7 +79,8 @@ def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict
             if uri.collection == models.ids.AppBskyFeedPost:
                 operation_by_type['posts']['deleted'].append({'uri': str(uri)})
             if uri.collection == models.ids.AppBskyGraphFollow:
-                operation_by_type['follows']['deleted'].append({'uri': str(uri)})
+                operation_by_type['follows']['deleted'].append(
+                    {'uri': str(uri)})
 
     return operation_by_type
 
@@ -81,7 +99,8 @@ def _run(name, operations_callback, stream_stop_event=None):
 
     params = None
     if state:
-        params = models.ComAtprotoSyncSubscribeRepos.Params(cursor=state.cursor)
+        params = models.ComAtprotoSyncSubscribeRepos.Params(
+            cursor=state.cursor)
 
     client = FirehoseSubscribeReposClient(params)
 
@@ -96,7 +115,7 @@ def _run(name, operations_callback, stream_stop_event=None):
             client.stop()
             return
 
-        # possible types of messages: https://github.com/bluesky-social/atproto/blob/main/packages/api/src/client/lexicons.ts#L3298
+        # possible types of messages: https://github.com/bluesky-social/atproto/blob/main/packages/api/src/client/lexicons.ts#L3298 # noqa
         if message.type == "#identity":
             return
         commit = parse_subscribe_repos_message(message)
@@ -106,8 +125,10 @@ def _run(name, operations_callback, stream_stop_event=None):
         # update stored state
         if commit.seq % cursor_update_frequency == 0:
             print(f'Updated cursor for {name} to {commit.seq}')
-            client.update_params(models.ComAtprotoSyncSubscribeRepos.Params(cursor=commit.seq))
-            SubscriptionState.update(cursor=commit.seq).where(SubscriptionState.service == name).execute()
+            client.update_params(
+                models.ComAtprotoSyncSubscribeRepos.Params(cursor=commit.seq))
+            SubscriptionState.update(cursor=commit.seq).where(
+                SubscriptionState.service == name).execute()
 
         if not commit.blocks:
             return
@@ -124,7 +145,7 @@ def _run(name, operations_callback, stream_stop_event=None):
                 print(f"Counter: {counter_value}")
             if counter.get_value() > stream_limit:
                 total_posts_in_db: int = get_num_posts()
-                print(f"Counter value {counter_value} > stream limit: {stream_limit}. Total posts in DB: {total_posts_in_db}. Exiting...")
+                print(f"Counter value {counter_value} > stream limit: {stream_limit}. Total posts in DB: {total_posts_in_db}. Exiting...") # noqa
                 sys.exit(0)
 
     client.start(on_message_handler)

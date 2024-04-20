@@ -5,7 +5,6 @@ BASE_PROMPT = """
     Can you define if the content defined in <CONTENT> has "civic" content or not?
 
     Use the following definition of "civic":
-    - 
 
     Here are some examples of civic content:
     {civic_examples}
@@ -14,7 +13,7 @@ BASE_PROMPT = """
     {non_civic_examples}
 
     <CONTENT>
-"""
+""" # noqa
 
 PROMPT_WITH_CONTEXT = """
 
@@ -34,6 +33,7 @@ PROMPT_GET_MOST_RELEVANT_CONTEXT = """
     Example output:
     {relevant_context_output_example}
 """
+
 
 def filter_relevant_context() -> str:
     """Grab only the most relevant article, if any, for a given post."""

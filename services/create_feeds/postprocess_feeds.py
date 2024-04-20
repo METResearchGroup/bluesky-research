@@ -10,7 +10,7 @@ from services.create_feeds.models import CreatedFeedModel
 
 def postprocess_feed(user: str, feed: list[dict]) -> list[dict]:
     """Postprocesses a feed for a given user.
-    
+
     Currently stubbed as a placeholder, but we will likely want this in the
     future.
     """
@@ -51,7 +51,7 @@ def convert_feeds_to_bluesky_format(user_to_feed_dict: dict) -> list[dict]:
 
     We will hydrate this on the API side, but for now we just need to store the
     feed URIs for each user for this recommendation of feed generation.
-    """
+    """ # noqa
     user_feeds = []
     for user, feed in user_to_feed_dict.items():
         user_feed = {

@@ -18,6 +18,7 @@ REQUIRED_FIELDS = ["task_name", "task_description", "label_options"]
 
 default_timestamp = current_datetime_str
 
+
 def config_is_valid(config: dict) -> bool:
     """Checks if a config file has the required fields."""
     for task in REQUIRED_FIELDS:
@@ -29,19 +30,17 @@ def config_is_valid(config: dict) -> bool:
 def load_config_for_labeling_session(config_filename: str) -> dict:
     """Load configuration for a labeling session."""
     full_fp = os.path.join(CONFIGS_DIR, config_filename)
-    breakpoint()
     if config_filename.endswith(".json"):
-        breakpoint()
         with open(full_fp, "r") as full_fp:
             config = json.load(full_fp)
     else:
-        raise ValueError("Config has to currently be a .json, other formats are not supported") # noqa
+        raise ValueError("Config has to currently be a .json, other formats are not supported")  # noqa
     return config
 
 
 def define_config_for_labeling_session() -> dict:
     """Define the config for the labeling session, using interactive inputs."""
-    num_samples = input(f"Number of samples to label (optional, default={DEFAULT_SESSION_NUM_SAMPLES}): ") # noqa
+    num_samples = input(f"Number of samples to label (optional, default={DEFAULT_SESSION_NUM_SAMPLES}): ")  # noqa
     if num_samples:
         num_samples = int(num_samples)
     else:
@@ -50,24 +49,25 @@ def define_config_for_labeling_session() -> dict:
     task_name = None
     while not task_name:
         task_name = input("Task name (required): ")
-    task_description = input("Task description - what is the purpose of the labeling task? (required): ")
-    label_options = input("Label options, as a comma-separated string (required): ")
+    task_description = input("Task description - what is the purpose of the labeling task? (required): ")  # noqa
+    label_options = input(
+        "Label options, as a comma-separated string (required): ")
     label_options: list[str] = label_options.split(",")
     label_options = [option.strip() for option in label_options]
 
     default_labeling_session_name = f"{task_name}_{default_timestamp}"
-    labeling_session_name = input(f"Name of the session (optional, default = {default_labeling_session_name}): ") # noqa
+    labeling_session_name = input(f"Name of the session (optional, default = {default_labeling_session_name}): ")  # noqa
     if not labeling_session_name:
         labeling_session_name = default_labeling_session_name
     default_data_to_label_filename = f"{labeling_session_name}.jsonl"
-    data_to_label_filename = input(f"Name to give to the dataset that will be labeled (optional, default = {default_data_to_label_filename}): ")
+    data_to_label_filename = input(f"Name to give to the dataset that will be labeled (optional, default = {default_data_to_label_filename}): ")  # noqa
     if not data_to_label_filename:
         data_to_label_filename = default_data_to_label_filename
 
     notes = input("Notes (optional): ")
 
     default_config_filename = f"{labeling_session_name}.json"
-    config_filename = input(f"Name of config file (optional, default = {default_config_filename}): ")
+    config_filename = input(f"Name of config file (optional, default = {default_config_filename}): ") # noqa
     if not config_filename:
         config_filename = default_config_filename
 
@@ -83,7 +83,9 @@ def define_config_for_labeling_session() -> dict:
     }
 
 
-def get_config_for_labeling_session(config_filename: Optional[str]=None) -> dict:
+def get_config_for_labeling_session(
+    config_filename: Optional[str] = None
+) -> dict:
     """Generate the configs for the current labeling session."""
     if config_filename:
         try:
@@ -91,7 +93,7 @@ def get_config_for_labeling_session(config_filename: Optional[str]=None) -> dict
         except FileNotFoundError:
             print(f"Config file not found at {config_filename}.")
             config = define_config_for_labeling_session()
-    else:    
+    else:
         config = define_config_for_labeling_session()
     if not config_is_valid(config):
         raise ValueError("Config is not valid.")
@@ -114,22 +116,22 @@ def load_existing_data_to_label(data_to_label_filename: str) -> list[dict]:
 def load_data_to_label(
     task_name: str,
     data_to_label_filename: Optional[str] = None,
-    num_samples: Optional[int]=DEFAULT_SESSION_NUM_SAMPLES,
+    num_samples: Optional[int] = DEFAULT_SESSION_NUM_SAMPLES,
     most_recent_posts: Optional[bool] = False
 ) -> list[dict]:
     """Returns a list of the data to label. Loads data that hasn't been labeled
     yet (optionally can return the most recent posts that haven't been labeled).
-    
+
     For now, we will load raw data from the database, but we can change this
     to load only filtered data instead. By default, we'll take a subset of the
     fields.
-    """
+    """ # noqa
     if data_to_label_filename:
         try:
-            data_to_label: list[dict] = load_existing_data_to_label(data_to_label_filename) # noqa
+            data_to_label: list[dict] = load_existing_data_to_label(data_to_label_filename)  # noqa
             return data_to_label
         except FileNotFoundError:
-            print(f"Data to label not found at {data_to_label_filename}. Generating new set of data to label...") 
+            print(f"Data to label not found at {data_to_label_filename}. Generating new set of data to label...") # noqa
     # TODO: update to get only filtered posts.
     if most_recent_posts:
         posts: list[dict] = get_posts_as_list_dicts(
@@ -175,7 +177,7 @@ def export_config(config: dict, config_filename: str) -> None:
     print(f"Exported config at {full_fp}")
 
 
-def set_up_labeling_session(config_filename: Optional[str]=None) -> dict:
+def set_up_labeling_session(config_filename: Optional[str] = None) -> dict:
     """Set up a labeling session.
 
     Defines any configuration required for the training session, and adds
@@ -224,11 +226,11 @@ def set_up_labeling_session(config_filename: Optional[str]=None) -> dict:
 
     export_config(config=config_to_export, config_filename=config_filename)
 
-    print(f"Labeling session set up for config {config_filename} to label data at {data_to_label_filename} at {timestamp}.") # noqa
+    print(f"Labeling session set up for config {config_filename} to label data at {data_to_label_filename} at {timestamp}.")  # noqa
     return {
         "config": config_to_export,
         "data_to_label": data_to_label
     }
 
 
-## TODO: put the function here that setups of the posts for labeling
+# TODO: put the function here that setups of the posts for labeling

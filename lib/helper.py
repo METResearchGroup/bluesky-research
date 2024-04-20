@@ -49,7 +49,7 @@ def track_function_runtime(func):
             execution_time_seconds - (60 * execution_time_minutes)
         )
 
-        print(f"Execution time for {func.__name__}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds") # noqa
+        print(f"Execution time for {func.__name__}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds")  # noqa
 
         return result
 
@@ -64,7 +64,7 @@ def track_memory_usage(func):
         result = func(*args, **kwargs)
         mem_after = memory_usage(-1, interval=0.1, timeout=1)
 
-        print(f"Memory usage for {func.__name__}: {max(mem_after) - min(mem_before)} MB")
+        print(f"Memory usage for {func.__name__}: {max(mem_after) - min(mem_before)} MB") # noqa
 
         return result
 
@@ -90,8 +90,8 @@ def track_performance(func):
             execution_time_seconds - (60 * execution_time_minutes)
         )
 
-        print(f"Execution time for {func.__name__}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds") # noqa
-        print(f"Memory usage for {func.__name__}: {max(mem_after) - min(mem_before)} MB") # noqa
+        print(f"Execution time for {func.__name__}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds")  # noqa
+        print(f"Memory usage for {func.__name__}: {max(mem_after) - min(mem_before)} MB")  # noqa
         return result
 
     return wrapper

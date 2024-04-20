@@ -5,7 +5,6 @@ Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/dat
 import json
 import os
 import peewee
-import sqlite3
 
 import pandas as pd
 from pydantic import ValidationError as PydanticValidationError
@@ -24,13 +23,14 @@ existing_users_bsky_dids_set = set(
     study_participants_bsky_profiles_df["bluesky_user_did"]
 )
 
+
 def filter_by_user_in_study(bsky_did: str) -> bool:
     return bsky_did in existing_users_bsky_dids_set
 
 
 def manage_likes(likes: dict[str, list]) -> dict:
     """Manages the likes and follows.
-    
+
     We'll build this in later, but this is a placeholder function for when we
     do manage the likes. We only want to do this when it involves a user in our
     study (e.g., if a user likes a post)
@@ -45,7 +45,7 @@ def manage_likes(likes: dict[str, list]) -> dict:
 
 def manage_follows(follows: dict[str, list]) -> dict:
     """Manages the follows.
-    
+
     We'll build this in later, but this is a placeholder function for when we
     do manage the follows. We only want to do this when it involves a user in
     our study (e.g., if a user follows an account).
@@ -60,7 +60,7 @@ def manage_follows(follows: dict[str, list]) -> dict:
 
 def manage_posts(posts: dict[str, list]) -> dict:
     """Manages which posts to create or delete.
-    
+
     We want to track any new posts in our database.
     """
     posts_to_create: list[dict] = []
@@ -110,22 +110,20 @@ def manage_post_creation(posts_to_create: list[dict]) -> None:
                 RawPostModel(**post_dict)
                 RawPost.create(**post_dict)
             except PydanticValidationError as e:
-                print(f"Pydantic error validating post with URI {post_dict['uri']}: {e}")
-                breakpoint()
+                print(f"Pydantic error validating post with URI {post_dict['uri']}: {e}") # noqa
                 continue
             except peewee.IntegrityError as e:
                 # can come from duplicate records, schema invalidation, etc.
                 error_str = str(e)
                 if "UNIQUE constraint failed" in error_str:
-                    print(f"Post with URI {post_dict['uri']} already exists in DB.")
+                    print(f"Post with URI {post_dict['uri']} already exists in DB.") # noqa
                 else:
-                    print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}")
+                    print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}") # noqa
                 continue
             except peewee.OperationalError as e:
-                # generally comes from sqlite3 errors itself, not just something
-                # with the schema or the DB.
-                print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}")
-                breakpoint()
+                # generally comes from sqlite3 errors itself, not just
+                # something with the schema or the DB.
+                print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}") # noqa
                 continue
 
 
@@ -206,7 +204,7 @@ def operations_callback(operations_by_type: dict) -> bool:
         'likes': {'created': [], 'deleted': []},
         'follows': {'created': [], 'deleted': []}
     }
-    """ # noqa
+    """  # noqa
     post_updates = filter_incoming_posts(operations_by_type)
     posts_to_create = post_updates["posts_to_create"]
     posts_to_delete = post_updates["posts_to_delete"]
@@ -223,8 +221,8 @@ def operations_callback(operations_by_type: dict) -> bool:
     # write to storage: we may want to do this later but not for now. We do
     # this in case we want to store the raw data as JSONs somewhere, which
     # we may want to do?
-    #has_written_data = False
-    #if posts_to_create:
+    # has_written_data = False
+    # if posts_to_create:
     #    has_written_data = write_posts_to_local_storage(posts_to_create)
 
     return has_written_data

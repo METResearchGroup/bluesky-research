@@ -18,7 +18,7 @@ from services.transform.transform_raw_data import (
 current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 classifications_filename = f"classified_posts_{current_datetime}.jsonl"
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
-classifications_fp = os.path.join(current_file_directory, classifications_filename) # noqa
+classifications_fp = os.path.join(current_file_directory, classifications_filename)  # noqa
 
 
 def load_posts_from_author_feeds(limit: int = None) -> list[FeedViewPost]:
@@ -42,13 +42,13 @@ def export_classified_posts(
         with open(classifications_fp, "w", encoding="utf-8") as f:
             for post in classified_posts:
                 f.write(post + "\n")
-        print(f"Wrote {len(classified_posts)} classified posts to {classifications_filename}") # noqa
+        print(f"Wrote {len(classified_posts)} classified posts to {classifications_filename}")  # noqa
     else:
         df_filename = f"classified_posts_{current_datetime}.csv"
         df_fp = os.path.join(current_file_directory, df_filename)
         df = pd.DataFrame(classified_posts)
         df.to_csv(df_fp, index=False)
-        print(f"Wrote {len(classified_posts)} classified posts to {df_filename}") # noqa
+        print(f"Wrote {len(classified_posts)} classified posts to {df_filename}")  # noqa
 
 
 @track_function_runtime
@@ -57,7 +57,8 @@ def main(event: dict, context: dict) -> int:
     raw_posts: list[FeedViewPost] = load_posts_from_author_feeds(
         limit=event.get("limit")
     )
-    posts: list[FlattenedFeedViewPost] = preprocess_posts_for_inference(raw_posts)
+    posts: list[FlattenedFeedViewPost] = preprocess_posts_for_inference(
+        raw_posts)
     classified_posts: list[dict] = perform_inference(posts)
     export_classified_posts(
         classified_posts=classified_posts,

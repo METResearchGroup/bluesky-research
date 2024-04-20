@@ -10,7 +10,7 @@ is trying to classify the language of every post on their end
 Our model only runs if the language isn't specificed by the record, so it
 could be the case that we don't have to run our model altogether, depending on
 how Bluesky proceeds.
-""" # noqa
+"""  # noqa
 import os
 
 import fasttext

@@ -9,7 +9,7 @@ DEFAULT_BATCH_SIZE = None
 
 def classify_single_post(post: dict) -> dict:
     """Classifies the language of a single post.
-    
+
     If we have metadata for the language of the post via the Bluesky firehose,
     we'll use that. Otherwise, we'll use our model to classify the language.
     """
@@ -25,7 +25,7 @@ def classify_single_post(post: dict) -> dict:
 
 
 def classify_language_of_posts(
-    posts: list[dict], batch_size: int=DEFAULT_BATCH_SIZE
+    posts: list[dict], batch_size: int = DEFAULT_BATCH_SIZE
 ) -> list[dict]:
     """Classifies the language of multiple posts."""
     return classify_posts(

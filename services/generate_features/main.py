@@ -6,5 +6,6 @@ def main():
     """Runs the main function."""
     generate_features()
 
+
 if __name__ == "__main__":
     main()

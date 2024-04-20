@@ -124,7 +124,7 @@ class S3:
     ) -> None:
         """Writes batch of posts to s3."""
         with thread_lock:
-            print(f"Writing batch of {len(posts)} posts to S3 in chunks of {batch_size}...") # noqa
+            print(f"Writing batch of {len(posts)} posts to S3 in chunks of {batch_size}...")  # noqa
             while posts:
                 batch = posts[:batch_size]
                 timestamp = str(int(time.time()))
@@ -189,7 +189,7 @@ class S3:
         Example partitioned keys:
         - recommendations/userid={userid}/timestamp={timestamp}/recommendation.json
         - feeds/userid={userid}/timestamp={timestamp}/feed.json
-        """ # noqa
+        """  # noqa
         return os.path.join(
             key_root, f"userid={userid}", f"timestamp={timestamp}", filename
         )

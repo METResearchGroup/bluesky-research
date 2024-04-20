@@ -12,11 +12,11 @@ def search_by_query(
     query: str, limit: int = DEFAULT_LIMIT_RESULTS_PER_REQUEST
 ) -> list[dict]:
     """Search by query. Uses the same endpoint as the search bar on the app.
-    
+
     Corresponding lexicon:
     - https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.searchPosts.json
     - https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/feed/search_posts.py
-    
+
     Example post (out of a list of posts) returned from query (before flattening):
     {
         'author': ProfileViewBasic(did='did:plc:7punls2ofrpj3x4tikb5n7ho', handle='lfb.bsky.social', avatar='https://cdn.bsky.app/img/avatar/plain/did:plc:7punls2ofrpj3x4tikb5n7ho/bafkreieyz7vk7o524asr4zgl2fsnpiezyjmntl6fyc3cpnageorsx7rnli@jpeg', display_name='Kuřák na paprice 🌶️', labels=[Label(cts='1970-01-01T00:00:00.000Z', src='did:plc:7punls2ofrpj3x4tikb5n7ho', uri='at://did:plc:7punls2ofrpj3x4tikb5n7ho/app.bsky.actor.profile/self', val='!no-unauthenticated', cid='bafyreichedyddadjykey3ilwmrhtrtsr2roelvbw6mexxjpuqcbjdurnie', neg=False, py_type='com.atproto.label.defs#label')], viewer=ViewerState(blocked_by=False, blocking=None, blocking_by_list=None, followed_by=None, following=None, muted=False, muted_by_list=None, py_type='app.bsky.actor.defs#viewerState'), py_type='app.bsky.actor.defs#profileViewBasic'),
@@ -47,7 +47,7 @@ def search_by_query(
         'reply_count': 0,
         'repost_count': 0
     }
-    """ # noqa
+    """  # noqa
     kwargs = {"q": query}
     posts: list[PostView] = send_request_with_pagination(
         func=client.app.bsky.feed.search_posts,

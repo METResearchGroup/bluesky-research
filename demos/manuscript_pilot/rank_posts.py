@@ -1,6 +1,6 @@
 """Given a .csv of files, rank posts."""
 
-# inspired by https://github.com/twitter/the-algorithm-ml/blob/main/projects/home/recap/README.md
+# inspired by https://github.com/twitter/the-algorithm-ml/blob/main/projects/home/recap/README.md # noqa
 LIKES_SCORE = 1
 RETWEETS_SCORE = 1.5
 COMMENTS_SCORE = 2

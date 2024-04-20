@@ -3,7 +3,8 @@ from peewee import TextField
 from playhouse.migrate import migrate, SqliteMigrator
 
 
-# table_name comes from [class]._meta.table_name (e.g., RawPost._meta.table_name)
+# table_name comes from [class]._meta.table_name
+# (e.g., RawPost._meta.table_name)
 def add_new_column_to_table(
     cls,
     cursor,

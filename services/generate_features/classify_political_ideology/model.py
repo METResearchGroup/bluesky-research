@@ -11,8 +11,7 @@ To run only on posts that are assumed to be civic.
 """
 from typing import Optional
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from lib.helper import track_function_runtime
 
@@ -50,28 +49,30 @@ DEFAULT_BATCH_SIZE = 1
 
 
 def classify_text(text: str):
-        prompt = base_prompt.format(text=text)
-        input_ids = tokenizer(prompt, return_tensors="pt")
-        outputs = model.generate(**input_ids, max_new_tokens=512)
-        print(f"Outputs: {outputs}")
-        return outputs
+    prompt = base_prompt.format(text=text)
+    input_ids = tokenizer(prompt, return_tensors="pt")
+    outputs = model.generate(**input_ids, max_new_tokens=512)
+    print(f"Outputs: {outputs}")
+    return outputs
 
 
 @track_function_runtime
 def classify_post_texts(
     post_texts: list[str],
-    batch_size: Optional[int]=DEFAULT_BATCH_SIZE
+    batch_size: Optional[int] = DEFAULT_BATCH_SIZE
 ) -> list[str]:
     """Classify a batch of posts."""
     results = []
     for i in range(0, len(post_texts), batch_size):
         batch_prompts = [
-            base_prompt.format(text=post_text) for post_text in post_texts[i:i+batch_size]
+            base_prompt.format(text=post_text)
+            for post_text in post_texts[i:i+batch_size]
         ]
-        #batch_results = pipeline(batch_prompts)
+        # batch_results = pipeline(batch_prompts)
         input_ids = tokenizer(batch_prompts, return_tensors="pt")
-        outputs = model.generate(**input_ids, max_length=512, max_new_tokens=512)
-        #results.extend(batch_results)
+        outputs = model.generate(
+            **input_ids, max_length=512, max_new_tokens=512)
+        # results.extend(batch_results)
         print(f"Outputs: {outputs}")
         results.extend(outputs)
     return results
@@ -89,11 +90,7 @@ def classify_posts(posts: list[dict]) -> list[dict]:
 
 if __name__ == "__main__":
     post_texts = [
-        "I think that the government should provide more social services.",
-        #"“Is it technically fascism?” “Is it technically rape?” “Is it technically genocide?” Remarkable the smug ease with which so many people have replaced moral inquiries with semantic ones.",
-        #"I've reached out to the offices of all 22 Democrats who voted to censure Rep. Rashida Tlaib because of her comments on Israel/Palestine to see if they planned to do the same for her Republican colleague from Michigan.",
-        #"This has been the fundamental problem the political press has had with Trump. They've been conditioned to believe it's only a scandal if it's a secret that's been exposed, so all the crimes that Trump does brazenly out in the open — bragging about them on camera even — somehow don't count."
+        "I think that the government should provide more social services."
     ]
-    #classifications: list[dict] = classify_post_texts(post_texts)
     for text in post_texts:
         classify_text(text)

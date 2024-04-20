@@ -8,7 +8,7 @@ def classify_user_as_bot(user: dict) -> bool:
 
 def update_bot_accounts() -> None:
     """Updates the bot accounts database.
-    
+
     Goes through the user accounts and updates the bot accounts database
     based on the probability that a user is a bot account.
 

@@ -15,6 +15,7 @@ db_version = 2
 conn = sqlite3.connect(SQLITE_DB_PATH)
 cursor = conn.cursor()
 
+
 class BaseModel(peewee.Model):
     class Meta:
         database = db
@@ -47,7 +48,7 @@ def write_created_feed(data: dict) -> None:
         try:
             CreatedFeeds.create(**data)
         except peewee.IntegrityError as e:
-            print(f"Error inserting created feed for user {data['bluesky_user_did']} into DB: {e}")
+            print(f"Error inserting created feed for user {data['bluesky_user_did']} into DB: {e}") # noqa
             return
 
 
@@ -58,7 +59,7 @@ def batch_write_created_feeds(data: list[dict]) -> None:
             try:
                 CreatedFeeds.create(**feed)
             except peewee.IntegrityError as e:
-                print(f"Error inserting created feed for user {feed['bluesky_user_did']} into DB: {e}")
+                print(f"Error inserting created feed for user {feed['bluesky_user_did']} into DB: {e}") # noqa
                 continue
 
 
@@ -77,9 +78,10 @@ def get_num_created_feeds() -> int:
 if __name__ == "__main__":
     num_created_feeds = get_num_created_feeds()
     print(f"Total number of created feeds: {num_created_feeds}")
-    latest_timestamp = CreatedFeeds.select().order_by(CreatedFeeds.timestamp.desc()).first().timestamp
+    latest_timestamp = CreatedFeeds.select().order_by(
+        CreatedFeeds.timestamp.desc()
+    ).first().timestamp
     print(f"Latest timestamp for feed creation: {latest_timestamp}")
     feeds = get_created_feeds()
     for feed in feeds:
         print(feed)
-        breakpoint()
