@@ -419,9 +419,10 @@ def generate_complete_prompt(
         full_context += f"<{context_type}>\n {context_details}\n"
     if full_context:
         full_context = f"""
-The classification of a post might depend on contextual information. Attend to the context where appropriate.
-For example, the text in a post might comment on an image or on a retweeted post.
-Here is some context on the post that needs classification:
+The classification of a post might depend on contextual information. \
+For example, the text in a post might comment on an image or on a retweeted post. \
+Attend to the context where appropriate. \
+Here is some context on the post that needs classification: \
 ```
 {full_context}
 ```
@@ -433,6 +434,8 @@ Again, the text of the post that needs to be classified is:
 """  # noqa
     if justify_result:
         full_context += "\nAfter giving your label, start a new line and then justify your answer in 1 sentence."  # noqa
+    else:
+        full_context += "\nJustifications are not necessary."
     return base_prompt.format(
         task_prompt=task_prompt, post_text=post_text, context=full_context
     )

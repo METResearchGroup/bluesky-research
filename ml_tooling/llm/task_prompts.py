@@ -4,7 +4,13 @@ Imagine that you are a political ideology classifier, specifically focused on th
 Please classify the text denoted in <text> based on the political lean of the opinion or argument \
 it presents. Your options are 'left-leaning', 'moderate', 'right-leaning', or 'unclear'. \
 You are analyzing text that has been pre-identified as 'political' in nature. Only provide the label \
-("left-leaning", "moderate", "right-leaning", "unclear") in your response. Justifications are not necessary. \
+("left-leaning", "moderate", "right-leaning", "unclear") in your response. \
+
+Return in a JSON format in the following way:
+{
+    "political_ideology": <four values, 'left-leaning', 'moderate', 'right-leaning', 'unclear'>,
+    "reason": <optional, a 1 sentence reason for why the text has the given political ideology>
+}
 """  # noqa
 
 civic_prompt = """
@@ -14,7 +20,13 @@ social issues (major issues that affect a large group of people, such as the eco
 wealth differences, racism, education, immigration, human rights, the environment, etc.). We refer to any content \
 that is classified as being either of these two categories as “civic”; otherwise they are not civic. \
 Please classify the following text denoted in <text> as "civic" or "not civic". Only provide "civic" or \
-"not civic" in your response. Justifications are not necessary. \
+"not civic" in your response. \
+
+Return in a JSON format in the following way:
+{
+    "civic": <two values, 'civic' or 'not civic'>,
+    "reason": <optional, a 1 sentence reason for why the text is civic>
+}
 """  # noqa
 
 civic_and_political_ideology_prompt = """
@@ -112,11 +124,34 @@ Return in a JSON format in the following way:
 }
 """  # noqa
 
+rewrite_if_toxic_prompt = """
+Imagine that you are a toxicity classifier. We define a post having toxicity as \
+a rude, disrespectful, or unreasonable comment that is likely to make people leave a discussion. \
+This content is harmful, offensive, or damaging, and is usually characterized \
+by negativity, aggression, or disrespect.
+
+Please classify the following text denoted in <text> as "toxic" or "not toxic".
+
+Think through your response step by step.
+
+Then, if the post is toxic, re-write the text of a post in a way that removes \
+any toxic content but maintains the original meaning and sentiment.
+
+Return in a JSON format in the following way:
+{
+    "toxicity": <two values, 'toxic' or 'not toxic'>,
+    "reason": <optional, a 1 sentence reason for why the text is toxic>,
+    "original_text": <the original text of the post>,
+    "rewritten_text": <optional, the rewritten text of the post. If not toxic, return null> 
+}
+"""  # noqa
+
 
 task_name_to_task_prompt_map = {
     "political_ideology": political_ideology_prompt,
     "civic": civic_prompt,
     "both": civic_and_political_ideology_prompt,
     "toxicity": toxicity_prompt,
-    "constructiveness": constructiveness_prompt
+    "constructiveness": constructiveness_prompt,
+    "rewrite_if_toxic": rewrite_if_toxic_prompt,
 }

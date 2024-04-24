@@ -9,12 +9,13 @@ import textwrap
 
 import streamlit as st
 
-from ml_tooling.llm.inference import BACKEND_OPTIONS, run_query
+from ml_tooling.llm.inference import run_query
 from ml_tooling.llm.prompt_helper import (
     generate_complete_prompt,
     generate_complete_prompt_for_given_post,
     generate_context_details_list
 )
+from ml_tooling.llm.task_prompts import task_name_to_task_prompt_map
 from ml_tooling.perspective_api.helper import classify_single_post
 from transform.bluesky_helper import convert_post_link_to_post
 
@@ -28,6 +29,7 @@ option_to_task_name_map = {
     "Both Civic and Political": "both",
     "Toxicity": "toxicity",
     "Constructiveness": "constructiveness",
+    "Rewrite if toxic": "rewrite_if_toxic"
 }
 
 
@@ -51,7 +53,7 @@ option = st.selectbox(
     'Choose your option',
     (
         'Civic', 'Political Ideology', "Both Civic and Political",
-        "Toxicity", "Constructiveness", "Perspective API"
+        "Toxicity", "Constructiveness", "Perspective API", "Rewrite if toxic"
     )
 )
 
@@ -124,9 +126,11 @@ if st.button('Submit'):
         st.subheader("Prompt to the LLM:")
         if is_text_bool:
             context_details_list = []
+            task_name = option_to_task_name_map[option]
             prompt: str = (
                 generate_complete_prompt(
-                    post=post, task_prompt=option_to_task_name_map[option],
+                    post=post,
+                    task_prompt=task_name_to_task_prompt_map[task_name],
                     context_details_list=context_details_list,
                     justify_result=justify_result_bool
                 )
