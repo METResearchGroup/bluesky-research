@@ -5,6 +5,7 @@ Resource for all things prompting: https://github.com/dair-ai/Prompt-Engineering
 import json
 
 from ml_tooling.llm.task_prompts import task_name_to_task_prompt_map
+from services.add_context.current_events_enrichment.bsky_news_orgs import bsky_did_to_news_org_name  # noqa
 from services.add_context.current_events_enrichment.newsapi_context import url_is_to_news_domain  # noqa
 from transform.bluesky_helper import get_post_record_given_post_uri
 from transform.transform_raw_data import flatten_firehose_post, LIST_SEPARATOR_CHAR  # noqa
@@ -30,7 +31,8 @@ embedded_content_type_to_preamble_map = {
     "tags": "The post contains the following tags:",
     "linked_urls": "The post links to external URLs:",
     "parent_reply": "The post is a reply to another post with the following details:",  # noqa
-    "parent_root": "The post is part of a thread that starts with the following post:"  # noqa
+    "parent_root": "The post is part of a thread that starts with the following post:",  # noqa
+    "post_author": "We have context about the post's author:"
 }
 
 
@@ -276,6 +278,8 @@ def context_embed_url(post: dict) -> str:
     """
     output_str = ""
     embed: str = post["embed"]
+    if not embed:
+        return output_str
     embed_dict = json.loads(embed)
     if embed_dict["has_external"]:
         external_content_json = embed_dict["external"]
@@ -367,12 +371,27 @@ def additional_current_events_context(post: dict) -> str:
     pass
 
 
+def post_author_context(post: dict) -> str:
+    """Returns contextual information about the post's author.
+
+    For now, we just return if the post author is a news org, but we can add to
+    this later on.
+    """
+    output_str = ""
+    author = post["author"]
+    if author in bsky_did_to_news_org_name:
+        news_org = bsky_did_to_news_org_name[author]
+        output_str = f"{embedded_content_type_to_preamble_map['post_author']}\n- The post is from a reputable news outlet: {news_org}\n"  # noqa
+    return output_str
+
+
 post_context_and_funcs = [
     ("Content referenced or linked to in the post", embedded_content_context),
     ("URLs", post_linked_urls),
     ("Thread that the post is a part of", define_thread_context),
     ("Tags and labels in the post", post_tags_labels),
-    ("Context about current events", additional_current_events_context)
+    ("Context about current events", additional_current_events_context),
+    ("Context about the post author", post_author_context)
 ]
 
 
@@ -400,6 +419,8 @@ def generate_complete_prompt(
         full_context += f"<{context_type}>\n {context_details}\n"
     if full_context:
         full_context = f"""
+The classification of a post might depend on contextual information. Attend to the context where appropriate.
+For example, the text in a post might comment on an image or on a retweeted post.
 Here is some context on the post that needs classification:
 ```
 {full_context}
@@ -409,7 +430,7 @@ Again, the text of the post that needs to be classified is:
 <text>
 {post_text}
 ```
-"""
+"""  # noqa
     if justify_result:
         full_context += "\nAfter giving your label, start a new line and then justify your answer in 1 sentence."  # noqa
     return base_prompt.format(
@@ -418,11 +439,16 @@ Again, the text of the post that needs to be classified is:
 
 
 def generate_complete_prompt_for_given_post(
-    post: dict, task_name: str, justify_result: bool = False
+    post: dict,
+    task_name: str,
+    include_context: bool = True,
+    justify_result: bool = False
 ) -> str:
     """Generates a complete prompt for a given post."""
     task_prompt = task_name_to_task_prompt_map[task_name]
-    context_details_list = generate_context_details_list(post)
+    context_details_list = (
+        generate_context_details_list(post) if include_context else []
+    )
     return generate_complete_prompt(
         post=post,
         task_prompt=task_prompt,

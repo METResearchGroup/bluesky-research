@@ -11,7 +11,7 @@ civic_prompt = """
 Pretend that you are a classifier that predicts whether a post has civic content or not. Civic refers \
 to whether a given post is related to politics (government, elections, politicians, activism, etc.) or \
 social issues (major issues that affect a large group of people, such as the economy, inequality, \
-racism, education, immigration, human rights, the environment, etc.). We refer to any content \
+wealth differences, racism, education, immigration, human rights, the environment, etc.). We refer to any content \
 that is classified as being either of these two categories as “civic”; otherwise they are not civic. \
 Please classify the following text denoted in <text> as "civic" or "not civic". Only provide "civic" or \
 "not civic" in your response. Justifications are not necessary. \
@@ -42,7 +42,7 @@ Return in a JSON format in the following way:
 """  # noqa
 
 toxicity_prompt = """
-Pretend that you are a toxicity classifer. We define a post having toxicity as \
+Pretend that you are a toxicity classifier. We define a post having toxicity as \
 a rude, disrespectful, or unreasonable comment that is likely to make people leave a discussion. \
 This content is harmful, offensive, or damaging, and is usually characterized \
 by negativity, aggression, or disrespect. 
@@ -74,7 +74,7 @@ Return in a JSON format in the following way:
 """  # noqa
 
 constructiveness_prompt = """
-Pretend that you are a constructiveness classifer. Our purpose is to promote \
+Pretend that you are a constructiveness classifier. Our purpose is to promote \
 content that is likely to lead to constructive conversations online. We want \
 to classify posts as constructive if they have some of the following characteristics:
 - Nuance: Incorporates multiple points of view in an attempt to provide a full picture or contribute useful detail and/or context. \

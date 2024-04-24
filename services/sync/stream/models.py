@@ -1,4 +1,7 @@
-from pydantic import BaseModel
+"""Pydantic models for our raw data."""
+
+from pydantic import BaseModel, validator
+import re
 from typing import Optional
 
 
@@ -19,3 +22,21 @@ class RawPostModel(BaseModel):
     cid: str = "The unique identifier of the post."
     author: str = "The author of the post."
     synctimestamp: str = "The timestamp of when the post was synchronized."
+
+    @validator('author')
+    def validate_author(cls, v):
+        if not v.startswith("did:"):
+            raise ValueError("Author must start with 'did:'")
+        return v
+
+    @validator('uri')
+    def validate_uri(cls, v):
+        if not v.startswith("at://did:plc:"):
+            raise ValueError("URI must start with 'at://did:plc:'")
+        return v
+
+    @validator('synctimestamp')
+    def validate_synctimestamp(cls, v):
+        if not re.match(r'^\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}$', v):
+            raise ValueError("synctimestamp must be in 'YYYY-MM-DD-HH:MM:SS' format (e.g., '2024-04-23-04:41:17')")  # noqa
+        return v

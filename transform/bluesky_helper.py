@@ -1,15 +1,15 @@
 """Helper functions for processing Bluesky data."""
 from typing import Optional
 
-from atproto_client.models.app.bsky.actor.defs import ProfileView, ProfileViewDetailed # noqa
-from atproto_client.models.app.bsky.feed.defs import FeedViewPost, GeneratorView, ThreadViewPost # noqa
+from atproto_client.models.app.bsky.actor.defs import ProfileView, ProfileViewDetailed  # noqa
+from atproto_client.models.app.bsky.feed.defs import FeedViewPost, GeneratorView, ThreadViewPost  # noqa
 from atproto_client.models.app.bsky.feed.post import GetRecordResponse
 from atproto_client.models.app.bsky.feed.get_actor_feeds import Response as GetActorFeedsResponse  # noqa
-from atproto_client.models.app.bsky.feed.get_feed import Response as FeedResponse # noqa
+from atproto_client.models.app.bsky.feed.get_feed import Response as FeedResponse  # noqa
 from atproto_client.models.app.bsky.feed.get_likes import Like
-from atproto_client.models.app.bsky.feed.get_post_thread import Response as PostThreadResponse # noqa
+from atproto_client.models.app.bsky.feed.get_post_thread import Response as PostThreadResponse  # noqa
 from atproto_client.models.app.bsky.graph.defs import ListItemView
-from atproto_client.models.app.bsky.graph.get_list import Response as GetListResponse # noqa
+from atproto_client.models.app.bsky.graph.get_list import Response as GetListResponse  # noqa
 
 from lib.constants import current_datetime_str
 from lib.helper import client
@@ -55,7 +55,7 @@ def get_post_record_from_post_link(link: str) -> GetRecordResponse:
         value=Record(created_at='2024-03-16T12:17:36.784Z', text='A running theme in Woods\' telling is how even those who opposed Hitler blamed his rise on the "depravity" and excess of Weimar Berlin "as if the mere presence of ersatz women in the club was enough to foment and justify a right-wing putsch"--a phrase I find myself repeating often', embed=Main(record=Main(cid='bafyreiesskdi2vfkrvj2kaajglsklqd7b3wywn2goyxhr7ctl3kvaikbsa', uri='at://did:plc:mlmouohgzbjofidukcp4pxf2/app.bsky.feed.post/3knss3jmoeu2f', py_type='com.atproto.repo.strongRef'), py_type='app.bsky.embed.record'), entities=None, facets=None, labels=None, langs=['en'], reply=None, tags=None, py_type='app.bsky.feed.post'),
         cid='bafyreidujr2qzblrtxyh6e5shqtjdool2c7vim5jsqybdhi4pkpuphuj5q'
     )
-    """ # noqa
+    """  # noqa
     author_and_post_id: dict = get_author_handle_and_post_id_from_link(link)
     author_did: str = get_author_did_from_handle(author_and_post_id["author"])
     post_rkey = author_and_post_id["post_id"]
@@ -67,20 +67,27 @@ def get_post_record_from_post_link(link: str) -> GetRecordResponse:
     return response
 
 
-def convert_post_link_to_post(post_link: str) -> dict:
+def convert_post_link_to_post(
+    post_link: str, include_author_info: bool = False
+) -> dict:
     """Gets post from the Record API and converts it to a RawPost.
 
     The post record, by default, won't hydrate the author information, but we
     can set a blank as we don't need that information if all we care about is
     the post.
-    """ # noqa
+    """  # noqa
     record = get_post_record_from_post_link(post_link)
+    if include_author_info:
+        author_profile = get_author_profile_from_link(post_link)
+        author = author_profile.did
+    else:
+        author = ""
     # set up in the format expected by our RawPost class.
     post_dict = {
         "record": record.value,
         "uri": record.uri,
         "cid": record.cid,
-        "author": ""
+        "author": author
     }
     flattened_firehose_post: dict = flatten_firehose_post(post_dict)
     return flattened_firehose_post
@@ -94,7 +101,7 @@ def get_post_record_given_post_uri(post_uri: str) -> GetRecordResponse:
     GetRecordResponse(
         uri='at://did:plc:mlmouohgzbjofidukcp4pxf2/app.bsky.feed.post/3knssi4ouko24',
         value=Record(created_at='2024-03-16T12:17:36.784Z', text='A running theme in Woods\' telling is how even those who
-    """ # noqa
+    """  # noqa
     split_uri = post_uri.split("/")
     post_rkey = split_uri[-1]
     profile_identify = split_uri[-3]
@@ -161,7 +168,7 @@ def calculate_post_engagement(post_response: GetRecordResponse) -> dict:
 
 
 def calculate_post_engagement_from_link(link: str) -> dict:
-    """Calculates the number of likes, retweets, and comments for a post given a link.""" # noqa
+    """Calculates the number of likes, retweets, and comments for a post given a link."""  # noqa
     post_response: GetRecordResponse = get_post_record_from_post_link(link)
     post_engagement = calculate_post_engagement(post_response)
     return {
@@ -192,7 +199,7 @@ def get_author_profile_from_link(link: str) -> ProfileViewDetailed:
         py_type='app.bsky.actor.defs#profileViewDetailed',
         associated={'lists': 0, 'feedgens': 0, 'labeler': False}
     )
-    """ # noqa
+    """  # noqa
     author_and_post_id: dict = get_author_handle_and_post_id_from_link(link)
     author_did: str = get_author_did_from_handle(author_and_post_id["author"])
     return client.get_profile(author_did)
@@ -217,7 +224,7 @@ def generate_list_uri_given_list_url(list_url: str) -> str:
     >> list_url = "https://bsky.app/profile/nickwrightdata.ntw.app/lists/3kmr32obinz2q"
     >> generate_list_uri_given_list_url(list_url)
     "at://did:plc:7allko6vtrpvyxxcd5beapou/app.bsky.graph.list/3kmr32obinz2q"
-    """ # noqa
+    """  # noqa
     split_url = list_url.split("/")
     author_handle: str = split_url[-3]
     list_did: str = split_url[-1]
@@ -340,7 +347,7 @@ def get_author_feeds(
         py_type='app.bsky.feed.defs#generatorView',
         labels=[]
     )
-    """ # noqa
+    """  # noqa
     if not author_did:
         author_did = get_author_did_from_handle(author_handle)
     payload = {"actor": author_did}
@@ -444,7 +451,7 @@ def get_posts_from_custom_feed(
         reply=None,
         py_type='app.bsky.feed.defs#feedViewPost'
     )
-    """ # noqa
+    """  # noqa
     payload = {"feed": feed_uri}
     if limit:
         payload["limit"] = limit
@@ -462,7 +469,7 @@ def construct_feed_uri_from_feed_url(feed_url: str) -> str:
     >>> feed_url = "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/catch-up"
     >>> construct_feed_uri_from_feed_url(feed_url)
     "at://did:plc:tenurhgjptubkk5zf5qhi3og/app.bsky.feed.generator/catch-up"
-    """ # noqa
+    """  # noqa
     split_url = feed_url.split("/")
     author_did = split_url[-3]
     feed_name = split_url[-1]

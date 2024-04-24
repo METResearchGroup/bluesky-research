@@ -9,7 +9,7 @@ import textwrap
 
 import streamlit as st
 
-from ml_tooling.llm.inference import run_query
+from ml_tooling.llm.inference import BACKEND_OPTIONS, run_query
 from ml_tooling.llm.prompt_helper import (
     generate_complete_prompt,
     generate_complete_prompt_for_given_post,
@@ -18,7 +18,8 @@ from ml_tooling.llm.prompt_helper import (
 from ml_tooling.perspective_api.helper import classify_single_post
 from transform.bluesky_helper import convert_post_link_to_post
 
-st.title("LLM labeling of Bluesky posts.")
+st.set_page_config(layout="wide")
+st.title("Labeling of Bluesky posts.")
 
 
 option_to_task_name_map = {
@@ -28,6 +29,18 @@ option_to_task_name_map = {
     "Toxicity": "toxicity",
     "Constructiveness": "constructiveness",
 }
+
+
+def wrap_text(text, width=100):
+    """Wraps text into a nicer representation by controlling line length.
+
+    Splits by newline chars and then wraps each line separately.
+    """
+    lines = text.split('\n')
+    wrapped_lines = [textwrap.fill(line, width=width) if line.strip() != '' else line for line in lines]  # noqa
+    wrapped_text = '\n'.join(wrapped_lines)
+
+    return wrapped_text
 
 
 # Text box to accept user input for the link
@@ -47,6 +60,7 @@ if option == "Perspective API":
         'Include context in the prompt to the Perspective API?')
 else:
     justify_result_bool = st.checkbox('Justify the result?')
+include_context_bool = st.checkbox('Include context in the prompt?')
 
 
 # run the labeling and print the result
@@ -60,8 +74,12 @@ if st.button('Submit'):
         post["text"] = user_input
         post["uid"] = ""
     else:
-        post: dict = convert_post_link_to_post(user_input)
-    st.text(json.dumps(post))
+        post: dict = convert_post_link_to_post(
+            user_input, include_author_info=True
+        )
+    st.text(
+        wrap_text(json.dumps(post), width=200)
+    )
 
     if option == "Perspective API":
         st.subheader("Text passed to the Perspective API:")
@@ -94,7 +112,7 @@ if st.button('Submit'):
             {post_text}
             """
             post["text"] = post_with_context_prompt
-        wrapped_prompt = textwrap.fill(post["text"], width=75)
+        wrapped_prompt = textwrap.fill(post["text"], width=200)
         st.markdown(f"```\n{wrapped_prompt}\n```", unsafe_allow_html=True)
         st.subheader("Result from the Perspective API:")
         classification_dict: dict = classify_single_post(post)
@@ -118,15 +136,15 @@ if st.button('Submit'):
                 generate_complete_prompt_for_given_post(
                     post=post,
                     task_name=option_to_task_name_map[option],
+                    include_context=include_context_bool,
                     justify_result=justify_result_bool
                 )
             )
-        wrapped_prompt = textwrap.fill(prompt, width=100)
+        wrapped_prompt = wrap_text(prompt, width=200)
         st.text(wrapped_prompt)
-
-        st.subheader("Result from the LLM:")
+        st.subheader("Result from the LLM")
         llm_result = run_query(prompt=prompt)
-        st.text(llm_result)
+        st.text(wrap_text(llm_result, width=120))
 
 
 if __name__ == "__main__":
