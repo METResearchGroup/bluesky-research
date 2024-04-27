@@ -59,9 +59,18 @@ option = st.selectbox(
 
 if option == "Perspective API":
     include_context = st.checkbox(
-        'Include context in the prompt to the Perspective API?')
+        'Include context in the prompt to the Perspective API?'
+    )
+    model_name = None
 else:
     justify_result_bool = st.checkbox('Justify the result?')
+    model_name = st.selectbox(
+        "Choose your LLM model",
+        (
+            "Gemini", "Llama3-8b (via Groq)", "Llama3-70b (via Groq)"
+        )
+    )
+
 include_context_bool = st.checkbox('Include context in the prompt?')
 
 
@@ -147,7 +156,7 @@ if st.button('Submit'):
         wrapped_prompt = wrap_text(prompt, width=200)
         st.text(wrapped_prompt)
         st.subheader("Result from the LLM")
-        llm_result = run_query(prompt=prompt)
+        llm_result = run_query(prompt=prompt, model_name=model_name)
         st.text(wrap_text(llm_result, width=120))
 
 
