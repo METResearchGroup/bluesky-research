@@ -27,6 +27,7 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GOOGLE_AI_STUDIO_KEY = os.getenv("GOOGLE_AI_STUDIO_KEY")
 NEWSAPI_API_KEY = os.getenv("NEWSAPI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 client = Client()
 client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
@@ -64,7 +65,7 @@ def track_memory_usage(func):
         result = func(*args, **kwargs)
         mem_after = memory_usage(-1, interval=0.1, timeout=1)
 
-        print(f"Memory usage for {func.__name__}: {max(mem_after) - min(mem_before)} MB") # noqa
+        print(f"Memory usage for {func.__name__}: {max(mem_after) - min(mem_before)} MB")  # noqa
 
         return result
 

@@ -7,7 +7,7 @@ import json
 from ml_tooling.llm.task_prompts import task_name_to_task_prompt_map
 from services.add_context.current_events_enrichment.bsky_news_orgs import bsky_did_to_news_org_name  # noqa
 from services.add_context.current_events_enrichment.newsapi_context import url_is_to_news_domain  # noqa
-from transform.bluesky_helper import get_post_record_given_post_uri
+from transform.bluesky_helper import convert_post_link_to_post, get_post_record_given_post_uri  # noqa
 from transform.transform_raw_data import flatten_firehose_post, LIST_SEPARATOR_CHAR  # noqa
 
 
@@ -408,7 +408,8 @@ def generate_complete_prompt(
     post: dict,
     task_prompt: str,
     context_details_list: list[tuple],
-    justify_result: bool = False
+    justify_result: bool = False,
+    only_json_format: bool = False
 ) -> str:
     """Given a task prompt and the details of the context, generate
     the resulting complete prompt.
@@ -436,6 +437,8 @@ Again, the text of the post that needs to be classified is:
         full_context += "\nAfter giving your label, start a new line and then justify your answer in 1 sentence."  # noqa
     else:
         full_context += "\nJustifications are not necessary."
+    if only_json_format:
+        full_context += "\nReturn ONLY the JSON. I will parse the string result in JSON format."
     return base_prompt.format(
         task_prompt=task_prompt, post_text=post_text, context=full_context
     )
@@ -445,7 +448,8 @@ def generate_complete_prompt_for_given_post(
     post: dict,
     task_name: str,
     include_context: bool = True,
-    justify_result: bool = False
+    justify_result: bool = False,
+    only_json_format: bool = False
 ) -> str:
     """Generates a complete prompt for a given post."""
     task_prompt = task_name_to_task_prompt_map[task_name]
@@ -456,5 +460,18 @@ def generate_complete_prompt_for_given_post(
         post=post,
         task_prompt=task_prompt,
         context_details_list=context_details_list,
-        justify_result=justify_result
+        justify_result=justify_result,
+        only_json_format=only_json_format
+    )
+
+
+def generate_complete_prompt_for_post_link(
+    link: str, task_name: str, only_json_format: bool = False
+) -> str:
+    """Generates a complete prompt for a given post link."""
+    post: dict = convert_post_link_to_post(link)
+    return generate_complete_prompt_for_given_post(
+        post=post,
+        task_name=task_name,
+        only_json_format=only_json_format
     )

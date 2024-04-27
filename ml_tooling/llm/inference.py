@@ -4,11 +4,12 @@ import os
 from litellm import completion
 from litellm.utils import ModelResponse
 
-from lib.helper import GOOGLE_AI_STUDIO_KEY, HF_TOKEN
+from lib.helper import GOOGLE_AI_STUDIO_KEY, GROQ_API_KEY, HF_TOKEN
 
 # https://litellm.vercel.app/docs/providers/gemini
 os.environ['GEMINI_API_KEY'] = GOOGLE_AI_STUDIO_KEY
 os.environ["HUGGINGFACE_API_KEY"] = HF_TOKEN
+os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
 DEFAULT_GEMINI_SAFETY_SETTINGS = [
     {
@@ -48,17 +49,23 @@ BACKEND_OPTIONS = {
         "kwargs": {
             "api_base": "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x22B-v0.1"
         }
+    },
+    "Llama3-8b (via Groq)": {
+        "model": "groq/llama3-8b-8192",
+        "kwargs": {
+            "temperature": 0.0,
+            "response_format": {"type": "json_object"},  # https://console.groq.com/docs/text-chat#json-mode
+        }
     }
 }
 
 
 # https://litellm.vercel.app/docs/completion/input
 def run_query(
-    prompt: str,
-    role: str = "user",
-    model_dict: dict = BACKEND_OPTIONS["Gemini"]
+    prompt: str, role: str = "user", model_name: str = "Gemini"
 ) -> str:
     """Runs a query to an LLM model and returns the response."""
+    model_dict = BACKEND_OPTIONS[model_name]
     model_params = model_dict.copy()
     kwargs = {
         "model": model_params.pop("model"),
