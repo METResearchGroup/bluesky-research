@@ -56,7 +56,14 @@ BACKEND_OPTIONS = {
             "temperature": 0.0,
             "response_format": {"type": "json_object"},  # https://console.groq.com/docs/text-chat#json-mode
         }
-    }
+    },
+    "Llama3-70b (via Groq)": {
+        "model": "groq/llama3-70b-8192",
+        "kwargs": {
+            "temperature": 0.0,
+            "response_format": {"type": "json_object"},  # https://console.groq.com/docs/text-chat#json-mode
+        }
+    },
 }
 
 
