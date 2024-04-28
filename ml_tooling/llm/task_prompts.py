@@ -151,6 +151,7 @@ task_name_to_task_prompt_map = {
     "political_ideology": political_ideology_prompt,
     "civic": civic_prompt,
     "both": civic_and_political_ideology_prompt,
+    "civic_and_political_ideology": civic_and_political_ideology_prompt,
     "toxicity": toxicity_prompt,
     "constructiveness": constructiveness_prompt,
     "rewrite_if_toxic": rewrite_if_toxic_prompt,

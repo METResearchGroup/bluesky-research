@@ -158,6 +158,7 @@ if st.button('Submit'):
         st.subheader("Result from the LLM")
         llm_result = run_query(prompt=prompt, model_name=model_name)
         st.text(wrap_text(llm_result, width=120))
+        print(llm_result)
 
 
 if __name__ == "__main__":

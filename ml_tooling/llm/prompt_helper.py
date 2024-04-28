@@ -466,12 +466,16 @@ def generate_complete_prompt_for_given_post(
 
 
 def generate_complete_prompt_for_post_link(
-    link: str, task_name: str, only_json_format: bool = False
+    link: str,
+    task_name: str,
+    only_json_format: bool = False,
+    include_context: bool = True
 ) -> str:
     """Generates a complete prompt for a given post link."""
     post: dict = convert_post_link_to_post(link)
     return generate_complete_prompt_for_given_post(
         post=post,
         task_name=task_name,
-        only_json_format=only_json_format
+        only_json_format=only_json_format,
+        include_context=include_context
     )
