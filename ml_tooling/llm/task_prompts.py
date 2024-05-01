@@ -2,15 +2,17 @@
 political_ideology_prompt = """
 Imagine that you are a political ideology classifier, specifically focused on the context of United States politics. \
 Please classify the text denoted in <text> based on the political lean of the opinion or argument \
-it presents. Your options are 'left-leaning', 'moderate', 'right-leaning', or 'unclear'. \
+it presents. Your options are 'democrat', 'republican', or 'unclear'. \
 You are analyzing text that has been pre-identified as 'political' in nature. Only provide the label \
-("left-leaning", "moderate", "right-leaning", "unclear") in your response. \
+("democrat", "republican", "unclear") in your response. \
 
 Return in a JSON format in the following way:
 {
-    "political_ideology": <four values, 'left-leaning', 'moderate', 'right-leaning', 'unclear'>,
+    "political_ideology": <three values, 'democrat', 'republican', 'unclear'>,
     "reason": <optional, a 1 sentence reason for why the text has the given political ideology>
 }
+
+All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
 """  # noqa
 
 civic_prompt = """
@@ -27,30 +29,34 @@ Return in a JSON format in the following way:
     "civic": <two values, 'civic' or 'not civic'>,
     "reason": <optional, a 1 sentence reason for why the text is civic>
 }
+
+All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
 """  # noqa
 
 civic_and_political_ideology_prompt = """
-Pretend that you are a classifier that predicts whether a post has civic content or not. Civic refers \
+Pretend that you are a classifier that predicts whether a post has sociopolitical content or not. Sociopolitical refers \
 to whether a given post is related to politics (government, elections, politicians, activism, etc.) or \
 social issues (major issues that affect a large group of people, such as the economy, inequality, \
 racism, education, immigration, human rights, the environment, etc.). We refer to any content \
-that is classified as being either of these two categories as “civic”; otherwise they are not civic. \
-Please classify the following text denoted in <text> as "civic" or "not civic". 
+that is classified as being either of these two categories as "sociopolitical"; otherwise they are not sociopolitical. \
+Please classify the following text denoted in <text> as "sociopolitical" or "not sociopolitical". 
 
-Then, if the post is civic, classify the text based on the political lean of the opinion or argument \
-it presents. Your options are 'left-leaning', 'moderate', 'right-leaning', or 'unclear'. \
+Then, if the post is sociopolitical, classify the text based on the political lean of the opinion or argument \
+it presents. Your options are "democrat", "republican", or 'unclear'. \
 You are analyzing text that has been pre-identified as 'political' in nature. \
-If the text is not civic, return "unclear".
+If the text is not sociopolitical, return "unclear".
 
 Think through your response step by step.
 
 Return in a JSON format in the following way:
 {
-    "civic": <two values, 'civic' or 'not civic'>,
-    "political_ideology": <four values, 'left-leaning', 'moderate', 'right-leaning', 'unclear'>,
-    "reason_civic": <optional, a 1 sentence reason for why the text is civic>,
-    "reason_political_ideology": <optional, a 1 sentence reason for why the text has the given political ideology>
+    "sociopolitical": <two values, 'sociopolitical' or 'not sociopolitical'>,
+    "political_ideology": <three values, 'democrat', 'republican', 'unclear'>,
+    "reason_sociopolitical": <optional, a 1 sentence reason for why the text is sociopolitical. If none, return an empty string, "">,
+    "reason_political_ideology": <optional, a 1 sentence reason for why the text has the given political ideology. If none, return an empty string, "">
 }
+
+All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
 """  # noqa
 
 toxicity_prompt = """
@@ -83,6 +89,8 @@ Return in a JSON format in the following way:
     "toxicity": <two values, 'toxic' or 'not toxic'>,
     "reason": <optional, a 1 sentence reason for why the text is toxic>
 }
+
+All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
 """  # noqa
 
 constructiveness_prompt = """
@@ -122,6 +130,8 @@ Return in a JSON format in the following way:
     "constructiveness": <two values, 'constructive' or 'not constructive'>,
     "reason": <optional, a 1 sentence reason for why the text is constructive>
 }
+
+All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
 """  # noqa
 
 rewrite_if_toxic_prompt = """
@@ -144,6 +154,8 @@ Return in a JSON format in the following way:
     "original_text": <the original text of the post>,
     "rewritten_text": <optional, the rewritten text of the post. If not toxic, return null> 
 }
+
+All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
 """  # noqa
 
 

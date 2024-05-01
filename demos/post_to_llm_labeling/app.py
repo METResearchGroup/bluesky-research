@@ -12,8 +12,7 @@ import streamlit as st
 from ml_tooling.llm.inference import run_query
 from ml_tooling.llm.prompt_helper import (
     generate_complete_prompt,
-    generate_complete_prompt_for_given_post,
-    generate_context_details_list
+    generate_complete_prompt_for_given_post
 )
 from ml_tooling.llm.task_prompts import task_name_to_task_prompt_map
 from ml_tooling.perspective_api.helper import classify_single_post
@@ -99,30 +98,6 @@ if st.button('Submit'):
         # our demo app. In production, the uid should always be provided.
         default_uid = ""
         post["uid"] = post.get("uid", default_uid)
-        # if we want to include context as opposed to just using the text in
-        # the post, we need to create the context string.
-        if include_context and not is_text_bool:
-            context_details_list = generate_context_details_list(post)
-            full_context = ""
-            for context_type, context_details in context_details_list:
-                full_context += f"<{context_type}>\n {context_details}\n"
-            post_with_context_prompt = f"""
-            Here is the post text that needs to be classified:
-            ```
-            <text>
-            {post_text}
-            ```
-
-            Here is some context on the post that needs classification:
-            ```
-            {full_context}
-            ```
-            Again, the text of the post that needs to be classified is:
-            ```
-            <text>
-            {post_text}
-            """
-            post["text"] = post_with_context_prompt
         wrapped_prompt = textwrap.fill(post["text"], width=200)
         st.markdown(f"```\n{wrapped_prompt}\n```", unsafe_allow_html=True)
         st.subheader("Result from the Perspective API:")
@@ -134,13 +109,13 @@ if st.button('Submit'):
     else:
         st.subheader("Prompt to the LLM:")
         if is_text_bool:
-            context_details_list = []
+
             task_name = option_to_task_name_map[option]
             prompt: str = (
                 generate_complete_prompt(
                     post=post,
                     task_prompt=task_name_to_task_prompt_map[task_name],
-                    context_details_list=context_details_list,
+                    is_text_only=True,
                     justify_result=justify_result_bool
                 )
             )
