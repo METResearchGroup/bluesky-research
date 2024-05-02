@@ -4,7 +4,9 @@ import os
 from litellm import completion
 from litellm.utils import ModelResponse
 
-from lib.helper import GOOGLE_AI_STUDIO_KEY, GROQ_API_KEY, HF_TOKEN
+from lib.helper import (
+    GOOGLE_AI_STUDIO_KEY, GROQ_API_KEY, HF_TOKEN, track_performance
+)
 
 # https://litellm.vercel.app/docs/providers/gemini
 os.environ['GEMINI_API_KEY'] = GOOGLE_AI_STUDIO_KEY
@@ -68,6 +70,7 @@ BACKEND_OPTIONS = {
 
 
 # https://litellm.vercel.app/docs/completion/input
+@track_performance
 def run_query(
     prompt: str, role: str = "user", model_name: str = "Gemini"
 ) -> str:

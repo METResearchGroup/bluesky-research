@@ -21,7 +21,7 @@ to whether a given post is related to politics (government, elections, politicia
 social issues (major issues that affect a large group of people, such as the economy, inequality, \
 wealth differences, racism, education, immigration, human rights, the environment, etc.). We refer to any content \
 that is classified as being either of these two categories as “civic”; otherwise they are not civic. \
-Please classify the following text denoted in <text> as "civic" or "not civic". Only provide "civic" or \
+Please classify the following text as "civic" or "not civic". Only provide "civic" or \
 "not civic" in your response. \
 
 Return in a JSON format in the following way:
@@ -39,7 +39,7 @@ to whether a given post is related to politics (government, elections, politicia
 social issues (major issues that affect a large group of people, such as the economy, inequality, \
 racism, education, immigration, human rights, the environment, etc.). We refer to any content \
 that is classified as being either of these two categories as "sociopolitical"; otherwise they are not sociopolitical. \
-Please classify the following text denoted in <text> as "sociopolitical" or "not sociopolitical". 
+Please classify the following text as "sociopolitical" or "not sociopolitical". 
 
 Then, if the post is sociopolitical, classify the text based on the political lean of the opinion or argument \
 it presents. Your options are "democrat", "republican", or 'unclear'. \
@@ -51,9 +51,9 @@ Think through your response step by step.
 Return in a JSON format in the following way:
 {
     "sociopolitical": <two values, 'sociopolitical' or 'not sociopolitical'>,
-    "political_ideology": <three values, 'democrat', 'republican', 'unclear'>,
-    "reason_sociopolitical": <optional, a 1 sentence reason for why the text is sociopolitical. If none, return an empty string, "">,
-    "reason_political_ideology": <optional, a 1 sentence reason for why the text has the given political ideology. If none, return an empty string, "">
+    "political_ideology": <three values, 'democrat', 'republican', 'unclear'. If the post is not sociopolitical, return an empty string, "">,
+    "reason_sociopolitical": <optional, a 1 sentence reason for why the text is sociopolitical or not.>,
+    "reason_political_ideology": <optional, a 1 sentence reason for why the text has the given political ideology or is unclear. If the post is not sociopolitical, return an empty string, "">
 }
 
 All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
@@ -140,7 +140,7 @@ a rude, disrespectful, or unreasonable comment that is likely to make people lea
 This content is harmful, offensive, or damaging, and is usually characterized \
 by negativity, aggression, or disrespect.
 
-Please classify the following text denoted in <text> as "toxic" or "not toxic".
+Please classify the following text as "toxic" or "not toxic".
 
 Think through your response step by step.
 

@@ -77,6 +77,8 @@ def process_record_context(record_uri: str) -> RecordContextModel:
     of the embedded record, not if the embedded record has its own embedded
     record within it.
     """
+    if not record_uri:
+        return RecordContextModel()
     record = get_post_record_given_post_uri(record_uri)
     hydrated_embedded_record_dict: dict = {
         "record": record.value,
@@ -194,7 +196,6 @@ def get_parent_reply_context(parent_reply_uri: str) -> ThreadPostContextModel:
     """
     record_context: RecordContextModel = process_record_context(parent_reply_uri)
     text: Optional[str] = record_context.text
-    print(f"record_context.embed_image_alt_text: {record_context.embed_image_alt_text}")
     embed_image_alt_text: Optional[ImagesContextModel] = (
         record_context.embed_image_alt_text.image_alt_texts
         if record_context.embed_image_alt_text
@@ -467,3 +468,41 @@ def generate_complete_prompt_for_post_link(
         only_json_format=only_json_format,
         include_context=include_context
     )
+
+
+def generate_batched_post_prompt(posts: list[dict], task_name: str) -> str:
+    """Create a prompt that classifies a batch of posts."""
+    task_prompt = task_name_to_task_prompt_map[task_name]
+    task_prompt += """
+You will receive a batch of posts to classify. The batch of posts is in a JSON
+with the following fields: "posts": a list of posts, and "expected_number_of_posts":
+the number of posts in the batch.
+
+Each post will be its own JSON \
+object including the text to classify (in the "text" field) and the context \
+in which the post was made (in the "context" field). Return a list of JSONs \
+for each post, in the format specified before. The length of the list of \
+JSONs must match the value in the "expected_number_of_posts" field.
+
+Return a JSON with the following format:
+{
+    "results": <list of JSONs, one for each post>,
+    "count": <number of posts classified. Must match `expected_number_of_posts`>
+}
+"""  # noqa
+    post_contexts = []
+    for post in posts:
+        post_contexts.append(generate_post_and_context_json(post))
+    batched_context = {
+        "posts": post_contexts,
+        "expected_number_of_posts": len(posts)
+    }
+    batched_context_str = pformat(batched_context, width=200)
+    full_prompt = f"""
+{task_prompt}
+
+{batched_context_str}
+    """
+    print(f"Length of batched_context_str: {len(batched_context_str)}")
+    print(f"Length of full prompt: {len(full_prompt)}")
+    return full_prompt
