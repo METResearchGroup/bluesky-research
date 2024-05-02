@@ -1,14 +1,12 @@
-"""DB functionalities for civic classification."""
-import peewee
+"""Database for storing news articles and news outlets."""
 import os
+import peewee
 import sqlite3
-
-import pandas as pd
+from typing import Optional
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
-SQLITE_DB_NAME = "nytimes_articles.db"
+SQLITE_DB_NAME = "news.db"
 SQLITE_DB_PATH = os.path.join(current_file_directory, SQLITE_DB_NAME)
-DEFAULT_BATCH_WRITE_SIZE = 100
 
 db = peewee.SqliteDatabase(SQLITE_DB_PATH)
 db_version = 2
@@ -22,67 +20,69 @@ class BaseModel(peewee.Model):
         database = db
 
 
-class NYTimesArticle(BaseModel):
-    """NYTimes Article."""
-    id = peewee.AutoField()
-    nytimes_uri = peewee.CharField(unique=True)
-    title = peewee.CharField()
-    abstract = peewee.TextField()
-    url = peewee.TextField()
-    published_date = peewee.CharField()
-    captions = peewee.TextField()
-    facets = peewee.TextField()
-    # deprecated (use synctimestamp)
-    sync_timestamp = peewee.DateTimeField(default=peewee.fn.now())
+class NewsOutlet(BaseModel):
+    """News outlet model."""
+    outlet_id = peewee.CharField(primary_key=True)
+    domain = peewee.CharField()
+    political_party = peewee.CharField()
     synctimestamp = peewee.CharField()
-    sync_date = peewee.DateField(default=peewee.fn.now())
 
 
-def create_initial_articles_table() -> None:
-    """Create the initial articles table."""
+class NewsArticle(BaseModel):
+    """News article model."""
+    url = peewee.CharField(primary_key=True)
+    title = peewee.CharField()
+    content = peewee.TextField(null=True)
+    description = peewee.TextField(null=True)
+    publishedAt = peewee.CharField()
+    # backref allows us to, for example, use NewsOutlet.articles to get the
+    # articles for a given news outlet.
+    news_outlet_source_id = peewee.ForeignKeyField(
+        NewsOutlet, field='outlet_id', backref='articles'
+    )
+    synctimestamp = peewee.CharField()
+
+
+if db.is_closed():
+    db.connect()
+    db.create_tables([NewsOutlet, NewsArticle])
+
+
+def create_initial_tables() -> None:
     with db.atomic():
-        db.create_tables([NYTimesArticle])
+        db.create_tables([NewsOutlet, NewsArticle])
 
 
-def batch_write_articles(articles: list[dict]) -> None:
-    """Batch create articles in chunks.
-
-    Uses peewee's chunking functionality to write articles in chunks.
-    """
+def insert_news_outlet(news_outlet: dict) -> None:
     with db.atomic():
-        for idx in range(0, len(articles), DEFAULT_BATCH_WRITE_SIZE):
-            # Ignore insert for rows that would cause a unique constraint
-            # violation
-            NYTimesArticle.insert_many(
-                articles[idx:idx + DEFAULT_BATCH_WRITE_SIZE]
-            ).on_conflict_ignore().execute()
-    print(f"Batch created {len(articles)} articles.")
+        NewsOutlet.create(**news_outlet)
 
 
-def get_all_articles() -> list[NYTimesArticle]:
-    """Get all articles from the database."""
-    return list(NYTimesArticle.select())
+def bulk_insert_news_outlets(news_outlets: list[dict]) -> None:
+    with db.atomic():
+        NewsOutlet.insert_many(news_outlets).execute()
 
 
-def get_all_articles_as_list_dicts() -> list[dict]:
-    """Get all articles from the database as a list of dictionaries."""
-    return [article.__dict__['__data__'] for article in get_all_articles()]
+def insert_news_article(news_article: dict) -> None:
+    with db.atomic():
+        NewsArticle.create(**news_article)
 
 
-def get_all_articles_as_df() -> pd.DataFrame:
-    """Get all articles from the database as a pandas DataFrame."""
-    return pd.DataFrame(get_all_articles_as_list_dicts())
+def bulk_insert_news_articles(news_articles: list[dict]) -> None:
+    with db.atomic():
+        NewsArticle.insert_many(news_articles).execute()
 
 
-if __name__ == "__main__":
-    # create_initial_articles_table()
-    # print("Created initial articles table.")
-    # num_articles = len(get_all_articles())
-    # print(f"Total number of articles: {num_articles}")
-    # print("Finished running the script.")
-    # how to add a new column to a table (here, 'synctimestamp')
-    # from lib.db.sql.helper import add_new_column_to_table
-    # add_new_column_to_table(
-    #     cls=NYTimesArticle, cursor=cursor, db=db, colname="synctimestamp"
-    # )
-    pass
+def get_news_outlet_by_id(outlet_id: str) -> Optional[NewsOutlet]:
+    try:
+        return NewsOutlet.get(NewsOutlet.outlet_id == outlet_id)
+    except NewsOutlet.DoesNotExist:
+        return None
+
+
+def get_news_articles_by_outlet_id(outlet_id: str) -> list[NewsArticle]:
+    return list(
+        NewsArticle.select().where(
+            NewsArticle.news_outlet_source_id == outlet_id
+        )
+    )

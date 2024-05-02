@@ -68,6 +68,8 @@ if bulk_bluesky_posts:
     bulk_classify_posts = st.checkbox(
         "Classify all the posts in bulk?"
     )
+else:
+    bulk_classify_posts = False
 
 # Dropdown menu
 option = st.selectbox(

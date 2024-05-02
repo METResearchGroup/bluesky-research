@@ -11,7 +11,7 @@ from typing import Optional
 
 from lib.constants import current_datetime
 from lib.helper import NYTIMES_API_KEY, track_function_runtime
-from services.add_context.current_events_enrichment.database import batch_write_articles  # noqa
+from services.add_context.current_events_enrichment.experiments.database import batch_write_articles  # noqa
 
 
 SECTION_TOPSTORIES = [
@@ -43,7 +43,7 @@ def load_section_topstories(section: str) -> dict:
     return response.json()
 
 
-def load_all_section_topstories(sections: Optional[list] = DEFAULT_SECTIONS) -> dict: # noqa
+def load_all_section_topstories(sections: Optional[list] = DEFAULT_SECTIONS) -> dict:  # noqa
     """Loads all the top stories from a list of sections.
 
     Returns a dictionary with the following:
@@ -127,7 +127,7 @@ def write_articles_to_db(articles: list[dict]) -> None:
 
 
 @track_function_runtime
-def sync_latest_nytimes_topstories(sections: Optional[list] = DEFAULT_SECTIONS) -> None: # noqa
+def sync_latest_nytimes_topstories(sections: Optional[list] = DEFAULT_SECTIONS) -> None:  # noqa
     """Syncs the latest NYTimes top stories."""
     print(f"Syncing latest NYTimes stories at {current_datetime}")
     section_to_topstories_map: dict[str, list] = (

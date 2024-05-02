@@ -7,12 +7,69 @@ import pickle
 
 from newsapi import NewsApiClient
 
+from lib.constants import current_datetime
 from lib.helper import NEWSAPI_API_KEY
+from services.add_context.current_events_enrichment.database import (
+    bulk_insert_news_articles, bulk_insert_news_outlets
+)
+from services.add_context.current_events_enrichment.models import (
+    NewsArticleModel, NewsOutletModel
+)
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 news_pickle_fp = os.path.join(current_file_directory, "news_domains.pkl")
 
 newsapi_client = NewsApiClient(api_key=NEWSAPI_API_KEY)
+
+political_party_to_news_outlet_domains_map = {
+    "democrat": [
+        "abcnews.go.com", "msnbc.com", "apnews.com", "axios.com",
+        "bloomberg.com", "cbsnews.com", "us.cnn.com", "politico.com",
+        "washingtonpost.com", "time.com", "usatoday.com", "news.vice.com",
+        "aljazeera.com", "businessinsider.com", "news.google.com"
+    ],
+    "moderate": [
+        "wsj.com", "newsweek.com", "reuters.com", "fortune.com", "thehill.com"
+    ],
+    "conservative": [
+        "theamericanconservative.com", "nationalreview.com",
+        "washingtontimes.com", "foxnews.com", "breitbart.com"
+    ]
+}
+
+political_party_to_news_outlets = {
+    'conservative': [
+        {'domain': 'theamericanconservative.com', 'id': 'the-american-conservative'},
+        {'domain': 'nationalreview.com', 'id': 'national-review'},
+        {'domain': 'washingtontimes.com', 'id': 'the-washington-times'},
+        {'domain': 'foxnews.com', 'id': 'fox-news'},
+        {'domain': 'breitbart.com', 'id': 'breitbart-news'}
+    ],
+    'democrat': [
+        {'domain': 'abcnews.go.com', 'id': 'abc-news'},
+        {'domain': 'msnbc.com', 'id': 'msnbc'},
+        {'domain': 'apnews.com', 'id': 'associated-press'},
+        {'domain': 'axios.com', 'id': 'axios'},
+        {'domain': 'bloomberg.com', 'id': 'bloomberg'},
+        {'domain': 'cbsnews.com', 'id': 'cbs-news'},
+        {'domain': 'us.cnn.com', 'id': 'cnn'},
+        {'domain': 'politico.com', 'id': 'politico'},
+        {'domain': 'washingtonpost.com', 'id': 'the-washington-post'},
+        {'domain': 'time.com', 'id': 'time'},
+        {'domain': 'usatoday.com', 'id': 'usa-today'},
+        {'domain': 'news.vice.com', 'id': 'vice-news'},
+        {'domain': 'aljazeera.com', 'id': 'al-jazeera-english'},
+        {'domain': 'businessinsider.com', 'id': 'business-insider'},
+        {'domain': 'news.google.com', 'id': 'google-news'}
+    ],
+    'moderate': [
+        {'domain': 'wsj.com', 'id': 'the-wall-street-journal'},
+        {'domain': 'newsweek.com', 'id': 'newsweek'},
+        {'domain': 'reuters.com', 'id': 'reuters'},
+        {'domain': 'fortune.com', 'id': 'fortune'},
+        {'domain': 'thehill.com', 'id': 'the-hill'}
+    ]
+}
 
 
 def parse_domain_from_url(url: str) -> str:
@@ -50,13 +107,13 @@ def parse_url(url: str) -> str:
 
 def get_all_news_sources() -> list[dict]:
     """Use the News API in order to get a list of US news domains."""
-    return newsapi_client.get_sources(country="us")
+    return newsapi_client.get_sources(country="us")["sources"]
 
 
 def get_all_news_urls() -> list[str]:
     """Use the News API in order to get a list of US news domains."""
     sources: list[dict] = get_all_news_sources()
-    return [source["url"] for source in sources["sources"]]
+    return [source["url"] for source in sources]
 
 
 def get_all_news_domains() -> list[str]:
@@ -102,6 +159,104 @@ news_domains = set(api_news_domains + other_news_domains)
 def url_is_to_news_domain(url: str) -> bool:
     """Given a URL, check if it is a news domain."""
     return parse_url(url) in news_domains
+
+
+def get_latest_top_headlines_for_source(source_id: str) -> list[dict]:
+    """Get the latest top headlines from a news source."""
+    articles = newsapi_client.get_top_headlines(sources=source_id)["articles"]
+    return [
+        {
+            "title": article["title"],
+            "description": article["description"],
+            "url": article["url"],
+            "content": article["content"],
+            "publishedAt": article["publishedAt"],
+        }
+        for article in articles
+    ]
+
+
+def get_latest_top_headlines_for_political_party(
+    political_party: str
+) -> list[dict]:
+    """Get the latest top headlines from a news source."""
+    news_outlets = political_party_to_news_outlets[political_party]
+    return [
+        {
+            "source": news_outlet["id"],
+            "articles": get_latest_top_headlines_for_source(news_outlet["id"]),
+        }
+        for news_outlet in news_outlets
+    ]
+
+
+def get_latest_articles() -> dict:
+    """Get the latest top headlines from all news sources, split by party.
+
+    Takes ~20-30 seconds to run.
+    """
+    return {
+        "conservative": get_latest_top_headlines_for_political_party("conservative"),  # noqa
+        "moderate": get_latest_top_headlines_for_political_party("moderate"),
+        "democrat": get_latest_top_headlines_for_political_party("democrat"),
+    }
+
+
+def store_news_outlets_into_db() -> None:
+    """Store the news outlets into the database.
+
+    Should be initialized just once unless we add more sources.
+    """
+    res = []
+    for party in political_party_to_news_outlets.keys():
+        for news_outlet in political_party_to_news_outlets[party]:
+            news_outlet_obj = {
+                "outlet_id": news_outlet["id"],
+                "domain": news_outlet["domain"],
+                "political_party": party,
+                "synctimestamp": current_datetime.strftime("%Y-%m-%d-%H:%M:%S")  # noqa
+            }
+            NewsOutletModel(**news_outlet_obj)
+            res.append(news_outlet_obj)
+    bulk_insert_news_outlets(res)
+    print(f"Inserted {len(res)} news outlets into the database.")
+
+
+def store_latest_articles_into_db(latest_articles: dict) -> None:
+    """Store the latest articles into the database."""
+    res = []
+    skipped_articles_count = 0
+    for party in latest_articles.keys():
+        for news_source_articles_dict in latest_articles[party]:
+            news_outlet_source_id = news_source_articles_dict["source"]
+            articles = news_source_articles_dict["articles"]
+            for article in articles:
+                article_obj = {
+                    "url": article["url"],
+                    "title": article["title"],
+                    "content": article["content"],
+                    "description": article["description"],
+                    "publishedAt": article["publishedAt"],
+                    "news_outlet_source_id": news_outlet_source_id,
+                    "synctimestamp": current_datetime.strftime("%Y-%m-%d-%H:%M:%S")  # noqa
+                }
+                if (
+                    article_obj["content"] is None
+                    and article_obj["description"] is None
+                ):
+                    print(f"Skipping article {article_obj['url']} due to no content.")  # noqa
+                    skipped_articles_count += 1
+                    continue
+                try:
+                    NewsArticleModel(**article_obj)
+                except Exception as e:
+                    print(f"Error: {e}")
+                    breakpoint()
+                    continue
+                res.append(article_obj)
+    bulk_insert_news_articles(res)
+    print(f"Skipped {skipped_articles_count} articles due to no content.")
+    print(f"Inserted {len(res)} articles into the database.")
 
 
 if __name__ == "__main__":
