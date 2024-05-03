@@ -25,7 +25,6 @@ def main(
     if load_articles_from_db_bool:
         latest_articles_by_party: dict = load_articles_from_db()
         print(f"Loaded {len(latest_articles_by_party)} articles from the database.")  # noqa
-        breakpoint()
     else:
         if init_news_outlets:
             store_news_outlets_into_db()

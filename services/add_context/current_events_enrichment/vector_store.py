@@ -169,7 +169,7 @@ def query_vector_store(
     """Queries the vector store for similar articles.
 
     Given a particular query, searches each index and returns relevant
-    articles from each of the indices. 
+    articles from each of the indices.
     """
     return {
         political_party: query_political_party_index(political_party, query, top_n, similarity_distance)  # noqa
@@ -180,4 +180,3 @@ def query_vector_store(
 if __name__ == "__main__":
     test_query = "I can't believe that these protests are happening."
     search_results = query_vector_store(test_query)
-    breakpoint()
