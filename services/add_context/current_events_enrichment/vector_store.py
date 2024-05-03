@@ -17,7 +17,6 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores.faiss import FAISS
 from langchain_community.vectorstores.utils import DistanceStrategy
 from langchain.docstore.document import Document as LangchainDocument
-import numpy as np
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 MAX_CHUNK_SIZE = 512
@@ -138,7 +137,7 @@ def query_political_party_index(
 
     # in the future, can add filters to search: https://api.python.langchain.com/en/latest/vectorstores/langchain_community.vectorstores.faiss.FAISS.html#langchain_community.vectorstores.faiss.FAISS.similarity_search_by_vector # noqa
     if similarity_distance is not None:
-        raise NotImplementedError("Querying by similarity distance not implemented yet.")  # nqoa
+        raise NotImplementedError("Querying by similarity distance not implemented yet.")  # noqa
     else:
         search_results: list[tuple[LangchainDocument], float] = (
             vector_store.similarity_search_with_score(query=query, k=top_n)
