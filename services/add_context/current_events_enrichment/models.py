@@ -1,7 +1,7 @@
 """Pydantic models for the current events enrichment service."""
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 
 class NewsOutletModel(BaseModel):
@@ -43,3 +43,9 @@ class NewsArticleModel(BaseModel):
     synctimestamp: str = Field(
         description="The timestamp of the sync."
     )
+
+    @validator('content', always=True)
+    def check_content_or_description(cls, content, values):
+        if content is None and values.get('description') is None:
+            raise ValueError("Both content and description are None.")
+        return content

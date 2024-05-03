@@ -16,7 +16,7 @@ from langchain.docstore.document import Document as LangchainDocument
 import pandas as pd
 
 from services.classify_civic.constants import FAISS_INDEX_PATH
-from services.add_context.current_events_enrichment.sync_nytimes_articles import load_all_articles_as_df  # noqa
+from services.add_context.current_events_enrichment.experiments.sync_nytimes_articles import load_all_articles_as_df  # noqa
 
 MAX_CHUNK_SIZE = 512
 DEFAULT_EMBEDDING_MODEL = "thenlper/gte-small"
@@ -45,7 +45,7 @@ def load_all_articles_as_documents() -> list[LangchainDocument]:
     # to make sure that the text conforms to our tokenizer character limits.
     # alternatively, we could use RecursiveCharacterTextSplitter if our text
     # starts getting too long.
-    all_articles_df["full_text_truncated"] = all_articles_df["full_text"].apply( # noqa
+    all_articles_df["full_text_truncated"] = all_articles_df["full_text"].apply(  # noqa
         lambda x: x[:MAX_CHUNK_SIZE]
     )
     all_articles_dict_list = all_articles_df.to_dict(orient="records")

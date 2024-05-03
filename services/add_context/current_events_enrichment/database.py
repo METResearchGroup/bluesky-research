@@ -1,6 +1,7 @@
 """Database for storing news articles and news outlets."""
 import os
 import peewee
+from playhouse.shortcuts import model_to_dict
 import sqlite3
 from typing import Optional
 
@@ -59,8 +60,9 @@ def insert_news_outlet(news_outlet: dict) -> None:
 
 
 def bulk_insert_news_outlets(news_outlets: list[dict]) -> None:
+    """Bulk insert news outlets, ignoring duplicates."""
     with db.atomic():
-        NewsOutlet.insert_many(news_outlets).execute()
+        NewsOutlet.insert_many(news_outlets).on_conflict_ignore().execute()
 
 
 def insert_news_article(news_article: dict) -> None:
@@ -69,8 +71,14 @@ def insert_news_article(news_article: dict) -> None:
 
 
 def bulk_insert_news_articles(news_articles: list[dict]) -> None:
+    """Bulk insert news articles, ignoring duplicates."""
+    total_articles_in_db = NewsArticle.select().count()
+    print(f"Total articles in database (before insertion): {total_articles_in_db}")  # noqa
     with db.atomic():
-        NewsArticle.insert_many(news_articles).execute()
+        NewsArticle.insert_many(news_articles).on_conflict_ignore().execute()
+    print(f"Inserted {len(news_articles)} articles into the database.")
+    total_articles_in_db = NewsArticle.select().count()
+    print(f"Total articles in database (after insertion): {total_articles_in_db}")  # noqa
 
 
 def get_news_outlet_by_id(outlet_id: str) -> Optional[NewsOutlet]:
@@ -86,3 +94,18 @@ def get_news_articles_by_outlet_id(outlet_id: str) -> list[NewsArticle]:
             NewsArticle.news_outlet_source_id == outlet_id
         )
     )
+
+
+def load_articles_from_db() -> dict[str, list[dict]]:
+    """Loads all articles from DB. Then, creates a dictionary whose keys
+    are the political parties and whose values are the list of articles."""
+    articles_by_party = {}
+    for news_outlet in NewsOutlet.select():
+        articles = get_news_articles_by_outlet_id(news_outlet.outlet_id)
+        if news_outlet.political_party not in articles_by_party:
+            articles_by_party[news_outlet.political_party] = []
+        articles_dicts = [
+            model_to_dict(article) for article in articles
+        ]
+        articles_by_party[news_outlet.political_party].extend(articles_dicts)
+    return articles_by_party

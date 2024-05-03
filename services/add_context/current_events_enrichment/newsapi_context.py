@@ -31,14 +31,14 @@ political_party_to_news_outlet_domains_map = {
     "moderate": [
         "wsj.com", "newsweek.com", "reuters.com", "fortune.com", "thehill.com"
     ],
-    "conservative": [
+    "republican": [
         "theamericanconservative.com", "nationalreview.com",
         "washingtontimes.com", "foxnews.com", "breitbart.com"
     ]
 }
 
 political_party_to_news_outlets = {
-    'conservative': [
+    'republican': [
         {'domain': 'theamericanconservative.com', 'id': 'the-american-conservative'},
         {'domain': 'nationalreview.com', 'id': 'national-review'},
         {'domain': 'washingtontimes.com', 'id': 'the-washington-times'},
@@ -196,7 +196,7 @@ def get_latest_articles() -> dict:
     Takes ~20-30 seconds to run.
     """
     return {
-        "conservative": get_latest_top_headlines_for_political_party("conservative"),  # noqa
+        "republican": get_latest_top_headlines_for_political_party("republican"),  # noqa
         "moderate": get_latest_top_headlines_for_political_party("moderate"),
         "democrat": get_latest_top_headlines_for_political_party("democrat"),
     }
@@ -222,11 +222,14 @@ def store_news_outlets_into_db() -> None:
     print(f"Inserted {len(res)} news outlets into the database.")
 
 
-def store_latest_articles_into_db(latest_articles: dict) -> None:
-    """Store the latest articles into the database."""
-    res = []
+def organize_articles_by_political_party(latest_articles: dict) -> dict:
+    """Returns a dictionary where the key is the political party and the value
+    is a list of articles."""
+    res = {}
     skipped_articles_count = 0
+    print(f"Skipped {skipped_articles_count} articles due to no content.")
     for party in latest_articles.keys():
+        res[party] = []
         for news_source_articles_dict in latest_articles[party]:
             news_outlet_source_id = news_source_articles_dict["source"]
             articles = news_source_articles_dict["articles"]
@@ -240,23 +243,28 @@ def store_latest_articles_into_db(latest_articles: dict) -> None:
                     "news_outlet_source_id": news_outlet_source_id,
                     "synctimestamp": current_datetime.strftime("%Y-%m-%d-%H:%M:%S")  # noqa
                 }
-                if (
-                    article_obj["content"] is None
-                    and article_obj["description"] is None
-                ):
-                    print(f"Skipping article {article_obj['url']} due to no content.")  # noqa
-                    skipped_articles_count += 1
-                    continue
                 try:
                     NewsArticleModel(**article_obj)
+                    res[party].append(article_obj)
+                except ValueError as ve:
+                    print(f"Skipping article {article_obj['url']} due to no content: {ve}")  # noqa
+                    skipped_articles_count += 1
                 except Exception as e:
-                    print(f"Error: {e}")
-                    breakpoint()
+                    print(f"Error in processing article: {e}")
                     continue
-                res.append(article_obj)
+    return res
+
+
+def store_latest_articles_into_db(latest_articles_by_party: dict) -> None:
+    """Store the latest articles into the database.
+
+    Each key is a political party, and each value is a list of articles by news
+    orgs with that political lean.
+    """
+    res: list[dict] = []
+    for party in latest_articles_by_party.keys():
+        res.extend(latest_articles_by_party[party])
     bulk_insert_news_articles(res)
-    print(f"Skipped {skipped_articles_count} articles due to no content.")
-    print(f"Inserted {len(res)} articles into the database.")
 
 
 if __name__ == "__main__":
