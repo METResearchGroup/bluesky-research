@@ -22,7 +22,7 @@ async-timeout==4.0.3
     # via
     #   aiohttp
     #   langchain
-atproto==0.0.41
+atproto==0.0.46
     # via -r requirements.in
 attrs==23.2.0
     # via aiohttp
