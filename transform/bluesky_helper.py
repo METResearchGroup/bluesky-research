@@ -452,16 +452,6 @@ def get_posts_from_custom_feed(
         py_type='app.bsky.feed.defs#feedViewPost'
     )
     """  # noqa
-    """
-    payload = {"feed": feed_uri}
-    if limit:
-        payload["limit"] = limit
-    if cursor:
-        payload["cursor"] = cursor
-    response: FeedResponse = client.app.bsky.feed.get_feed(payload)
-    feed: list[FeedViewPost] = response.feed
-    return feed[:limit]
-    """
     kwargs = {"feed": feed_uri}
     res: list[FeedViewPost] = send_request_with_pagination(
         func=client.app.bsky.feed.get_feed,

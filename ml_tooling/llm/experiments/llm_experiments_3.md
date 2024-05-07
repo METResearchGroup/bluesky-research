@@ -834,7 +834,9 @@ Next, I'll work on integrating this "current events context" service into a gene
 
 - For determining when to get context for a post, investigate various strategies such as:
     - Keyword matching: see if a keyword (e.g., a name of an event) comes up. Need to figure out keywords that describe topics that are in the news (this is easiest if it is the name of a notable event, place, person, piece of legislature, etc.) and then we can easily pattern match that against posts that have that keyword.
-    - Posts that the LLM knows is political but isn't sure what the political ideology is
+    - Posts that the LLM knows is political but isn't sure what the political ideology is.
+- Determine how to format the context that's given to the LLM prompt.
+    - An interesting frame could be first asking the LLM to distill the sentiments and thoughts of each political party about a certain topic, based on the articles that we have for each topic, and then passing this distilled summary to the LLM itself.
 - Only insert into the vector store if it doesn’t already exist there.
 - At some point, add a maximum distance measure so we get only relevant articles (will take some experimentation in order to see what a good distance is).
 

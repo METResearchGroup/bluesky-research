@@ -4,9 +4,23 @@ import os
 from typing import Literal
 
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost
+from pymongo import InsertOne
+from pymongo.errors import BulkWriteError, DuplicateKeyError
+from pymongo.mongo_client import MongoClient
 
 from lib.constants import current_datetime
+from lib.helper import MONGODB_URI
 from transform.bluesky_helper import get_posts_from_custom_feed_url
+
+
+# set up MongoDB connection
+mongodb_uri = MONGODB_URI
+mongo_db_name = "bluesky-research-posts"
+mongo_collection_name = "most_liked_posts"
+
+mongodb_client = MongoClient(mongodb_uri)
+mongo_db = mongodb_client[mongo_db_name]
+mongo_collection = mongo_db[mongo_collection_name]
 
 feed_to_info_map = {
     "today": {
@@ -23,6 +37,7 @@ current_directory = os.path.dirname(os.path.abspath(__file__))
 current_datetime_str = current_datetime.strftime("%Y-%m-%d-%H:%M:%S")
 sync_dir = "syncs"
 sync_fp = os.path.join(current_directory, sync_dir, f"most_liked_posts_{current_datetime_str}.jsonl")
+urls_fp = os.path.join(current_directory, sync_dir, f"urls_{current_datetime_str}.csv")
 
 
 def create_new_feedview_post_fields(
@@ -136,17 +151,91 @@ def get_latest_most_liked_posts() -> list[dict]:
     return res
 
 
-def export_posts(posts: list[dict]) -> None:
-    """Export the posts to a file."""
-    with open(sync_fp, "w") as f:
-        for post in posts:
-            post_json = json.dumps(post)
-            f.write(post_json + "\n")
-    num_posts = len(posts)
-    print(f"Wrote {num_posts} posts to {sync_fp}")
+def insert_chunks(operations, chunk_size=100):
+    """Insert collections into MongoDB in chunks."""
+    total_successful_inserts = 0
+    duplicate_key_count = 0
+
+    for i in range(0, len(operations), chunk_size):
+        chunk = operations[i:i + chunk_size]
+        try:
+            result = mongo_collection.bulk_write(chunk, ordered=False)
+            total_successful_inserts += result.inserted_count
+        except BulkWriteError as bwe:
+            total_successful_inserts += bwe.details['nInserted']
+            duplicate_key_count += len(bwe.details['writeErrors'])
+
+    return total_successful_inserts, duplicate_key_count
+
+
+def export_posts(
+    posts: list[dict],
+    store_local: bool = True,
+    store_remote: bool = True,
+    bulk_write_remote: bool = True,
+    bulk_chunk_size: int = 100
+) -> None:
+    """Export the posts to a file, either locally as a JSON or remote in a
+    MongoDB collection."""
+    if store_local:
+        print(f"Writing {len(posts)} posts to {sync_fp}")
+        with open(sync_fp, "w") as f:
+            for post in posts:
+                post_json = json.dumps(post)
+                f.write(post_json + "\n")
+        num_posts = len(posts)
+        print(f"Wrote {num_posts} posts locally to {sync_fp}")
+
+    if store_remote:
+        duplicate_key_count = 0
+        total_successful_inserts = 0
+        total_posts = len(posts)
+        print(f"Inserting {total_posts} posts to MongoDB collection {mongo_collection_name}")  # noqa
+        formatted_posts_mongodb = [
+            {"_id": post["post"]["uri"], **post}
+            for post in posts
+        ]
+        if bulk_write_remote:
+            print("Inserting into MongoDB in bulk...")
+            mongodb_operations = [
+                InsertOne(post) for post in formatted_posts_mongodb
+            ]
+            total_successful_inserts, total_successful_inserts = insert_chunks(
+                operations=mongodb_operations, chunk_size=bulk_chunk_size
+            )
+            print("Finished bulk inserting into MongoDB.")
+        else:
+            for idx, post in enumerate(posts):
+                if idx % 100 == 0:
+                    print(f"Inserted {idx}/{total_posts} posts")
+                try:
+                    post_uri = post["post"]["uri"]
+                    # set the URI as the primary key.
+                    # NOTE: if this doesn't work, check if the IP address has
+                    # permission to access the database.
+                    mongo_collection.insert_one(
+                        {"_id": post_uri, **post},
+                    )
+                    total_successful_inserts += 1
+                except DuplicateKeyError:
+                    duplicate_key_count += 1
+            if duplicate_key_count > 0:
+                print(f"Skipped {duplicate_key_count} duplicate posts")
+        print(f"Inserted {total_successful_inserts} posts to remote MongoDB collection {mongo_collection_name}")  # noqa
+
+
+def dump_most_recent_local_sync_to_remote() -> None:
+    """Dump the most recent local sync to the remote MongoDB collection."""
+    sync_files = os.listdir(os.path.join(current_directory, sync_dir))
+    most_recent_filename = sorted(sync_files)[-1]
+    sync_fp = os.path.join(current_directory, sync_dir, most_recent_filename)
+    print(f"Reading most recent sync file {sync_fp}")
+    with open(sync_fp, "r") as f:
+        posts: list[dict] = [json.loads(line) for line in f]
+    export_posts(posts=posts, store_local=False, store_remote=True)
 
 
 if __name__ == "__main__":
-    posts: list[dict] = get_latest_most_liked_posts()
-    export_posts(posts)
-    breakpoint()
+    # posts: list[dict] = get_latest_most_liked_posts()
+    # export_posts(posts=posts, store_local=True, store_remote=True)
+    dump_most_recent_local_sync_to_remote()

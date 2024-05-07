@@ -63,7 +63,9 @@ dataclasses-json==0.6.4
 distro==1.9.0
     # via openai
 dnspython==2.5.0
-    # via atproto
+    # via
+    #   atproto
+    #   pymongo
 exceptiongroup==1.2.0
     # via anyio
 faiss-cpu==1.8.0
@@ -259,6 +261,8 @@ pydantic==2.6.1
     #   openai
 pydantic-core==2.16.2
     # via pydantic
+pymongo==4.7.1
+    # via -r requirements.in
 pyparsing==3.1.1
     # via
     #   httplib2

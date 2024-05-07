@@ -28,6 +28,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GOOGLE_AI_STUDIO_KEY = os.getenv("GOOGLE_AI_STUDIO_KEY")
 NEWSAPI_API_KEY = os.getenv("NEWSAPI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+MONGODB_URI = os.getenv("MONGODB_URI")
 
 client = Client()
 client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
