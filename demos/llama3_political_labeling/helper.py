@@ -192,18 +192,33 @@ def load_and_label_posts() -> list[dict]:
 
 
 def export_urls_of_posts(posts: list[dict], limit: int = None) -> None:
-    """Exports the URLs of the posts to be labeled."""
+    """Exports the URLs of the posts to be labeled.
+
+    We first want all of the ones that are from the weekly feed, as those will
+    have more likes, and then backfill the rest with the hottest posts from
+    the past 24 hours.
+    """
     # TODO: should I also store these in MongoDB? So we can track which
     # posts have been labeled?
+    df = pd.DataFrame(posts)
+    df['source_feed'] = df['metadata'].apply(lambda x: x.get('source_feed', None))  # noqa
+    sort_order = {'week': 0, 'today': 1}
+    df['sort_key'] = df['source_feed'].map(sort_order)
+    df.sort_values('sort_key', inplace=True)
+    df_dicts = df.to_dict("records")
+    breakpoint()
     posts_to_label_list: list[dict] = [
         {
             "linkid": idx + 1,
             "link": post["url"],
             "sociopolitical": "",
             "ideology": "",
-            "partisan": ""
+            "partisan": "",
+            # metadata is for me, but needs to be deleted.
+            "metadata": post["metadata"],
+            "source_feed": post["source_feed"]
         }
-        for idx, post in enumerate(posts)
+        for idx, post in enumerate(df_dicts)
     ]
     if limit:
         posts_to_label_list = posts_to_label_list[:limit]
