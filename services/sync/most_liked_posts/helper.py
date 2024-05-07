@@ -4,23 +4,12 @@ import os
 from typing import Literal
 
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost
-from pymongo import InsertOne
-from pymongo.errors import BulkWriteError, DuplicateKeyError
-from pymongo.mongo_client import MongoClient
+from pymongo.errors import DuplicateKeyError
 
 from lib.constants import current_datetime
-from lib.helper import MONGODB_URI
+from lib.db.mongodb import get_mongodb_collection, chunk_insert_posts
 from transform.bluesky_helper import get_posts_from_custom_feed_url
 
-
-# set up MongoDB connection
-mongodb_uri = MONGODB_URI
-mongo_db_name = "bluesky-research-posts"
-mongo_collection_name = "most_liked_posts"
-
-mongodb_client = MongoClient(mongodb_uri)
-mongo_db = mongodb_client[mongo_db_name]
-mongo_collection = mongo_db[mongo_collection_name]
 
 feed_to_info_map = {
     "today": {
@@ -36,8 +25,14 @@ feed_to_info_map = {
 current_directory = os.path.dirname(os.path.abspath(__file__))
 current_datetime_str = current_datetime.strftime("%Y-%m-%d-%H:%M:%S")
 sync_dir = "syncs"
-sync_fp = os.path.join(current_directory, sync_dir, f"most_liked_posts_{current_datetime_str}.jsonl")
-urls_fp = os.path.join(current_directory, sync_dir, f"urls_{current_datetime_str}.csv")
+full_sync_dir = os.path.join(current_directory, sync_dir)
+sync_fp = os.path.join(full_sync_dir, f"most_liked_posts_{current_datetime_str}.jsonl")
+urls_fp = os.path.join(full_sync_dir, f"urls_{current_datetime_str}.csv")
+
+task_name = "get_most_liked_posts"
+mongo_collection_name, mongo_collection = (
+    get_mongodb_collection(task=task_name)
+)
 
 
 def create_new_feedview_post_fields(
@@ -151,23 +146,6 @@ def get_latest_most_liked_posts() -> list[dict]:
     return res
 
 
-def insert_chunks(operations, chunk_size=100):
-    """Insert collections into MongoDB in chunks."""
-    total_successful_inserts = 0
-    duplicate_key_count = 0
-
-    for i in range(0, len(operations), chunk_size):
-        chunk = operations[i:i + chunk_size]
-        try:
-            result = mongo_collection.bulk_write(chunk, ordered=False)
-            total_successful_inserts += result.inserted_count
-        except BulkWriteError as bwe:
-            total_successful_inserts += bwe.details['nInserted']
-            duplicate_key_count += len(bwe.details['writeErrors'])
-
-    return total_successful_inserts, duplicate_key_count
-
-
 def export_posts(
     posts: list[dict],
     store_local: bool = True,
@@ -197,11 +175,10 @@ def export_posts(
         ]
         if bulk_write_remote:
             print("Inserting into MongoDB in bulk...")
-            mongodb_operations = [
-                InsertOne(post) for post in formatted_posts_mongodb
-            ]
-            total_successful_inserts, total_successful_inserts = insert_chunks(
-                operations=mongodb_operations, chunk_size=bulk_chunk_size
+            total_successful_inserts, duplicate_key_count = chunk_insert_posts(
+                posts=formatted_posts_mongodb,
+                mongo_collection=mongo_collection,
+                chunk_size=bulk_chunk_size
             )
             print("Finished bulk inserting into MongoDB.")
         else:
@@ -219,8 +196,8 @@ def export_posts(
                     total_successful_inserts += 1
                 except DuplicateKeyError:
                     duplicate_key_count += 1
-            if duplicate_key_count > 0:
-                print(f"Skipped {duplicate_key_count} duplicate posts")
+        if duplicate_key_count > 0:
+            print(f"Skipped {duplicate_key_count} duplicate posts")
         print(f"Inserted {total_successful_inserts} posts to remote MongoDB collection {mongo_collection_name}")  # noqa
 
 
