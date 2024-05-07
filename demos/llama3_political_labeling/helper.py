@@ -10,29 +10,29 @@ from lib.constants import current_datetime
 from lib.db.mongodb import (
     chunk_insert_posts, get_mongodb_collection, load_collection
 )
-from services.sync.most_liked_posts.helper import sync_dir
+from services.sync.most_liked_posts.helper import full_sync_dir
 
 DEFAULT_POST_LIMIT = 100
 DEFAULT_BATCH_SIZE = 5
 
 task_name = "llm_political_labeling"
 mongo_collection_name, mongo_collection = get_mongodb_collection(
-    task_name=task_name
+    task=task_name
 )
 
-current_directory = os.path.dirname(os.path.abspath(__file__))
+current_file_dir = os.path.dirname(os.path.abspath(__file__))
 current_datetime_str = current_datetime.strftime("%Y-%m-%d-%H:%M:%S")
 label_dir = "labeled_data"
 urls_dir = "post_urls"
-labeled_data_fp = os.path.join(current_directory, label_dir, f"labeled_posts_{current_datetime_str}.jsonl")
-urls_fp = os.path.join(current_directory, urls_dir, f"urls_{current_datetime_str}.csv")
+labeled_data_fp = os.path.join(current_file_dir, label_dir, f"labeled_posts_{current_datetime_str}.jsonl")
+urls_fp = os.path.join(current_file_dir, urls_dir, f"urls_{current_datetime_str}.csv")
 
 
 def load_posts_local() -> list[dict]:
     """Loads the most recent synced posts from local storage."""
-    sync_files = os.listdir(os.path.join(current_directory, sync_dir))
+    sync_files = os.listdir(full_sync_dir)
     most_recent_filename = sorted(sync_files)[-1]
-    sync_fp = os.path.join(current_directory, sync_dir, most_recent_filename)
+    sync_fp = os.path.join(full_sync_dir, most_recent_filename)
     print(f"Loading most recent sync file {sync_fp}")
     with open(sync_fp, "r") as f:
         posts: list[dict] = [json.loads(line) for line in f]
@@ -195,17 +195,23 @@ def export_urls_of_posts(posts: list[dict], limit: int = None) -> None:
     """Exports the URLs of the posts to be labeled."""
     # TODO: should I also store these in MongoDB? So we can track which
     # posts have been labeled?
-    urls_list: list[dict] = [
-        {"url": post["metadata"]["url"]}
-        for post in posts
+    posts_to_label_list: list[dict] = [
+        {
+            "linkid": idx + 1,
+            "link": post["url"],
+            "sociopolitical": "",
+            "ideology": "",
+            "partisan": ""
+        }
+        for idx, post in enumerate(posts)
     ]
     if limit:
-        urls_list = urls_list[:limit]
-    urls_df = pd.DataFrame(urls_list)
-    urls_df.to_csv(urls_fp)
-    print(f"Successfully exported {len(urls_list)} URLS to {urls_fp}")
+        posts_to_label_list = posts_to_label_list[:limit]
+    urls_df = pd.DataFrame(posts_to_label_list)
+    urls_df.to_csv(urls_fp, index=False)
+    print(f"Successfully exported {len(posts_to_label_list)} URLS to {urls_fp}")  # noqa
 
 
 if __name__ == "__main__":
     posts_to_label: list[dict] = load_posts(source="local")
-    export_urls_of_posts(posts=posts_to_label)
+    export_urls_of_posts(posts=posts_to_label, limit=1000)
