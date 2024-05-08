@@ -1,25 +1,34 @@
 """Transforms raw data.
 
 Based on https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.defs.json
-""" # noqa
+"""  # noqa
 import json
-from typing import Optional, TypedDict, Union
+from typing import Optional, Union
 
-from atproto_client.models.app.bsky.actor.defs import (
-    ProfileView, ProfileViewBasic, ProfileViewDetailed
-)
+from atproto_client.models.app.bsky.actor.defs import ProfileViewBasic
 from atproto_client.models.app.bsky.embed.external import External, Main as ExternalEmbed  # noqa
 from atproto_client.models.app.bsky.embed.images import Image, Main as ImageEmbed  # noqa
 from atproto_client.models.app.bsky.embed.record import Main as RecordEmbed
 from atproto_client.models.app.bsky.embed.record_with_media import Main as RecordWithMediaEmbed  # noqa
 from atproto_client.models.app.bsky.feed.post import Entity, Main as Record, ReplyRef  # noqa
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, PostView
-from atproto_client.models.app.bsky.richtext.facet import Link, Main as Facet, Mention, Tag # noqa
+from atproto_client.models.app.bsky.richtext.facet import Link, Main as Facet, Mention, Tag  # noqa
 from atproto_client.models.com.atproto.label.defs import SelfLabel, SelfLabels
 from atproto_client.models.com.atproto.repo.strong_ref import Main as StrongRef
 from atproto_client.models.dot_dict import DotDict
 
-from lib.constants import current_datetime
+from lib.constants import current_datetime_str
+from lib.db.bluesky_models.transformations import (
+    FeedViewPostMetadata,
+    TransformedFeedViewPostModel,
+    TransformedProfileViewBasicModel,
+    TransformedFirehosePostModel,
+    TransformedRecordModel
+)
+from lib.db.bluesky_models.embed import (
+    ProcessedEmbed, ProcessedExternalEmbed, ProcessedRecordEmbed,
+    ProcessedRecordWithMediaEmbed
+)
 
 
 # we use a semicolon since it's unlikely for text to use semicolons.
@@ -85,7 +94,7 @@ def process_mention(mention: Mention) -> str:
     """Processes a mention of another Bluesky user.
 
     See https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py
-    """ # noqa
+    """  # noqa
     return f"mention:{mention.did}"
 
 
@@ -93,7 +102,7 @@ def process_link(link: Link) -> str:
     """Processes a link. The URI here is the link itself.
 
     See https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py
-    """ # noqa
+    """  # noqa
     return f"link:{link.uri}"
 
 
@@ -103,7 +112,7 @@ def process_hashtag(tag: Tag) -> str:
     would be 'red').
 
     See https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py
-    """ # noqa
+    """  # noqa
     return f"tag:{tag.tag}"
 
 
@@ -197,7 +206,7 @@ def process_facet(facet: Facet) -> str:
             features_list.append(process_link(feature))
         elif (
             isinstance(feature, Mention)
-            or get_object_type_str(feature) == "app.bsky.richtext.facet#mention" # noqa
+            or get_object_type_str(feature) == "app.bsky.richtext.facet#mention"  # noqa
         ):
             features_list.append(process_mention(feature))
         else:
@@ -206,8 +215,10 @@ def process_facet(facet: Facet) -> str:
     return LIST_SEPARATOR_CHAR.join(features_list)
 
 
-def process_facets(facets: list[Facet]) -> str:
+def process_facets(facets: Optional[list[Facet]]) -> Optional[str]:
     """Processes a list of facets."""
+    if not facets:
+        return None
     return LIST_SEPARATOR_CHAR.join([process_facet(facet) for facet in facets])
 
 
@@ -218,11 +229,11 @@ def process_label(label: SelfLabel) -> str:
     SelfLabel(val='porn', py_type='com.atproto.label.defs#selfLabel'
 
     Returns a single label.
-    """ # noqa
+    """  # noqa
     return label.val
 
 
-def process_labels(labels: Optional[SelfLabels]) -> str:
+def process_labels(labels: Optional[SelfLabels]) -> Optional[str]:
     """Processes labels.
 
     Example:
@@ -232,9 +243,11 @@ def process_labels(labels: Optional[SelfLabels]) -> str:
     )
 
     Based off https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/com/atproto/label/defs.py#L38
-    """ # noqa
+    """  # noqa
+    if not labels:
+        return None
     label_values: list[SelfLabel] = labels.values
-    return LIST_SEPARATOR_CHAR.join([process_label(label) for label in label_values]) # noqa
+    return LIST_SEPARATOR_CHAR.join([process_label(label) for label in label_values])  # noqa
 
 
 def process_entity(entity: Entity) -> str:
@@ -248,11 +261,11 @@ def process_entity(entity: Entity) -> str:
         value='https://song.link/s/2Zh97yLVZeOpwzFoXtkfBt',
         py_type='app.bsky.feed.post#entity'
     )
-    """ # noqa
+    """  # noqa
     return entity.value
 
 
-def process_entities(entities: list[Entity]) -> str:
+def process_entities(entities: Optional[list[Entity]]) -> Optional[str]:
     """Processes entities.
 
     Example:
@@ -265,7 +278,9 @@ def process_entities(entities: list[Entity]) -> str:
         )
     ]
     """  # noqa
-    return LIST_SEPARATOR_CHAR.join([process_entity(entity) for entity in entities]) # noqa
+    if not entities:
+        return None
+    return LIST_SEPARATOR_CHAR.join([process_entity(entity) for entity in entities])  # noqa
 
 
 def process_replies(reply: Optional[ReplyRef]) -> dict:
@@ -311,7 +326,7 @@ def process_images(image_embed: ImageEmbed) -> str:
     For now, we just return the alt texts of the images, separated by ;
     (since , is likely used in the text itself).
     """
-    return LIST_SEPARATOR_CHAR.join([process_image(image) for image in image_embed.images]) # noqa
+    return LIST_SEPARATOR_CHAR.join([process_image(image) for image in image_embed.images])  # noqa
 
 
 def process_strong_ref(strong_ref: StrongRef) -> dict:
@@ -326,17 +341,17 @@ def process_strong_ref(strong_ref: StrongRef) -> dict:
     }
 
 
-def process_record_embed(record_embed: RecordEmbed) -> str:
+def process_record_embed(record_embed: RecordEmbed) -> ProcessedRecordEmbed:
     """Processes record embeds.
 
     Record embeds are posts that are embedded in other posts. This is a way to
     reference another post in a post.
     """
-    strong_ref = process_strong_ref(record_embed.record)
-    return json.dumps(strong_ref)
+    res: dict = process_strong_ref(record_embed.record)
+    return ProcessedRecordEmbed(**res)
 
 
-def process_external_embed(external_embed: ExternalEmbed) -> str:
+def process_external_embed(external_embed: ExternalEmbed) -> ProcessedExternalEmbed:  # noqa
     """Processes an "external" embed, which is some externally linked content
     plus its preview card.
 
@@ -352,12 +367,12 @@ def process_external_embed(external_embed: ExternalEmbed) -> str:
         "title": external.title,
         "uri": external.uri
     }
-    return json.dumps(res)
+    return ProcessedExternalEmbed(**res)
 
 
 def process_record_with_media_embed(
     record_with_media_embed: RecordWithMediaEmbed
-) -> dict:
+) -> ProcessedRecordWithMediaEmbed:
     """Processes a record with media embed, which is when a post both
     references another record as well as has media (i.e., image) attached.
 
@@ -370,23 +385,24 @@ def process_record_with_media_embed(
     media: Union[ExternalEmbed, ImageEmbed] = record_with_media_embed.media
     record_embed: RecordEmbed = record_with_media_embed.record
 
-    processed_image = ""
+    image_alt_text = ""
     if (
         isinstance(media, ImageEmbed)
         or get_object_type_str(media) == "app.bsky.embed.images"
     ):
-        processed_image: str = process_images(media)
-    processed_record: str = process_record_embed(record_embed)
+        image_alt_text: str = process_images(media)
+    processed_record: ProcessedRecordEmbed = process_record_embed(record_embed)
 
-    return {
-        "image_alt_text": processed_image,
+    res = {
+        "image_alt_text": image_alt_text,
         "embedded_record": processed_record,
     }
+    return ProcessedRecordWithMediaEmbed(**res)
 
 
 def process_embed(
     embed: Union[ExternalEmbed, ImageEmbed, RecordEmbed, RecordWithMediaEmbed]
-) -> str:
+) -> ProcessedEmbed:
     """Processes embeds.
 
     Follows specs in https://github.com/MarshalX/atproto/tree/main/packages/atproto_client/models/app/bsky/embed
@@ -402,28 +418,31 @@ def process_embed(
         "external": None,
     }
     if embed is None:
-        return res
+        return ProcessedEmbed(**res)
 
     if (
         isinstance(embed, ImageEmbed)
         or embed.py_type == "app.bsky.embed.images"
     ):
         res["has_image"] = True
-        res["image_alt_text"] = process_images(embed)
+        image_alt_text: str = process_images(embed)
+        res["image_alt_text"] = image_alt_text
 
     if (
         isinstance(embed, RecordEmbed)
         or embed.py_type == "app.bsky.embed.record"
     ):
         res["has_embedded_record"] = True
-        res["embedded_record"] = process_record_embed(embed)
+        embedded_record: ProcessedRecordEmbed = process_record_embed(embed)
+        res["embedded_record"] = embedded_record
 
     if (
         isinstance(embed, ExternalEmbed)
         or embed.py_type == "app.bsky.embed.external"
     ):
         res["has_external"] = True
-        res["external"] = process_external_embed(embed)
+        external_embed: ProcessedExternalEmbed = process_external_embed(embed)
+        res["external"] = external_embed
 
     if (
         isinstance(embed, RecordWithMediaEmbed)
@@ -431,11 +450,35 @@ def process_embed(
     ):
         res["has_image"] = True
         res["has_embedded_record"] = True
-        processed_embed = process_record_with_media_embed(embed)
-        res["image_alt_text"] = processed_embed["image_alt_text"]
-        res["embedded_record"] = processed_embed["embedded_record"]
+        processed_embed: ProcessedRecordWithMediaEmbed = process_record_with_media_embed(embed)  # noqa
+        image_alt_text: str = processed_embed.image_alt_text
+        embedded_record: ProcessedRecordEmbed = processed_embed.embedded_record
+        res["image_alt_text"] = image_alt_text
+        res["embedded_record"] = embedded_record
 
-    return json.dumps(res)
+    return ProcessedEmbed(**res)
+
+
+def process_langs(langs: Optional[list[str]]) -> Optional[str]:
+    """Processes languages.
+
+    Example:
+    ['ja']
+    """  # noqa
+    if not langs:
+        return None
+    return LIST_SEPARATOR_CHAR.join(langs)
+
+
+def process_tags(tags: Optional[list[str]]) -> Optional[str]:
+    """Processes tags.
+
+    Example:
+    ['furry', 'furryart']
+    """  # noqa
+    if not tags:
+        return None
+    return LIST_SEPARATOR_CHAR.join(tags)
 
 
 def flatten_firehose_post(post: dict) -> dict:
@@ -471,85 +514,103 @@ def flatten_firehose_post(post: dict) -> dict:
         'author': 'did:plc:sjeosezgc7mpqn6sfc7neabg'
     }
     """  # noqa
-    processed_replies: dict = process_replies(post["record"].reply)
+    transformed_record: TransformedRecordModel = transform_post_record(post["record"])  # noqa
+    transformed_record_dict: dict = transformed_record.dict()
     try:
         # flatten the post
         flattened_firehose_dict = {
             "uri": post["uri"],
-            "created_at": post["record"]["created_at"],
-            "text": post["record"]["text"],
-            "embed": (
-                process_embed(post["record"]["embed"])
-                if post["record"]["embed"] else None
-            ),
-            "langs": (
-                LIST_SEPARATOR_CHAR.join(post["record"]["langs"])
-                if post["record"]["langs"] else None
-            ),
-            "entities": (
-                process_entities(post["record"]["entities"])
-                if post["record"]["entities"] else None
-            ),
-            "facets": (
-                process_facets(post["record"]["facets"])
-                if post["record"]["facets"] else None
-            ),
-            "labels": (
-                process_labels(post["record"]["labels"])
-                if post["record"]["labels"] else None
-            ),
-            "reply_parent": processed_replies["reply_parent"],
-            "reply_root": processed_replies["reply_root"],
-            "tags": (
-                LIST_SEPARATOR_CHAR.join(post["record"]["tags"])
-                if post["record"]["tags"] else None
-            ),
-            "py_type": (
-                post["record"]["py_type"] or get_object_type_str(
-                    post["record"])
-            ),
             "cid": post["cid"],
             "author": post["author"],
             # synctimestamp, e.g., '2024-03-20-14:58:09', for when we synced
             # the data. This is different than the "indexed_at" field from
             # Bluesky, which is when they last indexed the PDS on their end.
-            "synctimestamp": current_datetime.strftime("%Y-%m-%d-%H:%M:%S")
+            "synctimestamp": current_datetime_str
         }
+        flattened_firehose_dict = {
+            **flattened_firehose_dict, **transformed_record_dict
+        }
+        TransformedFirehosePostModel(**flattened_firehose_dict)
     except Exception as e:
         print(f"Exception in flattening post: {e}")
     return flattened_firehose_dict
 
 
-class FlattenedFeedViewPost(TypedDict):
-    author_did: str
-    author_handle: str
-    author_display_name: str
-    created_at: str
-    text: str
-    langs: str
-    cid: str
-    indexed_at: str
-    like_count: int
-    reply_count: int
-    repost_count: int
+def get_feedviewpost_metadata(
+    post: FeedViewPost, enrichment_data: dict
+) -> FeedViewPostMetadata:
+    metadata = {}
+    handle = post.post.author.handle
+    uri = post.post.uri.split("/")[-1]
+    metadata["url"] = f"https://bsky.app/profile/{handle}/post/{uri}"
+    metadata["source_feed"] = enrichment_data["source_feed"]
+    metadata["feed_url"] = enrichment_data["feed_url"]
+    metadata["synctimestamp"] = current_datetime_str
+    return metadata
 
 
-def flatten_feed_view_post(post: FeedViewPost) -> dict:
-    assert isinstance(post, FeedViewPost)
-    post: FlattenedFeedViewPost = flatten_post(post.post)
-    return post
-
-
-def flatten_user_profile(
-    user: Union[ProfileViewDetailed, ProfileView]
-) -> dict:
-    """Flattens a user profile. This is a profile view from Bluesky.
-
-    To flatten, we just remove the `viewer` field, which is a `ViewerState`,
-    especially since it doesn't give us any relevant information.
-    """
-    return {
-        field: getattr(user, field)
-        for field in user.__dict__.keys()
-        if field != "viewer"
+def transform_post_record(record: Record) -> TransformedRecordModel:
+    """Transforms the raw post record and returns a transformed version."""
+    processed_replies: dict = process_replies(record.reply)
+    res = {
+        "created_at": record.created_at,
+        "text": record.text,
+        "embed": process_embed(record.embed),
+        "entities": process_entities(record.entities),
+        "facets": process_facets(record.facets),
+        "labels": process_labels(record.labels),
+        "langs": process_langs(record.langs),
+        "reply_parent": processed_replies["reply_parent"],
+        "reply_root": processed_replies["reply_root"],
+        "tags": process_tags(record.tags),
+        "py_type": record.py_type
     }
+    return TransformedRecordModel(**res)
+
+
+def transform_author_profile(author: ProfileViewBasic) -> TransformedProfileViewBasicModel:  # noqa
+    res = {
+        "did": author.did,
+        "handle": author.handle,
+        "avatar": author.avatar,
+        "display_name": author.display_name,
+        "py_type": author.py_type
+    }
+    return TransformedProfileViewBasicModel(**res)
+
+
+def transform_feedview_post(
+    post: FeedViewPost, enrichment_data: dict
+) -> TransformedFeedViewPostModel:
+    """Transforms a feed view post."""
+    metadata: FeedViewPostMetadata = get_feedviewpost_metadata(
+        post=post, enrichment_data=enrichment_data
+    )
+    raw_author: ProfileViewBasic = post.post.author
+    transformed_author: TransformedProfileViewBasicModel = (
+        transform_author_profile(author=raw_author)
+    )
+    transformed_record: TransformedRecordModel = (
+        transform_post_record(record=post.post.record)
+    )
+    res = {
+        "metadata": metadata,
+        "author": transformed_author,
+        "cid": post.post.cid,
+        "indexed_at": post.post.indexed_at,
+        "record": transformed_record,
+        "uri": post.post.uri,
+        "like_count": post.post.like_count,
+        "reply_count": post.post.reply_count,
+        "repost_count": post.post.repost_count,
+    }
+    return TransformedFeedViewPostModel(**res)
+
+
+def transform_feedview_posts(
+    posts: list[FeedViewPost], enrichment_data: dict
+) -> list[TransformedFeedViewPostModel]:
+    return [
+        transform_feedview_post(post=post, enrichment_data=enrichment_data)
+        for post in posts
+    ]

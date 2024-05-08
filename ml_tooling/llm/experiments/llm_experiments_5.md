@@ -2,10 +2,690 @@
 
 I'm working on a project that involves gathering social media posts from [Bluesky](https://bsky.app/) and analyzing them. Part of that project requires knowing which posts are about political or social topics, and if so, what political side they support. Current ML classifiers don't work that well out of the box, so I'm trying to create our own classification scheme using LLMs. I'm trying to use LLMs in order to classify [Bluesky](https://bsky.app/) posts as either having political content or not, and if so, the political ideology, and I've found that LLMs work quite well for this task. I've used Llama3-8b and Llama3-70b via [Groq](https://groq.com/) so far, but are also open to experimenting with other open-source models as well (I have the on-prem infrastructure to host our own models, which is much cheaper at scale).
 
-[Previously](https://markptorres.com/research/llm-experiments-pt-i), I confirmed that LLMs are promising for our classification task. We now want to replicate this. We [previously](https://markptorres.com/research/llm-experiments-pt-iv) synced the data for annotation. Now we need to actually load this data and do annotations.
+[Previously](https://markptorres.com/research/llm-experiments-pt-i), I confirmed that LLMs are promising for our classification task. We now want to replicate this. We [previously](https://markptorres.com/research/llm-experiments-pt-iv) synced the data for annotation. Now we want to clean up our code for syncing the posts and doing quality checks using Pydantic.
 
-## Load the data for annotation
+## Defining our high-level ETL pipeline
+At a high level, our ETL pipeline consists of the following steps:
+- Extract the raw posts from the Bluesky API.
+- Transform (and filter) the raw posts into a format useful for us.
+- Loading the posts into both local storage and MongoDB.
 
-## Labeling the data using LLMs
+We already went over extracting the raw posts [previously](https://markptorres.com/research/llm-experiments-pt-iv), so I'll focus on transforming and filtering the raw posts.
 
-## Evaluating labeling results.
+## Creating pydantic models
+When we synced the data for annotation, we did not do any quality checks on the data itself. As a result, our downstream code will expect a certain schema and for certain values to exist, when that might not be true in the first place. Since Bluesky is ever-evolving, it's bad practice for us to expect a certain schema to always be true. Therefore, we want to create pydantic models in order to ensure that we get data in the exact format that we expect.
+
+Our posts come in a `FeedViewPost` format from Bluesky, as defined [here](https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/feed/defs.py#L62). We reliably know that the ingested data comes in this format. However, we want to transform this raw input data into a format that is useful for us downstream.
+
+We'll create the following Pydantic models to help us with this (each is explained in context later on):
+
+```python
+"""Models for transformed fields."""
+from typing import Optional
+import typing_extensions as te
+
+from pydantic import BaseModel, Field
+
+
+class ProcessedRecordEmbed(BaseModel):
+    """Pydantic model for processing record embeds.
+
+    Right now this just manages references to other records.
+    """
+    cid: Optional[str] = Field(
+        default=None,
+        description="The CID of the record."
+    )
+    uri: Optional[str] = Field(
+        default=None,
+        description="The URI of the record."
+    )
+
+
+class ProcessedExternalEmbed(BaseModel):
+    """Pydantic model for an external embed."""
+    description: Optional[str] = Field(
+        default=None,
+        description="Description of the external embed."
+    )
+    title: Optional[str] = Field(
+        default=None,
+        description="Title of the external embed."
+    )
+    uri: Optional[str] = Field(
+        default=None,
+        description="URI of the external embed."
+    )
+
+
+class ProcessedRecordWithMediaEmbed(BaseModel):
+    """Pydantic model for a record with media embedded."""
+    image_alt_text: Optional[str] = Field(
+        default=None,
+        description="The alt text of the image in the post."
+    )
+    embedded_record: Optional[ProcessedRecordEmbed] = Field(
+        default=None,
+        description="The embedded record, if any."
+    )
+
+
+class ProcessedEmbed(BaseModel):
+    """Pydantic model for the processed embed."""
+    has_image: bool = Field(default=False, description="Whether the post has an image.")  # noqa
+    image_alt_text: Optional[str] = Field(
+        default=None,
+        description="The alt text of the image in the post."
+    )
+    has_embedded_record: bool = Field(
+        default=False,
+        description="Whether the post has an embedded record."
+    )
+    embedded_record: Optional[ProcessedRecordEmbed] = Field(
+        default=None,
+        description="The embedded record, if any."
+    )
+    has_external: bool = Field(
+        default=False,
+        description="Whether the post has an external embed."
+    )
+    external: Optional[ProcessedExternalEmbed] = Field(
+        default=None,
+        description="External embed, if any."
+    )
+
+class TransformedProfileViewBasicModel(BaseModel):
+    """Model for the transformed profile view."""
+    did: str = Field(..., description="The DID of the user.")
+    handle: str = Field(..., description="The handle of the user.")
+    avatar: Optional[str] = None
+    display_name: Optional[str] = Field(
+        default=None, max_length=640, description="Display name of the user."
+    )
+    py_type: te.Literal["app.bsky.actor.defs#profileViewBasic"] = Field(
+        default="app.bsky.actor.defs#profileViewBasic", alias="$type", frozen=True # noqa
+    )
+
+
+class TransformedRecordModel(BaseModel):
+    """Model for the transformed record."""
+    created_at: str = Field(..., description="The timestamp of when the record was created on Bluesky.") # noqa
+    text: str = Field(..., description="The text of the record.")
+    embed: Optional[ProcessedEmbed] = Field(default=None, description="The embeds in the record, if any.") # noqa
+    entities: Optional[str] = Field(default=None, description="The entities of the record, if any. Separated by a separator.") # noqa
+    facets: Optional[str] = Field(default=None, description="The facets of the record, if any. Separated by a separator.") # noqa
+    labels: Optional[str] = Field(default=None, description="The labels of the record, if any. Separated by a separator.") # noqa
+    langs: Optional[str] = Field(default=None, description="The languages of the record, if specified.") # noqa
+    reply_parent: Optional[str] = Field(default=None, description="The parent post that the record is responding to in the thread, if any.") # noqa
+    reply_root: Optional[str] = Field(default=None, description="The root post of the thread, if any.") # noqa
+    tags: Optional[str] = Field(default=None, description="The tags of the record, if any.") # noqa
+    py_type: te.Literal["app.bsky.feed.post"] = Field(default="app.bsky.feed.post", frozen=True) # noqa
+
+
+class TransformedFirehosePostModel(BaseModel):
+    """Model for the transformed firehose post."""
+    uri: str = Field(..., description="The URI of the post.")
+    cid: str = Field(..., description="The CID of the post.")
+    author: str = Field(..., description="The DID of the author of the post.")
+    synctimestamp: str = Field(..., description="The synctimestamp of the post.") # noqa
+    created_at: str = Field(..., description="The timestamp of when the record was created on Bluesky.") # noqa
+    text: str = Field(..., description="The text of the record.")
+    embed: Optional[ProcessedEmbed] = Field(default=None, description="The embeds in the record, if any.") # noqa
+    entities: Optional[str] = Field(default=None, description="The entities of the record, if any. Separated by a separator.") # noqa
+    facets: Optional[str] = Field(default=None, description="The facets of the record, if any. Separated by a separator.") # noqa
+    labels: Optional[str] = Field(default=None, description="The labels of the record, if any. Separated by a separator.") # noqa
+    langs: Optional[str] = Field(default=None, description="The languages of the record, if specified.") # noqa
+    reply_parent: Optional[str] = Field(default=None, description="The parent post that the record is responding to in the thread, if any.") # noqa
+    reply_root: Optional[str] = Field(default=None, description="The root post of the thread, if any.") # noqa
+    tags: Optional[str] = Field(default=None, description="The tags of the record, if any.") # noqa
+    py_type: te.Literal["app.bsky.feed.post"] = Field(default="app.bsky.feed.post", frozen=True) # noqa
+
+
+class FeedViewPostMetadata(BaseModel):
+    url: str = Field(..., description="The URL of the post.")
+    source_feed: str = Field(..., description="The source feed of the post.")
+    synctimestamp: str = Field(..., description="The synctimestamp of the post.") # noqa
+
+
+class TransformedFeedViewPostModel(BaseModel):
+    metadata: FeedViewPostMetadata = Field(..., description="The metadata of the post.") # noqa
+    author: TransformedProfileViewBasicModel = Field(..., description="The author of the post.") # noqa
+    cid: str = Field(..., description="The CID of the post.")
+    indexed_at: str = Field(..., description="The timestamp of when the post was indexed by Bluesky.") # noqa
+    record: TransformedRecordModel = Field(..., description="The record of the post.") # noqa
+    uri: str = Field(..., description="The URI of the post.")
+    like_count: Optional[int] = Field(default=None, description="The like count of the post.") # noqa
+    reply_count: Optional[int] = Field(default=None, description="The reply count of the post.") # noqa
+    repost_count: Optional[int] = Field(default=None, description="The repost count of the post.") # noqa
+```
+
+## Transforming the raw Bluesky posts
+We can use these models along with some transformation code in order to transform the raw posts into a format useful for us.
+
+### Preprocessing steps
+We want to do the following preprocessing steps:
+- Getting the author information that we care about
+- Processing any embeds, entities, facets, labels, languages, and tags
+- Adding metadata
+
+We'll do each step individually.
+
+#### Getting the author information that we care about
+Each post contains an object that tells us information about the author of the post. We only need a subset of the information, enough to identify the author reliably, so let's fetch just that subset:
+
+```python
+class TransformedProfileViewBasicModel(BaseModel):
+    """Model for the transformed profile view."""
+    did: str = Field(..., description="The DID of the user.")
+    handle: str = Field(..., description="The handle of the user.")
+    avatar: Optional[str] = None
+    display_name: Optional[str] = Field(
+        default=None, max_length=640, description="Display name of the user."
+    )
+    py_type: te.Literal["app.bsky.actor.defs#profileViewBasic"] = Field(
+        default="app.bsky.actor.defs#profileViewBasic", alias="$type", frozen=True # noqa
+    )
+
+
+def transform_author_profile(author: ProfileViewBasic) -> TransformedProfileViewBasicModel: # noqa
+    res = {
+        "did": author.did,
+        "handle": author.handle,
+        "avatar": author.avatar,
+        "display_name": author.display_name,
+        "py_type": author.py_type
+    }
+    return TransformedProfileViewBasicModel(**res)
+```
+
+#### Processing any embeds, entities, facets, labels, languages, and tags
+
+##### Processing embeds
+An "embed" in Bluesky is any embedded content. There are four types of embedded content:
+- Media: any media attached to a post (currently just images, though this will change in the future to include things like videos and GIFs, as per the [Bluesky 2024 roadmap](https://docs.bsky.app/blog/2024-protocol-roadmap#product-features)).
+- Record: a reference to another post on Bluesky.
+- External: a reference to an external resource (e.g., a link, a Tweet, etc.).
+- Record with Media Embed: a combination of both a media embed and a record embed (e.g., if a post references another Bluesky post and also attaches a picture).
+
+We will need to process these separately:
+
+###### Processing media
+Currently, we're only concerned with image embeds (though we may want to support other formats like videos and GIFs). Because of that, we'll only process the images. We don't have anything like OCR yet to actually get the contents of an image, so we'll also only extract any alt text in the image. We'll join the alt text of multiple images together if there are multiple images.
+
+```python
+def process_images(image_embed: ImageEmbed) -> str:
+    """Processes images
+
+    For now, we just return the alt texts of the images, separated by ;
+    (since , is likely used in the text itself).
+    """
+    return LIST_SEPARATOR_CHAR.join([process_image(image) for image in image_embed.images]) # noqa
+```
+
+###### Processing records
+Records are posts that are embedded in other posts. For these, we'll just grab the URI and CID of the post and we'll hydrate the referenced post whenever we need to use it somehow.
+
+```python
+class ProcessedRecordEmbed(BaseModel):
+    """Pydantic model for processing record embeds.
+
+    Right now this just manages references to other records.
+    """
+    cid: Optional[str] = Field(
+        default=None,
+        description="The CID of the record."
+    )
+    uri: Optional[str] = Field(
+        default=None,
+        description="The URI of the record."
+    )
+
+
+def process_strong_ref(strong_ref: StrongRef) -> dict:
+    """Processes strong reference (a reference to another record)
+
+    Follows specs in https://github.com/MarshalX/atproto/blob/main/lexicons/com.atproto.repo.strongRef.json#L4
+    and https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/com/atproto/repo/strong_ref.py#L15
+    """  # noqa
+    return {
+        "cid": strong_ref.cid,
+        "uri": strong_ref.uri,
+    }
+
+
+def process_record_embed(record_embed: RecordEmbed) -> ProcessedRecordEmbed:
+    """Processes record embeds.
+
+    Record embeds are posts that are embedded in other posts. This is a way to
+    reference another post in a post.
+    """
+    res: dict = process_strong_ref(record_embed.record)
+    return ProcessedRecordEmbed(**res)
+```
+
+###### Processing external resources
+Whenever someone links to an external resource (e.g., a link, a news article, a Tweet, etc.), they can choose to create an "embed card" that shows a preview of that link. This is how, for example, news links are rendered by default on many social media platforms, and why we can see the preview text of the articles without clicking into them. For these, we need to process both the URI (the link, in this case) of the external embed, as well as the title and the description of the embed card:
+
+```python
+class ProcessedExternalEmbed(BaseModel):
+    """Pydantic model for an external embed."""
+    description: Optional[str] = Field(
+        default=None,
+        description="Description of the external embed."
+    )
+    title: Optional[str] = Field(
+        default=None,
+        description="Title of the external embed."
+    )
+    uri: Optional[str] = Field(
+        default=None,
+        description="URI of the external embed."
+    )
+
+def process_external_embed(external_embed: ExternalEmbed) -> ProcessedExternalEmbed: # noqa
+    """Processes an "external" embed, which is some externally linked content
+    plus its preview card.
+
+    External embeds are links to external content, like a YouTube video or a
+    news article, which also has a preview card showing its content.
+
+    We don't need to include the image or other blobs since we don't have a way
+    to hydrate them anyways.
+    """
+    external: External = external_embed.external
+    res = {
+        "description": external.description,
+        "title": external.title,
+        "uri": external.uri
+    }
+    return ProcessedExternalEmbed(**res)
+```
+
+###### Processing records with media embeds
+Some posts both respond to another post on Bluesky and also attach images as well. For these, we just combine the processing that we did for records and for images.
+
+```python
+class ProcessedRecordWithMediaEmbed(BaseModel):
+    """Pydantic model for a record with media embedded."""
+    image_alt_text: Optional[str] = Field(
+        default=None,
+        description="The alt text of the image in the post."
+    )
+    embedded_record: Optional[ProcessedRecordEmbed] = Field(
+        default=None,
+        description="The embedded record, if any."
+    )
+
+
+def process_record_with_media_embed(
+    record_with_media_embed: RecordWithMediaEmbed
+) -> ProcessedRecordWithMediaEmbed:
+    """Processes a record with media embed, which is when a post both
+    references another record as well as has media (i.e., image) attached.
+
+    Follows spec in https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/embed/record_with_media.py
+
+    Media is normally an image, but it can also support other embeds
+    like links to songs or videos. We currently only process for now if it's an
+    image.
+    """  # noqa
+    media: Union[ExternalEmbed, ImageEmbed] = record_with_media_embed.media
+    record_embed: RecordEmbed = record_with_media_embed.record
+
+    image_alt_text = ""
+    if (
+        isinstance(media, ImageEmbed)
+        or get_object_type_str(media) == "app.bsky.embed.images"
+    ):
+        image_alt_text: str = process_images(media)
+    processed_record: ProcessedRecordEmbed = process_record_embed(record_embed)
+
+    res = {
+        "image_alt_text": image_alt_text,
+        "embedded_record": processed_record,
+    }
+    return ProcessedRecordWithMediaEmbed(**res)
+```
+
+###### Putting all the embed processing together
+Now, we can combine all of these individual steps into one function:
+
+```python
+class ProcessedEmbed(BaseModel):
+    """Pydantic model for the processed embed."""
+    has_image: bool = Field(default=False, description="Whether the post has an image.")  # noqa
+    image_alt_text: Optional[str] = Field(
+        default=None,
+        description="The alt text of the image in the post."
+    )
+    has_embedded_record: bool = Field(
+        default=False,
+        description="Whether the post has an embedded record."
+    )
+    embedded_record: Optional[ProcessedRecordEmbed] = Field(
+        default=None,
+        description="The embedded record, if any."
+    )
+    has_external: bool = Field(
+        default=False,
+        description="Whether the post has an external embed."
+    )
+    external: Optional[ProcessedExternalEmbed] = Field(
+        default=None,
+        description="External embed, if any."
+    )
+
+
+def process_embed(
+    embed: Union[ExternalEmbed, ImageEmbed, RecordEmbed, RecordWithMediaEmbed]
+) -> ProcessedEmbed:
+    """Processes embeds.
+
+    Follows specs in https://github.com/MarshalX/atproto/tree/main/packages/atproto_client/models/app/bsky/embed
+
+    Image embed class is a container class for an arbitrary amount of attached images (max=4)
+    """  # noqa
+    res = {
+        "has_image": False,
+        "image_alt_text": None,
+        "has_embedded_record": False,
+        "embedded_record": None,
+        "has_external": False,
+        "external": None,
+    }
+    if embed is None:
+        return ProcessedEmbed(**res)
+
+    if (
+        isinstance(embed, ImageEmbed)
+        or embed.py_type == "app.bsky.embed.images"
+    ):
+        res["has_image"] = True
+        image_alt_text: str = process_images(embed)
+        res["image_alt_text"] = image_alt_text
+
+    if (
+        isinstance(embed, RecordEmbed)
+        or embed.py_type == "app.bsky.embed.record"
+    ):
+        res["has_embedded_record"] = True
+        embedded_record: ProcessedRecordEmbed = process_record_embed(embed)
+        res["embedded_record"] = embedded_record
+
+    if (
+        isinstance(embed, ExternalEmbed)
+        or embed.py_type == "app.bsky.embed.external"
+    ):
+        res["has_external"] = True
+        external_embed: ProcessedExternalEmbed = process_external_embed(embed)
+        res["external"] = external_embed
+
+    if (
+        isinstance(embed, RecordWithMediaEmbed)
+        or embed.py_type == "app.bsky.embed.recordWithMedia"
+    ):
+        res["has_image"] = True
+        res["has_embedded_record"] = True
+        processed_embed: ProcessedRecordWithMediaEmbed = process_record_with_media_embed(embed) # noqa
+        image_alt_text: str = processed_embed.image_alt_text
+        embedded_record: ProcessedRecordEmbed = processed_embed.embedded_record
+        res["image_alt_text"] = image_alt_text
+        res["embedded_record"] = embedded_record
+
+    return ProcessedEmbed(**res)
+```
+
+##### Processing entities
+Entities are a [deprecated](https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/feed/post.py#L29) precursor to [Bluesky facets](https://docs.bsky.app/docs/advanced-guides/post-richtext), which handle rich text in posts (e.g., links). Our way of processing these is to just extract the value of the entity:
+
+```python
+def process_entities(entities: Optional[list[Entity]]) -> Optional[str]:
+    """Processes entities.
+
+    Example:
+    [
+        Entity(
+            index=TextSlice(end=81, start=39, py_type='app.bsky.feed.post#textSlice'),
+            type='link',
+            value='https://song.link/s/2Zh97yLVZeOpwzFoXtkfBt',
+            py_type='app.bsky.feed.post#entity'
+        )
+    ]
+    """  # noqa
+    if not entities:
+        return None
+    return LIST_SEPARATOR_CHAR.join([process_entity(entity) for entity in entities]) # noqa
+```
+
+##### Processing facets
+[Bluesky facets](https://docs.bsky.app/docs/advanced-guides/post-richtext) are the Bluesky way of embedding rich text without using Markdown. One of the Bluesky core devs wrote a [writeup](https://www.pfrazee.com/blog/why-facets) explaining why Bluesky decided to go this route instead of using Markdown.
+
+There are technically three types of facets:
+1. Mention: mentions another Bluesky user (e.g., @jack)
+2. Link: a link to a website
+3. Hashtag: a hashtag
+
+For these, we just extract the relevant value (for mentions, the DID of the referenced user, and then the values of the link and the hashtags):
+
+```python
+def process_mention(mention: Mention) -> str:
+    """Processes a mention of another Bluesky user.
+
+    See https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py
+    """ # noqa
+    return f"mention:{mention.did}"
+
+
+def process_link(link: Link) -> str:
+    """Processes a link. The URI here is the link itself.
+
+    See https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py
+    """ # noqa
+    return f"link:{link.uri}"
+
+
+def process_hashtag(tag: Tag) -> str:
+    """Processes a hashtag. This is a tag that starts with a #, but the tag
+    won't have a '#' in the value. (e.g., if the hashtag is #red, the tag value
+    would be 'red').
+
+    See https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py
+    """ # noqa
+    return f"tag:{tag.tag}"
+```
+
+We then process these like we do entities, by grabbing the values of the facets:
+
+```python
+def process_facet(facet: Facet) -> str:
+    """Processes a facet.
+
+    A facet is a richtext element. This is Bluesky's way of not having to
+    explicitly support Markdown.
+
+    See the following:
+    - https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/richtext/facet.py#L64
+    - https://www.pfrazee.com/blog/why-facets
+    """
+    features: list = facet.features
+    features_list = []
+
+    for feature in features:
+        if (
+            isinstance(feature, Tag)
+            or get_object_type_str(feature) == "app.bsky.richtext.facet#tag"
+        ):
+            features_list.append(process_hashtag(feature))
+        elif (
+            isinstance(feature, Link)
+            or get_object_type_str(feature) == "app.bsky.richtext.facet#link"
+        ):
+            features_list.append(process_link(feature))
+        elif (
+            isinstance(feature, Mention)
+            or get_object_type_str(feature) == "app.bsky.richtext.facet#mention" # noqa
+        ):
+            features_list.append(process_mention(feature))
+        else:
+            object_type = get_object_type_str(feature)
+            raise ValueError(f"Unknown feature type: {object_type}")
+    return LIST_SEPARATOR_CHAR.join(features_list)
+```
+
+##### Processing labels
+Labels can be added to posts (either by other users or the author themselves) to mark posts as having certain context. For example, there are communnities (e.g,. sex workers, furries, etc.) who use Bluesky and have their own dedicated communities, but they mark the posts so that other users who don't want to see their content can simply filter out content with the related labels. For these, we just extract the label text:
+
+```python
+def process_label(label: SelfLabel) -> str:
+    """Processes a single label.
+
+    Example:
+    SelfLabel(val='porn', py_type='com.atproto.label.defs#selfLabel'
+
+    Returns a single label.
+    """ # noqa
+    return label.val
+
+
+def process_labels(labels: Optional[SelfLabels]) -> Optional[str]:
+    """Processes labels.
+
+    Example:
+    SelfLabels(
+        values=[SelfLabel(val='porn', py_type='com.atproto.label.defs#selfLabel')],
+        py_type='com.atproto.label.defs#selfLabels'
+    )
+
+    Based off https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/com/atproto/label/defs.py#L38
+    """ # noqa
+    if not labels:
+        return None
+    label_values: list[SelfLabel] = labels.values
+    return LIST_SEPARATOR_CHAR.join([process_label(label) for label in label_values]) # noqa
+```
+
+##### Processing languages
+We can also process the language of the post itself. The language for posts hasn't always been available, although a recent [PR](https://github.com/bluesky-social/atproto/pull/2301) now automatically classifies the language of a post, if any. We extract these values and return a string:
+
+```python
+def process_langs(langs: Optional[list[str]]) -> Optional[str]:
+    """Processes languages.
+
+    Example:
+    ['ja']
+    """  # noqa
+    if not langs:
+        return None
+    return LIST_SEPARATOR_CHAR.join(langs)
+```
+
+##### Processing tags
+Tags serve a similar purpose to labels, and we can process them similarly:
+
+```python
+def process_tags(tags: Optional[list[str]]) -> Optional[str]:
+    """Processes tags.
+
+    Example:
+    ['furry', 'furryart']
+    """  # noqa
+    if not tags:
+        return None
+    return LIST_SEPARATOR_CHAR.join(tags)
+```
+
+#### Adding metadata
+Each time that we sync, we want to store some metadata. We want to store information such as when we synced the data and where we fetched it from. We can define a function, `get_feedviewpost_metadata`, and a corresponding pydantic model, `FeedViewPostMetadata`, to generate said metadata:
+
+```python
+class FeedViewPostMetadata(BaseModel):
+    url: str = Field(..., description="The URL of the post.")
+    source_feed: str = Field(..., description="The source feed of the post.")
+    synctimestamp: str = Field(..., description="The synctimestamp of the post.") # noqa
+
+
+def get_feedviewpost_metadata(
+    post: FeedViewPost, enrichment_data: dict
+) -> FeedViewPostMetadata:
+    metadata = {}
+    handle = post.post.author.handle
+    uri = post.post.uri.split("/")[-1]
+    metadata["url"] = f"https://bsky.app/profile/{handle}/post/{uri}"
+    metadata["source_feed"] = enrichment_data["source_feed"]
+    metadata["feed_url"] = enrichment_data["feed_url"]
+    metadata["synctimestamp"] = current_datetime_str
+    return metadata
+```
+
+### Putting it all together
+Now, combining all of these preprocessing steps, we now can create a function, `transform_feedview_post`, that takes the raw post and transforms it into the format that we care about:
+
+```python
+def transform_feedview_post(
+    post: FeedViewPost, enrichment_data: dict
+) -> TransformedFeedViewPostModel:
+    """Transforms a feed view post."""
+    metadata: FeedViewPostMetadata = get_feedviewpost_metadata(
+        post=post, enrichment_data=enrichment_data
+    )
+    raw_author: ProfileViewBasic = post.post.author
+    transformed_author: TransformedProfileViewBasicModel = (
+        transform_author_profile(author=raw_author)
+    )
+    transformed_record: TransformedRecordModel = (
+        transform_post_record(record=post.post.record)
+    )
+    res = {
+        "metadata": metadata,
+        "author": transformed_author,
+        "cid": post.post.cid,
+        "indexed_at": post.post.indexed_at,
+        "record": transformed_record,
+        "uri": post.post.uri,
+        "like_count": post.post.like_count,
+        "reply_count": post.post.reply_count,
+        "repost_count": post.post.repost_count,
+    }
+    return TransformedFeedViewPostModel(**res)
+
+
+def transform_feedview_posts(
+    posts: list[FeedViewPost], enrichment_data: dict
+) -> list[TransformedFeedViewPostModel]:
+    return [
+        transform_feedview_post(post=post, enrichment_data=enrichment_data)
+        for post in posts
+    ]
+```
+
+This now gives us the tooling needing to transform posts into a format useful for us.
+
+## Transforming the posts upon ingestion
+Now that we have functions to perform the transformations on the raw data, we can bypass saving the raw outputs of the API call and just work with transformed versions of the posts:
+
+```python
+def get_and_transform_latest_most_liked_posts() -> list[TransformedFeedViewPostModel]:
+    """Get the latest batch of most liked posts and transform them."""
+    res: list[TransformedFeedViewPostModel] = []
+    for feed in ["today", "week"]:
+        feed_url = feed_to_info_map[feed]["url"]
+        enrichment_data = {
+            "source_feed": feed, "feed_url": feed_url
+        }
+        print(f"Getting most liked posts from {feed} feed with URL={feed_url}")
+        posts: list[FeedViewPost] = get_posts_from_custom_feed_url(
+            feed_url=feed_url, limit=None
+        )
+        transformed_posts: list[TransformedFeedViewPostModel] = (
+            transform_feedview_posts(
+                posts=posts, enrichment_data=enrichment_data
+            )
+        )
+        res.extend(transformed_posts)
+        print(f"Finished processing {len(posts)} posts from {feed} feed")
+    return res
+```
+
+## Filtering undesired posts
+
+## Putting it all together

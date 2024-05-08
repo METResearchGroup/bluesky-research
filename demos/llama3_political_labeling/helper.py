@@ -206,7 +206,6 @@ def export_urls_of_posts(posts: list[dict], limit: int = None) -> None:
     df['sort_key'] = df['source_feed'].map(sort_order)
     df.sort_values('sort_key', inplace=True)
     df_dicts = df.to_dict("records")
-    breakpoint()
     posts_to_label_list: list[dict] = [
         {
             "linkid": idx + 1,
