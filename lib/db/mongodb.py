@@ -17,7 +17,8 @@ mongo_db = mongodb_client[mongo_db_name]
 
 task_to_mongodb_collection_name = {
     "get_most_liked_posts": "most_liked_posts",
-    "llm_political_labeling": "bluesky_posts_political_labels"
+    "llm_political_labeling": "bluesky_posts_political_labels",
+    "perspective_api_labels": "bluesky_posts_perspective_api_labels",
 }
 
 DEFAULT_INSERT_CHUNK_SIZE = 100

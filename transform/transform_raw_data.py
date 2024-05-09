@@ -514,7 +514,8 @@ def flatten_firehose_post(post: dict) -> dict:
         'author': 'did:plc:sjeosezgc7mpqn6sfc7neabg'
     }
     """  # noqa
-    transformed_record: TransformedRecordModel = transform_post_record(post["record"])  # noqa
+    record: Record = post["record"]
+    transformed_record: TransformedRecordModel = transform_post_record(record)
     transformed_record_dict: dict = transformed_record.dict()
     try:
         # flatten the post

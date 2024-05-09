@@ -52,6 +52,13 @@ def filter_posts(
     return list(filter(post_passed_filters, posts))
 
 
+def transform_feedviewpost_dict_into_transformed_post(post: dict) -> TransformedFeedViewPostModel:
+    """Transforms a feedview post, given as a dict (but has the original
+    Bluesky FeedViewPost schema) into a TransformedFeedViewPostModel.
+    """  # noqa
+    pass
+
+
 def get_and_transform_latest_most_liked_posts() -> list[TransformedFeedViewPostModel]:
     """Get the latest batch of most liked posts and transform them."""
     res: list[TransformedFeedViewPostModel] = []

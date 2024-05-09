@@ -12,36 +12,38 @@ google_client = discovery.build(
     "commentanalyzer",
     "v1alpha1",
     developerKey=GOOGLE_API_KEY,
-    discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1", # noqa
+    discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",  # noqa
     static_discovery=False,
 )
 
-default_requested_attributes = {
-    "TOXICITY": {},
-    # constructive attributes, from Perspective API
-    "AFFINITY_EXPERIMENTAL": {},
-    "COMPASSION_EXPERIMENTAL": {},
-    "CONSTRUCTIVE_EXPERIMENTAL": {},
-    "CURIOSITY_EXPERIMENTAL": {},
-    "NUANCE_EXPERIMENTAL": {},
-    "PERSONAL_STORY_EXPERIMENTAL": {},
-    # persuasion attributes, from Perspective API
-    "ALIENATION_EXPERIMENTAL": {},
-    "FEARMONGERING_EXPERIMENTAL": {},
-    "GENERALIZATION_EXPERIMENTAL": {},
-    "MORAL_OUTRAGE_EXPERIMENTAL": {},
-    "SCAPEGOATING_EXPERIMENTAL": {},
-    # moderation attributes, from Perspective API
-    "SEXUALLY_EXPLICIT": {},
-    "FLIRTATION": {},
-    "SPAM": {},
-}
 
 attribute_to_labels_map = {
+    # production-ready attributes
     "TOXICITY": {
         "prob": "prob_toxic",
         "label": "label_toxic"
     },
+    "SEVERE_TOXICITY": {
+        "prob": "prob_severe_toxic",
+        "label": "label_severe_toxic"
+    },
+    "IDENTITY_ATTACK": {
+        "prob": "prob_identity_attack",
+        "label": "label_identity_attack"
+    },
+    "INSULT": {
+        "prob": "prob_insult",
+        "label": "label_insult"
+    },
+    "PROFANITY": {
+        "prob": "prob_profanity",
+        "label": "label_profanity"
+    },
+    "THREAT": {
+        "prob": "prob_threat",
+        "label": "label_threat"
+    },
+    # constructive attributes, from Perspective API
     "AFFINITY_EXPERIMENTAL": {
         "prob": "prob_affinity",
         "label": "label_affinity"
@@ -66,6 +68,15 @@ attribute_to_labels_map = {
         "prob": "prob_personal_story",
         "label": "label_personal_story"
     },
+    "REASONING_EXPERIMENTAL": {
+        "prob": "prob_reasoning",
+        "label": "label_reasoning"
+    },
+    "RESPECT_EXPERIMENTAL": {
+        "prob": "prob_respect",
+        "label": "label_respect"
+    },
+    # persuasion attributes
     "ALIENATION_EXPERIMENTAL": {
         "prob": "prob_alienation",
         "label": "label_alienation"
@@ -86,6 +97,7 @@ attribute_to_labels_map = {
         "prob": "prob_scapegoating",
         "label": "label_scapegoating"
     },
+    # moderation attributes
     "SEXUALLY_EXPLICIT": {
         "prob": "prob_sexually_explicit",
         "label": "label_sexually_explicit"
@@ -98,6 +110,12 @@ attribute_to_labels_map = {
         "prob": "prob_spam",
         "label": "label_spam"
     },
+}
+
+
+default_requested_attribute_keys = list(attribute_to_labels_map.keys())
+default_requested_attributes = {
+    attribute: {} for attribute in default_requested_attribute_keys
 }
 
 
@@ -117,7 +135,7 @@ def request_comment_analyzer(
 
     response = client.comments().analyze(body=analyze_request).execute()
     print(json.dumps(response, indent=2))
-    """ # noqa
+    """  # noqa
     if not requested_attributes:
         requested_attributes = default_requested_attributes
     analyze_request = {
@@ -160,7 +178,7 @@ def classify(
     for attribute, labels in attribute_to_labels_map.items():
         if attribute in response_obj["attributeScores"]:
             prob_score = (
-                response_obj["attributeScores"][attribute]["summaryScore"]["value"] # noqa
+                response_obj["attributeScores"][attribute]["summaryScore"]["value"]  # noqa
             )
             classification_probs_and_labels[labels["prob"]] = prob_score
             classification_probs_and_labels[labels["label"]
