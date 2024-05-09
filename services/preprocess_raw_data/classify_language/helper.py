@@ -28,14 +28,18 @@ def preprocess_text_for_filtering(text: str) -> str:
     return text.replace("\n", " ").strip()
 
 
+def text_is_english(text: str) -> bool:
+    preprocessed_text = preprocess_text_for_filtering(text)
+    return classify(preprocessed_text)
+
+
 def record_is_english(record: TransformedRecordModel) -> bool:
     langs: str = record.langs
     if langs:
         return "en" in langs
     else:
         print(f"Classifying language for record with text: {record.text}")
-    preprocessed_text = preprocess_text_for_filtering(record.text)
-    return classify(preprocessed_text)
+    return text_is_english(record.text)
 
 
 def classify_language_of_posts(
