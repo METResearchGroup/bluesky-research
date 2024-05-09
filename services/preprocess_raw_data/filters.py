@@ -3,9 +3,10 @@ from lib.constants import current_datetime_str
 from lib.helper import track_performance
 from services.preprocess_raw_data.classify_bots.main import filter_posts_not_written_by_bot  # noqa
 from services.preprocess_raw_data.classify_hate_speech.main import filter_posts_have_no_hate_speech  # noqa
+from services.preprocess_raw_data.classify_language.helper import preprocess_text_for_filtering  # noqa
 from services.preprocess_raw_data.classify_language.main import filter_text_is_english  # noqa
 from services.preprocess_raw_data.classify_nsfw_content.main import filter_posts_have_no_nsfw_content  # noqa
-from services.preprocess_raw_data.classify_spam.main import filter_posts_have_no_spam # noqa
+from services.preprocess_raw_data.classify_spam.main import filter_posts_have_no_spam  # noqa
 from services.preprocess_raw_data.database import batch_create_filtered_posts
 from services.preprocess_raw_data.models import FilteredRawPostModel
 
@@ -22,7 +23,7 @@ def filter_posts_with_filter_func(
 
     Example:
     >>  filter_posts_with_filter_func(posts=post, filter_func=classify_spam, label="has_spam")
-    """ # noqa
+    """  # noqa
     passed_filters_uris: set[str] = set()
     failed_filters_uris: set[str] = set()
 
@@ -45,7 +46,7 @@ def filter_posts_with_filter_func(
 def preprocess_post(post: dict) -> dict:
     """Preprocesses a single post as necessary, before filtering."""
     # preprocessing needed for language classifier
-    post["text"] = post["text"].replace("\n", " ").strip()
+    post["text"] = preprocess_text_for_filtering(post["text"])
     return post
 
 
@@ -81,7 +82,7 @@ def filter_posts(posts: list[dict]) -> list[dict]:
 
     After all the filters are done, we add the remaining URIs to the output
     as the URIs of the posts that have passed all the filters.
-    """ # noqa
+    """  # noqa
     # do any preprocessing for posts before filtering
     posts: list[dict] = preprocess_posts(posts)
 

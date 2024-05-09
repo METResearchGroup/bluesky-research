@@ -1,7 +1,7 @@
 """Classifies the language of a post."""
+from lib.db.bluesky_models.transformations import TransformedRecordModel
 from ml_tooling.inference_helpers import classify_posts
 from services.preprocess_raw_data.classify_language.model import classify
-
 
 # our model is fast enough to handle all posts at once without special batching
 DEFAULT_BATCH_SIZE = None
@@ -22,6 +22,20 @@ def classify_single_post(post: dict) -> dict:
         }
     text_is_english: bool = classify(post["text"])
     return {"uri": post["uri"], "is_english": text_is_english}
+
+
+def preprocess_text_for_filtering(text: str) -> str:
+    return text.replace("\n", " ").strip()
+
+
+def record_is_english(record: TransformedRecordModel) -> bool:
+    langs: str = record.langs
+    if langs:
+        return "en" in langs
+    else:
+        print(f"Classifying language for record with text: {record.text}")
+    preprocessed_text = preprocess_text_for_filtering(record.text)
+    return classify(preprocessed_text)
 
 
 def classify_language_of_posts(

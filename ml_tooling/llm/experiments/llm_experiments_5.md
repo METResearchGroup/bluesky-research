@@ -1,4 +1,4 @@
-# Using LLMs to classify if social media posts are political or not (Part IV).
+# Using LLMs to classify if social media posts are political or not (Part V).
 
 I'm working on a project that involves gathering social media posts from [Bluesky](https://bsky.app/) and analyzing them. Part of that project requires knowing which posts are about political or social topics, and if so, what political side they support. Current ML classifiers don't work that well out of the box, so I'm trying to create our own classification scheme using LLMs. I'm trying to use LLMs in order to classify [Bluesky](https://bsky.app/) posts as either having political content or not, and if so, the political ideology, and I've found that LLMs work quite well for this task. I've used Llama3-8b and Llama3-70b via [Groq](https://groq.com/) so far, but are also open to experimenting with other open-source models as well (I have the on-prem infrastructure to host our own models, which is much cheaper at scale).
 
@@ -687,5 +687,296 @@ def get_and_transform_latest_most_liked_posts() -> list[TransformedFeedViewPostM
 ```
 
 ## Filtering undesired posts
+Now that we can get and transform the posts, we now want to pass these posts through a filtering step. Right now, we only need to do language detection, though later on we might add more filters (such as spam filters, hate speech filters, etc.).
+
+### Exploring various options for language detection
+I benchmarked a few options for language detection. I used a previous set of ~50,000 posts in order to benchmark how the models do at scale:
+
+#### Option 1: Langdetect
+[Langdetect](https://github.com/Mimino666/langdetect) is a Python package (ported from [Java](https://www.slideshare.net/shuyo/language-detection-library-for-java)). It powers spacy-langdetect and is also commonly used in language detection tasks.
+
+
+```python
+from langdetect import detect
+from langdetect.detector import LangDetectException
+
+def text_is_english_langdetect(text):
+    return detect(text) == "en"
+
+>>> detect("This is an example post")
+'en'
+```
+
+If we run this, we get the following results:
+```python
+def clf_post_langdetect(post: dict) -> dict:
+    """Classify if a post is in English using the langdetect library."""
+    try:
+        label = text_is_english_langdetect(post["text"])
+    except LangDetectException as e:
+        # if unable to detect language, classify as False by default.
+        label = False
+    return {
+        "id": post["id"],
+        "uri": post["uri"],
+        "text": post["text"],
+        "is_english_label": label,
+    }
+
+
+langdetect_labels: list[dict] = classify_posts(
+    posts=preprocessed_posts, clf_func=clf_post_langdetect,
+    batch_size=BATCH_SIZE, rate_limit_per_minute=None
+)
+```
+
+```plaintext
+Execution time for classify_posts: 0 minutes, 58 seconds
+Memory usage for classify_posts: 79.4375 MB
+```
+
+`langdetect` was really inefficient - it took 58 seconds and used ~80MB of memory.
+
+#### Option 2: Langid
+langid is a Python package designed specifically for language detection. According to the [docs](https://github.com/saffsd/langid.py), it's supposed to be fast, minimalistic, pre-trained, and not sensitive to domain-specific features (like markup text).
+
+```python
+import langid
+
+def text_is_english_langid(text):
+    return langid.classify(text)[0] == "en"
+
+
+def clf_post_langid(post: dict) -> dict:
+    """Classify if a post is in English using the langid library."""
+    return {
+        "id": post["id"],
+        "uri": post["uri"],
+        "text": post["text"],
+        "is_english_label": text_is_english_langid(post["text"]),
+    }
+
+
+langid_labels: list[dict] = classify_posts(
+    posts=preprocessed_posts, clf_func=clf_post_langid,
+    batch_size=BATCH_SIZE, rate_limit_per_minute=None
+)
+```
+
+```plaintext
+Execution time for classify_posts: 2 minutes, 36 seconds
+Memory usage for classify_posts: 53.046875 MB
+```
+
+It took 2 minutes and 36 seconds (156 seconds) to classify 50,000 posts. Used >50MB of memory. The `langid` model was more inefficient than `langdetect`, so we'll see if there's something faster.
+
+### Option 3: fasttext
+`fasttext` is a [package](https://github.com/facebookresearch/fastText) developed at Facebook for fast, scalable word representation and language learning. They have a specific fine-tuned version, [fasttext-language-identification](https://huggingface.co/facebook/fasttext-language-identification) used for language detection.
+
+There are two ways to use fasttext
+#### Option 3.1 fasttext via Hugging Face
+We can download the model from the Hugging Face Hub.
+
+```python
+import fasttext
+from huggingface_hub import hf_hub_download
+
+model_path = hf_hub_download(repo_id="facebook/fasttext-language-identification", filename="model.bin")
+model: fasttext.FastText._FastText = fasttext.load_model(model_path)
+
+def text_is_english_hf_fasttext(text):
+    return model.predict(text)[0][0] == "__label__eng_Latn"
+
+def clf_post_hf_fasttext(post: dict) -> dict:
+    """Classify if a post is in English using the fasttext model from
+    Hugging Face Hub."""
+    return {
+        "id": post["id"],
+        "uri": post["uri"],
+        "text": post["text"],
+        "is_english_label": text_is_english_hf_fasttext(post["text"]),
+    }
+
+hf_fasttext_labels: list[dict] = classify_posts(
+    posts=preprocessed_posts, clf_func=clf_post_hf_fasttext,
+    batch_size=BATCH_SIZE, rate_limit_per_minute=None
+)
+```
+
+```plaintext
+Execution time for classify_posts: 0 minutes, 4 seconds
+Memory usage for classify_posts: 8.4375 MB
+```
+
+Notably, on retries, the classification is much faster. That's because a majority of the execution time (~3 seconds) is network-related and due to us loading the model from Hugging Face. When we retry, the model is already cached, so it performs just as fast as running with a local binary (see below).
+
+#### Option 3.2 fasttext via local binary
+We can download the binary classifier model [here](https://fasttext.cc/docs/en/language-identification.html) and load it for inference.
+
+```python
+# need to download the model; this is >100MB which is OK for local storage
+# but too large for Github (unless we use Github LFS).
+fasttext_model_bin = fasttext.load_model('lid.176.bin')
+
+def text_is_english_local_fasttext(text):
+    return fasttext_model_bin.predict(text)[0][0] == "__label__eng_Latn"
+
+def clf_post_local_fasttext(post: dict) -> dict:
+    """Classify if a post is in English using a local binary of the fasttext
+    model."""
+    return {
+        "id": post["id"],
+        "uri": post["uri"],
+        "text": post["text"],
+        "is_english_label": text_is_english_local_fasttext(post["text"]),
+    }
+
+local_fasttext_labels: list[dict] = classify_posts(
+    posts=preprocessed_posts, clf_func=clf_post_local_fasttext,
+    batch_size=BATCH_SIZE, rate_limit_per_minute=None
+)
+```
+
+The `fasttext` model is by far the fastest out of all the ones that I tried. Given that this was developed at Facebook and that they would need to massively classify language at scale, the `fasttext` model being fastest doesn't surprise me.
+
+### What I ended up going with
+For our use case, language detection is actually made relatively simple, courtesy of the [PR](https://github.com/bluesky-social/atproto/pull/2301) to automatically add language detection. We can just filter on this field now in our models. Just in case there are some that haven't been classified (this can be the case with older posts), we can default to using our `fasttext` detection (though this should be a very rare occurrence, if at all; I encountered it in ~15-20 posts out of 2,000 in my latest sync).
+
+```python
+def record_is_english(record: TransformedRecordModel) -> bool:
+    langs: str = record.langs
+    if langs:
+        return "en" in langs
+    return classify(record.text)
+```
+
+I had done the benchmarks prior to this PR going in, and had built tooling to support fast language detection (it takes <5 seconds for ~12,000 posts). However, since now language detection is done upstream in atproto, we don't need to do language detection ourselves.
 
 ## Putting it all together
+We can now put together our ETL pipeline:
+
+```python
+def post_passed_filters(post: TransformedFeedViewPostModel) -> bool:
+    record: TransformedRecordModel = post.record
+    return record_is_english(record=record)
+
+
+def filter_posts(
+    posts: list[TransformedFeedViewPostModel]
+) -> list[TransformedFeedViewPostModel]:
+    """Filter the posts."""
+    return list(filter(post_passed_filters, posts))
+
+
+def get_and_transform_latest_most_liked_posts() -> list[TransformedFeedViewPostModel]:
+    """Get the latest batch of most liked posts and transform them."""
+    res: list[TransformedFeedViewPostModel] = []
+    for feed in ["today", "week"]:
+        feed_url = feed_to_info_map[feed]["url"]
+        enrichment_data = {
+            "source_feed": feed, "feed_url": feed_url
+        }
+        print(f"Getting most liked posts from {feed} feed with URL={feed_url}")
+        posts: list[FeedViewPost] = get_posts_from_custom_feed_url(
+            feed_url=feed_url, limit=None
+        )
+        transformed_posts: list[TransformedFeedViewPostModel] = (
+            transform_feedview_posts(
+                posts=posts, enrichment_data=enrichment_data
+            )
+        )
+        res.extend(transformed_posts)
+        print(f"Finished processing {len(posts)} posts from {feed} feed")
+    return res
+
+
+def export_posts(
+    posts: list[TransformedFeedViewPostModel],
+    store_local: bool = True,
+    store_remote: bool = True,
+    bulk_write_remote: bool = True,
+    bulk_chunk_size: int = 100
+) -> None:
+    """Export the posts to a file, either locally as a JSON or remote in a
+    MongoDB collection."""
+    if store_local:
+        print(f"Writing {len(posts)} posts to {sync_fp}")
+        with open(sync_fp, "w") as f:
+            for post in posts:
+                post_json = json.dumps(post)
+                f.write(post_json + "\n")
+        num_posts = len(posts)
+        print(f"Wrote {num_posts} posts locally to {sync_fp}")
+
+    if store_remote:
+        duplicate_key_count = 0
+        total_successful_inserts = 0
+        total_posts = len(posts)
+        print(f"Inserting {total_posts} posts to MongoDB collection {mongo_collection_name}")  # noqa
+        formatted_posts_mongodb = [
+            {"_id": post["uri"], **post}
+            for post in posts
+        ]
+        if bulk_write_remote:
+            print("Inserting into MongoDB in bulk...")
+            total_successful_inserts, duplicate_key_count = chunk_insert_posts(
+                posts=formatted_posts_mongodb,
+                mongo_collection=mongo_collection,
+                chunk_size=bulk_chunk_size
+            )
+            print("Finished bulk inserting into MongoDB.")
+        else:
+            for idx, post in enumerate(posts):
+                if idx % 100 == 0:
+                    print(f"Inserted {idx}/{total_posts} posts")
+                try:
+                    post_uri = post["uri"]
+                    # set the URI as the primary key.
+                    # NOTE: if this doesn't work, check if the IP address has
+                    # permission to access the database.
+                    mongo_collection.insert_one(
+                        {"_id": post_uri, **post},
+                    )
+                    total_successful_inserts += 1
+                except DuplicateKeyError:
+                    duplicate_key_count += 1
+        if duplicate_key_count > 0:
+            print(f"Skipped {duplicate_key_count} duplicate posts")
+        print(f"Inserted {total_successful_inserts} posts to remote MongoDB collection {mongo_collection_name}")  # noqa
+
+posts: list[TransformedFeedViewPostModel] = (
+    get_and_transform_latest_most_liked_posts()
+)
+filtered_posts = filter_most_liked_posts(posts=posts)
+post_dicts = [post.dict() for post in filtered_posts]
+export_posts(
+    posts=post_dicts, store_local=True, store_remote=True,
+    bulk_write_remote=True
+)
+```
+
+We get the following counts before and after filtering:
+
+```plaintext
+(Pdb) len(transformed_posts)
+1984
+(Pdb) len(filtered_posts)
+1595
+```
+
+So, this appears to have removed ~400 (~20\%) non-English posts.
+
+## Next steps
+Now that we've cleaned up the code for loading posts and have more confidence in the robustness of our ETL pipeline, I want to be able to classify them at scale. Then, I'd like to go back to other improvements for the process. What I'd like to do is:
+- Updating and refactoring the LLM pipeline to label the posts efficiently at scale.
+- How does our model perform with other LLMs (e.g., Mixtral)?
+- Can we experiment with optimizing the prompt (e.g, with [dspy](https://github.com/stanfordnlp/dspy))?
+
+I'd also like to revisit some of the points related to improving how to add context about current events:
+- For determining when to get context for a post, investigate various strategies such as:
+    - Keyword matching: see if a keyword (e.g., a name of an event) comes up. Need to figure out keywords that describe topics that are in the news (this is easiest if it is the name of a notable event, place, person, piece of legislature, etc.) and then we can easily pattern match that against posts that have that keyword.
+    - Posts that the LLM knows is political but isn't sure what the political ideology is.
+- Determine how to format the context that's given to the LLM prompt.
+    - An interesting frame could be first asking the LLM to distill the sentiments and thoughts of each political party about a certain topic, based on the articles that we have for each topic, and then passing this distilled summary to the LLM itself.
+- Only insert into the vector store if it doesn’t already exist there.
+- At some point, add a maximum distance measure so we get only relevant articles (will take some experimentation in order to see what a good distance is).

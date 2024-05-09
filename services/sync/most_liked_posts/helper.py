@@ -6,8 +6,11 @@ from atproto_client.models.app.bsky.feed.defs import FeedViewPost
 from pymongo.errors import DuplicateKeyError
 
 from lib.constants import current_datetime
-from lib.db.bluesky_models.transformations import TransformedFeedViewPostModel
+from lib.db.bluesky_models.transformations import (
+    TransformedFeedViewPostModel, TransformedRecordModel
+)
 from lib.db.mongodb import get_mongodb_collection, chunk_insert_posts
+from services.preprocess_raw_data.classify_language.helper import record_is_english  # noqa
 from transform.bluesky_helper import get_posts_from_custom_feed_url
 from transform.transform_raw_data import transform_feedview_posts
 
@@ -33,6 +36,20 @@ task_name = "get_most_liked_posts"
 mongo_collection_name, mongo_collection = (
     get_mongodb_collection(task=task_name)
 )
+
+# TODO: probably should move this elsewhere at some point.
+
+
+def post_passed_filters(post: TransformedFeedViewPostModel) -> bool:
+    record: TransformedRecordModel = post.record
+    return record_is_english(record=record)
+
+
+def filter_posts(
+    posts: list[TransformedFeedViewPostModel]
+) -> list[TransformedFeedViewPostModel]:
+    """Filter the posts."""
+    return list(filter(post_passed_filters, posts))
 
 
 def get_and_transform_latest_most_liked_posts() -> list[TransformedFeedViewPostModel]:
@@ -123,17 +140,16 @@ def load_most_recent_local_sync() -> list[dict]:
     return posts
 
 
-# TODO: this step should be done at some point before writing to local storage
-# I'll keep this for now though so I can test.
 def filter_most_recent_local_sync() -> list[dict]:
     """Filter the most recent local sync file."""
     posts: list[dict] = load_most_recent_local_sync()
     transformed_posts: list[TransformedFeedViewPostModel] = [
         TransformedFeedViewPostModel(**post) for post in posts
     ]
-    breakpoint()
-    filtered_posts: list[dict] = []
-    return filtered_posts
+    filtered_posts: list[TransformedFeedViewPostModel] = filter_posts(
+        posts=transformed_posts
+    )
+    return [post.dict() for post in filtered_posts]
 
 
 def dump_most_recent_local_sync_to_remote() -> None:
@@ -145,12 +161,46 @@ def dump_most_recent_local_sync_to_remote() -> None:
     )
 
 
+def main(
+    use_latest_local: bool = False,
+    store_local: bool = True,
+    store_remote: bool = True,
+    bulk_write_remote: bool = True
+) -> None:
+    if use_latest_local:
+        post_dicts: list[dict] = filter_most_recent_local_sync()
+    else:
+        posts: list[TransformedFeedViewPostModel] = (
+            get_and_transform_latest_most_liked_posts()
+        )
+        filtered_posts: list[TransformedFeedViewPostModel] = filter_posts(posts=posts)  # noqa
+        post_dicts = [post.dict() for post in filtered_posts]
+    export_posts(
+        posts=post_dicts, store_local=store_local,
+        store_remote=store_remote, bulk_write_remote=bulk_write_remote
+    )
+
+
 if __name__ == "__main__":
     # posts: list[TransformedFeedViewPostModel] = (
     #     get_and_transform_latest_most_liked_posts()
     # )
-    # post_dicts = [post.dict() for post in posts]
+    # filtered_posts = filter_posts(posts=posts)
+    # post_dicts = [post.dict() for post in filtered_posts]
     # export_posts(posts=post_dicts, store_local=True, store_remote=False)
     # export_posts(posts=post_dicts, store_local=True, store_remote=True)
     # dump_most_recent_local_sync_to_remote()
-    filtered_posts = filter_most_recent_local_sync()
+
+    # post_dicts: list[dict] = filter_most_recent_local_sync()
+    # post_dicts = [post.dict() for post in filtered_posts]
+    # export_posts(
+    #     posts=post_dicts, store_local=True, store_remote=True,
+    #     bulk_write_remote=True
+    # )
+    kwargs = {
+        "use_latest_local": True,
+        "store_local": False,
+        "store_remote": True,
+        "bulk_write_remote": True
+    }
+    main(**kwargs)
