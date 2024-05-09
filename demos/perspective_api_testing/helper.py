@@ -13,6 +13,7 @@ from lib.db.bluesky_models.transformations import (
 from lib.db.mongodb import (
     chunk_insert_posts, get_mongodb_collection, load_collection
 )
+from lib.helper import track_performance
 from ml_tooling.perspective_api.model import classify
 from transform.transform_raw_data import (
     process_langs, process_tags
@@ -190,6 +191,7 @@ def export_classified_posts(
         export_posts_remote(posts)
 
 
+@track_performance
 def main():
     classified_posts: list[PerspectiveAPIClassification] = load_and_classify_posts()  # noqa
     kwargs = {

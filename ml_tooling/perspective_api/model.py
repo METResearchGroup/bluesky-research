@@ -5,6 +5,7 @@ import json
 from typing import Optional
 
 from googleapiclient import discovery
+from googleapiclient.errors import HttpError
 
 from lib.helper import GOOGLE_API_KEY, logger
 
@@ -32,6 +33,7 @@ attribute_to_labels_map = {
         "label": "label_identity_attack"
     },
     "INSULT": {
+
         "prob": "prob_insult",
         "label": "label_insult"
     },
@@ -146,7 +148,11 @@ def request_comment_analyzer(
     logger.info(
         f"Sending request to commentanalyzer endpoint with request={analyze_request}...",  # noqa
     )
-    response = google_client.comments().analyze(body=analyze_request).execute()
+    try:
+        response = google_client.comments().analyze(body=analyze_request).execute()
+    except HttpError as e:
+        logger.error(f"Error sending request to commentanalyzer: {e}")
+        response = {"error": str(e)}
     return json.dumps(response)
 
 
@@ -174,6 +180,8 @@ def classify(
         text=text, requested_attributes=attributes
     )
     response_obj = json.loads(response)
+    if "error" in response_obj:
+        return {"error": response_obj["error"]}
     classification_probs_and_labels = {}
     for attribute, labels in attribute_to_labels_map.items():
         if attribute in response_obj["attributeScores"]:
