@@ -108,6 +108,10 @@ def insert_articles_into_vector_store(
             )
             print(f"Loaded existing FAISS index for {party} at {index_path}")
             vector_store.add_documents(articles)
+            vector_store.save_local(
+                folder_path=index_path,
+                index_name=DEFAULT_FAISS_INDEX_NAME
+            )
             print(f"Inserted {len(articles)} articles into the FAISS index for {party} at {index_path}")  # noqa
 
 

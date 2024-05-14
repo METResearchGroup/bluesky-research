@@ -30,8 +30,8 @@ def main(
             store_news_outlets_into_db()
         articles: dict = get_latest_articles()
         latest_articles_by_party: dict = organize_articles_by_political_party(articles)  # noqa
-        if not update_vector_store_only:
-            store_latest_articles_into_db(latest_articles_by_party)
+    if not update_vector_store_only:
+        store_latest_articles_into_db(latest_articles_by_party)
     update_vector_store(latest_articles_by_party)
     print(f"Finished syncing the latest articles and adding to DB and vector store.")  # noqa
 
