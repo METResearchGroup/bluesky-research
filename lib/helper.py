@@ -30,12 +30,31 @@ NEWSAPI_API_KEY = os.getenv("NEWSAPI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 MONGODB_URI = os.getenv("MONGODB_URI")
 
-client = Client()
-client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
+
+
+# https://github.com/MarshalX/atproto/discussions/286
+class RateLimitedClient(Client):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._limit = self._remaining = self._reset = None
+
+    def get_rate_limit(self):
+        return self._limit, self._remaining, self._reset
+
+    def _invoke(self, *args, **kwargs):
+        response = super()._invoke(*args, **kwargs)
+        self._limit = response.headers.get('RateLimit-Limit')
+        self._remaining = response.headers.get('RateLimit-Remaining')
+        self._reset = response.headers.get('RateLimit-Reset')
+        return response
+
+
+client = RateLimitedClient()
+client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
 
 
 def track_function_runtime(func):
