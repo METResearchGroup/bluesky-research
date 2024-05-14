@@ -2,20 +2,45 @@
 
 GitHub repo: https://github.com/VinciGit00/Scrapegraph-ai
 """
-from lib.helper import GROQ_API_KEY
-from ml_tooling.llm.inference import BACKEND_OPTIONS
+import requests
 
-model_name = "Llama3-70b (via Groq)"
+from lib.helper import GOOGLE_AI_STUDIO_KEY
+from ml_tooling.llm.inference import run_query
 
-graph_config = {
-    "llm": {
-        "model": BACKEND_OPTIONS[model_name]["model"],
-        "api_key": GROQ_API_KEY,
-        "temperature": 0
-    },
-    "embeddings": {
-        "model": "hugging_face/roberta-base",
-    },
-    "verbose": True,
-    "max_results": 5
-}
+api_key = GOOGLE_AI_STUDIO_KEY
+
+
+def get_article_contents(url: str):
+    response = requests.get(url)
+    html_content = response.text
+    return html_content
+
+
+def get_article_content_llm(url: str):
+    html_content: str = get_article_contents(url)
+    prompt = f"""Given the following HTML content, return the main
+    text of the news article. Return as a JSON with key = "content"
+    and value = the main text of the article, as a string.
+    
+    {html_content}"""
+    breakpoint()  # token count: 800,000
+    result = run_query(prompt)
+    return result
+
+
+if __name__ == "__main__":
+    url = "https://edition.cnn.com/2024/05/13/politics/louisiana-bill-abortion-drugs-highly-regulated-medications/index.html"
+    # result = get_all_article_content(url)
+    result = get_article_content_llm(url)
+    breakpoint()
+
+
+# smart_scraper_graph = SmartScraperGraph(
+#     prompt="List me all the projects with their descriptions",
+#     # also accepts a string with the already downloaded HTML code
+#     source="https://perinim.github.io/projects",
+#     config=graph_config
+# )
+
+# result = smart_scraper_graph.run()
+# print(result)
