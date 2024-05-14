@@ -5,7 +5,6 @@ from atproto_client.models.app.bsky.actor.defs import ProfileView, ProfileViewDe
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, GeneratorView, ThreadViewPost  # noqa
 from atproto_client.models.app.bsky.feed.post import GetRecordResponse
 from atproto_client.models.app.bsky.feed.get_actor_feeds import Response as GetActorFeedsResponse  # noqa
-from atproto_client.models.app.bsky.feed.get_feed import Response as FeedResponse  # noqa
 from atproto_client.models.app.bsky.feed.get_likes import Like
 from atproto_client.models.app.bsky.feed.get_post_thread import Response as PostThreadResponse  # noqa
 from atproto_client.models.app.bsky.graph.defs import ListItemView
@@ -488,3 +487,13 @@ def get_posts_from_custom_feed_url(
     """  # noqa
     feed_uri = construct_feed_uri_from_feed_url(feed_url)
     return get_posts_from_custom_feed(feed_uri, limit, cursor)
+
+
+def get_user_followers(handle: str) -> list[ProfileView]:
+    followers: list[ProfileView] = send_request_with_pagination(
+        func=client.get_followers,
+        kwargs={"actor": handle},
+        response_key="followers",
+        limit=None
+    )
+    return followers
