@@ -4,7 +4,8 @@ Resource for all things prompting: https://github.com/dair-ai/Prompt-Engineering
 """  # noqa
 import json
 from pprint import pformat
-from typing import Optional
+from typing import Literal, Optional
+import yaml
 
 from lib.db.bluesky_models.embed import (
     EmbeddedContextContextModel,
@@ -92,10 +93,9 @@ def process_record_context(record_uri: str) -> RecordContextModel:
         flatten_firehose_post(hydrated_embedded_record_dict)
     )
     text = flattened_firehose_post["text"]
-    embed = flattened_firehose_post["embed"]
+    embed_dict = flattened_firehose_post["embed"]
     embed_image_alt_text = None
-    if embed:
-        embed_dict = json.loads(embed)
+    if embed_dict:
         if embed_dict["has_image"]:
             embed_image_alt_text: ImagesContextModel = (
                 process_images_embed(embed_dict)
@@ -115,7 +115,7 @@ def process_record_embed(embed_dict: dict) -> RecordContextModel:
     information to tell the model about the original post and content that the
     current post is referencing.
     """
-    embedded_record_dict: dict = json.loads(embed_dict["embedded_record"])
+    embedded_record_dict: dict = embed_dict["embedded_record"]
     embedded_record_uri: str = embedded_record_dict["uri"]
     # for now let's just add a subset of the fields from the embedded
     # record to the context, since if we add too many fields, the model
@@ -134,8 +134,7 @@ def process_external_embed(embed_dict: dict) -> ExternalEmbedContextModel:
     External embeds are links to external content, like a YouTube video or a
     news article, which also has a preview card showing its content.
     """
-    external_content_json: str = embed_dict["external"]
-    external_content: dict = json.loads(external_content_json)
+    external_content: dict = embed_dict["external"]
     title: str = external_content["title"]
     description: str = external_content["description"]
     return ExternalEmbedContextModel(title=title, description=description)
@@ -160,10 +159,9 @@ def process_record_embed_with_media_embed(embed_dict: dict) -> RecordWithMediaCo
 
 def embedded_content_context(post: dict) -> EmbeddedContextContextModel:
     """Context of the images and attachments of a post, if any."""
-    embed: str = post["embed"]
-    if not embed:
+    embed_dict: dict = post["embed"]
+    if not embed_dict:
         return EmbeddedContextContextModel(has_embedded_content=False)
-    embed_dict: dict = json.loads(embed)
     if embed_dict["has_embedded_record"]:
         # records can either be plain records or be records that also reference
         # images as well.
@@ -252,14 +250,12 @@ def context_embed_url(post: dict) -> ContextEmbedUrlModel:
 
     Example: https://bsky.app/profile/parismarx.bsky.social/post/3kpvlrkcr6m2q
     """
-    embed: str = post["embed"]
-    if not embed:
+    embed_dict: dict = post["embed"]
+    if not embed_dict:
         return ContextEmbedUrlModel()
-    embed_dict = json.loads(embed)
     url = ""
     if embed_dict["has_external"]:
-        external_content_json = embed_dict["external"]
-        external_content: dict = json.loads(external_content_json)
+        external_content: dict = embed_dict["external"]
         url = external_content["uri"]
     is_link_to_trustworthy_news_article = (
         url_is_to_news_domain(url) if url else False
@@ -388,29 +384,28 @@ def generate_post_and_context_json(post: dict) -> dict:
     }
 
 
-def generate_context_string(
+def generate_context_from_post(
     post: dict,
-    justify_result: bool = False,
-    only_json_format: bool = False,
-    pformat_json: bool = True
+    format: str = Literal["json", "yaml"],
+    pformat_output: bool = True
 ) -> str:
-    """Given a list of (context_type, context_details) tuples, generate
-    the context string for the prompt."""
-    json_context: dict = generate_post_and_context_json(post)
-    if pformat_json:
-        json_context = pformat(json_context, width=200)
+    """Generates the context from the post."""
+    json_context: dict = generate_post_and_context_json(post=post)
+    if format == "json":
+        res: dict = json_context
+        if pformat_output:
+            res: str = pformat(res, width=200)
+    elif format == "yaml":
+        # yes having multiple typings is weird
+        res: str = yaml.dump(json_context, sort_keys=False)
+    else:
+        raise ValueError("Unsupported format. Use 'json' or 'yaml'.")
     full_context = f"""
-The following JSON object contains the post and its context:
+The following contains the post and its context:
 ```
-{json_context}
+{res}
 ```
 """
-    if justify_result:
-        full_context += "\nAfter giving your label, start a new line and then justify your answer in 1 sentence."  # noqa
-    else:
-        full_context += "\nJustifications are not necessary."
-    if only_json_format:
-        full_context += "\nReturn ONLY the JSON. I will parse the string result in JSON format."
     return full_context
 
 
@@ -418,8 +413,7 @@ def generate_complete_prompt(
     post: dict,
     task_prompt: str,
     is_text_only: bool = False,
-    justify_result: bool = False,
-    only_json_format: bool = False
+    format: str = Literal["json", "yaml"],
 ) -> str:
     """Given a task prompt and the details of the context, generate
     the resulting complete prompt.
@@ -428,11 +422,7 @@ def generate_complete_prompt(
     if is_text_only:
         full_context = ""
     else:
-        full_context = generate_context_string(
-            post=post,
-            justify_result=justify_result,
-            only_json_format=only_json_format
-        )
+        full_context = generate_context_from_post(post=post, format=format)
     return base_prompt.format(
         task_prompt=task_prompt, post_text=post_text, context=full_context
     )
@@ -442,8 +432,7 @@ def generate_complete_prompt_for_given_post(
     post: dict,
     task_name: str,
     include_context: bool = True,
-    justify_result: bool = False,
-    only_json_format: bool = False
+    format: str = Literal["json", "yaml"],
 ) -> str:
     """Generates a complete prompt for a given post."""
     is_text_only = not include_context
@@ -451,8 +440,7 @@ def generate_complete_prompt_for_given_post(
         post=post,
         task_prompt=task_name_to_task_prompt_map[task_name],
         is_text_only=is_text_only,
-        justify_result=justify_result,
-        only_json_format=only_json_format
+        format=format
     )
 
 

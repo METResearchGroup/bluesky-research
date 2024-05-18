@@ -53,7 +53,6 @@ def wrap_text(text, width=100):
     lines = text.split('\n')
     wrapped_lines = [textwrap.fill(line, width=width) if line.strip() != '' else line for line in lines]  # noqa
     wrapped_text = '\n'.join(wrapped_lines)
-
     return wrapped_text
 
 
@@ -80,13 +79,14 @@ option = st.selectbox(
     )
 )
 
+context_format = st.selectbox('Choose the context format', ("json", "yaml"))
+
 if option == "Perspective API":
     include_context = st.checkbox(
         'Include context in the prompt to the Perspective API?'
     )
     model_name = None
 else:
-    justify_result_bool = st.checkbox('Justify the result?')
     model_name = st.selectbox(
         "Choose your LLM model",
         (
@@ -166,14 +166,13 @@ if st.button('Submit'):
         else:
             st.subheader("Prompt to the LLM:")
             if is_text_bool:
-
                 task_name = option_to_task_name_map[option]
                 prompt: str = (
                     generate_complete_prompt(
                         post=post,
                         task_prompt=task_name_to_task_prompt_map[task_name],
                         is_text_only=True,
-                        justify_result=justify_result_bool
+                        format=context_format
                     )
                 )
             else:
@@ -182,7 +181,7 @@ if st.button('Submit'):
                         post=post,
                         task_name=option_to_task_name_map[option],
                         include_context=include_context_bool,
-                        justify_result=justify_result_bool
+                        format=context_format
                     )
                 )
             wrapped_prompt = wrap_text(prompt, width=200)
@@ -191,6 +190,10 @@ if st.button('Submit'):
             llm_result = run_query(prompt=prompt, model_name=model_name)
             st.text(wrap_text(llm_result, width=120))
             print(llm_result)
+            input_token_count = num_tokens_from_string(prompt)
+            output_token_count = num_tokens_from_string(llm_result)
+            st.text(f"Prompt token count: {input_token_count}")
+            st.text(f"Output token count: {output_token_count}")
 
 
 if __name__ == "__main__":
