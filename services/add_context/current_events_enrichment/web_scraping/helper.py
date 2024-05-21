@@ -23,7 +23,7 @@ def get_article_content_llm(url: str):
     and value = the main text of the article, as a string.
     
     {html_content}"""
-    breakpoint()  # token count: 800,000
+    # token count: 800,000
     result = run_query(prompt)
     return result
 
@@ -32,7 +32,6 @@ if __name__ == "__main__":
     url = "https://edition.cnn.com/2024/05/13/politics/louisiana-bill-abortion-drugs-highly-regulated-medications/index.html"
     # result = get_all_article_content(url)
     result = get_article_content_llm(url)
-    breakpoint()
 
 
 # smart_scraper_graph = SmartScraperGraph(

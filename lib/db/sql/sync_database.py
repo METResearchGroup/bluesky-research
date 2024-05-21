@@ -1,35 +1,31 @@
-"""Database logic for storing streamed feeds
-
-Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/database.py
-
-# TODO: we can convert this to a different DB eventually. This is OK for now.
-"""  # noqa
+"""Database logic for all post records synced from Bluesky."""
 import os
 import sqlite3
-from typing import Optional
+from typing import Optional, Union
 
-import peewee
 import pandas as pd
+import peewee
 
-from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel  # noqa
-
-raw_current_file_directory = os.path.dirname(os.path.abspath(__file__))
-
-RAW_SQLITE_DB_NAME = "raw_posts.db"
-RAW_SQLITE_DB_PATH = os.path.join(
-    raw_current_file_directory, RAW_SQLITE_DB_NAME
+from lib.db.bluesky_models.transformations import (
+    TransformedRecordWithAuthorModel
 )
 
-raw_db = peewee.SqliteDatabase(RAW_SQLITE_DB_PATH)
+
+current_file_directory = os.path.dirname(os.path.abspath(__file__))
+SQLITE_DB_NAME = "synced_record_posts.db"
+SQLITE_DB_PATH = os.path.join(current_file_directory, SQLITE_DB_NAME)
+
+db = peewee.SqliteDatabase(SQLITE_DB_PATH)
 db_version = 2
 
-raw_conn = sqlite3.connect(RAW_SQLITE_DB_PATH)
-raw_cursor = raw_conn.cursor()
+conn = sqlite3.connect(SQLITE_DB_PATH)
+cursor = conn.cursor()
 
 
+# database models for `TransformedRecordWithAuthor` tables.
 class BaseModel(peewee.Model):
     class Meta:
-        database = raw_db
+        database = db
 
 
 class TransformedRecordWithAuthor(BaseModel):
@@ -63,32 +59,6 @@ class DbMetadata(BaseModel):
     version = peewee.IntegerField()
 
 
-if raw_db.is_closed():
-    raw_db.connect()
-    raw_db.create_tables(
-        [TransformedRecordWithAuthor, SubscriptionState, DbMetadata]
-    )
-
-    # DB migration
-
-    current_version = 1
-    if DbMetadata.select().count() != 0:
-        current_version = DbMetadata.select().first().version
-
-    if current_version != db_version:
-        with raw_db.atomic():
-            # V2
-            # Drop cursors stored from the old bsky.social PDS
-            if current_version == 1:
-                SubscriptionState.delete().execute()
-
-            # Update version in DB
-            if DbMetadata.select().count() == 0:
-                DbMetadata.insert({DbMetadata.version: db_version}).execute()
-            else:
-                DbMetadata.update({DbMetadata.version: db_version}).execute()
-
-
 def get_record_by_uri(uri: str) -> TransformedRecordWithAuthor:
     """Get a record by its URI."""
     return TransformedRecordWithAuthor.get(TransformedRecordWithAuthor.uri == uri)  # noqa
@@ -102,7 +72,7 @@ def get_record_as_dict_by_uri(uri: str) -> dict:
 
 def insert_new_record(record: TransformedRecordWithAuthorModel):
     """Insert a new record into the database."""
-    with raw_db.atomic():
+    with db.atomic():
         print(f"Inserting record with URI {record.uri} into DB.")
         record_dict = record.to_dict()
         TransformedRecordWithAuthor.create(**record_dict)
@@ -180,6 +150,30 @@ def get_num_posts() -> int:
     """Get the number of posts in the database."""
     return TransformedRecordWithAuthor.select().count()
 
+
+if db.is_closed():
+    db.connect()
+    db.create_tables(
+        [TransformedRecordWithAuthor, SubscriptionState, DbMetadata]
+    )
+
+    # DB migration
+    current_version = 1
+    if DbMetadata.select().count() != 0:
+        current_version = DbMetadata.select().first().version
+
+    if current_version != db_version:
+        with db.atomic():
+            # V2
+            # Drop cursors stored from the old bsky.social PDS
+            if current_version == 1:
+                SubscriptionState.delete().execute()
+
+            # Update version in DB
+            if DbMetadata.select().count() == 0:
+                DbMetadata.insert({DbMetadata.version: db_version}).execute()
+            else:
+                DbMetadata.update({DbMetadata.version: db_version}).execute()
 
 if __name__ == "__main__":
     num_posts = get_num_posts()

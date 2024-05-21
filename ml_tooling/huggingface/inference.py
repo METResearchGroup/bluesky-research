@@ -6,4 +6,3 @@ result = pipe("I am a highly skilled", max_length=50)
 
 if __name__ == "__main__":
     print(result)
-    breakpoint()

@@ -144,7 +144,6 @@ if st.button('Submit'):
             post: dict = convert_post_link_to_post(
                 user_input, include_author_info=True
             )
-            breakpoint()
         st.text(
             wrap_text(json.dumps(post), width=200)
         )

@@ -9,10 +9,10 @@ import peewee
 import pandas as pd
 from pydantic import ValidationError as PydanticValidationError
 
-from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel
+from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel  # noqa
+from lib.db.sql.sync_database import db, TransformedRecordWithAuthor
 from services.participant_data.helper import get_user_to_bluesky_profiles_as_df
 from services.sync.stream.constants import tmp_data_dir
-from services.sync.stream.database import raw_db, TransformedRecordWithAuthor
 from transform.transform_raw_data import flatten_firehose_post
 
 
@@ -104,7 +104,7 @@ def filter_incoming_posts(operations_by_type: dict) -> dict:
 
 def manage_post_creation(posts_to_create: list[dict]) -> None:
     """Manage post insertion into DB."""
-    with raw_db.atomic():
+    with db.atomic():
         for post_dict in posts_to_create:
             try:
                 TransformedRecordWithAuthorModel(**post_dict)

@@ -1,8 +1,6 @@
 """Helper functions for adding context to posts."""
 from typing import Optional
 
-from atproto_client.models.app.bsky.feed.post import GetRecordResponse
-
 from lib.constants import current_datetime_str
 from lib.db.bluesky_models.embed import (
     EmbeddedContextContextModel,
@@ -14,6 +12,7 @@ from lib.db.bluesky_models.embed import (
 from lib.db.bluesky_models.transformations import (
     TransformedRecordWithAuthorModel
 )
+from lib.db.sql.sync_database import get_record_as_dict_by_uri, insert_new_record  # noqa
 from services.add_context.precompute_context.models import (
     AuthorContextModel,
     ContextEmbedUrlModel,
@@ -29,7 +28,6 @@ from services.add_context.current_events_enrichment.newsapi_context import url_i
 from services.add_context.precompute_context.database import (
     get_post_context, insert_post_context
 )
-from services.sync.stream.database import get_record_as_dict_by_uri, insert_new_record  # noqa
 from transform.bluesky_helper import get_record_with_author_given_post_uri
 from transform.transform_raw_data import LIST_SEPARATOR_CHAR
 
@@ -73,12 +71,7 @@ def process_record_context(record_uri: str) -> RecordContextModel:
     """
     if not record_uri:
         return RecordContextModel()
-    # TODO: check what type the value is and then see if it's one
-    # that exists already in the DB.
-    # TODO: I should move all of the DBs to a single location, and then
-    # just change the name of the DB based on the input type (e.g., FeedViewPost)
-    # or the source type (e.g., firehose, feedview, context, etc.)
-    record: dict = get_or_fetch_embedded_record_with_author(record_uri)
+    record: dict = get_or_request_embedded_record_with_author(record_uri)
     text = record.text
     embed_dict = record.embed
     embed_image_alt_text = None
@@ -92,7 +85,7 @@ def process_record_context(record_uri: str) -> RecordContextModel:
     )
 
 
-def get_or_fetch_embedded_record_with_author(
+def get_or_request_embedded_record_with_author(
     record_uri: str, insert_new_record_bool: bool = True
 ) -> dict:
     """Fetches the record associated with a record URI from the DB or, if it
