@@ -70,9 +70,8 @@ def manage_posts(posts: dict[str, list]) -> dict:
 
     for new_post in posts["created"]:
         if new_post is not None:
-            flattened_post: dict = flatten_firehose_post(new_post).to_dict()
+            flattened_post: dict = flatten_firehose_post(new_post).dict()
             posts_to_create.append(flattened_post)
-
     return {
         "posts_to_create": posts_to_create,
         "posts_to_delete": posts_to_delete

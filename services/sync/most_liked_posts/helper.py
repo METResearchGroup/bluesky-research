@@ -59,10 +59,12 @@ def transform_feedviewpost_dict_into_transformed_post(post: dict) -> Transformed
     pass
 
 
-def get_and_transform_latest_most_liked_posts() -> list[TransformedFeedViewPostModel]:
+def get_and_transform_latest_most_liked_posts(
+    feeds: list[str] = ["today", "week"]
+) -> list[TransformedFeedViewPostModel]:
     """Get the latest batch of most liked posts and transform them."""
     res: list[TransformedFeedViewPostModel] = []
-    for feed in ["today", "week"]:
+    for feed in feeds:
         feed_url = feed_to_info_map[feed]["url"]
         enrichment_data = {
             "source_feed": feed, "feed_url": feed_url
@@ -172,16 +174,19 @@ def main(
     use_latest_local: bool = False,
     store_local: bool = True,
     store_remote: bool = True,
-    bulk_write_remote: bool = True
+    bulk_write_remote: bool = True,
+    feeds: list[str] = ["today", "week"]
 ) -> None:
     if use_latest_local:
         post_dicts: list[dict] = filter_most_recent_local_sync()
     else:
         posts: list[TransformedFeedViewPostModel] = (
-            get_and_transform_latest_most_liked_posts()
+            get_and_transform_latest_most_liked_posts(feeds=feeds)
         )
+        print(f"Loaded {len(posts)} total posts before filtering.")
         filtered_posts: list[TransformedFeedViewPostModel] = filter_posts(posts=posts)  # noqa
         post_dicts = [post.dict() for post in filtered_posts]
+        print(f"Exporting {len(post_dicts)} total posts...")
     export_posts(
         posts=post_dicts, store_local=store_local,
         store_remote=store_remote, bulk_write_remote=bulk_write_remote

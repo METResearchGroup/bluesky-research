@@ -10,15 +10,16 @@ from atproto import (
 )
 from atproto.exceptions import FirehoseError
 
+from lib.db.sql.sync_database import get_num_posts, SubscriptionState
 from lib.helper import ThreadSafeCounter
-from services.sync.stream.database import SubscriptionState
-from services.sync.stream.helper import get_num_posts
 
 # number of events to stream before exiting
 # (should be ~10,000 posts, a 1:5 ratio of posts:events)
 # stream_limit = 50000
 # 50,000 posts, took about 2 hours to stream (3pm-5pm Eastern Time)
-stream_limit = 250000
+# stream_limit = 250000
+# 150,000 posts expected.
+stream_limit = 750000
 
 cursor_update_frequency = 500
 
