@@ -481,7 +481,7 @@ def process_tags(tags: Optional[list[str]]) -> Optional[str]:
     return LIST_SEPARATOR_CHAR.join(tags)
 
 
-def flatten_firehose_post(post: dict) -> dict:
+def flatten_firehose_post(post: dict) -> Optional[TransformedFirehosePostModel]:
     """Flattens a post from the firehose.
 
     For some reason, the post format from the firehose is different from the
@@ -531,10 +531,10 @@ def flatten_firehose_post(post: dict) -> dict:
         flattened_firehose_dict = {
             **flattened_firehose_dict, **transformed_record_dict
         }
-        TransformedFirehosePostModel(**flattened_firehose_dict)
+        return TransformedFirehosePostModel(**flattened_firehose_dict)
     except Exception as e:
         print(f"Exception in flattening post: {e}")
-    return flattened_firehose_dict
+        return None
 
 
 def get_feedviewpost_metadata(

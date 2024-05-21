@@ -88,7 +88,12 @@ class EmbeddedContextContextModel(BaseModel):
 
     @validator('embedded_content_type')
     def validate_embedded_content_type(cls, v):
-        if v not in ["external_embed", "images", "record", "record_with_media"]:  # noqa
+        if (
+            v is not None
+            and v not in [
+                "external_embed", "images", "record", "record_with_media"
+            ]
+        ):
             raise ValueError("embedded_content_type must be one of 'external_embed', 'images', 'record', 'record_with_media'")  # noqa
 
 

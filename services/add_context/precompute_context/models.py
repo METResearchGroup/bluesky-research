@@ -1,7 +1,9 @@
-"""Model classes for our LLM inference."""
+"""Models for context."""
+from typing import Optional
 
-from pydantic import BaseModel, Field, validator
-from typing import Optional, Union
+from pydantic import BaseModel, Field
+
+from lib.db.bluesky_models.embed import EmbeddedContextContextModel
 
 
 class AuthorContextModel(BaseModel):
@@ -93,3 +95,29 @@ class PostTagsLabelsContextModel(BaseModel):
         default=None,
         description="The labels of the post."
     )
+
+
+class ContextModel(BaseModel):
+    content_referenced_in_post: EmbeddedContextContextModel = Field(
+        ..., description="The context referenced in the post."
+    )
+    urls_in_post: PostLinkedUrlsContextModel = Field(
+        ..., description="The URLs in the post."
+    )
+    post_thread: ThreadContextModel = Field(
+        ..., description="The context of the thread of the post."
+    )
+    post_tags_labels: PostTagsLabelsContextModel = Field(
+        ..., description="The tags and labels of the post."
+    )
+    post_author_context: AuthorContextModel = Field(
+        ..., description="The context of the author of the post."
+    )
+
+
+class FullPostContextModel(BaseModel):
+    """Model for the context of a post."""
+    uri: str = Field(..., description="The URI of the post.")
+    context: ContextModel = Field(..., description="The context of the post.")
+    text: str = Field(..., description="The text of the post.")
+    timestamp: str = Field(..., description="The timestamp of the post.")

@@ -88,7 +88,7 @@ def convert_post_link_to_post(
         "cid": record.cid,
         "author": author
     }
-    flattened_firehose_post: dict = flatten_firehose_post(post_dict)
+    flattened_firehose_post: dict = flatten_firehose_post(post_dict).to_dict()
     return flattened_firehose_post
 
 

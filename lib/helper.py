@@ -69,11 +69,8 @@ def track_function_runtime(func):
         execution_time_leftover_seconds = (
             execution_time_seconds - (60 * execution_time_minutes)
         )
-
         print(f"Execution time for {func.__name__}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds")  # noqa
-
         return result
-
     return wrapper
 
 
@@ -110,7 +107,6 @@ def track_performance(func):
         execution_time_leftover_seconds = (
             execution_time_seconds - (60 * execution_time_minutes)
         )
-
         print(f"Execution time for {func.__name__}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds")  # noqa
         print(f"Memory usage for {func.__name__}: {max(mem_after) - min(mem_before)} MB")  # noqa
         return result
