@@ -1,8 +1,9 @@
 """Models for transformed fields."""
+import re
 from typing import Optional
 import typing_extensions as te
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 from lib.db.bluesky_models.embed import ProcessedEmbed
 
@@ -35,8 +36,14 @@ class TransformedRecordModel(BaseModel):
     py_type: te.Literal["app.bsky.feed.post"] = Field(default="app.bsky.feed.post", frozen=True)  # noqa
 
 
-class TransformedFirehosePostModel(BaseModel):
-    """Model for the transformed firehose post."""
+class TransformedRecordWithAuthorModel(BaseModel):
+    """Model for the transformed record post, with author information.
+
+    Note: the author isn't guaranteed to exist. For example, we might want to
+    get posts in this format based on their Record object, which doesn't have
+    author information hydrated, so in those cases, the author field would be
+    blank.
+    """
     uri: str = Field(..., description="The URI of the post.")
     cid: str = Field(..., description="The CID of the post.")
     author: str = Field(..., description="The DID of the author of the post.")
@@ -52,6 +59,24 @@ class TransformedFirehosePostModel(BaseModel):
     reply_root: Optional[str] = Field(default=None, description="The root post of the thread, if any.")  # noqa
     tags: Optional[str] = Field(default=None, description="The tags of the record, if any.")  # noqa
     py_type: te.Literal["app.bsky.feed.post"] = Field(default="app.bsky.feed.post", frozen=True)  # noqa
+
+    @validator('author')
+    def validate_author(cls, v):
+        if not v.startswith("did:"):
+            raise ValueError("Author must start with 'did:'")
+        return v
+
+    @validator('uri')
+    def validate_uri(cls, v):
+        if not v.startswith("at://did:plc:"):
+            raise ValueError("URI must start with 'at://did:plc:'")
+        return v
+
+    @validator('synctimestamp')
+    def validate_synctimestamp(cls, v):
+        if not re.match(r'^\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}$', v):
+            raise ValueError("synctimestamp must be in 'YYYY-MM-DD-HH:MM:SS' format (e.g., '2024-04-23-04:41:17')")  # noqa
+        return v
 
 
 class FeedViewPostMetadata(BaseModel):

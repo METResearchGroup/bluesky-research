@@ -11,6 +11,9 @@ from lib.db.bluesky_models.embed import (
     RecordContextModel,
     RecordWithMediaContextModel,
 )
+from lib.db.bluesky_models.transformations import (
+    TransformedRecordWithAuthorModel
+)
 from services.add_context.precompute_context.models import (
     AuthorContextModel,
     ContextEmbedUrlModel,
@@ -26,8 +29,9 @@ from services.add_context.current_events_enrichment.newsapi_context import url_i
 from services.add_context.precompute_context.database import (
     get_post_context, insert_post_context
 )
-from transform.bluesky_helper import get_post_record_given_post_uri
-from transform.transform_raw_data import flatten_firehose_post, LIST_SEPARATOR_CHAR  # noqa
+from services.sync.stream.database import get_record_as_dict_by_uri, insert_new_record  # noqa
+from transform.bluesky_helper import get_record_with_author_given_post_uri
+from transform.transform_raw_data import LIST_SEPARATOR_CHAR
 
 embedded_content_type_to_preamble_map = {
     "record": "The post references another post with the following details:",
@@ -74,36 +78,40 @@ def process_record_context(record_uri: str) -> RecordContextModel:
     # TODO: I should move all of the DBs to a single location, and then
     # just change the name of the DB based on the input type (e.g., FeedViewPost)
     # or the source type (e.g., firehose, feedview, context, etc.)
-    record_response: GetRecordResponse = get_post_record_given_post_uri(record_uri)  # noqa
-    breakpoint()
-    hydrated_embedded_record_dict: dict = {
-        "record": record_response.value,
-        "uri": record_uri,
-        "cid": record_response.cid,
-        "author": ""
-    }
-    flattened_firehose_post: dict = (
-        flatten_firehose_post(hydrated_embedded_record_dict)
-    ).to_dict()
-    text = flattened_firehose_post["text"]
-    embed_dict = flattened_firehose_post["embed"]
+    record: dict = get_or_fetch_embedded_record_with_author(record_uri)
+    text = record.text
+    embed_dict = record.embed
     embed_image_alt_text = None
     if embed_dict:
         if embed_dict["has_image"]:
             embed_image_alt_text: ImagesContextModel = (
                 process_images_embed(embed_dict)
             )
-    breakpoint()
     return RecordContextModel(
         text=text, embed_image_alt_text=embed_image_alt_text
     )
 
 
-def get_or_fetch_embedded_record(record_uri: str) -> dict:
+def get_or_fetch_embedded_record_with_author(
+    record_uri: str, insert_new_record_bool: bool = True
+) -> dict:
     """Fetches the record associated with a record URI from the DB or, if it
     doesn't exist, fetches it from the Bluesky API and then stores it in DB.
     """
-    pass
+    record_dict: dict = get_record_as_dict_by_uri(record_uri)
+    if record_dict:
+        print(f"Fetched record with URI {record_uri} from DB.")
+        record_with_author: TransformedRecordWithAuthorModel = (
+            TransformedRecordWithAuthorModel(**record_dict)
+        )
+    else:
+        print(f"Fetching record with URI {record_uri} from Bluesky API.")
+        record_with_author: TransformedRecordWithAuthorModel = (
+            get_record_with_author_given_post_uri(record_uri)
+        )
+        if insert_new_record_bool:
+            insert_new_record(record_with_author)
+    return record_with_author.dict()
 
 
 def process_record_embed(embed_dict: dict) -> RecordContextModel:

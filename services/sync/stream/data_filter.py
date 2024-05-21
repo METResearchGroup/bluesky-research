@@ -9,10 +9,10 @@ import peewee
 import pandas as pd
 from pydantic import ValidationError as PydanticValidationError
 
+from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel
 from services.participant_data.helper import get_user_to_bluesky_profiles_as_df
 from services.sync.stream.constants import tmp_data_dir
-from services.sync.stream.database import db, RawPost
-from services.sync.stream.models import RawPostModel
+from services.sync.stream.database import raw_db, TransformedRecordWithAuthor
 from transform.transform_raw_data import flatten_firehose_post
 
 
@@ -70,7 +70,7 @@ def manage_posts(posts: dict[str, list]) -> dict:
 
     for new_post in posts["created"]:
         if new_post is not None:
-            flattened_post = flatten_firehose_post(new_post)
+            flattened_post: dict = flatten_firehose_post(new_post).to_dict()
             posts_to_create.append(flattened_post)
 
     return {
@@ -104,32 +104,34 @@ def filter_incoming_posts(operations_by_type: dict) -> dict:
 
 def manage_post_creation(posts_to_create: list[dict]) -> None:
     """Manage post insertion into DB."""
-    with db.atomic():
+    with raw_db.atomic():
         for post_dict in posts_to_create:
             try:
-                RawPostModel(**post_dict)
-                RawPost.create(**post_dict)
+                TransformedRecordWithAuthorModel(**post_dict)
+                TransformedRecordWithAuthor.create(**post_dict)
             except PydanticValidationError as e:
-                print(f"Pydantic error validating post with URI {post_dict['uri']}: {e}") # noqa
+                print(f"Pydantic error validating post with URI {post_dict['uri']}: {e}")  # noqa
                 continue
             except peewee.IntegrityError as e:
                 # can come from duplicate records, schema invalidation, etc.
                 error_str = str(e)
                 if "UNIQUE constraint failed" in error_str:
-                    print(f"Post with URI {post_dict['uri']} already exists in DB.") # noqa
+                    print(f"Post with URI {post_dict['uri']} already exists in DB.")  # noqa
                 else:
-                    print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}") # noqa
+                    print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}")  # noqa
                 continue
             except peewee.OperationalError as e:
                 # generally comes from sqlite3 errors itself, not just
                 # something with the schema or the DB.
-                print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}") # noqa
+                print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}")  # noqa
                 continue
 
 
 def manage_post_deletes(posts_to_delete: list[str]) -> None:
     """Manage post deletion from DB."""
-    RawPost.delete().where(RawPost.uri.in_(posts_to_delete))
+    TransformedRecordWithAuthor.delete().where(
+        TransformedRecordWithAuthor.uri.in_(posts_to_delete)
+    )
 
 
 def write_posts_to_local_storage(posts_to_create: list[dict]) -> bool:

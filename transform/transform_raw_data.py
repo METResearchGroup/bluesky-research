@@ -22,7 +22,7 @@ from lib.db.bluesky_models.transformations import (
     FeedViewPostMetadata,
     TransformedFeedViewPostModel,
     TransformedProfileViewBasicModel,
-    TransformedFirehosePostModel,
+    TransformedRecordWithAuthorModel,
     TransformedRecordModel
 )
 from lib.db.bluesky_models.embed import (
@@ -481,7 +481,7 @@ def process_tags(tags: Optional[list[str]]) -> Optional[str]:
     return LIST_SEPARATOR_CHAR.join(tags)
 
 
-def flatten_firehose_post(post: dict) -> Optional[TransformedFirehosePostModel]:
+def flatten_firehose_post(post: dict) -> Optional[TransformedRecordWithAuthorModel]:
     """Flattens a post from the firehose.
 
     For some reason, the post format from the firehose is different from the
@@ -531,7 +531,7 @@ def flatten_firehose_post(post: dict) -> Optional[TransformedFirehosePostModel]:
         flattened_firehose_dict = {
             **flattened_firehose_dict, **transformed_record_dict
         }
-        return TransformedFirehosePostModel(**flattened_firehose_dict)
+        return TransformedRecordWithAuthorModel(**flattened_firehose_dict)
     except Exception as e:
         print(f"Exception in flattening post: {e}")
         return None

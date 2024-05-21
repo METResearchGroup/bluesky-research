@@ -11,6 +11,9 @@ from atproto_client.models.app.bsky.graph.defs import ListItemView
 from atproto_client.models.app.bsky.graph.get_list import Response as GetListResponse  # noqa
 
 from lib.constants import current_datetime_str
+from lib.db.bluesky_models.transformations import (
+    TransformedRecordWithAuthorModel
+)
 from lib.helper import client
 from services.sync.search.helper import send_request_with_pagination
 from transform.transform_raw_data import flatten_firehose_post
@@ -108,6 +111,25 @@ def get_post_record_given_post_uri(post_uri: str) -> GetRecordResponse:
         post_rkey=post_rkey, profile_identify=profile_identify
     )
     return response
+
+
+def get_record_with_author_given_post_uri(post_uri: str) -> TransformedRecordWithAuthorModel:  # noqa
+    # TODO: check what type the value is and then see if it's one
+    # that exists already in the DB.
+    # TODO: I should move all of the DBs to a single location, and then
+    # just change the name of the DB based on the input type (e.g., FeedViewPost)
+    # or the source type (e.g., firehose, feedview, context, etc.)
+    record_response: GetRecordResponse = get_post_record_given_post_uri(post_uri)  # noqa
+    hydrated_embedded_record_dict: dict = {
+        "record": record_response.value,
+        "uri": post_uri,
+        "cid": record_response.cid,
+        "author": ""
+    }
+    record_with_author: TransformedRecordWithAuthorModel = (
+        flatten_firehose_post(hydrated_embedded_record_dict)
+    )
+    return record_with_author
 
 
 def get_repost_profiles(post_uri: str) -> list[ProfileView]:
