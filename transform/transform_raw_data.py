@@ -2,7 +2,6 @@
 
 Based on https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.defs.json
 """  # noqa
-import json
 from typing import Optional, Union
 
 from atproto_client.models.app.bsky.actor.defs import ProfileViewBasic

@@ -25,6 +25,7 @@ def main():
     handle = example_link.split("/")[-1]
     profile: ProfileViewDetailed = client.get_profile(handle)
     followers: list[ProfileView] = get_user_followers(handle=handle)
+    print(f"Handle: {handle}\tProfile: {profile}\tFollowers: {followers}")
 
 
 if __name__ == "__main__":
