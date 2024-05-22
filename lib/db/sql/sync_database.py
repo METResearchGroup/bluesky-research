@@ -1,7 +1,7 @@
 """Database logic for all post records synced from Bluesky."""
 import os
 import sqlite3
-from typing import Optional, Union
+from typing import List, Optional
 
 import pandas as pd
 import peewee
@@ -78,14 +78,14 @@ def insert_new_record(record: TransformedRecordWithAuthorModel):
         TransformedRecordWithAuthor.create(**record_dict)
 
 
-def get_posts(k: Optional[int] = None) -> list[TransformedRecordWithAuthor]:
+def get_posts(k: Optional[int] = None) -> List[TransformedRecordWithAuthor]:
     """Get all posts from the database."""
     if k:
         return list(TransformedRecordWithAuthor.select().limit(k))
     return list(TransformedRecordWithAuthor.select())
 
 
-def get_most_recent_posts(k: Optional[int] = None) -> list[TransformedRecordWithAuthor]:  # noqa
+def get_most_recent_posts(k: Optional[int] = None) -> List[TransformedRecordWithAuthor]:  # noqa
     """Get the most recent posts from the database."""
     if k:
         return list(
@@ -105,7 +105,7 @@ def get_posts_as_list_dicts(
     k: Optional[int] = None,
     order_by: Optional[str] = "synctimestamp",
     desc: Optional[bool] = True
-) -> list[dict]:
+) -> List[dict]:
     """Get all posts from the database as a list of dictionaries."""
     if order_by:
         if desc:
