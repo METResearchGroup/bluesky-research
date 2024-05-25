@@ -16,7 +16,7 @@ from lib.db.bluesky_models.transformations import (
 )
 from lib.helper import client
 from services.sync.search.helper import send_request_with_pagination
-from transform.transform_raw_data import flatten_firehose_post
+from transform.transform_raw_data import process_firehose_post
 
 
 def get_author_handle_and_post_id_from_link(link: str) -> dict[str, str]:
@@ -91,7 +91,7 @@ def convert_post_link_to_post(
         "cid": record.cid,
         "author": author
     }
-    flattened_firehose_post: dict = flatten_firehose_post(post_dict).dict()
+    flattened_firehose_post: dict = process_firehose_post(post_dict).dict()
     return flattened_firehose_post
 
 
@@ -127,7 +127,7 @@ def get_record_with_author_given_post_uri(post_uri: str) -> TransformedRecordWit
         "author": ""
     }
     record_with_author: TransformedRecordWithAuthorModel = (
-        flatten_firehose_post(hydrated_embedded_record_dict)
+        process_firehose_post(hydrated_embedded_record_dict)
     )
     return record_with_author
 

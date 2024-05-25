@@ -174,6 +174,7 @@ def filter_posts(posts: list[dict]) -> list[dict]:
     return joined_results
 
 
+# TODO: change FilteredRawPostModel to FilteredPreprocessedPostModel?
 def save_filtered_posts_to_db(filtered_posts: list[dict]) -> None:
     """Saves the filtered posts to the database.
 

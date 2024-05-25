@@ -17,7 +17,29 @@ logger = get_logger(__file__)
 
 def consolidate_firehose_post(post: TransformedRecordWithAuthorModel) -> ConsolidatedPostRecordModel:  # noqa
     """Transforms the firehose posts into the consolidated format."""
-    pass
+    metadata_dict = {
+        "synctimestamp": post.metadata.synctimestamp,
+        "url": post.metadata.url,
+        "source": "most_liked_feeds",
+        "processed_timestamp": current_datetime_str
+    }
+    metadata: ConsolidatedPostRecordMetadataModel = (
+        ConsolidatedPostRecordMetadataModel(**metadata_dict)
+    )
+    metrics_dict = {
+        "like_count": None, "reply_count": None, "repost_count": None
+    }
+    metrics: ConsolidatedMetrics = ConsolidatedMetrics(**metrics_dict)
+    res = {
+        "uri": post.uri,
+        "cid": post.cid,
+        "indexed_at": post.indexed_at,
+        "author": post.author,
+        "metadata": metadata,
+        "record": post.record,
+        "metrics": metrics
+    }
+    return ConsolidatedPostRecordModel(**res)
 
 
 def consolidate_feedview_post(post: TransformedFeedViewPostModel) -> ConsolidatedPostRecordModel:  # noqa

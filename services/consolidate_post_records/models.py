@@ -1,27 +1,21 @@
 """Models for consolidating post records."""
 from typing import Optional
+import typing_extensions as te
 
 from pydantic import BaseModel, Field
 
-from lib.db.bluesky_models.transformations import TransformedRecordModel
-
-# TODO: TransformedRecordWithAuthorModel is essentially the
-# TransformedRecordModel but unnested and with additional info. I should keep
-# the TransformedRecordModel as a record tbh. I'll need to think about how
-# to do that but I'll assume that I did that already. I think that the
-# new version of the TransformedRecordWithAuthorModel would look something like
-# the version below:
-
-
-class TransformedRecordWithAuthorModel(BaseModel):
-    record: TransformedRecordModel
+from lib.db.bluesky_models.transformations import (
+    PostMetadataModel,
+    TransformedProfileViewBasicModel,
+    TransformedRecordModel
+)
 
 
 class ConsolidatedPostRecordMetadataModel(BaseModel):
-    synctimestamp: str
-    url: Optional[str]
-    source: str  # either "firehose" or "most_liked_feed"
-    processed_timestamp: str
+    synctimestamp: str = Field(..., description="The synctimestamp of the post.")  # noqa
+    url: Optional[str] = Field(..., description="The URL of the post. Available only if the post is from feed view. Firehose posts won't have this hydrated.")  # noqa
+    source: te.Literal["firehose", "most_liked"] = Field(..., description="The source feed of the post. Either 'firehose' or 'most_liked'")  # noqa
+    processed_timestamp: str = Field(..., description="The timestamp when the post was processed.")  # noqa
 
 
 class ConsolidatedMetrics(BaseModel):
@@ -37,10 +31,10 @@ class ConsolidatedMetrics(BaseModel):
 
 
 class ConsolidatedPostRecordModel(BaseModel):
-    uri: str
-    cid: str
-    indexed_at: str
-    author: dict
-    metadata: dict
-    record: dict
-    metrics: Optional[ConsolidatedMetrics]
+    uri: str = Field(..., description="The URI of the post.")
+    cid: str = Field(..., description="The CID of the post.")
+    indexed_at: str = Field(..., description="The timestamp of when the post was indexed by Bluesky.")  # noqa
+    author: TransformedProfileViewBasicModel = Field(..., description="The author of the post.")  # noqa
+    metadata: PostMetadataModel = Field(..., description="The metadata of the post.")  # noqa
+    record: TransformedRecordModel = Field(..., description="The record of the post.")  # noqa
+    metrics: Optional[ConsolidatedMetrics] = Field(default=None, description="Post engagement metrics. Only available for posts from feed view, not firehose.")  # noqa

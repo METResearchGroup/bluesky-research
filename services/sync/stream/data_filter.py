@@ -13,7 +13,7 @@ from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorMod
 from lib.db.sql.sync_database import db, TransformedRecordWithAuthor
 from services.participant_data.helper import get_user_to_bluesky_profiles_as_df
 from services.sync.stream.constants import tmp_data_dir
-from transform.transform_raw_data import flatten_firehose_post
+from transform.transform_raw_data import process_firehose_post
 
 
 study_participants_bsky_profiles_df: pd.DataFrame = (
@@ -70,7 +70,7 @@ def manage_posts(posts: dict[str, list]) -> dict:
 
     for new_post in posts["created"]:
         if new_post is not None:
-            flattened_post: dict = flatten_firehose_post(new_post).dict()
+            flattened_post: dict = process_firehose_post(new_post).dict()
             posts_to_create.append(flattened_post)
     return {
         "posts_to_create": posts_to_create,

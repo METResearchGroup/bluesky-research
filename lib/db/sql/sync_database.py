@@ -10,16 +10,15 @@ from lib.db.bluesky_models.transformations import (
     TransformedRecordWithAuthorModel
 )
 
-
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
-SQLITE_DB_NAME = "synced_record_posts.db"
-SQLITE_DB_PATH = os.path.join(current_file_directory, SQLITE_DB_NAME)
+SYNC_SQLITE_DB_NAME = "synced_record_posts.db"
+SYNC_SQLITE_DB_PATH = os.path.join(current_file_directory, SYNC_SQLITE_DB_NAME)
 
-db = peewee.SqliteDatabase(SQLITE_DB_PATH)
+db = peewee.SqliteDatabase(SYNC_SQLITE_DB_PATH)
 db_version = 2
 
-conn = sqlite3.connect(SQLITE_DB_PATH)
-cursor = conn.cursor()
+sync_conn = sqlite3.connect(SYNC_SQLITE_DB_PATH)
+sync_cursor = sync_conn.cursor()
 
 
 # database models for `TransformedRecordWithAuthor` tables.
@@ -31,23 +30,10 @@ class BaseModel(peewee.Model):
 class TransformedRecordWithAuthor(BaseModel):
     """Class for the (transformed) raw posts."""
     uri = peewee.CharField(unique=True)
-    created_at = peewee.TextField()
-    # for long text. Technically a post can just be an image or video and
-    # not have text.
-    text = peewee.TextField(null=True)
-    embed = peewee.TextField(null=True)  # for embedded content
-    langs = peewee.CharField(null=True)  # sometimes the langs aren't provided
-    entities = peewee.CharField(null=True)
-    facets = peewee.CharField(null=True)  # https://www.pfrazee.com/blog/why-facets # noqa
-    labels = peewee.CharField(null=True)
-    reply = peewee.CharField(null=True)
-    reply_parent = peewee.CharField(null=True)
-    reply_root = peewee.CharField(null=True)
-    tags = peewee.CharField(null=True)
-    py_type = peewee.CharField()
     cid = peewee.CharField(index=True)
     author = peewee.CharField()
-    synctimestamp = peewee.CharField()
+    metadata = peewee.TextField()
+    record = peewee.TextField()
 
 
 class SubscriptionState(BaseModel):
@@ -171,9 +157,9 @@ if db.is_closed():
 
             # Update version in DB
             if DbMetadata.select().count() == 0:
-                DbMetadata.insert({DbMetadata.version: db_version}).execute()
+                DbMetadata.insert({DbMetadata.version: db_version}).execute()  # noqa
             else:
-                DbMetadata.update({DbMetadata.version: db_version}).execute()
+                DbMetadata.update({DbMetadata.version: db_version}).execute()  # noqa
 
 if __name__ == "__main__":
     num_posts = get_num_posts()
