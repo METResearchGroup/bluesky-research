@@ -9,8 +9,9 @@ We'll need to think about how this interacts with toxicity. We
 want to be careful about how we treat toxicity since we will address it
 later on in the pipeline.
 """
+from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 
 
-def classify(post: dict) -> bool:
+def classify(post: ConsolidatedPostRecordModel) -> bool:
     """Classifies a post as having hate speech."""
     return False

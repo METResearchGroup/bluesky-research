@@ -1,10 +1,13 @@
 """Classify if a post has hate speech."""
+from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.preprocess_raw_data.classify_hate_speech.helper import (
     classify_if_posts_have_no_hate_speech
 )
 
 
-def filter_posts_have_no_hate_speech(posts: list[dict]) -> list[dict]:
+def filter_posts_have_no_hate_speech(
+    posts: list[ConsolidatedPostRecordModel]
+) -> list[dict]:
     return classify_if_posts_have_no_hate_speech(posts=posts)
 
 

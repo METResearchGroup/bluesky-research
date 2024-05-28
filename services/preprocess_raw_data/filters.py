@@ -1,19 +1,19 @@
 """Performs filtering steps."""
 from lib.constants import current_datetime_str
 from lib.helper import track_performance
+from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.preprocess_raw_data.classify_bots.main import filter_posts_not_written_by_bot  # noqa
 from services.preprocess_raw_data.classify_hate_speech.main import filter_posts_have_no_hate_speech  # noqa
 from services.preprocess_raw_data.classify_language.helper import preprocess_text_for_filtering  # noqa
 from services.preprocess_raw_data.classify_language.main import filter_text_is_english  # noqa
 from services.preprocess_raw_data.classify_nsfw_content.main import filter_posts_have_no_nsfw_content  # noqa
 from services.preprocess_raw_data.classify_spam.main import filter_posts_have_no_spam  # noqa
-from services.preprocess_raw_data.database import batch_create_filtered_posts
-from services.preprocess_raw_data.models import FilteredRawPostModel
+from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 
 @track_performance
 def filter_posts_with_filter_func(
-    posts: list[dict], filter_func: callable, label: str
+    posts: list[ConsolidatedPostRecordModel], filter_func: callable, label: str
 ) -> list[dict]:
     """Filters posts with a specific filtering function.
 
@@ -43,20 +43,25 @@ def filter_posts_with_filter_func(
     }
 
 
-def preprocess_post(post: dict) -> dict:
+def preprocess_post(post: ConsolidatedPostRecordModel) -> dict:
     """Preprocesses a single post as necessary, before filtering."""
-    # preprocessing needed for language classifier
-    post["text"] = preprocess_text_for_filtering(post["text"])
+    # preprocessing needed for language classifier. Specifically, removes any
+    # newline chars, which the classifier doesn't like.
+    post_text = post.record.text
+    processed_text = preprocess_text_for_filtering(post_text)
+    post.record.text = processed_text
     return post
 
 
-def preprocess_posts(posts: list[dict]) -> list[dict]:
+def preprocess_posts(posts: list[ConsolidatedPostRecordModel]) -> list[dict]:
     """Preprocesses the posts as necessary, before filtering."""
     return [preprocess_post(post) for post in posts]
 
 
 @track_performance
-def filter_posts(posts: list[dict]) -> list[dict]:
+def filter_posts(
+    posts: list[ConsolidatedPostRecordModel]
+) -> list[FilteredPreprocessedPostModel]:
     """Applies the filtering steps and returns the posts along with their
     status.
 
@@ -84,7 +89,7 @@ def filter_posts(posts: list[dict]) -> list[dict]:
     as the URIs of the posts that have passed all the filters.
     """  # noqa
     # do any preprocessing for posts before filtering
-    posts: list[dict] = preprocess_posts(posts)
+    posts: list[ConsolidatedPostRecordModel] = preprocess_posts(posts)
 
     # we need to run the language filter first since this will filter the
     # majority of posts (60% - 80% of posts per batch).
@@ -107,19 +112,20 @@ def filter_posts(posts: list[dict]) -> list[dict]:
 
     # we apply downstream filters only on English posts.
     posts_to_filter = [
-        post for post in posts if post["uri"] in english_post_uris
+        post for post in posts if post.uri in english_post_uris
     ]
 
     # for each filter, we apply the filter and add the results to the output.
     # the order of these filters doesn't particularly matter, unless we have
     # a specific reason to prefer one ordering over another.
-    filter_funcs = [
-        filter_posts_not_written_by_bot, filter_posts_have_no_nsfw_content,
-        filter_posts_have_no_spam, filter_posts_have_no_hate_speech
+    filter_funcs_with_labels: list[tuple] = [
+        (filter_posts_not_written_by_bot, "is_not_from_possible_bot_account"),
+        (filter_posts_have_no_nsfw_content, "has_no_nsfw_content"),
+        (filter_posts_have_no_spam, "has_no_spam"),
+        (filter_posts_have_no_hate_speech, "has_no_hate_speech")
     ]
-    labels = ["is_not_from_possible_bot_account", "has_no_nsfw_content", "has_no_spam", "has_no_hate_speech"]  # noqa
 
-    for filter_func, label in zip(filter_funcs, labels):
+    for (filter_func, label) in filter_funcs_with_labels:
         results = filter_posts_with_filter_func(
             posts=posts_to_filter, filter_func=filter_func, label=label
         )
@@ -136,13 +142,13 @@ def filter_posts(posts: list[dict]) -> list[dict]:
         posts_to_filter = [
             post
             for post in posts_to_filter
-            if post["uri"] in results["passed_filters"]
+            if post.uri in results["passed_filters"]
         ]
 
     # whatever posts are left, are the ones that have passed all filters.
     res.extend([
         {
-            "uri": post["uri"],
+            "uri": post.uri,
             "passed_filters": True,
             "filtered_at": current_datetime_str,
             "filtered_by_func": None
@@ -150,40 +156,30 @@ def filter_posts(posts: list[dict]) -> list[dict]:
         for post in posts_to_filter
     ])
 
-    # TODO: maybe we want to have the joined results and write the joined
-    # results so we can just directly use these instead of the raw posts?
-    # Unsure, but think that we really only need the IDs that passed the
-    # steps, but maybe for now we can just keep all the fields so we can avoid
-    # having to do filtering at each downstream service and just have a fully
-    # hydrated set of filtered posts? Will go back to this later but for now
-    # let's use a hydrated version of each post so that downstream services
-    # can just filter on the filter status. Don't think that this causes any
-    # storage issues but it does save us having to do joins or filters
-    # downstream where we have to grab the IDs into memory and join/filter them
-    # against the raw posts.
+    # we now create a hash map of the results, with URI as the key.
+    uri_to_results_map = {result["uri"]: result for result in res}
 
-    # join `res` and `posts`, based on uri
-    join_key = "uri"
-    res_dict = {post[join_key]: post for post in res}
-    posts_dict = {post[join_key]: post for post in posts}
-    joined_results = [
-        {**posts_dict[uri], **res_dict[uri]}
-        for uri in res_dict.keys()
-    ]
+    # we then work through the original list of posts and create the resulting
+    # objects accordingly.
+    filtered_posts: list[FilteredPreprocessedPostModel] = []
+    for post in posts:
+        uri = post.uri
+        filtering_results = uri_to_results_map[uri]
+        filtered_post_result = {
+            "uri": uri,
+            "cid": post.cid,
+            "indexed_at": post.indexed_at,
+            "author": post.author,
+            "metadata": post.metadata,
+            "record": post.record,
+            "metrics": post.metrics,
+            "passed_filters": filtering_results["passed_filters"],
+            "filtered_at": filtering_results["filtered_at"],
+            "filtered_by_func": filtering_results["filtered_by_func"],
+            "synctimestamp": post.metadata.synctimestamp,
+            "preprocessing_timestamp": current_datetime_str
+        }
+        filtered_post = FilteredPreprocessedPostModel(**filtered_post_result)
+        filtered_posts.append(filtered_post)
 
-    return joined_results
-
-
-# TODO: change FilteredRawPostModel to FilteredPreprocessedPostModel?
-def save_filtered_posts_to_db(filtered_posts: list[dict]) -> None:
-    """Saves the filtered posts to the database.
-
-    We save all posts, whether they passed the filters or not, to the database,
-    so that we can track which posts have been filtered.
-    """
-    validated_filtered_firehose_posts = [
-        FilteredRawPostModel(**post)
-        for post in filtered_posts
-    ]
-    posts_dict = [post.dict() for post in validated_filtered_firehose_posts]
-    batch_create_filtered_posts(posts_dict)
+    return filtered_posts

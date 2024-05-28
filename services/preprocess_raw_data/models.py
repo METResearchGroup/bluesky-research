@@ -22,4 +22,5 @@ class FilteredPreprocessedPostModel(BaseModel):
     passed_filters: bool = Field(..., description="Indicates if the post passed the filters")  # noqa
     filtered_at: str = Field(..., description="Timestamp when the post was filtered")  # noqa
     filtered_by_func: Optional[str] = Field(None, description="Function used to filter the post")  # noqa
+    synctimestamp: str = Field(..., description="The synctimestamp of the post.")  # noqa
     preprocessing_timestamp: str = Field(..., description="Timestamp when the post was preprocessed")  # noqa

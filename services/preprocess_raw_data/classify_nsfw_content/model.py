@@ -3,15 +3,16 @@
 We can use LLMs or Perspective API later on, but using user-applied labels
 seems to work for now.
 """
+from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.preprocess_raw_data.classify_nsfw_content.constants import (
     LABELS_TO_FILTER
 )
 
 
-def classify(post: dict) -> bool:
+def classify(post: ConsolidatedPostRecordModel) -> bool:
     """Classifies if a post is NSFW or not."""
-    labels = post.get("labels", None)
-    text = post.get("text", "")
+    labels = post.record.labels
+    text = post.record.text
     labels = labels.split(",") if labels else []
     for label_to_filter in LABELS_TO_FILTER:
         if label_to_filter in labels or label_to_filter in text:
