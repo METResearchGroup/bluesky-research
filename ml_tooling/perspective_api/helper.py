@@ -1,5 +1,4 @@
 """Classifies posts using the Perspective API."""
-from lib.db.bluesky_models.transformations import TransformedFeedViewPostModel
 from ml_tooling.inference_helpers import classify_posts
 from ml_tooling.perspective_api.model import classify
 

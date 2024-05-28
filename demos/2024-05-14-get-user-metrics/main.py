@@ -1,8 +1,6 @@
 import json
 import requests
 
-from lib.helper import client
-
 
 def sync_did_user_profiles() -> list[dict]:
     """Sync data from https://plc.directory/export, a data dump of DID data,
@@ -35,7 +33,7 @@ def sync_did_user_profiles() -> list[dict]:
 
 def main():
     profiles = sync_did_user_profiles()
-    breakpoint()
+    print(f"Profiles: {profiles}")
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ from transform.transform_raw_data import (
     process_facets, process_label, process_labels, process_entity,
     process_entities, process_replies, process_image, process_images,
     process_strong_ref, process_record_embed, process_external_embed,
-    process_record_with_media_embed, process_embed, flatten_firehose_post
+    process_record_with_media_embed, process_embed, process_firehose_post
 )
 
 
@@ -147,7 +147,7 @@ def test_process_facet():
     facet = Facet(features=[mention, link, tag])
     assert (
         process_facet(facet)
-        == "mention:did:plc:beitbj4for3pe4babgntgfjc;link:https://example.com;tag:red" # noqa
+        == "mention:did:plc:beitbj4for3pe4babgntgfjc;link:https://example.com;tag:red"  # noqa
     )
 
 
@@ -159,7 +159,7 @@ def test_process_facets():
     facet2 = Facet(features=[tag])
     assert (
         process_facets([facet1, facet2])
-        == "mention:did:plc:beitbj4for3pe4babgntgfjc;link:https://example.com;tag:red" # noqa
+        == "mention:did:plc:beitbj4for3pe4babgntgfjc;link:https://example.com;tag:red"  # noqa
     )
 
 
@@ -266,7 +266,7 @@ def test_process_embed():
     assert result == expected_result
 
 
-def test_flatten_firehose_post():
+def test_process_firehose_post():
     """Test our ability to flatten a firehost post.
 
     To test this, we'll use real posts. We'll then flatten it and compare the
@@ -276,15 +276,15 @@ def test_flatten_firehose_post():
     deleted, plus they let us test for the existence of things like embeds
     and facets, which are the most tricky to parse since they have different
     variations.
-    """ # noqa
+    """  # noqa
     # test 1
     link = "https://bsky.app/profile/nytimes.com/post/3kowbajil7r2y"
     record = get_post_record_from_post_link(link)
     record_value = record.value
     # available at record.uri
-    expected_post_uri = "at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3kowbajil7r2y" # noqa
+    expected_post_uri = "at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3kowbajil7r2y"  # noqa
     # available at record.cid
-    expected_post_cid = "bafyreicmozjihgi5fbc76r6nfxdv4bvrhnpbglkfpzy7uv6l4suvxw2miu" # noqa
+    expected_post_cid = "bafyreicmozjihgi5fbc76r6nfxdv4bvrhnpbglkfpzy7uv6l4suvxw2miu"  # noqa
     expected_post_author_did = "did:plc:eclio37ymobqex2ncko63h4r"
     post = {
         "record": record_value,
@@ -294,20 +294,20 @@ def test_flatten_firehose_post():
     }
     assert isinstance(record_value, Record)
     assert isinstance(post, dict)
-    flattened_firehose_post = flatten_firehose_post(post)
+    flattened_firehose_post = process_firehose_post(post)
     # we don't need to test for this
     flattened_firehose_post.pop("synctimestamp")
     expected_flattened_firehose_post = {
         'author': 'did:plc:eclio37ymobqex2ncko63h4r',
-        'cid': 'bafyreicmozjihgi5fbc76r6nfxdv4bvrhnpbglkfpzy7uv6l4suvxw2miu', # noqa
+        'cid': 'bafyreicmozjihgi5fbc76r6nfxdv4bvrhnpbglkfpzy7uv6l4suvxw2miu',  # noqa
         'created_at': '2024-03-30T14:44:59.095Z',
-        'embed': '{"has_image": false, "image_alt_text": null, "has_embedded_record": ' # noqa
+        'embed': '{"has_image": false, "image_alt_text": null, "has_embedded_record": '  # noqa
         'false, "embedded_record": null, "has_external": true, "external": '
         '"{\\"description\\": \\"With Democrats holding a one-seat majority '
         'and defending seats from Maryland to Arizona, control of the Senate '
         'could easily flip to the G.O.P.\\", \\"title\\": \\"10 Senate Races '
         'to Watch in 2024\\", \\"uri\\": '
-        '\\"https://www.nytimes.com/article/senate-races-2024-election.html?smtyp=cur&smid=bsky-nytimes\\"}"}', # noqa
+        '\\"https://www.nytimes.com/article/senate-races-2024-election.html?smtyp=cur&smid=bsky-nytimes\\"}"}',  # noqa
         'entities': None,
         'facets': None,
         'labels': None,
@@ -316,10 +316,10 @@ def test_flatten_firehose_post():
         'reply_parent': None,
         'reply_root': None,
         'tags': None,
-        'text': 'With Democrats holding a one-seat majority and defending seats from ' # noqa
+        'text': 'With Democrats holding a one-seat majority and defending seats from '  # noqa
                 'Maryland to Arizona, control of the Senate could easily flip to the '  # noqa
                 'Republicans. Here are the Senate races to watch in 2024.',
-        'uri': 'at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3kowbajil7r2y' # noqa
+        'uri': 'at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3kowbajil7r2y'  # noqa
     }
     assert flattened_firehose_post == expected_flattened_firehose_post
 
@@ -328,9 +328,9 @@ def test_flatten_firehose_post():
     record = get_post_record_from_post_link(link)
     record_value = record.value
     # available at record.uri
-    expected_post_uri = "at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3koueui3yld24" # noqa
+    expected_post_uri = "at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3koueui3yld24"  # noqa
     # available at record.cid
-    expoected_post_cid = "bafyreieuyk7ga7ldbvn3ayhe3c3ntnz7rlbgdqlfnp53v2wwjaanmrl3dm" # noqa
+    expoected_post_cid = "bafyreieuyk7ga7ldbvn3ayhe3c3ntnz7rlbgdqlfnp53v2wwjaanmrl3dm"  # noqa
     expected_post_author_did = "did:plc:eclio37ymobqex2ncko63h4r"
     post = {
         "record": record_value,
@@ -340,30 +340,30 @@ def test_flatten_firehose_post():
     }
     assert isinstance(record_value, Record)
     assert isinstance(post, dict)
-    flattened_firehose_post = flatten_firehose_post(post)
+    flattened_firehose_post = process_firehose_post(post)
     # we don't need to test for this
     flattened_firehose_post.pop("synctimestamp")
     expected_flattened_firehose_post = {
         'author': 'did:plc:eclio37ymobqex2ncko63h4r',
         'cid': 'bafyreieuyk7ga7ldbvn3ayhe3c3ntnz7rlbgdqlfnp53v2wwjaanmrl3dm',
         'created_at': '2024-03-29T20:44:30.388Z',
-        'embed': '{"has_image": true, "image_alt_text": "UnitedHealth Group\\u2019s ' # noqa
+        'embed': '{"has_image": true, "image_alt_text": "UnitedHealth Group\\u2019s '  # noqa
         'headquarters in Minnetonka, Minnesota. A headline reads: \\"What to '
         'Know About Health Care Cyberattacks.\\" Photo by Unitedhealth '
         'Group, via Reuters.", "has_embedded_record": false, '
         '"embedded_record": null, "has_external": false, "external": null}',
         'entities': None,
-        'facets': 'link:https://www.nytimes.com/2024/03/29/health/cyber-attack-unitedhealth-hospital-patients.html?smtyp=cur&smid=bsky-nytimes', # noqa
+        'facets': 'link:https://www.nytimes.com/2024/03/29/health/cyber-attack-unitedhealth-hospital-patients.html?smtyp=cur&smid=bsky-nytimes',  # noqa
         'labels': None,
         'langs': 'en',
         'py_type': 'app.bsky.feed.post',
         'reply_parent': None,
         'reply_root': None,
         'tags': None,
-        'text': 'A cyberattack shut down the largest U.S. health care payment system ' # noqa
-                "last month. Here's what to know as hospitals, health insurers, " # noqa
-                'physician clinics and others in the industry increasingly become the ' # noqa
-                'targets of significant hacks. www.nytimes.com/2024/03/29/h...', # noqa
-        'uri': 'at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3koueui3yld24' # noqa
+        'text': 'A cyberattack shut down the largest U.S. health care payment system '  # noqa
+                "last month. Here's what to know as hospitals, health insurers, "  # noqa
+                'physician clinics and others in the industry increasingly become the '  # noqa
+                'targets of significant hacks. www.nytimes.com/2024/03/29/h...',  # noqa
+        'uri': 'at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3koueui3yld24'  # noqa
     }
     assert flattened_firehose_post == expected_flattened_firehose_post

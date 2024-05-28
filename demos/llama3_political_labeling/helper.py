@@ -126,8 +126,6 @@ def export_batch_posts(
         export_batch_posts_local(batch=batch)
 
     if store_remote:
-        duplicate_key_count = 0
-        total_successful_inserts = 0
         total_posts = len(batch)
         print(f"Inserting {total_posts} posts to MongoDB collection {mongo_collection_name}")  # noqa
         formatted_posts_mongodb = [

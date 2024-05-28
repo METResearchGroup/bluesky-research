@@ -21,7 +21,7 @@ def get_article_content_llm(url: str):
     prompt = f"""Given the following HTML content, return the main
     text of the news article. Return as a JSON with key = "content"
     and value = the main text of the article, as a string.
-    
+
     {html_content}"""
     # token count: 800,000
     result = run_query(prompt)

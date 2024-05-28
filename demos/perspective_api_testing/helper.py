@@ -5,7 +5,7 @@ import os
 from demos.perspective_api_testing.models import PerspectiveAPIClassification
 from lib.constants import current_datetime_str
 from lib.db.bluesky_models.transformations import (
-    FeedViewPostMetadata,
+    PostMetadataModel,
     TransformedFeedViewPostModel,
     TransformedProfileViewBasicModel,
     TransformedRecordModel
@@ -44,7 +44,7 @@ def transform_feedviewpost_dict(post: dict) -> TransformedFeedViewPostModel:
     """
     metadata_dict: dict = post["metadata"]
     metadata_dict["url"] = post["url"]
-    metadata: FeedViewPostMetadata = FeedViewPostMetadata(**metadata_dict)
+    metadata: PostMetadataModel = PostMetadataModel(**metadata_dict)
 
     author_dict: dict = post["post"]["author"]
     author_dict_transformed = {

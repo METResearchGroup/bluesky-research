@@ -69,9 +69,15 @@ def chunk_insert_posts(
 
 def load_collection(
     collection: Collection,
-    limit: Optional[int] = DEFAULT_LOAD_LIMIT
+    limit: Optional[int] = DEFAULT_LOAD_LIMIT,
+    latest_timestamp: Optional[str] = None,
+    timestamp_fieldname: Optional[str] = "synctimestamp"
 ) -> list[dict]:
     """Loads content from a collection in MongoDB."""
+    query = {}
+    if latest_timestamp:
+        query[timestamp_fieldname] = {"$gt": latest_timestamp}
+    cursor = collection.find(query)
     if limit:
-        return list(collection.find({}).limit(limit))
-    return list(collection.find({}))
+        cursor = cursor.limit(limit)
+    return list(cursor)

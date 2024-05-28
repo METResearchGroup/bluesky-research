@@ -35,6 +35,18 @@ class TransformedRecordModel(BaseModel):
     tags: Optional[str] = Field(default=None, description="The tags of the record, if any.")  # noqa
     py_type: te.Literal["app.bsky.feed.post"] = Field(default="app.bsky.feed.post", frozen=True)  # noqa
 
+    @validator('synctimestamp')
+    def validate_synctimestamp(cls, v):
+        if not re.match(r'^\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}$', v):
+            raise ValueError("synctimestamp must be in 'YYYY-MM-DD-HH:MM:SS' format (e.g., '2024-04-23-04:41:17')")  # noqa
+        return v
+
+
+class PostMetadataModel(BaseModel):
+    url: str = Field(..., description="The URL of the post.")
+    source_feed: str = Field(..., description="The source feed of the post.")
+    synctimestamp: str = Field(..., description="The synctimestamp of the post.")  # noqa
+
 
 class TransformedRecordWithAuthorModel(BaseModel):
     """Model for the transformed record post, with author information.
@@ -47,18 +59,8 @@ class TransformedRecordWithAuthorModel(BaseModel):
     uri: str = Field(..., description="The URI of the post.")
     cid: str = Field(..., description="The CID of the post.")
     author: str = Field(..., description="The DID of the author of the post.")
-    synctimestamp: str = Field(..., description="The synctimestamp of the post.")  # noqa
-    created_at: str = Field(..., description="The timestamp of when the record was created on Bluesky.")  # noqa
-    text: str = Field(..., description="The text of the record.")
-    embed: Optional[ProcessedEmbed] = Field(default=None, description="The embeds in the record, if any.")  # noqa
-    entities: Optional[str] = Field(default=None, description="The entities of the record, if any. Separated by a separator.")  # noqa
-    facets: Optional[str] = Field(default=None, description="The facets of the record, if any. Separated by a separator.")  # noqa
-    labels: Optional[str] = Field(default=None, description="The labels of the record, if any. Separated by a separator.")  # noqa
-    langs: Optional[str] = Field(default=None, description="The languages of the record, if specified.")  # noqa
-    reply_parent: Optional[str] = Field(default=None, description="The parent post that the record is responding to in the thread, if any.")  # noqa
-    reply_root: Optional[str] = Field(default=None, description="The root post of the thread, if any.")  # noqa
-    tags: Optional[str] = Field(default=None, description="The tags of the record, if any.")  # noqa
-    py_type: te.Literal["app.bsky.feed.post"] = Field(default="app.bsky.feed.post", frozen=True)  # noqa
+    metadata: PostMetadataModel = Field(..., description="The metadata of the post.")  # noqa
+    record: TransformedRecordModel = Field(..., description="The record of the post.")  # noqa
 
     @validator('author')
     def validate_author(cls, v):
@@ -72,26 +74,14 @@ class TransformedRecordWithAuthorModel(BaseModel):
             raise ValueError("URI must start with 'at://did:plc:'")
         return v
 
-    @validator('synctimestamp')
-    def validate_synctimestamp(cls, v):
-        if not re.match(r'^\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}$', v):
-            raise ValueError("synctimestamp must be in 'YYYY-MM-DD-HH:MM:SS' format (e.g., '2024-04-23-04:41:17')")  # noqa
-        return v
-
-
-class FeedViewPostMetadata(BaseModel):
-    url: str = Field(..., description="The URL of the post.")
-    source_feed: str = Field(..., description="The source feed of the post.")
-    synctimestamp: str = Field(..., description="The synctimestamp of the post.")  # noqa
-
 
 class TransformedFeedViewPostModel(BaseModel):
-    metadata: FeedViewPostMetadata = Field(..., description="The metadata of the post.")  # noqa
-    author: TransformedProfileViewBasicModel = Field(..., description="The author of the post.")  # noqa
-    cid: str = Field(..., description="The CID of the post.")
-    indexed_at: str = Field(..., description="The timestamp of when the post was indexed by Bluesky.")  # noqa
-    record: TransformedRecordModel = Field(..., description="The record of the post.")  # noqa
     uri: str = Field(..., description="The URI of the post.")
+    cid: str = Field(..., description="The CID of the post.")
+    metadata: PostMetadataModel = Field(..., description="The metadata of the post.")  # noqa
+    author: TransformedProfileViewBasicModel = Field(..., description="The author of the post.")  # noqa
+    record: TransformedRecordModel = Field(..., description="The record of the post.")  # noqa
+    indexed_at: str = Field(..., description="The timestamp of when the post was indexed by Bluesky.")  # noqa
     like_count: Optional[int] = Field(default=None, description="The like count of the post.")  # noqa
     reply_count: Optional[int] = Field(default=None, description="The reply count of the post.")  # noqa
     repost_count: Optional[int] = Field(default=None, description="The repost count of the post.")  # noqa

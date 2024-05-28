@@ -2,7 +2,6 @@
 
 Based on https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.defs.json
 """  # noqa
-import json
 from typing import Optional, Union
 
 from atproto_client.models.app.bsky.actor.defs import ProfileViewBasic
@@ -19,7 +18,7 @@ from atproto_client.models.dot_dict import DotDict
 
 from lib.constants import current_datetime_str
 from lib.db.bluesky_models.transformations import (
-    FeedViewPostMetadata,
+    PostMetadataModel,
     TransformedFeedViewPostModel,
     TransformedProfileViewBasicModel,
     TransformedRecordWithAuthorModel,
@@ -481,8 +480,8 @@ def process_tags(tags: Optional[list[str]]) -> Optional[str]:
     return LIST_SEPARATOR_CHAR.join(tags)
 
 
-def flatten_firehose_post(post: dict) -> Optional[TransformedRecordWithAuthorModel]:
-    """Flattens a post from the firehose.
+def process_firehose_post(post: dict) -> Optional[TransformedRecordWithAuthorModel]:  # noqa
+    """Processes a post from the firehose.
 
     For some reason, the post format from the firehose is different from the
     post format when the post is part of a feed?
@@ -516,20 +515,19 @@ def flatten_firehose_post(post: dict) -> Optional[TransformedRecordWithAuthorMod
     """  # noqa
     record: Record = post["record"]
     transformed_record: TransformedRecordModel = transform_post_record(record)
-    transformed_record_dict: dict = transformed_record.dict()
+    metadata_dict = {
+        "url": "",
+        "source_feed": "firehose",
+        "synctimestamp": current_datetime_str
+    }
+    metadata: PostMetadataModel = PostMetadataModel(**metadata_dict)
     try:
-        # flatten the post
         flattened_firehose_dict = {
             "uri": post["uri"],
             "cid": post["cid"],
             "author": post["author"],
-            # synctimestamp, e.g., '2024-03-20-14:58:09', for when we synced
-            # the data. This is different than the "indexed_at" field from
-            # Bluesky, which is when they last indexed the PDS on their end.
-            "synctimestamp": current_datetime_str
-        }
-        flattened_firehose_dict = {
-            **flattened_firehose_dict, **transformed_record_dict
+            "metadata": metadata,
+            "record": transformed_record
         }
         return TransformedRecordWithAuthorModel(**flattened_firehose_dict)
     except Exception as e:
@@ -539,7 +537,7 @@ def flatten_firehose_post(post: dict) -> Optional[TransformedRecordWithAuthorMod
 
 def get_feedviewpost_metadata(
     post: FeedViewPost, enrichment_data: dict
-) -> FeedViewPostMetadata:
+) -> PostMetadataModel:
     metadata = {}
     handle = post.post.author.handle
     uri = post.post.uri.split("/")[-1]
@@ -584,7 +582,7 @@ def transform_feedview_post(
     post: FeedViewPost, enrichment_data: dict
 ) -> TransformedFeedViewPostModel:
     """Transforms a feed view post."""
-    metadata: FeedViewPostMetadata = get_feedviewpost_metadata(
+    metadata: PostMetadataModel = get_feedviewpost_metadata(
         post=post, enrichment_data=enrichment_data
     )
     raw_author: ProfileViewBasic = post.post.author

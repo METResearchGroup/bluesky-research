@@ -5,7 +5,8 @@ import os
 from typing import Any, Dict
 
 log_directory = os.path.dirname(os.path.abspath(__file__))
-os.makedirs(log_directory, exist_ok=True)
+if not os.path.exists(log_directory):
+    os.makedirs(log_directory, exist_ok=True)
 
 log_filename = os.path.join(log_directory, "logfile.log")
 
@@ -29,3 +30,21 @@ class Logger(logging.Logger):
     def log(self, message: str, **kwargs: Dict[str, Any]) -> None:
         """Convenience method to log a message with some extra data."""
         self.info(message, extra=kwargs)
+
+
+def get_logger(filename_dunder: str) -> None:
+    """Returns a logger with the appropriate filename.
+
+    Filename defined by what is in the __file__ variable. Returns the path
+    relative to the "bluesky-research" root directory.
+
+    Expects the following usage:
+    >>> logger = get_logger(__file__)
+    """
+    split_fp = filename_dunder.split('/')
+    root_idx = [
+        idx for idx, word in enumerate(split_fp)
+        if word == "bluesky-research" or word == "bluesky_research"
+    ][0]
+    joined_fp = '/'.join(word for word in split_fp[root_idx:])
+    return Logger(name=joined_fp)
