@@ -13,15 +13,15 @@ mongo_task = "perspective_api_labels"
 mongo_collection = get_mongodb_collection(task=mongo_task)[1]
 
 
-def load_data() -> dict:
+def load_data(sources: list[str] = ["firehose", "most_liked"]) -> dict:
     posts: list[FilteredPreprocessedPostModel] = get_filtered_posts()
-    firehose_posts: list[FilteredPreprocessedPostModel] = [
-        post for post in posts if post.metadata.source == "firehose"
-    ]
-    most_liked_posts: list[FilteredPreprocessedPostModel] = [
-        post for post in posts if post.metadata.source == "most_liked"
-    ]
-    return {"firehose": firehose_posts, "most_liked": most_liked_posts}
+    res = {}
+    for source in sources:
+        filtered_posts: list[FilteredPreprocessedPostModel] = [
+            post for post in posts if post.metadata.source == source
+        ]
+        res[source] = filtered_posts
+    return res
 
 
 def get_perspective_api_labels_for_post(
@@ -151,9 +151,9 @@ def main():
 
     # NOTE: can comment out any of these to test the functions for a given
     # source separately.
-    get_perspective_api_labels_for_source(
-        posts=firehose_posts, source_feed="firehose"
-    )
+    # get_perspective_api_labels_for_source(
+    #     posts=firehose_posts, source_feed="firehose"
+    # )
 
     get_perspective_api_labels_for_source(
         posts=most_liked_posts, source_feed="most_liked"

@@ -1,4 +1,5 @@
 """Database logic for posts that we've preprocessed."""
+import json
 import os
 import peewee
 import sqlite3
@@ -120,10 +121,17 @@ def get_filtered_posts(
             uri=res_dict["uri"],
             cid=res_dict["cid"],
             indexed_at=res_dict["indexed_at"],
-            author=TransformedProfileViewBasicModel(**res_dict["author"]),
-            metadata=ConsolidatedPostRecordMetadataModel(**res_dict["metadata"]), # noqa
-            record=TransformedRecordModel(**res_dict["record"]),
-            metrics=ConsolidatedMetrics(**res_dict["metrics"]) if res_dict["metrics"] else None, # noqa
+            author=TransformedProfileViewBasicModel(
+                **json.loads(res_dict["author"])
+            ),
+            metadata=ConsolidatedPostRecordMetadataModel(
+                **json.loads(res_dict["metadata"])
+            ),
+            record=TransformedRecordModel(**json.loads(res_dict["record"])),
+            metrics=(
+                ConsolidatedMetrics(**json.loads(res_dict["metrics"]))
+                if res_dict["metrics"] else None
+            ),
             passed_filters=res_dict["passed_filters"],
             filtered_at=res_dict["filtered_at"],
             filtered_by_func=res_dict["filtered_by_func"],
