@@ -64,10 +64,13 @@ def filter_previously_preprocessed_posts(
 def load_latest_raw_posts(
     sources: list[str] = ["firehose", "most_liked"]
 ) -> list[ConsolidatedPostRecordModel]:
-    """Loads raw data from the firehose DB.
-    """
+    """Loads raw data from sync DBs."""
     logger.info("Loading latest raw data.")
     latest_preprocessed_post_timestamp: str = load_latest_preprocessed_post_timestamp()  # noqa
+    if latest_preprocessed_post_timestamp:
+        logger.info(
+            f"Latest preprocessed post timestamp: {latest_preprocessed_post_timestamp}"  # noqa
+        )
     consolidated_raw_posts: list[ConsolidatedPostRecordModel] = []
     for source in sources:
         if source == "firehose":

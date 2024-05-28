@@ -1,4 +1,5 @@
 """Database logic for all post records synced from Bluesky."""
+import json
 import os
 import sqlite3
 from typing import List, Optional
@@ -132,15 +133,18 @@ def get_latest_firehose_posts(
 ) -> list[dict]:
     """Get the latest firehose posts from the database."""
     query = TransformedRecordWithAuthor.select()
-    if latest_preprocessing_timestamp:
-        query = query.where(
-            TransformedRecordWithAuthor.synctimestamp
-            > latest_preprocessing_timestamp
-        )
     if k:
         query = query.limit(k)
     res = list(query)
     res_dicts = [r.__dict__['__data__'] for r in res]
+    if latest_preprocessing_timestamp:
+        # would be nice to include in the query as I assume that the DB will be
+        # strictly faster and more efficient, but we'll see if this is OK.
+        res_dicts = [
+            res_dict for res_dict in res_dicts
+            if json.loads(res_dict["metadata"]).get("synctimestamp", "")
+            > latest_preprocessing_timestamp
+        ]
     return res_dicts
 
 
