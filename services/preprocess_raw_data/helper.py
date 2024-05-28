@@ -42,9 +42,7 @@ def preprocess_posts(posts: list[dict]) -> list[dict]:
     return posts
 
 
-def preprocess_raw_data(
-    max_num_raw_posts: Optional[int] = DEFAULT_BATCH_SIZE
-) -> None:
+def preprocess_raw_data() -> None:
     """Preprocesses raw data.
 
     We'll preprocess using the following steps:
@@ -54,7 +52,7 @@ def preprocess_raw_data(
     4. Write the filtered, preprocessed, validated data to the database.
     """
     filtered_posts, total_raw_posts,  num_posts_passed_filters = (
-        filter_latest_raw_data(max_num_raw_posts=max_num_raw_posts)
+        filter_latest_raw_data()
     )
     preprocessed_posts = preprocess_posts(filtered_posts)
     batch_create_filtered_posts(preprocessed_posts)
