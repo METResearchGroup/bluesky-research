@@ -1,14 +1,15 @@
 """Helper code for running filters on raw data."""
-from typing import Optional
-
 from lib.db.sql.preprocessing_database import batch_create_filtered_posts
 from lib.helper import track_performance
+from lib.log.logger import Logger
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.preprocess_raw_data.filters import filter_posts, save_filtered_posts_to_db  # noqa
 from services.preprocess_raw_data.load_data import load_latest_raw_posts
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 DEFAULT_BATCH_SIZE = 100000
+
+logger = Logger(__name__)
 
 
 @track_performance
@@ -22,7 +23,7 @@ def filter_latest_raw_data() -> tuple[list[FilteredPreprocessedPostModel], int, 
     """
     latest_raw_posts: list[ConsolidatedPostRecordModel] = load_latest_raw_posts()  # noqa
     num_posts: int = len(latest_raw_posts)
-    print(f"Loaded {num_posts} posts for filtering.")
+    logger.info(f"Loaded {num_posts} posts for filtering.")
     filtered_posts: list[FilteredPreprocessedPostModel] = filter_posts(
         posts=latest_raw_posts
     )
@@ -31,15 +32,6 @@ def filter_latest_raw_data() -> tuple[list[FilteredPreprocessedPostModel], int, 
         post.passed_filters for post in filtered_posts
     )
     return filtered_posts, total_raw_posts, num_posts_passed_filters
-
-
-def preprocess_posts(posts: list[dict]) -> list[dict]:
-    """Performs any preprocessing that needs to be done on the filtered posts.
-
-    Takes as input all posts, including their filter status, but operates
-    on only posts that pass filtering.
-    """
-    return posts
 
 
 def preprocess_raw_data() -> None:
@@ -54,6 +46,5 @@ def preprocess_raw_data() -> None:
     filtered_posts, total_raw_posts,  num_posts_passed_filters = (
         filter_latest_raw_data()
     )
-    preprocessed_posts = preprocess_posts(filtered_posts)
-    batch_create_filtered_posts(preprocessed_posts)
-    print(f"Filtered data written to DB. After filtering, {num_posts_passed_filters} posts passed the filters (out of {total_raw_posts} original posts).")  # noqa
+    batch_create_filtered_posts(filtered_posts)
+    logger.info(f"Filtered data written to DB. After filtering, {num_posts_passed_filters} posts passed the filters (out of {total_raw_posts} original posts).")  # noqa

@@ -1,6 +1,7 @@
 """Performs filtering steps."""
 from lib.constants import current_datetime_str
 from lib.helper import track_performance
+from lib.log.logger import Logger
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.preprocess_raw_data.classify_bots.main import filter_posts_not_written_by_bot  # noqa
 from services.preprocess_raw_data.classify_hate_speech.main import filter_posts_have_no_hate_speech  # noqa
@@ -10,11 +11,15 @@ from services.preprocess_raw_data.classify_nsfw_content.main import filter_posts
 from services.preprocess_raw_data.classify_spam.main import filter_posts_have_no_spam  # noqa
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
+logger = Logger(__name__)
+
 
 @track_performance
 def filter_posts_with_filter_func(
-    posts: list[ConsolidatedPostRecordModel], filter_func: callable, label: str
-) -> list[dict]:
+    posts: list[ConsolidatedPostRecordModel],
+    filter_func: callable,
+    label: str
+) -> dict:
     """Filters posts with a specific filtering function.
 
     Returns a dictionary of the following format:
@@ -89,14 +94,19 @@ def filter_posts(
     as the URIs of the posts that have passed all the filters.
     """  # noqa
     # do any preprocessing for posts before filtering
+    logger.info("Starting post filtering in preprocessing pipeline.")
     posts: list[ConsolidatedPostRecordModel] = preprocess_posts(posts)
+
+    logger.info(f"Total posts for filtering: {len(posts)}")
 
     # we need to run the language filter first since this will filter the
     # majority of posts (60% - 80% of posts per batch).
-    results_after_english_filter = filter_posts_with_filter_func(
+    results_after_english_filter: dict = filter_posts_with_filter_func(
         posts=posts, filter_func=filter_text_is_english, label="is_english"
     )
     english_post_uris = results_after_english_filter["passed_filters"]
+    logger.info(f"After English filtering, number of posts that passed filter: {len(english_post_uris)}")  # noqa
+    logger.info(f"After English filtering, number of posts that failed filter: {len(results_after_english_filter['failed_filters'])}")  # noqa
 
     # for the posts that have been filtered out, let's add them to our
     # output.
@@ -126,7 +136,7 @@ def filter_posts(
     ]
 
     for (filter_func, label) in filter_funcs_with_labels:
-        results = filter_posts_with_filter_func(
+        results: dict = filter_posts_with_filter_func(
             posts=posts_to_filter, filter_func=filter_func, label=label
         )
         res.extend([
@@ -144,6 +154,10 @@ def filter_posts(
             for post in posts_to_filter
             if post.uri in results["passed_filters"]
         ]
+        func_name = filter_func.__name__
+        logger.info(f"Finished filtering with function: {func_name}")
+        logger.info(f"Posts passing filter: {len(results['passed_filters'])}. Posts failing filter: {len(results['failed_filters'])}.")  # noqa
+        logger.info(f"Posts remaining after filtering with {func_name}: {len(posts_to_filter)}")  # noqa
 
     # whatever posts are left, are the ones that have passed all filters.
     res.extend([
@@ -182,4 +196,5 @@ def filter_posts(
         filtered_post = FilteredPreprocessedPostModel(**filtered_post_result)
         filtered_posts.append(filtered_post)
 
+    logger.info("Completed post filtering in preprocessing pipeline.")
     return filtered_posts

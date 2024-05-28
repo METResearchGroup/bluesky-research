@@ -1,23 +1,24 @@
 """Generic helpers related to inference."""
 import multiprocessing
 import time
-from typing import Optional
+from typing import Optional, Union
 
 from lib.helper import track_performance
+from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 
 
 def generate_batches_of_posts(
-    posts: list[dict], batch_size: int
-) -> list[list[dict]]:
+    posts: list, batch_size: int
+) -> list[list]:
     """Generates batches of posts."""
-    batches: list[list[dict]] = []
+    batches: list[list] = []
     for i in range(0, len(posts), batch_size):
         batches.append(posts[i:i + batch_size])
     return batches
 
 
 def batch_classify_posts(
-    batch: list[dict],
+    batch: list[Union[dict, ConsolidatedPostRecordModel]],
     clf_func: callable,
     rate_limit_per_minute: Optional[int]
 ) -> list[dict]:
@@ -37,7 +38,7 @@ def batch_classify_posts(
 
 
 def batch_classify_posts_multiprocessing(
-    batch: list[dict],
+    batch: list[Union[dict, ConsolidatedPostRecordModel]],
     clf_func: callable,
     rate_limit_per_minute: Optional[int] = None
 ) -> list[dict]:
@@ -58,7 +59,7 @@ def batch_classify_posts_multiprocessing(
 
 @track_performance
 def classify_posts(
-    posts: list[dict],
+    posts: list[Union[dict, ConsolidatedPostRecordModel]],
     clf_func: callable,
     batch_size: Optional[int] = None,
     rate_limit_per_minute: Optional[int] = None,
@@ -66,12 +67,11 @@ def classify_posts(
 ) -> list[dict]:
     """Classifies posts."""
     if batch_size:
-        batches: list[list[dict]] = generate_batches_of_posts(
+        batches: list = generate_batches_of_posts(
             posts=posts, batch_size=batch_size
         )
     else:
-        batches: list[list[dict]] = [posts]
-
+        batches: list[list] = [posts]
     classified_posts: list[dict] = []
     for batch in batches:
         if multiprocessing:
