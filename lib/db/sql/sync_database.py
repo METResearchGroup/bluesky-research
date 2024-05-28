@@ -1,5 +1,5 @@
 """Database logic for all post records synced from Bluesky."""
-import json
+import ast
 import os
 import sqlite3
 from typing import List, Optional
@@ -141,8 +141,15 @@ def get_latest_firehose_posts(
         # would be nice to include in the query as I assume that the DB will be
         # strictly faster and more efficient, but we'll see if this is OK.
         res_dicts = [
-            res_dict for res_dict in res_dicts
-            if json.loads(res_dict["metadata"]).get("synctimestamp", "")
+            {
+                "uri": res_dict["uri"],
+                "cid": res_dict["cid"],
+                "author": res_dict["author"],
+                "metadata": ast.literal_eval(res_dict["metadata"]),
+                "record": ast.literal_eval(res_dict["record"])
+            }
+            for res_dict in res_dicts
+            if ast.literal_eval(res_dict["metadata"]).get("synctimestamp", "") # noqa
             > latest_preprocessing_timestamp
         ]
     return res_dicts

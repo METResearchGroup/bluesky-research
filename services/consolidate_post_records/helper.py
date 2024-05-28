@@ -3,7 +3,8 @@ from typing import Union
 
 from lib.constants import current_datetime_str
 from lib.db.bluesky_models.transformations import (
-    TransformedRecordWithAuthorModel, TransformedFeedViewPostModel
+    TransformedProfileViewBasicModel, TransformedRecordWithAuthorModel,
+    TransformedFeedViewPostModel
 )
 from lib.helper import track_performance
 from lib.log.logger import get_logger
@@ -29,12 +30,20 @@ def consolidate_firehose_post(post: TransformedRecordWithAuthorModel) -> Consoli
     metrics_dict = {
         "like_count": None, "reply_count": None, "repost_count": None
     }
+    # firehose posts don't have the author hydrated, so all we have is the DID.
+    author_dict = {
+        "did": post.author,
+        "handle": None,
+        "avatar": None,
+        "display_name": None
+    }
+    author = TransformedProfileViewBasicModel(**author_dict)
     metrics: ConsolidatedMetrics = ConsolidatedMetrics(**metrics_dict)
     res = {
         "uri": post.uri,
         "cid": post.cid,
-        "indexed_at": post.indexed_at,
-        "author": post.author,
+        "indexed_at": None,  # not available in the firehose post.
+        "author": author,
         "metadata": metadata,
         "record": post.record,
         "metrics": metrics

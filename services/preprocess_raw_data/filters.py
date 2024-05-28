@@ -203,5 +203,4 @@ def filter_posts(
         filtered_posts.append(filtered_post)
 
     logger.info("Completed post filtering in preprocessing pipeline.")
-    breakpoint()
     return filtered_posts
