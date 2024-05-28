@@ -37,6 +37,7 @@ class FilteredPreprocessedPosts(BaseModel):
     passed_filters = peewee.BooleanField(default=False)
     filtered_at = peewee.CharField()
     filtered_by_func = peewee.CharField(null=True)
+    synctimestamp = peewee.CharField()
     preprocessing_timestamp = peewee.CharField()
 
 
@@ -128,24 +129,22 @@ def get_filtered_posts_as_list_dicts(
     return [post.__dict__['__data__'] for post in posts]
 
 
-def load_latest_preprocessing_timestamp() -> Optional[str]:
-    """Loads the last time that preprocessing was done.
-
-    Assumes that we only want to load data after the last time that we've
-    preprocessed data (i.e., we're not doing a backfill).
+def load_latest_preprocessed_post_timestamp() -> Optional[str]:
+    """Loads the timestamp of the latest preprocessed post, so that we can
+    preprocess all posts more recent than said post.
     """
     with db.atomic():
         try:
-            latest_preprocessing_timestamp = (
+            latest_synctimestamp = (
                 FilteredPreprocessedPosts
-                .select(FilteredPreprocessedPosts.preprocessing_timestamp)
+                .select(FilteredPreprocessedPosts.synctimestamp)
                 .order_by(FilteredPreprocessedPosts.preprocessing_timestamp.desc())
                 .get()
-                .preprocessing_timestamp
+                .synctimestamp
             )
         except peewee.DoesNotExist:
-            latest_preprocessing_timestamp = None
-    return latest_preprocessing_timestamp
+            latest_synctimestamp = None
+    return latest_synctimestamp
 
 
 if __name__ == "__main__":

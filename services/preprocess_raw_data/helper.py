@@ -10,9 +10,7 @@ DEFAULT_BATCH_SIZE = 100000
 
 
 @track_performance
-def filter_latest_raw_data(
-    max_num_raw_posts: Optional[int] = DEFAULT_BATCH_SIZE
-) -> tuple[list[dict], int, int]:
+def filter_latest_raw_data() -> tuple[list[dict], int, int]:
     """Filters the latest raw data.
 
     Loads the latest posts, filters them, and writes the filtered data to the

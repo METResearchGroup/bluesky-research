@@ -5,13 +5,13 @@ from lib.db.bluesky_models.transformations import (
     TransformedRecordWithAuthorModel, TransformedFeedViewPostModel
 )
 from lib.db.mongodb import get_mongodb_collection, load_collection
-from lib.db.sql.preprocessing_database import get_filtered_posts
+from lib.db.sql.sync_database import get_latest_firehose_posts
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.consolidate_post_records.helper import consolidate_post_records
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from lib.db.sql.preprocessing_database import (
-    get_previously_filtered_post_uris, load_latest_preprocessing_timestamp
+    get_previously_filtered_post_uris, load_latest_preprocessed_post_timestamp
 )
 
 logger = get_logger(__file__)
@@ -25,7 +25,7 @@ def load_firehose_posts(
 ) -> list[ConsolidatedPostRecordModel]:
     """Loads latest synced firehose posts from SQLite and then consolidates
     their format."""
-    posts: list[dict] = get_filtered_posts(
+    posts: list[dict] = get_latest_firehose_posts(
         k=None, latest_preprocessing_timestamp=latest_preprocessing_timestamp
     )
     transformed_posts: list[TransformedRecordWithAuthorModel] = [
@@ -67,16 +67,16 @@ def load_latest_raw_posts(
     """Loads raw data from the firehose DB.
     """
     logger.info("Loading latest raw data.")
-    latest_preprocessing_timestamp: str = load_latest_preprocessing_timestamp()
+    latest_preprocessed_post_timestamp: str = load_latest_preprocessed_post_timestamp()  # noqa
     consolidated_raw_posts: list[ConsolidatedPostRecordModel] = []
     for source in sources:
         if source == "firehose":
             posts: list[ConsolidatedPostRecordModel] = load_firehose_posts(
-                latest_preprocessing_timestamp=latest_preprocessing_timestamp
+                latest_preprocessing_timestamp=latest_preprocessed_post_timestamp  # noqa
             )
         elif source == "most_liked":
             posts: list[ConsolidatedPostRecordModel] = load_feedview_posts(
-                latest_preprocessing_timestamp=latest_preprocessing_timestamp
+                latest_preprocessing_timestamp=latest_preprocessed_post_timestamp  # noqa
             )
         else:
             raise ValueError(f"Data source not recognized: {source}")

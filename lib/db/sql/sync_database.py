@@ -127,6 +127,23 @@ def get_posts_as_list_dicts(
     return [post.__dict__['__data__'] for post in posts]
 
 
+def get_latest_firehose_posts(
+    k: int = None, latest_preprocessing_timestamp: str = None
+) -> list[dict]:
+    """Get the latest firehose posts from the database."""
+    query = TransformedRecordWithAuthor.select()
+    if latest_preprocessing_timestamp:
+        query = query.where(
+            TransformedRecordWithAuthor.synctimestamp
+            > latest_preprocessing_timestamp
+        )
+    if k:
+        query = query.limit(k)
+    res = list(query)
+    res_dicts = [r.__dict__['__data__'] for r in res]
+    return res_dicts
+
+
 def get_posts_as_df(k: Optional[int] = None) -> pd.DataFrame:
     """Get all posts from the database as a pandas DataFrame."""
     return pd.DataFrame(get_posts_as_list_dicts(k=k))
