@@ -4,11 +4,12 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from lib.db.bluesky_models.transformations import (
-    PostMetadataModel,
     TransformedProfileViewBasicModel,
     TransformedRecordModel
 )
-from services.consolidate_post_records.models import ConsolidatedMetrics
+from services.consolidate_post_records.models import (
+    ConsolidatedPostRecordMetadataModel, ConsolidatedMetrics
+)
 
 
 class FilteredPreprocessedPostModel(BaseModel):
@@ -16,7 +17,7 @@ class FilteredPreprocessedPostModel(BaseModel):
     cid: str = Field(..., description="The CID of the post.")
     indexed_at: str = Field(..., description="The timestamp of when the post was indexed by Bluesky.")  # noqa
     author: TransformedProfileViewBasicModel = Field(..., description="The author of the post.")  # noqa
-    metadata: PostMetadataModel = Field(..., description="The metadata of the post.")  # noqa
+    metadata: ConsolidatedPostRecordMetadataModel = Field(..., description="The metadata of the post.")  # noqa
     record: TransformedRecordModel = Field(..., description="The record of the post.")  # noqa
     metrics: Optional[ConsolidatedMetrics] = Field(default=None, description="Post engagement metrics. Only available for posts from feed view, not firehose.")  # noqa
     passed_filters: bool = Field(..., description="Indicates if the post passed the filters")  # noqa

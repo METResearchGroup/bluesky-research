@@ -17,7 +17,7 @@ from lib.db.sql.preprocessing_database import (
 logger = get_logger(__file__)
 
 mongodb_task_name = "get_most_liked_posts"
-mongo_collection = get_mongodb_collection(mongodb_task_name)
+mongo_collection = get_mongodb_collection(mongodb_task_name)[1]
 
 
 def load_firehose_posts(
@@ -80,7 +80,10 @@ def load_latest_raw_posts(
             )
         else:
             raise ValueError(f"Data source not recognized: {source}")
-        consolidated_raw_posts.extend(posts)
+        if posts:
+            consolidated_raw_posts.extend(posts)
+        else:
+            logger.warning(f"No new raw posts to preprocess from source={source}") # noqa
     consolidated_raw_posts: list[ConsolidatedPostRecordModel] = (
         filter_previously_preprocessed_posts(posts=consolidated_raw_posts)
     )

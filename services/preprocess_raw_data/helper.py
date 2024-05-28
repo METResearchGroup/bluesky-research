@@ -1,9 +1,11 @@
 """Helper code for running filters on raw data."""
+import sys
+
 from lib.db.sql.preprocessing_database import batch_create_filtered_posts
 from lib.helper import track_performance
 from lib.log.logger import Logger
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
-from services.preprocess_raw_data.filters import filter_posts, save_filtered_posts_to_db  # noqa
+from services.preprocess_raw_data.filters import filter_posts
 from services.preprocess_raw_data.load_data import load_latest_raw_posts
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
@@ -22,6 +24,9 @@ def filter_latest_raw_data() -> tuple[list[FilteredPreprocessedPostModel], int, 
     duplicate filtering in the future.
     """
     latest_raw_posts: list[ConsolidatedPostRecordModel] = load_latest_raw_posts()  # noqa
+    if len(latest_raw_posts) == 0:
+        logger.warning("No new raw posts to filter and preprocess.")
+        sys.exit(1)
     num_posts: int = len(latest_raw_posts)
     logger.info(f"Loaded {num_posts} posts for filtering.")
     filtered_posts: list[FilteredPreprocessedPostModel] = filter_posts(

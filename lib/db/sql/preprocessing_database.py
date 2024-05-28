@@ -4,6 +4,7 @@ import peewee
 import sqlite3
 from typing import Optional
 
+from lib.log.logger import Logger
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
@@ -18,6 +19,8 @@ db_version = 2
 
 conn = sqlite3.connect(PREPROCESSING_SQLITE_DB_PATH)
 cursor = conn.cursor()
+
+logger = Logger(__name__)
 
 
 class BaseModel(peewee.Model):
@@ -69,12 +72,18 @@ def batch_create_filtered_posts(
 
     Uses peewee's chunking functionality to write posts in chunks.
     """
+    total_posts = FilteredPreprocessedPosts.select().count()
+    logger.info(f"Total number of posts before inserting into preprocessed posts database: {total_posts}") # noqa
+    logger.info(f"Total posts to attempt to insert: {len(posts)}")
     with db.atomic():
         for idx in range(0, len(posts), DEFAULT_BATCH_WRITE_SIZE):
+            posts_to_insert = posts[idx:idx + DEFAULT_BATCH_WRITE_SIZE]
+            posts_to_insert_dicts = [post.dict() for post in posts_to_insert]
             FilteredPreprocessedPosts.insert_many(
-                posts[idx:idx + DEFAULT_BATCH_WRITE_SIZE]
+                posts_to_insert_dicts
             ).on_conflict_ignore().execute()
-    print(f"Batch created {len(posts)} posts.")
+    total_posts = FilteredPreprocessedPosts.select().count()
+    logger.info(f"Total number of posts after inserting into preprocessed posts database: {total_posts}") # noqa
 
 
 def get_previously_filtered_post_uris() -> set[str]:
@@ -148,4 +157,6 @@ def load_latest_preprocessed_post_timestamp() -> Optional[str]:
 
 
 if __name__ == "__main__":
-    create_initial_filtered_posts_table()
+    # create_initial_filtered_posts_table()
+    total_posts = FilteredPreprocessedPosts.select().count()
+    print(f"Total posts: {total_posts}")

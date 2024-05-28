@@ -14,6 +14,9 @@ mongo_db_name = "bluesky-research-posts"
 mongodb_client = MongoClient(mongodb_uri)
 mongo_db = mongodb_client[mongo_db_name]
 
+# we changed the format of the posts, so any posts older than this will
+# have the wrong format.
+default_mongodb_timestamp = "2024-05-20-00:00:00"
 
 task_to_mongodb_collection_name = {
     "get_most_liked_posts": "most_liked_posts",
@@ -71,12 +74,13 @@ def load_collection(
     collection: Collection,
     limit: Optional[int] = DEFAULT_LOAD_LIMIT,
     latest_timestamp: Optional[str] = None,
-    timestamp_fieldname: Optional[str] = "synctimestamp"
+    timestamp_fieldname: Optional[str] = "metadata.synctimestamp"
 ) -> list[dict]:
     """Loads content from a collection in MongoDB."""
     query = {}
-    if latest_timestamp:
-        query[timestamp_fieldname] = {"$gt": latest_timestamp}
+    if not latest_timestamp:
+        latest_timestamp = default_mongodb_timestamp
+    query[timestamp_fieldname] = {"$gt": latest_timestamp}
     cursor = collection.find(query)
     if limit:
         cursor = cursor.limit(limit)

@@ -35,6 +35,6 @@ class ConsolidatedPostRecordModel(BaseModel):
     cid: str = Field(..., description="The CID of the post.")
     indexed_at: str = Field(..., description="The timestamp of when the post was indexed by Bluesky.")  # noqa
     author: TransformedProfileViewBasicModel = Field(..., description="The author of the post.")  # noqa
-    metadata: PostMetadataModel = Field(..., description="The metadata of the post.")  # noqa
+    metadata: ConsolidatedPostRecordMetadataModel = Field(..., description="The metadata of the post.")  # noqa
     record: TransformedRecordModel = Field(..., description="The record of the post.")  # noqa
     metrics: Optional[ConsolidatedMetrics] = Field(default=None, description="Post engagement metrics. Only available for posts from feed view, not firehose.")  # noqa

@@ -19,7 +19,7 @@ def filter_posts_with_filter_func(
     posts: list[ConsolidatedPostRecordModel],
     filter_func: callable,
     label: str
-) -> dict:
+) -> dict[str, set]:
     """Filters posts with a specific filtering function.
 
     Returns a dictionary of the following format:
@@ -48,7 +48,9 @@ def filter_posts_with_filter_func(
     }
 
 
-def preprocess_post(post: ConsolidatedPostRecordModel) -> dict:
+def preprocess_post(
+    post: ConsolidatedPostRecordModel
+) -> ConsolidatedPostRecordModel:
     """Preprocesses a single post as necessary, before filtering."""
     # preprocessing needed for language classifier. Specifically, removes any
     # newline chars, which the classifier doesn't like.
@@ -58,9 +60,14 @@ def preprocess_post(post: ConsolidatedPostRecordModel) -> dict:
     return post
 
 
-def preprocess_posts(posts: list[ConsolidatedPostRecordModel]) -> list[dict]:
+def preprocess_posts(
+    posts: list[ConsolidatedPostRecordModel]
+) -> list[ConsolidatedPostRecordModel]:
     """Preprocesses the posts as necessary, before filtering."""
-    return [preprocess_post(post) for post in posts]
+    res: list[ConsolidatedPostRecordModel] = [
+        preprocess_post(post) for post in posts
+    ]
+    return res
 
 
 @track_performance
@@ -96,7 +103,6 @@ def filter_posts(
     # do any preprocessing for posts before filtering
     logger.info("Starting post filtering in preprocessing pipeline.")
     posts: list[ConsolidatedPostRecordModel] = preprocess_posts(posts)
-
     logger.info(f"Total posts for filtering: {len(posts)}")
 
     # we need to run the language filter first since this will filter the
@@ -104,7 +110,7 @@ def filter_posts(
     results_after_english_filter: dict = filter_posts_with_filter_func(
         posts=posts, filter_func=filter_text_is_english, label="is_english"
     )
-    english_post_uris = results_after_english_filter["passed_filters"]
+    english_post_uris: set = results_after_english_filter["passed_filters"]
     logger.info(f"After English filtering, number of posts that passed filter: {len(english_post_uris)}")  # noqa
     logger.info(f"After English filtering, number of posts that failed filter: {len(results_after_english_filter['failed_filters'])}")  # noqa
 
@@ -197,4 +203,5 @@ def filter_posts(
         filtered_posts.append(filtered_post)
 
     logger.info("Completed post filtering in preprocessing pipeline.")
+    breakpoint()
     return filtered_posts

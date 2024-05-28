@@ -179,5 +179,7 @@ if db.is_closed():
                 DbMetadata.update({DbMetadata.version: db_version}).execute()  # noqa
 
 if __name__ == "__main__":
+    # db.drop_tables([TransformedRecordWithAuthor])
+    # db.create_tables([TransformedRecordWithAuthor])
     num_posts = get_num_posts()
     print(f"Total number of posts: {num_posts}")

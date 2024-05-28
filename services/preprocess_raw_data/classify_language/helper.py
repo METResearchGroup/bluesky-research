@@ -46,8 +46,7 @@ def classify_language_of_posts(
     batch_size: int = DEFAULT_BATCH_SIZE
 ) -> list[dict]:
     """Classifies the language of multiple posts."""
-    post_dicts = [post.dict() for post in posts]
     return classify_posts(
-        posts=post_dicts, clf_func=classify_single_post,
+        posts=posts, clf_func=classify_single_post,
         batch_size=batch_size, rate_limit_per_minute=None
     )

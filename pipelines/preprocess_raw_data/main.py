@@ -8,6 +8,8 @@ Example usage:
 >>> python main.py --sync-type firehose
 """
 import sys
+import traceback
+
 import typer
 
 from lib.log.logger import Logger
@@ -23,6 +25,7 @@ def main():
         logger.info("Completed preprocessing pipeline.")
     except Exception as e:
         logger.error(f"Error in preprocessing pipeline: {e}")
+        logger.error(traceback.format_exc())
         sys.exit(1)
 
 

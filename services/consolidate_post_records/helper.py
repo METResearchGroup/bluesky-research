@@ -20,7 +20,7 @@ def consolidate_firehose_post(post: TransformedRecordWithAuthorModel) -> Consoli
     metadata_dict = {
         "synctimestamp": post.metadata.synctimestamp,
         "url": post.metadata.url,
-        "source": "most_liked_feeds",
+        "source": "firehose",
         "processed_timestamp": current_datetime_str
     }
     metadata: ConsolidatedPostRecordMetadataModel = (
@@ -47,7 +47,7 @@ def consolidate_feedview_post(post: TransformedFeedViewPostModel) -> Consolidate
     metadata_dict = {
         "synctimestamp": post.metadata.synctimestamp,
         "url": post.metadata.url,
-        "source": "most_liked_feeds",
+        "source": "most_liked",
         "processed_timestamp": current_datetime_str
     }
     metadata: ConsolidatedPostRecordMetadataModel = (
@@ -89,9 +89,10 @@ def consolidate_post_records(
     ]
 ) -> list[ConsolidatedPostRecordModel]:
     logger.info(f"Consolidated the formats of {len(posts)} posts...")
+    res = [consolidate_post_record(post) for post in posts]
     logger.info(f"Finished consolidating the formats of {len(posts)} posts.")
+    return res
 
 
 if __name__ == "__main__":
-    posts = [2, 3, 4, 5, 6]
-    consolidate_post_records(posts)
+    pass
