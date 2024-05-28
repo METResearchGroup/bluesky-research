@@ -35,17 +35,17 @@ class TransformedRecordModel(BaseModel):
     tags: Optional[str] = Field(default=None, description="The tags of the record, if any.")  # noqa
     py_type: te.Literal["app.bsky.feed.post"] = Field(default="app.bsky.feed.post", frozen=True)  # noqa
 
-    @validator('synctimestamp')
-    def validate_synctimestamp(cls, v):
-        if not re.match(r'^\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}$', v):
-            raise ValueError("synctimestamp must be in 'YYYY-MM-DD-HH:MM:SS' format (e.g., '2024-04-23-04:41:17')")  # noqa
-        return v
-
 
 class PostMetadataModel(BaseModel):
     url: str = Field(..., description="The URL of the post.")
     source_feed: str = Field(..., description="The source feed of the post.")
     synctimestamp: str = Field(..., description="The synctimestamp of the post.")  # noqa
+
+    @validator('synctimestamp')
+    def validate_synctimestamp(cls, v):
+        if not re.match(r'^\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}$', v):
+            raise ValueError("synctimestamp must be in 'YYYY-MM-DD-HH:MM:SS' format (e.g., '2024-04-23-04:41:17')")  # noqa
+        return v
 
 
 class TransformedRecordWithAuthorModel(BaseModel):

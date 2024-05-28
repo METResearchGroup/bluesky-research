@@ -54,13 +54,6 @@ def filter_posts(
     return list(filter(post_passed_filters, posts))
 
 
-def transform_feedviewpost_dict_into_transformed_post(post: dict) -> TransformedFeedViewPostModel:
-    """Transforms a feedview post, given as a dict (but has the original
-    Bluesky FeedViewPost schema) into a TransformedFeedViewPostModel.
-    """  # noqa
-    pass
-
-
 def get_and_transform_latest_most_liked_posts(
     feeds: list[str] = ["today", "week"]
 ) -> list[TransformedFeedViewPostModel]:
@@ -140,20 +133,26 @@ def export_posts(
         print(f"Inserted {total_successful_inserts} posts to remote MongoDB collection {mongo_collection_name}")  # noqa
 
 
-def load_most_recent_local_sync() -> list[dict]:
+def load_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:
     """Load the most recent local sync file."""
     sync_files = os.listdir(os.path.join(current_directory, sync_dir))
-    most_recent_filename = sorted(sync_files)[-1]
-    sync_fp = os.path.join(current_directory, sync_dir, most_recent_filename)
-    print(f"Reading most recent sync file {sync_fp}")
-    with open(sync_fp, "r") as f:
-        posts: list[dict] = [json.loads(line) for line in f]
+    posts: list[dict] = []
+    most_recent_filenames = sorted(sync_files)[-n_latest_local:]
+    for filename in most_recent_filenames:
+        sync_fp = os.path.join(
+            current_directory, sync_dir, filename
+        )
+        print(f"Reading most recent sync file {sync_fp}")
+        with open(sync_fp, "r") as f:
+            posts.extend([json.loads(line) for line in f])
     return posts
 
 
-def filter_most_recent_local_sync() -> list[dict]:
-    """Filter the most recent local sync file."""
-    posts: list[dict] = load_most_recent_local_sync()
+def filter_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:
+    """Filter the most recent local sync files."""
+    posts: list[dict] = load_most_recent_local_syncs(
+        n_latest_local=n_latest_local
+    )
     transformed_posts: list[TransformedFeedViewPostModel] = [
         TransformedFeedViewPostModel(**post) for post in posts
     ]
@@ -165,7 +164,7 @@ def filter_most_recent_local_sync() -> list[dict]:
 
 def dump_most_recent_local_sync_to_remote() -> None:
     """Dump the most recent local sync to the remote MongoDB collection."""
-    posts: list[dict] = load_most_recent_local_sync()
+    posts: list[dict] = load_most_recent_local_syncs()
     export_posts(
         posts=posts, store_local=False, store_remote=True,
         bulk_write_remote=True
@@ -174,13 +173,16 @@ def dump_most_recent_local_sync_to_remote() -> None:
 
 def main(
     use_latest_local: bool = False,
+    n_latest_local: int = 1,
     store_local: bool = True,
     store_remote: bool = True,
     bulk_write_remote: bool = True,
     feeds: list[str] = ["today", "week"]
 ) -> None:
     if use_latest_local:
-        post_dicts: list[dict] = filter_most_recent_local_sync()
+        post_dicts: list[dict] = filter_most_recent_local_syncs(
+            n_latest_local=n_latest_local
+        )
     else:
         posts: list[TransformedFeedViewPostModel] = (
             get_and_transform_latest_most_liked_posts(feeds=feeds)
@@ -213,6 +215,7 @@ if __name__ == "__main__":
     # )
     kwargs = {
         "use_latest_local": True,
+        "n_latest_local": 6,
         "store_local": False,
         "store_remote": True,
         "bulk_write_remote": True
