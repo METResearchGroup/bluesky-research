@@ -113,51 +113,51 @@ def plot_perspective_api_labels_histogram(
     fig.savefig(f"{source_feed}_perspective_api_labels_histogram.png")
 
 
-def main():
-    # load data
-    data_by_source: dict = load_data()
-    firehose_posts: list[FilteredPreprocessedPostModel] = data_by_source["firehose"] # noqa
-    most_liked_posts: list[FilteredPreprocessedPostModel] = data_by_source["most_liked"] # noqa
-
+def get_perspective_api_labels_for_source(
+    posts: list[FilteredPreprocessedPostModel], source_feed: str
+):
     # load existing perspective API labels, if any, and only get perspective
     # API labels for data that we don't have labels for yet.
 
     # get perspective API labels
-    firehose_perspective_api_labels: list[dict] = (
-        get_perspective_api_labels_for_posts(
-            posts=firehose_posts, source_feed="firehose"
-        )
-    )
-    most_liked_perspective_api_labels: list[dict] = (
-        get_perspective_api_labels_for_posts(
-            posts=most_liked_posts, source_feed="most_liked"
-        )
+    perspective_api_labels: list[dict] = get_perspective_api_labels_for_posts(
+        posts=posts, source_feed=source_feed
     )
 
     # write perspective API labels to local and remote storage
     export_perspective_api_labels(
-        labels=firehose_perspective_api_labels,
-        source_feed="firehose",
-        store_local=True,
-        store_remote=True
-    )
-    export_perspective_api_labels(
-        labels=most_liked_perspective_api_labels,
-        source_feed="most_liked",
+        labels=perspective_api_labels,
+        source_feed=source_feed,
         store_local=True,
         store_remote=True
     )
 
     # plot perspective API labels as a histogram
     plot_perspective_api_labels_histogram(
-        perspective_api_labels=firehose_perspective_api_labels,
-        source_feed="firehose"
-    )
-    plot_perspective_api_labels_histogram(
-        perspective_api_labels=most_liked_perspective_api_labels,
-        source_feed="most_liked"
+        perspective_api_labels=perspective_api_labels,
+        source_feed=source_feed
     )
 
+
+
+def main():
+    # load data
+    data_by_source: dict = load_data()
+    firehose_posts: list[FilteredPreprocessedPostModel] = data_by_source["firehose"] # noqa
+    most_liked_posts: list[FilteredPreprocessedPostModel] = data_by_source["most_liked"] # noqa
+
+    print(f"Number of firehose posts: {len(firehose_posts)}")
+    print(f"Number of most liked posts: {len(most_liked_posts)}")
+
+    # NOTE: can comment out any of these to test the functions for a given
+    # source separately.
+    get_perspective_api_labels_for_source(
+        posts=firehose_posts, source_feed="firehose"
+    )
+
+    get_perspective_api_labels_for_source(
+        posts=most_liked_posts, source_feed="most_liked"
+    )
 
 if __name__ == "__main__":
     main()

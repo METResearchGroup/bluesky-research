@@ -4,7 +4,13 @@ import peewee
 import sqlite3
 from typing import Optional
 
+from lib.db.bluesky_models.transformations import (
+    TransformedProfileViewBasicModel, TransformedRecordModel
+)
 from lib.log.logger import Logger
+from services.consolidate_post_records.models import (
+    ConsolidatedPostRecordMetadataModel, ConsolidatedMetrics
+)
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
@@ -95,7 +101,7 @@ def get_previously_filtered_post_uris() -> set[str]:
 def get_filtered_posts(
     k: Optional[int] = None,
     latest_preprocessing_timestamp: Optional[str] = None
-) -> list[dict]:  # noqa
+) -> list[FilteredPreprocessedPostModel]:
     """Get filtered posts from the database."""
     query = FilteredPreprocessedPosts.select().where(
         FilteredPreprocessedPosts.passed_filters == True
@@ -108,8 +114,25 @@ def get_filtered_posts(
     if k:
         query = query.limit(k)
     res = list(query)
-    res_dicts = [r.__dict__['__data__'] for r in res]
-    return res_dicts
+    res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
+    transformed_res: list[FilteredPreprocessedPostModel] = [
+        FilteredPreprocessedPostModel(
+            uri=res_dict["uri"],
+            cid=res_dict["cid"],
+            indexed_at=res_dict["indexed_at"],
+            author=TransformedProfileViewBasicModel(**res_dict["author"]),
+            metadata=ConsolidatedPostRecordMetadataModel(**res_dict["metadata"]), # noqa
+            record=TransformedRecordModel(**res_dict["record"]),
+            metrics=ConsolidatedMetrics(**res_dict["metrics"]) if res_dict["metrics"] else None, # noqa
+            passed_filters=res_dict["passed_filters"],
+            filtered_at=res_dict["filtered_at"],
+            filtered_by_func=res_dict["filtered_by_func"],
+            synctimestamp=res_dict["synctimestamp"],
+            preprocessing_timestamp=res_dict["preprocessing_timestamp"]
+        )
+        for res_dict in res_dicts
+    ]
+    return transformed_res
 
 
 def get_filtered_posts_as_list_dicts(
