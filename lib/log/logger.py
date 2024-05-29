@@ -14,25 +14,33 @@ log_filename = os.path.join(log_directory, "logfile.log")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(filename)s]: %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        # Rotating log file, 1MB max size, keeping 5 backups
-        RotatingFileHandler(log_filename, maxBytes=1024 * 1024, backupCount=5),
-    ],
 )
-
 
 # mypy: ignore-errors
 class Logger(logging.Logger):
     def __init__(self, name: str, level: int = logging.INFO) -> None:
         super().__init__(name, level)
+        self.setLevel(level)
+
+        # StreamHandler for printing to stdout
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(level)
+        stream_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(filename)s]: %(message)s"))
+
+        # RotatingFileHandler for logging to a file
+        file_handler = RotatingFileHandler(log_filename, maxBytes=1024 * 1024, backupCount=5)
+        file_handler.setLevel(level)
+        file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(filename)s]: %(message)s"))
+
+        self.addHandler(stream_handler)
+        self.addHandler(file_handler)
 
     def log(self, message: str, **kwargs: Dict[str, Any]) -> None:
         """Convenience method to log a message with some extra data."""
         self.info(message, extra=kwargs)
 
 
-def get_logger(filename_dunder: str) -> None:
+def get_logger(filename_dunder: str) -> Logger:
     """Returns a logger with the appropriate filename.
 
     Filename defined by what is in the __file__ variable. Returns the path
