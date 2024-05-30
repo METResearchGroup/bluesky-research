@@ -39,7 +39,7 @@ class FilteredPreprocessedPosts(BaseModel):
     """Filtered version of Firehose post."""
     uri = peewee.CharField(unique=True)
     cid = peewee.CharField(index=True)
-    indexed_at = peewee.CharField()
+    indexed_at = peewee.CharField(null=True)
     author = peewee.CharField()
     metadata = peewee.TextField()
     record = peewee.TextField()
@@ -77,14 +77,24 @@ def batch_create_filtered_posts(
 ) -> None:
     """Batch create filtered posts in chunks.
 
-    Uses peewee's chunking functionality to write posts in chunks.
+    Uses peewee's chunking functionality to write posts in chunks. Adds
+    deduping on URI as well. This should already be done in various upstream
+    places but is here for redundancy.
     """
     total_posts = FilteredPreprocessedPosts.select().count()
     logger.info(f"Total number of posts before inserting into preprocessed posts database: {total_posts}") # noqa
+    seen_uris = set()
+    unique_posts = []
+    for post in posts:
+        if post.uri not in seen_uris:
+            seen_uris.add(post.uri)
+            unique_posts.append(post)
     logger.info(f"Total posts to attempt to insert: {len(posts)}")
+    logger.info(f"Total unique posts: {len(unique_posts)}")
+    logger.info(f"Total duplicates: {len(posts) - len(unique_posts)}")
     with db.atomic():
-        for idx in range(0, len(posts), DEFAULT_BATCH_WRITE_SIZE):
-            posts_to_insert = posts[idx:idx + DEFAULT_BATCH_WRITE_SIZE]
+        for idx in range(0, len(unique_posts), DEFAULT_BATCH_WRITE_SIZE):
+            posts_to_insert = unique_posts[idx:idx + DEFAULT_BATCH_WRITE_SIZE]
             posts_to_insert_dicts = [post.dict() for post in posts_to_insert]
             FilteredPreprocessedPosts.insert_many(
                 posts_to_insert_dicts
@@ -185,7 +195,6 @@ def load_latest_preprocessed_post_timestamp() -> Optional[str]:
         except peewee.DoesNotExist:
             latest_synctimestamp = None
     return latest_synctimestamp
-
 
 if __name__ == "__main__":
     # create_initial_filtered_posts_table()
