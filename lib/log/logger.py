@@ -4,11 +4,13 @@ from logging.handlers import RotatingFileHandler
 import os
 from typing import Any, Dict
 
+from lib.constants import current_datetime_str
+
 log_directory = os.path.dirname(os.path.abspath(__file__))
 if not os.path.exists(log_directory):
     os.makedirs(log_directory, exist_ok=True)
 
-log_filename = os.path.join(log_directory, "logfile.log")
+log_filename = os.path.join(log_directory, f"logfile_{current_datetime_str}.log") # noqa
 
 # mypy: ignore-errors
 logging.basicConfig(

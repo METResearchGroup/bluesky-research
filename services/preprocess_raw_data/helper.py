@@ -15,7 +15,7 @@ logger = Logger(__name__)
 
 
 @track_performance
-def filter_latest_raw_data() -> tuple[list[FilteredPreprocessedPostModel], int, int]:  # noqa
+def filter_latest_raw_data() -> list[FilteredPreprocessedPostModel]:  # noqa
     """Filters the latest raw data.
 
     Loads the latest posts, filters them, and writes the filtered data to the
@@ -36,7 +36,8 @@ def filter_latest_raw_data() -> tuple[list[FilteredPreprocessedPostModel], int, 
     num_posts_passed_filters = sum(
         post.passed_filters for post in filtered_posts
     )
-    return filtered_posts, total_raw_posts, num_posts_passed_filters
+    logger.info(f"After filtering, {num_posts_passed_filters} posts passed the filters (out of {total_raw_posts} original posts).")  # noqa
+    return filtered_posts
 
 
 def preprocess_raw_data() -> None:
@@ -48,8 +49,6 @@ def preprocess_raw_data() -> None:
     3. Validate the preprocessed data.
     4. Write the filtered, preprocessed, validated data to the database.
     """
-    filtered_posts, total_raw_posts,  num_posts_passed_filters = (
-        filter_latest_raw_data()
-    )
+    filtered_posts = filter_latest_raw_data()
     batch_create_filtered_posts(filtered_posts)
-    logger.info(f"Filtered data written to DB. After filtering, {num_posts_passed_filters} posts passed the filters (out of {total_raw_posts} original posts).")  # noqa
+    logger.info(f"Filtered data written to DB.")

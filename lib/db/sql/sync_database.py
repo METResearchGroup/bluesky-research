@@ -21,6 +21,7 @@ db_version = 2
 sync_conn = sqlite3.connect(SYNC_SQLITE_DB_PATH)
 sync_cursor = sync_conn.cursor()
 
+default_firehose_timestamp = "2024-05-01"
 
 # database models for `TransformedRecordWithAuthor` tables.
 class BaseModel(peewee.Model):
@@ -137,6 +138,10 @@ def get_latest_firehose_posts(
         query = query.limit(k)
     res = list(query)
     res_dicts = [r.__dict__['__data__'] for r in res]
+    if not latest_preprocessing_timestamp:
+        # set a default to be sometime before when we expect this firehose
+        # code to work (YYYY-MM-DD format)
+        latest_preprocessing_timestamp = default_firehose_timestamp
     if latest_preprocessing_timestamp:
         # would be nice to include in the query as I assume that the DB will be
         # strictly faster and more efficient, but we'll see if this is OK.
