@@ -1,6 +1,5 @@
 """Database logic for posts that we've preprocessed."""
 import ast
-import json
 import os
 import peewee
 import sqlite3

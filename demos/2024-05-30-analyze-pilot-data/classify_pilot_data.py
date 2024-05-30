@@ -9,7 +9,7 @@ import ast
 import pandas as pd
 
 from lib.constants import current_datetime_str
-from .models import PerspectiveApiLabelModel
+from services.ml_inference.models import PerspectiveApiLabelModel # noqa
 
 csv_filename = "pilot_data_2024-05-30-12:11:48.csv"
 batch_size = 100 # TODO: change this later.
@@ -112,6 +112,7 @@ def export_labels(labeled_posts: list[PerspectiveApiLabelModel]):
 
 def main():
     df: pd.DataFrame = load_pilot_data()
+    breakpoint()
     texts_to_classify: list[dict] = get_texts_for_classification(df)
     # TODO: see how to fetch the text
     breakpoint()
