@@ -1,6 +1,6 @@
 """Model for the classify_perspective_api service."""
-import aiohttp
 import asyncio
+from datetime import datetime, timezone
 import json
 from typing import Optional
 
@@ -8,7 +8,10 @@ from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 from googleapiclient.http import BatchHttpRequest
 
+from lib.db.sql.ml_inference_database import batch_insert_perspective_api_labels # noqa
 from lib.helper import GOOGLE_API_KEY, create_batches, logger
+from services.ml_inference.models import PerspectiveApiLabelsModel
+from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 DEFAULT_BATCH_SIZE = 50
 
@@ -217,7 +220,7 @@ async def process_perspective_batch(requests, responses):
     for more details
     """
     batch = BatchHttpRequest()
-    
+    responses = []
     def callback(request_id, response, exception):
         if exception is not None:
             print(f"Request {request_id} failed: {exception}")
@@ -227,7 +230,7 @@ async def process_perspective_batch(requests, responses):
             response_obj = json.loads(response_str)
             if "error" in response_obj:
                 print(f"Request {request_id} failed: {response_obj['error']}")
-                responses.append(None)
+                responses.append(response_obj)
             classification_probs_and_labels = {}
             for attribute, labels in attribute_to_labels_map.items():
                 if attribute in response_obj["attributeScores"]:
@@ -244,37 +247,78 @@ async def process_perspective_batch(requests, responses):
         )
 
     batch.execute()
-
-
-async def batch_classify_texts(
-    texts: list[str],
-    batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
-    seconds_delay_per_batch: Optional[float]=1.0
-):
-    request_payloads: list[dict] = [
-        create_perspective_request(text) for text in texts
-    ]
-    request_payload_batches: list[list[dict]] = create_batches(
-        iterable=request_payloads, batch_size=batch_size
-    )
-    responses: list[dict] = []
-    for batch in request_payload_batches:
-        await process_perspective_batch(batch, responses)
-        await asyncio.sleep(seconds_delay_per_batch)
     return responses
 
 
+def create_label_models(
+    posts: list[FilteredPreprocessedPostModel], responses: list[dict]
+) -> list[PerspectiveApiLabelsModel]:
+    res = []
+    for (post, response_obj) in zip(posts, responses):
+        # the reason why I define the timestamp dynamically instead
+        # of setting this up as a single value for the entire job,
+        # like I do elsewhere, is that inference can take hours to
+        # run and is batched. Therefore, I wanto to have a more
+        # fine-grained idea of when a specific sample was
+        # classified, not just the single timestamp that the job
+        # was started.
+        label_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H:%M:%S") # noqa
+        if "error" in response_obj:
+            print(f"Error processing post {post.uri} using the Perspective API: {response_obj['error']}") # noqa
+            res.append(
+                PerspectiveApiLabelsModel(
+                    uri=post.uri,
+                    text=post.text,
+                    was_successfully_labeled=False,
+                    reason=response_obj["error"],
+                    label_timestamp=label_timestamp,
+                )
+            )
+        else:
+            res.append(
+                PerspectiveApiLabelsModel(
+                    uri=post.uri,
+                    text=post.text,
+                    was_successfully_labeled=True,
+                    label_timestamp=label_timestamp,
+                    **response_obj
+                )
+            )
+    return res
+
+
+async def batch_classify_posts(
+    posts: list[FilteredPreprocessedPostModel],
+    batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
+    seconds_delay_per_batch: Optional[float]=1.0
+) -> None:
+    request_payloads: list[dict] = [
+        create_perspective_request(post.text) for post in posts
+    ]
+    request_payload_batches: list[list[dict]] = create_batches(
+        iterable=zip(posts, request_payloads), batch_size=batch_size
+    )
+    for (post_batch, request_batch) in request_payload_batches:
+        responses = await process_perspective_batch(request_batch)
+        await asyncio.sleep(seconds_delay_per_batch)
+        # NOTE: can I do this write step and concurrently send the next
+        # batch of requests? Or will this step be necessarily a blocker?
+        label_models: list[PerspectiveApiLabelsModel] = (
+            create_label_models(posts=post_batch, responses=responses)
+        )
+        batch_insert_perspective_api_labels(labels=label_models)
+
+
 def run_batch_classification(
-    texts: list[str],
+    posts: list[FilteredPreprocessedPostModel],
     batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float]=1.0
 ):
     loop = asyncio.get_event_loop()
-    responses = loop.run_until_complete(
-        batch_classify_texts(
-            texts=texts,
+    loop.run_until_complete(
+        batch_classify_posts(
+            posts=posts,
             batch_size=batch_size,
             seconds_delay_per_batch=seconds_delay_per_batch
         )
     )
-    return responses

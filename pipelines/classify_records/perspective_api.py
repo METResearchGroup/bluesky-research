@@ -1,6 +1,6 @@
-# TODO: I should see if there's something in the Google API or the Jigsaw API
-# that allows me to batch multiple requests together and have them sent
-# together so I don't have to do that batching manually with async
+from ml_tooling.perspective_api.model import run_batch_classification
+from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
+
 
 def load_latest_label_timestamp() -> str:
     # need to think about what this would look like
@@ -9,8 +9,13 @@ def load_latest_label_timestamp() -> str:
     pass
 
 
+def load_latest_filtered_posts() -> list[FilteredPreprocessedPostModel]:
+    pass
+
+
 def classify_latest_posts():
-    # load posts
+    # Load posts
+    posts: list[FilteredPreprocessedPostModel] = load_latest_filtered_posts()
+    # TODO: get metadata and export to db
     # classify
-    # write to db
-    labels: list[dict] = []
+    run_batch_classification(posts=posts)
