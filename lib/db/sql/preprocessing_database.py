@@ -72,6 +72,35 @@ def create_filtered_post(post: FilteredPreprocessedPostModel) -> None:
             return
 
 
+def get_previously_filtered_post_uris() -> set[str]:
+    """Get previous IDs from the DB."""
+    previous_ids = FilteredPreprocessedPosts.select(FilteredPreprocessedPosts.uri)  # noqa
+    return set([p.uri for p in previous_ids])
+
+
+def dedupe_posts(
+    posts: list[FilteredPreprocessedPostModel]
+) -> list[FilteredPreprocessedPostModel]:
+    """
+    Dedupes posts to make sure that we don't insert any duplicates.
+
+    Note: will need to see how this scales, especially at the scale of millions
+    of posts.
+    """
+    existing_uris: set[str] = get_previously_filtered_post_uris()
+    seen_uris = set()
+    seen_uris.update(existing_uris)
+    unique_posts = []
+    for post in posts:
+        if post.uri not in seen_uris:
+            seen_uris.add(post.uri)
+            unique_posts.append(post)
+    logger.info(f"Total posts to attempt to insert: {len(posts)}")
+    logger.info(f"Total unique posts: {len(unique_posts)}")
+    logger.info(f"Total duplicates: {len(posts) - len(unique_posts)}")
+    return unique_posts
+
+
 def batch_create_filtered_posts(
     posts: list[FilteredPreprocessedPostModel]
 ) -> None:
@@ -83,30 +112,17 @@ def batch_create_filtered_posts(
     """
     total_posts = FilteredPreprocessedPosts.select().count()
     logger.info(f"Total number of posts before inserting into preprocessed posts database: {total_posts}") # noqa
-    seen_uris = set()
-    unique_posts = []
-    for post in posts:
-        if post.uri not in seen_uris:
-            seen_uris.add(post.uri)
-            unique_posts.append(post)
-    logger.info(f"Total posts to attempt to insert: {len(posts)}")
-    logger.info(f"Total unique posts: {len(unique_posts)}")
-    logger.info(f"Total duplicates: {len(posts) - len(unique_posts)}")
+    unique_posts: list[FilteredPreprocessedPostModel] = dedupe_posts(posts)
+
     with db.atomic():
         for idx in range(0, len(unique_posts), DEFAULT_BATCH_WRITE_SIZE):
             posts_to_insert = unique_posts[idx:idx + DEFAULT_BATCH_WRITE_SIZE]
             posts_to_insert_dicts = [post.dict() for post in posts_to_insert]
             FilteredPreprocessedPosts.insert_many(
                 posts_to_insert_dicts
-            ).on_conflict_ignore().execute()
+            ).execute()
     total_posts = FilteredPreprocessedPosts.select().count()
     logger.info(f"Total number of posts after inserting into preprocessed posts database: {total_posts}") # noqa
-
-
-def get_previously_filtered_post_uris() -> set[str]:
-    """Get previous IDs from the DB."""
-    previous_ids = FilteredPreprocessedPosts.select(FilteredPreprocessedPosts.uri)  # noqa
-    return set([p.uri for p in previous_ids])
 
 
 def get_filtered_posts(
