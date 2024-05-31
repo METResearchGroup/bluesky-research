@@ -6,8 +6,11 @@ from typing import Optional
 
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
+from googleapiclient.http import BatchHttpRequest
 
 from lib.helper import GOOGLE_API_KEY, create_batches, logger
+
+DEFAULT_BATCH_SIZE = 50
 
 google_client = discovery.build(
     "commentanalyzer",
@@ -122,8 +125,9 @@ default_requested_attributes = {
 
 
 def request_comment_analyzer(
-    text: str, requested_attributes: dict = None
-) -> dict:
+    text: str,
+    requested_attributes: dict=default_requested_attributes
+) -> str:
     """Sends request to commentanalyzer endpoint.
 
     Docs at https://developers.perspectiveapi.com/s/docs-sample-requests?language=en_US
@@ -172,14 +176,9 @@ def classify_text_toxicity(text: str) -> dict:
     }
 
 
-def classify(
-    text: str, attributes: Optional[dict] = default_requested_attributes
-) -> dict:
-    """Classify text using all the attributes from the Google Perspectives API."""  # noqa
-    response = request_comment_analyzer(
-        text=text, requested_attributes=attributes
-    )
-    response_obj = json.loads(response)
+
+def process_response(response_str: str) -> dict:
+    response_obj = json.loads(response_str)
     if "error" in response_obj:
         return {"error": response_obj["error"]}
     classification_probs_and_labels = {}
@@ -189,30 +188,93 @@ def classify(
                 response_obj["attributeScores"][attribute]["summaryScore"]["value"]  # noqa
             )
             classification_probs_and_labels[labels["prob"]] = prob_score
-            classification_probs_and_labels[labels["label"]
-                                            ] = 0 if prob_score < 0.5 else 1
+            classification_probs_and_labels[labels["label"]] = 0 if prob_score < 0.5 else 1 # noqa
     return classification_probs_and_labels
 
 
-async def single_batch_classify_texts(
-    batch_texts: list[str],
-    attributes: Optional[dict] = default_requested_attributes
-):
-    async with aiohttp.ClientSession() as session:
-        tasks = []
-        for text in batch_texts:
-            tasks.append(
-                classify(text=text, attributes=attributes)
-            )
-        return await asyncio.gather(*tasks)
-
-
-def batch_classify_texts(
-    texts: list[str],
-    attributes: Optional[dict] = default_requested_attributes,
-    batch_size: int = 50,
-):
-    batches: list[list[str]] = create_batches(
-        iterable=texts, batch_size=batch_size
+def classify(
+    text: str, attributes: Optional[dict] = default_requested_attributes
+) -> dict:
+    """Classify text using all the attributes from the Google Perspectives API."""  # noqa
+    response: str = request_comment_analyzer(
+        text=text, requested_attributes=attributes
     )
-    pass
+    return process_response(response)
+
+
+def create_perspective_request(text):
+    return {
+        'comment': {'text': text},
+        'languages': ['en'],
+        'requestedAttributes': default_requested_attributes
+    }
+
+
+async def process_perspective_batch(requests, responses):
+    """Process a batch of requests in a single query.
+
+    See https://googleapis.github.io/google-api-python-client/docs/batch.html
+    for more details
+    """
+    batch = BatchHttpRequest()
+    
+    def callback(request_id, response, exception):
+        if exception is not None:
+            print(f"Request {request_id} failed: {exception}")
+            responses.append(None)
+        else:
+            response_str = json.dumps(response)
+            response_obj = json.loads(response_str)
+            if "error" in response_obj:
+                print(f"Request {request_id} failed: {response_obj['error']}")
+                responses.append(None)
+            classification_probs_and_labels = {}
+            for attribute, labels in attribute_to_labels_map.items():
+                if attribute in response_obj["attributeScores"]:
+                    prob_score = (
+                        response_obj["attributeScores"][attribute]["summaryScore"]["value"]  # noqa
+                    )
+                    classification_probs_and_labels[labels["prob"]] = prob_score # noqa
+                    classification_probs_and_labels[labels["label"]] = 0 if prob_score < 0.5 else 1
+            responses.append(classification_probs_and_labels)
+
+    for _, request in enumerate(requests):
+        batch.add(
+            google_client.comments().analyze(body=request), callback=callback
+        )
+
+    batch.execute()
+
+
+async def batch_classify_texts(
+    texts: list[str],
+    batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
+    seconds_delay_per_batch: Optional[float]=1.0
+):
+    request_payloads: list[dict] = [
+        create_perspective_request(text) for text in texts
+    ]
+    request_payload_batches: list[list[dict]] = create_batches(
+        iterable=request_payloads, batch_size=batch_size
+    )
+    responses: list[dict] = []
+    for batch in request_payload_batches:
+        await process_perspective_batch(batch, responses)
+        await asyncio.sleep(seconds_delay_per_batch)
+    return responses
+
+
+def run_batch_classification(
+    texts: list[str],
+    batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
+    seconds_delay_per_batch: Optional[float]=1.0
+):
+    loop = asyncio.get_event_loop()
+    responses = loop.run_until_complete(
+        batch_classify_texts(
+            texts=texts,
+            batch_size=batch_size,
+            seconds_delay_per_batch=seconds_delay_per_batch
+        )
+    )
+    return responses

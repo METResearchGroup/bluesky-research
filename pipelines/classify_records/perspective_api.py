@@ -1,5 +1,3 @@
-# 
-
 # TODO: I should see if there's something in the Google API or the Jigsaw API
 # that allows me to batch multiple requests together and have them sent
 # together so I don't have to do that batching manually with async
@@ -15,4 +13,4 @@ def classify_latest_posts():
     # load posts
     # classify
     # write to db
-    pass
+    labels: list[dict] = []
