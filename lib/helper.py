@@ -143,3 +143,9 @@ class ThreadSafeCounter:
     def get_value(self):
         with self.lock:
             return self.counter
+
+
+def create_batches(iterable, batch_size):
+    """Create batches of a given size."""
+    for i in range(0, len(iterable), batch_size):
+        yield iterable[i:i + batch_size]

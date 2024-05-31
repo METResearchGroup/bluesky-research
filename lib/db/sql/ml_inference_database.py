@@ -1,20 +1,27 @@
 """Database logic for storing results of ML inference."""
 import peewee
 from peewee import (
-    Model, CharField, TextField, IntegerField, FloatField, BooleanField,
-    Optional, SqliteDatabase, DoesNotExist
+     CharField, TextField, IntegerField, FloatField, BooleanField
 )
 import os
 import sqlite3
-import typing_extensions as te
+from typing import Union
 
+from lib.helper import create_batches
 from lib.log.logger import Logger
+
+from services.ml_inference.models import (
+    RecordClassificationMetadataModel, PerspectiveApiLabelsModel,
+    SociopoliticalLabelsModel
+)
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 ML_INFERENCE_SQLITE_DB_NAME = "ml_inference.db"
 ML_INFERENCE_SQLITE_DB_PATH = os.path.join(
     current_file_directory, ML_INFERENCE_SQLITE_DB_NAME
 )
+metadata_insert_batch_size = 100
+label_insert_batch_size = 100
 
 db = peewee.SqliteDatabase(ML_INFERENCE_SQLITE_DB_PATH)
 db_version = 2
@@ -28,13 +35,12 @@ class BaseModel(peewee.Model):
     class Meta:
         database = db
 
-
 class RecordClassificationMetadata(BaseModel):
     """Metadata for the classification of a record."""
     uri = CharField(unique=True, index=True)
     text = TextField()
     synctimestamp = CharField()
-    processed_timestamp = CharField()
+    preprocessing_timestamp = CharField()
     source = CharField(
         choices=[("firehose", "firehose"), ("most_liked", "most_liked")]
     )
@@ -100,6 +106,7 @@ class SociopoliticalLabels(BaseModel):
     the LLM."""
     uri = CharField(unique=True, index=True)
     text = TextField()
+    model_name = TextField()
     was_successfully_labeled = BooleanField()
     reason = TextField(null=True)
     label_timestamp = CharField()
@@ -107,6 +114,60 @@ class SociopoliticalLabels(BaseModel):
     political_ideology_label = CharField(null=True)
     reason_sociopolitical = TextField()
     reason_political_ideology = TextField(null=True)
+
+
+def batch_insert_metadata(
+    metadata_lst: list[RecordClassificationMetadataModel]
+) -> None:
+    """Batch insert metadata into the database."""
+    print(f"Inserting {len(metadata_lst)} metadata into the database.")
+    record_count = RecordClassificationMetadata.select().count()
+    print(f"Metadata count prior to insertion: {record_count}")
+    with db.atomic():
+        batches = create_batches(metadata_lst, metadata_insert_batch_size)
+        for batch in batches:
+            RecordClassificationMetadata.insert_many(batch).execute()
+    print(f"Finished inserting {len(metadata_lst)} metadata into the database.")
+    record_count = RecordClassificationMetadata.select().count()
+    print(f"Metadata count after insertion: {record_count}")
+
+
+def batch_insert_perspective_api_labels(
+    labels: list[PerspectiveApiLabelsModel]
+) -> None:
+    """Batch insert Perspective API labels into the database."""
+    print(f"Inserting {len(labels)} labels into the database.")
+    with db.atomic():
+        batches = create_batches(labels, label_insert_batch_size)
+        for batch in batches:
+            PerspectiveApiLabels.insert_many(batch).execute()
+    print(f"Finished inserting {len(labels)} labels into the database.")
+
+
+def batch_insert_sociopolitical_labels(
+    labels: list[SociopoliticalLabelsModel]
+) -> None:
+    """Batch insert sociopolitical labels into the database."""
+    print(f"Inserting {len(labels)} labels into the database.")
+    with db.atomic():
+        batches = create_batches(labels, label_insert_batch_size)
+        for batch in batches:
+            SociopoliticalLabels.insert_many(batch).execute()
+    print(f"Finished inserting {len(labels)} labels into the database.")
+
+
+def batch_insert_labels(
+    labels: Union[
+        list[PerspectiveApiLabelsModel], list[SociopoliticalLabelsModel]
+    ]
+) -> None:
+    """Batch insert labels into the database."""
+    if isinstance(labels[0], PerspectiveApiLabelsModel):
+        batch_insert_perspective_api_labels(labels)
+    elif isinstance(labels[0], SociopoliticalLabelsModel):
+        batch_insert_sociopolitical_labels(labels)
+    else:
+        raise ValueError("Invalid label type.")
 
 
 def create_initial_tables() -> None:
@@ -120,7 +181,4 @@ def create_initial_tables() -> None:
 
 
 if __name__ == "__main__":
-    if db.is_closed():
-        db.connect()
     create_initial_tables()
-    db.close()

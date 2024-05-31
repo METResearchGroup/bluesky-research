@@ -1,13 +1,13 @@
 """Model for the classify_perspective_api service."""
-
-
+import aiohttp
+import asyncio
 import json
 from typing import Optional
 
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
-from lib.helper import GOOGLE_API_KEY, logger
+from lib.helper import GOOGLE_API_KEY, create_batches, logger
 
 google_client = discovery.build(
     "commentanalyzer",
@@ -192,3 +192,27 @@ def classify(
             classification_probs_and_labels[labels["label"]
                                             ] = 0 if prob_score < 0.5 else 1
     return classification_probs_and_labels
+
+
+async def single_batch_classify_texts(
+    batch_texts: list[str],
+    attributes: Optional[dict] = default_requested_attributes
+):
+    async with aiohttp.ClientSession() as session:
+        tasks = []
+        for text in batch_texts:
+            tasks.append(
+                classify(text=text, attributes=attributes)
+            )
+        return await asyncio.gather(*tasks)
+
+
+def batch_classify_texts(
+    texts: list[str],
+    attributes: Optional[dict] = default_requested_attributes,
+    batch_size: int = 50,
+):
+    batches: list[list[str]] = create_batches(
+        iterable=texts, batch_size=batch_size
+    )
+    pass
