@@ -162,3 +162,6 @@ cython_debug/
 *.joblib
 
 *DS_Store
+
+# make sure that no DBs are committed.
+*.db
