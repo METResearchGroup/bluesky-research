@@ -10,8 +10,9 @@ from googleapiclient.http import BatchHttpRequest
 
 from lib.db.sql.ml_inference_database import batch_insert_perspective_api_labels # noqa
 from lib.helper import GOOGLE_API_KEY, create_batches, logger
-from services.ml_inference.models import PerspectiveApiLabelsModel
-from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
+from services.ml_inference.models import (
+    PerspectiveApiLabelsModel, RecordClassificationMetadataModel
+)
 
 DEFAULT_BATCH_SIZE = 50
 
@@ -251,7 +252,7 @@ async def process_perspective_batch(requests, responses):
 
 
 def create_label_models(
-    posts: list[FilteredPreprocessedPostModel], responses: list[dict]
+    posts: list[RecordClassificationMetadataModel], responses: list[dict]
 ) -> list[PerspectiveApiLabelsModel]:
     res = []
     for (post, response_obj) in zip(posts, responses):
@@ -288,7 +289,7 @@ def create_label_models(
 
 
 async def batch_classify_posts(
-    posts: list[FilteredPreprocessedPostModel],
+    posts: list[RecordClassificationMetadataModel],
     batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float]=1.0
 ) -> None:
@@ -310,7 +311,7 @@ async def batch_classify_posts(
 
 
 def run_batch_classification(
-    posts: list[FilteredPreprocessedPostModel],
+    posts: list[RecordClassificationMetadataModel],
     batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float]=1.0
 ):

@@ -94,11 +94,26 @@ class SociopoliticalLabels(BaseModel):
     reason_political_ideology = TextField(null=True)
 
 
+def get_existing_metadata_uris() -> set[str]:
+    """Get URIs of existing metadata."""
+    uris = set()
+    query = RecordClassificationMetadata.select(RecordClassificationMetadata.uri)
+    for row in query:
+        uris.add(row.uri)
+    return uris
+
+
 def batch_insert_metadata(
     metadata_lst: list[RecordClassificationMetadataModel]
 ) -> None:
     """Batch insert metadata into the database."""
-    print(f"Inserting {len(metadata_lst)} metadata into the database.")
+    deduped_metadata_lst = []
+    existing_uris = get_existing_metadata_uris()
+    print(f"Attempting to insert {len(metadata_lst)} metadata objects into the database.") # noqa
+    for metadata in metadata_lst:
+        if metadata.uri not in existing_uris:
+            deduped_metadata_lst.append(metadata)
+    print(f"Number of deduped metadata objects to insert: {len(deduped_metadata_lst)}") # noqa
     record_count = RecordClassificationMetadata.select().count()
     print(f"Metadata count prior to insertion: {record_count}")
     with db.atomic():
@@ -110,16 +125,44 @@ def batch_insert_metadata(
     print(f"Metadata count after insertion: {record_count}")
 
 
+def get_existing_perspective_api_uris() -> set[str]:
+    """Get URIs of existing Perspective API labels."""
+    uris = set()
+    query = PerspectiveApiLabels.select(PerspectiveApiLabels.uri)
+    for row in query:
+        uris.add(row.uri)
+    return uris
+
+
 def batch_insert_perspective_api_labels(
     labels: list[PerspectiveApiLabelsModel]
 ) -> None:
     """Batch insert Perspective API labels into the database."""
-    print(f"Inserting {len(labels)} labels into the database.")
+    deduped_labels = []
+    existing_uris = get_existing_perspective_api_uris()
+    print(f"Attempting to insert {len(labels)} labels into the database.")
+    for label in labels:
+        if label.uri not in existing_uris:
+            deduped_labels.append(label)
+    print(f"Number of deduped labels to insert: {len(deduped_labels)}")
+    record_count = PerspectiveApiLabels.select().count()
+    print(f"Labels count prior to insertion: {record_count}")
     with db.atomic():
-        batches = create_batches(labels, label_insert_batch_size)
+        batches = create_batches(deduped_labels, label_insert_batch_size)
         for batch in batches:
             PerspectiveApiLabels.insert_many(batch).execute()
     print(f"Finished inserting {len(labels)} labels into the database.")
+    record_count = PerspectiveApiLabels.select().count()
+    print(f"Labels count after insertion: {record_count}")
+
+
+def get_existing_socipolitical_uris() -> set[str]:
+    """Get URIs of existing sociopolitical labels."""
+    uris = set()
+    query = SociopoliticalLabels.select(SociopoliticalLabels.uri)
+    for row in query:
+        uris.add(row.uri)
+    return uris
 
 
 def batch_insert_sociopolitical_labels(

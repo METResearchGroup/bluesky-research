@@ -64,4 +64,3 @@ def validate_posts(
         else:
             invalid_posts.append(post)
     return (valid_posts, invalid_posts)
-
