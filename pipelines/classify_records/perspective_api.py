@@ -23,9 +23,12 @@ def load_posts_to_classify() -> list[FilteredPreprocessedPostModel]:
     existing_uris: set[str] = get_existing_perspective_api_uris()
     if not existing_uris:
         return preprocessed_posts
-    return [
+    posts = [
         post for post in preprocessed_posts if post.uri not in existing_uris
     ]
+    # sort by synctimestamp ascending so the oldest posts are first.
+    sorted_posts = sorted(posts, key=lambda x: x.synctimestamp, reverse=False)
+    return posts
 
 
 def classify_latest_posts():

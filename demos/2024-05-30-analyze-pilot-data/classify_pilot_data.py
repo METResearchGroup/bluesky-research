@@ -9,79 +9,51 @@ import ast
 import pandas as pd
 
 from lib.constants import current_datetime_str
-from lib.helper import create_batches
+from lib.db.sql.ml_inference_database import (
+    batch_insert_metadata, batch_insert_perspective_api_labels,
+    get_existing_perspective_api_uris
+)
+from lib.helper import track_performance
+from ml_tooling.perspective_api.model import run_batch_classification
 from pipelines.classify_records.helper import (
     get_post_metadata_for_classification, validate_posts
 )
 from services.ml_inference.models import (
-    PerspectiveApiLabelsModel, RecordClassificationMetadataModel,
-    SociopoliticalLabelsModel
+    PerspectiveApiLabelsModel, RecordClassificationMetadataModel
 )
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 csv_filename = "pilot_data_2024-05-30-12:11:48.csv"
-batch_size = 100 # TODO: change this later.
 MIN_TEXT_LENGTH = 8
 
 def load_pilot_data() -> pd.DataFrame:
-    df = pd.read_csv(csv_filename)
+    df = pd.read_csv(
+        csv_filename,
+        dtype={
+            'uri': str, 
+            'cid': str, 
+            'indexed_at': str, 
+            'author': str, 
+            'metadata': str, 
+            'record': str, 
+            'metrics': str, 
+            'passed_filters': bool, 
+            'filtered_at': str, 
+            'filtered_by_func': str, 
+            'synctimestamp': str, 
+            'preprocessing_timestamp': str
+        }
+    )
+    df = df.where(pd.notnull(df), None)
     return df
 
 
-# TODO: change the output since I'm doing it differently now and splitting
-# the labels and the metadata.
-# TODO: I also need to check which posts already have labels and then make
-# sure to not duplicate that labeling.
-def batch_label_posts(posts: list[dict]) -> list[PerspectiveApiLabelsModel]:
-    batch_labels: list[dict] = [] # TODO: get batch labels from concurrent requests
-    return [
-        PerspectiveApiLabelsModel(
-            uri=post["uri"],
-            text=post["text"],
-            was_successfully_labeled=True,
-            label_timestamp=current_datetime_str,
-            **batch_label
-        )
-        for (post, batch_label) in zip(posts, batch_labels)
-    ]
-
-
-def classify_data(
-    valid_posts: list[dict],
-    invalid_posts: list[dict]
-) -> list[PerspectiveApiLabelsModel]:
-    """Classify the data using the Perspective API."""
-    res: list[PerspectiveApiLabelsModel] = []
-    print(f"Classifying {len(valid_posts)} posts via Perspective API...")
-    print(f"Defaulting {len(invalid_posts)} posts to failed label...")
-    for post in invalid_posts:
-        res.append(
-            PerspectiveApiLabelsModel(
-                uri=post["uri"],
-                text=post["text"],
-                was_successfully_labeled=False,
-                reason="text_too_short",
-                label_timestamp=current_datetime_str,
-            )
-        )
-    # TODO: need to batch classify a bunch of posts via Perspective API.
-    # since the rate-limiting step is just us waiting for the requests.
-    batches: list[list[dict]] = create_batches(valid_posts)
-    for batch in batches:
-        batch_labels: list[PerspectiveApiLabelsModel] = batch_label_posts(batch)
-        res.extend(batch_labels)
-    return res
-
-
-def export_labels(labeled_posts: list[PerspectiveApiLabelsModel]):
-    # export to DB
-    # export to .csv
-    pass
-
-
-def main():
+@track_performance
+def main(num_samples: int):
     df: pd.DataFrame = load_pilot_data()
     preprocessed_posts_dicts = df.to_dict(orient="records")
+    print(f"Attempting to process {len(preprocessed_posts_dicts)} pilot posts.") # noqa
+    preprocessed_posts_dicts = preprocessed_posts_dicts[:num_samples]
     transformed_preprocessed_posts_dicts = [
         {
             **post,
@@ -90,6 +62,8 @@ def main():
                 "metadata": ast.literal_eval(post["metadata"]),
                 "record": ast.literal_eval(post["record"]),
                 "metrics": ast.literal_eval(post["metrics"]) if post["metrics"] else None, # noqa
+                "filtered_by_func": post["filtered_by_func"] if post["filtered_by_func"] is not None else None,  # Ensure it's None if NaN
+                "indexed_at": post["indexed_at"] if post["indexed_at"] is not None else None  # Ensure it's None if NaN
             }
         }
         for post in preprocessed_posts_dicts
@@ -97,12 +71,54 @@ def main():
     filtered_preprocessed_posts: list[FilteredPreprocessedPostModel] = [
         FilteredPreprocessedPostModel(**post)
         for post in transformed_preprocessed_posts_dicts
+    ] 
+    existing_uris: set[str] = get_existing_perspective_api_uris()
+    deduped_preprocessed_posts: list[FilteredPreprocessedPostModel] = [
+        post for post in filtered_preprocessed_posts
+        if post.uri not in existing_uris
     ]
-    posts_to_classify: list[RecordClassificationMetadataModel] = (
-        get_post_metadata_for_classification(filtered_preprocessed_posts)
+    # sort by synctimestamp ascending so the oldest posts are classified first.
+    # if we sort by preprocessing_timestamp, then a bunch of posts that were
+    # all preprocessed at the same time will have the same timestamp.
+    sorted_posts = sorted(
+        deduped_preprocessed_posts,
+        key=lambda x: x.synctimestamp,
+        reverse=False
     )
-    valid_posts, invalid_posts = validate_posts(posts_to_classify)
+    posts_to_classify: list[RecordClassificationMetadataModel] = (
+        get_post_metadata_for_classification(sorted_posts)
+    )
+    batch_insert_metadata(posts_to_classify)
 
-    # classify data.
+    # validate posts
+    valid_posts, invalid_posts = validate_posts(posts_to_classify)
+    print(f"Number of valid posts: {len(valid_posts)}")
+    print(f"Number of invalid posts: {len(invalid_posts)}")
+    print(f"Classifying {len(valid_posts)} posts via Perspective API...")
+    print(f"Defaulting {len(invalid_posts)} posts to failed label...")
+
+    # insert invalid posts into DB first, before running Perspective API
+    # classification
+    invalid_posts_models = []
+    for post in invalid_posts:
+        invalid_posts_models.append(
+            PerspectiveApiLabelsModel(
+                uri=post.uri,
+                text=post.text,
+                was_successfully_labeled=False,
+                reason="text_too_short",
+                label_timestamp=current_datetime_str,
+            )
+        )
+    print(f"Inserting {len(invalid_posts_models)} invalid posts into the DB.")
+    batch_insert_perspective_api_labels(invalid_posts_models)
+    print(f"Completed inserting {len(invalid_posts_models)} invalid posts into the DB.") # noqa
+    # run inference on valid posts
+    print(f"Running batch classification on {len(valid_posts)} valid posts.")
+    run_batch_classification(posts=valid_posts)
+    print("Completed batch classification.")
+
+
 if __name__ == "__main__":
-    main()
+    num_samples = 10000
+    main(num_samples=num_samples)

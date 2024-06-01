@@ -9,7 +9,7 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import BatchHttpRequest
 
 from lib.db.sql.ml_inference_database import batch_insert_perspective_api_labels # noqa
-from lib.helper import GOOGLE_API_KEY, create_batches, logger
+from lib.helper import GOOGLE_API_KEY, create_batches, logger, track_performance # noqa
 from services.ml_inference.models import (
     PerspectiveApiLabelsModel, RecordClassificationMetadataModel
 )
@@ -214,13 +214,13 @@ def create_perspective_request(text):
     }
 
 
-async def process_perspective_batch(requests, responses):
+async def process_perspective_batch(requests):
     """Process a batch of requests in a single query.
 
     See https://googleapis.github.io/google-api-python-client/docs/batch.html
     for more details
     """
-    batch = BatchHttpRequest()
+    batch = google_client.new_batch_http_request()
     responses = []
     def callback(request_id, response, exception):
         if exception is not None:
@@ -276,18 +276,26 @@ def create_label_models(
                 )
             )
         else:
+            # we only want the probs, not the labels, since we want to enforce
+            # our own threshold for what constitutes a label
+            probs_response_obj = {
+                field: value
+                for (field, value) in response_obj.items()
+                if field.startswith("prob_")
+            }
             res.append(
                 PerspectiveApiLabelsModel(
                     uri=post.uri,
                     text=post.text,
                     was_successfully_labeled=True,
                     label_timestamp=label_timestamp,
-                    **response_obj
+                    **probs_response_obj
                 )
             )
     return res
 
 
+@track_performance
 async def batch_classify_posts(
     posts: list[RecordClassificationMetadataModel],
     batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
@@ -296,10 +304,14 @@ async def batch_classify_posts(
     request_payloads: list[dict] = [
         create_perspective_request(post.text) for post in posts
     ]
+    iterated_post_payloads = list(zip(posts, request_payloads))
     request_payload_batches: list[list[dict]] = create_batches(
-        iterable=zip(posts, request_payloads), batch_size=batch_size
+        batch_list=iterated_post_payloads, batch_size=batch_size
     )
-    for (post_batch, request_batch) in request_payload_batches:
+    for (post_request_batch) in request_payload_batches:
+        # split [(post, request)] tuples into separate lists of posts
+        # and of requests
+        post_batch, request_batch = zip(*post_request_batch)
         responses = await process_perspective_batch(request_batch)
         await asyncio.sleep(seconds_delay_per_batch)
         # NOTE: can I do this write step and concurrently send the next

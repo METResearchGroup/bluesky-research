@@ -1,7 +1,7 @@
 """Pydantic models for storing Perspective API labels."""
 from pydantic import BaseModel, Field, validator
 from typing import Optional
-import typing_extension as te
+import typing_extensions as te
 
 
 class RecordClassificationMetadataModel(BaseModel):
@@ -15,10 +15,13 @@ class RecordClassificationMetadataModel(BaseModel):
     """
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
-    synctimestamp = str = Field(..., description="The synctimestamp of the post.")  # noqa
+    synctimestamp: str = Field(..., description="The synctimestamp of the post.")  # noqa
     preprocessing_timestamp: str = Field(..., description="The timestamp when the post was processed.")  # noqa
     source: te.Literal["firehose", "most_liked"] = Field(..., description="The source feed of the post. Either 'firehose' or 'most_liked'")  # noqa
-    url: Optional[str] = Field(..., description="The URL of the post. Available only if the post is from feed view. Firehose posts won't have this hydrated.")  # noqa
+    url: Optional[str] = Field(
+        default=None,
+        description="The URL of the post. Available only if the post is from feed view. Firehose posts won't have this hydrated." # noqa
+    )
     like_count: Optional[int] = Field(
         default=None, description="The like count of the post."
     )
@@ -70,7 +73,7 @@ class SociopoliticalLabelsModel(BaseModel):
     the LLM."""
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
-    model_name: str = Field(..., description="Name of LLM model used for inference.") # noqa
+    llm_model_name: str = Field(..., description="Name of LLM model used for inference.") # noqa
     was_successfully_labeled: bool = Field(..., description="Indicates if the post was successfully labeled by the Perspective API.") # noqa
     reason: Optional[str] = Field(default=None, description="Reason for why the post was not labeled successfully.") # noqa
     label_timestamp: str = Field(..., description="Timestamp when the post was labeled (or, if labeling failed, when it was attempted).") # noqa

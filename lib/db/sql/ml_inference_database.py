@@ -84,7 +84,7 @@ class SociopoliticalLabels(BaseModel):
     the LLM."""
     uri = CharField(unique=True, index=True)
     text = TextField()
-    model_name = TextField()
+    llm_model_name = TextField()
     was_successfully_labeled = BooleanField()
     reason = TextField(null=True)
     label_timestamp = CharField()
@@ -109,20 +109,48 @@ def batch_insert_metadata(
     """Batch insert metadata into the database."""
     deduped_metadata_lst = []
     existing_uris = get_existing_metadata_uris()
+    seen_uris = set()
+    seen_uris.update(existing_uris)
     print(f"Attempting to insert {len(metadata_lst)} metadata objects into the database.") # noqa
     for metadata in metadata_lst:
-        if metadata.uri not in existing_uris:
+        if metadata.uri not in seen_uris:
             deduped_metadata_lst.append(metadata)
+            seen_uris.add(metadata.uri)
     print(f"Number of deduped metadata objects to insert: {len(deduped_metadata_lst)}") # noqa
+    if len(deduped_metadata_lst) == 0:
+        print("No metadata to insert.")
+        return
     record_count = RecordClassificationMetadata.select().count()
     print(f"Metadata count prior to insertion: {record_count}")
     with db.atomic():
-        batches = create_batches(metadata_lst, metadata_insert_batch_size)
+        batches = create_batches(deduped_metadata_lst, metadata_insert_batch_size) # noqa
         for batch in batches:
-            RecordClassificationMetadata.insert_many(batch).execute()
-    print(f"Finished inserting {len(metadata_lst)} metadata into the database.")
+            batch_dicts = [metadata.dict() for metadata in batch]
+            RecordClassificationMetadata.insert_many(batch_dicts).execute()
+    print(f"Finished inserting {len(deduped_metadata_lst)} metadata into the database.") # noqa
     record_count = RecordClassificationMetadata.select().count()
     print(f"Metadata count after insertion: {record_count}")
+
+
+def get_metadata() -> list[RecordClassificationMetadataModel]:
+    query = RecordClassificationMetadata.select()
+    res = list(query)
+    res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
+    transformed_res: list[RecordClassificationMetadataModel] = [
+        RecordClassificationMetadataModel(
+            uri=r["uri"],
+            text=r["text"],
+            synctimestamp=r["synctimestamp"],
+            preprocessing_timestamp=r["preprocessing_timestamp"],
+            source=r["source"],
+            url=r["url"],
+            like_count=r["like_count"],
+            reply_count=r["reply_count"],
+            repost_count=r["repost_count"]
+        )
+        for r in res_dicts
+    ]
+    return transformed_res
 
 
 def get_existing_perspective_api_uris() -> set[str]:
@@ -140,23 +168,69 @@ def batch_insert_perspective_api_labels(
     """Batch insert Perspective API labels into the database."""
     deduped_labels = []
     existing_uris = get_existing_perspective_api_uris()
+    seen_uris = set()
+    seen_uris.update(existing_uris)
     print(f"Attempting to insert {len(labels)} labels into the database.")
     for label in labels:
-        if label.uri not in existing_uris:
+        if label.uri not in seen_uris:
             deduped_labels.append(label)
+            seen_uris.add(label.uri)
     print(f"Number of deduped labels to insert: {len(deduped_labels)}")
+    if len(deduped_labels) == 0:
+        print("No labels to insert.")
+        return
     record_count = PerspectiveApiLabels.select().count()
     print(f"Labels count prior to insertion: {record_count}")
     with db.atomic():
         batches = create_batches(deduped_labels, label_insert_batch_size)
         for batch in batches:
-            PerspectiveApiLabels.insert_many(batch).execute()
-    print(f"Finished inserting {len(labels)} labels into the database.")
+            batch_dicts = [label.dict() for label in batch]
+            PerspectiveApiLabels.insert_many(batch_dicts).execute()
+    print(f"Finished inserting {len(deduped_labels)} labels into the database.") # noqa
     record_count = PerspectiveApiLabels.select().count()
     print(f"Labels count after insertion: {record_count}")
 
 
-def get_existing_socipolitical_uris() -> set[str]:
+def get_perspective_api_labels() -> list[PerspectiveApiLabelsModel]:
+    query = PerspectiveApiLabels.select()
+    res = list(query)
+    res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
+    transformed_res: list[PerspectiveApiLabelsModel] = [
+        PerspectiveApiLabelsModel(
+            uri=r["uri"],
+            text=r["text"],
+            was_successfully_labeled=r["was_successfully_labeled"],
+            reason=r["reason"],
+            label_timestamp=r["label_timestamp"],
+            prob_toxic=r["prob_toxic"],
+            prob_severe_toxic=r["prob_severe_toxic"],
+            prob_identity_attack=r["prob_identity_attack"],
+            prob_insult=r["prob_insult"],
+            prob_profanity=r["prob_profanity"],
+            prob_threat=r["prob_threat"],
+            prob_affinity=r["prob_affinity"],
+            prob_compassion=r["prob_compassion"],
+            prob_constructive=r["prob_constructive"],
+            prob_curiosity=r["prob_curiosity"],
+            prob_nuance=r["prob_nuance"],
+            prob_personal_story=r["prob_personal_story"],
+            prob_reasoning=r["prob_reasoning"],
+            prob_respect=r["prob_respect"],
+            prob_alienation=r["prob_alienation"],
+            prob_fearmongering=r["prob_fearmongering"],
+            prob_generalization=r["prob_generalization"],
+            prob_moral_outrage=r["prob_moral_outrage"],
+            prob_scapegoating=r["prob_scapegoating"],
+            prob_sexually_explicit=r["prob_sexually_explicit"],
+            prob_flirtation=r["prob_flirtation"],
+            prob_spam=r["prob_spam"]
+        )
+        for r in res_dicts
+    ]
+    return transformed_res
+
+
+def get_existing_sociopolitical_uris() -> set[str]:
     """Get URIs of existing sociopolitical labels."""
     uris = set()
     query = SociopoliticalLabels.select(SociopoliticalLabels.uri)
@@ -169,12 +243,29 @@ def batch_insert_sociopolitical_labels(
     labels: list[SociopoliticalLabelsModel]
 ) -> None:
     """Batch insert sociopolitical labels into the database."""
-    print(f"Inserting {len(labels)} labels into the database.")
+    deduped_labels = []
+    existing_uris = get_existing_sociopolitical_uris()
+    seen_uris = set()
+    seen_uris.update(existing_uris)
+    print(f"Attempting to insert {len(labels)} labels into the database.")
+    for label in labels:
+        if label.uri not in seen_uris:
+            deduped_labels.append(label)
+            seen_uris.add(label.uri)
+    print(f"Number of deduped labels to insert: {len(deduped_labels)}")
+    if len(deduped_labels) == 0:
+        print("No labels to insert.")
+        return
+    record_count = SociopoliticalLabels.select().count()
+    print(f"Labels count prior to insertion: {record_count}")
     with db.atomic():
-        batches = create_batches(labels, label_insert_batch_size)
+        batches = create_batches(deduped_labels, label_insert_batch_size)
         for batch in batches:
-            SociopoliticalLabels.insert_many(batch).execute()
-    print(f"Finished inserting {len(labels)} labels into the database.")
+            batch_dicts = [label.dict() for label in batch]
+            SociopoliticalLabels.insert_many(batch_dicts).execute()
+    print(f"Finished inserting {len(deduped_labels)} labels into the database.") # noqa
+    record_count = SociopoliticalLabels.select().count()
+    print(f"Labels count after insertion: {record_count}")
 
 
 def batch_insert_labels(
@@ -202,4 +293,15 @@ def create_initial_tables() -> None:
 
 
 if __name__ == "__main__":
-    create_initial_tables()
+    # create_initial_tables()
+    metadata_count = RecordClassificationMetadata.select().count()
+    perspective_api_labels_count = PerspectiveApiLabels.select().count()
+    # sociopolitical_labels_count = SociopoliticalLabels.select().count()
+    print(f"Metadata count: {metadata_count}")
+    print(f"Perspective API labels count: {perspective_api_labels_count}")
+    # print(f"Sociopolitical labels count: {sociopolitical_labels_count}")
+
+    perspective_api_labels = get_perspective_api_labels()
+    print(perspective_api_labels[0])
+    print(perspective_api_labels[5])
+    breakpoint()
