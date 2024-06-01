@@ -1,7 +1,8 @@
 """Basic interface for doing LLM-based inference."""
 import os
 
-from litellm import completion
+import google.generativeai as genai
+from litellm import acompletion, completion
 from litellm.utils import ModelResponse
 
 from lib.helper import (
@@ -32,9 +33,13 @@ DEFAULT_GEMINI_SAFETY_SETTINGS = [
     },
 ]
 
+GEMINI_1_0_PRO_MODEL_NAME = "gemini-1.0-pro-latest"
+gemini_model = genai.get_model(f'models/{GEMINI_1_0_PRO_MODEL_NAME}')
+
 BACKEND_OPTIONS = {
     "Gemini": {
-        "model": "gemini/gemini-pro",
+        #"model": "gemini/gemini-pro",
+        "model": f"gemini/{GEMINI_1_0_PRO_MODEL_NAME}",
         "kwargs": {
             "temperature": 0.0,
             "safety_settings": DEFAULT_GEMINI_SAFETY_SETTINGS
@@ -52,7 +57,7 @@ BACKEND_OPTIONS = {
             "api_base": "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x22B-v0.1"
         }
     },
-    "Llama3-8b (via Groq)": {
+    "Llama3-8b (via Groq)": { # 8k context limit
         "model": "groq/llama3-8b-8192",
         "kwargs": {
             "temperature": 0.0,
@@ -69,6 +74,12 @@ BACKEND_OPTIONS = {
 }
 
 
+def get_gemini_token_count(prompt: str) -> int:
+    """Get the number of tokens in a prompt."""
+    token_count = gemini_model.count_tokens(prompt)
+    return token_count
+
+
 # https://litellm.vercel.app/docs/completion/input
 @track_performance
 def run_query(
@@ -83,6 +94,24 @@ def run_query(
         **model_params["kwargs"]
     }
     response: ModelResponse = completion(**kwargs)
+    content: str = (
+        response.get('choices', [{}])[0].get('message', {}).get('content')
+    )
+    return content
+
+
+async def async_run_query(
+    prompt: str, role: str = "user", model_name: str = "Gemini"
+):
+    """Runs a query to an LLM model and returns the response."""
+    model_dict = BACKEND_OPTIONS[model_name]
+    model_params = model_dict.copy()
+    kwargs = {
+        "model": model_params.pop("model"),
+        "messages": [{"role": role, "content": prompt}],
+        **model_params["kwargs"]
+    }
+    response: ModelResponse = await acompletion(**kwargs)
     content: str = (
         response.get('choices', [{}])[0].get('message', {}).get('content')
     )

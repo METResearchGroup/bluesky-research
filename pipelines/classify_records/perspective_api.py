@@ -28,11 +28,11 @@ def load_posts_to_classify() -> list[FilteredPreprocessedPostModel]:
     ]
     # sort by synctimestamp ascending so the oldest posts are first.
     sorted_posts = sorted(posts, key=lambda x: x.synctimestamp, reverse=False)
-    return posts
+    return sorted_posts
 
 
 def classify_latest_posts():
-    # Load posts
+    # load posts
     posts: list[FilteredPreprocessedPostModel] = load_posts_to_classify()
     print(f"Number of posts loaded for classification using Perspective API: {len(posts)}") # noqa
 

@@ -1,0 +1,196 @@
+"""Model for classifying posts using LLMs."""
+import asyncio
+from datetime import datetime, timezone
+from typing import Optional
+import yaml
+
+from lib.db.sql.ml_inference_database import batch_insert_sociopolitical_labels
+from lib.helper import create_batches
+from ml_tooling.llm.inference import (
+    BACKEND_OPTIONS, async_run_query, get_gemini_token_count
+)
+from ml_tooling.llm.task_prompts import task_name_to_task_prompt_map
+from services.ml_inference.models import (
+    LLMSociopoliticalOutputModel, RecordClassificationMetadataModel,
+    SociopoliticalLabelsModel
+)
+
+DEFAULT_BATCH_SIZE = 100 # TODO: should be # of posts in a prompt.
+DEFAULT_DELAY_SECONDS = 1.0
+DEFAULT_TASK_NAME = "civic_and_political_ideology"
+LLM_MODEL_NAME = BACKEND_OPTIONS["Gemini"]["model"] # "gemini/gemini-pro"
+
+
+def generate_batched_post_prompt(
+    posts: list[RecordClassificationMetadataModel],
+    task_name: Optional[str]=DEFAULT_TASK_NAME
+) -> list[str]:
+    """Create a prompt that classifies a batch of posts."""
+    task_prompt = task_name_to_task_prompt_map[task_name]
+    task_prompt += """
+You will receive an enumerated list of texts to classify, under <TEXTS>
+
+Return a YAML with the following format. The format must be returned as valid YAML.
+
+For example, for a list of 10 texts, the format must be in this format:
+```
+results:
+    - result_1:
+        - is_sociopolitical: <is_sociopolitical for post 1>
+        - political_ideology_label: <political_ideology_label for post 1>
+        - reason_sociopolitical: <reason_sociopolitical for post 1>
+        - reason_political_ideology: <reason_political_ideology for post 1>
+    - result_2:
+        - is_sociopolitical: <is_sociopolitical for post 2>
+        - political_ideology_label: <political_ideology_label for post 2>
+        - reason_sociopolitical: <reason_sociopolitical for post 2>
+        - reason_political_ideology: <reason_political_ideology for post 2>
+    ...
+    - result_10:
+        - is_sociopolitical: <is_sociopolitical for post 10>
+        - political_ideology_label: <political_ideology_label for post 10>
+        - reason_sociopolitical: <reason_sociopolitical for post 10>
+        - reason_political_ideology: <reason_political_ideology for post 10>
+count: 10
+```
+
+<TEXTS>
+    """ # noqa
+    texts = [post.text for post in posts]
+    enumerated_texts = "\n".join([f"{i}. {text}" for i, text in enumerate(texts, start=1)])
+    full_prompt = f"""
+{task_prompt}
+
+{enumerated_texts}
+    """
+    token_count = get_gemini_token_count(full_prompt)
+    print(f"Token count for prompt: {token_count}")
+    return full_prompt
+
+
+def validated_llm_result(
+    post_batch: list[RecordClassificationMetadataModel],
+    result: str
+) -> Optional[LLMSociopoliticalOutputModel]: # noqa
+    """Validate the output of the LLM."""
+    # convert output from YAML to dict
+    try:
+        output_dict = yaml.safe_load(result)
+        output_model = LLMSociopoliticalOutputModel(**output_dict)
+        assert output_model.count == len(post_batch)
+        assert len(output_model.results) == len(post_batch)
+        return output_model
+    except Exception as e:
+        print(f"Error validating LLM output: {e}")
+        return None
+
+
+def export_validated_llm_output(
+    posts: list[RecordClassificationMetadataModel],
+    validated_result: LLMSociopoliticalOutputModel,
+):
+    llm_results = validated_result.results
+    label_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H:%M:%S") # noqa
+    # TODO: what to do if there's formatting issues? Very likely to happen tbh.
+    output_models = [
+        SociopoliticalLabelsModel(
+            uri=post.uri,
+            text=post.text,
+            llm_model_name=LLM_MODEL_NAME,
+            was_successfully_labeled=True,
+            label_timestamp=label_timestamp,
+            is_sociopolitical=llm_result.is_sociopolitical,
+            political_ideology_label=llm_result.political_ideology_label,
+            reason_sociopolitical=llm_result.reason_sociopolitical,
+            reason_political_ideology=llm_result.reason_political_ideology,
+        )
+        for (post, llm_result) in zip(posts, llm_results)
+    ]
+    batch_insert_sociopolitical_labels(output_models)
+
+
+async def process_llm_batch(
+    post_batch: list[RecordClassificationMetadataModel],
+    batch_prompt: str,
+    max_retries: Optional[int]=5
+) -> dict:
+    """Process a batch of posts and prompt using the LLM.
+
+    Retries up to `max_retries` times if the output is invalid. If the output
+    is valid, then attempts to write the result.
+
+    Returns a dict based on if the processing failed. If failed, returns the
+    post batch and prompt to retry later.
+    """
+    validated_result = None
+    num_retries = 0
+    while validated_result is None and num_retries < max_retries:
+        result: str = await async_run_query(prompt=batch_prompt)
+        validated_result = validated_llm_result(
+            posts=post_batch, result=result
+        )
+        if validated_result is not None:
+            print("LLM output validated. Now trying to write to DB.")
+            export_validated_llm_output(
+                posts=post_batch, validated_result=validated_result
+            )
+            print("Successfully validated LLM output and results.")
+            return {
+                "succeeded": True, "response": []
+            }
+        num_retries += 1
+    # TODO: need to think about what happens once we have max retries
+    if num_retries >= max_retries:
+        print(f"Failed to validate LLM output after maximum {num_retries} retries.") # noqa
+    return {
+        "succeeded": False,
+        "response": (post_batch, batch_prompt)
+    }
+
+
+async def batch_classify_posts(
+    posts: list[RecordClassificationMetadataModel],
+    batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
+    seconds_delay_per_batch: Optional[float]=DEFAULT_DELAY_SECONDS,
+    task_name: Optional[str]=DEFAULT_TASK_NAME
+):
+    """Classify posts in batches."""
+    post_batches: list[list[RecordClassificationMetadataModel]] = (
+        create_batches(batch_list=posts, batch_size=batch_size)
+    )
+    failed_batches: list[tuple] = []
+    for batch in post_batches:
+        batch_prompt: str = generate_batched_post_prompt(
+            posts=batch, task_name=task_name
+        )
+        result_dict = await process_llm_batch(
+            post_batch=batch, batch_prompt=batch_prompt
+        )
+        await asyncio.sleep(seconds_delay_per_batch)
+        if not result_dict["succeeded"]:
+            failed_batches.append(result_dict["response"])
+
+    for (post_batch, batch_prompt) in failed_batches:
+        result_dict = process_llm_batch(
+            post_batch=post_batch, batch_prompt=batch_prompt
+        )
+        if not result_dict["succeeded"]:
+            # TODO: not sure what to do if it still fails after so many tries?
+            print("Failed to process batch after retrying for 2 iterations of batched inference.") # noqa
+
+
+def run_batch_classification(
+    posts: list[RecordClassificationMetadataModel],
+    batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
+    seconds_delay_per_batch: Optional[float]=DEFAULT_DELAY_SECONDS,
+    task_name: Optional[str]=DEFAULT_TASK_NAME
+):
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(
+        batch_classify_posts(
+            posts=posts,
+            batch_size=batch_size,
+            seconds_delay_per_batch=seconds_delay_per_batch,
+            task_name=task_name
+        )
+    )

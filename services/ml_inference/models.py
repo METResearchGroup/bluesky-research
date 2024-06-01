@@ -68,18 +68,55 @@ class PerspectiveApiLabelsModel(BaseModel):
     prob_spam: Optional[float] = Field(default=None, description="Probability of spam.")
 
 
+class LLMSociopoliticalLabelModel(BaseModel):
+    """The LLM output for a single post."""
+    is_sociopolitical: bool = Field(..., description="The sociopolitical label of the post.") # noqa
+    political_ideology_label: Optional[str] = Field(default=None, description="If the post is sociopolitical, the political ideology label of the post.") # noqa
+    reason_sociopolitical: str = Field(..., description="Reason from the LLM for its sociopolitical label.") # noqa
+    reason_political_ideology: Optional[str] = Field(default=None, description="Reason from the LLM for its political ideology label.") # noqa
+
+    @validator("political_ideology_label", "reason_political_ideology")
+    def validate_political_ideology_label(cls, v, values):
+        """Checks to see if we do have a sociopolitical post, that we then
+        have a political ideology label and reason. If we don't have a
+        sociopolitical post, then we shouldn't have a political ideology.
+        """
+        if values["is_sociopolitical"] and not v:
+            raise ValueError("If the post is sociopolitical, the political ideology label and reason must be provided.") # noqa
+        if not values["is_sociopolitical"] and v:
+            raise ValueError("If the post is not sociopolitical, the political ideology label and reason must not be provided.") # noqa
+        return v
+
+
+class LLMSociopoliticalOutputModel(BaseModel):
+    """Verifies the output of the LLM for sociopolitical classification."""
+    results: list[LLMSociopoliticalLabelModel] = Field(..., description="The results of the LLM for sociopolitical classification.") # noqa
+    count: int = Field(..., description="The number of posts classified. Must match the expected number of posts.") # noqa
+
+    @validator("results")
+    def validate_results(cls, v, values):
+        """Ensure that the number of results matches the count field in the
+        model."""
+        if len(v) != values["count"]:
+            llm_actual_results = len(v)
+            llm_stated_results = values["count"]
+            raise ValueError(
+                f"The number of results ({llm_actual_results}) must match the count field ({llm_stated_results})." # noqa
+            )
+
+
 class SociopoliticalLabelsModel(BaseModel):
     """Stores results of sociopolitical and political ideology labels from
     the LLM."""
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
-    llm_model_name: str = Field(..., description="Name of LLM model used for inference.") # noqa
+    llm_model_name: Optional[str] = Field(default=None, description="Name of LLM model used for inference.") # noqa
     was_successfully_labeled: bool = Field(..., description="Indicates if the post was successfully labeled by the Perspective API.") # noqa
     reason: Optional[str] = Field(default=None, description="Reason for why the post was not labeled successfully.") # noqa
     label_timestamp: str = Field(..., description="Timestamp when the post was labeled (or, if labeling failed, when it was attempted).") # noqa
-    is_sociopolitical: bool = Field(..., description="The sociopolitical label of the post.") # noqa
+    is_sociopolitical: Optional[bool] = Field(default=None, description="The sociopolitical label of the post.") # noqa
     political_ideology_label: Optional[str] = Field(default=None, description="If the post is sociopolitical, the political ideology label of the post.") # noqa
-    reason_sociopolitical: str = Field(..., description="Reason from the LLM for its sociopolitical label.") # noqa
+    reason_sociopolitical: Optional[str] = Field(default=None, description="Reason from the LLM for its sociopolitical label.") # noqa
     reason_political_ideology: Optional[str] = Field(default=None, description="Reason from the LLM for its political ideology label.") # noqa
 
     @validator("political_ideology_label", "reason_political_ideology")

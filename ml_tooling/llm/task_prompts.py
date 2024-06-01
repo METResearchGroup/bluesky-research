@@ -34,7 +34,7 @@ All of the fields in the JSON must be present for the response to be valid, and 
 """  # noqa
 
 civic_and_political_ideology_prompt = """
-Pretend that you are a classifier that predicts whether a post has sociopolitical content or not. Sociopolitical refers \
+You are a classifier that predicts whether a post has sociopolitical content or not. Sociopolitical refers \
 to whether a given post is related to politics (government, elections, politicians, activism, etc.) or \
 social issues (major issues that affect a large group of people, such as the economy, inequality, \
 racism, education, immigration, human rights, the environment, etc.). We refer to any content \
@@ -42,18 +42,17 @@ that is classified as being either of these two categories as "sociopolitical"; 
 Please classify the following text as "sociopolitical" or "not sociopolitical". 
 
 Then, if the post is sociopolitical, classify the text based on the political lean of the opinion or argument \
-it presents. Your options are "democrat", "republican", or 'unclear'. \
-You are analyzing text that has been pre-identified as 'political' in nature. \
-If the text is not sociopolitical, return "unclear".
+it presents. Your options are "left", "right", or 'unclear'. \
+If the text is not sociopolitical, return "unclear". Base your response on US politics.\
 
 Think through your response step by step.
 
 Return in a JSON format in the following way:
 {
-    "sociopolitical": <two values, 'sociopolitical' or 'not sociopolitical'>,
-    "political_ideology": <three values, 'democrat', 'republican', 'unclear'. If the post is not sociopolitical, return an empty string, "">,
-    "reason_sociopolitical": <optional, a 1 sentence reason for why the text is sociopolitical or not.>,
-    "reason_political_ideology": <optional, a 1 sentence reason for why the text has the given political ideology or is unclear. If the post is not sociopolitical, return an empty string, "">
+    "is_sociopolitical": <boolean, two values, True or False>,
+    "political_ideology_label": <string, three values, 'left', 'right', 'unclear'. If the post is not sociopolitical, return an empty string, "">,
+    "reason_sociopolitical": <string, a 1 sentence reason for why the text is sociopolitical or not.>,
+    "reason_political_ideology": <Optional[str], a 1 sentence reason for why the text has the given political ideology or is unclear. If the post is not sociopolitical, return an empty string, "">
 }
 
 All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.

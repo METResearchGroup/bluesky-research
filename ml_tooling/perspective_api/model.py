@@ -6,7 +6,6 @@ from typing import Optional
 
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
-from googleapiclient.http import BatchHttpRequest
 
 from lib.db.sql.ml_inference_database import batch_insert_perspective_api_labels # noqa
 from lib.helper import GOOGLE_API_KEY, create_batches, logger, track_performance # noqa
@@ -15,6 +14,7 @@ from services.ml_inference.models import (
 )
 
 DEFAULT_BATCH_SIZE = 50
+DEFAULT_DELAY_SECONDS = 1.0
 
 google_client = discovery.build(
     "commentanalyzer",
@@ -325,7 +325,7 @@ async def batch_classify_posts(
 def run_batch_classification(
     posts: list[RecordClassificationMetadataModel],
     batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
-    seconds_delay_per_batch: Optional[float]=1.0
+    seconds_delay_per_batch: Optional[float]=DEFAULT_DELAY_SECONDS
 ):
     loop = asyncio.get_event_loop()
     loop.run_until_complete(
