@@ -84,13 +84,13 @@ class SociopoliticalLabels(BaseModel):
     the LLM."""
     uri = CharField(unique=True, index=True)
     text = TextField()
-    llm_model_name = TextField()
+    llm_model_name = TextField(null=True)
     was_successfully_labeled = BooleanField()
     reason = TextField(null=True)
     label_timestamp = CharField()
-    is_sociopolitical = BooleanField()
+    is_sociopolitical = BooleanField(null=True)
     political_ideology_label = CharField(null=True)
-    reason_sociopolitical = TextField()
+    reason_sociopolitical = TextField(null=True)
     reason_political_ideology = TextField(null=True)
 
 
@@ -294,14 +294,20 @@ def create_initial_tables() -> None:
 
 if __name__ == "__main__":
     # create_initial_tables()
+    
+    # drop SociopoliticalLabels and then rebuild
+    # cursor.execute("DROP TABLE SociopoliticalLabels")
+    # conn.commit()
+    # with db.atomic():
+    #     db.create_tables([SociopoliticalLabels])
+
     metadata_count = RecordClassificationMetadata.select().count()
     perspective_api_labels_count = PerspectiveApiLabels.select().count()
-    # sociopolitical_labels_count = SociopoliticalLabels.select().count()
+    sociopolitical_labels_count = SociopoliticalLabels.select().count()
     print(f"Metadata count: {metadata_count}")
     print(f"Perspective API labels count: {perspective_api_labels_count}")
-    # print(f"Sociopolitical labels count: {sociopolitical_labels_count}")
+    print(f"Sociopolitical labels count: {sociopolitical_labels_count}")
 
     # perspective_api_labels = get_perspective_api_labels()
     # print(perspective_api_labels[0])
     # print(perspective_api_labels[5])
-    breakpoint()

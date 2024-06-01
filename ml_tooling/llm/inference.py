@@ -1,9 +1,9 @@
 """Basic interface for doing LLM-based inference."""
 import os
 
-import google.generativeai as genai
 from litellm import acompletion, completion
 from litellm.utils import ModelResponse
+import tiktoken
 
 from lib.helper import (
     GOOGLE_AI_STUDIO_KEY, GROQ_API_KEY, HF_TOKEN, track_performance
@@ -13,6 +13,8 @@ from lib.helper import (
 os.environ['GEMINI_API_KEY'] = GOOGLE_AI_STUDIO_KEY
 os.environ["HUGGINGFACE_API_KEY"] = HF_TOKEN
 os.environ["GROQ_API_KEY"] = GROQ_API_KEY
+
+encoding = tiktoken.encoding_for_model('gpt-3.5-turbo')
 
 DEFAULT_GEMINI_SAFETY_SETTINGS = [
     {
@@ -34,12 +36,13 @@ DEFAULT_GEMINI_SAFETY_SETTINGS = [
 ]
 
 GEMINI_1_0_PRO_MODEL_NAME = "gemini-1.0-pro-latest"
-gemini_model = genai.get_model(f'models/{GEMINI_1_0_PRO_MODEL_NAME}')
+GEMINI_1_5_PRO_MODEL_NAME = "gemini-1.5-pro-latest"
 
 BACKEND_OPTIONS = {
     "Gemini": {
         #"model": "gemini/gemini-pro",
-        "model": f"gemini/{GEMINI_1_0_PRO_MODEL_NAME}",
+        #"model": f"gemini/{GEMINI_1_0_PRO_MODEL_NAME}",
+        "model": f"gemini/{GEMINI_1_5_PRO_MODEL_NAME}",
         "kwargs": {
             "temperature": 0.0,
             "safety_settings": DEFAULT_GEMINI_SAFETY_SETTINGS
@@ -74,16 +77,12 @@ BACKEND_OPTIONS = {
 }
 
 
-def get_gemini_token_count(prompt: str) -> int:
-    """Get the number of tokens in a prompt."""
-    token_count = gemini_model.count_tokens(prompt)
-    return token_count
-
-
 # https://litellm.vercel.app/docs/completion/input
+# https://litellm.vercel.app/docs/completion/reliable_completions
 @track_performance
 def run_query(
-    prompt: str, role: str = "user", model_name: str = "Gemini"
+    prompt: str, role: str = "user", model_name: str = "Gemini",
+    num_retries: int=2
 ) -> str:
     """Runs a query to an LLM model and returns the response."""
     model_dict = BACKEND_OPTIONS[model_name]
@@ -91,6 +90,7 @@ def run_query(
     kwargs = {
         "model": model_params.pop("model"),
         "messages": [{"role": role, "content": prompt}],
+        "num_retries": num_retries,
         **model_params["kwargs"]
     }
     response: ModelResponse = completion(**kwargs)
@@ -101,7 +101,8 @@ def run_query(
 
 
 async def async_run_query(
-    prompt: str, role: str = "user", model_name: str = "Gemini"
+    prompt: str, role: str = "user", model_name: str = "Gemini",
+    num_retries: int=2
 ):
     """Runs a query to an LLM model and returns the response."""
     model_dict = BACKEND_OPTIONS[model_name]
@@ -109,6 +110,7 @@ async def async_run_query(
     kwargs = {
         "model": model_params.pop("model"),
         "messages": [{"role": role, "content": prompt}],
+        "num_retries": num_retries,
         **model_params["kwargs"]
     }
     response: ModelResponse = await acompletion(**kwargs)
@@ -116,6 +118,17 @@ async def async_run_query(
         response.get('choices', [{}])[0].get('message', {}).get('content')
     )
     return content
+
+
+def num_tokens_from_string(string: str) -> int:
+    """Returns the number of tokens in a text string.
+
+    Uses OpenAI tokenizer, but should be similar across models.
+    """
+    encoding = tiktoken.encoding_for_model('gpt-3.5-turbo')
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
 
 
 if __name__ == "__main__":

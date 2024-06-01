@@ -160,8 +160,8 @@ def main(
         for post in invalid_posts:
             invalid_posts_models.append(
                 SociopoliticalLabelsModel(
-                    uri=post["uri"],
-                    text=post["text"],
+                    uri=post.uri,
+                    text=post.text,
                     was_successfully_labeled=False,
                     reason="text_too_short",
                     label_timestamp=current_datetime_str,

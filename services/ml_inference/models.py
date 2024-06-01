@@ -71,9 +71,9 @@ class PerspectiveApiLabelsModel(BaseModel):
 class LLMSociopoliticalLabelModel(BaseModel):
     """The LLM output for a single post."""
     is_sociopolitical: bool = Field(..., description="The sociopolitical label of the post.") # noqa
-    political_ideology_label: Optional[str] = Field(default=None, description="If the post is sociopolitical, the political ideology label of the post.") # noqa
-    reason_sociopolitical: str = Field(..., description="Reason from the LLM for its sociopolitical label.") # noqa
-    reason_political_ideology: Optional[str] = Field(default=None, description="Reason from the LLM for its political ideology label.") # noqa
+    political_ideology_label: Optional[str] = Field(default=None, description="If the post is sociopolitical, the political ideology label of the post. If it is not sociopolitical, value should be None.") # noqa
+    reason_sociopolitical: Optional[str] = Field(default=None, description="Reason from the LLM for its sociopolitical label. If it is not sociopolitical, value should be None.") # noqa
+    reason_political_ideology: Optional[str] = Field(default=None, description="Reason from the LLM for its political ideology label. If it is not sociopolitical, value should be None.") # noqa
 
     @validator("political_ideology_label", "reason_political_ideology")
     def validate_political_ideology_label(cls, v, values):

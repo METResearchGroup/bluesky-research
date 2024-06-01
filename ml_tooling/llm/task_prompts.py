@@ -47,13 +47,11 @@ If the text is not sociopolitical, return "unclear". Base your response on US po
 
 Think through your response step by step.
 
-Return in a JSON format in the following way:
-{
-    "is_sociopolitical": <boolean, two values, True or False>,
-    "political_ideology_label": <string, three values, 'left', 'right', 'unclear'. If the post is not sociopolitical, return an empty string, "">,
-    "reason_sociopolitical": <string, a 1 sentence reason for why the text is sociopolitical or not.>,
-    "reason_political_ideology": <Optional[str], a 1 sentence reason for why the text has the given political ideology or is unclear. If the post is not sociopolitical, return an empty string, "">
-}
+Return your response with the following fields:
+- "is_sociopolitical": <boolean, two values, True or False. Required.>,
+- "political_ideology_label": <string, four values, 'left', 'right', 'unclear', None. If the post is not sociopolitical, return None>,
+- "reason_sociopolitical": <string, a 1 sentence reason for why the text is sociopolitical or not.>,
+- "reason_political_ideology": <Optional[str], a 1 sentence reason for why the text has the given political ideology or is unclear. If the post is not sociopolitical, return None>
 
 All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
 """  # noqa
