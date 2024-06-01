@@ -301,7 +301,7 @@ if __name__ == "__main__":
     print(f"Perspective API labels count: {perspective_api_labels_count}")
     # print(f"Sociopolitical labels count: {sociopolitical_labels_count}")
 
-    perspective_api_labels = get_perspective_api_labels()
-    print(perspective_api_labels[0])
-    print(perspective_api_labels[5])
+    # perspective_api_labels = get_perspective_api_labels()
+    # print(perspective_api_labels[0])
+    # print(perspective_api_labels[5])
     breakpoint()

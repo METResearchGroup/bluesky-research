@@ -54,6 +54,7 @@ def main(num_samples: int):
     preprocessed_posts_dicts = df.to_dict(orient="records")
     print(f"Attempting to process {len(preprocessed_posts_dicts)} pilot posts.") # noqa
     preprocessed_posts_dicts = preprocessed_posts_dicts[:num_samples]
+    print(f"Processing {len(preprocessed_posts_dicts)} pilot posts.")
     transformed_preprocessed_posts_dicts = [
         {
             **post,
@@ -120,5 +121,5 @@ def main(num_samples: int):
 
 
 if __name__ == "__main__":
-    num_samples = 10000
+    num_samples = 200000
     main(num_samples=num_samples)
