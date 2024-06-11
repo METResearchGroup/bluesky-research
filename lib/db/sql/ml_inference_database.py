@@ -1,11 +1,11 @@
 """Database logic for storing results of ML inference."""
 import peewee
 from peewee import (
-     CharField, TextField, IntegerField, FloatField, BooleanField
+    CharField, TextField, IntegerField, FloatField, BooleanField
 )
 import os
 import sqlite3
-from typing import Union
+from typing import Optional, Union
 
 from lib.helper import create_batches
 from lib.log.logger import Logger
@@ -31,9 +31,11 @@ cursor = conn.cursor()
 
 logger = Logger(__name__)
 
+
 class BaseModel(peewee.Model):
     class Meta:
         database = db
+
 
 class RecordClassificationMetadata(BaseModel):
     """Metadata for the classification of a record."""
@@ -48,6 +50,7 @@ class RecordClassificationMetadata(BaseModel):
     like_count = IntegerField(null=True)
     reply_count = IntegerField(null=True)
     repost_count = IntegerField(null=True)
+
 
 class PerspectiveApiLabels(BaseModel):
     """Stores results of classifications from Perspective API."""
@@ -78,6 +81,7 @@ class PerspectiveApiLabels(BaseModel):
     prob_sexually_explicit = FloatField(null=True)
     prob_flirtation = FloatField(null=True)
     prob_spam = FloatField(null=True)
+
 
 class SociopoliticalLabels(BaseModel):
     """Stores results of sociopolitical and political ideology labels from
@@ -111,30 +115,32 @@ def batch_insert_metadata(
     existing_uris = get_existing_metadata_uris()
     seen_uris = set()
     seen_uris.update(existing_uris)
-    print(f"Attempting to insert {len(metadata_lst)} metadata objects into the database.") # noqa
+    print(f"Attempting to insert {len(metadata_lst)} metadata objects into the database.")  # noqa
     for metadata in metadata_lst:
         if metadata.uri not in seen_uris:
             deduped_metadata_lst.append(metadata)
             seen_uris.add(metadata.uri)
-    print(f"Number of deduped metadata objects to insert: {len(deduped_metadata_lst)}") # noqa
+    print(f"Number of deduped metadata objects to insert: {len(deduped_metadata_lst)}")  # noqa
     if len(deduped_metadata_lst) == 0:
         print("No metadata to insert.")
         return
     record_count = RecordClassificationMetadata.select().count()
     print(f"Metadata count prior to insertion: {record_count}")
     with db.atomic():
-        batches = create_batches(deduped_metadata_lst, metadata_insert_batch_size) # noqa
+        batches = create_batches(deduped_metadata_lst, metadata_insert_batch_size)  # noqa
         for batch in batches:
             batch_dicts = [metadata.dict() for metadata in batch]
             RecordClassificationMetadata.insert_many(batch_dicts).execute()
-    print(f"Finished inserting {len(deduped_metadata_lst)} metadata into the database.") # noqa
+    print(f"Finished inserting {len(deduped_metadata_lst)} metadata into the database.")  # noqa
     record_count = RecordClassificationMetadata.select().count()
     print(f"Metadata count after insertion: {record_count}")
 
 
-def get_metadata() -> list[RecordClassificationMetadataModel]:
+def get_metadata(source: Optional[str] = None) -> list[RecordClassificationMetadataModel]:
     query = RecordClassificationMetadata.select()
     res = list(query)
+    if source:
+        res = [r for r in res if r.source == source]
     res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
     transformed_res: list[RecordClassificationMetadataModel] = [
         RecordClassificationMetadataModel(
@@ -186,7 +192,7 @@ def batch_insert_perspective_api_labels(
         for batch in batches:
             batch_dicts = [label.dict() for label in batch]
             PerspectiveApiLabels.insert_many(batch_dicts).execute()
-    print(f"Finished inserting {len(deduped_labels)} labels into the database.") # noqa
+    print(f"Finished inserting {len(deduped_labels)} labels into the database.")  # noqa
     record_count = PerspectiveApiLabels.select().count()
     print(f"Labels count after insertion: {record_count}")
 
@@ -263,7 +269,7 @@ def batch_insert_sociopolitical_labels(
         for batch in batches:
             batch_dicts = [label.dict() for label in batch]
             SociopoliticalLabels.insert_many(batch_dicts).execute()
-    print(f"Finished inserting {len(deduped_labels)} labels into the database.") # noqa
+    print(f"Finished inserting {len(deduped_labels)} labels into the database.")  # noqa
     record_count = SociopoliticalLabels.select().count()
     print(f"Labels count after insertion: {record_count}")
 
@@ -294,7 +300,7 @@ def create_initial_tables() -> None:
 
 if __name__ == "__main__":
     # create_initial_tables()
-    
+
     # drop SociopoliticalLabels and then rebuild
     # cursor.execute("DROP TABLE SociopoliticalLabels")
     # conn.commit()

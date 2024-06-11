@@ -1,13 +1,21 @@
 """Logic for reverse-chronological feed creation."""
+from services.create_feeds.models import UserFeedModel
 from services.ml_inference.models import RecordClassificationMetadataModel
+from services.participant_data.models import UserToBlueskyProfileModel
 
 
+# TODO: for now, doesn't have personalization, everyone in the condition gets
+# the same feed.
 def create_reverse_chronological_feeds(
+    users: list[UserToBlueskyProfileModel],
     posts: list[RecordClassificationMetadataModel]
-) -> list[RecordClassificationMetadataModel]:
+) -> list[UserFeedModel]:
     """Returns a feed sorted by reverse chronological order."""
-    posts = sorted(posts, key=lambda x: x.synctimestamp, reverse=True)
-    return posts
+    feed = sorted(posts, key=lambda x: x.synctimestamp, reverse=True)
+    user_feeds: list[UserFeedModel] = [
+        UserFeedModel(user=user, feed=feed) for user in users
+    ]
+    return user_feeds
 
 
 if __name__ == "__main__":

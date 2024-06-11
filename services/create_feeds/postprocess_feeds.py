@@ -5,27 +5,26 @@ we want this format to conform with the format expected by the Bluesky API.
 """
 from lib.constants import current_datetime
 
-from services.create_feeds.models import CreatedFeedModel
+from services.create_feeds.models import CreatedFeedModel, UserFeedModel
 
 
-def postprocess_feed(user: str, feed: list[dict]) -> list[dict]:
+def postprocess_feed(user_feed: UserFeedModel) -> UserFeedModel:
     """Postprocesses a feed for a given user.
 
     Currently stubbed as a placeholder, but we will likely want this in the
     future.
     """
-    return feed
+    return user_feed
 
 
-def postprocess_feeds(user_to_feed_dict: dict) -> dict:
+def postprocess_feeds(feeds: list[UserFeedModel]) -> list[UserFeedModel]:
     """Postprocesses a feed for a given user."""
-    return {
-        user: postprocess_feed(user, feed)
-        for (user, feed) in user_to_feed_dict.items()
-    }
+    return [
+        postprocess_feed(user_feed=user_feed) for user_feed in feeds
+    ]
 
 
-def convert_feeds_to_bluesky_format(user_to_feed_dict: dict) -> list[dict]:
+def convert_feeds_to_bluesky_format(feeds: list[UserFeedModel]) -> list[CreatedFeedModel]:  # noqa
     """Converts feeds to Bluesky format.
 
     Relevant Bluesky resources:
@@ -51,14 +50,14 @@ def convert_feeds_to_bluesky_format(user_to_feed_dict: dict) -> list[dict]:
 
     We will hydrate this on the API side, but for now we just need to store the
     feed URIs for each user for this recommendation of feed generation.
-    """ # noqa
-    user_feeds = []
-    for user, feed in user_to_feed_dict.items():
-        user_feed = {
-            "bluesky_user_did": user,
-            "feed_uris": ','.join([post["uri"] for post in feed]),
-            "timestamp": current_datetime.strftime("%Y-%m-%d-%H:%M:%S")
-        }
-        CreatedFeedModel(**user_feed)
-        user_feeds.append(user_feed)
-    return user_feeds
+    """  # noqa
+    res: list[CreatedFeedModel] = [
+        CreatedFeedModel(
+            bluesky_user_did=feed.user.bluesky_user_did,
+            feed_uris=[post.uri for post in feed.feed],
+            timestamp=current_datetime.strftime("%Y-%m-%d-%H:%M:%S")
+        )
+        for feed in feeds
+    ]
+
+    return res

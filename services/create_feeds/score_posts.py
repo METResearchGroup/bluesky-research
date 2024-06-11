@@ -17,7 +17,7 @@ def calculate_similarity_to_previous_user_likes(post, user) -> float:
 
 
 def calculate_weighted_coef() -> float:
-    pass
+    return 1
 
 
 def score_post(
@@ -31,4 +31,5 @@ def score_post(
 
 
 def score_posts(posts: list) -> list[float]:
+    # TODO: load the Perspective API labels here.
     return [score_post(post) for post in posts]

@@ -3,8 +3,7 @@ from services.create_feeds.helper import create_latest_feeds
 
 
 def main(payload: dict) -> None:
-    kwargs = payload
-    create_latest_feeds(**kwargs)
+    create_latest_feeds()
 
 
 if __name__ == "__main__":

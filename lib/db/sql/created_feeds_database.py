@@ -4,6 +4,9 @@ import sqlite3
 
 import peewee
 
+from lib.helper import create_batches
+from services.create_feeds.models import CreatedFeedModel
+
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 
 SQLITE_DB_NAME = "created_feeds.db"
@@ -14,6 +17,8 @@ db_version = 2
 
 conn = sqlite3.connect(SQLITE_DB_PATH)
 cursor = conn.cursor()
+
+insert_batch_size = 100
 
 
 class BaseModel(peewee.Model):
@@ -48,19 +53,25 @@ def write_created_feed(data: dict) -> None:
         try:
             CreatedFeeds.create(**data)
         except peewee.IntegrityError as e:
-            print(f"Error inserting created feed for user {data['bluesky_user_did']} into DB: {e}") # noqa
+            print(f"Error inserting created feed for user {data['bluesky_user_did']} into DB: {e}")  # noqa
             return
 
 
-def batch_write_created_feeds(data: list[dict]) -> None:
+def batch_insert_created_feeds(feeds: list[CreatedFeedModel]) -> None:
     """Batch write created feeds to the database."""
     with db.atomic():
-        for feed in data:
-            try:
-                CreatedFeeds.create(**feed)
-            except peewee.IntegrityError as e:
-                print(f"Error inserting created feed for user {feed['bluesky_user_did']} into DB: {e}") # noqa
-                continue
+        batches = create_batches(feeds, insert_batch_size)
+        for batch in batches:
+            batch_dicts = [feed.dict() for feed in batch]
+            CreatedFeeds.insert_many(batch_dicts).execute()
+    print(f"Batch inserted {len(feeds)} created feeds into the database.")
+    print(f"Latest timestamp for feed creation: {feeds[-1].timestamp}")
+    print(f"Total feed count: {CreatedFeeds.select().count()}")
+    for condition in ["reverse_chronological", "engagement", "representative_diversification"]:  # noqa
+        total_count = CreatedFeeds.select().where(
+            CreatedFeeds.condition == condition
+        ).count()
+        print(f"Total feed count for {condition} condition: {total_count}")
 
 
 def get_created_feeds() -> list[dict]:
@@ -83,5 +94,9 @@ if __name__ == "__main__":
     ).first().timestamp
     print(f"Latest timestamp for feed creation: {latest_timestamp}")
     feeds = get_created_feeds()
-    for feed in feeds:
-        print(feed)
+    print(f"Total number of feeds: {len(feeds)}")
+    if len(feeds) < 10:
+        for feed in feeds:
+            print(feed)
+    else:
+        print("Too many feeds to print.")

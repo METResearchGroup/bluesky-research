@@ -63,16 +63,28 @@ def insert_bsky_user_to_study(
         UserToBlueskyProfile.create(**user_data.dict())
 
 
-def get_user_to_bluesky_profiles() -> list[UserToBlueskyProfile]:
+def get_user_to_bluesky_profiles() -> list[UserToBlueskyProfileModel]:
     """Get all user to bluesky profiles."""
-    return UserToBlueskyProfile.select()
+    res = list(UserToBlueskyProfile.select())
+    res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
+    transformed_res = [
+        UserToBlueskyProfileModel(res_dict) for res_dict in res_dicts
+    ]
+    return transformed_res
 
 
-def get_users_in_condition(condition: str) -> list[UserToBlueskyProfile]:
+def get_users_in_condition(condition: str) -> list[UserToBlueskyProfileModel]:
     """Get all users in a given condition."""
-    return UserToBlueskyProfile.select().where(
-        UserToBlueskyProfile.condition == condition
+    res = list(
+        UserToBlueskyProfile.select().where(
+            UserToBlueskyProfile.condition == condition
+        )
     )
+    res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
+    transformed_res = [
+        UserToBlueskyProfileModel(res_dict) for res_dict in res_dicts
+    ]
+    return transformed_res
 
 
 if __name__ == "__main__":

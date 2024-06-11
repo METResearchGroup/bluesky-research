@@ -11,56 +11,67 @@ from services.create_feeds.condition.reverse_chronological import (
     create_reverse_chronological_feeds
 )
 from services.create_feeds.load_data import (
-    load_firehose_based_posts, load_most_liked_based_posts,
-    load_perspective_api_labels
+    load_firehose_based_posts, load_most_liked_based_posts
 )
+from services.create_feeds.models import UserFeedModel
 from services.ml_inference.models import RecordClassificationMetadataModel
+from services.participant_data.models import UserToBlueskyProfileModel
 
 
 def create_firehose_based_feeds(
-        condition_to_user_map: dict
-) -> list[RecordClassificationMetadataModel]:
+    condition_to_user_map: dict[str, list[UserToBlueskyProfileModel]]
+) -> list[UserFeedModel]:
     """Create feeds that are based off posts from the firehose."""
-    reverse_chronological_users = condition_to_user_map["reverse_chronological"]
+    reverse_chronological_users = condition_to_user_map["reverse_chronological"]  # noqa
     if len(reverse_chronological_users) > 0:
-        posts = load_firehose_based_posts()  # Classified posts that are from the firehose
-        feeds = create_reverse_chronological_feeds(posts)
+        posts: list[RecordClassificationMetadataModel] = (
+            load_firehose_based_posts()
+        )
+        feeds: list[UserFeedModel] = create_reverse_chronological_feeds(
+            users=reverse_chronological_users, posts=posts
+        )
         return feeds
     else:
+        print("No users in reverse_chronological condition.")
         return []
 
 
 def create_most_liked_feeds(
-        condition_to_user_map: dict
-) -> list[RecordClassificationMetadataModel]:
+    condition_to_user_map: dict[str, list[UserToBlueskyProfileModel]]
+) -> list[UserFeedModel]:
     """Create feeds that are based off posts from the most liked feeds."""
     output_feeds = []
 
     engagement_users = condition_to_user_map["engagement"]
-    representative_diversification_users = condition_to_user_map["representative_diversification"]
+    representative_diversification_users = condition_to_user_map["representative_diversification"]  # noqa
 
     if len(engagement_users) > 0 or len(representative_diversification_users) > 0:
-        posts = load_most_liked_based_posts()  # classified posts that are from the most liked feed
+        posts: list[RecordClassificationMetadataModel] = load_most_liked_based_posts()  # noqa
         if len(engagement_users) > 0:
-            feeds = create_engagement_feeds(engagement_users, posts)
+            feeds: list[UserFeedModel] = create_engagement_feeds(
+                users=engagement_users, posts=posts
+            )
             output_feeds.extend(feeds)
         if len(representative_diversification_users) > 0:
-            labels = load_perspective_api_labels(posts)  # load Perspective API labels
-            feeds = create_representative_diversification_feeds(
-                representative_diversification_users, posts, labels
+            feeds: list[UserFeedModel] = create_representative_diversification_feeds(  # noqa
+                users=representative_diversification_users, posts=posts
             )
             output_feeds.extend(feeds)
     else:
+        print("No users in engagement or representative condition condition.")
         return []
 
 
-def create_feeds_per_condition(condition_to_user_map: dict):
-    output_feeds = []
+def create_feeds_per_condition(
+    condition_to_user_map: dict[str, list[UserToBlueskyProfileModel]]
+) -> list[UserFeedModel]:
+    """Create feeds for each condition."""
+    output_feeds: list[UserFeedModel] = []
 
-    firehose_feeds = create_firehose_based_feeds(condition_to_user_map)
+    firehose_feeds: list[UserFeedModel] = create_firehose_based_feeds(condition_to_user_map)  # noqa
     output_feeds.extend(firehose_feeds)
 
-    most_liked_feeds = create_most_liked_feeds(condition_to_user_map)
+    most_liked_feeds: list[UserFeedModel] = create_most_liked_feeds(condition_to_user_map)  # noqa
     output_feeds.extend(most_liked_feeds)
 
     return output_feeds
