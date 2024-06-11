@@ -37,7 +37,7 @@ def create_latest_feeds():
 
     for user in users:
         condition = user["condition"]
-        condition_to_user_map[condition].extend(user)
+        condition_to_user_map[condition].append(user)
 
     feeds = create_feeds_per_condition(condition_to_user_map)
     postprocessed_feeds = postprocess_feeds(feeds)
