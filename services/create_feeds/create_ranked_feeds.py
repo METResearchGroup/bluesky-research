@@ -3,71 +3,68 @@
 Returns the latest feeds per user, rank ordered based on the criteria in their
 study condition.
 """
-from services.create_feeds.condition.engagement import (
-    rank_posts_for_user as engagement_rank_posts_for_user
-)
+from services.create_feeds.condition.engagement import create_engagement_feeds
 from services.create_feeds.condition.representative_diversification import (
-    rank_posts_for_user as representative_diversification_rank_posts_for_user
+    create_representative_diversification_feeds
 )
 from services.create_feeds.condition.reverse_chronological import (
-    rank_posts_for_user as reverse_chronological_rank_posts_for_user,
-    create_generic_reverse_chronological_feed
+    create_reverse_chronological_feeds
 )
-from services.participant_data.helper import (
-    get_user_to_bluesky_profiles_as_list_dicts
+from services.create_feeds.load_data import (
+    load_firehose_based_posts, load_most_liked_based_posts,
+    load_perspective_api_labels
 )
+from services.ml_inference.models import RecordClassificationMetadataModel
 
 
-def get_study_users() -> list[dict]:
-    """Get the users in the study."""
-    return get_user_to_bluesky_profiles_as_list_dicts()
-
-
-def generate_user_feed(user: dict) -> list[dict]:
-    """Given a specific user, generate their ranked user feed."""
-    if user['condition'] == 'engagement':
-        return engagement_rank_posts_for_user(user)
-    elif user['condition'] == 'representative_diversification':
-        return representative_diversification_rank_posts_for_user(user)
-    elif user['condition'] == 'reverse_chronological':
-        return reverse_chronological_rank_posts_for_user(user)
+def create_firehose_based_feeds(
+        condition_to_user_map: dict
+) -> list[RecordClassificationMetadataModel]:
+    """Create feeds that are based off posts from the firehose."""
+    reverse_chronological_users = condition_to_user_map["reverse_chronological"]
+    if len(reverse_chronological_users) > 0:
+        posts = load_firehose_based_posts()  # Classified posts that are from the firehose
+        feeds = create_reverse_chronological_feeds(posts)
+        return feeds
     else:
-        raise ValueError(f"Unknown condition: {user['condition']}")
+        return []
 
 
-def get_reverse_chronological_users(users: list[dict]) -> list[dict]:
-    """Get the users in the reverse-chronological condition."""
-    return [
-        user for user in users if user['condition'] == 'reverse_chronological'
-    ]
+def create_most_liked_feeds(
+        condition_to_user_map: dict
+) -> list[RecordClassificationMetadataModel]:
+    """Create feeds that are based off posts from the most liked feeds."""
+    output_feeds = []
+
+    engagement_users = condition_to_user_map["engagement"]
+    representative_diversification_users = condition_to_user_map["representative_diversification"]
+
+    if len(engagement_users) > 0 or len(representative_diversification_users) > 0:
+        posts = load_most_liked_based_posts()  # classified posts that are from the most liked feed
+        if len(engagement_users) > 0:
+            feeds = create_engagement_feeds(engagement_users, posts)
+            output_feeds.extend(feeds)
+        if len(representative_diversification_users) > 0:
+            labels = load_perspective_api_labels(posts)  # load Perspective API labels
+            feeds = create_representative_diversification_feeds(
+                representative_diversification_users, posts, labels
+            )
+            output_feeds.extend(feeds)
+    else:
+        return []
 
 
-def create_only_reverse_chronological_feeds() -> dict:
-    """Create feeds only for users in the reverse-chronological condition."""
-    users: list[dict] = get_study_users()
-    reverse_chronological_users: list[dict] = get_reverse_chronological_users(
-        users)
-    reverse_chronological_feed: list[dict] = create_generic_reverse_chronological_feed()  # noqa
-    return {
-        user['bluesky_user_did']: reverse_chronological_feed
-        for user in reverse_chronological_users
-    }
+def create_feeds_per_condition(condition_to_user_map: dict):
+    output_feeds = []
 
+    firehose_feeds = create_firehose_based_feeds(condition_to_user_map)
+    output_feeds.extend(firehose_feeds)
 
-def create_ranked_feeds_per_user() -> dict:
-    """Ranks latest candidates per user.
+    most_liked_feeds = create_most_liked_feeds(condition_to_user_map)
+    output_feeds.extend(most_liked_feeds)
 
-    Returns a dict whose keys are user IDs and whose values are
-    the list of posts for their feed.
-
-    These are the posts that, in rank order, are the posts that we would
-    recommend in the feed of that user.
-    """
-    users: list[dict] = get_study_users()
-    return {
-        user['bluesky_user_did']: generate_user_feed(user) for user in users
-    }
+    return output_feeds
 
 
 if __name__ == "__main__":
-    res = create_only_reverse_chronological_feeds()
+    pass

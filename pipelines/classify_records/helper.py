@@ -1,13 +1,12 @@
 """Helper functionalities for classifying records."""
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
-from services.ml_inference.models import (
-    PerspectiveApiLabelsModel, RecordClassificationMetadataModel,
-    SociopoliticalLabelsModel
-)
+from services.ml_inference.models import RecordClassificationMetadataModel
 
 MIN_TEXT_LENGTH = 8
 
 # TODO: probably should be moved to database file?
+
+
 def load_latest_preprocessed_posts(
     latest_classification_timestamp: str
 ) -> list[FilteredPreprocessedPostModel]:
@@ -49,7 +48,7 @@ def get_post_metadata_for_classification(
 
 def validate_posts(
     posts_to_classify: list[RecordClassificationMetadataModel]
-) -> tuple[list[RecordClassificationMetadataModel], list[RecordClassificationMetadataModel]]: # noqa
+) -> tuple[list[RecordClassificationMetadataModel], list[RecordClassificationMetadataModel]]:  # noqa
     """Filter which posts should be sent to the Perspective API or not.
 
     For now, this'll just be a minimum character count. Mostly used as a simple
