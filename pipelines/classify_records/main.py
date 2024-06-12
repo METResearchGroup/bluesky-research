@@ -14,8 +14,8 @@ import sys
 import typer
 
 from lib.log.logger import Logger
-from perspective_api import classify_latest_posts as classify_perspective_posts
-from sociopolitical import classify_latest_posts as classify_sociopolitical_posts
+from .perspective_api import classify_latest_posts as classify_perspective_posts  # noqa
+from .sociopolitical import classify_latest_posts as classify_sociopolitical_posts  # noqa
 
 from enum import Enum
 
@@ -46,6 +46,7 @@ def main(
     except Exception as e:
         logger.error(f"Error in classification pipeline: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     typer.run(main)
