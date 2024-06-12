@@ -1,4 +1,5 @@
 """Helper functions for calculating superposters."""
+import ast
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -36,8 +37,9 @@ def load_posts_from_superposter_date(superposter_date: str) -> list[FilteredPrep
     res = list(query)
     output: list[FilteredPreprocessedPosts] = []
     for post in res:
-        formatted_synctimestamp = post.synctimestamp.strftime("%Y-%m-%d")
-        if formatted_synctimestamp == superposter_date:
+        # synctimestamp is a string, but has to be in YYYY-MM-DD format
+        formatted_date = "-".join(post.synctimestamp.split("-")[:3])
+        if formatted_date == superposter_date:
             output.append(post)
 
     return output
@@ -60,10 +62,10 @@ def get_superposter_users_with_counts(
 ) -> list[dict]:
     """Get superposter users with counts."""
     superposter_users_with_counts_list: list[dict] = []
-    for user_id, number_of_posts in superposter_users_with_counts.items():
+    for user_obj, number_of_posts in superposter_users_with_counts.items():
         if number_of_posts >= superposter_threshold:
             superposter_users_with_counts_list.append(
-                {"user_id": user_id, "number_of_posts": number_of_posts}
+                {"user_obj": user_obj, "number_of_posts": number_of_posts}
             )
     return superposter_users_with_counts_list
 
@@ -74,11 +76,13 @@ def calculate_superposters(
     """Calculate superposters for a given date."""
     posts = load_posts_from_superposter_date(superposter_date)
     user_post_counts: dict = get_counts_of_posts_by_author_id(posts)
-    superposter_users_with_counts = get_superposter_users_with_counts(user_post_counts)  # noqa
+    superposter_users_with_counts: list[dict] = get_superposter_users_with_counts(user_post_counts)  # noqa
     res: list[SuperposterModel] = []
     for superposter_dict in superposter_users_with_counts:
+        user_obj = ast.literal_eval(superposter_dict["user_obj"])
         superposter = SuperposterModel(
-            user_id=superposter_dict["user_id"],
+            user_did=user_obj["did"],
+            user_handle=user_obj["handle"],
             number_of_posts=superposter_dict["number_of_posts"],
             superposter_date=superposter_date,
             insert_timestamp=current_datetime_str,
@@ -87,7 +91,11 @@ def calculate_superposters(
     return res
 
 
-def calculate_latest_superposters():
+def calculate_latest_superposters(
+    superposter_date: Optional[str] = default_superposter_date
+):
     """Calculate superposters for the latest date."""
-    superposters: list[SuperposterModel] = calculate_superposters()
+    superposters: list[SuperposterModel] = calculate_superposters(
+        superposter_date=superposter_date
+    )
     batch_insert_superposters(superposters=superposters)

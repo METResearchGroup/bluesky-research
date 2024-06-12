@@ -5,7 +5,8 @@ from pydantic import BaseModel, Field, validator
 
 
 class SuperposterModel(BaseModel):
-    user_id: str = Field(..., description="The user ID.")
+    user_did: str = Field(..., description="The user DID.")
+    user_handle: str = Field(..., description="The user handle.")
     number_of_posts: int = Field(..., description="The number of posts.")
     superposter_date: str = Field(..., description="The date that the user posted too many posts.")  # noqa
     insert_timestamp: str = Field(..., description="When the superposter was inserted into the database.")  # noqa

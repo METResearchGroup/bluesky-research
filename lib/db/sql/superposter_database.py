@@ -30,8 +30,9 @@ class Superposter(BaseModel):
     In practice, we will pull the superposters from a particular
     `superposter_date`.
     """
-    user_id = peewee.CharField()
-    posts_count = peewee.IntegerField()
+    user_did = peewee.CharField()
+    user_handle = peewee.CharField()
+    number_of_posts = peewee.IntegerField()
     superposter_date = peewee.CharField()  # YYYY-MM-DD
     insert_timestamp = peewee.CharField()
 
@@ -65,3 +66,14 @@ def get_superposters(superposter_date: str) -> list[SuperposterModel]:
     res_dicts = [superposter.__dict__ for superposter in res]
     transformed_res = [SuperposterModel(**superposter) for superposter in res_dicts]  # noqa
     return transformed_res
+
+
+if db.is_closed():
+    db.connect()
+    db.create_tables([Superposter])
+
+
+if __name__ == "__main__":
+    # create_initial_tables(drop_all_tables=True)
+    # print("Superposter database setup complete.")
+    pass

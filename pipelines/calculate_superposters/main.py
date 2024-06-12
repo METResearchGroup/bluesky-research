@@ -1,5 +1,6 @@
 """Pipeline for calculating superposters."""
 import sys
+import traceback
 
 from lib.log.logger import Logger
 from services.calculate_superposters.helper import calculate_latest_superposters  # noqa
@@ -14,6 +15,7 @@ def main():
         logger.info("Completed calculation of superposters.")
     except Exception as e:
         logger.error(f"Error in superposter calculation pipeline: {e}")
+        traceback.print_exc()
         sys.exit(1)
 
 
