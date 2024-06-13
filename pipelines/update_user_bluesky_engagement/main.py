@@ -24,11 +24,11 @@ logger = Logger(__name__)
 
 def main():
     try:
-        logger.info("Starting calculation of superposters.")
+        logger.info("Starting updating latest user engagement metrics.")
         update_latest_user_engagement_metrics()
-        logger.info("Completed calculation of superposters.")
+        logger.info("Completed updating latest user engagement metrics.")
     except Exception as e:
-        logger.error(f"Error in superposter calculation pipeline: {e}")
+        logger.error(f"Error in updating latest user engagement metrics: {e}")
         traceback.print_exc()
         sys.exit(1)
 

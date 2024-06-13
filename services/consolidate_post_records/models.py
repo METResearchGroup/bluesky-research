@@ -5,7 +5,6 @@ import typing_extensions as te
 from pydantic import BaseModel, Field
 
 from lib.db.bluesky_models.transformations import (
-    PostMetadataModel,
     TransformedProfileViewBasicModel,
     TransformedRecordModel
 )
