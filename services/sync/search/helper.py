@@ -12,7 +12,8 @@ def send_request_with_pagination(
     args: Optional[tuple] = (),
     limit: Optional[int] = None,
     update_params_directly: bool = False,
-    silence_logs: bool = False
+    silence_logs: bool = False,
+    recency_callback: Optional[Callable] = None,
 ) -> list:
     """Implement a request with pagination.
 
@@ -63,7 +64,7 @@ def send_request_with_pagination(
 
     while True:
         if not silence_logs:
-            print(f"Fetching {request_limit} results, out of total max of {limit}...") # noqa
+            print(f"Fetching {request_limit} results, out of total max of {limit}...")  # noqa
         if update_params_directly:
             kwargs["params"].update({"cursor": cursor, "limit": request_limit})
         else:
@@ -75,7 +76,16 @@ def send_request_with_pagination(
         assert isinstance(results, list)
         num_fetched = len(results)
         total_fetched += num_fetched
-        total_results.extend(results[:total_to_fetch])
+        if recency_callback:
+            filtered_results = list(
+                filter(lambda x: recency_callback(x), results)
+            )
+            total_results.extend(filtered_results[:total_to_fetch])
+            if len(filtered_results) < len(results):
+                print("Gathered all posts that pass the recency filter. Returning.")  # noqa
+                break
+        else:
+            total_results.extend(results[:total_to_fetch])
         total_to_fetch -= num_fetched
         if not res.cursor:
             break

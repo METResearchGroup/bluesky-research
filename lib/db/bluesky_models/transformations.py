@@ -38,7 +38,7 @@ class TransformedRecordModel(BaseModel):
 
 class PostMetadataModel(BaseModel):
     url: str = Field(..., description="The URL of the post.")
-    source_feed: str = Field(..., description="The source feed of the post.")
+    source_feed: Optional[str] = Field(default=None, description="The source feed of the post.")  # noqa
     synctimestamp: str = Field(..., description="The synctimestamp of the post.")  # noqa
 
     @validator('synctimestamp')

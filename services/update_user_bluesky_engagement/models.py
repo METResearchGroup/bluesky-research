@@ -34,10 +34,9 @@ class UserEngagementMetricsModel(BaseModel):
     user_did: str = Field(..., description="The user DID.")
     user_handle: str = Field(..., description="The user handle.")
     latest_likes: list[str] = Field(..., description="The latest likes.")
-    latest_comments: list[str] = Field(..., description="The latest comments.")
     latest_reshares: list[str] = Field(..., description="The latest reshares.")
     latest_follower_count: int = Field(..., description="The latest follower count.")  # noqa
     latest_following_count: int = Field(..., description="The latest following count.")  # noqa
-    latest_posts_written: list[str] = Field(..., description="The latest posts written.")  # noqa
+    latest_posts_written: list[PostWrittenByStudyUserModel] = Field(..., description="The latest posts written. Includes both comments and posts.")  # noqa
     latest_total_posts_written_count: int = Field(..., description="The latest posts written count.")  # noqa
     update_timestamp: str = Field(..., description="The update timestamp.")
