@@ -1,7 +1,7 @@
 """Helper functions for updating user engagement metrics in our database."""
 from typing import Optional
 
-from atproto_client.models.app.bsky.feed.defs import FeedViewPost
+from atproto_client.models.app.bsky.feed.defs import FeedViewPost, ReasonRepost
 
 from lib.constants import current_datetime_str
 from lib.db.bluesky_models.transformations import (
@@ -11,9 +11,10 @@ from lib.db.sql.participant_data_database import (
     get_user_to_bluesky_profiles
 )
 from lib.db.sql.user_engagement_database import (
-    get_most_recent_post_timestamp
+    batch_insert_engagement_metrics, get_most_recent_post_timestamp
 )
 from lib.helper import client, RateLimitedClient
+from lib.log.logger import Logger
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.sync.search.helper import send_request_with_pagination
 from services.update_user_bluesky_engagement.models import (
@@ -22,8 +23,27 @@ from services.update_user_bluesky_engagement.models import (
 from transform.transform_raw_data import transform_feedview_post
 
 
+logger = Logger(__name__)
+
+
 def get_latest_likes(client: RateLimitedClient) -> list[str]:
     client.app.bsky.feed.get_actor_likes
+
+
+def get_post_type(post: FeedViewPost) -> str:
+    """Get the type of post from a FeedViewPost."""
+    if post.reason:
+        # unsure what other types of "Reason" values there could be
+        # so specifically checking for "ReasonRepost"
+        if isinstance(post.reason, ReasonRepost):
+            return "reshare"
+        else:
+            logger.warning(f"Unknown post reason: {post.reason}")
+            return "post"
+    elif post.post.record.reply:
+        return "comment"
+    else:
+        return "post"
 
 
 def get_latest_posts_written_by_user(author_profile) -> list[PostWrittenByStudyUserModel]:  # noqa
@@ -48,6 +68,7 @@ def get_latest_posts_written_by_user(author_profile) -> list[PostWrittenByStudyU
     transformed_latest_posts: list[PostWrittenByStudyUserModel] = []
     for post in res:
         enrichment_data = {"source_feed": None, "feed_url": None}
+        post_type = get_post_type(post)
         transformed_feedview_post: TransformedFeedViewPostModel = transform_feedview_post(  # noqa
             post=post, enrichment_data=enrichment_data
         )
@@ -68,7 +89,8 @@ def get_latest_posts_written_by_user(author_profile) -> list[PostWrittenByStudyU
             url=f"https://bsky.app/profile/{author_profile.handle}/post/{uri}",
             like_count=post.post.like_count,
             reply_count=post.post.reply_count,
-            repost_count=post.post.repost_count
+            repost_count=post.post.repost_count,
+            post_type=post_type
         )
         transformed_latest_posts.append(transformed_post)
     return transformed_latest_posts
@@ -78,13 +100,13 @@ def get_latest_user_engagement_metrics(
     user: UserToBlueskyProfileModel
 ) -> UserEngagementMetricsModel:
     """Get the latest user engagement metrics for a user."""
+
     author_profile = client.get_profile(user.bluesky_user_did)
     latest_posts: list[PostWrittenByStudyUserModel] = get_latest_posts_written_by_user(author_profile)  # noqa
     res = {
         "user_did": user.bluesky_user_did,
         "user_handle": user.bluesky_handle,
         "latest_likes": [],
-        "latest_reshares": [],
         "latest_follower_count": author_profile.followers_count,
         "latest_following_count": author_profile.follows_count,
         "latest_posts_written": latest_posts,
@@ -104,7 +126,8 @@ def get_latest_engagement_metrics_for_users(
 
 
 def update_latest_user_engagement_metrics():
-    # load users
     users: list[UserToBlueskyProfileModel] = get_user_to_bluesky_profiles()
-    # for each user, calculate their latest engagement metrics
-    get_latest_engagement_metrics_for_users(users=users)
+    latest_engagement_metrics = (
+        get_latest_engagement_metrics_for_users(users=users)
+    )
+    batch_insert_engagement_metrics(latest_engagement_metrics)

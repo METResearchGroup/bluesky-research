@@ -4,6 +4,11 @@ import peewee
 import sqlite3
 from typing import Optional
 
+from lib.helper import create_batches
+from services.update_user_bluesky_engagement.models import (
+    UserEngagementMetricsModel
+)
+
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 SYNC_SQLITE_DB_NAME = "user_engagement.db"
 SYNC_SQLITE_DB_PATH = os.path.join(current_file_directory, SYNC_SQLITE_DB_NAME)
@@ -13,6 +18,8 @@ db_version = 2
 
 conn = sqlite3.connect(SYNC_SQLITE_DB_PATH)
 cursor = conn.cursor()
+
+insert_batch_size = 100
 
 
 class BaseModel(peewee.Model):
@@ -35,6 +42,7 @@ class PostsWrittenByStudyUsers(BaseModel):
     like_count = peewee.IntegerField(null=True)
     reply_count = peewee.IntegerField(null=True)
     repost_count = peewee.IntegerField(null=True)
+    post_type = peewee.CharField()
 
 
 def create_initial_tables(drop_all_tables: bool = False) -> None:
@@ -64,6 +72,20 @@ def get_most_recent_post_timestamp(author_handle: str) -> Optional[str]:
     if result:
         return result[0]
     return None
+
+
+def batch_insert_engagement_metrics(
+    latest_engagement_metrics: list[UserEngagementMetricsModel]
+):
+    with db.atomic():
+        for user_engagement_metrics in latest_engagement_metrics:
+            posts_written = user_engagement_metrics.latest_posts_written
+            batches = create_batches(posts_written, insert_batch_size)
+            for batch in batches:
+                batch_dicts = [post.dict() for post in batch]
+                PostsWrittenByStudyUsers.insert_many(batch_dicts).execute()
+            print(f"Finished inserting {len(posts_written)} posts written by {user_engagement_metrics.user_handle} into the database.")  # noqa
+            # TODO: also insert latest likes as well.
 
 
 if __name__ == "__main__":
