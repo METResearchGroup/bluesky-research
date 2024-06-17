@@ -1,4 +1,5 @@
 """Helper functions for updating user engagement metrics in our database."""
+import json
 from typing import Optional
 
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, ReasonRepost
@@ -8,8 +9,7 @@ from atproto_client.models.com.atproto.repo.list_records import Record as ListRe
 
 from lib.constants import current_datetime_str
 from lib.db.bluesky_models.transformations import (
-    TransformedFeedViewPostModel, TransformedRecordWithAuthorModel,
-    TransformedRecordModel
+    TransformedFeedViewPostModel, TransformedRecordModel
 )
 from lib.db.sql.participant_data_database import (
     get_user_to_bluesky_profiles
@@ -34,7 +34,7 @@ from transform.transform_raw_data import (
 )
 
 
-def get_latest_likes_by_user(author_profile) -> tuple[list[UserLikeModel], list[TransformedRecordWithAuthorModel]]:  # noqa
+def get_latest_likes_by_user(author_profile) -> tuple[list[UserLikeModel], list[UserLikedPostModel]]:  # noqa
     """Get the latest posts liked by a user."""
     collection = "app.bsky.feed.like"
     repo = author_profile.did
@@ -66,6 +66,10 @@ def get_latest_likes_by_user(author_profile) -> tuple[list[UserLikeModel], list[
         like for like in like_records
         if "app.bsky.feed.post" in like.subject.uri
     ]
+    print(f"Processing {len(post_like_records)} new post likes...")
+    if not post_like_records or len(post_like_records) == 0:
+        return ([], [])
+
     # hydrate the liked records and transform. We get the records instead of
     # their feedview versions. There might be some None values based on if the
     # record exists or not (e.g., it might have been deleted)
@@ -95,6 +99,13 @@ def get_latest_likes_by_user(author_profile) -> tuple[list[UserLikeModel], list[
             liked_by_user_handle=author_profile.handle,
             uri=hydrated_like_record.uri,
             cid=hydrated_like_record.cid,
+            # format of like is, e.g., 2024-06-17-18:38:16. We don't need to
+            # transform this to the same format as the post created_at field
+            # (e.g., 2024-06-17T02:30:13.598Z) since the divergence comes
+            # after the YYYY-MM-DD part, and if two posts have the same
+            # YYYY-MM-DD timestamp, then the created_at format (e.g.,
+            # 2024-06-17T02:30:13.598Z) will always be greater than the
+            # like_synctimestamp format (e.g., 2024-06-17-18:38:16).
             like_synctimestamp=current_datetime_str
         )
         liked_post_model = UserLikedPostModel(
@@ -105,7 +116,11 @@ def get_latest_likes_by_user(author_profile) -> tuple[list[UserLikeModel], list[
             synctimestamp=current_datetime_str,
             created_at=transformed_liked_record.created_at,
             text=transformed_liked_record.text,
-            embed=transformed_liked_record.embed,
+            embed=(
+                json.dumps(transformed_liked_record.embed.dict())
+                if transformed_liked_record.embed
+                else None
+            ),
             entities=transformed_liked_record.entities,
             facets=transformed_liked_record.facets,
             labels=transformed_liked_record.labels,
@@ -162,6 +177,9 @@ def get_latest_posts_written_by_user(author_profile) -> list[PostWrittenByStudyU
         response_key="feed",
         recency_callback=recency_callback,
     )
+    print(f"Processing {len(res)} new posts...")
+    if not res or len(res) == 0:
+        return []
     transformed_latest_posts: list[PostWrittenByStudyUserModel] = []
     for post in res:
         enrichment_data = {"source_feed": None, "feed_url": None}
@@ -214,18 +232,14 @@ def get_latest_user_engagement_metrics(
     return UserEngagementMetricsModel(**res)
 
 
-def get_latest_engagement_metrics_for_users(
-    users: list[UserToBlueskyProfileModel]
-) -> list[UserEngagementMetricsModel]:
-    return [
-        get_latest_user_engagement_metrics(user=user)
-        for user in users
-    ]
-
-
 def update_latest_user_engagement_metrics():
     users: list[UserToBlueskyProfileModel] = get_user_to_bluesky_profiles()
-    latest_engagement_metrics = (
-        get_latest_engagement_metrics_for_users(users=users)
-    )
-    batch_insert_engagement_metrics(latest_engagement_metrics)
+    for user in users:
+        print('-' * 20)
+        print(f"Updating engagement metrics for user {user.bluesky_handle}")
+        latest_engagement_metrics = (
+            get_latest_user_engagement_metrics(user=user)
+        )
+        batch_insert_engagement_metrics([latest_engagement_metrics])
+        print(f"Successfully updated engagement metrics for user {user.bluesky_handle}")  # noqa
+        print('-' * 20)

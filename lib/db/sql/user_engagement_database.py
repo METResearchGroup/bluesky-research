@@ -85,9 +85,11 @@ def create_initial_tables(drop_all_tables: bool = False) -> None:
     with db.atomic():
         if drop_all_tables:
             print("Dropping all tables in database...")
-            db.drop_tables([PostsWrittenByStudyUsers], safe=True)
+            db.drop_tables(
+                [PostsWrittenByStudyUsers, UserLike, UserLikedPost], safe=True
+            )
         print("Creating tables in database...")
-        db.create_tables([PostsWrittenByStudyUsers])
+        db.create_tables([PostsWrittenByStudyUsers, UserLike, UserLikedPost])
 
 
 def get_most_recent_post_timestamp(author_handle: str) -> Optional[str]:
@@ -111,7 +113,7 @@ def get_most_recent_like_timestamp(author_handle: str) -> Optional[str]:
     query = f"""
     SELECT created_at
     FROM UserLike
-    WHERE author_handle = '{author_handle}'
+    WHERE liked_by_user_handle = '{author_handle}'
     ORDER BY created_at DESC
     LIMIT 1;
     """
@@ -182,4 +184,10 @@ def batch_insert_engagement_metrics(
 
 
 if __name__ == "__main__":
-    create_initial_tables(drop_all_tables=True)
+    # create_initial_tables(drop_all_tables=True)
+    total_posts_written = PostsWrittenByStudyUsers.select().count()
+    total_likes = UserLike.select().count()
+    total_liked_posts = UserLikedPost.select().count()
+    print(f"Total posts written: {total_posts_written}")
+    print(f"Total likes: {total_likes}")
+    print(f"Total liked posts: {total_liked_posts}")

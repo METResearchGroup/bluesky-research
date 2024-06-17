@@ -117,6 +117,9 @@ def get_post_record_given_post_uri(post_uri: str) -> Optional[GetRecordResponse]
         if "Could not locate record" in e.response.content.message:
             print(f"Record not found: {post_uri}")
             return None
+        if "Could not find repo" in e.response.content.message:
+            print(f"Repo not found: {post_uri}")
+            return None
         else:
             raise ValueError(f"Unknown error getting post record: {e}")
 
