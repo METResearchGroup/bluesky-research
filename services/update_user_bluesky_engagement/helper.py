@@ -89,7 +89,10 @@ def get_latest_likes_by_user(author_profile) -> tuple[list[UserLikeModel], list[
             continue
         liked_record = hydrated_like_record.value
         uri = hydrated_like_record.uri
-        liked_record_url: str = get_post_link_given_post_uri(uri)
+        liked_record_url: Optional[str] = get_post_link_given_post_uri(uri)
+        if not liked_record_url:
+            print(f"Could not get post URL for post URI: {uri}")
+            continue
         transformed_liked_record = transform_post_record(liked_record)
         like_model = UserLikeModel(
             created_at=like.created_at,

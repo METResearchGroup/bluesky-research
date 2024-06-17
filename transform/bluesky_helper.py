@@ -117,18 +117,33 @@ def get_post_record_given_post_uri(post_uri: str) -> Optional[GetRecordResponse]
         if "Could not locate record" in e.response.content.message:
             print(f"Record not found: {post_uri}")
             return None
-        if "Could not find repo" in e.response.content.message:
+        elif "Could not find repo" in e.response.content.message:
             print(f"Repo not found: {post_uri}")
+            return None
+        elif "server error" in e.response.content.message:
+            print(f"Server error: {post_uri}")
+            return None
+        elif "Account is deactivated" in e.response.content.message:
+            print(f"Account is deactivated: {post_uri}")
             return None
         else:
             raise ValueError(f"Unknown error getting post record: {e}")
 
 
-def get_post_link_given_post_uri(post_uri: str) -> str:
+def get_post_link_given_post_uri(post_uri: str) -> Optional[str]:
     """Given a post URI, get the post link."""
     post_id = post_uri.split("/")[-1]
     author_did = post_uri.split("/")[-3]
-    post_author_profile = client.get_profile(author_did)
+    try:
+        post_author_profile = client.get_profile(author_did)
+    except Exception as e:
+        print(f"Error getting post author profile: {e}")
+        if "Account is deactivated" in e.response.content.message:
+            print(f"Account is deactivated: {post_uri}")
+            return None
+        else:
+            raise ValueError(f"Unknown error getting post record: {e}")
+    
     post_author_handle = post_author_profile.handle
     return f"https://bsky.app/profile/{post_author_handle}/post/{post_id}"
 

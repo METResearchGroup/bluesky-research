@@ -183,11 +183,34 @@ def batch_insert_engagement_metrics(
         print(f"Finished inserting engagement metrics for {len(latest_engagement_metrics)} users.")  # noqa
 
 
-if __name__ == "__main__":
-    # create_initial_tables(drop_all_tables=True)
+def print_aggregate_metrics():
     total_posts_written = PostsWrittenByStudyUsers.select().count()
     total_likes = UserLike.select().count()
     total_liked_posts = UserLikedPost.select().count()
     print(f"Total posts written: {total_posts_written}")
     print(f"Total likes: {total_likes}")
     print(f"Total liked posts: {total_liked_posts}")
+
+
+def print_metrics_per_user():
+    """Return metrics per user."""
+    # join author_handle from PostsWrittenByStudyUsers and liked_by_user_handle from UserLike
+    # and get the count of posts written and likes given by each user
+    total_metrics_per_user = PostsWrittenByStudyUsers.select(
+        PostsWrittenByStudyUsers.author_handle,
+        peewee.fn.COUNT(PostsWrittenByStudyUsers.author_handle).alias("post_count"),
+        peewee.fn.COUNT(UserLike.liked_by_user_handle).alias("like_count")
+    ).join(
+        UserLike,
+        on=(PostsWrittenByStudyUsers.author_handle == UserLike.liked_by_user_handle)
+    ).group_by(PostsWrittenByStudyUsers.author_handle)
+    print("Metrics per user:")
+    print('-' * 10)
+    for metric in total_metrics_per_user:
+        print(f"{metric.author_handle} -> Post count: {metric.post_count}, Like count: {metric.like_count}") # noqa
+    print('-' * 10)
+
+if __name__ == "__main__":
+    # create_initial_tables(drop_all_tables=True)
+    print_aggregate_metrics()
+    print_metrics_per_user()
