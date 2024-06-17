@@ -95,7 +95,7 @@ def convert_post_link_to_post(
     return flattened_firehose_post
 
 
-def get_post_record_given_post_uri(post_uri: str) -> GetRecordResponse:
+def get_post_record_given_post_uri(post_uri: str) -> Optional[GetRecordResponse]:  # noqa
     """Given a post URI, get the post record.
 
     Example:
@@ -107,10 +107,27 @@ def get_post_record_given_post_uri(post_uri: str) -> GetRecordResponse:
     split_uri = post_uri.split("/")
     post_rkey = split_uri[-1]
     profile_identify = split_uri[-3]
-    response = client.get_post(
-        post_rkey=post_rkey, profile_identify=profile_identify
-    )
-    return response
+    try:
+        response = client.get_post(
+            post_rkey=post_rkey, profile_identify=profile_identify
+        )
+        return response
+    except Exception as e:
+        print(f"Error getting post record: {e}")
+        if "Could not locate record" in e.response.content.message:
+            print(f"Record not found: {post_uri}")
+            return None
+        else:
+            raise ValueError(f"Unknown error getting post record: {e}")
+
+
+def get_post_link_given_post_uri(post_uri: str) -> str:
+    """Given a post URI, get the post link."""
+    post_id = post_uri.split("/")[-1]
+    author_did = post_uri.split("/")[-3]
+    post_author_profile = client.get_profile(author_did)
+    post_author_handle = post_author_profile.handle
+    return f"https://bsky.app/profile/{post_author_handle}/post/{post_id}"
 
 
 def get_record_with_author_given_post_uri(post_uri: str) -> TransformedRecordWithAuthorModel:  # noqa

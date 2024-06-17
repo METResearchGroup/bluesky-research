@@ -1,9 +1,57 @@
 """Pydantic models for tracking user engagement activity."""
+from typing import Optional
 import typing_extensions as te
 
 from pydantic import BaseModel, Field
 
-from lib.db.bluesky_models.transformations import TransformedRecordModel
+from lib.db.bluesky_models.transformations import (
+    TransformedRecordModel, TransformedRecordWithAuthorModel
+)
+
+
+class UserLikeModel(BaseModel):
+    """Model for an instance of a user liking a post.
+
+    Doesn't hydrate the actual post that is liked, just the reference to the
+    post. We will hydrate and save the post separately. We do this so that we
+    can model the instance of a specific user liking a specific post. Multiple
+    users can like the same post, and so we want to track these instances
+    separately.
+
+    Based on # https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/feed/like.py#L17
+    """  # noqa
+    created_at: str = Field(..., description="The timestamp of when the like was created (when the user liked the post).")  # noqa
+    author_did: str = Field(..., description="The DID of the author of the post.")  # noqa
+    author_handle: str = Field(..., description="The handle of the author of the post.")  # noqa
+    liked_by_user_did: str = Field(..., description="The DID of the user who liked the post.")  # noqa
+    liked_by_user_handle: str = Field(..., description="The handle of the user who liked the post.")  # noqa
+    uri: str = Field(..., description="The URI of the post that was liked.")
+    cid: str = Field(..., description="The CID of the post that was liked.")
+    like_synctimestamp: str = Field(..., description="The synctimestamp of the like.")  # noqa
+
+
+class UserLikedPostModel(BaseModel):
+    """Model for a post that was liked by a user.
+
+    This is a hydrated version of the post that was liked. This is useful for
+    tracking the actual post that was liked, and for querying the post's
+    metadata. A single post can be liked by multiple users.
+    """
+    uri = Field(..., description="The URI of the post.")
+    cid = Field(..., description="The CID of the post.")
+    url = Field(..., description="The URL of the post.")
+    source_feed = Field(..., description="The source feed of the post.")
+    synctimestamp = Field(..., description="The synctimestamp of the post.")
+    created_at = Field(..., description="The timestamp of when the post was created on Bluesky.")  # noqa
+    text = Field(..., description="The text of the post.")
+    embed: Optional[str] = Field(default=None, description="The embeds in the post, if any.")
+    entities: Optional[str] = Field(default=None, description="The entities of the post, if any. Separated by a separator.")  # noqa
+    facets: Optional[str] = Field(default=None, description="The facets of the post, if any. Separated by a separator.")  # noqa
+    labels: Optional[str] = Field(default=None, description="The labels of the post, if any. Separated by a separator.")  # noqa
+    langs: Optional[str] = Field(default=None, description="The languages of the post, if specified.")  # noqa
+    reply_parent: Optional[str] = Field(default=None, description="The parent post that the post is responding to in the thread, if any.")  # noqa
+    reply_root: Optional[str] = Field(default=None, description="The root post of the thread, if any.")  # noqa
+    tags: Optional[str] = Field(default=None, description="The tags of the post, if any.")  # noqa
 
 
 class PostWrittenByStudyUserModel(BaseModel):
@@ -43,7 +91,8 @@ class PostWrittenByStudyUserModel(BaseModel):
 class UserEngagementMetricsModel(BaseModel):
     user_did: str = Field(..., description="The user DID.")
     user_handle: str = Field(..., description="The user handle.")
-    latest_likes: list[str] = Field(..., description="The latest likes.")
+    latest_likes: list[UserLikeModel] = Field(..., description="The latest likes.")  # noqa
+    latest_liked_posts: list[TransformedRecordWithAuthorModel] = Field(..., description="The latest liked posts")  # noqa
     latest_follower_count: int = Field(..., description="The latest follower count.")  # noqa
     latest_following_count: int = Field(..., description="The latest following count.")  # noqa
     latest_posts_written: list[PostWrittenByStudyUserModel] = Field(..., description="The latest posts written. Includes both comments and posts.")  # noqa

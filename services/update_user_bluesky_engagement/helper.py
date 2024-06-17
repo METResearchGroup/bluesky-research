@@ -2,32 +2,129 @@
 from typing import Optional
 
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, ReasonRepost
+from atproto_client.models.app.bsky.feed.like import Record as LikeRecord  # noqa
+from atproto_client.models.app.bsky.feed.post import GetRecordResponse
+from atproto_client.models.com.atproto.repo.list_records import Record as ListRecord  # noqa
 
 from lib.constants import current_datetime_str
 from lib.db.bluesky_models.transformations import (
-    TransformedFeedViewPostModel, TransformedRecordModel
+    TransformedFeedViewPostModel, TransformedRecordWithAuthorModel,
+    TransformedRecordModel
 )
 from lib.db.sql.participant_data_database import (
     get_user_to_bluesky_profiles
 )
 from lib.db.sql.user_engagement_database import (
-    batch_insert_engagement_metrics, get_most_recent_post_timestamp
+    batch_insert_engagement_metrics,
+    get_most_recent_like_timestamp,
+    get_most_recent_post_timestamp
 )
-from lib.helper import client, RateLimitedClient
-from lib.log.logger import Logger
+from lib.helper import client
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.sync.search.helper import send_request_with_pagination
 from services.update_user_bluesky_engagement.models import (
-    PostWrittenByStudyUserModel, UserEngagementMetricsModel
+    UserLikeModel, UserLikedPostModel, PostWrittenByStudyUserModel,
+    UserEngagementMetricsModel
 )
-from transform.transform_raw_data import transform_feedview_post
+from transform.bluesky_helper import (
+    get_post_link_given_post_uri, get_post_record_given_post_uri
+)
+from transform.transform_raw_data import (
+    transform_feedview_post, transform_post_record
+)
 
 
-logger = Logger(__name__)
+def get_latest_likes_by_user(author_profile) -> tuple[list[UserLikeModel], list[TransformedRecordWithAuthorModel]]:  # noqa
+    """Get the latest posts liked by a user."""
+    collection = "app.bsky.feed.like"
+    repo = author_profile.did
+    params = {"collection": collection, "repo": repo}
+    most_recent_liked_timestamp: Optional[str] = get_most_recent_like_timestamp(author_profile.handle)  # noqa
+    if most_recent_liked_timestamp:
+        recency_callback = (
+            lambda like: like.value.created_at
+            > most_recent_liked_timestamp
+        )
+    else:
+        recency_callback = None
 
+    # unhydrated likes. Returned in descending order of likes, so the
+    # timestamp check will work as intended.
+    res: list[ListRecord] = send_request_with_pagination(
+        func=client.com.atproto.repo.list_records,
+        kwargs={"params": params},
+        update_params_directly=True,
+        response_key="records",
+        recency_callback=recency_callback,
+    )
+    # https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/app/bsky/feed/like.py#L17 # noqa
+    like_records: list[LikeRecord] = [record.value for record in res]
 
-def get_latest_likes(client: RateLimitedClient) -> list[str]:
-    client.app.bsky.feed.get_actor_likes
+    # get only likes related to posts (not feeds). We can also like feeds, and
+    # these are saved as well, but we don't want to include those.
+    post_like_records: list[LikeRecord] = [
+        like for like in like_records
+        if "app.bsky.feed.post" in like.subject.uri
+    ]
+    # hydrate the liked records and transform. We get the records instead of
+    # their feedview versions. There might be some None values based on if the
+    # record exists or not (e.g., it might have been deleted)
+    liked_record_responses: list[Optional[GetRecordResponse]] = [
+        get_post_record_given_post_uri(like.subject.uri)
+        for like in post_like_records
+    ]
+
+    likes: list[UserLikeModel] = []
+    liked_posts: list[UserLikedPostModel] = []  # noqa
+
+    for like, hydrated_like_record in zip(
+        post_like_records, liked_record_responses
+    ):
+        if hydrated_like_record is None:
+            # these posts are deleted, so we skip.
+            continue
+        liked_record = hydrated_like_record.value
+        uri = hydrated_like_record.uri
+        liked_record_url: str = get_post_link_given_post_uri(uri)
+        transformed_liked_record = transform_post_record(liked_record)
+        like_model = UserLikeModel(
+            created_at=like.created_at,
+            author_did="/".join(uri.split("/")[:3]),
+            author_handle=liked_record_url.split("/")[-3],
+            liked_by_user_did=author_profile.did,
+            liked_by_user_handle=author_profile.handle,
+            uri=hydrated_like_record.uri,
+            cid=hydrated_like_record.cid,
+            like_synctimestamp=current_datetime_str
+        )
+        liked_post_model = UserLikedPostModel(
+            uri=hydrated_like_record.uri,
+            cid=hydrated_like_record.cid,
+            url=liked_record_url,
+            source_feed="user_liked_posts",
+            synctimestamp=current_datetime_str,
+            created_at=transformed_liked_record.created_at,
+            text=transformed_liked_record.text,
+            embed=transformed_liked_record.embed,
+            entities=transformed_liked_record.entities,
+            facets=transformed_liked_record.facets,
+            labels=transformed_liked_record.labels,
+            langs=transformed_liked_record.langs,
+            reply_parent=transformed_liked_record.reply_parent,
+            reply_root=transformed_liked_record.reply_root,
+            tags=transformed_liked_record.tags
+        )
+        liked_posts.append(liked_post_model)
+        likes.append(like_model)
+
+    if len(likes) != len(liked_posts):
+        raise ValueError(f"The number of likes {len(likes)} does not match the number of transformed records {len(liked_posts)}")  # noqa
+    # return both the like and the actual record itself. We want to record
+    # both the user liking the post as well as the post that was liked itself,
+    # and then store these two separately (for example, two users can each like
+    # the same post, and so we want to have two separate "like" instances for
+    # that single post).
+    return (likes, liked_posts)
 
 
 def get_post_type(post: FeedViewPost) -> str:
@@ -38,7 +135,7 @@ def get_post_type(post: FeedViewPost) -> str:
         if isinstance(post.reason, ReasonRepost):
             return "reshare"
         else:
-            logger.warning(f"Unknown post reason: {post.reason}")
+            print(f"Unknown post reason: {post.reason}")
             return "post"
     elif post.post.record.reply:
         return "comment"
@@ -100,13 +197,14 @@ def get_latest_user_engagement_metrics(
     user: UserToBlueskyProfileModel
 ) -> UserEngagementMetricsModel:
     """Get the latest user engagement metrics for a user."""
-
     author_profile = client.get_profile(user.bluesky_user_did)
+    latest_likes, latest_liked_posts = get_latest_likes_by_user(author_profile)
     latest_posts: list[PostWrittenByStudyUserModel] = get_latest_posts_written_by_user(author_profile)  # noqa
     res = {
         "user_did": user.bluesky_user_did,
         "user_handle": user.bluesky_handle,
-        "latest_likes": [],
+        "latest_likes": latest_likes,
+        "latest_liked_posts": latest_liked_posts,
         "latest_follower_count": author_profile.followers_count,
         "latest_following_count": author_profile.follows_count,
         "latest_posts_written": latest_posts,
