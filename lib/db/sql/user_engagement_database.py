@@ -132,6 +132,12 @@ def batch_insert_likes(likes: list[UserLikeModel]):
     print(f"Finished inserting {len(likes)} likes into the database.")
 
 
+def get_previously_written_post_uris() -> set[str]:
+    """Get previously written post URIs."""
+    previous_uris = PostsWrittenByStudyUsers.select(PostsWrittenByStudyUsers.uri) # noqa
+    return set([p.uri for p in previous_uris])
+
+
 def get_previously_liked_post_uris() -> set[str]:
     """Get previously liked post URIs."""
     previous_uris = UserLikedPost.select(UserLikedPost.uri)
@@ -155,15 +161,24 @@ def batch_insert_liked_posts(liked_posts: list[UserLikedPostModel]):  # noqa
     for batch in batches:
         batch_dicts = [post.dict() for post in batch]
         UserLikedPost.insert_many(batch_dicts).execute()
-    print(f"Finished inserting {len(liked_posts)} liked posts into the database.")  # noqa
+    print(f"Finished inserting {len(unique_posts)} liked posts into the database.")  # noqa
 
 
 def batch_insert_posts_written(posts_written: list[PostWrittenByStudyUserModel]):  # noqa
-    batches = create_batches(posts_written, insert_batch_size)
+    """Batch insert posts written into the database."""
+    existing_post_uris: set[str] = get_previously_written_post_uris()
+    seen_uris = set()
+    seen_uris.update(existing_post_uris)
+    unique_posts = []
+    for post in posts_written:
+        if post.uri not in seen_uris:
+            seen_uris.add(post.uri)
+            unique_posts.append(post)
+    batches = create_batches(unique_posts, insert_batch_size)
     for batch in batches:
         batch_dicts = [post.dict() for post in batch]
         PostsWrittenByStudyUsers.insert_many(batch_dicts).execute()
-    print(f"Finished inserting {len(posts_written)} posts written into the database.")  # noqa
+    print(f"Finished inserting {len(unique_posts)} posts written into the database.")  # noqa
 
 
 def batch_insert_engagement_metrics(
