@@ -1,12 +1,13 @@
 """Pydantic models for the superposters."""
 import re
+from typing import Optional
 
 from pydantic import BaseModel, Field, validator
 
 
 class SuperposterModel(BaseModel):
     user_did: str = Field(..., description="The user DID.")
-    user_handle: str = Field(..., description="The user handle.")
+    user_handle: Optional[str] = Field(default=None, description="The user handle.") # noqa
     number_of_posts: int = Field(..., description="The number of posts.")
     superposter_date: str = Field(..., description="The date that the user posted too many posts.")  # noqa
     insert_timestamp: str = Field(..., description="When the superposter was inserted into the database.")  # noqa
