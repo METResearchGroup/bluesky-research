@@ -57,6 +57,7 @@ def create_most_liked_feeds(
                 users=representative_diversification_users, posts=posts
             )
             output_feeds.extend(feeds)
+        return output_feeds
     else:
         print("No users in engagement or representative condition condition.")
         return []

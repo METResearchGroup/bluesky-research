@@ -29,7 +29,10 @@ class BaseModel(peewee.Model):
 class CreatedFeeds(BaseModel):
     """Table of all feeds generated per user."""
     id = peewee.AutoField()
+    study_user_id = peewee.CharField()
     bluesky_user_did = peewee.CharField()
+    bluesky_user_handle = peewee.CharField()
+    condition = peewee.CharField()
     # comma-separated URIs. Could be long. Each URI is ~70 chars. If we have
     # 100 URIs, that's 7000 chars plus 99 commas, or 7,099 chars.
     feed_uris = peewee.TextField()
@@ -87,6 +90,7 @@ def get_num_created_feeds() -> int:
 
 
 if __name__ == "__main__":
+    # create_initial_created_feeds_table()
     num_created_feeds = get_num_created_feeds()
     print(f"Total number of created feeds: {num_created_feeds}")
     latest_timestamp = CreatedFeeds.select().order_by(

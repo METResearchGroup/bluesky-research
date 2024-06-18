@@ -53,8 +53,11 @@ def convert_feeds_to_bluesky_format(feeds: list[UserFeedModel]) -> list[CreatedF
     """  # noqa
     res: list[CreatedFeedModel] = [
         CreatedFeedModel(
+            study_user_id=feed.user.study_user_id,
             bluesky_user_did=feed.user.bluesky_user_did,
-            feed_uris=[post.uri for post in feed.feed],
+            bluesky_user_handle=feed.user.bluesky_handle,
+            condition=feed.user.condition,
+            feed_uris=','.join([post.uri for post in feed.feed]),
             timestamp=current_datetime.strftime("%Y-%m-%d-%H:%M:%S")
         )
         for feed in feeds
