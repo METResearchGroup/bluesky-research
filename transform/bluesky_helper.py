@@ -143,7 +143,7 @@ def get_post_link_given_post_uri(post_uri: str) -> Optional[str]:
             return None
         else:
             raise ValueError(f"Unknown error getting post record: {e}")
-    
+
     post_author_handle = post_author_profile.handle
     return f"https://bsky.app/profile/{post_author_handle}/post/{post_id}"
 
@@ -308,8 +308,14 @@ def get_list_info_given_list_url(list_url: str) -> dict:
     """Given the URL of a list, get both the metadata for a list as well as
     the users on the list."""
     list_uri: str = generate_list_uri_given_list_url(list_url)
-    res: GetListResponse = client.app.bsky.graph.get_list(
-        params={"list": list_uri})
+    try:
+        res: GetListResponse = client.app.bsky.graph.get_list(
+            params={"list": list_uri}
+        )
+    except Exception as e:
+        if "List not found" in e.response.content.message:
+            print(f"List not found: {list_url}")
+            return {}
     list_metadata: dict = {
         "cid": res.list.cid,
         "name": res.list.name,
@@ -325,7 +331,11 @@ def get_list_info_given_list_url(list_url: str) -> dict:
 def get_list_and_user_data_from_list_links(list_urls: list[str]) -> dict:
     """Given a list of list URLs, return a list of dictionaries with the list
     metadata and the users on the list."""
-    list_data_list = [get_list_info_given_list_url(url) for url in list_urls]
+    list_data_list = []
+    for url in list_urls:
+        res = get_list_info_given_list_url(url)
+        if res:
+            list_data_list.append(res)
     lists_list = []
     users_list = []
     for list_data in list_data_list:

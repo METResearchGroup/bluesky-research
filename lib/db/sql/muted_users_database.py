@@ -73,5 +73,7 @@ def get_muted_users_as_list_dicts() -> list[dict]:
 
 
 if __name__ == "__main__":
-    create_initial_tables()
-    print("Tables created.")
+    # create_initial_tables()
+    # print("Tables created.")
+    total_muted_users = len(get_muted_users())
+    print(f"Total muted users: {total_muted_users}")
