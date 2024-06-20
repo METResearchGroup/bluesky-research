@@ -82,7 +82,7 @@ def get_users_in_condition(condition: str) -> list[UserToBlueskyProfileModel]:
     )
     res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
     transformed_res = [
-        UserToBlueskyProfileModel(res_dict) for res_dict in res_dicts
+        UserToBlueskyProfileModel(**res_dict) for res_dict in res_dicts
     ]
     return transformed_res
 
