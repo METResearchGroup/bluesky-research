@@ -36,7 +36,9 @@ def get_follows_for_user(
         follow.did: ConnectionModel(
             connection_did=follow.did,
             connection_handle=follow.handle,
-            connection_display_name=follow.display_name,
+            connection_display_name=(
+                follow.display_name if follow.display_name else ""
+            ),
             connection_type="follow",
             synctimestamp=current_datetime_str,
         )
@@ -65,7 +67,9 @@ def get_followers_for_user(
         follower.did: ConnectionModel(
             connection_did=follower.did,
             connection_handle=follower.handle,
-            connection_display_name=follower.display_name,
+            connection_display_name=(
+                follower.display_name if follower.display_name else ""
+            ),
             connection_type="follower",
             synctimestamp=current_datetime_str,
         )
@@ -192,6 +196,15 @@ def update_latest_network_counts(
     latest_follows_count = latest_user_network_counts_map["follows"]
     latest_followers_count = latest_user_network_counts_map["followers"]
 
+    user_social_network_counts_model = UserSocialNetworkCountsModel(
+        study_user_id=user.study_user_id,
+        user_did=user.bluesky_user_did,
+        user_handle=user.bluesky_handle,
+        user_followers_count=latest_followers_count,
+        user_following_count=latest_follows_count,
+        synctimestamp=current_datetime_str,
+    )
+
     if user.bluesky_user_did not in existing_network_counts_map:
         print(f"User {user.bluesky_user_did} not found in existing network counts. Adding...")  # noqa
         follows_difference = latest_follows_count
@@ -204,8 +217,9 @@ def update_latest_network_counts(
             previous_follows_count == latest_follows_count
             and previous_followers_count == latest_followers_count
         ):
-            print(f"User {user.bluesky_user_did} has the same follow/follower counts. No need to reprocess...")  # noqa
+            print(f"User {user.bluesky_handle} has the same follow/follower counts. No need to reprocess...")  # noqa
             return {
+                "user_social_network_counts": user_social_network_counts_model,
                 "follows_difference": 0,
                 "followers_difference": 0,
             }
@@ -217,15 +231,6 @@ def update_latest_network_counts(
             # zeros and we skip computation.
             follows_difference = latest_follows_count - previous_follows_count
             followers_difference = latest_followers_count - previous_followers_count  # noqa
-
-    user_social_network_counts_model = UserSocialNetworkCountsModel(
-        study_user_id=user.study_user_id,
-        user_did=user.bluesky_user_did,
-        user_handle=user.bluesky_handle,
-        user_followers_count=latest_followers_count,
-        user_following_count=latest_follows_count,
-        synctimestamp=current_datetime_str,
-    )
 
     return {
         "user_social_network_counts": user_social_network_counts_model,
@@ -303,7 +308,6 @@ def update_network_connections_for_user(
     else:
         consolidated_existing_connections = []
 
-    breakpoint()
     total_follows_followers_for_user: list[UserToConnectionModel] = consolidate_follows_followers_for_user(  # noqa
         user=user,
         follow_to_model_dict=follow_to_model_dict,
