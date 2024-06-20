@@ -5,7 +5,7 @@ import sqlite3
 
 from lib.helper import create_batches
 from services.update_network_connections.models import (
-    ConnectionModel, UserSocialNetworkCountsModel, UserToConnectionModel
+    UserSocialNetworkCountsModel, UserToConnectionModel
 )
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
@@ -92,6 +92,15 @@ def get_user_connections(user_did: str, connection_dids_list: list[str]) -> list
         UserToConnectionModel(**res_dict) for res_dict in res_dicts
     ]
     return transformed_res
+
+
+def get_all_followed_connections() -> list[UserToConnectionModel]:
+    """Get all connections that are followed by a user in the study."""
+    res = list(UserToConnection.select().where(UserToConnection.user_follows_connection == True))  # noqa
+    res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
+    transformed_res = [
+        UserToConnectionModel(**res_dict) for res_dict in res_dicts
+    ]
 
 
 def insert_user_network_counts(user_network_counts: UserSocialNetworkCountsModel):

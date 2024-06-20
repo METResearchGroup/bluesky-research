@@ -1,5 +1,4 @@
 """Pydantic models for the filtered posts."""
-
 from pydantic import BaseModel, Field
 from typing import Optional
 
