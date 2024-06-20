@@ -95,12 +95,29 @@ def get_user_connections(user_did: str, connection_dids_list: list[str]) -> list
 
 
 def get_all_followed_connections() -> list[UserToConnectionModel]:
-    """Get all connections that are followed by a user in the study."""
+    """Get all connections that are followed by a user in the study.
+
+    We need to dedupe on did and handle since we have a unique row on the
+    combination of study user + account, so if multiple users follow the same
+    account, we only want to count that account once.
+    """
     res = list(UserToConnection.select().where(UserToConnection.user_follows_connection == True))  # noqa
     res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
     transformed_res = [
         UserToConnectionModel(**res_dict) for res_dict in res_dicts
     ]
+    deduped_res: list[UserToConnectionModel] = []
+    seen_connection_did = set()
+    seen_connection_handle = set()
+    for res in transformed_res:
+        if (
+            res.connection_did not in seen_connection_did
+            and res.connection_handle not in seen_connection_handle
+        ):
+            deduped_res.append(res)
+            seen_connection_did.add(res.connection_did)
+            seen_connection_handle.add(res.connection_handle)
+    return deduped_res
 
 
 def insert_user_network_counts(user_network_counts: UserSocialNetworkCountsModel):
