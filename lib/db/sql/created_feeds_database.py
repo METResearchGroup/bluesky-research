@@ -83,6 +83,24 @@ def get_created_feeds() -> list[dict]:
         return CreatedFeeds.select().dicts()
 
 
+def load_latest_created_feeds_per_user() -> list[CreatedFeedModel]:
+    """For each unique study_user_id, load the latest created feed."""
+    with db.atomic():
+        query = CreatedFeeds.select(
+            CreatedFeeds.study_user_id,
+            CreatedFeeds.bluesky_user_did,
+            CreatedFeeds.bluesky_user_handle,
+            CreatedFeeds.condition,
+            CreatedFeeds.feed_uris,
+            CreatedFeeds.timestamp
+        ).distinct(
+            CreatedFeeds.study_user_id
+        ).order_by(
+            CreatedFeeds.timestamp.desc()
+        )
+        return [CreatedFeedModel(**feed) for feed in query.dicts()]
+
+
 def get_num_created_feeds() -> int:
     """Get the number of created feeds."""
     with db.atomic():
