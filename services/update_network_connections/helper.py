@@ -5,7 +5,7 @@ from atproto_client.models.app.bsky.actor.defs import ProfileView, ProfileViewDe
 from lib.constants import current_datetime_str
 from lib.db.sql.network_connections_database import (
     batch_insert_network_connections, get_connection_dids_for_user,
-    get_user_network_counts, insert_user_network_counts
+    get_user_connections, get_user_network_counts, insert_user_network_counts
 )
 from lib.db.sql.participant_data_database import get_user_to_bluesky_profiles
 from lib.helper import client
@@ -29,7 +29,7 @@ def get_follows_for_user(
         func=client.app.bsky.graph.get_follows,
         kwargs={"params": params},
         update_params_directly=True,
-        response_key="records",
+        response_key="follows",
         limit=limit,
     )
     follow_to_model_dict = {
@@ -58,7 +58,7 @@ def get_followers_for_user(
         func=client.app.bsky.graph.get_followers,
         kwargs={"params": params},
         update_params_directly=True,
-        response_key="records",
+        response_key="followers",
         limit=limit,
     )
     follower_to_model_dict: list[ConnectionModel] = {
@@ -77,8 +77,7 @@ def get_followers_for_user(
 def consolidate_follows_followers_for_user(
     user: UserToBlueskyProfileModel,
     follow_to_model_dict: dict[str, ConnectionModel],
-    follower_to_model_dict: dict[str, ConnectionModel],
-    existing_connections_dids: set[str]
+    follower_to_model_dict: dict[str, ConnectionModel]
 ) -> list[UserToConnectionModel]:
     """Consolidate the lists of follows and followers into a single model
     to encompass them both.
@@ -92,12 +91,7 @@ def consolidate_follows_followers_for_user(
     else:
         mutual_dids = set()
 
-    for did in existing_connections_dids:
-        # for connections that already exist in the database, we need to
-        # make those connections bidirectional.
-        mutual_dids.add(did)
-
-    user_to_connection_map = dict[str, UserToConnectionModel] = {}
+    user_to_connection_map: dict[str, UserToConnectionModel] = {}
 
     # process only if there are new follows
     if follow_to_model_dict:
@@ -147,11 +141,6 @@ def consolidate_follows_followers_for_user(
     return user_connections
 
 
-# TODO: check, because we're assuming that the existing connections are
-# unidirectional, but we should also account for bidirectional connections.
-# TODO: we need to make sure that we're not overriding past connections.
-# TODO: we should probably probably have a dictionary that maps user_did to
-# the set of connection_dids for each direction (follows/followers/both).
 def check_for_existing_network_connections(
     user: UserToBlueskyProfileModel, possible_new_connection_dids: set[str]
 ) -> set[str]:
@@ -197,7 +186,7 @@ def update_latest_network_counts(
 
     Returns a dictionary with the difference in counts for follows/followers.
     """
-    previous_user_network_counts_map = existing_network_counts_map.get(user.bluesky_user_did, {})
+    previous_user_network_counts_map = existing_network_counts_map.get(user.bluesky_user_did, {})  # noqa
     latest_user_network_counts_map = get_current_network_counts(user=user)
 
     latest_follows_count = latest_user_network_counts_map["follows"]
@@ -237,12 +226,43 @@ def update_latest_network_counts(
         user_following_count=latest_follows_count,
         synctimestamp=current_datetime_str,
     )
-    insert_user_network_counts(user_social_network_counts_model)
 
     return {
+        "user_social_network_counts": user_social_network_counts_model,
         "follows_difference": follows_difference,
         "followers_difference": followers_difference,
     }
+
+
+def update_existing_connections_for_user(
+    user: UserToBlueskyProfileModel,
+    existing_connection_dids: set[str],
+    follow_to_model_dict: dict[str, ConnectionModel],
+    follower_to_model_dict: dict[str, ConnectionModel]
+) -> list[UserToConnectionModel]:
+    """Updates the existing connections for a user.
+
+    Accounts for the case where we might already have a user in the database
+    (e.g., someone already follows the account) that needs a connection update
+    (e.g., now the user follows them back).
+
+    Loads the existing connections for a user that overlap with the new follows
+    and followers. Updates the status of these connections given the new
+    follows and followers.
+    """
+    res: list[UserToConnectionModel] = []
+    existing_user_connections: list[UserToConnectionModel] = get_user_connections(  # noqa
+        user_did=user.bluesky_user_did,
+        connection_dids_list=existing_connection_dids
+    )
+    for (did, connection) in zip(existing_connection_dids, existing_user_connections):  # noqa
+        user_follows_connection = did in follow_to_model_dict
+        connection_follows_user = did in follower_to_model_dict
+        connection.user_follows_connection = user_follows_connection
+        connection.connection_follows_user = connection_follows_user
+        connection.synctimestamp = current_datetime_str
+        res.append(connection)
+    return res
 
 
 def update_network_connections_for_user(
@@ -262,8 +282,8 @@ def update_network_connections_for_user(
         follower_to_model_dict = {}
 
     if not follow_to_model_dict and not follower_to_model_dict:
-        print(f"No new follows/followers for user {user.bluesky_user_did}. Skipping...")  # noqa
-        return
+        print(f"No new follows/followers for user {user.bluesky_handle}. Skipping...")  # noqa
+        return []
 
     existing_connection_dids = check_for_existing_network_connections(
         user=user,
@@ -272,14 +292,29 @@ def update_network_connections_for_user(
         )
     )
 
+    if existing_connection_dids:
+        print(f"Found {len(existing_connection_dids)} existing connections for user {user.bluesky_handle} that need to be updated.")  # noqa
+        print("Updating the status of these connections given the new follows/followers data.")  # noqa
+        consolidated_existing_connections: list[UserToConnectionModel] = []
+        # remove the consolidated connections from downstream processing
+        for connection in consolidated_existing_connections:
+            follow_to_model_dict.pop(connection.connection_did, None)
+            follower_to_model_dict.pop(connection.connection_did, None)
+    else:
+        consolidated_existing_connections = []
+
+    breakpoint()
     total_follows_followers_for_user: list[UserToConnectionModel] = consolidate_follows_followers_for_user(  # noqa
         user=user,
         follow_to_model_dict=follow_to_model_dict,
-        follower_to_model_dict=follower_to_model_dict,
-        existing_connections_dids=existing_connection_dids
+        follower_to_model_dict=follower_to_model_dict
     )
 
-    return total_follows_followers_for_user
+    res: list[UserToConnectionModel] = (
+        consolidated_existing_connections + total_follows_followers_for_user
+    )
+
+    return res
 
 
 def update_network_connections():
@@ -288,16 +323,20 @@ def update_network_connections():
     users: list[UserToBlueskyProfileModel] = get_user_to_bluesky_profiles()
     existing_network_counts_map: dict[str, dict[str, int]] = get_existing_network_counts()  # noqa
     for user in users:
-        print(f"--> Updating network connections for user: {user.user_id} ...")
-        network_count_diffs = update_latest_network_counts(
+        print(f"--> Updating network connections for user: {user.bluesky_handle} ...")  # noqa
+        network_counts = update_latest_network_counts(
             user=user, existing_network_counts_map=existing_network_counts_map
         )
-        total_new_follows = network_count_diffs["follows_difference"]
-        total_new_followers = network_count_diffs["followers_difference"]
+        user_social_network_counts = network_counts["user_social_network_counts"]  # noqa
+        total_new_follows = network_counts["follows_difference"]
+        total_new_followers = network_counts["followers_difference"]
         if total_new_follows <= 0 and total_new_followers <= 0:
             # no need to update network connections if the follow/follower
-            # counts haven't changed.
-            print(f"Skipping user {user.bluesky_user_did} since follow and follower counts are the same.")  # noqa
+            # counts haven't changed. This check also requires that we
+            # update the user counts after we insert the new connections,
+            # otherwise this check will fail since we'll have updated the user
+            # counts but not the connections.
+            print(f"Skipping user {user.bluesky_handle} since follow and follower counts are the same.")  # noqa
             continue
         updated_network_connections: list[UserToConnectionModel] = (
             update_network_connections_for_user(
@@ -306,5 +345,9 @@ def update_network_connections():
                 total_new_followers=total_new_followers
             )
         )
+        if not updated_network_connections:
+            print(f"No new connections for user {user.bluesky_handle}. Skipping...")
+            continue
         batch_insert_network_connections(updated_network_connections)
-        print(f"--> Done updating network connections for user: {user.user_id}")  # noqa
+        insert_user_network_counts(user_social_network_counts)
+        print(f"--> Done updating network connections for user: {user.bluesky_handle}")  # noqa

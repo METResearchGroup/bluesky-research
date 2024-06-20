@@ -72,6 +72,28 @@ def get_connection_dids_for_user(user_did: str) -> set[str]:
     return connection_dids
 
 
+def get_user_connections(user_did: str, connection_dids_list: list[str]) -> list[UserToConnectionModel]:  # noqa
+    """
+    Retrieves a list of user connections filtered by a specific user ID and a list of connection IDs.
+
+    Args:
+        user_did (str): The user ID to filter connections by.
+        connection_dids_list (list[str]): A list of connection IDs to include in the results.
+
+    Returns:
+        list[UserToConnectionModel]: A list of UserToConnectionModel instances representing the filtered user connections.
+    """  # noqa
+    res = list(UserToConnection.select().where(
+        (UserToConnection.user_did == user_did) &
+        (UserToConnection.connection_did << connection_dids_list)
+    ))
+    res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
+    transformed_res = [
+        UserToConnectionModel(**res_dict) for res_dict in res_dicts
+    ]
+    return transformed_res
+
+
 def insert_user_network_counts(user_network_counts: UserSocialNetworkCountsModel):
     UserSocialNetworkCounts.insert(**user_network_counts.dict()).on_conflict_replace().execute()  # noqa
     print(f"Inserted user network counts for user {user_network_counts.study_user_id}.")  # noqa
@@ -93,3 +115,14 @@ def get_user_network_counts() -> list[UserSocialNetworkCountsModel]:
         UserSocialNetworkCountsModel(**res_dict) for res_dict in res_dicts
     ]
     return transformed_res
+
+
+if __name__ == "__main__":
+    create_initial_tables()
+    # get total network counts per user handle and then print
+    user_network_counts = get_user_network_counts()
+    for user_network_count in user_network_counts:
+        user_handle = user_network_count.user_handle
+        user_followers_count = user_network_count.user_followers_count
+        user_following_count = user_network_count.user_following_count
+        print(f"User handle: {user_handle}, followers: {user_followers_count}, following: {user_following_count}")  # noqa
