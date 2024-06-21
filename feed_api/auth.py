@@ -28,6 +28,7 @@ security = HTTPBearer()
 def get_requester_did(credentials: HTTPAuthorizationCredentials = Security(security)) -> str:  # noqa
     """FastAPI dependency to validate authorization header and extract DID."""
     auth_header = credentials.credentials
+    print(f"Auth header: {auth_header}")
     if not auth_header.startswith(_AUTHORIZATION_HEADER_VALUE_PREFIX):
         raise HTTPException(status_code=401, detail="Invalid authorization header")  # noqa
 
