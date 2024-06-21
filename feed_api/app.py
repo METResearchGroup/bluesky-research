@@ -1,6 +1,16 @@
-from typing import Union
+"""Base app for the feed API.
 
-from fastapi import FastAPI
+Based on specs in the following docs:
+- https://github.com/bluesky-social/feed-generator/blob/main/src/lexicon/types/app/bsky/feed/getFeedSkeleton.ts#L4
+- https://github.com/bluesky-social/feed-generator
+"""
+from typing import Optional, Annotated
+
+from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi.responses import JSONResponse
+
+from .auth import get_requester_did, validate_did
+from .helper import get_latest_feed
 
 app = FastAPI()
 
@@ -10,11 +20,16 @@ def read_root():
     return {"Hello": "World"}
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+@app.get("/xrpc/app.bsky.feed.getFeedSkeleton")
+async def get_feed_skeleton(
+    cursor: Annotated[Optional[str], Query(None)] = None,
+    limit: Annotated[int, Query(20, ge=1, le=100)] = 20,
+    requester_did: str = Depends(get_requester_did),
+    valid_did: str = Depends(validate_did)
+):
+    try:
+        body = get_latest_feed(requester_did, limit, cursor)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Malformed cursor")
 
-
-@app.get("/user/{bluesky_user_handle}/feed")
-def get_latest_feed_for_user(bluesky_user_handle: str):
-    return {"bluesky_user_handle": bluesky_user_handle, "feed": []}
+    return JSONResponse(content=body)
