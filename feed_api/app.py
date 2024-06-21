@@ -9,21 +9,21 @@ from typing import Optional, Annotated
 from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.responses import JSONResponse
 
-from .auth import get_requester_did, validate_did
-from .helper import get_latest_feed
+from feed_api.auth import get_requester_did, validate_did
+from feed_api.helper import get_latest_feed
 
 app = FastAPI()
 
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+@app.get('/')
+async def root():
+    return {"message": "Hello, World!"}
 
 
 @app.get("/xrpc/app.bsky.feed.getFeedSkeleton")
 async def get_feed_skeleton(
-    cursor: Annotated[Optional[str], Query(None)] = None,
-    limit: Annotated[int, Query(20, ge=1, le=100)] = 20,
+    cursor: Annotated[Optional[str], Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
     requester_did: str = Depends(get_requester_did),
     valid_did: str = Depends(validate_did)
 ):

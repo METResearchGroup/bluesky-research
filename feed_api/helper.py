@@ -2,14 +2,30 @@
 from datetime import datetime
 from typing import Optional
 
+from lib.db.sql.participant_data_database import get_user_to_bluesky_profiles
 from services.create_feeds.models import CreatedFeedModel
+from services.participant_data.models import UserToBlueskyProfileModel
+
 
 CURSOR_EOF = 'eof'
 
 
 # TODO: should be loaded from DB.
-def get_latest_feed_for_user() -> CreatedFeedModel:
-    pass
+def get_latest_feed_for_user(requester_did: str) -> CreatedFeedModel:
+    return CreatedFeedModel(
+        study_user_id='1234',
+        bluesky_user_did='did:example:1234',
+        bluesky_user_handle='example',
+        condition='reverse_chronological',
+        feed_uris=[
+            'https://example.com/post/1',
+            'https://example.com/post/2',
+            'https://example.com/post/3',
+            'https://example.com/post/4',
+            'https://example.com/post/5',
+        ],
+        timestamp='1632960000'
+    )
 
 
 # TODO: we'll have to account for pagination, so the output of the feed
@@ -62,9 +78,10 @@ def get_latest_feed(
     }
 
 
-# TODO: should be loaded from DB.
 def get_valid_dids() -> set[str]:
     """Get the set of valid DIDs. These DIDs refer to the DIDs of the users in
     the study.
     """
-    return {"did:example:1234", "did:example:5678"}
+    users: list[UserToBlueskyProfileModel] = get_user_to_bluesky_profiles()
+    valid_dids = {user.bluesky_user_did for user in users}
+    return valid_dids

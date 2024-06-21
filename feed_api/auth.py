@@ -7,7 +7,7 @@ from atproto.exceptions import TokenInvalidSignatureError
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from .helper import get_valid_dids
+from feed_api.helper import get_valid_dids
 
 _CACHE = DidInMemoryCache()
 _ID_RESOLVER = IdResolver(cache=_CACHE)
