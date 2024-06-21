@@ -3,29 +3,12 @@ from datetime import datetime
 from typing import Optional
 
 from lib.db.sql.participant_data_database import get_user_to_bluesky_profiles
+from lib.db.sql.created_feeds_database import load_latest_created_feed_for_user
 from services.create_feeds.models import CreatedFeedModel
 from services.participant_data.models import UserToBlueskyProfileModel
 
 
 CURSOR_EOF = 'eof'
-
-
-# TODO: should be loaded from DB.
-def get_latest_feed_for_user(requester_did: str) -> CreatedFeedModel:
-    return CreatedFeedModel(
-        study_user_id='1234',
-        bluesky_user_did='did:example:1234',
-        bluesky_user_handle='example',
-        condition='reverse_chronological',
-        feed_uris=[
-            'https://example.com/post/1',
-            'https://example.com/post/2',
-            'https://example.com/post/3',
-            'https://example.com/post/4',
-            'https://example.com/post/5',
-        ],
-        timestamp='1632960000'
-    )
 
 
 # TODO: we'll have to account for pagination, so the output of the feed
@@ -59,7 +42,9 @@ def get_latest_feed(
         start_position = 0
 
     # maybe cursor should be feed timestamp + position on the feed.
-    feed: CreatedFeedModel = get_latest_feed_for_user()
+    feed: CreatedFeedModel = load_latest_created_feed_for_user(
+        bluesky_user_did=requester_did
+    )
     feed = [
         {'post': uri}
         for uri in feed.feed_uris[start_position:start_position + limit]

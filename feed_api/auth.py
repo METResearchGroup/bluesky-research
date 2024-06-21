@@ -53,6 +53,9 @@ def validate_did(requester_did: str) -> str:
     Raises:
         HTTPException: If the DID is not valid.
     """
+    print(f"Valid DIDs: {valid_dids}")
+    print(f"Requester DID: {requester_did}")
+    print(f"Requester DID in valid DIDs: {requester_did in valid_dids}")
     if requester_did not in valid_dids:
         raise HTTPException(status_code=403, detail="Invalid DID")
     return requester_did

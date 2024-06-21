@@ -101,6 +101,17 @@ def load_latest_created_feeds_per_user() -> list[CreatedFeedModel]:
         return [CreatedFeedModel(**feed) for feed in query.dicts()]
 
 
+def load_latest_created_feed_for_user(bluesky_user_did: str) -> CreatedFeedModel:  # noqa
+    """Load the latest created feed for a user."""
+    with db.atomic():
+        query = CreatedFeeds.select().where(
+            CreatedFeeds.bluesky_user_did == bluesky_user_did
+        ).order_by(
+            CreatedFeeds.timestamp.desc()
+        ).first()
+        return CreatedFeedModel(**query.__dict__["__data__"])
+
+
 def get_num_created_feeds() -> int:
     """Get the number of created feeds."""
     with db.atomic():
