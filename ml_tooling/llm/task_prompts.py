@@ -47,11 +47,9 @@ If the text is not sociopolitical, return "unclear". Base your response on US po
 
 Think through your response step by step.
 
-Return your response with the following fields:
+Return your response as JSON with the following fields:
 - "is_sociopolitical": <boolean, two values, True or False. Required.>,
 - "political_ideology_label": <string, four values, 'left', 'right', 'unclear', None. If the post is not sociopolitical, return None>,
-- "reason_sociopolitical": <string, a 1 sentence reason for why the text is sociopolitical or not.>,
-- "reason_political_ideology": <Optional[str], a 1 sentence reason for why the text has the given political ideology or is unclear. If the post is not sociopolitical, return None>
 
 All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
 """  # noqa
@@ -153,6 +151,51 @@ Return in a JSON format in the following way:
 }
 
 All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
+"""  # noqa
+
+yaml_formatting_explanation_prompt = """
+You will receive an enumerated list of texts to classify, under <TEXTS>
+
+Return a YAML with the following format. The format must be returned as valid YAML. Do not return any backticks or triple quotes or ```yaml``` code blocks.
+Just return the raw string in YAML format without any additional formatting or markdown.
+I will be loading the YAML as a string in Python, so the answer must be a string that can be processed by `yaml.safe_load`.
+
+For example, for a list of 10 texts, the format must be in this format. 
+```
+results:
+    - result_1:
+        - is_sociopolitical: <is_sociopolitical for post 1>
+        - political_ideology_label: <political_ideology_label for post 1>
+        - reason_sociopolitical: <reason_sociopolitical for post 1>
+        - reason_political_ideology: <reason_political_ideology for post 1>
+    - result_2:
+        - is_sociopolitical: <is_sociopolitical for post 2>
+        - political_ideology_label: <political_ideology_label for post 2>
+        - reason_sociopolitical: <reason_sociopolitical for post 2>
+        - reason_political_ideology: <reason_political_ideology for post 2>
+    ...
+    - result_10:
+        - is_sociopolitical: <is_sociopolitical for post 10>
+        - political_ideology_label: <political_ideology_label for post 10>
+        - reason_sociopolitical: <reason_sociopolitical for post 10>
+        - reason_political_ideology: <reason_political_ideology for post 10>
+count: 10
+```
+
+<TEXTS>
+{texts}
+"""
+
+
+single_text_explanation_prompt = """
+
+You will receive a single text to classify, under <TEXT>
+
+Return a JSON with the following format. The format must be returned as valid JSON. Do not return any backticks or triple quotes or ```json``` code blocks.
+Just return the raw string in JSON format without any additional formatting or markdown.
+I will be loading the JSON as a string in Python, so the answer must be a string that can be processed by `json.loads`.
+
+<TEXT>
 """  # noqa
 
 

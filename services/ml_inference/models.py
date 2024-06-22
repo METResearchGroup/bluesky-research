@@ -1,6 +1,6 @@
 """Pydantic models for storing Perspective API labels."""
-from pydantic import BaseModel, Field, validator
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Literal, Optional
 import typing_extensions as te
 
 
@@ -20,7 +20,7 @@ class RecordClassificationMetadataModel(BaseModel):
     source: te.Literal["firehose", "most_liked"] = Field(..., description="The source feed of the post. Either 'firehose' or 'most_liked'")  # noqa
     url: Optional[str] = Field(
         default=None,
-        description="The URL of the post. Available only if the post is from feed view. Firehose posts won't have this hydrated." # noqa
+        description="The URL of the post. Available only if the post is from feed view. Firehose posts won't have this hydrated."  # noqa
     )
     like_count: Optional[int] = Field(
         default=None, description="The like count of the post."
@@ -41,9 +41,11 @@ class PerspectiveApiLabelsModel(BaseModel):
     """
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
-    was_successfully_labeled: bool = Field(..., description="Indicates if the post was successfully labeled by the Perspective API.")
+    was_successfully_labeled: bool = Field(...,
+                                           description="Indicates if the post was successfully labeled by the Perspective API.")
     reason: Optional[str] = Field(default=None, description="Reason for why the post was not labeled successfully.")
-    label_timestamp: str = Field(..., description="Timestamp when the post was labeled (or, if labeling failed, when it was attempted).")
+    label_timestamp: str = Field(...,
+                                 description="Timestamp when the post was labeled (or, if labeling failed, when it was attempted).")
     prob_toxic: Optional[float] = Field(default=None, description="Probability of toxicity.")
     prob_severe_toxic: Optional[float] = Field(default=None, description="Probability of severe toxicity.")
     prob_identity_attack: Optional[float] = Field(default=None, description="Probability of identity attack.")
@@ -69,40 +71,10 @@ class PerspectiveApiLabelsModel(BaseModel):
 
 
 class LLMSociopoliticalLabelModel(BaseModel):
-    """The LLM output for a single post."""
-    is_sociopolitical: bool = Field(..., description="The sociopolitical label of the post.") # noqa
-    political_ideology_label: Optional[str] = Field(default=None, description="If the post is sociopolitical, the political ideology label of the post. If it is not sociopolitical, value should be None.") # noqa
-    reason_sociopolitical: Optional[str] = Field(default=None, description="Reason from the LLM for its sociopolitical label. If it is not sociopolitical, value should be None.") # noqa
-    reason_political_ideology: Optional[str] = Field(default=None, description="Reason from the LLM for its political ideology label. If it is not sociopolitical, value should be None.") # noqa
-
-    @validator("political_ideology_label", "reason_political_ideology")
-    def validate_political_ideology_label(cls, v, values):
-        """Checks to see if we do have a sociopolitical post, that we then
-        have a political ideology label and reason. If we don't have a
-        sociopolitical post, then we shouldn't have a political ideology.
-        """
-        if values["is_sociopolitical"] and not v:
-            raise ValueError("If the post is sociopolitical, the political ideology label and reason must be provided.") # noqa
-        if not values["is_sociopolitical"] and v:
-            raise ValueError("If the post is not sociopolitical, the political ideology label and reason must not be provided.") # noqa
-        return v
-
-
-class LLMSociopoliticalOutputModel(BaseModel):
-    """Verifies the output of the LLM for sociopolitical classification."""
-    results: list[LLMSociopoliticalLabelModel] = Field(..., description="The results of the LLM for sociopolitical classification.") # noqa
-    count: int = Field(..., description="The number of posts classified. Must match the expected number of posts.") # noqa
-
-    @validator("results")
-    def validate_results(cls, v, values):
-        """Ensure that the number of results matches the count field in the
-        model."""
-        if len(v) != values["count"]:
-            llm_actual_results = len(v)
-            llm_stated_results = values["count"]
-            raise ValueError(
-                f"The number of results ({llm_actual_results}) must match the count field ({llm_stated_results})." # noqa
-            )
+    is_sociopolitical: bool = Field(..., description="Whether the text is sociopolitical")  # Noqa
+    political_ideology_label: Optional[
+        Literal["left", "right", "moderate", "unclear", None]
+    ] = Field(..., description="If the field is sociopolitical, its stance.")
 
 
 class SociopoliticalLabelsModel(BaseModel):
@@ -110,23 +82,9 @@ class SociopoliticalLabelsModel(BaseModel):
     the LLM."""
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
-    llm_model_name: Optional[str] = Field(default=None, description="Name of LLM model used for inference.") # noqa
-    was_successfully_labeled: bool = Field(..., description="Indicates if the post was successfully labeled by the Perspective API.") # noqa
-    reason: Optional[str] = Field(default=None, description="Reason for why the post was not labeled successfully.") # noqa
-    label_timestamp: str = Field(..., description="Timestamp when the post was labeled (or, if labeling failed, when it was attempted).") # noqa
-    is_sociopolitical: Optional[bool] = Field(default=None, description="The sociopolitical label of the post.") # noqa
-    political_ideology_label: Optional[str] = Field(default=None, description="If the post is sociopolitical, the political ideology label of the post.") # noqa
-    reason_sociopolitical: Optional[str] = Field(default=None, description="Reason from the LLM for its sociopolitical label.") # noqa
-    reason_political_ideology: Optional[str] = Field(default=None, description="Reason from the LLM for its political ideology label.") # noqa
-
-    @validator("political_ideology_label", "reason_political_ideology")
-    def validate_political_ideology_label(cls, v, values):
-        """Checks to see if we do have a sociopolitical post, that we then
-        have a political ideology label and reason. If we don't have a
-        sociopolitical post, then we shouldn't have a political ideology.
-        """
-        if values["is_sociopolitical"] and not v:
-            raise ValueError("If the post is sociopolitical, the political ideology label and reason must be provided.") # noqa
-        if not values["is_sociopolitical"] and v:
-            raise ValueError("If the post is not sociopolitical, the political ideology label and reason must not be provided.") # noqa
-        return v
+    llm_model_name: Optional[str] = Field(default=None, description="Name of LLM model used for inference.")  # noqa
+    was_successfully_labeled: bool = Field(..., description="Indicates if the post was successfully labeled by the Perspective API.")  # noqa
+    reason: Optional[str] = Field(default=None, description="Reason for why the post was not labeled successfully.")  # noqa
+    label_timestamp: str = Field(..., description="Timestamp when the post was labeled (or, if labeling failed, when it was attempted).")  # noqa
+    is_sociopolitical: Optional[bool] = Field(default=None, description="The sociopolitical label of the post.")  # noqa
+    political_ideology_label: Optional[str] = Field(default=None, description="If the post is sociopolitical, the political ideology label of the post.")  # noqa

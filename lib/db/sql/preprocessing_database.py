@@ -111,7 +111,7 @@ def batch_create_filtered_posts(
     places but is here for redundancy.
     """
     total_posts = FilteredPreprocessedPosts.select().count()
-    logger.info(f"Total number of posts before inserting into preprocessed posts database: {total_posts}") # noqa
+    logger.info(f"Total number of posts before inserting into preprocessed posts database: {total_posts}")  # noqa
     unique_posts: list[FilteredPreprocessedPostModel] = dedupe_posts(posts)
 
     with db.atomic():
@@ -122,13 +122,14 @@ def batch_create_filtered_posts(
                 posts_to_insert_dicts
             ).execute()
     total_posts = FilteredPreprocessedPosts.select().count()
-    logger.info(f"Total number of posts after inserting into preprocessed posts database: {total_posts}") # noqa
+    logger.info(f"Total number of posts after inserting into preprocessed posts database: {total_posts}")  # noqa
 
 
 def get_filtered_posts(
     k: Optional[int] = None,
     latest_preprocessing_timestamp: Optional[str] = None,
-    export_format: Optional[Literal["model", "dict"]]="model"
+    export_format: Optional[Literal["model", "dict"]] = "model",
+    feed_source: Optional[Literal["firehose", "most_liked"]] = None
 ) -> list[Union[FilteredPreprocessedPostModel, dict]]:
     """Get filtered posts from the database."""
     query = FilteredPreprocessedPosts.select().where(
@@ -169,6 +170,11 @@ def get_filtered_posts(
         )
         for res_dict in res_dicts
     ]
+    if feed_source:
+        transformed_res = [
+            post for post in transformed_res
+            if post.metadata.source == feed_source
+        ]
     if export_format == "dict":
         # doing the conversion here since doing it upstream leads to JSON
         # processing errors due to the metadata and other fields being JSON
@@ -219,6 +225,7 @@ def load_latest_preprocessed_post_timestamp() -> Optional[str]:
         except peewee.DoesNotExist:
             latest_synctimestamp = None
     return latest_synctimestamp
+
 
 if __name__ == "__main__":
     # create_initial_filtered_posts_table()
