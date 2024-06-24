@@ -153,39 +153,6 @@ Return in a JSON format in the following way:
 All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
 """  # noqa
 
-yaml_formatting_explanation_prompt = """
-You will receive an enumerated list of texts to classify, under <TEXTS>
-
-Return a YAML with the following format. The format must be returned as valid YAML. Do not return any backticks or triple quotes or ```yaml``` code blocks.
-Just return the raw string in YAML format without any additional formatting or markdown.
-I will be loading the YAML as a string in Python, so the answer must be a string that can be processed by `yaml.safe_load`.
-
-For example, for a list of 10 texts, the format must be in this format. 
-```
-results:
-    - result_1:
-        - is_sociopolitical: <is_sociopolitical for post 1>
-        - political_ideology_label: <political_ideology_label for post 1>
-        - reason_sociopolitical: <reason_sociopolitical for post 1>
-        - reason_political_ideology: <reason_political_ideology for post 1>
-    - result_2:
-        - is_sociopolitical: <is_sociopolitical for post 2>
-        - political_ideology_label: <political_ideology_label for post 2>
-        - reason_sociopolitical: <reason_sociopolitical for post 2>
-        - reason_political_ideology: <reason_political_ideology for post 2>
-    ...
-    - result_10:
-        - is_sociopolitical: <is_sociopolitical for post 10>
-        - political_ideology_label: <political_ideology_label for post 10>
-        - reason_sociopolitical: <reason_sociopolitical for post 10>
-        - reason_political_ideology: <reason_political_ideology for post 10>
-count: 10
-```
-
-<TEXTS>
-{texts}
-"""
-
 
 single_text_explanation_prompt = """
 

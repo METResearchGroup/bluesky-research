@@ -20,6 +20,12 @@ async def root():
     return {"message": "Hello, World!"}
 
 
+@app.get("/test-get-s3")
+async def fetch_test_file_from_s3():
+    # TODO: fetch a file from S3.
+    return {"message": "Not implemented yet."}
+
+
 @app.get("/xrpc/app.bsky.feed.getFeedSkeleton")
 async def get_feed_skeleton(
     cursor: Annotated[Optional[str], Query()] = None,
