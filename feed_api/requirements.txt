@@ -11,16 +11,25 @@ anyio==4.4.0
     #   httpx
     #   starlette
     #   watchfiles
+atproto==0.0.48
+    # via -r requirements.in
 certifi==2024.6.2
     # via
     #   httpcore
     #   httpx
+cffi==1.16.0
+    # via cryptography
 click==8.1.7
     # via
+    #   atproto
     #   typer
     #   uvicorn
+cryptography==42.0.8
+    # via atproto
 dnspython==2.6.1
-    # via email-validator
+    # via
+    #   atproto
+    #   email-validator
 email-validator==2.2.0
     # via fastapi
 exceptiongroup==1.2.1
@@ -37,8 +46,10 @@ httpcore==1.0.5
     # via httpx
 httptools==0.6.1
     # via uvicorn
-httpx==0.27.0
-    # via fastapi
+httpx==0.26.0
+    # via
+    #   atproto
+    #   fastapi
 idna==3.7
     # via
     #   anyio
@@ -46,6 +57,8 @@ idna==3.7
     #   httpx
 jinja2==3.1.4
     # via fastapi
+libipld==1.2.3
+    # via atproto
 markdown-it-py==3.0.0
     # via rich
 markupsafe==2.1.5
@@ -54,8 +67,12 @@ mdurl==0.1.2
     # via markdown-it-py
 orjson==3.10.5
     # via fastapi
+pycparser==2.22
+    # via cffi
 pydantic==2.7.4
-    # via fastapi
+    # via
+    #   atproto
+    #   fastapi
 pydantic-core==2.18.4
     # via pydantic
 pygments==2.18.0
@@ -81,6 +98,7 @@ typer==0.12.3
 typing-extensions==4.12.2
     # via
     #   anyio
+    #   atproto
     #   fastapi
     #   pydantic
     #   pydantic-core
@@ -97,4 +115,6 @@ uvloop==0.19.0
 watchfiles==0.22.0
     # via uvicorn
 websockets==12.0
-    # via uvicorn
+    # via
+    #   atproto
+    #   uvicorn

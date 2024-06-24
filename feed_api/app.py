@@ -6,11 +6,8 @@ Based on specs in the following docs:
 """
 from typing import Optional, Annotated
 
-from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
-
-from feed_api.auth import get_requester_did, validate_did
-from feed_api.helper import get_latest_feed
 
 app = FastAPI()
 
@@ -30,12 +27,8 @@ async def fetch_test_file_from_s3():
 async def get_feed_skeleton(
     cursor: Annotated[Optional[str], Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
-    requester_did: str = Depends(get_requester_did),
-    valid_did: str = Depends(validate_did)
 ):
     try:
-        body = get_latest_feed(requester_did, limit, cursor)
+        return JSONResponse(content={"message": "Not implemented yet."})
     except ValueError:
         raise HTTPException(status_code=400, detail="Malformed cursor")
-
-    return JSONResponse(content=body)
