@@ -165,3 +165,9 @@ cython_debug/
 
 # make sure that no DBs are committed.
 *.db
+
+# terraform stuff
+.terraform
+*.hcl
+*.tfstate
+*.tfstate.backup
