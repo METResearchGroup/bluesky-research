@@ -1,17 +1,20 @@
 """Model for classifying posts using LLMs."""
 import asyncio
 from datetime import datetime, timezone
+import json
 from typing import Optional
 
 from langchain.chains import LLMChain
+from langchain.output_parsers import RetryOutputParser
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_community.chat_models import ChatLiteLLM
 from langchain_core.prompts import PromptTemplate
+from pydantic import ValidationError
 
-
+from lib.constants import current_datetime_str
 from lib.db.sql.ml_inference_database import batch_insert_sociopolitical_labels
 from lib.helper import create_batches, track_performance
-from ml_tooling.llm.inference import BACKEND_OPTIONS, async_run_query
+from ml_tooling.llm.inference import BACKEND_OPTIONS
 from ml_tooling.llm.task_prompts import (
     single_text_explanation_prompt, task_name_to_task_prompt_map
 )
@@ -27,6 +30,8 @@ LLM_MODEL_NAME = BACKEND_OPTIONS["Gemini"]["model"]  # "gemini/gemini-pro"
 
 model = ChatLiteLLM(model="gemini/gemini-1.0-pro-latest")
 parser = JsonOutputParser(pydantic_object=LLMSociopoliticalLabelModel)
+
+retry_parser = RetryOutputParser.from_llm(parser=parser, llm=model)
 
 
 def run_chain(
@@ -45,14 +50,16 @@ def run_chain(
         input_variables=["text"],
         partial_variables={"format_instructions": parser.get_format_instructions()},  # noqa
     )
-    chain = LLMChain(
-        prompt=langchain_prompt,
-        llm=model,
-        output_parser=parser
-    )
-    result: dict = chain.invoke({"text": post.text})
-    # TODO: update chaining to add retries where necessary
-    # see, for example, https://python.langchain.com/v0.1/docs/modules/model_io/output_parsers/types/retry/
+    chain = LLMChain(prompt=langchain_prompt, llm=model, output_parser=parser)
+    try:
+        result: dict = chain.invoke({"text": post.text})
+    except (ValidationError, json.JSONDecodeError) as e:
+        # Langchain will try to validate the response and in the case where
+        # the output format is incorrect, we can retry.
+        print(f"Error decoding JSON response: {e}")
+        print(f"Retrying with formatted prompt.")
+        formatted_prompt = langchain_prompt.format_prompt(text=post.text)
+        result = retry_parser.parse_with_prompt(result, formatted_prompt)
     model = LLMSociopoliticalLabelModel(
         is_sociopolitical=result["text"]["is_sociopolitical"],
         political_ideology_label=result["text"]["political_ideology_label"]
@@ -171,7 +178,7 @@ if __name__ == "__main__":
         "reply_count": None,
         "repost_count": None,
     }
-
+    num_repetitions = 1
     test_texts = [
         "I think that the government should be more involved in the economy.",
         "I think that the government should be less involved in the economy.",
@@ -181,10 +188,14 @@ if __name__ == "__main__":
         "I think that the government should be less involved in foreign policy.",
         "I think that the government should be more involved in the environment.",
         "I think that the government should be less involved in the environment.",
-    ]
+    ] * num_repetitions
     test_posts = [
         RecordClassificationMetadataModel(
-            **{**default_fields, "text": text, "uri": f"<test_uri_{i}>"}
+            **{
+                **default_fields,
+                "text": text,
+                "uri": f"<test_uri__{current_datetime_str}_{i}>"
+            }
         )
         for i, text in enumerate(test_texts)
     ]
