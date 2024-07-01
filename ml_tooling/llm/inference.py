@@ -1,6 +1,8 @@
 """Basic interface for doing LLM-based inference."""
 import os
+from typing import Any, Type
 
+import instructor
 from litellm import acompletion, completion
 from litellm.utils import ModelResponse
 import tiktoken
@@ -8,6 +10,8 @@ import tiktoken
 from lib.helper import (
     GOOGLE_AI_STUDIO_KEY, GROQ_API_KEY, HF_TOKEN, track_performance
 )
+
+instructor_client = instructor.from_litellm(completion)
 
 # https://litellm.vercel.app/docs/providers/gemini
 os.environ['GEMINI_API_KEY'] = GOOGLE_AI_STUDIO_KEY
@@ -40,8 +44,24 @@ GEMINI_1_5_PRO_MODEL_NAME = "gemini-1.5-pro-latest"
 
 BACKEND_OPTIONS = {
     "Gemini": {
-        #"model": "gemini/gemini-pro",
-        #"model": f"gemini/{GEMINI_1_0_PRO_MODEL_NAME}",
+        # "model": "gemini/gemini-pro",
+        # "model": f"gemini/{GEMINI_1_0_PRO_MODEL_NAME}",
+        "model": f"gemini/{GEMINI_1_5_PRO_MODEL_NAME}",
+        "kwargs": {
+            "temperature": 0.0,
+            "safety_settings": DEFAULT_GEMINI_SAFETY_SETTINGS
+        }
+    },
+    "Gemini-1.0": {
+        # "model": "gemini/gemini-pro",
+        "model": f"gemini/{GEMINI_1_0_PRO_MODEL_NAME}",
+        "kwargs": {
+            "temperature": 0.0,
+            "safety_settings": DEFAULT_GEMINI_SAFETY_SETTINGS
+        }
+    },
+    "Gemini-1.5": {
+        # "model": "gemini/gemini-pro",
         "model": f"gemini/{GEMINI_1_5_PRO_MODEL_NAME}",
         "kwargs": {
             "temperature": 0.0,
@@ -60,7 +80,7 @@ BACKEND_OPTIONS = {
             "api_base": "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x22B-v0.1"
         }
     },
-    "Llama3-8b (via Groq)": { # 8k context limit
+    "Llama3-8b (via Groq)": {  # 8k context limit
         "model": "groq/llama3-8b-8192",
         "kwargs": {
             "temperature": 0.0,
@@ -82,7 +102,7 @@ BACKEND_OPTIONS = {
 @track_performance
 def run_query(
     prompt: str, role: str = "user", model_name: str = "Gemini",
-    num_retries: int=2
+    num_retries: int = 2
 ) -> str:
     """Runs a query to an LLM model and returns the response."""
     model_dict = BACKEND_OPTIONS[model_name]
@@ -102,7 +122,7 @@ def run_query(
 
 async def async_run_query(
     prompt: str, role: str = "user", model_name: str = "Gemini",
-    num_retries: int=2
+    num_retries: int = 2
 ):
     """Runs a query to an LLM model and returns the response."""
     model_dict = BACKEND_OPTIONS[model_name]
@@ -128,7 +148,6 @@ def num_tokens_from_string(string: str) -> int:
     encoding = tiktoken.encoding_for_model('gpt-3.5-turbo')
     num_tokens = len(encoding.encode(string))
     return num_tokens
-
 
 
 if __name__ == "__main__":

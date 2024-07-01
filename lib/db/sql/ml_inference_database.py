@@ -250,7 +250,7 @@ def batch_insert_sociopolitical_labels(
 ) -> None:
     """Batch insert sociopolitical labels into the database."""
     deduped_labels = []
-    existing_uris = get_existing_sociopolitical_uris()
+    existing_uris: set[str] = get_existing_sociopolitical_uris()
     seen_uris = set()
     seen_uris.update(existing_uris)
     print(f"Attempting to insert {len(labels)} labels into the database.")
@@ -302,10 +302,10 @@ if __name__ == "__main__":
     # create_initial_tables()
 
     # drop SociopoliticalLabels and then rebuild
-    # cursor.execute("DROP TABLE SociopoliticalLabels")
-    # conn.commit()
-    # with db.atomic():
-    #     db.create_tables([SociopoliticalLabels])
+    cursor.execute("DROP TABLE SociopoliticalLabels")
+    conn.commit()
+    with db.atomic():
+        db.create_tables([SociopoliticalLabels])
 
     metadata_count = RecordClassificationMetadata.select().count()
     perspective_api_labels_count = PerspectiveApiLabels.select().count()
