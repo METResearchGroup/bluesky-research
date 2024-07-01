@@ -11,6 +11,8 @@ from datetime import datetime, timedelta, timezone
 import json
 from typing import Literal, Optional
 
+from langchain.output_parsers import RetryOutputParser
+from langchain_core.output_parsers import JsonOutputParser
 from langchain.chains import LLMChain
 from langchain_core.prompts import PromptTemplate
 from pydantic import ValidationError
@@ -23,9 +25,8 @@ from lib.db.sql.ml_inference_database import (
 from lib.db.sql.preprocessing_database import get_filtered_posts
 from lib.helper import create_batches, track_performance
 from ml_tooling.llm.model import (
-    chat_model, parser, retry_parser,
     DEFAULT_BATCH_SIZE, DEFAULT_DELAY_SECONDS, DEFAULT_TASK_NAME,
-    LLM_MODEL_NAME
+    LLM_MODEL_NAME, get_llm_model
 )
 from ml_tooling.llm.task_prompts import (
     single_text_explanation_prompt, task_name_to_task_prompt_map
@@ -38,6 +39,11 @@ from services.ml_inference.models import (
     SociopoliticalLabelsModel
 )
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
+
+
+llm_model = get_llm_model(local=False)
+parser = JsonOutputParser(pydantic_object=LLMSociopoliticalLabelModel)
+retry_parser = RetryOutputParser.from_llm(parser=parser, llm=llm_model)
 
 
 def load_posts_to_classify(
@@ -73,7 +79,7 @@ def load_posts_to_classify(
 
 def run_chain(
     post: RecordClassificationMetadataModel,
-    model=chat_model,
+    model=llm_model,
     task_name: Optional[str] = DEFAULT_TASK_NAME
 ) -> LLMSociopoliticalLabelModel:
     """Create chain to run inference task."""
