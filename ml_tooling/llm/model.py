@@ -50,8 +50,6 @@ def run_chain(
         llm=model,
         output_parser=parser
     )
-    if not isinstance(post, RecordClassificationMetadataModel):
-        breakpoint()
     result: dict = chain.invoke({"text": post.text})
     # TODO: update chaining to add retries where necessary
     # see, for example, https://python.langchain.com/v0.1/docs/modules/model_io/output_parsers/types/retry/
