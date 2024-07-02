@@ -19,3 +19,7 @@ def get_posts() -> None:
     except Exception as e:
         logger.error(f"Error getting posts from the most liked feed: {e}")
         raise
+
+
+if __name__ == "__main__":
+    get_posts()

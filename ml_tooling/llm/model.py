@@ -1,5 +1,4 @@
 """Model for classifying posts using LLMs."""
-from langtrace_python_sdk import langtrace
 from langchain_community.llms import LlamaCpp
 from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler
 

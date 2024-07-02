@@ -39,7 +39,7 @@ A successful login should print "Login Succeeded".
     This is all automated in `scripts/deploy_image_to_ecr.sh`, which will build
     a single service in Docker and deploy it to ECR. For example:
     ```
-    ./scripts/deploy_single_image.sh feed_preprocessing
+    ./scripts/deploy_image_to_ecr.sh feed_preprocessing
     ```
     Here is an example output (truncated):
     ```
