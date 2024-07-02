@@ -8,6 +8,7 @@ COPY ../.env ./.env
 COPY pipelines/sync_post_records/most_liked ./pipelines/sync_post_records/most_liked
 
 # make the lib/ directory
+COPY lib/aws/*.py ./lib/aws/
 COPY lib/constants.py ./lib/constants.py
 COPY lib/db/bluesky_models/* ./lib/db/bluesky_models/
 COPY lib/db/mongodb.py ./lib/db/mongodb.py

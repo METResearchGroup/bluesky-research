@@ -3,16 +3,18 @@ import json
 import os
 
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost
-from pymongo.errors import DuplicateKeyError
 
+from lib.aws.s3 import S3, SYNC_KEY_ROOT
 from lib.constants import current_datetime
 from lib.db.bluesky_models.transformations import (
     TransformedFeedViewPostModel, TransformedRecordModel
 )
-from lib.db.mongodb import get_mongodb_collection, chunk_insert_posts
+from lib.db.mongodb import get_mongodb_collection
 from services.preprocess_raw_data.classify_language.helper import record_is_english  # noqa
 from transform.bluesky_helper import get_posts_from_custom_feed_url
 from transform.transform_raw_data import transform_feedview_posts
+
+s3 = S3()
 
 feed_to_info_map = {
     "today": {
@@ -81,12 +83,9 @@ def get_and_transform_latest_most_liked_posts(
 def export_posts(
     posts: list[TransformedFeedViewPostModel],
     store_local: bool = True,
-    store_remote: bool = True,
-    bulk_write_remote: bool = True,
-    bulk_chunk_size: int = 100
+    store_remote: bool = True
 ) -> None:
-    """Export the posts to a file, either locally as a JSON or remote in a
-    MongoDB collection."""
+    """Export the posts to a file, either locally as a JSON or remote in S3."""
     if store_local:
         print(f"Writing {len(posts)} posts to {sync_fp}")
         with open(sync_fp, "w") as f:
@@ -97,40 +96,21 @@ def export_posts(
         print(f"Wrote {num_posts} posts locally to {sync_fp}")
 
     if store_remote:
-        duplicate_key_count = 0
-        total_successful_inserts = 0
-        total_posts = len(posts)
-        print(f"Inserting {total_posts} posts to MongoDB collection {mongo_collection_name}")  # noqa
-        formatted_posts_mongodb = [
-            {"_id": post["uri"], **post}
-            for post in posts
-        ]
-        if bulk_write_remote:
-            print("Inserting into MongoDB in bulk...")
-            total_successful_inserts, duplicate_key_count = chunk_insert_posts(
-                posts=formatted_posts_mongodb,
-                mongo_collection=mongo_collection,
-                chunk_size=bulk_chunk_size
-            )
-            print("Finished bulk inserting into MongoDB.")
+        timestamp_key = S3.create_partition_key_based_on_timestamp(
+            timestamp_str=current_datetime_str
+        )
+        filename = "posts.jsonl"
+        full_key = os.path.join(
+            SYNC_KEY_ROOT, "sync_most_liked_feed", timestamp_key, filename
+        )
+        if isinstance(posts[0], TransformedFeedViewPostModel):
+            post_dicts = [post.dict() for post in posts]
         else:
-            for idx, post in enumerate(posts):
-                if idx % 100 == 0:
-                    print(f"Inserted {idx}/{total_posts} posts")
-                try:
-                    post_uri = post["uri"]
-                    # set the URI as the primary key.
-                    # NOTE: if this doesn't work, check if the IP address has
-                    # permission to access the database.
-                    mongo_collection.insert_one(
-                        {"_id": post_uri, **post},
-                    )
-                    total_successful_inserts += 1
-                except DuplicateKeyError:
-                    duplicate_key_count += 1
-        if duplicate_key_count > 0:
-            print(f"Skipped {duplicate_key_count} duplicate posts")
-        print(f"Inserted {total_successful_inserts} posts to remote MongoDB collection {mongo_collection_name}")  # noqa
+            post_dicts = posts
+        s3.write_dicts_jsonl_to_s3(
+            data=post_dicts, key=full_key
+        )
+        print(f"Exported {len(posts)} posts to S3 at {full_key}")
 
 
 def load_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:
@@ -166,8 +146,7 @@ def dump_most_recent_local_sync_to_remote() -> None:
     """Dump the most recent local sync to the remote MongoDB collection."""
     posts: list[dict] = load_most_recent_local_syncs()
     export_posts(
-        posts=posts, store_local=False, store_remote=True,
-        bulk_write_remote=True
+        posts=posts, store_local=False, store_remote=True
     )
 
 
@@ -176,7 +155,6 @@ def main(
     n_latest_local: int = 1,
     store_local: bool = True,
     store_remote: bool = True,
-    bulk_write_remote: bool = True,
     feeds: list[str] = ["today", "week"]
 ) -> None:
     if use_latest_local:
@@ -193,7 +171,7 @@ def main(
         print(f"Exporting {len(post_dicts)} total posts...")
     export_posts(
         posts=post_dicts, store_local=store_local,
-        store_remote=store_remote, bulk_write_remote=bulk_write_remote
+        store_remote=store_remote
     )
 
 
@@ -215,9 +193,8 @@ if __name__ == "__main__":
     # )
     kwargs = {
         "use_latest_local": True,
-        "n_latest_local": 6,
+        "n_latest_local": 2,
         "store_local": False,
         "store_remote": True,
-        "bulk_write_remote": True
     }
     main(**kwargs)

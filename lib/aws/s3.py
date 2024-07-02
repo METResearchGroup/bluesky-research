@@ -3,24 +3,20 @@ import os
 import threading
 import time
 
-import polars as pl
-
 from lib.aws.helper import create_client, retry_on_aws_rate_limit
 
 ROOT_BUCKET = "bluesky-research"
 POST_BATCH_SIZE = 100
 
 # S3 key roots
+SYNC_KEY_ROOT = "sync"
 FEED_KEY_ROOT = "feeds"  # final feeds after postprocessing
 PREPROCESSED_DATA_KEY_ROOT = "preprocessed_data"
 RECOMMENDATIONS_KEY_ROOT = "recommendations"
 S3_FIREHOSE_KEY_ROOT = "firehose"
 USERS_KEY_ROOT = "users"
 
-
 thread_lock = threading.Lock()
-# current time, in YYYY-MM-DD:HH:MM:SS format
-current_timestamp = time.strftime("%Y-%m-%d:%H:%M:%S")
 
 
 class S3:
@@ -170,26 +166,21 @@ class S3:
                 for fp in filepaths:
                     os.remove(fp)
 
-    def return_jsons_as_polars_df(
-        self, key: str, bucket: str = ROOT_BUCKET
-    ) -> pl.DataFrame:
-        """Reads JSONL from S3 and returns as Polars DataFrame."""
-        blob = self.read_from_s3(bucket=bucket, key=key)
-        jsons = blob.decode("utf-8").split("\n")
-        return pl.DataFrame(jsons)
+    @classmethod
+    def create_partition_key_based_on_timestamp(cls, timestamp_str: str) -> str:
+        """Given the timestamp string, create a partition key.
 
-    def create_partitioned_key(
-        key_root: str, userid: str, timestamp: str, filename: str
-    ) -> str:
-        """Creates a partitioned key for data.
+        Assumes the timestamp format given in lib/constants.py.
 
-        Used for feed recommendations from `recommendation` and `feed_postprocessing`
-        services.
+        Example:
+        >>> create_partition_key_based_on_timestamp('2024-07-02-04:56:19')
+        'year=2024/month=07/day=02/hour=04'
+        """
+        # Split the timestamp string into components
+        parts = timestamp_str.split("-")
+        year, month, day, time = parts[0], parts[1], parts[2], parts[3]
+        hour = time.split(":")[0]  # Extract the hour from the time part
 
-        Example partitioned keys:
-        - recommendations/userid={userid}/timestamp={timestamp}/recommendation.json
-        - feeds/userid={userid}/timestamp={timestamp}/feed.json
-        """  # noqa
-        return os.path.join(
-            key_root, f"userid={userid}", f"timestamp={timestamp}", filename
-        )
+        # Construct the partition key string
+        partition_key = f"year={year}/month={month}/day={day}/hour={hour}"
+        return partition_key
