@@ -34,6 +34,7 @@ def load_firehose_posts(
     return consolidate_post_records(posts=transformed_posts)
 
 
+# TODO: rewrite to load from S3.
 def load_feedview_posts(
     latest_preprocessing_timestamp: Optional[str] = None
 ) -> list[ConsolidatedPostRecordModel]:
@@ -86,7 +87,7 @@ def load_latest_raw_posts(
         if posts:
             consolidated_raw_posts.extend(posts)
         else:
-            logger.warning(f"No new raw posts to preprocess from source={source}") # noqa
+            logger.warning(f"No new raw posts to preprocess from source={source}")  # noqa
     consolidated_raw_posts: list[ConsolidatedPostRecordModel] = (
         filter_previously_preprocessed_posts(posts=consolidated_raw_posts)
     )

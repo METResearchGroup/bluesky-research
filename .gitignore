@@ -171,3 +171,4 @@ cython_debug/
 *.hcl
 *.tfstate
 *.tfstate.backup
+*cache*

@@ -10,7 +10,7 @@ from atproto import (
 )
 from atproto.exceptions import FirehoseError
 
-from lib.db.sql.sync_database import get_num_posts, SubscriptionState
+from lib.db.sql.sync_database import SubscriptionState
 from lib.helper import ThreadSafeCounter
 
 # number of events to stream before exiting
@@ -94,6 +94,10 @@ def run(name, operations_callback, stream_stop_event=None):
 
 
 def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
+
+    # TODO: make SubscriptionState store timestamp.
+    # NOTE: I don't think this is necessary, since DynamoDB would have the
+    # timestamp that the document is added?
     state = SubscriptionState.select(SubscriptionState.service == name).first()
 
     params = None
@@ -101,7 +105,7 @@ def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
         params = models.ComAtprotoSyncSubscribeRepos.Params(
             cursor=state.cursor)
 
-    client = FirehoseSubscribeReposClient(params)
+    firehose_client = FirehoseSubscribeReposClient(params)
 
     if not state:
         SubscriptionState.create(service=name, cursor=0)
@@ -111,20 +115,25 @@ def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
     def on_message_handler(message: firehose_models.MessageFrame) -> None:
         # stop on next message if requested
         if stream_stop_event and stream_stop_event.is_set():
-            client.stop()
+            firehose_client.stop()
             return
 
-        # possible types of messages: https://github.com/bluesky-social/atproto/blob/main/packages/api/src/client/lexicons.ts#L3298 # noqa
+        # possible types of messages: https://github.com/bluesky-social/atproto/blob/main/packages/api/src/client/lexicons.ts#L3545 # noqa
         if message.type == "#identity":
             return
         commit = parse_subscribe_repos_message(message)
         if not isinstance(commit, models.ComAtprotoSyncSubscribeRepos.Commit):
             return
 
+        # TODO: when migrating to the cloud, this counter needs to move to an
+        # external store such as Dynamo. This is because the counter will be
+        # reset every time the EC2 instance is restarted.
         # update stored state
+        # TODO: update existing cursor so that there should be only
+        # one existing cursor in DynamoDB.
         if commit.seq % cursor_update_frequency == 0:
             print(f'Updated cursor for {name} to {commit.seq}')
-            client.update_params(
+            firehose_client.update_params(
                 models.ComAtprotoSyncSubscribeRepos.Params(cursor=commit.seq))
             SubscriptionState.update(cursor=commit.seq).where(
                 SubscriptionState.service == name).execute()
@@ -132,7 +141,23 @@ def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
         if not commit.blocks:
             return
 
-        has_written_data = operations_callback(_get_ops_by_type(commit))
+        ops_by_type: dict = _get_ops_by_type(commit)
+
+        reposts = ops_by_type.get('reposts')
+        likes = ops_by_type.get('likes')
+        follows = ops_by_type.get('follows')
+
+        if len(reposts["created"]) > 0 or len(reposts["deleted"]) > 0:
+            print("There are reposts")
+            breakpoint()
+        if len(likes["deleted"]) > 0:
+            print("There are likes deleted")
+            breakpoint()
+        if len(follows["deleted"]) > 0:
+            print("There are follows")
+            breakpoint()
+
+        has_written_data: dict = operations_callback(ops_by_type)
 
         # we assume that the write to DB has succeeded, though we may want to
         # validate this check (i.e., has_written_data is always True, but
@@ -143,8 +168,6 @@ def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
             if counter_value % cursor_update_frequency == 0:
                 print(f"Counter: {counter_value}")
             if counter.get_value() > stream_limit:
-                total_posts_in_db: int = get_num_posts()
-                print(f"Counter value {counter_value} > stream limit: {stream_limit}. Total posts in DB: {total_posts_in_db}. Exiting...")  # noqa
                 sys.exit(0)
 
-    client.start(on_message_handler)
+    firehose_client.start(on_message_handler)

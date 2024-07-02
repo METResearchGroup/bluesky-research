@@ -2,30 +2,46 @@
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_filter.py
 """  # noqa
-import json
 import os
-import peewee
+from typing import Literal
 
-import pandas as pd
-from pydantic import ValidationError as PydanticValidationError
+from atproto_client.models.app.bsky.graph.follow import Record as FollowRecord
+from atproto_client.models.app.bsky.feed.like import Record as LikeRecord  # noqa
 
-from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel  # noqa
-from lib.db.sql.sync_database import db, TransformedRecordWithAuthor
-from services.participant_data.helper import get_user_to_bluesky_profiles_as_df
-from services.sync.stream.constants import tmp_data_dir
+from lib.db.bluesky_models.raw import (
+    RawFollow, RawFollowRecord, RawLike, RawLikeRecord
+)
+from services.sync.stream.export_data import (
+    export_filepath_map, write_data_to_json
+)
 from transform.transform_raw_data import process_firehose_post
 
 
-study_participants_bsky_profiles_df: pd.DataFrame = (
-    get_user_to_bluesky_profiles_as_df()
-)
-existing_users_bsky_dids_set = set(
-    study_participants_bsky_profiles_df["bluesky_user_did"]
-)
+def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
+    """For a like that was created/deleted, insert the record in local cache.
 
-
-def filter_by_user_in_study(bsky_did: str) -> bool:
-    return bsky_did in existing_users_bsky_dids_set
+    We'll write the record to S3 as part of our normal batch update.
+    """
+    raw_liked_record: LikeRecord = like["record"]
+    raw_liked_record_model = RawLikeRecord(**raw_liked_record.dict())
+    like_model = RawLike(
+        **{
+            "author": like["author"],
+            "cid": like["cid"],
+            "record": raw_liked_record_model.dict(),
+            "uri": like["uri"]
+        }
+    )
+    like_model_dict = like_model.dict()
+    author_did = like_model.author
+    uri = like_model.uri.split('/')[-1]
+    # we save this using both the DID and like URI so that then we can easily
+    # parse this and write to the correct place in S3. We'll manage tracking
+    # the posts liked later, as long as we know who created the like.
+    filename = f"author_did={author_did}_uri={uri}.json"
+    folder_path = export_filepath_map[operation]["like"]
+    full_path = os.path.join(folder_path, filename)
+    write_data_to_json(like_model_dict, full_path)
 
 
 def manage_likes(likes: dict[str, list]) -> dict:
@@ -39,8 +55,58 @@ def manage_likes(likes: dict[str, list]) -> dict:
     {
         "created": [], "deleted": []
     }
+
+    Example:
+    {
+        'created': [
+            {
+                'author': 'did:plc:aq45jcquopr4joswmfdpsfnh',
+                'cid': 'bafyreihus4wvodsdmhsschvb57dn7qsl6wxanu5fv6httkq2njd7zqadri',
+                'record': Record(
+                    created_at='2024-07-02T14:05:23.807Z',
+                    subject=Main(
+                        cid='bafyreif2ijylrc3cativstjcrbbcvtaa3xtptx23kkiqimq5y6hk2amdiy',
+                        uri='at://did:plc:ucfj5xnywoxbdaxqelvpzyqz/app.bsky.feed.post/3kvkbi7yfb22z',
+                        py_type='com.atproto.repo.strongRef'
+                    ),
+                    py_type='app.bsky.feed.like'
+                ),
+                'uri': 'at://did:plc:aq45jcquopr4joswmfdpsfnh/app.bsky.feed.like/3kwckubmt342n'
+            }
+        ],
+        'deleted': []
+    }
     """
-    return {}
+    for like in likes["created"]:
+        manage_like(like=like, operation="create")
+    for like in likes["deleted"]:
+        manage_like(like=like, operation="delete")
+
+
+def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:  # noqa
+    """For a follow that was created/deleted, insert the record in local cache.
+
+    We'll write the record to S3 as part of our normal batch update.
+    """
+    raw_follow_record: FollowRecord = follow["record"]
+    raw_follow_record_model = RawFollowRecord(**raw_follow_record.dict())
+    follow_model = RawFollow(
+        **{
+            "uri": follow["uri"],
+            "cid": follow["cid"],
+            "record": raw_follow_record_model.dict(),
+            "author": follow["author"],
+            "follower_did": follow["author"],
+            "follow_did": raw_follow_record_model.subject
+        }
+    )
+    follow_model_dict = follow_model.dict()
+    follower_did = follow_model.follower_did
+    follow_did = follow_model.follow_did
+    filename = f"follower_did={follower_did}_follow_did={follow_did}.json"
+    folder_path = export_filepath_map[operation]["follow"]
+    full_path = os.path.join(folder_path, filename)
+    write_data_to_json(follow_model_dict, full_path)
 
 
 def manage_follows(follows: dict[str, list]) -> dict:
@@ -54,8 +120,50 @@ def manage_follows(follows: dict[str, list]) -> dict:
     {
         "created": [], "deleted": []
     }
+
+    Example:
+
+    {
+        'created': [
+            {
+                'record': Record(
+                    created_at='2024-07-02T17:48:48.627Z',
+                    subject='did:plc:vjoaculzgxuqa3gdtqkmqawn',
+                    py_type='app.bsky.graph.follow'
+                ),
+                'uri': 'at://did:plc:qqdx6sgha4cqqhxs564g43zq/app.bsky.graph.follow/3kwcxduaskd2p',
+                'cid': 'bafyreibwn4kwlezxabt2bzpopwfh7lbo56n4xb62wlbm5moqliwl4pzum4',
+                'author': 'did:plc:qqdx6sgha4cqqhxs564g43zq'
+            }
+        ],
+        'deleted': []
+    }
+
+    The author is the entity who is following, and the record.subject is the
+    user who is being followed. For example, if A follows B, then the author is
+    the DID of A and the record.subject is the DID of B.
     """
-    return {}
+    for follow in follows["created"]:
+        manage_follow(follow=follow, operation="create")
+    for follow in follows["deleted"]:
+        manage_follow(follow=follow, operation="delete")
+
+
+def manage_post(post: dict, operation: Literal["create", "delete"]):
+    """For a post that was created/deleted, insert the record in local cache.
+
+    We'll write the record to S3 as part of our normal batch update.
+    """
+    flattened_post = process_firehose_post(post).dict()
+    author_did = flattened_post["author"]
+    # e.g., full URI = at://did:plc:iphiwbyfi2qhid2mbxmvl3st/app.bsky.feed.post/3kwd3wuubke2i # noqa
+    # so we only want a small portion.
+    # URI takes the form at://<author DID>/<collection>/<post URI>
+    post_uri = flattened_post["uri"].split('/')[-1]  # e.g., 3kwd3wuubke2i
+    filename = f"author_did={author_did}_post_uri={post_uri}.json"
+    folder_path = export_filepath_map[operation]["post"]
+    full_path = os.path.join(folder_path, filename)
+    write_data_to_json(flattened_post, full_path)
 
 
 def manage_posts(posts: dict[str, list]) -> dict:
@@ -63,99 +171,14 @@ def manage_posts(posts: dict[str, list]) -> dict:
 
     We want to track any new posts in our database.
     """
-    posts_to_create: list[dict] = []
-    posts_to_delete: list[str] = [
-        p['uri'] for p in posts['deleted']
-    ]
-
-    for new_post in posts["created"]:
-        if new_post is not None:
-            flattened_post: dict = process_firehose_post(new_post).dict()
-            posts_to_create.append(flattened_post)
-    return {
-        "posts_to_create": posts_to_create,
-        "posts_to_delete": posts_to_delete
-    }
-
-
-def filter_incoming_posts(operations_by_type: dict) -> dict:
-    """Performs filtering on incoming posts and determines which posts have
-    to be created or deleted.
-
-    Returns a dictionary of the format:
-    {
-        "posts_to_create": list[dict],
-        "posts_to_delete": list[dict]
-    }
-
-    We want to store all new posts, and then process likes and follows only if
-    they are from users in our study or from users in their network.
-    """
-    posts: dict[str, list] = operations_by_type["posts"]
-    likes: dict[str, list] = operations_by_type["likes"]
-    follows: dict[str, list] = operations_by_type["follows"]
-
-    manage_likes(likes=likes)
-    manage_follows(follows=follows)
-    post_updates: dict = manage_posts(posts=posts)
-    return post_updates
-
-
-def manage_post_creation(posts_to_create: list[dict]) -> None:
-    """Manage post insertion into DB."""
-    with db.atomic():
-        for post_dict in posts_to_create:
-            try:
-                TransformedRecordWithAuthorModel(**post_dict)
-                TransformedRecordWithAuthor.create(**post_dict)
-            except PydanticValidationError as e:
-                print(f"Pydantic error validating post with URI {post_dict['uri']}: {e}")  # noqa
-                continue
-            except peewee.IntegrityError as e:
-                # can come from duplicate records, schema invalidation, etc.
-                error_str = str(e)
-                if "UNIQUE constraint failed" in error_str:
-                    print(f"Post with URI {post_dict['uri']} already exists in DB.")  # noqa
-                else:
-                    print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}")  # noqa
-                continue
-            except peewee.OperationalError as e:
-                # generally comes from sqlite3 errors itself, not just
-                # something with the schema or the DB.
-                print(f"Error inserting post with URI {post_dict['uri']} into DB: {e}")  # noqa
-                continue
-
-
-def manage_post_deletes(posts_to_delete: list[str]) -> None:
-    """Manage post deletion from DB."""
-    TransformedRecordWithAuthor.delete().where(
-        TransformedRecordWithAuthor.uri.in_(posts_to_delete)
-    )
-
-
-def write_posts_to_local_storage(posts_to_create: list[dict]) -> bool:
-    """Our data stream callback operates on individual posts. We want
-    to write the posts to local storage, and then write them to S3 in batches.
-
-    This function dumps the post to local storage as a dictionary. In case we
-    have a change of functionality, this is capable of handling multiple posts
-    within the same callback.
-    """
-    has_written_post_with_data: bool = False
-    for post in posts_to_create:
-        hashed_filename = f"{hash(post['uri'])}.json"
-        file_path = os.path.join(tmp_data_dir, hashed_filename)
-        with open(file_path, "w") as f:
-            json_str = json.dumps(post)
-            if json_str:
-                f.write(json_str)
-                has_written_post_with_data = True
-    return has_written_post_with_data
+    for post in posts["created"]:
+        manage_post(post=post, operation="create")
+    for post in posts["deleted"]:
+        manage_post(post=post, operation="delete")
 
 
 def operations_callback(operations_by_type: dict) -> bool:
-    """Callback for managing posts during stream. We perform the first pass
-    of filtering here.
+    """Callback for managing posts during stream.
 
     This function takes as input a dictionary of the format
     {
@@ -206,24 +229,11 @@ def operations_callback(operations_by_type: dict) -> bool:
         'follows': {'created': [], 'deleted': []}
     }
     """  # noqa
-    post_updates = filter_incoming_posts(operations_by_type)
-    posts_to_create = post_updates["posts_to_create"]
-    posts_to_delete = post_updates["posts_to_delete"]
-
-    # add to DB (TODO: will have to swap this out for a bulk insert)
-    # or add only to S3 and then add to DB later. TBD.
-    if posts_to_create:
-        manage_post_creation(posts_to_create)
-    if posts_to_delete:
-        manage_post_deletes(posts_to_delete)
-
-    has_written_data = True
-
-    # write to storage: we may want to do this later but not for now. We do
-    # this in case we want to store the raw data as JSONs somewhere, which
-    # we may want to do?
-    # has_written_data = False
-    # if posts_to_create:
-    #    has_written_data = write_posts_to_local_storage(posts_to_create)
-
-    return has_written_data
+    try:
+        manage_posts(posts=operations_by_type["posts"])
+        manage_likes(likes=operations_by_type["likes"])
+        manage_follows(follows=operations_by_type["follows"])
+        return True
+    except Exception as e:
+        print(f"Error in exporting latest writes to cache: {e}")
+        raise e
