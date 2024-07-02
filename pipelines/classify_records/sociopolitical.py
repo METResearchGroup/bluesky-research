@@ -15,6 +15,7 @@ from langchain.output_parsers import RetryOutputParser
 from langchain_core.output_parsers import JsonOutputParser
 from langchain.chains import LLMChain
 from langchain_core.prompts import PromptTemplate
+from langsmith import traceable
 from pydantic import ValidationError
 
 from lib.constants import current_datetime_str
@@ -42,7 +43,7 @@ from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 
 # TODO: change to local=True for testing.
-llm_model = get_llm_model(local=True)
+llm_model = get_llm_model(local=False)
 parser = JsonOutputParser(pydantic_object=LLMSociopoliticalLabelModel)
 retry_parser = RetryOutputParser.from_llm(parser=parser, llm=llm_model)
 
@@ -78,6 +79,7 @@ def load_posts_to_classify(
     return sorted_posts
 
 
+@traceable
 def run_chain(
     post: RecordClassificationMetadataModel,
     model=llm_model,

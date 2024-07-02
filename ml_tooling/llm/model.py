@@ -1,4 +1,5 @@
 """Model for classifying posts using LLMs."""
+from langtrace_python_sdk import langtrace
 from langchain_community.llms import LlamaCpp
 from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler
 
@@ -29,6 +30,7 @@ include_prompt = False
 default_remote_model = "Llama3-8b (via Groq)"
 LLM_MODEL_NAME = BACKEND_OPTIONS[default_remote_model]["model"]
 # default_remote_model = "Gemini-1.0"
+
 
 def get_llm_model(
     local: bool = False, model_name=default_remote_model
