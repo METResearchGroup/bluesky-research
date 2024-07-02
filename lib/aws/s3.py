@@ -1,7 +1,10 @@
+"""Wrapper class for all S3-related access."""
+import gzip
 import json
 import os
 import threading
 import time
+from typing import Optional
 
 from lib.aws.helper import create_client, retry_on_aws_rate_limit
 
@@ -140,7 +143,12 @@ class S3:
             print(f"Finished writing {len(posts)} posts to S3.")
 
     def write_local_jsons_to_s3(
-        self, dir: str, filename: str, clear_cache: bool = True
+        self,
+        directory: str,
+        key: Optional[str] = None,
+        filename: Optional[str] = None,
+        clear_cache: bool = True,
+        compressed: bool = True
     ) -> None:
         """Given a directory, pull all the JSONs and write them as a .jsonl.
 
@@ -149,17 +157,28 @@ class S3:
         with thread_lock:
             filepaths = []
             jsons = []
-            for file in os.listdir(dir):
+            for file in os.listdir(directory):
                 if file.endswith(".json"):
-                    fp = os.path.join(dir, file)
+                    fp = os.path.join(directory, file)
                     with open(fp, "r") as f:
                         jsons.append(json.load(f))
                     filepaths.append(fp)
-            key = os.path.join(S3_FIREHOSE_KEY_ROOT, filename)
+            if not key:
+                key = os.path.join(S3_FIREHOSE_KEY_ROOT, filename)
+            if compressed:
+                key += ".gz"
             try:
-                self.write_dicts_jsonl_to_s3(
-                    data=jsons, bucket=ROOT_BUCKET, key=key
-                )
+                if compressed:
+                    compressed_data = gzip.compress(bytes(json.dumps(jsons), "utf-8"))  # noqa
+                    self.write_to_s3(
+                        blob=compressed_data, bucket=ROOT_BUCKET, key=key
+                    )
+                    print(f"Successfully wrote compressed data to S3: {key}")
+                else:
+                    self.write_dicts_jsonl_to_s3(
+                        data=jsons, bucket=ROOT_BUCKET, key=key
+                    )
+                    print(f"Successfully wrote data to S3: {key}")
             except Exception as e:
                 print(f"Unable to write post to S3: {e}")
             if clear_cache:

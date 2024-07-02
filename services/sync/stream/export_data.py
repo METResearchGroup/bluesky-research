@@ -2,6 +2,10 @@
 S3."""
 import json
 import os
+from typing import Literal
+
+from lib.aws.s3 import S3
+from lib.constants import current_datetime_str
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 root_write_path = os.path.join(current_file_directory, "cache")
@@ -21,6 +25,23 @@ export_filepath_map = {
         "follow": os.path.join(root_delete_path, "follow")
     }
 }
+
+root_s3_key = os.path.join("sync", "firehose")
+
+s3_export_key_map = {
+    "create": {
+        "post": os.path.join(root_s3_key, "create", "post"),
+        "like": os.path.join(root_s3_key, "create", "like"),
+        "follow": os.path.join(root_s3_key, "create", "follow")
+    },
+    "delete": {
+        "post": os.path.join(root_s3_key, "delete", "post"),
+        "like": os.path.join(root_s3_key, "delete", "like"),
+        "follow": os.path.join(root_s3_key, "delete", "follow")
+    }
+}
+
+s3 = S3()
 
 
 def rebuild_cache_paths():
@@ -51,8 +72,29 @@ def write_data_to_json(data: dict, path: str):
         json.dump(data, f)
 
 
-# TODO: move these to a new file.
-def write_batch_to_s3():
+def compress_cached_files(
+    directory: str,
+    operation: Literal["create", "delete"],
+    operation_type: Literal["post", "like", "follow"],
+    compressed: bool = True,
+    clear_cache: bool = True
+):
+    """For a given set of files in a directory, compress them into a single
+    cached file.
+
+    Loops through all the JSON files in the directory and loads them into
+    memory. Then writes to a single .jsonl file (.jsonl.gz if compressed).
+    """
+    filename = f"{current_datetime_str}.jsonl"
+    s3_export_key = s3_export_key_map[operation][operation_type]
+    full_key = os.path.join(s3_export_key, filename)
+    s3.write_local_jsons_to_s3(
+        directory=directory, key=full_key,
+        clear_cache=clear_cache, compressed=compressed
+    )
+
+
+def write_batch_to_s3(compressed: bool = True, clear_cache: bool = True):
     """Writes the batched data to S3.
 
     Crawls the "created" and "deleted" folders and updates the records
@@ -60,5 +102,15 @@ def write_batch_to_s3():
 
     Then deletes the local cache.
     """
+    for operation in ["create", "delete"]:
+        for operation_type in operation_types:
+            directory = export_filepath_map[operation][operation_type]
+            compress_cached_files(
+                directory=directory,
+                operation=operation,
+                operation_type=operation_type,
+                compressed=compressed,
+                clear_cache=clear_cache
+            )
+    delete_cache_paths()
     rebuild_cache_paths()
-    # TODO: steps for writing batch to s3
