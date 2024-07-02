@@ -52,6 +52,8 @@ Return your response as JSON with the following fields:
 - "political_ideology_label": <string, four values, 'left', 'right', 'unclear', None. If the post is not sociopolitical, return None>,
 
 All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
+
+Do NOT include any explanation. Only return the JSON output.
 """  # noqa
 
 toxicity_prompt = """

@@ -1,14 +1,14 @@
 """Model for classifying posts using LLMs."""
-from langchain_community.chat_models import ChatLiteLLM
 from langchain_community.llms import LlamaCpp
 from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler
 
-from ml_tooling.llm.inference import BACKEND_OPTIONS
+from ml_tooling.llm.inference import (
+    BACKEND_OPTIONS, get_langchain_litellm_chat_model
+)
 
 DEFAULT_BATCH_SIZE = 10
 DEFAULT_DELAY_SECONDS = 1.0
 DEFAULT_TASK_NAME = "civic_and_political_ideology"
-LLM_MODEL_NAME = BACKEND_OPTIONS["Gemini"]["model"]  # "gemini/gemini-pro"
 
 callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
 
@@ -25,8 +25,13 @@ top_p_select: float = 0.9
 top_k_select: int = 0
 include_prompt = False
 
+default_remote_model = "Llama3-8b (via Groq)"
+LLM_MODEL_NAME = BACKEND_OPTIONS[default_remote_model]["model"]
+# default_remote_model = "Gemini-1.0"
 
-def get_llm_model(local: bool = False):
+def get_llm_model(
+    local: bool = False, model_name=default_remote_model
+):
     """Define the model used for inference.
 
     If local, we will use KLC's hosted Llama model. Else we'll use an external
@@ -48,4 +53,4 @@ def get_llm_model(local: bool = False):
             callback_manager=callback_manager,
             verbose=True,  # Verbose required to pass to the callback manager
         )
-    return ChatLiteLLM(model="gemini/gemini-1.0-pro-latest")
+    return get_langchain_litellm_chat_model(model_name=model_name)

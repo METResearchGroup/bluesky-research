@@ -41,7 +41,8 @@ from services.ml_inference.models import (
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 
-llm_model = get_llm_model(local=False)
+# TODO: change to local=True for testing.
+llm_model = get_llm_model(local=True)
 parser = JsonOutputParser(pydantic_object=LLMSociopoliticalLabelModel)
 retry_parser = RetryOutputParser.from_llm(parser=parser, llm=llm_model)
 
@@ -96,7 +97,7 @@ def run_chain(
     chain = LLMChain(prompt=langchain_prompt, llm=model, output_parser=parser)
     try:
         result: dict = chain.invoke({"text": post.text})
-    except (ValidationError, json.JSONDecodeError) as e:
+    except (ValidationError, ValueError, json.JSONDecodeError) as e:
         # Langchain will try to validate the response and in the case where
         # the output format is incorrect, we can retry.
         print(f"Error decoding JSON response: {e}")
@@ -116,7 +117,7 @@ def export_validated_llm_output(
 ) -> SociopoliticalLabelsModel:
     """Write the validated LLM output to the database."""
     label_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H:%M:%S")
-    output_model = [
+    output_model = (
         SociopoliticalLabelsModel(
             uri=post.uri,
             text=post.text,
@@ -126,8 +127,8 @@ def export_validated_llm_output(
             is_sociopolitical=result.is_sociopolitical,
             political_ideology_label=result.political_ideology_label,
         )
-    ]
-    batch_insert_sociopolitical_labels(labels=output_model)
+    )
+    batch_insert_sociopolitical_labels(labels=[output_model])
     return output_model
 
 
@@ -286,3 +287,8 @@ if __name__ == "__main__":
         for i, text in enumerate(test_texts)
     ]
     results = run_batch_classification(posts=test_posts)
+
+    # log results
+    result_dicts = [result.dict() for result in results]
+    results_str = "\n".join([str(result) for result in result_dicts])
+    print(f"Results:\n{results_str}")
