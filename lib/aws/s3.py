@@ -6,6 +6,8 @@ import threading
 import time
 from typing import Optional
 
+import botocore
+
 from lib.aws.helper import create_client, retry_on_aws_rate_limit
 
 ROOT_BUCKET = "bluesky-research"
@@ -70,27 +72,36 @@ class S3:
         self.write_to_s3(blob=jsonl_body_bytes, bucket=bucket, key=key)
 
     @retry_on_aws_rate_limit
-    def read_from_s3(self, key: str, bucket: str = ROOT_BUCKET) -> bytes:
+    def read_from_s3(self, key: str, bucket: str = ROOT_BUCKET) -> Optional[bytes]:  # noqa
         """Reads blob from S3."""
         try:
             response = self.client.get_object(Bucket=bucket, Key=key)
             return response['Body'].read()
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'NoSuchKey':
+                print(f"Key not found in S3: {key}")
+                return None
+            else:
+                print(f"Failure in getting object from S3: {e}")
+                raise e
         except Exception as e:
             print(f"Failure in getting object from S3: {e}")
             raise e
 
     def read_json_from_s3(
         self, key: str, bucket: str = ROOT_BUCKET
-    ) -> dict:
+    ) -> Optional[dict]:
         """Reads JSON from S3."""
         blob = self.read_from_s3(bucket=bucket, key=key)
-        return json.loads(blob)
+        return json.loads(blob) if blob else None
 
     def read_jsonl_from_s3(
         self, key: str, bucket: str = ROOT_BUCKET
-    ) -> list[dict]:
+    ) -> Optional[list[dict]]:
         """Reads JSONL from S3."""
         blob = self.read_from_s3(bucket=bucket, key=key)
+        if not blob:
+            return None
         jsons = blob.decode("utf-8").split("\n")
         return [json.loads(j) for j in jsons]
 

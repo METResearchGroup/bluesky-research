@@ -22,23 +22,29 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
 
     We'll write the record to S3 as part of our normal batch update.
     """
-    raw_liked_record: LikeRecord = like["record"]
-    raw_liked_record_model = RawLikeRecord(**raw_liked_record.dict())
-    like_model = RawLike(
-        **{
-            "author": like["author"],
-            "cid": like["cid"],
-            "record": raw_liked_record_model.dict(),
-            "uri": like["uri"]
-        }
-    )
-    like_model_dict = like_model.dict()
-    author_did = like_model.author
-    uri = like_model.uri.split('/')[-1]
-    # we save this using both the DID and like URI so that then we can easily
-    # parse this and write to the correct place in S3. We'll manage tracking
-    # the posts liked later, as long as we know who created the like.
-    filename = f"author_did={author_did}_uri={uri}.json"
+    if operation == "create":
+        raw_liked_record: LikeRecord = like["record"]
+        raw_liked_record_model = RawLikeRecord(**raw_liked_record.dict())
+        like_model = RawLike(
+            **{
+                "author": like["author"],
+                "cid": like["cid"],
+                "record": raw_liked_record_model.dict(),
+                "uri": like["uri"]
+            }
+        )
+        like_model_dict = like_model.dict()
+        author_did = like_model.author
+        uri = like_model.uri.split('/')[-1]
+        # we save this using both the DID and like URI so that then we can easily
+        # parse this and write to the correct place in S3. We'll manage tracking
+        # the posts liked later, as long as we know who created the like.
+        filename = f"author_did={author_did}_uri={uri}.json"
+    elif operation == "delete":
+        uri = like["uri"].split('/')[-1]
+        filename = f"uri={uri}.json"
+        like_model_dict = like
+
     folder_path = export_filepath_map[operation]["like"]
     full_path = os.path.join(folder_path, filename)
     write_data_to_json(like_model_dict, full_path)
@@ -88,22 +94,28 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
 
     We'll write the record to S3 as part of our normal batch update.
     """
-    raw_follow_record: FollowRecord = follow["record"]
-    raw_follow_record_model = RawFollowRecord(**raw_follow_record.dict())
-    follow_model = RawFollow(
-        **{
-            "uri": follow["uri"],
-            "cid": follow["cid"],
-            "record": raw_follow_record_model.dict(),
-            "author": follow["author"],
-            "follower_did": follow["author"],
-            "follow_did": raw_follow_record_model.subject
-        }
-    )
-    follow_model_dict = follow_model.dict()
-    follower_did = follow_model.follower_did
-    follow_did = follow_model.follow_did
-    filename = f"follower_did={follower_did}_follow_did={follow_did}.json"
+    if operation == "create":
+        raw_follow_record: FollowRecord = follow["record"]
+        raw_follow_record_model = RawFollowRecord(**raw_follow_record.dict())
+        follow_model = RawFollow(
+            **{
+                "uri": follow["uri"],
+                "cid": follow["cid"],
+                "record": raw_follow_record_model.dict(),
+                "author": follow["author"],
+                "follower_did": follow["author"],
+                "follow_did": raw_follow_record_model.subject
+            }
+        )
+        follow_model_dict = follow_model.dict()
+        follower_did = follow_model.follower_did
+        follow_did = follow_model.follow_did
+        filename = f"follower_did={follower_did}_follow_did={follow_did}.json"
+    elif operation == "delete":
+        follow_uri = follow["uri"].split('/')[-1]
+        filename = f"follow_uri={follow_uri}.json"
+        follow_model_dict = follow
+
     folder_path = export_filepath_map[operation]["follow"]
     full_path = os.path.join(folder_path, filename)
     write_data_to_json(follow_model_dict, full_path)
@@ -154,13 +166,19 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
 
     We'll write the record to S3 as part of our normal batch update.
     """
-    flattened_post = process_firehose_post(post).dict()
-    author_did = flattened_post["author"]
-    # e.g., full URI = at://did:plc:iphiwbyfi2qhid2mbxmvl3st/app.bsky.feed.post/3kwd3wuubke2i # noqa
-    # so we only want a small portion.
-    # URI takes the form at://<author DID>/<collection>/<post URI>
-    post_uri = flattened_post["uri"].split('/')[-1]  # e.g., 3kwd3wuubke2i
-    filename = f"author_did={author_did}_post_uri={post_uri}.json"
+    if operation == "create":
+        flattened_post = process_firehose_post(post).dict()
+        author_did = flattened_post["author"]
+        # e.g., full URI = at://did:plc:iphiwbyfi2qhid2mbxmvl3st/app.bsky.feed.post/3kwd3wuubke2i # noqa
+        # so we only want a small portion.
+        # URI takes the form at://<author DID>/<collection>/<post URI>
+        post_uri = flattened_post["uri"].split('/')[-1]  # e.g., 3kwd3wuubke2i
+        filename = f"author_did={author_did}_post_uri={post_uri}.json"
+    elif operation == "delete":
+        post_uri = post["uri"].split('/')[-1]
+        filename = f"post_uri={post_uri}.json"
+        flattened_post = post
+
     folder_path = export_filepath_map[operation]["post"]
     full_path = os.path.join(folder_path, filename)
     write_data_to_json(flattened_post, full_path)

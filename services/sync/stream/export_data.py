@@ -2,10 +2,13 @@
 S3."""
 import json
 import os
-from typing import Literal
+import shutil
+from typing import Literal, Optional
 
+from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import current_datetime_str
+from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 root_write_path = os.path.join(current_file_directory, "cache")
@@ -42,6 +45,9 @@ s3_export_key_map = {
 }
 
 s3 = S3()
+dynamodb = DynamoDB()
+
+SUBSCRIPTION_STATE_TABLE_NAME = "firehoseSubscriptionState"
 
 
 def rebuild_cache_paths():
@@ -59,9 +65,9 @@ def rebuild_cache_paths():
 
 
 def delete_cache_paths():
-    """Deletes the cache paths."""
+    """Deletes the cache paths. Recursively removes from the root path."""
     if os.path.exists(root_write_path):
-        os.rmdir(root_write_path)
+        shutil.rmtree(root_write_path)
 
 
 rebuild_cache_paths()
@@ -114,3 +120,44 @@ def write_batch_to_s3(compressed: bool = True, clear_cache: bool = True):
             )
     delete_cache_paths()
     rebuild_cache_paths()
+
+
+def update_cursor_state_dynamodb(
+    cursor_model: FirehoseSubscriptionStateCursorModel
+) -> None:
+    """Updates the cursor state in DynamoDB."""
+    item = cursor_model.dict()
+    dynamodb.insert_item_into_table(
+        table_name="firehoseSubscriptionState", item=item
+    )
+
+
+def load_cursor_state_dynamodb(service_name: str) -> Optional[FirehoseSubscriptionStateCursorModel]:  # noqa
+    """Loads the cursor state from DynamoDB, if it exists. If not, return
+    None."""
+    key = {
+        "service": {"S": service_name}
+    }
+    result: Optional[dict] = dynamodb.get_item_from_table(
+        table_name=SUBSCRIPTION_STATE_TABLE_NAME, key=key
+    )
+    if not result:
+        return None
+    return FirehoseSubscriptionStateCursorModel(**result)
+
+
+def update_cursor_state_s3(
+    cursor_model: FirehoseSubscriptionStateCursorModel
+) -> None:
+    """Updates the cursor state in S3."""
+    key = os.path.join("sync", "firehose", "cursor", f"{cursor_model.service}.json")  # noqa
+    s3.write_dict_json_to_s3(data=cursor_model.dict(), key=key)
+
+
+def load_cursor_state_s3(service_name: str) -> Optional[FirehoseSubscriptionStateCursorModel]:  # noqa
+    """Loads the cursor state from S3, if it exists. If not, return None."""
+    key = os.path.join("sync", "firehose", "cursor", f"{service_name}.json")
+    result: Optional[dict] = s3.read_json_from_s3(key=key)
+    if not result:
+        return None
+    return FirehoseSubscriptionStateCursorModel(**result)

@@ -107,3 +107,10 @@ class RawFollow(BaseModel):
     author: str = Field(..., description="The DID of the author of the follow. Matches follower_did.")  # noqa
     follower_did: str = Field(..., description="The DID of the user doing the following.")  # noqa
     follow_did: str = Field(..., description="The DID of the user being followed.")  # noqa
+
+
+class FirehoseSubscriptionStateCursorModel(BaseModel):
+    """Model for the cursor in the firehose subscription state."""
+    service: str = Field(..., description="The service that the cursor is for.")  # noqa
+    cursor: int = Field(..., description="The cursor value.")
+    timestamp: str = Field(..., description="The timestamp that the cursor was inserted.")  # noqa

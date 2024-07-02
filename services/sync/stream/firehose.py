@@ -3,6 +3,7 @@
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_stream.py
 """  # noqa
 import sys
+from typing import Optional
 
 from atproto import (
     AtUri, CAR, firehose_models, FirehoseSubscribeReposClient, models,
@@ -10,8 +11,12 @@ from atproto import (
 )
 from atproto.exceptions import FirehoseError
 
-from lib.db.sql.sync_database import SubscriptionState
+from lib.constants import current_datetime_str
+from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.helper import ThreadSafeCounter
+from services.sync.stream.export_data import (
+    load_cursor_state_s3, update_cursor_state_s3, write_batch_to_s3
+)
 
 # number of events to stream before exiting
 # (should be ~10,000 posts, a 1:5 ratio of posts:events)
@@ -21,7 +26,8 @@ from lib.helper import ThreadSafeCounter
 # 150,000 posts expected.
 stream_limit = 750000
 
-cursor_update_frequency = 500
+# how often to (1) write to S3 and (2) update the cursor state
+cursor_update_frequency = 250
 
 
 def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict:  # noqa
@@ -94,21 +100,17 @@ def run(name, operations_callback, stream_stop_event=None):
 
 
 def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
+    """Run firehose stream."""
+    state: Optional[FirehoseSubscriptionStateCursorModel] = (
+        load_cursor_state_s3(service_name=name)
+    )
 
-    # TODO: make SubscriptionState store timestamp.
-    # NOTE: I don't think this is necessary, since DynamoDB would have the
-    # timestamp that the document is added?
-    state = SubscriptionState.select(SubscriptionState.service == name).first()
-
-    params = None
     if state:
-        params = models.ComAtprotoSyncSubscribeRepos.Params(
-            cursor=state.cursor)
+        params = models.ComAtprotoSyncSubscribeRepos.Params(cursor=state.cursor)  # noqa
+    else:
+        params = None
 
     firehose_client = FirehoseSubscribeReposClient(params)
-
-    if not state:
-        SubscriptionState.create(service=name, cursor=0)
 
     counter = ThreadSafeCounter()
 
@@ -125,37 +127,10 @@ def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
         if not isinstance(commit, models.ComAtprotoSyncSubscribeRepos.Commit):
             return
 
-        # TODO: when migrating to the cloud, this counter needs to move to an
-        # external store such as Dynamo. This is because the counter will be
-        # reset every time the EC2 instance is restarted.
-        # update stored state
-        # TODO: update existing cursor so that there should be only
-        # one existing cursor in DynamoDB.
-        if commit.seq % cursor_update_frequency == 0:
-            print(f'Updated cursor for {name} to {commit.seq}')
-            firehose_client.update_params(
-                models.ComAtprotoSyncSubscribeRepos.Params(cursor=commit.seq))
-            SubscriptionState.update(cursor=commit.seq).where(
-                SubscriptionState.service == name).execute()
-
         if not commit.blocks:
             return
 
         ops_by_type: dict = _get_ops_by_type(commit)
-
-        reposts = ops_by_type.get('reposts')
-        likes = ops_by_type.get('likes')
-        follows = ops_by_type.get('follows')
-
-        if len(reposts["created"]) > 0 or len(reposts["deleted"]) > 0:
-            print("There are reposts")
-            breakpoint()
-        if len(likes["deleted"]) > 0:
-            print("There are likes deleted")
-            breakpoint()
-        if len(follows["deleted"]) > 0:
-            print("There are follows")
-            breakpoint()
 
         has_written_data: dict = operations_callback(ops_by_type)
 
@@ -167,6 +142,18 @@ def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
             counter_value = counter.get_value()
             if counter_value % cursor_update_frequency == 0:
                 print(f"Counter: {counter_value}")
+                print("Writing cached records to S3 and resetting cache...")
+                write_batch_to_s3()
+                print(f"Updating cursor state with cursor={counter_value}...")  # noqa
+                cursor_state = {
+                    "service": name,
+                    "cursor": commit.seq,
+                    "timestamp": current_datetime_str
+                }
+                cursor_state_model = (
+                    FirehoseSubscriptionStateCursorModel(**cursor_state)
+                )
+                update_cursor_state_s3(cursor_state_model)
             if counter.get_value() > stream_limit:
                 sys.exit(0)
 
