@@ -1,5 +1,7 @@
 atproto==0.0.46
+memory_profiler==0.61.0
 fasttext==0.9.2
+numpy==1.26.4 # numpy=2.0.0 is the most recent version, which is a big jump.
 pydantic==2.7.4
 pymongo==4.7.1
 python-dotenv==1.0.1

@@ -40,8 +40,14 @@ idna==3.7
     #   httpx
 libipld==1.2.3
     # via atproto
-numpy==2.0.0
-    # via fasttext
+memory-profiler==0.61.0
+    # via -r requirements.in
+numpy==1.26.4
+    # via
+    #   -r requirements.in
+    #   fasttext
+psutil==6.0.0
+    # via memory-profiler
 pybind11==2.13.1
     # via fasttext
 pycparser==2.22
