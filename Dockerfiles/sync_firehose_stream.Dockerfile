@@ -10,8 +10,6 @@ COPY pipelines/sync_post_records/firehose ./pipelines/sync_post_records/firehose
 COPY lib/aws/*.py ./lib/aws/
 COPY lib/constants.py ./lib/constants.py
 COPY lib/db/bluesky_models/* ./lib/db/bluesky_models/
-# TODO: DB will be removed when we store state externally.
-COPY lib/db/sql/sync_database.py ./lib/db/sql/sync_database.py
 COPY lib/helper.py ./lib/helper.py
 COPY lib/log/logger.py ./lib/log/logger.py
 
