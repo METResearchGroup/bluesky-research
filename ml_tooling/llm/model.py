@@ -14,6 +14,7 @@ callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
 
 # model
 llama_model_path = "/kellogg/software/llama_cpp/models/llama-2-7b-chat.Q5_K_M.gguf"  # noqa
+# llama_model_path = "/kellogg/software/llama_cpp/models/Meta-Llama-3-8B-Instruct-Q8_0.gguf"  # noqa
 
 # settings
 context_size = 512
