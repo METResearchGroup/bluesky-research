@@ -14,3 +14,6 @@ class UserToBlueskyProfileModel(BaseModel):
     ] = Field(..., description="The condition the user is in.")
     bluesky_handle: str = Field(..., description="The Bluesky handle of the user.")  # noqa
     bluesky_user_did: str = Field(..., description="The Bluesky user DID of the user.")  # noqa
+    is_study_user: bool = Field(
+        True, description="Whether the user is a study user (as opposed to a mock user for testing purposes)"  # noqa
+    )
