@@ -11,15 +11,26 @@ from services.participant_data.models import UserToBlueskyProfileModel
 
 TABLE_NAME = "study_participants"
 dynamodb = DynamoDB()
-table = dynamodb.client.Table(TABLE_NAME)
+table = dynamodb.resource.Table(TABLE_NAME)
 
 
-def insert_bsky_user_to_db(user_model: UserToBlueskyProfileModel) -> None:
-    """Insert a user into the study."""
+def insert_bsky_user_to_db(
+    user_model: UserToBlueskyProfileModel, overwrite_existing: bool = True
+) -> None:
+    """Insert a user into the study.
+
+    Overwrites it if it already exists, unless the flag is set to False.
+    """
     try:
-        table.put_item(Item=user_model.dict())
+        if overwrite_existing:
+            table.put_item(Item=user_model.dict())
+        else:
+            table.put_item(
+                Item=user_model.dict(),
+                ConditionExpression='attribute_not_exists(bluesky_user_did)'
+            )
     except ClientError as e:
-        print(f"Failed to insert user into DynamoDB: {e}")
+        print(f"Failed to insert user to DynamoDB: {e}")
         raise e
 
 
@@ -86,6 +97,7 @@ def get_bsky_study_user(bluesky_user_did: str) -> UserToBlueskyProfileModel:
 def manage_bsky_study_user(payload: dict) -> dict:
     """Manage Bluesky study users."""
     operation = payload.get("operation")
+    result = None
     try:
         if operation == "POST":
             insert_bsky_user_to_study(
@@ -95,9 +107,11 @@ def manage_bsky_study_user(payload: dict) -> dict:
                 is_study_user=payload.get("is_study_user", True)
             )
         elif operation == "GET":
-            get_bsky_study_user(
+            user_model = get_bsky_study_user(
                 bluesky_user_did=payload["bluesky_user_did"]
             )
+            if user_model:
+                result = user_model.dict()
         elif operation == "DELETE":
             delete_bsky_user_from_study(
                 bluesky_user_did=payload["bluesky_user_did"]
@@ -119,7 +133,9 @@ def manage_bsky_study_user(payload: dict) -> dict:
             "payload": payload
         }
     return {
-        "status": 200, "message": "Operation successful."
+        "status": 200,
+        "message": "Operation successful.",
+        "result": result
     }
 
 
@@ -133,7 +149,7 @@ def _insert_mock_users_into_study():
     """Inserts mock users into the study."""
     payloads = [
         {
-            "operation": "create",
+            "operation": "POST",
             "bluesky_user_did": user["bluesky_user_did"],
             "bluesky_handle": user["bluesky_handle"],
             "is_study_user": False,
@@ -143,3 +159,15 @@ def _insert_mock_users_into_study():
     ]
     manage_bsky_study_users(payloads)
     print(f"Inserted {len(mock_users)} mock users into the study.")
+
+
+def get_all_users() -> list[UserToBlueskyProfileModel]:
+    """Get all users in the study."""
+    try:
+        response = table.scan()
+        return [
+            UserToBlueskyProfileModel(**item) for item in response['Items']
+        ]
+    except ClientError as e:
+        print(f"Failed to fetch users from DynamoDB: {e}")
+        return []

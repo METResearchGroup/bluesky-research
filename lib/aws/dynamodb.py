@@ -1,6 +1,8 @@
 """Wrapper client for DynamoDB."""
 from typing import Optional
 
+import boto3
+
 from lib.aws.helper import create_client, retry_on_aws_rate_limit
 
 
@@ -9,6 +11,7 @@ class DynamoDB:
 
     def __init__(self):
         self.client = create_client("dynamodb")
+        self.resource = boto3.resource("dynamodb")
 
     def __getattr__(self, name):
         """Delegate attribute access to the DynamoDB client."""
