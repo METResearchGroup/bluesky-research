@@ -17,3 +17,4 @@ class UserToBlueskyProfileModel(BaseModel):
     is_study_user: bool = Field(
         True, description="Whether the user is a study user (as opposed to a mock user for testing purposes)"  # noqa
     )
+    created_timestamp: str = Field(..., description="The timestamp when the user was created.")  # noqa
