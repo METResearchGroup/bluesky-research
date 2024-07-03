@@ -16,12 +16,18 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
+memory-profiler==0.61.0
+    # via -r requirements.in
+psutil==6.0.0
+    # via memory-profiler
 pydantic==2.7.4
     # via -r requirements.in
 pydantic-core==2.18.4
     # via pydantic
 python-dateutil==2.9.0.post0
     # via botocore
+python-dotenv==1.0.1
+    # via -r requirements.in
 s3transfer==0.10.2
     # via boto3
 six==1.16.0

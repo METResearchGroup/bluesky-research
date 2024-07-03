@@ -1,5 +1,4 @@
 """API interface for adding users to a study."""
-import os
 import json
 
 from services.participant_data.helper import manage_bsky_study_user
