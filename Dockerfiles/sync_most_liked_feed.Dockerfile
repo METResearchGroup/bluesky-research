@@ -27,17 +27,6 @@ COPY transform/* ./transform/
 
 WORKDIR /app/pipelines/sync_post_records/most_liked
 
-# install Git and latest cpp compiler
-RUN apt-get update \
-    && apt-get install -y build-essential git \
-    && apt-get install -y g++ \
-    && rm -rf /var/lib/apt/lists/*
-
-# install fastText from source (pip install isn't working)
-# RUN git clone https://github.com/facebookresearch/fastText.git \
-#     && cd fastText \
-#     && pip install .
-
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Make port 80 available to the world outside this container
