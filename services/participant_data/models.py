@@ -1,6 +1,16 @@
 """Pydantic models for storing user profile data."""
+from typing import Optional
+
 from pydantic import BaseModel, Field
 import typing_extensions as te
+
+
+class CreateUserRequestModel(BaseModel):
+    """Request model for creating a user."""
+    bluesky_handle: str
+    condition: str
+    bluesky_user_did: str
+    is_study_user: Optional[bool] = True
 
 
 class UserToBlueskyProfileModel(BaseModel):

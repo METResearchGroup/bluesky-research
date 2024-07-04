@@ -1,5 +1,6 @@
 """Helper tooling from the participant data service."""
 import hashlib
+from typing import Optional
 
 from botocore.exceptions import ClientError
 
@@ -59,7 +60,7 @@ def fetch_all_users_in_condition(condition: str) -> list[UserToBlueskyProfileMod
 def insert_bsky_user_to_study(
     bluesky_handle: str, condition: str, bluesky_user_did: str,
     is_study_user: bool = True
-) -> None:
+) -> UserToBlueskyProfileModel:
     """Insert a user into the study.
 
     Assumes that the primary key is the user's bluesky_user_did, which cannot
@@ -76,6 +77,7 @@ def insert_bsky_user_to_study(
         created_timestamp=current_datetime_str
     )
     insert_bsky_user_to_db(user_model)
+    return user_model
 
 
 def delete_bsky_user_from_study(bluesky_user_did: str) -> None:
@@ -97,25 +99,30 @@ def get_bsky_study_user(bluesky_user_did: str) -> UserToBlueskyProfileModel:
 def manage_bsky_study_user(payload: dict) -> dict:
     """Manage Bluesky study users."""
     operation = payload.get("operation")
-    result = None
+    message: str = None
+    result: Optional[dict] = None
     try:
         if operation == "POST":
-            insert_bsky_user_to_study(
+            user_model: UserToBlueskyProfileModel = insert_bsky_user_to_study(
                 bluesky_handle=payload["bluesky_handle"],
                 condition=payload["condition"],
                 bluesky_user_did=payload["bluesky_user_did"],
                 is_study_user=payload.get("is_study_user", True)
             )
+            result = user_model
+            message = "User added to study."
         elif operation == "GET":
-            user_model = get_bsky_study_user(
+            user_model: UserToBlueskyProfileModel = get_bsky_study_user(
                 bluesky_user_did=payload["bluesky_user_did"]
             )
             if user_model:
                 result = user_model.dict()
+            message = "User fetched successfully."
         elif operation == "DELETE":
             delete_bsky_user_from_study(
                 bluesky_user_did=payload["bluesky_user_did"]
             )
+            message = "User deleted successfully."
         elif operation == "INSERT_MOCK_USERS":
             _insert_mock_users_into_study()
         else:
@@ -134,7 +141,7 @@ def manage_bsky_study_user(payload: dict) -> dict:
         }
     return {
         "status": 200,
-        "message": "Operation successful.",
+        "message": f"Operation successful. {message}",
         "result": result
     }
 
