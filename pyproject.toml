@@ -1,4 +1,4 @@
 [tool.flake8]
-exclude = [
-    "experiments/*", "demos"
-]
+exclude = ["*/experiments/*", "./demos/*"]
+max-line-length = 80
+max-complexity = 10

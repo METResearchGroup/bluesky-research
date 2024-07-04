@@ -4,6 +4,8 @@
 #
 #    pip-compile dev_requirements.in
 #
+autopep8==2.1.0
+    # via -r dev_requirements.in
 cfgv==3.4.0
     # via pre-commit
 distlib==0.3.8
@@ -12,10 +14,18 @@ exceptiongroup==1.2.0
     # via pytest
 filelock==3.13.1
     # via virtualenv
+flake8==7.0.0
+    # via
+    #   -r dev_requirements.in
+    #   flake8-pyproject
+flake8-pyproject==1.2.3
+    # via -r dev_requirements.in
 identify==2.5.33
     # via pre-commit
 iniconfig==2.0.0
     # via pytest
+mccabe==0.7.0
+    # via flake8
 memory-profiler==0.61.0
     # via -r dev_requirements.in
 nodeenv==1.8.0
@@ -30,12 +40,21 @@ pre-commit==3.6.0
     # via -r dev_requirements.in
 psutil==5.9.8
     # via memory-profiler
+pycodestyle==2.11.1
+    # via
+    #   autopep8
+    #   flake8
+pyflakes==3.2.0
+    # via flake8
 pytest==8.0.0
     # via -r dev_requirements.in
 pyyaml==6.0.1
     # via pre-commit
 tomli==2.0.1
-    # via pytest
+    # via
+    #   autopep8
+    #   flake8-pyproject
+    #   pytest
 virtualenv==20.25.0
     # via pre-commit
 
