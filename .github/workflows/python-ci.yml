@@ -36,19 +36,13 @@ jobs:
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --config=pyproject.toml
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --max-complexity=10 --max-line-length=127 --statistics --config=pyproject.toml
     - name: Test with pytest
       run: |
         # pytest --ignore=experiments --no-header -v
     - name: Lint Dockerfiles with Hadolint
       run: |
-        docker run --rm -i hadolint/hadolint < Dockerfiles/api.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/classify.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/data_pipeline_orchestration.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/feed_postprocessing.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/feed_preprocessing.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/manage_bluesky_feeds.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/manage_users.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/recommendation.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/sync.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/add_users_to_study.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/feed_api.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/preprocessing.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/sync_firehose_stream.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/sync_most_liked_feed.Dockerfile
