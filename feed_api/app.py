@@ -3,7 +3,7 @@
 Based on specs in the following docs:
 - https://github.com/bluesky-social/feed-generator/blob/main/src/lexicon/types/app/bsky/feed/getFeedSkeleton.ts#L4
 - https://github.com/bluesky-social/feed-generator
-"""
+"""  # noqa
 from typing import Optional, Annotated
 
 from fastapi import FastAPI, HTTPException, Query

@@ -1,4 +1,3 @@
-import json
 from mangum import Mangum
 from app import app
 

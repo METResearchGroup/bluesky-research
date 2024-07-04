@@ -197,7 +197,7 @@ class S3:
                     os.remove(fp)
 
     @classmethod
-    def create_partition_key_based_on_timestamp(cls, timestamp_str: str) -> str:
+    def create_partition_key_based_on_timestamp(cls, timestamp_str: str) -> str:  # noqa
         """Given the timestamp string, create a partition key.
 
         Assumes the timestamp format given in lib/constants.py.

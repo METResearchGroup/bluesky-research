@@ -209,8 +209,9 @@ def print_aggregate_metrics():
 
 def print_metrics_per_user():
     """Return metrics per user."""
-    # join author_handle from PostsWrittenByStudyUsers and liked_by_user_handle from UserLike
-    # and get the count of posts written and likes given by each user
+    # join author_handle from PostsWrittenByStudyUsers and liked_by_user_handle
+    # from UserLike and get the count of posts written and likes given by
+    # each user
     total_metrics_per_user = PostsWrittenByStudyUsers.select(
         PostsWrittenByStudyUsers.author_handle,
         peewee.fn.COUNT(PostsWrittenByStudyUsers.author_handle).alias(

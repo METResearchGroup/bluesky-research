@@ -62,7 +62,7 @@ def batch_insert_superposters(superposters: list[SuperposterModel]) -> None:
 
 def get_superposters(superposter_date: str) -> list[SuperposterModel]:
     """Get superposters for a given date."""
-    res = Superposter.select().where(Superposter.superposter_date == superposter_date)
+    res = Superposter.select().where(Superposter.superposter_date == superposter_date)  # noqa
     res_dicts = [superposter.__dict__ for superposter in res]
     transformed_res = [SuperposterModel(**superposter) for superposter in res_dicts]  # noqa
     return transformed_res

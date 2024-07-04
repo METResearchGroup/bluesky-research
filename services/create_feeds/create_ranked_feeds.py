@@ -45,7 +45,7 @@ def create_most_liked_feeds(
     engagement_users = condition_to_user_map["engagement"]
     representative_diversification_users = condition_to_user_map["representative_diversification"]  # noqa
 
-    if len(engagement_users) > 0 or len(representative_diversification_users) > 0:
+    if len(engagement_users) > 0 or len(representative_diversification_users) > 0:  # noqa
         posts: list[RecordClassificationMetadataModel] = load_most_liked_based_posts()  # noqa
         if len(engagement_users) > 0:
             feeds: list[UserFeedModel] = create_engagement_feeds(

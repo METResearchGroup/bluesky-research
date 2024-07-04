@@ -58,7 +58,7 @@ class ContextEmbedUrlModel(BaseModel):
     )
     is_trustworthy_news_article: Optional[bool] = Field(
         default=False,
-        description="Whether the URL in the embed is a trustworthy news article."
+        description="Whether the URL in the embed is a trustworthy news article."  # noqa
     )
 
 

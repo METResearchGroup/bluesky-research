@@ -1,6 +1,6 @@
 """Model for classifying posts using LLMs."""
 from langchain_community.llms import LlamaCpp
-from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler
+from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler  # noqa
 
 from ml_tooling.llm.inference import (
     BACKEND_OPTIONS, get_langchain_litellm_chat_model

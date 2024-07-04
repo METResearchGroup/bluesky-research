@@ -20,7 +20,6 @@ def calculate_day_before_day_after_superposter_date(
     superposter_date: str
 ) -> tuple[str, str]:
     """Calculate the day before and day after a given superposter_date."""
-    # calculate the day before and day after superposter_date
     day_before = (datetime.strptime(superposter_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")  # noqa
     day_after = (datetime.strptime(superposter_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")  # noqa
     return day_before, day_after
@@ -97,7 +96,7 @@ def calculate_superposters(
     superposter_date: Optional[str] = default_superposter_date
 ) -> list[SuperposterModel]:
     """Calculate superposters for a given date."""
-    posts: list[FilteredPreprocessedPostModel] = load_posts_from_superposter_date(
+    posts: list[FilteredPreprocessedPostModel] = load_posts_from_superposter_date(  # noqa
         superposter_date=superposter_date
     )
     user_post_counts: dict = get_counts_of_posts_by_author_id(posts)

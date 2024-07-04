@@ -157,7 +157,7 @@ def request_comment_analyzer(
         f"Sending request to commentanalyzer endpoint with request={analyze_request}...",  # noqa
     )
     try:
-        response = google_client.comments().analyze(body=analyze_request).execute()
+        response = google_client.comments().analyze(body=analyze_request).execute()  # noqa
     except HttpError as e:
         logger.error(f"Error sending request to commentanalyzer: {e}")
         response = {"error": str(e)}
@@ -239,8 +239,7 @@ async def process_perspective_batch(requests):
                         response_obj["attributeScores"][attribute]["summaryScore"]["value"]  # noqa
                     )
                     classification_probs_and_labels[labels["prob"]] = prob_score  # noqa
-                    classification_probs_and_labels[labels["label"]
-                                                    ] = 0 if prob_score < 0.5 else 1
+                    classification_probs_and_labels[labels["label"]] = 0 if prob_score < 0.5 else 1  # noqa
             responses.append(classification_probs_and_labels)
 
     for _, request in enumerate(requests):

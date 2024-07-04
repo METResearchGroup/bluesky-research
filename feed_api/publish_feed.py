@@ -2,17 +2,13 @@
 
 Copied from https://github.com/MarshalX/bluesky-feed-generator/blob/main/publish_feed.py
 """  # noqa
-#!/usr/bin/env python3
-# YOU MUST INSTALL ATPROTO SDK
-# pip3 install atproto
-
 from atproto import Client, models
 
 # YOUR bluesky handle
 # Ex: user.bsky.social
 HANDLE: str = ''
 
-# YOUR bluesky password, or preferably an App Password (found in your client settings)
+# YOUR bluesky password, or preferably an App Password (found in your client settings) # noqa
 # Ex: abcd-1234-efgh-5678
 PASSWORD: str = ''
 
@@ -60,7 +56,7 @@ def main():
             avatar_data = f.read()
             avatar_blob = client.upload_blob(avatar_data).blob
 
-    response = client.com.atproto.repo.put_record(models.ComAtprotoRepoPutRecord.Data(
+    response = client.com.atproto.repo.put_record(models.ComAtprotoRepoPutRecord.Data(  # noqa
         repo=client.me.did,
         collection=models.ids.AppBskyFeedGenerator,
         rkey=RECORD_NAME,

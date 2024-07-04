@@ -51,7 +51,7 @@ display_users_by_condition()
 try:
     bsky_author_did = get_author_did_from_handle(bluesky_handle)
 except Exception as e:
-    st.error(f"No user found with handle {bluesky_handle}.")
+    st.error(f"No user found with handle {bluesky_handle}: {e}.")
     st.stop()
 
 if add_user:

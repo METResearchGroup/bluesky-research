@@ -33,9 +33,9 @@ def run_llm_inference():
 @task
 def trigger_ml_classification_orchestration():
     """Orchestration to trigger individual ML classification tasks."""
-    perspective_api_updates = run_perspective_api_inference()
+    run_perspective_api_inference()
     llm_posts = get_posts_for_llm_inference()
-    llm_updates = run_llm_inference(upstream_tasks=[llm_posts])
+    run_llm_inference(upstream_tasks=[llm_posts])
 
 
 @task
@@ -53,8 +53,8 @@ def trigger_update_latest_connection_updates():
 @task
 def trigger_user_activity_updates():
     """Orchestration to trigger individual user engagement tasks."""
-    update_latest_user_engagement = trigger_update_latest_user_engagement()
-    update_latest_connection_updates = trigger_update_latest_connection_updates()
+    trigger_update_latest_user_engagement()
+    trigger_update_latest_connection_updates()
 
 
 @task
@@ -102,7 +102,7 @@ def run_pipeline():
     )
 
     # write to S3
-    write_feeds_to_s3 = trigger_write_feeds_to_s3(
+    trigger_write_feeds_to_s3(
         upstream_tasks=[score_and_create_feeds])
 
 

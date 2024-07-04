@@ -68,13 +68,13 @@ BACKEND_OPTIONS = {
     "Llama3-8B (via HuggingFace) (NOT SUPPORTED YET)": {
         "model": "huggingface/unsloth/llama-3-8b",
         "kwargs": {
-            "api_base": "https://api-inference.huggingface.co/models/unsloth/llama-3-8b"
+            "api_base": "https://api-inference.huggingface.co/models/unsloth/llama-3-8b"  # noqa
         }
     },
     "Mixtral 8x22B (via HuggingFace)": {
         "model": "huggingface/mistralai/Mixtral-8x22B-v0.1",
         "kwargs": {
-            "api_base": "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x22B-v0.1"
+            "api_base": "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x22B-v0.1"  # noqa
         }
     },
     "Llama3-8b (via Groq)": {  # 8k context limit

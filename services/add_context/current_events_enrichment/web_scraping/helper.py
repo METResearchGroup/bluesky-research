@@ -29,7 +29,7 @@ def get_article_content_llm(url: str):
 
 
 if __name__ == "__main__":
-    url = "https://edition.cnn.com/2024/05/13/politics/louisiana-bill-abortion-drugs-highly-regulated-medications/index.html"
+    url = "https://edition.cnn.com/2024/05/13/politics/louisiana-bill-abortion-drugs-highly-regulated-medications/index.html"  # noqa
     # result = get_all_article_content(url)
     result = get_article_content_llm(url)
 

@@ -2,7 +2,6 @@
 import json
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
 from mangum import Mangum
 import uvicorn
 
@@ -67,7 +66,7 @@ def delete_user(bluesky_user_did: str):
 
 def _test_handler():
     event = {"payload": {"operation": "INSERT_MOCK_USERS"}}
-    # event = {"payload": {"operation": "GET", "bluesky_user_did": "did:plc:mvvopd2jj3432twfga7nvpcm"}}
+    # event = {"payload": {"operation": "GET", "bluesky_user_did": "did:plc:mvvopd2jj3432twfga7nvpcm"}} # noqa
     context = {}
     res = lambda_handler(event, context)
     print(res)

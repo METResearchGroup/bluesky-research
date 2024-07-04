@@ -51,4 +51,4 @@ def preprocess_raw_data() -> None:
     """
     filtered_posts = filter_latest_raw_data()
     batch_create_filtered_posts(filtered_posts)
-    logger.info(f"Filtered data written to DB.")
+    logger.info("Filtered data written to DB.")

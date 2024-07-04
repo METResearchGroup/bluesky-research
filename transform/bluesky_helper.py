@@ -152,8 +152,9 @@ def get_record_with_author_given_post_uri(post_uri: str) -> TransformedRecordWit
     # TODO: check what type the value is and then see if it's one
     # that exists already in the DB.
     # TODO: I should move all of the DBs to a single location, and then
-    # just change the name of the DB based on the input type (e.g., FeedViewPost)
-    # or the source type (e.g., firehose, feedview, context, etc.)
+    # just change the name of the DB based on the input type
+    # (e.g., FeedViewPost) or the source type (e.g., firehose, feedview,
+    # context, etc.)
     record_response: GetRecordResponse = get_post_record_given_post_uri(post_uri)  # noqa
     hydrated_embedded_record_dict: dict = {
         "record": record_response.value,

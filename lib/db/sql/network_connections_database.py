@@ -120,7 +120,7 @@ def get_all_followed_connections() -> list[UserToConnectionModel]:
     return deduped_res
 
 
-def insert_user_network_counts(user_network_counts: UserSocialNetworkCountsModel):
+def insert_user_network_counts(user_network_counts: UserSocialNetworkCountsModel):  # noqa
     UserSocialNetworkCounts.insert(**user_network_counts.dict()).on_conflict_replace().execute()  # noqa
     print(f"Inserted user network counts for user {user_network_counts.study_user_id}.")  # noqa
 

@@ -103,7 +103,7 @@ def run_chain(
         # Langchain will try to validate the response and in the case where
         # the output format is incorrect, we can retry.
         print(f"Error decoding JSON response: {e}")
-        print(f"Retrying with formatted prompt.")
+        print("Retrying with formatted prompt.")
         formatted_prompt = langchain_prompt.format_prompt(text=post.text)
         result = retry_parser.parse_with_prompt(result, formatted_prompt)
     model = LLMSociopoliticalLabelModel(
@@ -271,12 +271,12 @@ if __name__ == "__main__":
     test_texts = [
         "I think that the government should be more involved in the economy.",
         "I think that the government should be less involved in the economy.",
-        "I think that the government should be more involved in social issues.",
-        "I think that the government should be less involved in social issues.",
-        "I think that the government should be more involved in foreign policy.",
-        "I think that the government should be less involved in foreign policy.",
-        "I think that the government should be more involved in the environment.",
-        "I think that the government should be less involved in the environment.",
+        "I think that the government should be more involved in social issues.",  # noqa
+        "I think that the government should be less involved in social issues.",  # noqa
+        "I think that the government should be more involved in foreign policy.",  # noqa
+        "I think that the government should be less involved in foreign policy.",  # noqa
+        "I think that the government should be more involved in the environment.",  # noqa
+        "I think that the government should be less involved in the environment.",  # noqa
     ] * num_repetitions
     test_posts = [
         RecordClassificationMetadataModel(

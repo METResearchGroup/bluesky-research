@@ -154,14 +154,14 @@ def check_for_existing_network_connections(
 
     Should only be for cases where the existing link is unidirectional and we
     need to make it bidirectional.
-    """
+    """  # noqa
     # load all connections for the user
     user_did = user.bluesky_user_did
     connection_dids: set[str] = get_connection_dids_for_user(user_did=user_did)
     return connection_dids & possible_new_connection_dids
 
 
-def get_current_network_counts(user: UserToBlueskyProfileModel) -> dict[str, int]:
+def get_current_network_counts(user: UserToBlueskyProfileModel) -> dict[str, int]:  # noqa
     """Get the current network counts for a user."""
     user_profile: ProfileViewDetailed = client.get_profile(actor=user.bluesky_user_did)  # noqa
     return {
@@ -211,7 +211,7 @@ def update_latest_network_counts(
         followers_difference = latest_followers_count
     else:
         previous_follows_count = previous_user_network_counts_map["follows"]
-        previous_followers_count = previous_user_network_counts_map["followers"]
+        previous_followers_count = previous_user_network_counts_map["followers"]  # noqa
 
         if (
             previous_follows_count == latest_follows_count
@@ -351,7 +351,7 @@ def update_network_connections():
         )
         if not updated_network_connections:
             print(
-                f"No new connections for user {user.bluesky_handle}. Skipping...")
+                f"No new connections for user {user.bluesky_handle}. Skipping...")  # noqa
             continue
         batch_insert_network_connections(updated_network_connections)
         insert_user_network_counts(user_social_network_counts)

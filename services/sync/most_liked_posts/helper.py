@@ -1,4 +1,4 @@
-"""Helper functions for getting most liked Bluesky posts in the past day/week."""
+"""Helper functions for getting most liked Bluesky posts in the past day/week."""  # noqa
 import json
 import os
 
@@ -19,11 +19,11 @@ s3 = S3()
 feed_to_info_map = {
     "today": {
         "description": "Most popular posts from the last 24 hours",
-        "url": "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/catch-up"
+        "url": "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/catch-up"  # noqa
     },
     "week": {
         "description": "Most popular posts from the last 7 days",
-        "url": "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/catch-up-weekly"
+        "url": "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/catch-up-weekly"  # noqa
     }
 }
 

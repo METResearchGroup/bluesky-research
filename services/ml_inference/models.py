@@ -41,12 +41,9 @@ class PerspectiveApiLabelsModel(BaseModel):
     """
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
-    was_successfully_labeled: bool = Field(...,
-                                           description="Indicates if the post was successfully labeled by the Perspective API.")
-    reason: Optional[str] = Field(
-        default=None, description="Reason for why the post was not labeled successfully.")
-    label_timestamp: str = Field(...,
-                                 description="Timestamp when the post was labeled (or, if labeling failed, when it was attempted).")
+    was_successfully_labeled: bool = Field(..., description="Indicates if the post was successfully labeled by the Perspective API.")  # noqa
+    reason: Optional[str] = Field(default=None, description="Reason for why the post was not labeled successfully.")  # noqa
+    label_timestamp: str = Field(..., description="Timestamp when the post was labeled (or, if labeling failed, when it was attempted).")  # noqa
     prob_toxic: Optional[float] = Field(
         default=None, description="Probability of toxicity.")
     prob_severe_toxic: Optional[float] = Field(

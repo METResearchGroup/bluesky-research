@@ -36,9 +36,10 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
         like_model_dict = like_model.dict()
         author_did = like_model.author
         uri = like_model.uri.split('/')[-1]
-        # we save this using both the DID and like URI so that then we can easily
-        # parse this and write to the correct place in S3. We'll manage tracking
-        # the posts liked later, as long as we know who created the like.
+        # we save this using both the DID and like URI so that then we can
+        # easily parse this and write to the correct place in S3. We'll
+        # manage tracking the posts liked later, as long as we know who
+        # created the like.
         filename = f"author_did={author_did}_uri={uri}.json"
     elif operation == "delete":
         uri = like["uri"].split('/')[-1]
@@ -82,7 +83,7 @@ def manage_likes(likes: dict[str, list]) -> dict:
         ],
         'deleted': []
     }
-    """
+    """  # noqa
     for like in likes["created"]:
         manage_like(like=like, operation="create")
     for like in likes["deleted"]:
@@ -154,7 +155,7 @@ def manage_follows(follows: dict[str, list]) -> dict:
     The author is the entity who is following, and the record.subject is the
     user who is being followed. For example, if A follows B, then the author is
     the DID of A and the record.subject is the DID of B.
-    """
+    """  # noqa
     for follow in follows["created"]:
         manage_follow(follow=follow, operation="create")
     for follow in follows["deleted"]:

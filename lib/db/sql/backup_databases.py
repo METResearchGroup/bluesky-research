@@ -101,13 +101,12 @@ def backup_db(
                 os.makedirs(json_export_dir, exist_ok=True)
                 json_str = df.to_json(orient='records', lines=True)
                 if compressed:
-                    with gzip.open(json_filepath + '.gz', 'wt', encoding='utf-8') as gz_file:
+                    with gzip.open(json_filepath + '.gz', 'wt', encoding='utf-8') as gz_file:  # noqa
                         gz_file.write(json_str)
                 else:
-                    with open(json_filepath, 'w', encoding='utf-8') as json_file:
+                    with open(json_filepath, 'w', encoding='utf-8') as json_file:  # noqa
                         json_file.write(json_str)
-                print(
-                    f"Finished table {table_name} as JSON to {json_filepath}...")
+                print(f"Finished table {table_name} as JSON to {json_filepath}...")  # noqa
 
     conn.close()
 
@@ -130,9 +129,9 @@ def load_from_backup(
         root_data_backups_directory, db_name, timestamp, export_format
     )
     if export_format == "parquet":
-        return pd.read_parquet(os.path.join(backup_directory, f"{table_name}.parquet"))
+        return pd.read_parquet(os.path.join(backup_directory, f"{table_name}.parquet"))  # noqa
     elif export_format == "json":
-        with open(os.path.join(backup_directory, f"{table_name}.json"), 'r') as f:
+        with open(os.path.join(backup_directory, f"{table_name}.json"), 'r') as f:  # noqa
             return pd.read_json(f, lines=True)
     else:
         raise ValueError(f"Unsupported export format: {export_format}")

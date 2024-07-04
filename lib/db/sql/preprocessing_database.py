@@ -133,7 +133,7 @@ def get_filtered_posts(
 ) -> list[Union[FilteredPreprocessedPostModel, dict]]:
     """Get filtered posts from the database."""
     query = FilteredPreprocessedPosts.select().where(
-        FilteredPreprocessedPosts.passed_filters == True
+        FilteredPreprocessedPosts.passed_filters
     )
     if latest_preprocessing_timestamp:
         query = query.where(
@@ -178,7 +178,8 @@ def get_filtered_posts(
     if export_format == "dict":
         # doing the conversion here since doing it upstream leads to JSON
         # processing errors due to the metadata and other fields being JSON
-        # fields within JSON fields, which can lead to JSONDecodeError problems.
+        # fields within JSON fields, which can lead to JSONDecodeError
+        # problems.
         return [post.dict() for post in transformed_res]
     return transformed_res
 
@@ -190,7 +191,7 @@ def get_filtered_posts_as_list_dicts(
 ) -> list[dict]:
     """Get all filtered posts from the database as a list of dictionaries."""
     base_query = FilteredPreprocessedPosts.select().where(
-        FilteredPreprocessedPosts.passed_filters == True
+        FilteredPreprocessedPosts.passed_filters
     )
     # Apply ordering based on the order_by and desc parameters
     if order_by:
@@ -218,7 +219,7 @@ def load_latest_preprocessed_post_timestamp() -> Optional[str]:
             latest_synctimestamp = (
                 FilteredPreprocessedPosts
                 .select(FilteredPreprocessedPosts.synctimestamp)
-                .order_by(FilteredPreprocessedPosts.preprocessing_timestamp.desc())
+                .order_by(FilteredPreprocessedPosts.preprocessing_timestamp.desc())  # noqa
                 .get()
                 .synctimestamp
             )

@@ -137,7 +137,7 @@ def batch_insert_metadata(
     print(f"Metadata count after insertion: {record_count}")
 
 
-def get_metadata(source: Optional[str] = None) -> list[RecordClassificationMetadataModel]:
+def get_metadata(source: Optional[str] = None) -> list[RecordClassificationMetadataModel]:  # noqa
     query = RecordClassificationMetadata.select()
     res = list(query)
     if source:

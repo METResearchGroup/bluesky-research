@@ -53,7 +53,7 @@ class RawLike(BaseModel):
         ),
         'uri': 'at://did:plc:aq45jcquopr4joswmfdpsfnh/app.bsky.feed.like/3kwckubmt342n'
     }
-    """
+    """  # noqa
     author: str = Field(..., description="The DID of the author of the post.")
     cid: str = Field(..., description="The CID of the record.")
     record: RawLikeRecord = Field(..., description="The actual post (and metadata) that was liked.")  # noqa
@@ -70,7 +70,7 @@ class RawFollowRecord(BaseModel):
             subject='did:plc:vjoaculzgxuqa3gdtqkmqawn',
             py_type='app.bsky.graph.follow'
         )
-    """
+    """  # noqa
     created_at: str = Field(..., description="The timestamp of when the record was created on Bluesky.")  # noqa
     subject: str = Field(..., description="The DID of the user being followed.")  # noqa
     py_type: te.Literal["app.bsky.graph.follow"] = Field(default="app.bsky.graph.follow", frozen=True)  # noqa
@@ -100,7 +100,7 @@ class RawFollow(BaseModel):
     The author is the entity who is following, and the record.subject is the
     user who is being followed. For example, if A follows B, then the author is
     the DID of A and the record.subject is the DID of B.
-    """
+    """  # noqa
     uri: str = Field(..., description="The URI of the follow record.")
     cid: str = Field(..., description="The CID of the record.")
     record: RawFollowRecord = Field(..., description="The actual follow record.")  # noqa
