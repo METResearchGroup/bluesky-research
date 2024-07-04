@@ -134,7 +134,7 @@ def batch_insert_likes(likes: list[UserLikeModel]):
 
 def get_previously_written_post_uris() -> set[str]:
     """Get previously written post URIs."""
-    previous_uris = PostsWrittenByStudyUsers.select(PostsWrittenByStudyUsers.uri) # noqa
+    previous_uris = PostsWrittenByStudyUsers.select(PostsWrittenByStudyUsers.uri)  # noqa
     return set([p.uri for p in previous_uris])
 
 
@@ -213,17 +213,20 @@ def print_metrics_per_user():
     # and get the count of posts written and likes given by each user
     total_metrics_per_user = PostsWrittenByStudyUsers.select(
         PostsWrittenByStudyUsers.author_handle,
-        peewee.fn.COUNT(PostsWrittenByStudyUsers.author_handle).alias("post_count"),
+        peewee.fn.COUNT(PostsWrittenByStudyUsers.author_handle).alias(
+            "post_count"),
         peewee.fn.COUNT(UserLike.liked_by_user_handle).alias("like_count")
     ).join(
         UserLike,
-        on=(PostsWrittenByStudyUsers.author_handle == UserLike.liked_by_user_handle)
+        on=(PostsWrittenByStudyUsers.author_handle ==
+            UserLike.liked_by_user_handle)
     ).group_by(PostsWrittenByStudyUsers.author_handle)
     print("Metrics per user:")
     print('-' * 10)
     for metric in total_metrics_per_user:
-        print(f"{metric.author_handle} -> Post count: {metric.post_count}, Like count: {metric.like_count}") # noqa
+        print(f"{metric.author_handle} -> Post count: {metric.post_count}, Like count: {metric.like_count}")  # noqa
     print('-' * 10)
+
 
 if __name__ == "__main__":
     # create_initial_tables(drop_all_tables=True)

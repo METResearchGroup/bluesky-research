@@ -101,7 +101,8 @@ class SociopoliticalLabels(BaseModel):
 def get_existing_metadata_uris() -> set[str]:
     """Get URIs of existing metadata."""
     uris = set()
-    query = RecordClassificationMetadata.select(RecordClassificationMetadata.uri)
+    query = RecordClassificationMetadata.select(
+        RecordClassificationMetadata.uri)
     for row in query:
         uris.add(row.uri)
     return uris

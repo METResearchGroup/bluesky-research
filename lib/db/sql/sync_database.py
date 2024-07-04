@@ -24,6 +24,8 @@ sync_cursor = sync_conn.cursor()
 default_firehose_timestamp = "2024-05-01"
 
 # database models for `TransformedRecordWithAuthor` tables.
+
+
 class BaseModel(peewee.Model):
     class Meta:
         database = db
@@ -154,7 +156,7 @@ def get_latest_firehose_posts(
                 "record": ast.literal_eval(res_dict["record"])
             }
             for res_dict in res_dicts
-            if ast.literal_eval(res_dict["metadata"]).get("synctimestamp", "") # noqa
+            if ast.literal_eval(res_dict["metadata"]).get("synctimestamp", "")  # noqa
             > latest_preprocessing_timestamp
         ]
     return res_dicts

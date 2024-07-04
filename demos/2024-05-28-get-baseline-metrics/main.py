@@ -4,9 +4,10 @@ import json
 import matplotlib.pyplot as plt
 
 from lib.constants import current_datetime_str
-from lib.db.mongodb import get_mongodb_collection, chunk_insert_posts
+from lib.db.mongodb import chunk_insert_posts, get_mongodb_collection
 from lib.db.sql.preprocessing_database import get_filtered_posts
-from ml_tooling.perspective_api.model import classify as perspective_api_classify # noqa
+from ml_tooling.perspective_api.model import \
+    classify as perspective_api_classify  # noqa
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 mongo_task = "perspective_api_labels"
@@ -65,19 +66,19 @@ def export_perspective_api_labels(
 ):
     num_labels = len(labels)
     if store_local:
-        print(f"Exporting {num_labels} perspective API labels to local storage...") # noqa
+        print(f"Exporting {num_labels} perspective API labels to local storage...")  # noqa
         export_filename = f"perspective_api_labels_{source_feed}_{current_datetime_str}.jsonl"
         with open(export_filename, "w") as f:
             for label in labels:
                 f.write(json.dumps(label) + "\n")
-        print(f"Exported {num_labels} perspective API labels to local storage.") # noqa
+        print(f"Exported {num_labels} perspective API labels to local storage.")  # noqa
     if store_remote:
         print("Inserting into MongoDB in bulk...")
         total_successful_inserts, duplicate_key_count = chunk_insert_posts(
             posts=labels,
             mongo_collection=mongo_collection
         )
-        print(f"Inserted {total_successful_inserts} perspective API labels into MongoDB.") # noqa
+        print(f"Inserted {total_successful_inserts} perspective API labels into MongoDB.")  # noqa
         print(f"Duplicate key count: {duplicate_key_count}")
         print("Finished bulk inserting into MongoDB.")
 
@@ -139,12 +140,11 @@ def get_perspective_api_labels_for_source(
     )
 
 
-
 def main():
     # load data
     data_by_source: dict = load_data()
-    firehose_posts: list[FilteredPreprocessedPostModel] = data_by_source["firehose"] # noqa
-    most_liked_posts: list[FilteredPreprocessedPostModel] = data_by_source["most_liked"] # noqa
+    firehose_posts: list[FilteredPreprocessedPostModel] = data_by_source["firehose"]  # noqa
+    most_liked_posts: list[FilteredPreprocessedPostModel] = data_by_source["most_liked"]  # noqa
 
     print(f"Number of firehose posts: {len(firehose_posts)}")
     print(f"Number of most liked posts: {len(most_liked_posts)}")
@@ -158,6 +158,7 @@ def main():
     get_perspective_api_labels_for_source(
         posts=most_liked_posts, source_feed="most_liked"
     )
+
 
 if __name__ == "__main__":
     main()

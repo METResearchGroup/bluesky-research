@@ -40,7 +40,8 @@ if bluesky_handle.startswith("http"):
         st.stop()
 
 # then, add condition as dropdown menu
-condition_label = st.selectbox("Condition:", list(map_label_to_condition.keys()))
+condition_label = st.selectbox(
+    "Condition:", list(map_label_to_condition.keys()))
 
 # finally, add user to study
 add_user = st.button("Add User to Study")

@@ -67,7 +67,7 @@ def define_config_for_labeling_session() -> dict:
     notes = input("Notes (optional): ")
 
     default_config_filename = f"{labeling_session_name}.json"
-    config_filename = input(f"Name of config file (optional, default = {default_config_filename}): ") # noqa
+    config_filename = input(f"Name of config file (optional, default = {default_config_filename}): ")  # noqa
     if not config_filename:
         config_filename = default_config_filename
 
@@ -125,13 +125,13 @@ def load_data_to_label(
     For now, we will load raw data from the database, but we can change this
     to load only filtered data instead. By default, we'll take a subset of the
     fields.
-    """ # noqa
+    """  # noqa
     if data_to_label_filename:
         try:
             data_to_label: list[dict] = load_existing_data_to_label(data_to_label_filename)  # noqa
             return data_to_label
         except FileNotFoundError:
-            print(f"Data to label not found at {data_to_label_filename}. Generating new set of data to label...") # noqa
+            print(f"Data to label not found at {data_to_label_filename}. Generating new set of data to label...")  # noqa
     # TODO: update to get only filtered posts.
     if most_recent_posts:
         posts: list[dict] = get_posts_as_list_dicts(

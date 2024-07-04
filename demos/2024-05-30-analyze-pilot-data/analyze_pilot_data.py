@@ -1,16 +1,16 @@
 """Analyze pilot data."""
+import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from lib.db.sql.ml_inference_database import (
-    get_metadata, get_perspective_api_labels
-)
-from services.ml_inference.models import (
-    RecordClassificationMetadataModel, PerspectiveApiLabelsModel
-)
+from lib.db.sql.ml_inference_database import (get_metadata,
+                                              get_perspective_api_labels)
+from services.ml_inference.models import (PerspectiveApiLabelsModel,
+                                          RecordClassificationMetadataModel)
 
 n_feed_posts = 250
+
 
 def load_data():
     metadata: list[RecordClassificationMetadataModel] = get_metadata()
@@ -31,8 +31,6 @@ def join_metadata_to_labels(metadata, perspective_api_labels):
     return merged_df
 
 
-import seaborn as sns
-
 def plot_probs(
     firehose_probs,
     most_liked_feed_probs,
@@ -44,14 +42,6 @@ def plot_probs(
 
     Export as .png files.
     """
-    # plt.hist(
-    #     firehose_probs, bins=20, alpha=0.5, density=True,
-    #     label="Firehose feed"
-    # )
-    # plt.hist(
-    #     most_liked_feed_probs, bins=20, alpha=0.5, density=True,
-    #     label="Engagement feed"
-    # )
     firehose_plot = sns.kdeplot(
         firehose_probs,
         label="Firehose feed",
@@ -73,9 +63,16 @@ def plot_probs(
         )
 
     plt.draw()
-
-    # firehose_color = firehose_plot.get_lines()[-1].get_c()
-    # most_liked_color = most_liked_plot.get_lines()[-1].get_c()
+    plt.hist(
+        firehose_probs, bins=20, alpha=0.5, density=True,
+        label="Firehose feed"
+    )
+    plt.hist(
+        most_liked_feed_probs, bins=20, alpha=0.5, density=True,
+        label="Engagement feed"
+    )
+    firehose_color = firehose_plot.get_lines()[-1].get_c()
+    most_liked_color = most_liked_plot.get_lines()[-1].get_c()
     firehose_color = 'blue'
     most_liked_color = 'orange'
 
@@ -131,7 +128,7 @@ def plot_probs(
     plt.clf()
 
 
-def get_labels(probs, threshold: float=0.8):
+def get_labels(probs, threshold: float = 0.8):
     """Return the labels based on the threshold."""
     labels = []
     for prob in probs:
@@ -143,7 +140,7 @@ def get_labels(probs, threshold: float=0.8):
 
 
 def report_class_probability(
-    probs, title: str, task_name: str, threshold: float=0.8
+    probs, title: str, task_name: str, threshold: float = 0.8
 ) -> float:
     """Print the class probability"""
     labels = get_labels(probs, threshold)
@@ -186,7 +183,7 @@ def calculate_and_report_class_probs(
                 (most_liked_toxicity_class_prob - firehose_toxicity_class_prob)
                 / firehose_toxicity_class_prob * 100, 4
             )
-            print(f"Percent difference in toxicity in engagement condition: {percent_diff_toxicity}%") # noqa
+            print(f"Percent difference in toxicity in engagement condition: {percent_diff_toxicity}%")  # noqa
 
             firehose_constructiveness_class_prob = report_class_probability(
                 probs=firehose_constructiveness_probs,
@@ -203,10 +200,12 @@ def calculate_and_report_class_probs(
             )
 
             percent_diff_constructiveness = round(
-                (most_liked_constructiveness_class_prob - firehose_constructiveness_class_prob)
+                (most_liked_constructiveness_class_prob -
+                 firehose_constructiveness_class_prob)
                 / firehose_constructiveness_class_prob * 100, 4
             )
-            print(f"Percent difference in constructiveness in engagement condition: {percent_diff_constructiveness}%")
+            print(
+                f"Percent difference in constructiveness in engagement condition: {percent_diff_constructiveness}%")
         except ZeroDivisionError:
             print("No samples with probability above threshold.")
             continue
@@ -263,24 +262,26 @@ def main():
     most_liked_toxicity_probs = most_liked_feed_df["prob_toxic"].dropna()
     average_firehose_toxicity_probs = np.mean(firehose_toxicity_probs)
     average_most_liked_toxicity_probs = np.mean(most_liked_toxicity_probs)
-    print(f"Average toxicity probability for firehose: {average_firehose_toxicity_probs}") # noqa
-    print(f"Average toxicity probability for most liked feed: {average_most_liked_toxicity_probs}") # noqa
+    print(f"Average toxicity probability for firehose: {average_firehose_toxicity_probs}")  # noqa
+    print(f"Average toxicity probability for most liked feed: {average_most_liked_toxicity_probs}")  # noqa
 
     firehose_constructiveness_probs = firehose_df["prob_constructive"].dropna()
-    most_liked_constructiveness_probs = most_liked_feed_df["prob_constructive"].dropna() # noqa
-    average_firehose_constructiveness_probs = np.mean(firehose_constructiveness_probs) # noqa
-    average_most_liked_constructiveness_probs = np.mean(most_liked_constructiveness_probs) # noqa
-    print(f"Average constructiveness probability for firehose: {average_firehose_constructiveness_probs}") # noqa
-    print(f"Average constructiveness probability for most liked feed: {average_most_liked_constructiveness_probs}") # noqa
+    most_liked_constructiveness_probs = most_liked_feed_df["prob_constructive"].dropna()  # noqa
+    average_firehose_constructiveness_probs = np.mean(firehose_constructiveness_probs)  # noqa
+    average_most_liked_constructiveness_probs = np.mean(most_liked_constructiveness_probs)  # noqa
+    print(f"Average constructiveness probability for firehose: {average_firehose_constructiveness_probs}")  # noqa
+    print(f"Average constructiveness probability for most liked feed: {average_most_liked_constructiveness_probs}")  # noqa
 
     min_timestamp_firehose = firehose_df['synctimestamp'].dropna().min()
     max_timestamp_firehose = firehose_df['synctimestamp'].dropna().max()
 
-    min_timestamp_most_liked = most_liked_feed_df['synctimestamp'].dropna().min()
-    max_timestamp_most_liked = most_liked_feed_df['synctimestamp'].dropna().max()
+    min_timestamp_most_liked = most_liked_feed_df['synctimestamp'].dropna(
+    ).min()
+    max_timestamp_most_liked = most_liked_feed_df['synctimestamp'].dropna(
+    ).max()
 
-    print(f"Firehose feed: {min_timestamp_firehose} to {max_timestamp_firehose}") # noqa
-    print(f"Most liked feed: {min_timestamp_most_liked} to {max_timestamp_most_liked}") # noqa
+    print(f"Firehose feed: {min_timestamp_firehose} to {max_timestamp_firehose}")  # noqa
+    print(f"Most liked feed: {min_timestamp_most_liked} to {max_timestamp_most_liked}")  # noqa
 
     # plot_probs(
     #     firehose_probs=firehose_toxicity_probs,
@@ -317,11 +318,11 @@ def main():
     most_liked_feed_df = pd.read_csv("perspective_labels_most_liked_feed.csv")
     most_liked_feed_subset_probs_df = most_liked_feed_df[
         ["prob_toxic", "prob_constructive", "like_count"]
-    ] # noqa
+    ]  # noqa
 
-    most_liked_feed_subset_probs_df = most_liked_feed_subset_probs_df.dropna() # noqa
+    most_liked_feed_subset_probs_df = most_liked_feed_subset_probs_df.dropna()  # noqa
 
-    most_liked_feed_subset_probs_df["treatment_score"] = most_liked_feed_subset_probs_df.apply( # noqa
+    most_liked_feed_subset_probs_df["treatment_score"] = most_liked_feed_subset_probs_df.apply(  # noqa
         lambda x: calculate_treatment_score(
             likes=x["like_count"],
             prob_toxicity=x["prob_toxic"],
@@ -332,14 +333,14 @@ def main():
         axis=1
     )
 
-    treatment_posts = most_liked_feed_subset_probs_df.nlargest(n_feed_posts, "treatment_score") # noqa
-    treatment_posts = treatment_posts.sort_values(by="treatment_score", ascending=False) # noqa
+    treatment_posts = most_liked_feed_subset_probs_df.nlargest(n_feed_posts, "treatment_score")  # noqa
+    treatment_posts = treatment_posts.sort_values(by="treatment_score", ascending=False)  # noqa
 
-    treatment_average_toxicity = np.mean(treatment_posts["prob_toxic"]) # noqa
-    treatment_average_constructiveness = np.mean(treatment_posts["prob_constructive"]) # noqa
+    treatment_average_toxicity = np.mean(treatment_posts["prob_toxic"])  # noqa
+    treatment_average_constructiveness = np.mean(treatment_posts["prob_constructive"])  # noqa
 
-    print(f"(Treatment): Average toxicity for top {n_feed_posts} posts: {treatment_average_toxicity}") # noqa
-    print(f"(Treatment): Average constructiveness for top {n_feed_posts} posts in firehose: {treatment_average_constructiveness}") # noqa
+    print(f"(Treatment): Average toxicity for top {n_feed_posts} posts: {treatment_average_toxicity}")  # noqa
+    print(f"(Treatment): Average constructiveness for top {n_feed_posts} posts in firehose: {treatment_average_constructiveness}")  # noqa
 
     treatment_toxicity_probs = treatment_posts["prob_toxic"]
     treatment_constructiveness_probs = treatment_posts["prob_constructive"]

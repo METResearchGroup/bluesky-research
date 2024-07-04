@@ -24,8 +24,10 @@ current_file_dir = os.path.dirname(os.path.abspath(__file__))
 current_datetime_str = current_datetime.strftime("%Y-%m-%d-%H:%M:%S")
 label_dir = "labeled_data"
 urls_dir = "post_urls"
-labeled_data_fp = os.path.join(current_file_dir, label_dir, f"labeled_posts_{current_datetime_str}.jsonl")
-urls_fp = os.path.join(current_file_dir, urls_dir, f"urls_{current_datetime_str}.csv")
+labeled_data_fp = os.path.join(
+    current_file_dir, label_dir, f"labeled_posts_{current_datetime_str}.jsonl")
+urls_fp = os.path.join(current_file_dir, urls_dir,
+                       f"urls_{current_datetime_str}.csv")
 
 
 def load_posts_local() -> list[dict]:

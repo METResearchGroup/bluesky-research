@@ -39,10 +39,12 @@ class UserLikedPostModel(BaseModel):
     cid: str = Field(..., description="The CID of the post.")
     url: str = Field(..., description="The URL of the post.")
     source_feed: str = Field(..., description="The source feed of the post.")
-    synctimestamp: str = Field(..., description="The synctimestamp of the post.")
+    synctimestamp: str = Field(...,
+                               description="The synctimestamp of the post.")
     created_at: str = Field(..., description="The timestamp of when the post was created on Bluesky.")  # noqa
     text: str = Field(..., description="The text of the post.")
-    embed: Optional[str] = Field(default=None, description="The embeds in the post, if any.")
+    embed: Optional[str] = Field(
+        default=None, description="The embeds in the post, if any.")
     entities: Optional[str] = Field(default=None, description="The entities of the post, if any. Separated by a separator.")  # noqa
     facets: Optional[str] = Field(default=None, description="The facets of the post, if any. Separated by a separator.")  # noqa
     labels: Optional[str] = Field(default=None, description="The labels of the post, if any. Separated by a separator.")  # noqa

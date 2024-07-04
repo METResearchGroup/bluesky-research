@@ -10,7 +10,7 @@ from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 MIN_TEXT_LENGTH = 10
 
 llm_dir = "/kellogg/data/llm_models_opensource/llama3_meta_huggingface"
-llm_model = "meta-llama/Llama-2-7b-chat-hf" # can try 70b model next
+llm_model = "meta-llama/Llama-2-7b-chat-hf"  # can try 70b model next
 
 
 def generate_query(texts: list[str]) -> str:
@@ -55,6 +55,7 @@ def generate_query(texts: list[str]) -> str:
         {enumerated_texts_str}
         [/INST]
     """
+
 
 if __name__ == "__main__":
     posts: list[FilteredPreprocessedPostModel] = get_filtered_posts()

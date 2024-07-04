@@ -4,7 +4,7 @@ Tests with a real post and author (in this case, the NYTimes). Picked a post
 that is unlikely to be deleted or changed, but the tests would fail if that
 weren't the case.
 """
-from atproto_client.models.app.bsky.actor.defs import ProfileView, ProfileViewDetailed # noqa
+from atproto_client.models.app.bsky.actor.defs import ProfileView, ProfileViewDetailed  # noqa
 from atproto_client.models.app.bsky.feed.defs import ThreadViewPost
 from atproto_client.models.app.bsky.feed.post import GetRecordResponse
 from atproto_client.models.app.bsky.feed.get_likes import Like
@@ -25,7 +25,7 @@ from transform.bluesky_helper import (
 link = "https://bsky.app/profile/nytimes.com/post/3kowbajil7r2y"
 expected_author_handle = "nytimes.com"
 expected_post_id = "3kowbajil7r2y"
-expected_post_uri = "at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3kowbajil7r2y" # noqa
+expected_post_uri = "at://did:plc:eclio37ymobqex2ncko63h4r/app.bsky.feed.post/3kowbajil7r2y"  # noqa
 expected_author_did = "did:plc:eclio37ymobqex2ncko63h4r"
 
 

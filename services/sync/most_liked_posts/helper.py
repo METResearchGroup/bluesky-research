@@ -33,7 +33,8 @@ sync_dir = "syncs"
 full_sync_dir = os.path.join(current_directory, sync_dir)
 if not os.path.exists(full_sync_dir):
     os.makedirs(full_sync_dir)
-sync_fp = os.path.join(full_sync_dir, f"most_liked_posts_{current_datetime_str}.jsonl")
+sync_fp = os.path.join(
+    full_sync_dir, f"most_liked_posts_{current_datetime_str}.jsonl")
 urls_fp = os.path.join(full_sync_dir, f"urls_{current_datetime_str}.csv")
 
 task_name = "get_most_liked_posts"

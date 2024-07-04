@@ -13,7 +13,7 @@ BASE_PROMPT = """
     {non_civic_examples}
 
     <CONTENT>
-""" # noqa
+"""  # noqa
 
 PROMPT_WITH_CONTEXT = """
 

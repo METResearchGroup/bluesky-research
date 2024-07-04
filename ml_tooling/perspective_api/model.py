@@ -7,8 +7,8 @@ from typing import Optional
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
-from lib.db.sql.ml_inference_database import batch_insert_perspective_api_labels # noqa
-from lib.helper import GOOGLE_API_KEY, create_batches, logger, track_performance # noqa
+from lib.db.sql.ml_inference_database import batch_insert_perspective_api_labels  # noqa
+from lib.helper import GOOGLE_API_KEY, create_batches, logger, track_performance  # noqa
 from services.ml_inference.models import (
     PerspectiveApiLabelsModel, RecordClassificationMetadataModel
 )
@@ -130,7 +130,7 @@ default_requested_attributes = {
 
 def request_comment_analyzer(
     text: str,
-    requested_attributes: dict=default_requested_attributes
+    requested_attributes: dict = default_requested_attributes
 ) -> str:
     """Sends request to commentanalyzer endpoint.
 
@@ -180,7 +180,6 @@ def classify_text_toxicity(text: str) -> dict:
     }
 
 
-
 def process_response(response_str: str) -> dict:
     response_obj = json.loads(response_str)
     if "error" in response_obj:
@@ -192,7 +191,7 @@ def process_response(response_str: str) -> dict:
                 response_obj["attributeScores"][attribute]["summaryScore"]["value"]  # noqa
             )
             classification_probs_and_labels[labels["prob"]] = prob_score
-            classification_probs_and_labels[labels["label"]] = 0 if prob_score < 0.5 else 1 # noqa
+            classification_probs_and_labels[labels["label"]] = 0 if prob_score < 0.5 else 1  # noqa
     return classification_probs_and_labels
 
 
@@ -222,6 +221,7 @@ async def process_perspective_batch(requests):
     """
     batch = google_client.new_batch_http_request()
     responses = []
+
     def callback(request_id, response, exception):
         if exception is not None:
             print(f"Request {request_id} failed: {exception}")
@@ -238,8 +238,9 @@ async def process_perspective_batch(requests):
                     prob_score = (
                         response_obj["attributeScores"][attribute]["summaryScore"]["value"]  # noqa
                     )
-                    classification_probs_and_labels[labels["prob"]] = prob_score # noqa
-                    classification_probs_and_labels[labels["label"]] = 0 if prob_score < 0.5 else 1
+                    classification_probs_and_labels[labels["prob"]] = prob_score  # noqa
+                    classification_probs_and_labels[labels["label"]
+                                                    ] = 0 if prob_score < 0.5 else 1
             responses.append(classification_probs_and_labels)
 
     for _, request in enumerate(requests):
@@ -263,9 +264,9 @@ def create_label_models(
         # fine-grained idea of when a specific sample was
         # classified, not just the single timestamp that the job
         # was started.
-        label_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H:%M:%S") # noqa
+        label_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H:%M:%S")  # noqa
         if "error" in response_obj:
-            print(f"Error processing post {post.uri} using the Perspective API: {response_obj['error']}") # noqa
+            print(f"Error processing post {post.uri} using the Perspective API: {response_obj['error']}")  # noqa
             res.append(
                 PerspectiveApiLabelsModel(
                     uri=post.uri,
@@ -298,8 +299,8 @@ def create_label_models(
 @track_performance
 async def batch_classify_posts(
     posts: list[RecordClassificationMetadataModel],
-    batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
-    seconds_delay_per_batch: Optional[float]=1.0
+    batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
+    seconds_delay_per_batch: Optional[float] = 1.0
 ) -> None:
     request_payloads: list[dict] = [
         create_perspective_request(post.text) for post in posts
@@ -324,8 +325,8 @@ async def batch_classify_posts(
 
 def run_batch_classification(
     posts: list[RecordClassificationMetadataModel],
-    batch_size: Optional[int]=DEFAULT_BATCH_SIZE,
-    seconds_delay_per_batch: Optional[float]=DEFAULT_DELAY_SECONDS
+    batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
+    seconds_delay_per_batch: Optional[float] = DEFAULT_DELAY_SECONDS
 ):
     loop = asyncio.get_event_loop()
     loop.run_until_complete(

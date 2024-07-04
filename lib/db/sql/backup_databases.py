@@ -45,6 +45,7 @@ root_data_backups_directory = os.path.join(
     root_directory, root_data_backups_directory_name
 )
 
+
 def load_db_filepaths(directory: str = current_file_directory) -> dict:
     """Loads all DB filepaths in the directory. Looks for '.db' extension.
 
@@ -69,7 +70,7 @@ def backup_db(
         root_data_backups_directory, db_folder_name, current_datetime_str
     )
 
-    print(f"Exporting {db_filepath} as {' and '.join(export_formats)} to {export_directory}...") # noqa
+    print(f"Exporting {db_filepath} as {' and '.join(export_formats)} to {export_directory}...")  # noqa
     os.makedirs(export_directory, exist_ok=True)
 
     conn = sqlite3.connect(db_filepath)
@@ -91,11 +92,12 @@ def backup_db(
                 os.makedirs(parquet_export_dir, exist_ok=True)
                 compression = 'gzip' if compressed else None
                 df.to_parquet(parquet_filepath, compression=compression)
-                print(f"Finished table {table_name} as parquet to {parquet_filepath}...") # noqa
+                print(f"Finished table {table_name} as parquet to {parquet_filepath}...")  # noqa
             elif export_format == "json":
                 print(f"Exporting table {table_name} as JSON...")
                 json_export_dir = os.path.join(export_directory, "json")
-                json_filepath = os.path.join(json_export_dir, f"{table_name}.json")
+                json_filepath = os.path.join(
+                    json_export_dir, f"{table_name}.json")
                 os.makedirs(json_export_dir, exist_ok=True)
                 json_str = df.to_json(orient='records', lines=True)
                 if compressed:
@@ -104,7 +106,8 @@ def backup_db(
                 else:
                     with open(json_filepath, 'w', encoding='utf-8') as json_file:
                         json_file.write(json_str)
-                print(f"Finished table {table_name} as JSON to {json_filepath}...")
+                print(
+                    f"Finished table {table_name} as JSON to {json_filepath}...")
 
     conn.close()
 

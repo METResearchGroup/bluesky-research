@@ -19,6 +19,7 @@ default_latest_timestamp = (
     datetime.now(timezone.utc) - timedelta(days=num_lookback_days_default)
 ).strftime("%Y-%m-%d")
 
+
 def get_latest_in_network_posts():
     """Get the latest in-network posts.
 
@@ -32,11 +33,11 @@ def get_latest_in_network_posts():
     preprocessed_posts: list[FilteredPreprocessedPostModel] = (
         get_filtered_posts(latest_preprocessing_timestamp=latest_timestamp)
     )
-    print(f"Loaded {len(preprocessed_posts)} new posts since the last in-network post indexing.") # noqa
+    print(f"Loaded {len(preprocessed_posts)} new posts since the last in-network post indexing.")  # noqa
 
     # load all users from the network that are follows.
     followed_users: list[UserToConnectionModel] = get_all_followed_connections()  # noqa
-    print(f"There are {len(followed_users)} accounts that are followed by users in the study.") # noqa
+    print(f"There are {len(followed_users)} accounts that are followed by users in the study.")  # noqa
 
     followed_users_dids = set([user.user_did for user in followed_users])
     followed_users_handles = set([user.user_handle for user in followed_users])
@@ -53,5 +54,5 @@ def get_latest_in_network_posts():
         ):
             in_network_posts.append(post)
 
-    print(f"Found {len(in_network_posts)} in-network posts. Inserting to DB...") # noqa
+    print(f"Found {len(in_network_posts)} in-network posts. Inserting to DB...")  # noqa
     batch_insert_in_network_posts(in_network_posts)

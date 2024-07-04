@@ -19,7 +19,7 @@ def load_posts_to_classify() -> list[FilteredPreprocessedPostModel]:
     """Load posts for Perspective API classification. Load only the posts that
     haven't been classified yet.
     """
-    preprocessed_posts: list[FilteredPreprocessedPostModel] = get_filtered_posts() # noqa
+    preprocessed_posts: list[FilteredPreprocessedPostModel] = get_filtered_posts()  # noqa
     existing_uris: set[str] = get_existing_perspective_api_uris()
     if not existing_uris:
         return preprocessed_posts
@@ -34,7 +34,7 @@ def load_posts_to_classify() -> list[FilteredPreprocessedPostModel]:
 def classify_latest_posts():
     # load posts
     posts: list[FilteredPreprocessedPostModel] = load_posts_to_classify()
-    print(f"Number of posts loaded for classification using Perspective API: {len(posts)}") # noqa
+    print(f"Number of posts loaded for classification using Perspective API: {len(posts)}")  # noqa
 
     # fetch metadata of posts to be classified. Insert the metadata to DBs
     # (if not already present)
@@ -65,7 +65,7 @@ def classify_latest_posts():
         )
     print(f"Inserting {len(invalid_posts_models)} invalid posts into the DB.")
     batch_insert_perspective_api_labels(invalid_posts_models)
-    print(f"Completed inserting {len(invalid_posts_models)} invalid posts into the DB.") # noqa
+    print(f"Completed inserting {len(invalid_posts_models)} invalid posts into the DB.")  # noqa
 
     # run inference on valid posts
     print(f"Running batch classification on {len(valid_posts)} valid posts.")

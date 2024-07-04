@@ -54,7 +54,7 @@ def load_posts_from_superposter_date(superposter_date: str) -> list[FilteredPrep
                 filtered_at=post_dict["filtered_at"],
                 filtered_by_func=post_dict["filtered_by_func"],
                 synctimestamp=post_dict["synctimestamp"],
-                preprocessing_timestamp=post_dict["preprocessing_timestamp"] # noqa
+                preprocessing_timestamp=post_dict["preprocessing_timestamp"]  # noqa
             )
             output.append(formatted_post)
     return output

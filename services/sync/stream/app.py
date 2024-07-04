@@ -20,7 +20,8 @@ def start_app():
     stream_thread = threading.Thread(target=firehose.run, args=stream_args)
     print('Starting data stream...')
     # something like 3:49pm UTC
-    start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(start_time))
+    start_time_str = time.strftime(
+        '%Y-%m-%d %H:%M:%S', time.gmtime(start_time))
     print(f"Start time: {start_time_str}")
     stream_thread.start()
 
@@ -29,7 +30,8 @@ def start_app():
         stream_stop_event.set()
         stream_thread.join()  # wait for thread to finish
         end_time = time.time()
-        end_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(end_time))
+        end_time_str = time.strftime(
+            '%Y-%m-%d %H:%M:%S', time.gmtime(end_time))
         total_minutes = round((end_time - start_time) / 60, 1)
         print(f"End time: {end_time_str}")
         print(f"Total runtime: {total_minutes} minutes")

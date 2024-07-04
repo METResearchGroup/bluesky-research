@@ -81,20 +81,22 @@ BACKEND_OPTIONS = {
         "model": "groq/llama3-8b-8192",
         "kwargs": {
             "temperature": 0.0,
-            "response_format": {"type": "json_object"},  # https://console.groq.com/docs/text-chat#json-mode
+            # https://console.groq.com/docs/text-chat#json-mode
+            "response_format": {"type": "json_object"},
         }
     },
     "Llama3-70b (via Groq)": {
         "model": "groq/llama3-70b-8192",
         "kwargs": {
             "temperature": 0.0,
-            "response_format": {"type": "json_object"},  # https://console.groq.com/docs/text-chat#json-mode
+            # https://console.groq.com/docs/text-chat#json-mode
+            "response_format": {"type": "json_object"},
         }
     },
 }
 
 
-def get_langchain_litellm_chat_model(model_name: str = "Gemini") -> ChatLiteLLM: # noqa
+def get_langchain_litellm_chat_model(model_name: str = "Gemini") -> ChatLiteLLM:  # noqa
     """Returns a Langchain LiteLLM chat model."""
     model_dict = BACKEND_OPTIONS[model_name]
     return ChatLiteLLM(
@@ -103,6 +105,8 @@ def get_langchain_litellm_chat_model(model_name: str = "Gemini") -> ChatLiteLLM:
 
 # https://litellm.vercel.app/docs/completion/input
 # https://litellm.vercel.app/docs/completion/reliable_completions
+
+
 @track_performance
 def run_query(
     prompt: str, role: str = "user", model_name: str = "Gemini",

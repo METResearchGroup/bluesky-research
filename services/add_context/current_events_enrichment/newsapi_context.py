@@ -39,7 +39,8 @@ political_party_to_news_outlet_domains_map = {
 
 political_party_to_news_outlets = {
     'republican': [
-        {'domain': 'theamericanconservative.com', 'id': 'the-american-conservative'},
+        {'domain': 'theamericanconservative.com',
+            'id': 'the-american-conservative'},
         {'domain': 'nationalreview.com', 'id': 'national-review'},
         {'domain': 'washingtontimes.com', 'id': 'the-washington-times'},
         {'domain': 'foxnews.com', 'id': 'fox-news'},

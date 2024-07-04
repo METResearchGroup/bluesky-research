@@ -83,10 +83,14 @@ def run_pipeline():
     get_latest_data_updates = trigger_latest_data_updates()
 
     # computation, ML, and enrichment
-    get_user_activity_updates = trigger_user_activity_updates(upstream_tasks=[get_latest_data_updates])
-    ml_classification_updates = trigger_ml_classification_orchestration(upstream_tasks=[get_latest_data_updates])
-    in_network_posts_updates = trigger_get_in_network_posts(upstream_tasks=[get_user_activity_updates])
-    superposter_updates = trigger_update_superposters(upstream_tasks=[get_user_activity_updates])
+    get_user_activity_updates = trigger_user_activity_updates(
+        upstream_tasks=[get_latest_data_updates])
+    ml_classification_updates = trigger_ml_classification_orchestration(
+        upstream_tasks=[get_latest_data_updates])
+    in_network_posts_updates = trigger_get_in_network_posts(
+        upstream_tasks=[get_user_activity_updates])
+    superposter_updates = trigger_update_superposters(
+        upstream_tasks=[get_user_activity_updates])
 
     # score and create feeds
     score_and_create_feeds = trigger_score_and_create_feeds(
@@ -98,7 +102,8 @@ def run_pipeline():
     )
 
     # write to S3
-    write_feeds_to_s3 = trigger_write_feeds_to_s3(upstream_tasks=[score_and_create_feeds])
+    write_feeds_to_s3 = trigger_write_feeds_to_s3(
+        upstream_tasks=[score_and_create_feeds])
 
 
 if __name__ == "__main__":

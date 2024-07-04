@@ -350,7 +350,8 @@ def update_network_connections():
             )
         )
         if not updated_network_connections:
-            print(f"No new connections for user {user.bluesky_handle}. Skipping...")
+            print(
+                f"No new connections for user {user.bluesky_handle}. Skipping...")
             continue
         batch_insert_network_connections(updated_network_connections)
         insert_user_network_counts(user_social_network_counts)

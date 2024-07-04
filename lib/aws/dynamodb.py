@@ -18,7 +18,8 @@ class DynamoDB:
         try:
             return getattr(self.client, name)
         except AttributeError:
-            raise AttributeError(f"'DynamoDB' object has no attribute '{name}'")
+            raise AttributeError(
+                f"'DynamoDB' object has no attribute '{name}'")
 
     @retry_on_aws_rate_limit
     def insert_item_into_table(self, item: dict, table_name: str) -> None:

@@ -10,7 +10,7 @@ log_directory = os.path.dirname(os.path.abspath(__file__))
 if not os.path.exists(log_directory):
     os.makedirs(log_directory, exist_ok=True)
 
-log_filename = os.path.join(log_directory, f"logfile_{current_datetime_str}.log") # noqa
+log_filename = os.path.join(log_directory, f"logfile_{current_datetime_str}.log")  # noqa
 
 # mypy: ignore-errors
 logging.basicConfig(
@@ -19,6 +19,8 @@ logging.basicConfig(
 )
 
 # mypy: ignore-errors
+
+
 class Logger(logging.Logger):
     def __init__(self, name: str, level: int = logging.INFO) -> None:
         super().__init__(name, level)
@@ -27,12 +29,15 @@ class Logger(logging.Logger):
         # StreamHandler for printing to stdout
         stream_handler = logging.StreamHandler()
         stream_handler.setLevel(level)
-        stream_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(filename)s]: %(message)s"))
+        stream_handler.setFormatter(logging.Formatter(
+            "%(asctime)s %(levelname)s [%(filename)s]: %(message)s"))
 
         # RotatingFileHandler for logging to a file
-        file_handler = RotatingFileHandler(log_filename, maxBytes=1024 * 1024, backupCount=5)
+        file_handler = RotatingFileHandler(
+            log_filename, maxBytes=1024 * 1024, backupCount=5)
         file_handler.setLevel(level)
-        file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(filename)s]: %(message)s"))
+        file_handler.setFormatter(logging.Formatter(
+            "%(asctime)s %(levelname)s [%(filename)s]: %(message)s"))
 
         self.addHandler(stream_handler)
         self.addHandler(file_handler)

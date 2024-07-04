@@ -3,7 +3,7 @@
 Intended to rerun the same test script as in the "Slurm basics" repo.
 
 Reference: https://github.com/rs-kellogg/krs-openllm-cookbook/blob/main/scripts/slurm_basics/pytorch_gpu_test.py
-""" # noqa
+"""  # noqa
 import time
 
 import torch
