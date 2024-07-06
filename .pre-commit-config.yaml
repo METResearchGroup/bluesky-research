@@ -10,6 +10,7 @@ repos:
           - --select=E9,F63,F7,F82
           - --max-complexity=10
           - --max-line-length=127
+          - --config=pyproject.toml
     # https://pypi.org/project/autopep8/#usage-with-pre-commit
   - repo: https://github.com/hhatto/autopep8
     rev: 'v2.1.0'

@@ -171,14 +171,14 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
     We'll write the record to S3 as part of our normal batch update.
     """
     if operation == "create":
-        firehose_post: TransformedRecordWithAuthorModel = process_firehose_post(post)
-        consolidated_post: ConsolidatedPostRecordModel = consolidate_firehose_post(firehose_post)
+        firehose_post: TransformedRecordWithAuthorModel = process_firehose_post(post)  # noqa
+        consolidated_post: ConsolidatedPostRecordModel = consolidate_firehose_post(firehose_post)  # noqa
         consolidated_post_dict = consolidated_post.dict()
         author_did = consolidated_post_dict["author_did"]
         # e.g., full URI = at://did:plc:iphiwbyfi2qhid2mbxmvl3st/app.bsky.feed.post/3kwd3wuubke2i # noqa
         # so we only want a small portion.
         # URI takes the form at://<author DID>/<collection>/<post URI>
-        post_uri = consolidated_post_dict["uri"].split('/')[-1]  # e.g., 3kwd3wuubke2i
+        post_uri = consolidated_post_dict["uri"].split('/')[-1]  # e.g., 3kwd3wuubke2i # noqa
         filename = f"author_did={author_did}_post_uri={post_uri}.json"
     elif operation == "delete":
         post_uri = post["uri"].split('/')[-1]
