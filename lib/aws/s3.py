@@ -158,7 +158,6 @@ class S3:
         directory: str,
         key: Optional[str] = None,
         filename: Optional[str] = None,
-        clear_cache: bool = True,
         compressed: bool = True
     ) -> None:
         """Given a directory, pull all the JSONs and write them as a .jsonl.
@@ -192,9 +191,6 @@ class S3:
                     print(f"Successfully wrote data to S3: {key}")
             except Exception as e:
                 print(f"Unable to write post to S3: {e}")
-            if clear_cache:
-                for fp in filepaths:
-                    os.remove(fp)
 
     @classmethod
     def create_partition_key_based_on_timestamp(cls, timestamp_str: str) -> str:  # noqa

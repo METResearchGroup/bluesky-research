@@ -15,7 +15,7 @@ from lib.constants import current_datetime_str
 from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.helper import ThreadSafeCounter
 from services.sync.stream.export_data import (
-    load_cursor_state_s3, update_cursor_state_s3, write_batch_to_s3
+    load_cursor_state_s3, update_cursor_state_s3, export_batch
 )
 
 # number of events to stream before exiting
@@ -143,7 +143,7 @@ def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
             if counter_value % cursor_update_frequency == 0:
                 print(f"Counter: {counter_value}")
                 print("Writing cached records to S3 and resetting cache...")
-                write_batch_to_s3()
+                export_batch(external_store=["local", "s3"])
                 print(f"Updating cursor state with cursor={counter_value}...")  # noqa
                 cursor_state = {
                     "service": name,

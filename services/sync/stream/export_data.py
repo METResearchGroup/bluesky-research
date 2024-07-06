@@ -1,5 +1,6 @@
 """Tooling for managing the export of firehose data, both to local cache and to
 S3."""
+import gzip
 import json
 import os
 import shutil
@@ -78,15 +79,50 @@ def write_data_to_json(data: dict, path: str):
         json.dump(data, f)
 
 
-def compress_cached_files(
+def write_jsons_to_local_store(
+    source_directory: str, export_filepath: str, compressed: bool = True
+):
+    """Writes local JSONs to local store. Writes as a .jsonl file.
+
+    Loads in JSONs from a given directory and writes them to the local storage
+    using the export filepath.
+    """
+    if not os.path.exists(source_directory):
+        raise ValueError("Directory does not exist.")
+
+    dirpath = os.path.dirname(export_filepath)
+    if not os.path.exists(dirpath):
+        os.makedirs(dirpath)
+
+    res: list[dict] = []
+
+    for file in os.listdir(source_directory):
+        if file.endswith(".json"):
+            with open(os.path.join(source_directory, file), 'r') as f:
+                res.append(json.load(f))
+
+    if compressed:
+        export_filepath += ".gz"
+
+    if compressed:
+        with open(export_filepath, 'rb') as f_in:
+            with gzip.open(export_filepath + ".gz", 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+    else:
+        with open(export_filepath, 'w') as f:
+            for item in res:
+                f.write(json.dumps(item) + "\n")
+
+
+def compress_cached_files_and_write_to_storage(
     directory: str,
     operation: Literal["create", "delete"],
     operation_type: Literal["post", "like", "follow"],
     compressed: bool = True,
-    clear_cache: bool = True
+    export_store: Literal["local", "s3"] = "local"
 ):
     """For a given set of files in a directory, compress them into a single
-    cached file.
+    cached file and write to S3.
 
     Loops through all the JSON files in the directory and loads them into
     memory. Then writes to a single .jsonl file (.jsonl.gz if compressed).
@@ -94,14 +130,26 @@ def compress_cached_files(
     filename = f"{current_datetime_str}.jsonl"
     s3_export_key = s3_export_key_map[operation][operation_type]
     full_key = os.path.join(s3_export_key, filename)
-    s3.write_local_jsons_to_s3(
-        directory=directory, key=full_key,
-        clear_cache=clear_cache, compressed=compressed
-    )
+    if export_store == "s3":
+        s3.write_local_jsons_to_s3(
+            directory=directory, key=full_key, compressed=compressed
+        )
+    elif export_store == "local":
+        root_export_fp = ""
+        full_export_filepath = os.path.join(root_export_fp, full_key)
+        write_jsons_to_local_store(
+            directory=directory, export_filepath=full_export_filepath
+        )
+    else:
+        raise ValueError("Invalid export store.")
 
 
-def write_batch_to_s3(compressed: bool = True, clear_cache: bool = True):
-    """Writes the batched data to S3.
+def export_batch(
+    compressed: bool = True,
+    clear_cache: bool = True,
+    external_store: list[Literal["local", "s3"]] = ["local", "s3"]
+):
+    """Writes the batched data to external stores (local store and S3 store).
 
     Crawls the "created" and "deleted" folders and updates the records
     where necessary.
@@ -111,14 +159,16 @@ def write_batch_to_s3(compressed: bool = True, clear_cache: bool = True):
     for operation in ["create", "delete"]:
         for operation_type in operation_types:
             directory = export_filepath_map[operation][operation_type]
-            compress_cached_files(
-                directory=directory,
-                operation=operation,
-                operation_type=operation_type,
-                compressed=compressed,
-                clear_cache=clear_cache
-            )
-    delete_cache_paths()
+            for store in external_store:
+                compress_cached_files_and_write_to_storage(
+                    directory=directory,
+                    operation=operation,
+                    operation_type=operation_type,
+                    compressed=compressed,
+                    export_store=store
+                )
+    if clear_cache:
+        delete_cache_paths()
     rebuild_cache_paths()
 
 
