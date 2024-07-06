@@ -11,7 +11,7 @@ from lib.db.bluesky_models.embed import ProcessedEmbed
 class TransformedProfileViewBasicModel(BaseModel):
     """Model for the transformed profile view."""
     did: str = Field(..., description="The DID of the user.")
-    handle: Optional[str] = Field(..., description="The handle of the user.")
+    handle: Optional[str] = Field(default=None, description="The handle of the user.")
     avatar: Optional[str] = None
     display_name: Optional[str] = Field(
         default=None, max_length=640, description="Display name of the user."

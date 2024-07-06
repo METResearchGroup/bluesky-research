@@ -11,7 +11,6 @@ class ConsolidatedPostRecordMetadataModel(BaseModel):
     synctimestamp: str = Field(..., description="The synctimestamp of the post.")  # noqa
     url: Optional[str] = Field(..., description="The URL of the post. Available only if the post is from feed view. Firehose posts won't have this hydrated.")  # noqa
     source: te.Literal["firehose", "most_liked"] = Field(..., description="The source feed of the post. Either 'firehose' or 'most_liked'")  # noqa
-    processed_timestamp: str = Field(..., description="The timestamp when the post was processed.")  # noqa
 
 
 class ConsolidatedMetrics(BaseModel):
@@ -31,7 +30,7 @@ class ConsolidatedPostRecordModel(BaseModel):
     cid: str = Field(..., description="The CID of the post.")
     indexed_at: Optional[str] = Field(..., description="The timestamp of when the post was indexed by Bluesky.")  # noqa
     author_did: str = Field(..., description="The DID of the user.")
-    author_handle: str = Field(..., description="The handle of the user.")
+    author_handle: Optional[str] = Field(default=None, description="The handle of the user.")
     author_avatar: Optional[str] = None
     author_display_name: Optional[str] = Field(
         default=None, max_length=640, description="Display name of the user."
@@ -49,7 +48,6 @@ class ConsolidatedPostRecordModel(BaseModel):
     synctimestamp: str = Field(..., description="The synctimestamp of the post.")  # noqa
     url: Optional[str] = Field(default=None, description="The URL of the post. Available only if the post is from feed view. Firehose posts won't have this hydrated.")  # noqa
     source: te.Literal["firehose", "most_liked"] = Field(..., description="The source feed of the post. Either 'firehose' or 'most_liked'")  # noqa
-    processed_timestamp: str = Field(..., description="The timestamp when the post was processed.")  # noqa
     like_count: Optional[int] = Field(default=None, description="The like count of the post.")  # noqa
     reply_count: Optional[int] = Field(default=None, description="The reply count of the post.")  # noqa
     repost_count: Optional[int] = Field(default=None, description="The repost count of the post.")  # noqa

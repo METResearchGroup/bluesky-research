@@ -209,21 +209,20 @@ class S3:
                 print(f"Unable to write post to S3: {e}")
 
     @classmethod
-    def create_partition_key_based_on_timestamp(cls, timestamp_str: str) -> str:  # noqa
+    def create_partition_key_based_on_timestamp(cls, timestamp_str: str) -> str:
         """Given the timestamp string, create a partition key.
 
-        Assumes the timestamp format given in lib/constants.py.
+        Assumes the timestamp format is 'YYYY-MM-DD HH:MM:SS'.
 
         Example:
-        >>> create_partition_key_based_on_timestamp('2024-07-02-04:56:19')
-        'year=2024/month=07/day=02/hour=04/minute=56'
+        >>> create_partition_key_based_on_timestamp('2024-07-06 20:39:30')
+        'year=2024/month=07/day=06/hour=20/minute=39'
         """
-        # Split the timestamp string into components
-        parts = timestamp_str.split("-")
-        year, month, day, time = parts[0], parts[1], parts[2], parts[3]
-        hour = time.split(":")[0]  # Extract the hour from the time part
-        minute = time.split(":")[1]
+        # Split the timestamp string into date and time
+        date_part, time_part = timestamp_str.split(" ")
+        year, month, day = date_part.split("-")
+        hour, minute = time_part.split(":")[:2]
 
         # Construct the partition key string
-        partition_key = f"year={year}/month={month}/day={day}/hour={hour}/minute={minute}"  # noqa
+        partition_key = f"year={year}/month={month}/day={day}/hour={hour}/minute={minute}"
         return partition_key

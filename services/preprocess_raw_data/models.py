@@ -30,7 +30,6 @@ class FilteredPreprocessedPostModel(BaseModel):
     synctimestamp: str = Field(..., description="The synctimestamp of the post.")  # noqa
     url: Optional[str] = Field(default=None, description="The URL of the post. Available only if the post is from feed view. Firehose posts won't have this hydrated.")  # noqa
     source: te.Literal["firehose", "most_liked"] = Field(..., description="The source feed of the post. Either 'firehose' or 'most_liked'")  # noqa
-    processed_timestamp: str = Field(..., description="The timestamp when the post was processed.")  # noqa
     like_count: Optional[int] = Field(default=None, description="The like count of the post.")  # noqa
     reply_count: Optional[int] = Field(default=None, description="The reply count of the post.")  # noqa
     repost_count: Optional[int] = Field(default=None, description="The repost count of the post.")  # noqa

@@ -1,4 +1,5 @@
 """Helper functions."""
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from functools import wraps
 import logging
@@ -157,3 +158,7 @@ def create_batches(batch_list, batch_size) -> list[list]:
     for i in range(0, len(batch_list), batch_size):
         batches.append(batch_list[i:i + batch_size])
     return batches
+
+
+def generate_current_datetime_str() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")

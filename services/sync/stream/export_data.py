@@ -4,12 +4,14 @@ import json
 import os
 import shutil
 from typing import Literal, Optional
+from uuid import uuid4
 
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
-from lib.constants import current_datetime_str, root_local_data_directory
+from lib.constants import root_local_data_directory
 from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.db.manage_local_data import write_jsons_to_local_store
+from lib.helper import generate_current_datetime_str
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 root_write_path = os.path.join(current_file_directory, "cache")
@@ -92,9 +94,15 @@ def compress_cached_files_and_write_to_storage(
     Loops through all the JSON files in the directory and loads them into
     memory. Then writes to a single .jsonl file (.jsonl.gz if compressed).
     """
-    filename = f"{current_datetime_str}.jsonl"
+    partition_key = S3.create_partition_key_based_on_timestamp(
+        timestamp_str=generate_current_datetime_str()
+    )
+    # needs a random filename since it is possible that within a single minute,
+    # we might have multiple batches that need to be written to S3
+    uuid = str(uuid4())
+    filename = f"{uuid}.jsonl"
     s3_export_key = s3_export_key_map[operation][operation_type]
-    full_key = os.path.join(s3_export_key, filename)
+    full_key = os.path.join(s3_export_key, partition_key, filename)
     if external_store == "s3":
         s3.write_local_jsons_to_s3(
             directory=directory, key=full_key, compressed=compressed
@@ -102,7 +110,7 @@ def compress_cached_files_and_write_to_storage(
     elif external_store == "local":
         full_export_filepath = os.path.join(root_local_data_directory, full_key)  # noqa
         write_jsons_to_local_store(
-            directory=directory, export_filepath=full_export_filepath
+            source_directory=directory, export_filepath=full_export_filepath
         )
     else:
         raise ValueError("Invalid export store.")

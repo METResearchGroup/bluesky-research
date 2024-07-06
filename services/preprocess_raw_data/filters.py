@@ -209,7 +209,6 @@ def filter_posts(
             "synctimestamp": post.synctimestamp,
             "url": post.url,
             "source": post.source,
-            "processed_timestamp": post.processed_timestamp,
             "like_count": post.like_count,
             "reply_count": post.reply_count,
             "repost_count": post.repost_count,
