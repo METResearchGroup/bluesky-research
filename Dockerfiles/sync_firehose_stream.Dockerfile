@@ -16,6 +16,7 @@ COPY lib/log/logger.py ./lib/log/logger.py
 COPY transform/* ./transform/
 
 COPY services/sync/stream/* ./services/sync/stream/
+COPY services/consolidate_post_records/* ./services/consolidate_post_records/
 
 WORKDIR /app/pipelines/sync_post_records/firehose
 

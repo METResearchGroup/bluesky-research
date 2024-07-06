@@ -43,10 +43,26 @@ def consolidate_firehose_post(post: TransformedRecordWithAuthorModel) -> Consoli
         "uri": post.uri,
         "cid": post.cid,
         "indexed_at": None,  # not available in the firehose post.
-        "author": author,
-        "metadata": metadata,
-        "record": post.record,
-        "metrics": metrics
+        "author_did": author.did,
+        "author_handle": author.handle,
+        "author_avatar": author.avatar,
+        "author_display_name": author.display_name,
+        "created_at": post.record.created_at,
+        "text": post.record.text,
+        "embed": post.record.embed,
+        "entities": post.record.entities,
+        "facets": post.record.facets,
+        "labels": post.record.labels,
+        "langs": post.record.langs,
+        "reply_parent": post.record.reply_parent,
+        "reply_root": post.record.reply_root,
+        "tags": post.record.tags,
+        "synctimestamp": metadata.synctimestamp,
+        "url": metadata.url,
+        "source": metadata.source,
+        "like_count": metrics.like_count,
+        "reply_count": metrics.reply_count,
+        "repost_count": metrics.repost_count
     }
     return ConsolidatedPostRecordModel(**res)
 
@@ -72,10 +88,26 @@ def consolidate_feedview_post(post: TransformedFeedViewPostModel) -> Consolidate
         "uri": post.uri,
         "cid": post.cid,
         "indexed_at": post.indexed_at,
-        "author": post.author,
-        "metadata": metadata,
-        "record": post.record,
-        "metrics": metrics
+        "author_did": post.author.did,
+        "author_handle": post.author.handle,
+        "author_avatar": post.author.avatar,
+        "author_display_name": post.author.display_name,
+        "created_at": post.record.created_at,
+        "text": post.record.text,
+        "embed": post.record.embed,
+        "entities": post.record.entities,
+        "facets": post.record.facets,
+        "labels": post.record.labels,
+        "langs": post.record.langs,
+        "reply_parent": post.record.reply_parent,
+        "reply_root": post.record.reply_root,
+        "tags": post.record.tags,
+        "synctimestamp": metadata.synctimestamp,
+        "url": metadata.url,
+        "source": metadata.source,
+        "like_count": metrics.like_count,
+        "reply_count": metrics.reply_count,
+        "repost_count": metrics.repost_count
     }
     return ConsolidatedPostRecordModel(**res)
 

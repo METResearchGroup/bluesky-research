@@ -10,6 +10,8 @@ from lib.db.bluesky_models.transformations import (
     TransformedFeedViewPostModel, TransformedRecordModel
 )
 from lib.db.mongodb import get_mongodb_collection
+from services.consolidate_post_records.helper import consolidate_feedview_post
+from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.preprocess_raw_data.classify_language.helper import record_is_english  # noqa
 from transform.bluesky_helper import get_posts_from_custom_feed_url
 from transform.transform_raw_data import transform_feedview_posts
@@ -168,7 +170,10 @@ def main(
         )
         print(f"Loaded {len(posts)} total posts before filtering.")
         filtered_posts: list[TransformedFeedViewPostModel] = filter_posts(posts=posts)  # noqa
-        post_dicts = [post.dict() for post in filtered_posts]
+        consolidated_posts: list[ConsolidatedPostRecordModel] = [
+            consolidate_feedview_post(post) for post in filtered_posts
+        ]
+        post_dicts = [post.dict() for post in consolidated_posts]
         print(f"Exporting {len(post_dicts)} total posts...")
     export_posts(
         posts=post_dicts, store_local=store_local,

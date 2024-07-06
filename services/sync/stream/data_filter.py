@@ -11,9 +11,12 @@ from atproto_client.models.app.bsky.feed.like import Record as LikeRecord  # noq
 from lib.db.bluesky_models.raw import (
     RawFollow, RawFollowRecord, RawLike, RawLikeRecord
 )
+from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel  # noqa
 from services.sync.stream.export_data import (
     export_filepath_map, write_data_to_json
 )
+from services.consolidate_post_records.helper import consolidate_firehose_post
+from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from transform.transform_raw_data import process_firehose_post
 
 
@@ -168,21 +171,23 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
     We'll write the record to S3 as part of our normal batch update.
     """
     if operation == "create":
-        flattened_post = process_firehose_post(post).dict()
-        author_did = flattened_post["author"]
+        firehose_post: TransformedRecordWithAuthorModel = process_firehose_post(post)
+        consolidated_post: ConsolidatedPostRecordModel = consolidate_firehose_post(firehose_post)
+        consolidated_post_dict = consolidated_post.dict()
+        author_did = consolidated_post_dict["author_did"]
         # e.g., full URI = at://did:plc:iphiwbyfi2qhid2mbxmvl3st/app.bsky.feed.post/3kwd3wuubke2i # noqa
         # so we only want a small portion.
         # URI takes the form at://<author DID>/<collection>/<post URI>
-        post_uri = flattened_post["uri"].split('/')[-1]  # e.g., 3kwd3wuubke2i
+        post_uri = consolidated_post_dict["uri"].split('/')[-1]  # e.g., 3kwd3wuubke2i
         filename = f"author_did={author_did}_post_uri={post_uri}.json"
     elif operation == "delete":
         post_uri = post["uri"].split('/')[-1]
         filename = f"post_uri={post_uri}.json"
-        flattened_post = post
+        consolidated_post_dict = post
 
     folder_path = export_filepath_map[operation]["post"]
     full_path = os.path.join(folder_path, filename)
-    write_data_to_json(flattened_post, full_path)
+    write_data_to_json(consolidated_post_dict, full_path)
 
 
 def manage_posts(posts: dict[str, list]) -> dict:
