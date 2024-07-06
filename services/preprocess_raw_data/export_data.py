@@ -40,20 +40,25 @@ def export_latest_preprocessed_posts(
         timestamp_str=current_timestamp
     )
     filename = "preprocessed_posts.jsonl"
-    full_key = os.path.join(s3_export_key_map["post"], partition_key, filename)  # noqa
-    data = [post.dict() for post in latest_posts]
-    for external_store in external_stores:
-        if external_store == "s3":
-            s3.write_dicts_jsonl_to_s3(data=data, key=full_key)
-        elif external_store == "local":
-            full_export_filepath = os.path.join(
-                root_local_data_directory, full_key
-            )
-            write_jsons_to_local_store(
-                records=data, export_filepath=full_export_filepath
-            )
-        else:
-            raise ValueError("Invalid export store.")
+    firehose_posts: list[dict] = [post.dict() for post in latest_posts if post.source == "firehose"]  # noqa
+    most_liked_posts: list[dict] = [post.dict() for post in latest_posts if post.source == "most_liked"]  # noqa
+
+    feed_type_to_posts_tuples = [("firehose", firehose_posts), ("most_liked", most_liked_posts)]  # noqa
+
+    for (feed_type, posts) in feed_type_to_posts_tuples:
+        full_key = os.path.join(s3_export_key_map["post"], feed_type, partition_key, filename)  # noqa
+        for external_store in external_stores:
+            if external_store == "s3":
+                s3.write_dicts_jsonl_to_s3(data=posts, key=full_key)
+            elif external_store == "local":
+                full_export_filepath = os.path.join(
+                    root_local_data_directory, full_key
+                )
+                write_jsons_to_local_store(
+                    records=posts, export_filepath=full_export_filepath
+                )
+            else:
+                raise ValueError("Invalid export store.")
 
 
 def export_latest_likes(latest_likes):
