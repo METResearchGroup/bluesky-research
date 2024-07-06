@@ -212,15 +212,16 @@ class S3:
     def create_partition_key_based_on_timestamp(cls, timestamp_str: str) -> str:
         """Given the timestamp string, create a partition key.
 
-        Assumes the timestamp format is 'YYYY-MM-DD HH:MM:SS'.
+        Assumes the timestamp format is 'YYYY-MM-DD-HH:MM:SS'.
 
         Example:
-        >>> create_partition_key_based_on_timestamp('2024-07-06 20:39:30')
+        >>> create_partition_key_based_on_timestamp('2024-07-06-20:39:30')
         'year=2024/month=07/day=06/hour=20/minute=39'
         """
-        # Split the timestamp string into date and time
-        date_part, time_part = timestamp_str.split(" ")
-        year, month, day = date_part.split("-")
+        # Split the timestamp string into components directly
+        parts = timestamp_str.split("-")
+        year, month, day = parts[:3]
+        time_part = parts[3]
         hour, minute = time_part.split(":")[:2]
 
         # Construct the partition key string

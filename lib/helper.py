@@ -10,6 +10,8 @@ import time
 
 from atproto import Client
 
+from lib.constants import timestamp_format
+
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -161,4 +163,4 @@ def create_batches(batch_list, batch_size) -> list[list]:
 
 
 def generate_current_datetime_str() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now(timezone.utc).strftime(timestamp_format)
