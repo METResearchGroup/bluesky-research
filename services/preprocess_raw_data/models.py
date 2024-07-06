@@ -12,7 +12,7 @@ class FilteredPreprocessedPostModel(BaseModel):
     cid: str = Field(..., description="The CID of the post.")
     indexed_at: Optional[str] = Field(..., description="The timestamp of when the post was indexed by Bluesky.")  # noqa
     author_did: str = Field(..., description="The DID of the user.")
-    author_handle: str = Field(..., description="The handle of the user.")
+    author_handle: Optional[str] = Field(default=None, description="The handle of the user.")  # noqa
     author_avatar: Optional[str] = None
     author_display_name: Optional[str] = Field(
         default=None, max_length=640, description="Display name of the user."

@@ -13,7 +13,7 @@ import traceback
 import typer
 
 from lib.log.logger import Logger
-from services.preprocess_raw_data.helper import preprocess_raw_data
+from services.preprocess_raw_data.helper import preprocess_latest_raw_data
 
 logger = Logger(__name__)
 
@@ -21,7 +21,7 @@ logger = Logger(__name__)
 def main():
     try:
         logger.info("Starting preprocessing pipeline.")
-        preprocess_raw_data()
+        preprocess_latest_raw_data()
         logger.info("Completed preprocessing pipeline.")
     except Exception as e:
         logger.error(f"Error in preprocessing pipeline: {e}")

@@ -221,4 +221,14 @@ def filter_posts(
         filtered_posts.append(filtered_post)
 
     logger.info("Completed post filtering in preprocessing pipeline.")
-    return (filtered_posts, updated_posts_metadata)
+
+    # I keep going back and forth between keeping all posts vs. keeping only
+    # the ones that passed the filters. For now, I'll keep only the
+    # ones that pass filtering, though I could easily keep all of them.
+    # I just don't see a current reason to keep all of the posts, and
+    # removing posts also helps us cut down on storage.
+    passed_posts = [
+        post for post in filtered_posts if post.passed_filters
+    ]
+
+    return (passed_posts, updated_posts_metadata)

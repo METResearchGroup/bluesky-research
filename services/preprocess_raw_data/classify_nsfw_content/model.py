@@ -11,8 +11,8 @@ from services.preprocess_raw_data.classify_nsfw_content.constants import (
 
 def classify(post: ConsolidatedPostRecordModel) -> bool:
     """Classifies if a post is NSFW or not."""
-    labels = post.record.labels
-    text = post.record.text
+    labels = post.labels
+    text = post.text
     labels = labels.split(",") if labels else []
     for label_to_filter in LABELS_TO_FILTER:
         if label_to_filter in labels or label_to_filter in text:

@@ -12,4 +12,4 @@ muted_users_dids = set([user["did"] for user in muted_users])
 def classify(post: ConsolidatedPostRecordModel) -> bool:
     """Classifies a post as spam."""
     # at scale, we should use a bloom filter
-    return post.author.did in muted_users_dids
+    return post.author_did in muted_users_dids

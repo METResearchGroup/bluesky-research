@@ -1,6 +1,7 @@
 """Helper functions for getting most liked Bluesky posts in the past day/week."""  # noqa
 import json
 import os
+from typing import Union
 
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost
 
@@ -86,7 +87,7 @@ def get_and_transform_latest_most_liked_posts(
 
 
 def export_posts(
-    posts: list[TransformedFeedViewPostModel],
+    posts: Union[list[TransformedFeedViewPostModel], list[dict]],
     store_local: bool = True,
     store_remote: bool = True
 ) -> None:
@@ -94,6 +95,8 @@ def export_posts(
     timestamp_key = S3.create_partition_key_based_on_timestamp(
         timestamp_str=current_datetime_str
     )
+    if isinstance(posts[0], dict):
+        posts = [TransformedFeedViewPostModel(**post) for post in posts]
     filename = "posts.jsonl"
     if store_local:
         full_export_filepath = os.path.join(
@@ -103,12 +106,12 @@ def export_posts(
             filename
         )
         print(f"Exporting most liked posts to local store at {full_export_filepath}")  # noqa
-        if isinstance(posts[0], TransformedFeedViewPostModel):
-            post_dicts = [post.dict() for post in posts]
-        else:
-            post_dicts = posts
+        consolidated_posts: list[ConsolidatedPostRecordModel] = [
+            consolidate_feedview_post(post) for post in posts
+        ]
+        consolidated_post_dicts = [post.dict() for post in consolidated_posts]
         write_jsons_to_local_store(
-            records=post_dicts,
+            records=consolidated_post_dicts,
             export_filepath=full_export_filepath,
             compressed=True
         )
@@ -118,12 +121,12 @@ def export_posts(
             root_most_liked_s3_key, timestamp_key, filename
         )
         print(f"Exporting most liked posts to S3 at {full_key}")
-        if isinstance(posts[0], TransformedFeedViewPostModel):
-            post_dicts = [post.dict() for post in posts]
-        else:
-            post_dicts = posts
+        consolidated_posts: list[ConsolidatedPostRecordModel] = [
+            consolidate_feedview_post(post) for post in posts
+        ]
+        consolidated_post_dicts = [post.dict() for post in consolidated_posts]
         s3.write_dicts_jsonl_to_s3(
-            data=post_dicts, key=full_key
+            data=consolidated_post_dicts, key=full_key
         )
         print(f"Exported {len(posts)} posts to S3 at {full_key}")
 

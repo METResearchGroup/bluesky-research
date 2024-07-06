@@ -6,7 +6,7 @@ from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import root_local_data_directory
 from lib.db.manage_local_data import write_jsons_to_local_store
-from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
+from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 dynamodb_table_name = "preprocessingPipelineMetadata"
 dynamodb = DynamoDB()
@@ -30,12 +30,12 @@ def export_session_metadata(session_metadata: dict) -> None:
 
 
 def export_latest_preprocessed_posts(
-    latest_posts: list[ConsolidatedPostRecordModel],
+    latest_posts: list[FilteredPreprocessedPostModel],
     session_metadata: dict,
     external_stores: list[Literal["local", "s3"]] = ["local", "s3"]
 ) -> None:  # noqa
     """Exports latest preprocessed posts."""
-    current_timestamp = session_metadata["timestamp"]  # TODO: change the key.
+    current_timestamp = session_metadata["current_preprocessing_timestamp"]
     partition_key = S3.create_partition_key_based_on_timestamp(
         timestamp_str=current_timestamp
     )
@@ -50,15 +50,15 @@ def export_latest_preprocessed_posts(
                 root_local_data_directory, full_key
             )
             write_jsons_to_local_store(
-                data=data, export_filepath=full_export_filepath
+                records=data, export_filepath=full_export_filepath
             )
         else:
             raise ValueError("Invalid export store.")
 
 
-def export_latest_likes():
+def export_latest_likes(latest_likes):
     pass
 
 
-def export_latest_follows():
+def export_latest_follows(latest_follows):
     pass

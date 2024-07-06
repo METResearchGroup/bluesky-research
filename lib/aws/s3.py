@@ -1,5 +1,6 @@
 """Wrapper class for all S3-related access."""
 import gzip
+import io
 import json
 import os
 import threading
@@ -93,17 +94,24 @@ class S3:
     ) -> Optional[dict]:
         """Reads JSON from S3."""
         blob = self.read_from_s3(bucket=bucket, key=key)
-        return json.loads(blob) if blob else None
-
-    def read_jsonl_from_s3(
-        self, key: str, bucket: str = ROOT_BUCKET
-    ) -> Optional[list[dict]]:
-        """Reads JSONL from S3."""
-        blob = self.read_from_s3(bucket=bucket, key=key)
         if not blob:
             return None
-        jsons = blob.decode("utf-8").split("\n")
-        return [json.loads(j) for j in jsons]
+        if key.endswith('.gz'):
+            with gzip.open(io.BytesIO(blob), 'rt', encoding='utf-8') as f:
+                return json.load(f)
+        return json.loads(blob)
+
+    def read_jsonl_from_s3(self, key: str) -> Optional[list[dict]]:
+        """Reads JSONL from S3."""
+        blob = self.read_from_s3(key=key)
+        if not blob:
+            return None
+        if key.endswith('.gz'):
+            with gzip.open(io.BytesIO(blob), 'rt', encoding='utf-8') as f:
+                jsons = f.read().split("\n")
+        else:
+            jsons = blob.decode("utf-8").split("\n")
+        return [json.loads(j) for j in jsons if j]
 
     def list_keys(self):
         """Lists keys in S3."""
@@ -115,11 +123,6 @@ class S3:
         """Lists keys given a prefix in S3."""
         response = self.client.list_objects_v2(Bucket=ROOT_BUCKET, Prefix=prefix)  # noqa
         return [obj["Key"] for obj in response["Contents"]]
-
-    def list_keys_greater_than_timestamp(self, prefix: str, timestamp: str):
-        """Lists keys in S3 greater than a timestamp."""
-        keys = self.list_keys_given_prefix(prefix)
-        return [key for key in keys if key.split("/")[-1] > timestamp]
 
     @retry_on_aws_rate_limit
     def check_if_prefix_exists(self, prefix: str) -> bool:

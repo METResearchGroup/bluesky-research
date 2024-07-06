@@ -5,7 +5,9 @@ from typing import Literal, Optional
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import root_local_data_directory
-from lib.db.manage_local_data import load_jsonl_data
+from lib.db.manage_local_data import (
+    load_jsonl_data, find_files_after_timestamp
+)
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
@@ -35,54 +37,49 @@ def load_previous_session_metadata():
     return latest_item
 
 
-def load_uris_of_previously_preprocessed_posts(source: Literal["s3", "local"] = "s3") -> set:  # noqa
-    """Loads URIs of previously preprocessed posts."""
-    file_exists = False
-    if not file_exists:
-        return set()
-
-
-previously_preprocessed_post_uris: set[str] = (
-    load_uris_of_previously_preprocessed_posts()
-)
-
-
 def load_latest_firehose_posts(
     source: Literal["s3", "local"],
     latest_preprocessing_timestamp: Optional[str] = None
 ) -> list[ConsolidatedPostRecordModel]:
-    posts_sync_key = s3_export_key_map["create"]["posts"]
+    posts_sync_key = s3_export_key_map["create"]["post"]
+    latest_partition_timestamp = (
+        S3.create_partition_key_based_on_timestamp(latest_preprocessing_timestamp)  # noqa
+    )
+    # NOTE: might have to revisit later on account of having to load all the
+    # keys which is probably pretty inefficient.
+    # NOTE: might need to investigate CDC for s3 later so we can just load the
+    # latest data.
     if source == "s3":
-        keys = s3.list_keys_greater_than_timestamp(
-            prefix=posts_sync_key,
-            timestamp=latest_preprocessing_timestamp
-        )
+        keys = s3.list_keys_given_prefix(prefix=posts_sync_key)
+        keys = [
+            key for key in keys
+            if key > os.path.join(posts_sync_key, latest_partition_timestamp)
+        ]
         jsonl_data: list[dict] = []
         for key in keys:
             data = s3.read_jsonl_from_s3(key)
-            jsonl_data.extend(data)
+            jsonl_data.extend(data[0])
         transformed_jsonl_data: list[ConsolidatedPostRecordModel] = [
             ConsolidatedPostRecordModel(**post) for post in jsonl_data
         ]
     elif source == "local":
         full_import_filedir = os.path.join(root_local_data_directory, posts_sync_key)  # noqa
-        files_to_load: list[str] = [
-            file for file in os.listdir(full_import_filedir)
-            if file > latest_preprocessing_timestamp
-        ]
+
+        # crawl through the directory and load the files that are newer than
+        # the latest partition timestamp. Since "latest_partition_timestamp"
+        # is a directory path, we need to recursively crawl through the
+        # directory to find the files that are newer than the timestamp.
+        files_to_load: list[str] = find_files_after_timestamp(
+            base_path=full_import_filedir,
+            target_timestamp_path=latest_partition_timestamp
+        )
         jsonl_data: list[dict] = []
-        for file in files_to_load:
-            with open(os.path.join(full_import_filedir, file), "r") as f:
-                jsonl_data.extend(load_jsonl_data(f))
+        for filepath in files_to_load:
+            data = load_jsonl_data(filepath)
+            jsonl_data.extend(data)
         transformed_jsonl_data: list[ConsolidatedPostRecordModel] = [
             ConsolidatedPostRecordModel(**post) for post in jsonl_data
         ]
-
-    # remove any posts that were previously preprocessed
-    transformed_jsonl_data = [
-        post for post in transformed_jsonl_data
-        if post.uri not in previously_preprocessed_post_uris
-    ]
 
     return transformed_jsonl_data
 
@@ -91,11 +88,17 @@ def load_latest_most_liked_posts(
     source: Literal["s3", "local"],
     latest_preprocessing_timestamp: Optional[str] = None
 ) -> list[ConsolidatedPostRecordModel]:
+    latest_partition_timestamp = (
+        S3.create_partition_key_based_on_timestamp(latest_preprocessing_timestamp)  # noqa
+    )
     if source == "s3":
-        keys = s3.list_keys_greater_than_timestamp(
-            prefix=root_most_liked_s3_key,
-            timestamp=latest_preprocessing_timestamp
-        )
+        keys = s3.list_keys_given_prefix(prefix=root_most_liked_s3_key)
+        keys = [
+            key for key in keys
+            if key > os.path.join(
+                root_most_liked_s3_key, latest_partition_timestamp
+            )
+        ]
         jsonl_data: list[dict] = []
         for key in keys:
             data = s3.read_jsonl_from_s3(key)
@@ -107,22 +110,17 @@ def load_latest_most_liked_posts(
         full_import_filedir = os.path.join(
             root_local_data_directory, root_most_liked_s3_key
         )
-        files_to_load: list[str] = [
-            file for file in os.listdir(full_import_filedir)
-            if file > latest_preprocessing_timestamp
-        ]
+        files_to_load: list[str] = find_files_after_timestamp(
+            base_path=full_import_filedir,
+            target_timestamp_path=latest_partition_timestamp
+        )
         jsonl_data: list[dict] = []
-        for file in files_to_load:
-            with open(os.path.join(full_import_filedir, file), "r") as f:
-                jsonl_data.extend(load_jsonl_data(f))
+        for filepath in files_to_load:
+            data = load_jsonl_data(filepath)
+            jsonl_data.extend(data)
         transformed_jsonl_data: list[ConsolidatedPostRecordModel] = [
             ConsolidatedPostRecordModel(**post) for post in jsonl_data
         ]
-
-    transformed_jsonl_data = [
-        post for post in transformed_jsonl_data
-        if post.uri not in previously_preprocessed_post_uris
-    ]
 
     return transformed_jsonl_data
 
@@ -147,6 +145,7 @@ def load_latest_posts(
                 source=source,
                 latest_preprocessing_timestamp=latest_preprocessing_timestamp
             )
+            res.extend(posts)
     return res
 
 

@@ -14,12 +14,12 @@ def classify_single_post(post: ConsolidatedPostRecordModel) -> dict:
     If we have metadata for the language of the post via the Bluesky firehose,
     we'll use that. Otherwise, we'll use our model to classify the language.
     """
-    langs = post.record.langs
+    langs = post.langs
     if langs:
         langs: list[str] = langs.split(",")
         text_is_english = True if "en" in langs else False
     else:
-        text_is_english: bool = classify(post.record.text)
+        text_is_english: bool = classify(post.text)
     return {"uri": post.uri, "is_english": text_is_english}
 
 
