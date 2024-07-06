@@ -2,6 +2,7 @@
 import os
 from typing import Literal, Optional
 
+from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import root_local_data_directory
 from lib.db.manage_local_data import load_jsonl_data
@@ -15,10 +16,23 @@ logger = get_logger(__file__)
 
 s3 = S3()
 
+dynamodb_table_name = "preprocessingPipelineMetadata"
+dynamodb = DynamoDB()
+dynamodb_table = dynamodb.resource.Table(dynamodb_table_name)
 
-def load_previous_session_data():
-    """Loads previous session data from DynamoDB, if it exists."""
-    return {}
+
+def load_previous_session_metadata():
+    """Loads previous session data from DynamoDB, if it exists.
+
+    Loads latest based on "current_preprocessing_timestamp" field, which
+    is the partition key for the table.
+    """
+    response = dynamodb_table.scan()
+    items = response["Items"]
+    if not items:
+        return None
+    latest_item = max(items, key=lambda x: x["current_preprocessing_timestamp"])  # noqa
+    return latest_item
 
 
 def load_uris_of_previously_preprocessed_posts(source: Literal["s3", "local"] = "s3") -> set:  # noqa

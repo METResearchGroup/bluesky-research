@@ -5,7 +5,6 @@ from lib.log.logger import Logger
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.preprocess_raw_data.classify_bots.main import filter_posts_not_written_by_bot  # noqa
 from services.preprocess_raw_data.classify_hate_speech.main import filter_posts_have_no_hate_speech  # noqa
-from services.preprocess_raw_data.classify_language.helper import preprocess_text_for_filtering  # noqa
 from services.preprocess_raw_data.classify_language.main import filter_text_is_english  # noqa
 from services.preprocess_raw_data.classify_nsfw_content.main import filter_posts_have_no_nsfw_content  # noqa
 from services.preprocess_raw_data.classify_spam.main import filter_posts_have_no_spam  # noqa
@@ -48,32 +47,10 @@ def filter_posts_with_filter_func(
     }
 
 
-def preprocess_post(
-    post: ConsolidatedPostRecordModel
-) -> ConsolidatedPostRecordModel:
-    """Preprocesses a single post as necessary, before filtering."""
-    # preprocessing needed for language classifier. Specifically, removes any
-    # newline chars, which the classifier doesn't like.
-    post_text = post.record.text
-    processed_text = preprocess_text_for_filtering(post_text)
-    post.record.text = processed_text
-    return post
-
-
-def preprocess_posts(
-    posts: list[ConsolidatedPostRecordModel]
-) -> list[ConsolidatedPostRecordModel]:
-    """Preprocesses the posts as necessary, before filtering."""
-    res: list[ConsolidatedPostRecordModel] = [
-        preprocess_post(post) for post in posts
-    ]
-    return res
-
-
 @track_performance
 def filter_posts(
     posts: list[ConsolidatedPostRecordModel]
-) -> list[FilteredPreprocessedPostModel]:
+) -> tuple[list[FilteredPreprocessedPostModel], dict]:
     """Applies the filtering steps and returns the posts along with their
     status.
 
@@ -100,10 +77,23 @@ def filter_posts(
     After all the filters are done, we add the remaining URIs to the output
     as the URIs of the posts that have passed all the filters.
     """  # noqa
-    # do any preprocessing for posts before filtering
-    logger.info("Starting post filtering in preprocessing pipeline.")
-    posts: list[ConsolidatedPostRecordModel] = preprocess_posts(posts)
     logger.info(f"Total posts for filtering: {len(posts)}")
+    updated_posts_metadata = {
+        "num_posts": len(posts),
+        "num_records_after_filtering": {
+            "posts": {
+                "passed": 0,
+                "failed_total": 0,
+                "failed_breakdown": {
+                    "is_english": 0,
+                    "is_not_from_possible_bot_account": 0,
+                    "has_no_nsfw_content": 0,
+                    "has_no_spam": 0,
+                    "has_no_hate_speech": 0
+                }
+            }
+        }
+    }
 
     # we need to run the language filter first since this will filter the
     # majority of posts (60% - 80% of posts per batch).
@@ -125,6 +115,9 @@ def filter_posts(
         }
         for uri in results_after_english_filter["failed_filters"]
     ]
+    updated_posts_metadata["num_records_after_filtering"]["posts"]["failed_breakdown"]["is_english"] = (  # noqa
+        len(results_after_english_filter["failed_filters"])
+    )
 
     # we apply downstream filters only on English posts.
     posts_to_filter = [
@@ -165,6 +158,11 @@ def filter_posts(
         logger.info(f"Posts passing filter: {len(results['passed_filters'])}. Posts failing filter: {len(results['failed_filters'])}.")  # noqa
         logger.info(f"Posts remaining after filtering with {func_name}: {len(posts_to_filter)}")  # noqa
 
+        # update the metadata.
+        updated_posts_metadata["num_records_after_filtering"]["posts"]["failed_breakdown"][label] = (  # noqa
+            len(results["failed_filters"])
+        )
+
     # whatever posts are left, are the ones that have passed all filters.
     res.extend([
         {
@@ -175,6 +173,11 @@ def filter_posts(
         }
         for post in posts_to_filter
     ])
+
+    updated_posts_metadata["num_records_after_filtering"]["posts"]["passed"] = len(posts_to_filter)  # noqa
+    updated_posts_metadata["num_records_after_filtering"]["posts"]["failed_total"] = (  # noqa
+        len(posts) - len(posts_to_filter)
+    )
 
     # we now create a hash map of the results, with URI as the key.
     uri_to_results_map = {result["uri"]: result for result in res}
@@ -189,18 +192,34 @@ def filter_posts(
             "uri": uri,
             "cid": post.cid,
             "indexed_at": post.indexed_at,
-            "author": post.author,
-            "metadata": post.metadata,
-            "record": post.record,
-            "metrics": post.metrics,
+            "author_did": post.author_did,
+            "author_handle": post.author_handle,
+            "author_avatar": post.author_avatar,
+            "author_display_name": post.author_display_name,
+            "created_at": post.created_at,
+            "text": post.text,
+            "embed": post.embed,
+            "entities": post.entities,
+            "facets": post.facets,
+            "labels": post.labels,
+            "langs": post.langs,
+            "reply_parent": post.reply_parent,
+            "reply_root": post.reply_root,
+            "tags": post.tags,
+            "synctimestamp": post.synctimestamp,
+            "url": post.url,
+            "source": post.source,
+            "processed_timestamp": post.processed_timestamp,
+            "like_count": post.like_count,
+            "reply_count": post.reply_count,
+            "repost_count": post.repost_count,
             "passed_filters": filtering_results["passed_filters"],
             "filtered_at": filtering_results["filtered_at"],
             "filtered_by_func": filtering_results["filtered_by_func"],
-            "synctimestamp": post.metadata.synctimestamp,
             "preprocessing_timestamp": current_datetime_str
         }
         filtered_post = FilteredPreprocessedPostModel(**filtered_post_result)
         filtered_posts.append(filtered_post)
 
     logger.info("Completed post filtering in preprocessing pipeline.")
-    return filtered_posts
+    return (filtered_posts, updated_posts_metadata)
