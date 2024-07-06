@@ -45,6 +45,14 @@ s3_export_key_map = {
     }
 }
 
+current_file_directory = os.path.dirname(os.path.abspath(__file__))
+# level above git directory.
+root_directory = os.path.abspath(
+    os.path.join(current_file_directory, '../../../..')
+)
+root_data_dirname = "bluesky_research_data"
+root_local_data_directory = os.path.join(root_directory, root_data_dirname)
+
 s3 = S3()
 dynamodb = DynamoDB()
 
@@ -135,8 +143,7 @@ def compress_cached_files_and_write_to_storage(
             directory=directory, key=full_key, compressed=compressed
         )
     elif export_store == "local":
-        root_export_fp = ""
-        full_export_filepath = os.path.join(root_export_fp, full_key)
+        full_export_filepath = os.path.join(root_local_data_directory, full_key)  # noqa
         write_jsons_to_local_store(
             directory=directory, export_filepath=full_export_filepath
         )
