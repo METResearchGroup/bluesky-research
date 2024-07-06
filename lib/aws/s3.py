@@ -216,13 +216,14 @@ class S3:
 
         Example:
         >>> create_partition_key_based_on_timestamp('2024-07-02-04:56:19')
-        'year=2024/month=07/day=02/hour=04'
+        'year=2024/month=07/day=02/hour=04/minute=56'
         """
         # Split the timestamp string into components
         parts = timestamp_str.split("-")
         year, month, day, time = parts[0], parts[1], parts[2], parts[3]
         hour = time.split(":")[0]  # Extract the hour from the time part
+        minute = time.split(":")[1]
 
         # Construct the partition key string
-        partition_key = f"year={year}/month={month}/day={day}/hour={hour}"
+        partition_key = f"year={year}/month={month}/day={day}/hour={hour}/minute={minute}"  # noqa
         return partition_key

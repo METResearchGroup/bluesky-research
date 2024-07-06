@@ -85,7 +85,11 @@ def preprocess_latest_raw_data():
     session_metadata["num_raw_records"]["likes"] = likes_metadata["num_likes"]
     session_metadata["num_raw_records"]["follows"] = follows_metadata["num_follows"]
 
-    export_latest_preprocessed_posts(preprocessed_posts)
+    export_latest_preprocessed_posts(
+        latest_posts=preprocessed_posts,
+        session_metadata=session_metadata,
+        external_stores=["local", "s3"]
+    )
     export_latest_likes(preprocessed_likes)
     export_latest_follows(preprocessed_follows)
     export_session_metadata(session_metadata)

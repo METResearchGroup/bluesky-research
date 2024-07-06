@@ -84,7 +84,7 @@ def compress_cached_files_and_write_to_storage(
     operation: Literal["create", "delete"],
     operation_type: Literal["post", "like", "follow"],
     compressed: bool = True,
-    export_store: Literal["local", "s3"] = "local"
+    external_store: Literal["local", "s3"] = "local"
 ):
     """For a given set of files in a directory, compress them into a single
     cached file and write to S3.
@@ -95,11 +95,11 @@ def compress_cached_files_and_write_to_storage(
     filename = f"{current_datetime_str}.jsonl"
     s3_export_key = s3_export_key_map[operation][operation_type]
     full_key = os.path.join(s3_export_key, filename)
-    if export_store == "s3":
+    if external_store == "s3":
         s3.write_local_jsons_to_s3(
             directory=directory, key=full_key, compressed=compressed
         )
-    elif export_store == "local":
+    elif external_store == "local":
         full_export_filepath = os.path.join(root_local_data_directory, full_key)  # noqa
         write_jsons_to_local_store(
             directory=directory, export_filepath=full_export_filepath
@@ -129,7 +129,7 @@ def export_batch(
                     operation=operation,
                     operation_type=operation_type,
                     compressed=compressed,
-                    export_store=store
+                    external_store=store
                 )
     if clear_cache:
         delete_cache_paths()
