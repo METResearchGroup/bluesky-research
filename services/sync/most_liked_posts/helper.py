@@ -5,10 +5,11 @@ import os
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost
 
 from lib.aws.s3 import S3, SYNC_KEY_ROOT
-from lib.constants import current_datetime
+from lib.constants import current_datetime_str, root_local_data_directory
 from lib.db.bluesky_models.transformations import (
     TransformedFeedViewPostModel, TransformedRecordModel
 )
+from lib.db.manage_local_data import write_jsons_to_local_store
 from lib.db.mongodb import get_mongodb_collection
 from services.consolidate_post_records.helper import consolidate_feedview_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
@@ -30,7 +31,6 @@ feed_to_info_map = {
 }
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
-current_datetime_str = current_datetime.strftime("%Y-%m-%d-%H:%M:%S")
 sync_dir = "syncs"
 full_sync_dir = os.path.join(current_directory, sync_dir)
 if not os.path.exists(full_sync_dir):
@@ -43,6 +43,8 @@ task_name = "get_most_liked_posts"
 mongo_collection_name, mongo_collection = (
     get_mongodb_collection(task=task_name)
 )
+
+root_most_liked_s3_key = os.path.join(SYNC_KEY_ROOT, "most_liked_posts")
 
 # TODO: probably should move this elsewhere at some point.
 
@@ -89,23 +91,33 @@ def export_posts(
     store_remote: bool = True
 ) -> None:
     """Export the posts to a file, either locally as a JSON or remote in S3."""
+    timestamp_key = S3.create_partition_key_based_on_timestamp(
+        timestamp_str=current_datetime_str
+    )
+    filename = "posts.jsonl"
     if store_local:
-        print(f"Writing {len(posts)} posts to {sync_fp}")
-        with open(sync_fp, "w") as f:
-            for post in posts:
-                post_json = json.dumps(post)
-                f.write(post_json + "\n")
-        num_posts = len(posts)
-        print(f"Wrote {num_posts} posts locally to {sync_fp}")
-
+        full_export_filepath = os.path.join(
+            root_local_data_directory,
+            root_most_liked_s3_key,
+            timestamp_key,
+            filename
+        )
+        print(f"Exporting most liked posts to local store at {full_export_filepath}")  # noqa
+        if isinstance(posts[0], TransformedFeedViewPostModel):
+            post_dicts = [post.dict() for post in posts]
+        else:
+            post_dicts = posts
+        write_jsons_to_local_store(
+            records=post_dicts,
+            export_filepath=full_export_filepath,
+            compressed=True
+        )
+        print(f"Exported {len(posts)} posts to local store at {full_export_filepath}")  # noqa
     if store_remote:
-        timestamp_key = S3.create_partition_key_based_on_timestamp(
-            timestamp_str=current_datetime_str
-        )
-        filename = "posts.jsonl"
         full_key = os.path.join(
-            SYNC_KEY_ROOT, "sync_most_liked_feed", timestamp_key, filename
+            root_most_liked_s3_key, timestamp_key, filename
         )
+        print(f"Exporting most liked posts to S3 at {full_key}")
         if isinstance(posts[0], TransformedFeedViewPostModel):
             post_dicts = [post.dict() for post in posts]
         else:

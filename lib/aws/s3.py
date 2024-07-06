@@ -105,6 +105,22 @@ class S3:
         jsons = blob.decode("utf-8").split("\n")
         return [json.loads(j) for j in jsons]
 
+    def list_keys(self):
+        """Lists keys in S3."""
+        response = self.client.list_objects_v2(Bucket=ROOT_BUCKET)
+        return [obj["Key"] for obj in response["Contents"]]
+
+    @retry_on_aws_rate_limit
+    def list_keys_given_prefix(self, prefix: str):
+        """Lists keys given a prefix in S3."""
+        response = self.client.list_objects_v2(Bucket=ROOT_BUCKET, Prefix=prefix)  # noqa
+        return [obj["Key"] for obj in response["Contents"]]
+
+    def list_keys_greater_than_timestamp(self, prefix: str, timestamp: str):
+        """Lists keys in S3 greater than a timestamp."""
+        keys = self.list_keys_given_prefix(prefix)
+        return [key for key in keys if key.split("/")[-1] > timestamp]
+
     @retry_on_aws_rate_limit
     def check_if_prefix_exists(self, prefix: str) -> bool:
         """Checks if prefix exists in S3."""

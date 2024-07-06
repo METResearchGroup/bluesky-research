@@ -1,6 +1,5 @@
 """Tooling for managing the export of firehose data, both to local cache and to
 S3."""
-import gzip
 import json
 import os
 import shutil
@@ -8,8 +7,9 @@ from typing import Literal, Optional
 
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
-from lib.constants import current_datetime_str
+from lib.constants import current_datetime_str, root_local_data_directory
 from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
+from lib.db.manage_local_data import write_jsons_to_local_store
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 root_write_path = os.path.join(current_file_directory, "cache")
@@ -45,14 +45,6 @@ s3_export_key_map = {
     }
 }
 
-current_file_directory = os.path.dirname(os.path.abspath(__file__))
-# level above git directory.
-root_directory = os.path.abspath(
-    os.path.join(current_file_directory, '../../../..')
-)
-root_data_dirname = "bluesky_research_data"
-root_local_data_directory = os.path.join(root_directory, root_data_dirname)
-
 s3 = S3()
 dynamodb = DynamoDB()
 
@@ -85,41 +77,6 @@ rebuild_cache_paths()
 def write_data_to_json(data: dict, path: str):
     with open(path, 'w') as f:
         json.dump(data, f)
-
-
-def write_jsons_to_local_store(
-    source_directory: str, export_filepath: str, compressed: bool = True
-):
-    """Writes local JSONs to local store. Writes as a .jsonl file.
-
-    Loads in JSONs from a given directory and writes them to the local storage
-    using the export filepath.
-    """
-    if not os.path.exists(source_directory):
-        raise ValueError("Directory does not exist.")
-
-    dirpath = os.path.dirname(export_filepath)
-    if not os.path.exists(dirpath):
-        os.makedirs(dirpath)
-
-    res: list[dict] = []
-
-    for file in os.listdir(source_directory):
-        if file.endswith(".json"):
-            with open(os.path.join(source_directory, file), 'r') as f:
-                res.append(json.load(f))
-
-    if compressed:
-        export_filepath += ".gz"
-
-    if compressed:
-        with open(export_filepath, 'rb') as f_in:
-            with gzip.open(export_filepath + ".gz", 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
-    else:
-        with open(export_filepath, 'w') as f:
-            for item in res:
-                f.write(json.dumps(item) + "\n")
 
 
 def compress_cached_files_and_write_to_storage(

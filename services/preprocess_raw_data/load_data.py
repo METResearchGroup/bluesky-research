@@ -1,94 +1,150 @@
 """Load raw data for preprocessing"""
-from typing import Optional
+import os
+from typing import Literal, Optional
 
-from lib.db.bluesky_models.transformations import (
-    TransformedRecordWithAuthorModel, TransformedFeedViewPostModel
-)
-from lib.db.mongodb import get_mongodb_collection, load_collection
-from lib.db.sql.sync_database import get_latest_firehose_posts
+from lib.aws.s3 import S3
+from lib.constants import root_local_data_directory
+from lib.db.manage_local_data import load_jsonl_data
 from lib.helper import track_performance
 from lib.log.logger import get_logger
-from services.consolidate_post_records.helper import consolidate_post_records
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
-from lib.db.sql.preprocessing_database import (
-    get_previously_filtered_post_uris, load_latest_preprocessed_post_timestamp
-)
+from services.sync.stream.export_data import s3_export_key_map
+from services.sync.most_liked_posts.helper import root_most_liked_s3_key
 
 logger = get_logger(__file__)
 
-mongodb_task_name = "get_most_liked_posts"
-mongo_collection = get_mongodb_collection(mongodb_task_name)[1]
+s3 = S3()
 
 
-def load_firehose_posts(
+def load_previous_session_data():
+    """Loads previous session data from DynamoDB, if it exists."""
+    return {}
+
+
+def load_uris_of_previously_preprocessed_posts(source: Literal["s3", "local"] = "s3") -> set:  # noqa
+    """Loads URIs of previously preprocessed posts."""
+    file_exists = False
+    if not file_exists:
+        return set()
+
+
+previously_preprocessed_post_uris: set[str] = (
+    load_uris_of_previously_preprocessed_posts()
+)
+
+
+def load_latest_firehose_posts(
+    source: Literal["s3", "local"],
     latest_preprocessing_timestamp: Optional[str] = None
 ) -> list[ConsolidatedPostRecordModel]:
-    """Loads latest synced firehose posts from SQLite and then consolidates
-    their format."""
-    posts: list[dict] = get_latest_firehose_posts(
-        k=None, latest_preprocessing_timestamp=latest_preprocessing_timestamp
-    )
-    transformed_posts: list[TransformedRecordWithAuthorModel] = [
-        TransformedRecordWithAuthorModel(**post) for post in posts
+    posts_sync_key = s3_export_key_map["create"]["posts"]
+    if source == "s3":
+        keys = s3.list_keys_greater_than_timestamp(
+            prefix=posts_sync_key,
+            timestamp=latest_preprocessing_timestamp
+        )
+        jsonl_data: list[dict] = []
+        for key in keys:
+            data = s3.read_jsonl_from_s3(key)
+            jsonl_data.extend(data)
+        transformed_jsonl_data: list[ConsolidatedPostRecordModel] = [
+            ConsolidatedPostRecordModel(**post) for post in jsonl_data
+        ]
+    elif source == "local":
+        full_import_filedir = os.path.join(root_local_data_directory, posts_sync_key)  # noqa
+        files_to_load: list[str] = [
+            file for file in os.listdir(full_import_filedir)
+            if file > latest_preprocessing_timestamp
+        ]
+        jsonl_data: list[dict] = []
+        for file in files_to_load:
+            with open(os.path.join(full_import_filedir, file), "r") as f:
+                jsonl_data.extend(load_jsonl_data(f))
+        transformed_jsonl_data: list[ConsolidatedPostRecordModel] = [
+            ConsolidatedPostRecordModel(**post) for post in jsonl_data
+        ]
+
+    # remove any posts that were previously preprocessed
+    transformed_jsonl_data = [
+        post for post in transformed_jsonl_data
+        if post.uri not in previously_preprocessed_post_uris
     ]
-    return consolidate_post_records(posts=transformed_posts)
+
+    return transformed_jsonl_data
 
 
-# TODO: rewrite to load from S3.
-def load_feedview_posts(
+def load_latest_most_liked_posts(
+    source: Literal["s3", "local"],
     latest_preprocessing_timestamp: Optional[str] = None
 ) -> list[ConsolidatedPostRecordModel]:
-    """Loads latest synced feedview posts from MongoDB and then consolidates
-    their format."""
-    posts: list[dict] = load_collection(
-        collection=mongo_collection,
-        limit=None,
-        latest_timestamp=latest_preprocessing_timestamp,
-        timestamp_fieldname="metadata.synctimestamp"
-    )
-    transformed_posts: list[TransformedFeedViewPostModel] = [
-        TransformedFeedViewPostModel(**post) for post in posts
+    if source == "s3":
+        keys = s3.list_keys_greater_than_timestamp(
+            prefix=root_most_liked_s3_key,
+            timestamp=latest_preprocessing_timestamp
+        )
+        jsonl_data: list[dict] = []
+        for key in keys:
+            data = s3.read_jsonl_from_s3(key)
+            jsonl_data.extend(data)
+        transformed_jsonl_data: list[ConsolidatedPostRecordModel] = [
+            ConsolidatedPostRecordModel(**post) for post in jsonl_data
+        ]
+    elif source == "local":
+        full_import_filedir = os.path.join(
+            root_local_data_directory, root_most_liked_s3_key
+        )
+        files_to_load: list[str] = [
+            file for file in os.listdir(full_import_filedir)
+            if file > latest_preprocessing_timestamp
+        ]
+        jsonl_data: list[dict] = []
+        for file in files_to_load:
+            with open(os.path.join(full_import_filedir, file), "r") as f:
+                jsonl_data.extend(load_jsonl_data(f))
+        transformed_jsonl_data: list[ConsolidatedPostRecordModel] = [
+            ConsolidatedPostRecordModel(**post) for post in jsonl_data
+        ]
+
+    transformed_jsonl_data = [
+        post for post in transformed_jsonl_data
+        if post.uri not in previously_preprocessed_post_uris
     ]
-    return consolidate_post_records(posts=transformed_posts)
 
-
-def filter_previously_preprocessed_posts(
-    posts: list[ConsolidatedPostRecordModel]
-) -> list[ConsolidatedPostRecordModel]:
-    previous_uris: set[str] = get_previously_filtered_post_uris()
-    # OK for now, and will prob be OK, but in case this doesn't scale,
-    # I could explore something like a Bloom filter.
-    return [post for post in posts if post.uri not in previous_uris]
+    return transformed_jsonl_data
 
 
 @track_performance
-def load_latest_raw_posts(
-    sources: list[str] = ["firehose", "most_liked"]
+def load_latest_posts(
+    source: Literal["s3", "local"],
+    source_feeds: list[str] = ["firehose", "most_liked"],
+    latest_preprocessing_timestamp: Optional[str] = None
 ) -> list[ConsolidatedPostRecordModel]:
-    """Loads raw data from sync DBs."""
-    logger.info("Loading latest raw data.")
-    latest_preprocessed_post_timestamp: str = load_latest_preprocessed_post_timestamp()  # noqa
-    if latest_preprocessed_post_timestamp:
-        logger.info(
-            f"Latest preprocessed post timestamp: {latest_preprocessed_post_timestamp}"  # noqa
-        )
-    consolidated_raw_posts: list[ConsolidatedPostRecordModel] = []
-    for source in sources:
-        if source == "firehose":
-            posts: list[ConsolidatedPostRecordModel] = load_firehose_posts(
-                latest_preprocessing_timestamp=latest_preprocessed_post_timestamp  # noqa
+    """Loads latest synced posts."""
+    res: list[ConsolidatedPostRecordModel] = []
+    for source_feed in source_feeds:
+        if source_feed == "firehose":
+            posts = load_latest_firehose_posts(
+                source=source,
+                latest_preprocessing_timestamp=latest_preprocessing_timestamp
             )
-        elif source == "most_liked":
-            posts: list[ConsolidatedPostRecordModel] = load_feedview_posts(
-                latest_preprocessing_timestamp=latest_preprocessed_post_timestamp  # noqa
+            res.extend(posts)
+        elif source_feed == "most_liked":
+            posts = load_latest_most_liked_posts(
+                source=source,
+                latest_preprocessing_timestamp=latest_preprocessing_timestamp
             )
-        else:
-            raise ValueError(f"Data source not recognized: {source}")
-        if posts:
-            consolidated_raw_posts.extend(posts)
-        else:
-            logger.warning(f"No new raw posts to preprocess from source={source}")  # noqa
-    consolidated_raw_posts: list[ConsolidatedPostRecordModel] = (
-        filter_previously_preprocessed_posts(posts=consolidated_raw_posts)
-    )
-    return consolidated_raw_posts
+    return res
+
+
+def load_latest_likes(
+    source: Literal["s3", "local"],
+    latest_preprocessing_timestamp: Optional[str] = None
+):
+    return []
+
+
+def load_latest_follows(
+    source: Literal["s3", "local"],
+    latest_preprocessing_timestamp: Optional[str] = None
+):
+    return []
