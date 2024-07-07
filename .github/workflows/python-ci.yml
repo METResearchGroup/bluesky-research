@@ -44,6 +44,6 @@ jobs:
         docker run --rm -i hadolint/hadolint < Dockerfiles/add_users_to_study.Dockerfile
         docker run --rm -i hadolint/hadolint < Dockerfiles/feed_api.Dockerfile
         docker run --rm -i hadolint/hadolint < Dockerfiles/calculate_superposters.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/preprocess_raw_Data.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/preprocess_raw_data.Dockerfile
         docker run --rm -i hadolint/hadolint < Dockerfiles/sync_firehose_stream.Dockerfile
         docker run --rm -i hadolint/hadolint < Dockerfiles/sync_most_liked_feed.Dockerfile
