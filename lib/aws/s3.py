@@ -122,6 +122,8 @@ class S3:
     def list_keys_given_prefix(self, prefix: str):
         """Lists keys given a prefix in S3."""
         response = self.client.list_objects_v2(Bucket=ROOT_BUCKET, Prefix=prefix)  # noqa
+        if "Contents" not in response:
+            return []
         return [obj["Key"] for obj in response["Contents"]]
 
     @retry_on_aws_rate_limit
