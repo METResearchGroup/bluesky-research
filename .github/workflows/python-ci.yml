@@ -47,3 +47,4 @@ jobs:
         docker run --rm -i hadolint/hadolint < Dockerfiles/preprocess_raw_data.Dockerfile
         docker run --rm -i hadolint/hadolint < Dockerfiles/sync_firehose_stream.Dockerfile
         docker run --rm -i hadolint/hadolint < Dockerfiles/sync_most_liked_feed.Dockerfile
+        docker run --rm -i hadolint/hadolint < Dockerfiles/ml_inference_perspective_api.Dockerfile
