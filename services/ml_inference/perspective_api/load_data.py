@@ -152,21 +152,24 @@ def load_classified_posts_from_cache() -> dict:
             with open(full_path, "r") as f:
                 post = json.load(f)
                 if "firehose" in full_path:
-                    if "valid" in full_path:
-                        firehose_valid_posts.append(
-                            PerspectiveApiLabelsModel(**post)
-                        )
-                    elif "invalid" in full_path:
+                    # need to have invalid before valid since "valid" is a
+                    # subset of "invalid" (all strings with "invalid"
+                    # also have "valid" in them, but not vice versa)
+                    if "invalid" in full_path:
                         firehose_invalid_posts.append(
                             PerspectiveApiLabelsModel(**post)
                         )
-                elif "most_liked" in full_path:
-                    if "valid" in full_path:
-                        most_liked_valid_posts.append(
+                    elif "valid" in full_path:
+                        firehose_valid_posts.append(
                             PerspectiveApiLabelsModel(**post)
                         )
-                    elif "invalid" in full_path:
+                elif "most_liked" in full_path:
+                    if "invalid" in full_path:
                         most_liked_invalid_posts.append(
+                            PerspectiveApiLabelsModel(**post)
+                        )
+                    elif "valid" in full_path:
+                        most_liked_valid_posts.append(
                             PerspectiveApiLabelsModel(**post)
                         )
 
@@ -215,7 +218,7 @@ def load_posts_to_classify(
         full_import_filedir = os.path.join(root_local_data_directory, prefix)
         files_to_load: list[str] = find_files_after_timestamp(
             base_path=full_import_filedir,
-            target_timestamp_path=previous_timestamp
+            target_timestamp_path=latest_partition_timestamp
         )
         jsonl_data: list[dict] = []
         for filepath in files_to_load:

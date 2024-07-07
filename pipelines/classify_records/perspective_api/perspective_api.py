@@ -67,7 +67,7 @@ def classify_latest_posts():
     for source_feed in source_feeds:
         print(f"Loading posts from {source_feed}...")
         posts: list[FilteredPreprocessedPostModel] = load_posts_to_classify(
-            source="s3", source_feed=source_feed,
+            source="local", source_feed=source_feed,
             previous_timestamp=previous_timestamp,
         )
         # validate posts
@@ -90,17 +90,20 @@ def classify_latest_posts():
             source_feed=source_feed
         )
 
-        if len(posts) != len(posts_after_cache_removal):
-            num_posts_removed = len(posts) - len(posts_after_cache_removal)
-            print(f"Removed {num_posts_removed} posts that were already in cache.")  # noqa
-            print(f"Number of valid posts after cache removal: {len(posts_after_cache_removal)}")  # noqa
-
         valid_posts: list[FilteredPreprocessedPostModel] = posts_after_cache_removal["valid_posts"]  # noqa
         invalid_posts: list[FilteredPreprocessedPostModel] = posts_after_cache_removal["invalid_posts"]  # noqa
 
+        num_posts_removed = len(posts) - len(valid_posts) - len(invalid_posts)
+        if num_posts_removed > 0:
+            print(f"Removed {num_posts_removed} posts that were already in cache.")  # noqa
+            print(f"Number of valid posts after cache removal: {len(valid_posts) + len(invalid_posts)}")  # noqa
+
+        if len(valid_posts) + len(invalid_posts) == 0:
+            print(f"No posts to classify for {source_feed} feed. Skipping...")
+            continue
+
         # process and classify invalid posts first.
         invalid_posts_models = []
-        breakpoint()
         for post in invalid_posts:
             invalid_posts_models.append(
                 PerspectiveApiLabelsModel(
@@ -119,11 +122,10 @@ def classify_latest_posts():
                 classification_type="invalid"
             )
 
-        # run_batch_classification(
-        #     posts=valid_posts, source_feed=source_feed
-        # )
+        run_batch_classification(
+            posts=valid_posts, source_feed=source_feed
+        )
 
-    breakpoint()
     export_results(
         previous_classified_post_uris=previous_classified_post_uris,
         session_metadata=session_metadata,

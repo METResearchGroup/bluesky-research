@@ -14,7 +14,7 @@ from services.ml_inference.perspective_api.constants import (
 )
 from services.ml_inference.perspective_api.load_data import load_classified_posts_from_cache  # noqa
 
-dynamodb_table_name = "preprocessingPipelineMetadata"
+dynamodb_table_name = "perspectiveApiClassificationMetadata"
 dynamodb = DynamoDB()
 dynamodb_table = dynamodb.resource.Table(dynamodb_table_name)
 
@@ -63,7 +63,6 @@ def export_classified_posts(
 
     Returns the URIs of the classified posts.
     """
-    # TODO: check that session metadata fields line up.
     current_timestamp = session_metadata["current_classification_timestamp"]
     partition_key = S3.create_partition_key_based_on_timestamp(
         timestamp_str=current_timestamp
@@ -72,6 +71,16 @@ def export_classified_posts(
     posts_from_cache_dict: dict = load_classified_posts_from_cache()
     firehose_posts: dict[str, list[PerspectiveApiLabelsModel]] = posts_from_cache_dict["firehose"]  # noqa
     most_liked_posts: dict[str, list[PerspectiveApiLabelsModel]] = posts_from_cache_dict["most_liked"]  # noqa
+
+    classified_uris = set()
+    for post in firehose_posts["valid"]:
+        classified_uris.add(post.uri)
+    for post in firehose_posts["invalid"]:
+        classified_uris.add(post.uri)
+    for post in most_liked_posts["valid"]:
+        classified_uris.add(post.uri)
+    for post in most_liked_posts["invalid"]:
+        classified_uris.add(post.uri)
 
     # validity = "valid"/"invalid"
     for validity, classified_posts in firehose_posts.items():
@@ -89,7 +98,8 @@ def export_classified_posts(
                     root_local_data_directory, full_key
                 )
                 write_jsons_to_local_store(
-                    records=classified_post_dicts, export_filepath=full_export_filepath
+                    records=classified_post_dicts,
+                    export_filepath=full_export_filepath
                 )
             else:
                 raise ValueError("Invalid external store.")
@@ -114,6 +124,8 @@ def export_classified_posts(
                 )
             else:
                 raise ValueError("Invalid external store.")
+
+    return classified_uris
 
 
 def export_classified_post_uris(
@@ -168,11 +180,12 @@ def export_results(
     classified_uris: set[str] = export_classified_posts(
         session_metadata=session_metadata, external_stores=external_stores
     )
-    session_metadata[""]
     total_classified_uris = previous_classified_post_uris.union(classified_uris)  # noqa
-    export_classified_post_uris(total_classified_uris)
+    export_classified_post_uris(total_classified_uris, source="local")
+    export_classified_post_uris(total_classified_uris, source="s3")
     export_session_metadata(session_metadata)
 
+    breakpoint()
     delete_cache_paths()
     rebuild_cache_paths()
 
