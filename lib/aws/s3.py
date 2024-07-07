@@ -48,6 +48,8 @@ class S3:
             print(f"Failure in putting object to S3: {e}")
             raise e
 
+    # NOTE: misleading name, doesn't need to be dict. Just needs to be
+    # JSON-serializable.
     def write_dict_json_to_s3(
         self, data: dict, key: str, bucket: str = ROOT_BUCKET
     ) -> None:

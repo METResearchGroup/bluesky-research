@@ -2,16 +2,19 @@
 import asyncio
 from datetime import datetime, timezone
 import json
-from typing import Optional
+from typing import Literal, Optional
 
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
-from lib.db.sql.ml_inference_database import batch_insert_perspective_api_labels  # noqa
 from lib.helper import GOOGLE_API_KEY, create_batches, logger, track_performance  # noqa
 from services.ml_inference.models import (
     PerspectiveApiLabelsModel, RecordClassificationMetadataModel
 )
+from services.ml_inference.perspective_api.export_data import (
+    write_post_to_cache
+)
+from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 DEFAULT_BATCH_SIZE = 50
 DEFAULT_DELAY_SECONDS = 1.0
@@ -297,10 +300,13 @@ def create_label_models(
 
 @track_performance
 async def batch_classify_posts(
-    posts: list[RecordClassificationMetadataModel],
+    posts: list[FilteredPreprocessedPostModel],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
-    seconds_delay_per_batch: Optional[float] = 1.0
+    seconds_delay_per_batch: Optional[float] = 1.0,
+    source_feed: Literal["firehose", "most_liked"] = None,
 ) -> None:
+    if not source_feed:
+        raise ValueError("Source feed must be provided.")
     request_payloads: list[dict] = [
         create_perspective_request(post.text) for post in posts
     ]
@@ -319,19 +325,26 @@ async def batch_classify_posts(
         label_models: list[PerspectiveApiLabelsModel] = (
             create_label_models(posts=post_batch, responses=responses)
         )
-        batch_insert_perspective_api_labels(labels=label_models)
+        for labeled_post in label_models:
+            write_post_to_cache(
+                classified_post=labeled_post,
+                source_feed=source_feed,
+                classification_type="valid"
+            )
 
 
 def run_batch_classification(
-    posts: list[RecordClassificationMetadataModel],
+    posts: list[FilteredPreprocessedPostModel],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
-    seconds_delay_per_batch: Optional[float] = DEFAULT_DELAY_SECONDS
+    seconds_delay_per_batch: Optional[float] = DEFAULT_DELAY_SECONDS,
+    source_feed: Literal["firehose", "most_liked"] = None,
 ):
     loop = asyncio.get_event_loop()
     loop.run_until_complete(
         batch_classify_posts(
             posts=posts,
             batch_size=batch_size,
-            seconds_delay_per_batch=seconds_delay_per_batch
+            seconds_delay_per_batch=seconds_delay_per_batch,
+            source_feed=source_feed
         )
     )

@@ -10,7 +10,8 @@ from services.ml_inference.models import (
     PerspectiveApiLabelsModel
 )
 from services.ml_inference.perspective_api.constants import (
-    cache_key, perspective_api_root_s3_key
+    perspective_api_root_s3_key, previously_classified_post_uris_filename,
+    root_cache_path
 )
 
 dynamodb_table_name = "preprocessingPipelineMetadata"
@@ -27,7 +28,7 @@ def write_post_to_cache(
 ):
     """Writes a post to local cache."""
     full_key = os.path.join(
-        cache_key, source_feed, classification_type,
+        root_cache_path, source_feed, classification_type,
         f"{classified_post.uri}.json"
     )
     with open(full_key, "w") as f:
@@ -111,8 +112,22 @@ def export_classified_posts(
                 raise ValueError("Invalid external store.")
 
 
-def export_classified_post_uris(post_uris: set[str]):
-    pass
+def export_classified_post_uris(
+    post_uris: set[str],
+    source: Literal["local", "s3"]
+):
+    full_key = os.path.join(
+        perspective_api_root_s3_key, previously_classified_post_uris_filename
+    )
+    if source == "s3":
+        s3.write_dict_json_to_s3(data=list(post_uris), key=full_key)
+    elif source == "local":
+        full_export_filepath = os.path.join(
+            root_local_data_directory, full_key
+        )
+        write_jsons_to_local_store(
+            records=list(post_uris), export_filepath=full_export_filepath
+        )
 
 
 def export_session_metadata(session_metadata: dict):

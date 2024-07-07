@@ -19,7 +19,7 @@ def filter_posts_already_in_cache(
     cache. This can happen if, for example, a classification job is
     interrupted and then restarted.
     """
-    feed_uri_cache = cached_post_uris[source_feed]
+    feed_uri_cache: dict[str, set] = cached_post_uris[source_feed]
     valid_posts = [
         post for post in valid_posts if post.uri not in feed_uri_cache["valid"]
     ]

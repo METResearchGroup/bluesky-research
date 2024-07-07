@@ -14,11 +14,11 @@ dynamodb_table = dynamodb.resource.Table(dynamodb_table_name)
 
 s3 = S3()
 
-root_s3_key = "preprocessed_data"
+preprocessing_root_s3_key = "preprocessed_data"
 s3_export_key_map = {
-    "post": os.path.join(root_s3_key, "post"),
-    "like": os.path.join(root_s3_key, "like"),
-    "follow": os.path.join(root_s3_key, "follow")
+    "post": os.path.join(preprocessing_root_s3_key, "post"),
+    "like": os.path.join(preprocessing_root_s3_key, "like"),
+    "follow": os.path.join(preprocessing_root_s3_key, "follow")
 }
 
 
