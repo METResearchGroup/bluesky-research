@@ -1,18 +1,18 @@
 """Exports the results of classifying posts to an external store."""
 import os
+import shutil
 from typing import Literal
 
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import root_local_data_directory
 from lib.db.manage_local_data import write_jsons_to_local_store
-from services.ml_inference.models import (
-    PerspectiveApiLabelsModel
-)
+from services.ml_inference.models import PerspectiveApiLabelsModel
 from services.ml_inference.perspective_api.constants import (
     perspective_api_root_s3_key, previously_classified_post_uris_filename,
     root_cache_path
 )
+from services.ml_inference.perspective_api.load_data import load_classified_posts_from_cache  # noqa
 
 dynamodb_table_name = "preprocessingPipelineMetadata"
 dynamodb = DynamoDB()
@@ -26,27 +26,31 @@ def write_post_to_cache(
     source_feed: Literal["firehose", "most_liked"],
     classification_type: Literal["valid", "invalid"]
 ):
-    """Writes a post to local cache."""
+    """Writes a post to local cache.
+
+    The complete post URI is given as a combination of the
+    author's DID and a post ID. It comes in the form:
+    at://<author_did>/app.bsky.feed.post/<post_id>
+
+    We extract the author_did and post_id portion to create a unique key
+    for the post.
+
+    For example:
+    - at://did:plc:z37zxpcg22ookqjpvmgansn2/app.bsky.feed.post/3kwfp7deuxm2i
+        - We extract the "did:plc:z37zxpcg22ookqjpvmgansn2", and
+        "3kwfp7deuxm2i" portions.
+
+    We create a joint key of {author_did}_{post_id} to store the post.
+    """
+    post_id = classified_post.uri.split("/")[-1]
+    author_did = classified_post.uri.split("/")[-3]
+    joint_pk = f"{author_did}_{post_id}"
     full_key = os.path.join(
         root_cache_path, source_feed, classification_type,
-        f"{classified_post.uri}.json"
+        f"{joint_pk}.json"
     )
     with open(full_key, "w") as f:
         f.write(classified_post.json())
-
-
-# TODO: implement
-def load_posts_from_cache() -> dict:
-    return {
-        "firehose": {
-            "valid": [],
-            "invalid": []
-        },
-        "most_liked": {
-            "valid": [],
-            "invalid": []
-        }
-    }
 
 
 def export_classified_posts(
@@ -65,7 +69,7 @@ def export_classified_posts(
         timestamp_str=current_timestamp
     )
     filename = "classified_posts.jsonl"
-    posts_from_cache_dict: dict = load_posts_from_cache()
+    posts_from_cache_dict: dict = load_classified_posts_from_cache()
     firehose_posts: dict[str, list[PerspectiveApiLabelsModel]] = posts_from_cache_dict["firehose"]  # noqa
     most_liked_posts: dict[str, list[PerspectiveApiLabelsModel]] = posts_from_cache_dict["most_liked"]  # noqa
 
@@ -131,7 +135,26 @@ def export_classified_post_uris(
 
 
 def export_session_metadata(session_metadata: dict):
-    pass
+    dynamodb_table.put_item(Item=session_metadata)
+    print("Session data exported to DynamoDB.")
+    return
+
+
+def delete_cache_paths():
+    """Deletes the cache paths. Recursively removes from the root path."""
+    if os.path.exists(root_cache_path):
+        shutil.rmtree(root_cache_path)
+
+
+def rebuild_cache_paths():
+    if not os.path.exists(root_cache_path):
+        os.makedirs(root_cache_path)
+    os.mkdir(os.path.join(root_cache_path, "firehose"))
+    os.mkdir(os.path.join(root_cache_path, "most_liked"))
+    os.mkdir(os.path.join(root_cache_path, "firehose", "valid"))
+    os.mkdir(os.path.join(root_cache_path, "firehose", "invalid"))
+    os.mkdir(os.path.join(root_cache_path, "most_liked", "valid"))
+    os.mkdir(os.path.join(root_cache_path, "most_liked", "invalid"))
 
 
 def export_results(
@@ -139,11 +162,18 @@ def export_results(
     session_metadata: dict,
     external_stores: list[str] = ["local", "s3"]
 ):
-    """Exports the results of classifying posts to external store."""
+    """Exports the results of classifying posts to external store, then empties
+    out the cache.
+    """
     classified_uris: set[str] = export_classified_posts(
         session_metadata=session_metadata, external_stores=external_stores
     )
+    session_metadata[""]
     total_classified_uris = previous_classified_post_uris.union(classified_uris)  # noqa
     export_classified_post_uris(total_classified_uris)
     export_session_metadata(session_metadata)
+
+    delete_cache_paths()
+    rebuild_cache_paths()
+
     print(f"Exported results from classifying {len(classified_uris)} posts using the Perspective API.")  # noqa

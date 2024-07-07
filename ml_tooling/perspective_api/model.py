@@ -8,9 +8,7 @@ from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
 from lib.helper import GOOGLE_API_KEY, create_batches, logger, track_performance  # noqa
-from services.ml_inference.models import (
-    PerspectiveApiLabelsModel, RecordClassificationMetadataModel
-)
+from services.ml_inference.models import PerspectiveApiLabelsModel
 from services.ml_inference.perspective_api.export_data import (
     write_post_to_cache
 )
@@ -255,7 +253,7 @@ async def process_perspective_batch(requests):
 
 
 def create_label_models(
-    posts: list[RecordClassificationMetadataModel], responses: list[dict]
+    posts: list[FilteredPreprocessedPostModel], responses: list[dict]
 ) -> list[PerspectiveApiLabelsModel]:
     res = []
     for (post, response_obj) in zip(posts, responses):

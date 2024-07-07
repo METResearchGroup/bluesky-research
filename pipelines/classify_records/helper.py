@@ -1,6 +1,5 @@
 """Helper functionalities for classifying records."""
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
-from services.ml_inference.models import RecordClassificationMetadataModel
 
 MIN_TEXT_LENGTH = 8
 

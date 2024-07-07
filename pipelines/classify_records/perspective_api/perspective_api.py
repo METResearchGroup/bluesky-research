@@ -1,10 +1,10 @@
 """Base file for classifying posts in batch using the Perspective API."""
-from lib.constants import current_datetime_str
+from datetime import datetime, timedelta, timezone
+
+from lib.constants import current_datetime_str, timestamp_format
 from ml_tooling.perspective_api.model import run_batch_classification
 from pipelines.classify_records.helper import validate_posts
-from services.ml_inference.models import (
-    PerspectiveApiLabelsModel
-)
+from services.ml_inference.models import PerspectiveApiLabelsModel
 from services.ml_inference.perspective_api.export_data import (
     export_results, write_post_to_cache
 )
@@ -14,6 +14,14 @@ from services.ml_inference.perspective_api.load_data import (
     load_previously_classified_post_uris
 )
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
+
+
+# by default, process the posts from the past day, if we don't have a
+# previous timestamp to work with.
+num_days_lookback = 1
+default_latest_timestamp = (
+    datetime.now(timezone.utc) - timedelta(days=num_days_lookback)
+).strftime(timestamp_format)
 
 
 def init_session_metadata(
@@ -30,7 +38,7 @@ def init_session_metadata(
             "num_posts_loaded": 0,
             "num_valid_posts_for_classification": 0,
             "num_invalid_posts_for_classification": 0,
-            "num_posts_classified": 0,
+            "num_posts_classified_with_api": 0,
         }
     return res
 
@@ -45,16 +53,22 @@ def classify_latest_posts():
     # same session, otherwise this causes complications since I'll have to
     # manage the session metadata separately for each type.
     previous_session_metadata: dict = load_previous_session_metadata()
-    session_metadata: dict = init_session_metadata(
-        previous_timestamp=previous_session_metadata["current_classification_timestamp"]  # noqa
+    previous_timestamp = (
+        previous_session_metadata["current_classification_timestamp"]
+        if previous_session_metadata
+        else None
     )
+    session_metadata: dict = init_session_metadata(
+        previous_timestamp=previous_timestamp,
+        source_feeds=source_feeds
+    )
+    if not previous_timestamp:
+        previous_timestamp = default_latest_timestamp
     for source_feed in source_feeds:
         print(f"Loading posts from {source_feed}...")
-        # TODO: load posts from either s3 or local
-        # TODO: load either firehose or most liked posts
         posts: list[FilteredPreprocessedPostModel] = load_posts_to_classify(
             source="s3", source_feed=source_feed,
-            session_metadata=session_metadata
+            previous_timestamp=previous_timestamp,
         )
         # validate posts
         valid_posts, invalid_posts = validate_posts(posts)  # TODO: needs update
@@ -66,6 +80,9 @@ def classify_latest_posts():
         session_metadata[source_feed]["num_posts_loaded"] = len(posts)
         session_metadata[source_feed]["num_valid_posts_for_classification"] = len(valid_posts)  # noqa
         session_metadata[source_feed]["num_invalid_posts_for_classification"] = len(invalid_posts)  # nqoa
+        # workaround and decently good assumption that the number of posts
+        # classified with the API is the number of valid posts.
+        session_metadata[source_feed]["num_posts_classified_with_api"] = len(valid_posts)  # noqa
 
         posts_after_cache_removal: dict = filter_posts_already_in_cache(
             valid_posts=valid_posts,
@@ -83,6 +100,7 @@ def classify_latest_posts():
 
         # process and classify invalid posts first.
         invalid_posts_models = []
+        breakpoint()
         for post in invalid_posts:
             invalid_posts_models.append(
                 PerspectiveApiLabelsModel(
@@ -101,13 +119,19 @@ def classify_latest_posts():
                 classification_type="invalid"
             )
 
-        run_batch_classification(
-            posts=valid_posts, source_feed=source_feed
-        )
+        # run_batch_classification(
+        #     posts=valid_posts, source_feed=source_feed
+        # )
 
+    breakpoint()
     export_results(
         previous_classified_post_uris=previous_classified_post_uris,
         session_metadata=session_metadata,
         external_stores=["local", "s3"]
     )
     print("Classification complete.")
+
+
+if __name__ == "__main__":
+    classify_latest_posts()
+    print("Perspective API classification complete.")
