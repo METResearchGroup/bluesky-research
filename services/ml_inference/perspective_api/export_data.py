@@ -185,7 +185,6 @@ def export_results(
     export_classified_post_uris(total_classified_uris, source="s3")
     export_session_metadata(session_metadata)
 
-    breakpoint()
     delete_cache_paths()
     rebuild_cache_paths()
 
