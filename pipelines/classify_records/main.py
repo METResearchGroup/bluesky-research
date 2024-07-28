@@ -15,7 +15,7 @@ import typer
 
 from lib.log.logger import Logger
 from .perspective_api.perspective_api import classify_latest_posts as classify_perspective_posts  # noqa
-from .sociopolitical import classify_latest_posts as classify_sociopolitical_posts  # noqa
+from .sociopolitical.sociopolitical import classify_latest_posts as classify_sociopolitical_posts  # noqa
 
 from enum import Enum
 
