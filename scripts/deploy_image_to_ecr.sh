@@ -13,8 +13,9 @@ deploy_service() {
     # Authenticate Docker to the AWS ECR
     aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${repository_url}
 
-    # Build the Docker image
-    docker build -t ${service}:latest -f ./Dockerfiles/${service}.Dockerfile . || { echo "Build failed for ${service}"; return 1; }
+    # Build the Docker image (since it's being built locally on an M1 mac),
+    # the architecture has to be specified: https://stackoverflow.com/questions/42494853/standard-init-linux-go178-exec-user-process-caused-exec-format-error
+    docker build --platform=linux/arm64 -t ${service}:latest -f ./Dockerfiles/${service}.Dockerfile . || { echo "Build failed for ${service}"; return 1; }
 
     # Tag the Docker image for the ECR repository
     docker tag ${service}:latest ${repository_url}/${service}_service:latest || { echo "Tagging failed for ${service}"; return 1; }

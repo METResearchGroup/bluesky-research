@@ -10,12 +10,19 @@ from typing import Optional, Annotated
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
+from mangum import Mangum
 
 from lib.aws.s3 import S3
-
 app = FastAPI()
 
 s3 = S3()
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=['*'],
+#     allow_methods=["GET"],
+#     allow_headers=["*"],
+# )
 
 
 @app.get('/')
@@ -46,3 +53,6 @@ async def get_feed_skeleton(
         return JSONResponse(content={"message": "Not implemented yet."})
     except ValueError:
         raise HTTPException(status_code=400, detail="Malformed cursor")
+
+
+handler = Mangum(app)

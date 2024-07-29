@@ -69,6 +69,8 @@ jmespath==1.0.1
     #   botocore
 libipld==1.2.3
     # via atproto
+mangum==0.17.0
+    # via -r requirements.in
 markdown-it-py==3.0.0
     # via rich
 markupsafe==2.1.5
@@ -116,6 +118,7 @@ typing-extensions==4.12.2
     #   anyio
     #   atproto
     #   fastapi
+    #   mangum
     #   pydantic
     #   pydantic-core
     #   typer

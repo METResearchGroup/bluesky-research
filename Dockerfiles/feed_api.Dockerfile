@@ -1,17 +1,20 @@
-FROM python:3.10-slim
+# FROM python:3.10-slim
+FROM public.ecr.aws/lambda/python:3.10
 
 WORKDIR /app
 
-COPY feed_api/* ./feed_api/
+COPY feed_api/* /app/feed_api/
+COPY lib/aws/*.py /app/lib/aws/
+
+# copy app.py to root directory.
+COPY feed_api/__init__.py /app/__init__.py
+COPY feed_api/app.py /app/app.py
 
 # change directory to feed_api
 WORKDIR /app/feed_api
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Make port 80 available to the world outside this container
-EXPOSE 80
-
 ENV PYTHONPATH=/app
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "80"]
+CMD [ "app.handler" ]
