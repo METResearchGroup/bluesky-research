@@ -168,6 +168,7 @@ cython_debug/
 
 # terraform stuff
 .terraform
+.terraform.*
 *.hcl
 *.tfstate
 *.tfstate.backup
