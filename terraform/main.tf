@@ -15,6 +15,7 @@ resource "aws_lambda_function" "bluesky_feed_api_lambda" {
   role          = aws_iam_role.lambda_exec.arn
   package_type  = "Image"
   image_uri = "${aws_ecr_repository.feed_api_service.repository_url}:latest"
+  architectures = ["arm64"] # since images are built locally with an M1 Mac.
 
   lifecycle {
     ignore_changes = [image_uri]
