@@ -4,12 +4,18 @@ Based on specs in the following docs:
 - https://github.com/bluesky-social/feed-generator/blob/main/src/lexicon/types/app/bsky/feed/getFeedSkeleton.ts#L4
 - https://github.com/bluesky-social/feed-generator
 """  # noqa
+import json
+import os
 from typing import Optional, Annotated
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
+from lib.aws.s3 import S3
+
 app = FastAPI()
+
+s3 = S3()
 
 
 @app.get('/')
@@ -19,8 +25,16 @@ async def root():
 
 @app.get("/test-get-s3")
 async def fetch_test_file_from_s3():
-    # TODO: fetch a file from S3.
-    return {"message": "Not implemented yet."}
+    """Testing fetching a file from S3."""
+    bucket = "bluesky-research"
+    key = os.path.join(
+        "ml_inference_perspective_api", "previously_classified_post_uris.json"
+    )
+    res: dict = s3.read_json_from_s3(bucket=bucket, key=key)
+    return {
+        "message": "Successfully fetched test file.",
+        "data": json.dumps(res),
+    }
 
 
 @app.get("/xrpc/app.bsky.feed.getFeedSkeleton")

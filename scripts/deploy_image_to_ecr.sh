@@ -8,6 +8,7 @@ deploy_service() {
     local aws_account_id=$(aws sts get-caller-identity --query Account --output text)
     local region="us-east-2"
     local repository_url="${aws_account_id}.dkr.ecr.${region}.amazonaws.com"
+    local tag=$(date +%Y%m%d_%H%M%S) # timestamp-based tag.
 
     # Authenticate Docker to the AWS ECR
     aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${repository_url}
@@ -17,9 +18,12 @@ deploy_service() {
 
     # Tag the Docker image for the ECR repository
     docker tag ${service}:latest ${repository_url}/${service}_service:latest || { echo "Tagging failed for ${service}"; return 1; }
+    docker tag ${service}:latest ${repository_url}/${service}_service:${tag} || { echo "Tagging '${tag}' failed for ${service}"; return 1; }
 
     # Push the Docker image to the ECR repository
     docker push ${repository_url}/${service}_service:latest || { echo "Push failed for ${service}"; return 1; }
+    docker push ${repository_url}/${service}_service:${tag} || { echo "Push '${tag}' failed for ${service}"; return 1; }
+
 
     echo "Deployment of ${service} completed successfully."
 }
