@@ -30,21 +30,32 @@ resource "aws_api_gateway_rest_api" "bluesky_feed_api_gateway" {
   description = "Bluesky Feed API"
 }
 
-# Define root resource for /feed_api
-resource "aws_api_gateway_resource" "bluesky_feed_api_gateway_root" {
-  rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  parent_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.root_resource_id
-  path_part   = "feed_api"
+# Define root resource for /
+resource "aws_api_gateway_method" "bluesky_feed_api_root_method" {
+  rest_api_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
+  resource_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.root_resource_id
+  http_method   = "GET"
+  authorization = "NONE"
 }
 
-# define greedy path resource under /feed_api
+# Integrate GET method for / with lambda, using AWS proxy to forward requests
+resource "aws_api_gateway_integration" "bluesky_feed_api_root_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
+  resource_id             = aws_api_gateway_rest_api.bluesky_feed_api_gateway.root_resource_id
+  http_method             = aws_api_gateway_method.bluesky_feed_api_root_method.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.bluesky_feed_api_lambda.invoke_arn
+}
+
+# Define greedy path resource under /
 resource "aws_api_gateway_resource" "bluesky_feed_api_proxy" {
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  parent_id   = aws_api_gateway_resource.bluesky_feed_api_gateway_root.id
+  parent_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.root_resource_id
   path_part   = "{proxy+}"
 }
 
-# define ANY method for /feed_api/{proxy+}
+# Define ANY method for /{proxy+}
 resource "aws_api_gateway_method" "bluesky_feed_api_proxy_method" {
   rest_api_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
   resource_id   = aws_api_gateway_resource.bluesky_feed_api_proxy.id
@@ -52,7 +63,7 @@ resource "aws_api_gateway_method" "bluesky_feed_api_proxy_method" {
   authorization = "NONE"
 }
 
-# integrate ANY method with lambda, using AWS proxy to forward requests
+# Integrate ANY method with lambda, using AWS proxy to forward requests
 resource "aws_api_gateway_integration" "bluesky_feed_api_proxy_integration" {
   rest_api_id             = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
   resource_id             = aws_api_gateway_resource.bluesky_feed_api_proxy.id
@@ -62,35 +73,16 @@ resource "aws_api_gateway_integration" "bluesky_feed_api_proxy_integration" {
   uri                     = aws_lambda_function.bluesky_feed_api_lambda.invoke_arn
 }
 
-# define ANY method for /feed_api
-resource "aws_api_gateway_method" "bluesky_feed_api_gateway_root_method" {
-  rest_api_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  resource_id   = aws_api_gateway_resource.bluesky_feed_api_gateway_root.id
-  http_method   = "ANY"
-  authorization = "NONE"
-}
-
-# integrate ANY method for /feed_api with lambda, using AWS proxy to forward requests
-resource "aws_api_gateway_integration" "bluesky_feed_api_gateway_root_integration" {
-  rest_api_id             = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  resource_id             = aws_api_gateway_resource.bluesky_feed_api_gateway_root.id
-  http_method             = aws_api_gateway_method.bluesky_feed_api_gateway_root_method.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.bluesky_feed_api_lambda.invoke_arn
-}
-
-# deploy API
+# Deploy API
 resource "aws_api_gateway_deployment" "bluesky_feed_api_gateway_deployment" {
   depends_on = [
     aws_api_gateway_integration.bluesky_feed_api_proxy_integration,
-    aws_api_gateway_integration.bluesky_feed_api_gateway_root_integration
+    aws_api_gateway_integration.bluesky_feed_api_root_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
   stage_name  = "prod"
 }
-
 
 # Lambda permission to allow API Gateway to invoke it
 resource "aws_lambda_permission" "api_gateway_permission" {

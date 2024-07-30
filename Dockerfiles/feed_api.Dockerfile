@@ -4,6 +4,7 @@ FROM public.ecr.aws/lambda/python:3.10
 WORKDIR /app
 
 COPY feed_api/* /app/feed_api/
+COPY lib/helper.py /app/lib/helper.py
 COPY lib/aws/*.py /app/lib/aws/
 
 # copy app.py to root directory.
