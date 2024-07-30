@@ -57,6 +57,7 @@ resource "aws_api_gateway_deployment" "bluesky_feed_api_gateway_deployment" {
 
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
   stage_name  = "prod"
+
 }
 
 # Lambda permission to allow API Gateway to invoke it
@@ -66,6 +67,72 @@ resource "aws_lambda_permission" "api_gateway_permission" {
   function_name = aws_lambda_function.bluesky_feed_api_lambda.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.bluesky_feed_api_gateway.execution_arn}/*/*"
+}
+
+# Cloudwatch logging
+resource "aws_iam_role" "api_gateway_cloudwatch_role" {
+  name = "APIGatewayCloudWatchLogsRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Service = "apigateway.amazonaws.com"
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "api_gateway_cloudwatch_role_policy" {
+  role       = aws_iam_role.api_gateway_cloudwatch_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+resource "aws_api_gateway_account" "api_gateway_account" {
+  cloudwatch_role_arn = aws_iam_role.api_gateway_cloudwatch_role.arn
+  depends_on = [aws_iam_role_policy_attachment.api_gateway_cloudwatch_role_policy]
+}
+resource "aws_cloudwatch_log_group" "api_gateway_log_group" {
+  name              = "/aws/api-gateway/bluesky_feed_api_gateway"
+  retention_in_days = 7
+}
+
+resource "aws_api_gateway_stage" "api_gateway_stage" {
+  stage_name    = "prod"
+  rest_api_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
+  deployment_id = aws_api_gateway_deployment.bluesky_feed_api_gateway_deployment.id  # Corrected reference
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_gateway_log_group.arn
+    format          = jsonencode({
+      requestId       = "$context.requestId"
+      ip              = "$context.identity.sourceIp"
+      caller          = "$context.identity.caller"
+      user            = "$context.identity.user"
+      requestTime     = "$context.requestTime"
+      httpMethod      = "$context.httpMethod"
+      resourcePath    = "$context.resourcePath"
+      status          = "$context.status"
+      protocol        = "$context.protocol"
+      responseLength  = "$context.responseLength"
+    })
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  depends_on = [aws_api_gateway_account.api_gateway_account]
+
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_cloudwatch_logs" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # Create IAM role for Lambda
