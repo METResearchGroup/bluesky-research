@@ -5,8 +5,32 @@ provider "aws" {
 }
 
 ### ECR repos ###
+resource "aws_ecr_repository" "add_users_to_study_service" {
+  name = "add_users_to_study_service"
+}
+
+resource "aws_ecr_repository" "calculate_superposters_service" {
+  name = "calculate_superposters_service"
+}
+
 resource "aws_ecr_repository" "feed_api_service" {
   name = "feed_api_service"
+}
+
+resource "aws_ecr_repository" "ml_inference_perspective_api_service" {
+  name = "ml_inference_perspective_api_service"
+}
+
+resource "aws_ecr_repository" "preprocess_raw_data_service" {
+  name = "preprocess_raw_data_service"
+}
+
+resource "aws_ecr_repository" "sync_firehose_stream_service" {
+  name = "sync_firehose_stream_service"
+}
+
+resource "aws_ecr_repository" "sync_most_liked_feed_service" {
+  name = "sync_most_liked_feed_service"
 }
 
 ### Lambdas ###
