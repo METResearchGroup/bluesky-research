@@ -10,6 +10,7 @@ from typing import Optional, Annotated
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
 from lib.aws.s3 import S3
@@ -17,20 +18,20 @@ app = FastAPI()
 
 s3 = S3()
 
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=['*'],
-#     allow_methods=["GET"],
-#     allow_headers=["*"],
-# )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 
-@app.get('/')
+@app.get('/feed_api/')
 async def root():
     return {"message": "Hello, World!"}
 
 
-@app.get("/test-get-s3")
+@app.get("/feed_api/test-get-s3")
 async def fetch_test_file_from_s3():
     """Testing fetching a file from S3."""
     bucket = "bluesky-research"
@@ -44,7 +45,7 @@ async def fetch_test_file_from_s3():
     }
 
 
-@app.get("/xrpc/app.bsky.feed.getFeedSkeleton")
+@app.get("/feed_api/xrpc/app.bsky.feed.getFeedSkeleton")
 async def get_feed_skeleton(
     cursor: Annotated[Optional[str], Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
