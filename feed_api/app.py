@@ -5,10 +5,11 @@ Based on specs in the following docs:
 - https://github.com/bluesky-social/feed-generator
 """  # noqa
 import json
+import logging
 import os
 from typing import Optional, Annotated
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
@@ -24,6 +25,21 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+
+@app.middleware("http")
+async def log_request(request: Request, call_next):
+    logger.info(f"Request method: {request.method}")
+    logger.info(f"Request url: {request.url}")
+    headers = {key: value for key, value in request.headers.items()}
+    logger.info(f"Request headers: {headers}")
+    body = await request.body()
+    logger.info(f"Request body: {body.decode('utf-8')}")
+    response = await call_next(request)
+    return response
 
 
 @app.get('/feed_api/')
@@ -56,4 +72,11 @@ async def get_feed_skeleton(
         raise HTTPException(status_code=400, detail="Malformed cursor")
 
 
-handler = Mangum(app)
+# handler = Mangum(app)
+
+# https://stackoverflow.com/questions/76844538/the-adapter-was-unable-to-infer-a-handler-to-use-for-the-event-this-is-likely-r
+def handler(event, context):
+    logger.info(f"Event payload: {event}")
+    logger.info(f"Context payload: {context}")
+    asgi_handler = Mangum(app)
+    return asgi_handler(event, context)

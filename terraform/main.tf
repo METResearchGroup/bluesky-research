@@ -62,10 +62,29 @@ resource "aws_api_gateway_integration" "bluesky_feed_api_proxy_integration" {
   uri                     = aws_lambda_function.bluesky_feed_api_lambda.invoke_arn
 }
 
+# define ANY method for /feed_api
+resource "aws_api_gateway_method" "bluesky_feed_api_gateway_root_method" {
+  rest_api_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
+  resource_id   = aws_api_gateway_resource.bluesky_feed_api_gateway_root.id
+  http_method   = "ANY"
+  authorization = "NONE"
+}
+
+# integrate ANY method for /feed_api with lambda, using AWS proxy to forward requests
+resource "aws_api_gateway_integration" "bluesky_feed_api_gateway_root_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
+  resource_id             = aws_api_gateway_resource.bluesky_feed_api_gateway_root.id
+  http_method             = aws_api_gateway_method.bluesky_feed_api_gateway_root_method.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.bluesky_feed_api_lambda.invoke_arn
+}
+
 # deploy API
 resource "aws_api_gateway_deployment" "bluesky_feed_api_gateway_deployment" {
   depends_on = [
-    aws_api_gateway_integration.bluesky_feed_api_proxy_integration
+    aws_api_gateway_integration.bluesky_feed_api_proxy_integration,
+    aws_api_gateway_integration.bluesky_feed_api_gateway_root_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
