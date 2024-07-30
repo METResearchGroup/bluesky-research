@@ -1,5 +1,39 @@
 """Tooling for managing the export of firehose data, both to local cache and to
-S3."""
+S3.
+
+The intended tree structure should look something like this:
+
+    bluesky-research/sync/firehose
+        /all
+            /create
+                /follow
+                    /year={year}
+                        /month={month}
+                            /day={day}
+                                /hour={hour}
+                                    /minute={minute}
+                                        /{hash}.jsonl.gz
+                /like
+                /post
+            /delete
+                /follow
+                /like
+                /post
+        /study_user_activity
+            /author_did={author_did}
+                /create
+                    /follow
+                        /follower
+                        /followee
+                    /like
+                    /post
+                        /{ID}.json
+                    /likes_on_user_posts
+                /delete
+                    /follow
+                    /like
+                    /post
+"""
 import json
 import os
 import shutil
@@ -19,6 +53,7 @@ root_create_path = os.path.join(root_write_path, "create")
 root_delete_path = os.path.join(root_write_path, "delete")
 operation_types = ["post", "like", "follow"]
 
+# helper paths for generic firehose writes.
 export_filepath_map = {
     "create": {
         "post": os.path.join(root_create_path, "post"),
@@ -44,6 +79,24 @@ s3_export_key_map = {
         "post": os.path.join(root_s3_key, "delete", "post"),
         "like": os.path.join(root_s3_key, "delete", "like"),
         "follow": os.path.join(root_s3_key, "delete", "follow")
+    }
+}
+
+# helper paths for writing user activity data.
+study_user_activity_root_local_path = os.path.join(root_write_path, "study_user_activity")  # noqa
+study_user_activity_relative_path_map = {  # actual full path is {root}/{author_did}/{record_type}/{operation}
+    "create": {
+        "post": os.path.join("create", "post"),
+        "like": os.path.join("create", "like"),
+        "follow": {
+            "follower": os.path.join("create", "follow", "follower"),
+            "followee": os.path.join("create", "follow", "followee")
+        }
+    },
+    "delete": {
+        "post": os.path.join("delete", "post"),
+        "like": os.path.join("delete", "like"),
+        "follow": os.path.join("delete", "follow")
     }
 }
 
@@ -183,3 +236,35 @@ def load_cursor_state_s3(service_name: str) -> Optional[FirehoseSubscriptionStat
     if not result:
         return None
     return FirehoseSubscriptionStateCursorModel(**result)
+
+
+def export_study_user_data_local(
+    record: dict,
+    record_type: Literal["post", "follow", "like"],
+    operation: Literal["create", "delete"],
+    author_did: str,
+    filename: str,
+    follow_status: Optional[Literal["follower", "followee"]] = None
+):
+    """Writes study user activity to local cache storage.
+
+    The data is written to the local storage in the following format:
+    {root}/{author_did}/{record_type}/{operation}/{ID}.json
+    """
+    if record_type == "follow":
+        if not follow_status:
+            raise ValueError("Follow status must be provided for follow records.")
+        relative_path = study_user_activity_relative_path_map[operation][record_type][follow_status]
+    else:
+        relative_path = study_user_activity_relative_path_map[operation][record_type]  # noqa
+    full_path = os.path.join(
+        study_user_activity_root_local_path,
+        author_did,
+        relative_path,
+        filename
+    )
+    write_data_to_json(data=record, path=full_path)
+
+
+def export_study_user_data_s3():
+    pass

@@ -178,3 +178,15 @@ def get_all_users() -> list[UserToBlueskyProfileModel]:
     except ClientError as e:
         print(f"Failed to fetch users from DynamoDB: {e}")
         return []
+
+
+# TODO: verify that this happens only once, on script load.
+current_study_users: list[UserToBlueskyProfileModel] = get_all_users()
+set_current_study_user_dids = set([
+    user.bluesky_user_did for user in current_study_users
+])
+
+
+def check_if_user_in_study(user_did: str) -> bool:
+    """Checks if a user is in the study."""
+    return user_did in set_current_study_user_dids

@@ -13,10 +13,11 @@ from lib.db.bluesky_models.raw import (
 )
 from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel  # noqa
 from services.sync.stream.export_data import (
-    export_filepath_map, write_data_to_json
+    export_filepath_map, export_study_user_data_local, write_data_to_json
 )
 from services.consolidate_post_records.helper import consolidate_firehose_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
+from services.participant_data.helper import check_if_user_in_study
 from transform.transform_raw_data import process_firehose_post
 
 
@@ -52,6 +53,22 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
     folder_path = export_filepath_map[operation]["like"]
     full_path = os.path.join(folder_path, filename)
     write_data_to_json(like_model_dict, full_path)
+
+    # we only care about the likes they create, not the ones they delete.
+    # plus, deleted likes only have the URI of the original like and not
+    # author info. Pretty edge-case scenario where we'd need to track study
+    # user's deleted likes.
+    if operation == "create":
+        is_study_user = check_if_user_in_study(user_did=author_did)
+        if is_study_user:
+            print(f"Exporting like data for user {author_did}")
+            export_study_user_data_local(
+                record=like_model_dict,
+                record_type="like",
+                operation=operation,
+                author_did=author_did,
+                filename=filename
+            )
 
 
 def manage_likes(likes: dict[str, list]) -> dict:
@@ -124,6 +141,41 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
     full_path = os.path.join(folder_path, filename)
     write_data_to_json(follow_model_dict, full_path)
 
+    # we only care about the follows they create, not the ones they delete.
+    # plus, deleted follows only have the URI of the original like and not
+    # author info. Pretty edge-case scenario where we'd need to track study
+    # user's deleted follows.
+    if operation == "create":
+        user_is_follower = check_if_user_in_study(user_did=follower_did)
+        user_is_followee = check_if_user_in_study(user_did=follow_did)
+        if user_is_follower or user_is_followee:
+            # edge case: user can't be both follower and followee. User can't follow themselves.
+            if user_is_follower and user_is_followee:
+                raise ValueError("User can't be both follower and followee.")
+
+            if user_is_follower:
+                print(f"User {follower_did} followed a new account, {follow_did}.")  # noqa
+                export_study_user_data_local(
+                    record=follow_model_dict,
+                    record_type="follow",
+                    operation=operation,
+                    author_did=follower_did,
+                    filename=filename,
+                    follow_status="follower"
+                )
+            elif user_is_followee:
+                print(f"User {follow_did} was followed by a new account, {follower_did}.")  # noqa
+                export_study_user_data_local(
+                    record=follow_model_dict,
+                    record_type="follow",
+                    operation=operation,
+                    author_did=follow_did,
+                    filename=filename,
+                    follow_status="followee"
+                )
+            else:
+                raise ValueError("User is neither follower nor followee.")
+
 
 def manage_follows(follows: dict[str, list]) -> dict:
     """Manages the follows.
@@ -188,6 +240,18 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
     folder_path = export_filepath_map[operation]["post"]
     full_path = os.path.join(folder_path, filename)
     write_data_to_json(consolidated_post_dict, full_path)
+
+    if operation == "create":
+        is_study_user = check_if_user_in_study(user_did=author_did)
+        if is_study_user:
+            print(f"Study user {author_did} created a new post: {post_uri}")
+            export_study_user_data_local(
+                record=consolidated_post_dict,
+                record_type="post",
+                operation=operation,
+                author_did=author_did,
+                filename=filename
+            )
 
 
 def manage_posts(posts: dict[str, list]) -> dict:
