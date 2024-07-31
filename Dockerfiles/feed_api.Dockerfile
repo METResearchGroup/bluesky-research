@@ -10,6 +10,7 @@ COPY lib/aws/*.py /app/lib/aws/
 # copy app.py to root directory.
 COPY feed_api/__init__.py /app/__init__.py
 COPY feed_api/app.py /app/app.py
+COPY feed_api/.well-known/did.json /app/.well-known/did.json
 
 # change directory to feed_api
 WORKDIR /app/feed_api
