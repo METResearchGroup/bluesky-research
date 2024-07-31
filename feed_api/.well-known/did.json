@@ -1,0 +1,12 @@
+{
+    "@context": "https://w3id.org/did/v1",
+    "id": "did:web:mindtechnologylab.com",
+    "verificationMethod": [{
+      "id": "did:web:mindtechnologylab.com#owner",
+      "type": "RsaVerificationKey2018",
+      "controller": "did:web:mindtechnologylab.com",
+      "publicKeyPem": "-----BEGIN PUBLIC KEY-----MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq/EjZ9VgViiO7LN7XgrddHiakRAnKBks3JZM2rb+V639P36YNeghalEPkY54q9BGiNXsNVSWUl1DPSV6HdwoblQRnQo5Ar0RKT12BrgubZNPixb/QiZv+KQELwTmnI88f0jJg5taigeVPfervchJ5W2AmX/6NS0BkgImJ7I19SQ41nwt05vmH1gevCd/rFLESnI8icdGpXgqvC2JGyW74HbDzCll/rNfMe2eIHokIjfKpavm3EXRr1h5pQ5ZLLMQes4+yiaCoB0aVxHlGdLSZQnvq0IZDKIF5eKrzNPmrBrR+v2YFk/tSZEC+5BCqkE+n9vsLagoOEhVsehwQjdV4wIDAQAB-----END PUBLIC KEY-----\n"
+    }],
+    "authentication": ["did:web:mindtechnologylab.com#owner"]
+  }
+  

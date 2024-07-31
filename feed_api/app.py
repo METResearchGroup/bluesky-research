@@ -9,8 +9,8 @@ import logging
 import os
 from typing import Optional, Annotated
 
-from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
@@ -45,6 +45,12 @@ async def log_request(request: Request, call_next):
 @app.get('/')
 async def root():
     return {"message": "Hello, World!"}
+
+
+@app.get("/.well-known/did.json")
+async def get_did_document():
+    file_path = os.path.join(os.path.dirname(__file__), ".well-known", "did.json")
+    return FileResponse(file_path)
 
 
 @app.get("/test-get-s3")
