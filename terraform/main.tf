@@ -126,6 +126,44 @@ resource "aws_lambda_permission" "api_gateway_permission" {
   source_arn    = "${aws_api_gateway_rest_api.bluesky_feed_api_gateway.execution_arn}/*/*"
 }
 
+### Custom domain + API Gateway mapping ###
+resource "aws_api_gateway_domain_name" "custom_domain" {
+  domain_name = var.custom_domain_name
+  regional_certificate_arn = var.acm_certificate_arn
+
+  # we don't need edge-optimized. We don't need CloudFront CDNs to optimize
+  # for global edge locations. We only need regional.
+  endpoint_configuration {
+    types = ["REGIONAL"]
+  }
+}
+
+resource "aws_api_gateway_base_path_mapping" "custom_domain_mapping" {
+  api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
+  stage_name = aws_api_gateway_stage.api_gateway_stage.stage_name
+  domain_name = aws_api_gateway_domain_name.custom_domain.domain_name
+}
+
+### Add Route53 record for custom domain ###
+data "aws_route53_zone" "selected" {
+  name         = "mindtechnologylab.com."
+  private_zone = false
+}
+
+# Route 53 Alias record to point to the API Gateway domain name
+resource "aws_route53_record" "api_gateway_alias" {
+  zone_id = data.aws_route53_zone.selected.zone_id
+  name    = var.custom_domain_name
+  type    = "A"
+
+  alias {
+    name                   = aws_api_gateway_domain_name.custom_domain.regional_domain_name
+    zone_id                = aws_api_gateway_domain_name.custom_domain.regional_zone_id
+    evaluate_target_health = false
+  }
+}
+
+
 ### Cloudwatch logging ###
 resource "aws_iam_role" "api_gateway_cloudwatch_role" {
   name = "APIGatewayCloudWatchLogsRole"
