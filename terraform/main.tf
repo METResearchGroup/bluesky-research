@@ -1,8 +1,14 @@
 provider "aws" {
-  region = var.aws_region
-  profile = var.aws_profile
-
+  alias   = "us-east-1"
+  region  = "us-east-1"
 }
+
+provider "aws" {
+  alias   = "us-east-2"
+  region  = "us-east-2"
+  profile = var.aws_profile
+}
+
 
 ### ECR repos ###
 resource "aws_ecr_repository" "add_users_to_study_service" {
@@ -235,17 +241,18 @@ resource "aws_iam_role_policy_attachment" "lambda_attach_policy" {
 
 # S3 bucket policy, to allow read access for lambda.
 resource "aws_s3_bucket_policy" "bluesky_research_bucket_policy" {
-  bucket = var.s3_root_bucket_name
+  provider = aws.us-east-2  # Specify the correct provider for us-east-2
+  bucket   = var.s3_root_bucket_name
 
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
       {
-        Effect = "Allow",
+        Effect    = "Allow",
         Principal = {
           AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${aws_iam_role.lambda_exec.name}"
         },
-        Action = [
+        Action   = [
           "s3:GetObject",
           "s3:ListBucket",
           "s3:GetObjectVersion",
@@ -260,5 +267,6 @@ resource "aws_s3_bucket_policy" "bluesky_research_bucket_policy" {
     ]
   })
 }
+
 
 data "aws_caller_identity" "current" {}
