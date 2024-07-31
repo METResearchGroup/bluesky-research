@@ -11,6 +11,7 @@ from typing import Optional, Annotated
 
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from mangum import Mangum
 
 from lib.aws.s3 import S3
@@ -41,9 +42,12 @@ async def log_request(request: Request, call_next):
     return response
 
 
+# redirect to Billy's site: https://sites.google.com/u.northwestern.edu/mind-technology-lab
 @app.get('/')
 async def root():
-    return {"message": "Hello, World!"}
+    return RedirectResponse(
+        url="https://sites.google.com/u.northwestern.edu/mind-technology-lab"
+    )
 
 
 # https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/app.py#L36
