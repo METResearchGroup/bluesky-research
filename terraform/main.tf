@@ -1,8 +1,17 @@
+# certificate requested in us-east-1
+# https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-requirements.html
 provider "aws" {
-  region = var.aws_region
-  profile = var.aws_profile
-
+  alias   = "us-east-1"
+  region  = "us-east-1"
 }
+
+# most infra was build on us-east-2
+provider "aws" {
+  alias   = "us-east-2"
+  region  = "us-east-2"
+  profile = var.aws_profile
+}
+
 
 ### ECR repos ###
 resource "aws_ecr_repository" "add_users_to_study_service" {
@@ -116,6 +125,44 @@ resource "aws_lambda_permission" "api_gateway_permission" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.bluesky_feed_api_gateway.execution_arn}/*/*"
 }
+
+### Custom domain + API Gateway mapping ###
+resource "aws_api_gateway_domain_name" "custom_domain" {
+  domain_name = var.custom_domain_name
+  regional_certificate_arn = var.acm_certificate_arn
+
+  # we don't need edge-optimized. We don't need CloudFront CDNs to optimize
+  # for global edge locations. We only need regional.
+  endpoint_configuration {
+    types = ["REGIONAL"]
+  }
+}
+
+resource "aws_api_gateway_base_path_mapping" "custom_domain_mapping" {
+  api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
+  stage_name = aws_api_gateway_stage.api_gateway_stage.stage_name
+  domain_name = aws_api_gateway_domain_name.custom_domain.domain_name
+}
+
+### Add Route53 record for custom domain ###
+data "aws_route53_zone" "selected" {
+  name         = "mindtechnologylab.com."
+  private_zone = false
+}
+
+# Route 53 Alias record to point to the API Gateway domain name
+resource "aws_route53_record" "api_gateway_alias" {
+  zone_id = data.aws_route53_zone.selected.zone_id
+  name    = var.custom_domain_name
+  type    = "A"
+
+  alias {
+    name                   = aws_api_gateway_domain_name.custom_domain.regional_domain_name
+    zone_id                = aws_api_gateway_domain_name.custom_domain.regional_zone_id
+    evaluate_target_health = false
+  }
+}
+
 
 ### Cloudwatch logging ###
 resource "aws_iam_role" "api_gateway_cloudwatch_role" {
@@ -235,17 +282,18 @@ resource "aws_iam_role_policy_attachment" "lambda_attach_policy" {
 
 # S3 bucket policy, to allow read access for lambda.
 resource "aws_s3_bucket_policy" "bluesky_research_bucket_policy" {
-  bucket = var.s3_root_bucket_name
+  provider = aws.us-east-2  # Specify the correct provider for us-east-2
+  bucket   = var.s3_root_bucket_name
 
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
       {
-        Effect = "Allow",
+        Effect    = "Allow",
         Principal = {
           AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${aws_iam_role.lambda_exec.name}"
         },
-        Action = [
+        Action   = [
           "s3:GetObject",
           "s3:ListBucket",
           "s3:GetObjectVersion",
@@ -260,5 +308,6 @@ resource "aws_s3_bucket_policy" "bluesky_research_bucket_policy" {
     ]
   })
 }
+
 
 data "aws_caller_identity" "current" {}

@@ -24,3 +24,24 @@ variable "bsky_api_policy_name" {
   type        = string
   default     = "bsky-api-s3-policy"
 }
+
+variable "custom_domain_name" {
+  description = "The custom domain name for the API"
+  type        = string
+  default     = "" # set using 'TF_VAR_custom_domain_name' env var
+}
+
+
+# see https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_var_name
+# for env var details in Terraform.
+variable "acm_certificate_arn" {
+  description = "The ARN of the ACM certificate for the custom domain"
+  type        = string
+  default     = ""  # set using 'TF_VAR_acm_certificate_arn' env var
+}
+
+variable "route53_zone_id" {
+  description = "The Route 53 Hosted Zone ID"
+  type        = string
+  default     = ""  # set using 'TF_VAR_route53_zone_id' env var
+}
