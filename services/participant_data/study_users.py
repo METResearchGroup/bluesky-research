@@ -7,7 +7,6 @@ Performs the following tasks:
 """
 import json
 import os
-import threading
 
 import boto3
 from services.participant_data.helper import get_all_users
@@ -20,9 +19,6 @@ class StudyUserManager:
     the streamed data.
     """
     _instance = None
-    _lock = threading.Lock()
-
-    _instance = None
 
     @staticmethod
     def get_instance():
@@ -30,14 +26,16 @@ class StudyUserManager:
             StudyUserManager._instance = StudyUserManager()
         return StudyUserManager._instance
 
-    def __init__(self):
+    def __init__(self, use_new_hashmap: bool = False):
         if StudyUserManager._instance is not None:
             raise Exception("StudyUserManager class is intended to be a singleton instance.")  # noqa
         self.s3 = boto3.client("s3")
         self.s3_bucket = "bluesky-research"
         self.study_users_dids_set: set = self._load_study_user_dids_from_s3()
         self.post_uri_to_study_user_did_map: dict = (
-            self._load_post_uri_to_study_user_did_map_from_s3()
+            self._load_post_uri_to_study_user_did_map_from_s3(
+                use_new_hashmap=use_new_hashmap
+            )
         )
         self.file_to_key_map = {
             "study_user_dids": os.path.join(
@@ -55,13 +53,15 @@ class StudyUserManager:
             [user.bluesky_user_did for user in study_users]
         )
 
-    def _load_post_uri_to_study_user_did_map_from_s3(self):
+    def _load_post_uri_to_study_user_did_map_from_s3(
+        self, use_new_hashmap: bool = False
+    ):
         """Load the post_uri_to_study_user_did_map from S3."""
         key = self.file_to_key_map["post_uri_to_study_user_did"]
         try:
             response = self.s3.get_object(Bucket=self.bucket, Key=key)
             post_uri_to_study_user_did_map = json.loads(response["Body"].read())
-        except self.s3.exceptions.NoSuchKey:
+        except self.s3.exceptions.NoSuchKey or use_new_hashmap:
             post_uri_to_study_user_did_map = {}
         self.post_uri_to_study_user_did_map = post_uri_to_study_user_did_map
 

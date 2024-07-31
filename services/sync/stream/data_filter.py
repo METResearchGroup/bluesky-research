@@ -17,7 +17,7 @@ from services.sync.stream.export_data import (
 )
 from services.consolidate_post_records.helper import consolidate_firehose_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
-from services.participant_data.helper import check_if_user_in_study
+from services.participant_data.study_users import study_user_manager
 from transform.transform_raw_data import process_firehose_post
 
 
@@ -54,17 +54,37 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
     full_path = os.path.join(folder_path, filename)
     write_data_to_json(like_model_dict, full_path)
 
-    # we only care about the likes they create, not the ones they delete.
+    # we care about the likes they create, not the ones they delete.
     # plus, deleted likes only have the URI of the original like and not
     # author info. Pretty edge-case scenario where we'd need to track study
     # user's deleted likes.
     if operation == "create":
-        is_study_user = check_if_user_in_study(user_did=author_did)
+        # Case 1: the user is the one who likes a post.
+        is_study_user = study_user_manager.is_study_user(user_did=author_did)
         if is_study_user:
             print(f"Exporting like data for user {author_did}")
             export_study_user_data_local(
                 record=like_model_dict,
                 record_type="like",
+                operation=operation,
+                author_did=author_did,
+                filename=filename
+            )
+        # Case 2: the user is the one who created the post that was liked.
+        # NOTE: this doesn't backfill with a user's past posts, so we only
+        # have posts that were created after the user was added to the study
+        # and the firehose was run.
+        # TODO: when doing DID checks, I need to check for full DID (did:plc)
+        # vs partial matching. For DIDs for the sake of S3 paths, we need to
+        # truncate to avoid '/' in the path.
+        liked_post_is_study_user_post = study_user_manager.is_study_user_post(
+            post_uri=raw_liked_record_model.subject.uri
+        )
+        if liked_post_is_study_user_post:
+            print(f"Exporting like data for post {raw_liked_record_model.subject.uri}")
+            export_study_user_data_local(
+                record=like_model_dict,
+                record_type="like_on_user_post",
                 operation=operation,
                 author_did=author_did,
                 filename=filename
@@ -146,8 +166,8 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
     # author info. Pretty edge-case scenario where we'd need to track study
     # user's deleted follows.
     if operation == "create":
-        user_is_follower = check_if_user_in_study(user_did=follower_did)
-        user_is_followee = check_if_user_in_study(user_did=follow_did)
+        user_is_follower = study_user_manager.is_study_user(user_did=follower_did)  # noqa
+        user_is_followee = study_user_manager.is_study_user(user_did=follow_did)  # noqa
         if user_is_follower or user_is_followee:
             # edge case: user can't be both follower and followee. User can't follow themselves.
             if user_is_follower and user_is_followee:
@@ -161,7 +181,7 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
                     operation=operation,
                     author_did=follower_did,
                     filename=filename,
-                    follow_status="follower"
+                    kwargs={"follow_status": "follower"}
                 )
             elif user_is_followee:
                 print(f"User {follow_did} was followed by a new account, {follower_did}.")  # noqa
@@ -171,7 +191,7 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
                     operation=operation,
                     author_did=follow_did,
                     filename=filename,
-                    follow_status="followee"
+                    kwargs={"follow_status": "followee"}
                 )
             else:
                 raise ValueError("User is neither follower nor followee.")
@@ -242,7 +262,8 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
     write_data_to_json(consolidated_post_dict, full_path)
 
     if operation == "create":
-        is_study_user = check_if_user_in_study(user_did=author_did)
+        # Case 1: Check if the post was written by the study user.
+        is_study_user = study_user_manager.is_study_user(user_did=author_did)
         if is_study_user:
             print(f"Study user {author_did} created a new post: {post_uri}")
             export_study_user_data_local(
@@ -252,6 +273,42 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
                 author_did=author_did,
                 filename=filename
             )
+        # Case 2: Check if the post is a repost of a post written by the study
+        # user. TODO: come back to this. Unsure if this can be tracked from
+        # the raw firehose object itself? I don't think it can be. We can track
+        # if it is a repost if it's a feedviewpost though.
+
+        # Case 3: post is a reply to a post written by the study user.
+        if (
+            consolidated_post_dict["reply_parent"]
+            or consolidated_post_dict["reply_root"]
+        ):
+            reply_parent_is_user_study_post = study_user_manager.is_study_user_post(  # noqa
+                post_uri=consolidated_post_dict["reply_parent"]
+            )
+            reply_root_is_user_study_post = study_user_manager.is_study_user_post(  # noqa
+                post_uri=consolidated_post_dict["reply_root"]
+            )
+            post_is_reply_to_study_user_post = (
+                reply_parent_is_user_study_post
+                or reply_root_is_user_study_post
+            )
+
+            if post_is_reply_to_study_user_post:
+                print(f"Post {post_uri} is a reply to a post by a study user.")
+                export_study_user_data_local(
+                    record=consolidated_post_dict,
+                    record_type="reply_to_user_post",
+                    operation=operation,
+                    author_did=author_did,
+                    filename=filename,
+                    kwargs={
+                        "user_post_type": (
+                            "root" if reply_root_is_user_study_post
+                            else "parent"
+                        )
+                    }
+                )
 
 
 def manage_posts(posts: dict[str, list]) -> dict:

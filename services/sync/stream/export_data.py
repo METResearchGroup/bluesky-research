@@ -27,8 +27,9 @@ The intended tree structure should look something like this:
                         /followee
                     /like
                     /post
-                        /{ID}.json
-                    /likes_on_user_posts
+                        /{some name, tbh probably just the ID}.json
+                    /like_on_user_post
+                    /reply_to_user_post
                 /delete
                     /follow
                     /like
@@ -91,7 +92,9 @@ study_user_activity_relative_path_map = {  # actual full path is {root}/{author_
         "follow": {
             "follower": os.path.join("create", "follow", "follower"),
             "followee": os.path.join("create", "follow", "followee")
-        }
+        },
+        "like_on_user_post": os.path.join("create", "like_on_user_post"),
+        "reply_to_user_post": os.path.join("create", "reply_to_user_post")
     },
     "delete": {
         "post": os.path.join("delete", "post"),
@@ -238,25 +241,17 @@ def load_cursor_state_s3(service_name: str) -> Optional[FirehoseSubscriptionStat
     return FirehoseSubscriptionStateCursorModel(**result)
 
 
-def export_study_user_data_local(
+def export_study_user_post(
     record: dict,
-    record_type: Literal["post", "follow", "like"],
     operation: Literal["create", "delete"],
     author_did: str,
-    filename: str,
-    follow_status: Optional[Literal["follower", "followee"]] = None
+    filename: str
 ):
-    """Writes study user activity to local cache storage.
+    """Exports a post record for a study user.
 
-    The data is written to the local storage in the following format:
-    {root}/{author_did}/{record_type}/{operation}/{ID}.json
+    Whenever a study participant creates a post, we want to track it.
     """
-    if record_type == "follow":
-        if not follow_status:
-            raise ValueError("Follow status must be provided for follow records.")
-        relative_path = study_user_activity_relative_path_map[operation][record_type][follow_status]
-    else:
-        relative_path = study_user_activity_relative_path_map[operation][record_type]  # noqa
+    relative_path = study_user_activity_relative_path_map[operation]["post"]
     full_path = os.path.join(
         study_user_activity_root_local_path,
         author_did,
@@ -264,6 +259,160 @@ def export_study_user_data_local(
         filename
     )
     write_data_to_json(data=record, path=full_path)
+
+
+def export_study_user_follow(
+    record: dict,
+    operation: Literal["create", "delete"],
+    author_did: str,
+    filename: str,
+    follow_status: Optional[Literal["follower", "followee"]] = None
+):
+    """Exports a follow record for a study user.
+
+    Whenever a study participant follows another user, we want to track
+    them as a "follower". Whenever a study participant is followed by another
+    user, we want to track them as a "followee".
+    """
+    if not follow_status:
+        raise ValueError("Follow status must be provided for follow records.")
+    relative_path = study_user_activity_relative_path_map[operation]["follow"][follow_status]
+    full_path = os.path.join(
+        study_user_activity_root_local_path,
+        author_did,
+        relative_path,
+        filename
+    )
+    write_data_to_json(data=record, path=full_path)
+
+
+def export_study_user_like(
+    record: dict,
+    operation: Literal["create", "delete"],
+    author_did: str,
+    filename: str
+):
+    relative_path = study_user_activity_relative_path_map[operation]["like"]
+    full_path = os.path.join(
+        study_user_activity_root_local_path,
+        author_did,
+        relative_path,
+        filename
+    )
+    write_data_to_json(data=record, path=full_path)
+
+
+def export_like_on_study_user_post(
+    record: dict,
+    operation: Literal["create", "delete"],
+    author_did: str,
+    filename: str
+):
+    """Exports a like on a user post.
+
+    Unlike other exports, this also has the additional key level of the post URI.
+
+    The key will be structured as follows:
+    {root}/{author_did}/{operation}/like_on_user_post/{post_uri}/{ID}.json
+    """
+    relative_path = study_user_activity_relative_path_map[operation]["like_on_user_post"]
+    post_uri = record["record"]["subject"]["uri"]  # NOTE: any '/' must be stripped.
+    full_path = os.path.join(
+        study_user_activity_root_local_path,
+        author_did,
+        relative_path,
+        post_uri,
+        filename
+    )
+    write_data_to_json(data=record, path=full_path)
+
+
+def export_reply_to_study_user_post(
+    record: dict,
+    operation: Literal["create", "delete"],
+    author_did: str,
+    filename: str,
+    user_post_type: Literal["root", "parent"]
+):
+    """Exports a reply to a user post.
+
+    The key will be structured as follows:
+    {root}/{author_did}/{operation}/repost_of_user_post/{post_uri}/{ID}.json
+
+    If the user post was the first post in a thread, then the thread type is
+    "root". If the user post was a reply to another post, then the thread type
+    is "parent".
+    """
+    relative_path = study_user_activity_relative_path_map[operation]["repost_of_user_post"]
+    original_study_user_post_uri = (
+        record["reply_root"]
+        if user_post_type == "root" else record["reply_parent"]
+    )
+
+    full_path = os.path.join(
+        study_user_activity_root_local_path,
+        author_did,
+        relative_path,
+        original_study_user_post_uri,
+        filename
+    )
+    write_data_to_json(data=record, path=full_path)
+
+
+def export_study_user_data_local(
+    record: dict,
+    record_type: Literal[
+        "post", "follow", "like", "like_on_user_post", "reply_to_user_post"
+    ],
+    operation: Literal["create", "delete"],
+    author_did: str,
+    filename: str,
+    kwargs: Optional[dict] = None
+):
+    """Writes study user activity to local cache storage.
+
+    The data is written to the local storage in the following format:
+    {root}/{author_did}/{operation}/{record_type}/{ID}.json
+    """
+    if not kwargs:
+        kwargs = {}
+    if record_type == "post":
+        export_study_user_post(
+            record=record,
+            operation=operation,
+            author_did=author_did,
+            filename=filename
+        )
+    elif record_type == "follow":
+        export_study_user_follow(
+            record=record,
+            operation=operation,
+            author_did=author_did,
+            filename=filename,
+            follow_status=kwargs.get("follow_status")
+        )
+    elif record_type == "like":
+        export_study_user_like(
+            record=record,
+            operation=operation,
+            author_did=author_did,
+            filename=filename
+        )
+    elif record_type == "like_on_user_post":
+        export_like_on_study_user_post(
+            record=record,
+            operation=operation,
+            author_did=author_did,
+            filename=filename
+        )
+    elif record_type == "reply_to_user_post":
+        export_reply_to_study_user_post(
+            record=record,
+            operation=operation,
+            author_did=author_did,
+            filename=filename,
+            user_post_type=kwargs.get("user_post_type")
+        )
 
 
 def export_study_user_data_s3():
