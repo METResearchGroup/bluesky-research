@@ -1,8 +1,11 @@
+# certificate requested in us-east-1
+# https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-requirements.html
 provider "aws" {
   alias   = "us-east-1"
   region  = "us-east-1"
 }
 
+# most infra was build on us-east-2
 provider "aws" {
   alias   = "us-east-2"
   region  = "us-east-2"
