@@ -106,7 +106,7 @@ class RawFollow(BaseModel):
     record: RawFollowRecord = Field(..., description="The actual follow record.")  # noqa
     author: str = Field(..., description="The DID of the author of the follow. Matches follower_did.")  # noqa
     follower_did: str = Field(..., description="The DID of the user doing the following.")  # noqa
-    follow_did: str = Field(..., description="The DID of the user being followed.")  # noqa
+    followee_did: str = Field(..., description="The DID of the user being followed.")  # noqa
 
 
 class FirehoseSubscriptionStateCursorModel(BaseModel):

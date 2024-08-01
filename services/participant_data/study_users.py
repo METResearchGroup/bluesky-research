@@ -7,6 +7,7 @@ Performs the following tasks:
 """
 import json
 import os
+from typing import Optional
 
 import boto3
 from services.participant_data.helper import get_all_users
@@ -21,22 +22,32 @@ class StudyUserManager:
     _instance = None
 
     @staticmethod
-    def get_instance():
+    def get_instance(**kwargs):
         if StudyUserManager._instance is None:
-            StudyUserManager._instance = StudyUserManager()
+            StudyUserManager._instance = StudyUserManager(**kwargs)
         return StudyUserManager._instance
 
-    def __init__(self, use_new_hashmap: bool = False):
+    def __init__(
+        self,
+        load_from_aws: bool = True,
+        use_new_hashmap: bool = False
+    ):
         if StudyUserManager._instance is not None:
             raise Exception("StudyUserManager class is intended to be a singleton instance.")  # noqa
         self.s3 = boto3.client("s3")
         self.s3_bucket = "bluesky-research"
-        self.study_users_dids_set: set = self._load_study_user_dids_from_s3()
-        self.post_uri_to_study_user_did_map: dict = (
-            self._load_post_uri_to_study_user_did_map_from_s3(
-                use_new_hashmap=use_new_hashmap
+        if load_from_aws:
+            print("Using AWS version of StudyUserManager class.")
+            self.study_users_dids_set: set = self._load_study_user_dids()
+            self.post_uri_to_study_user_did_map: dict = (
+                self._load_post_uri_to_study_user_did_map_from_s3(
+                    use_new_hashmap=use_new_hashmap
+                )
             )
-        )
+        else:
+            print("Using local version of StudyUserManager class.")
+            self.study_users_dids_set = set()
+            self.post_uri_to_study_user_did_map = {}
         self.file_to_key_map = {
             "study_user_dids": os.path.join(
                 "participant_data", "study_user_dids.json"
@@ -65,6 +76,11 @@ class StudyUserManager:
             post_uri_to_study_user_did_map = {}
         self.post_uri_to_study_user_did_map = post_uri_to_study_user_did_map
 
+    def _load_aws_data(self):
+        """Load the study user data from AWS."""
+        self.study_users_dids_set = self._load_study_user_dids()
+        self.post_uri_to_study_user_did_map = self._load_post_uri_to_study_user_did_map_from_s3()
+
     def _write_post_uri_to_study_user_did_map_to_s3(self):
         """Write the post_uri_to_study_user_did_map to S3."""
         key = self.file_to_key_map["post_uri_to_study_user_did"]
@@ -78,9 +94,9 @@ class StudyUserManager:
         """Check if a user is in the study."""
         return user_did in self.study_users_dids_set
 
-    def is_study_user_post(self, post_uri: str) -> bool:
+    def is_study_user_post(self, post_uri: str) -> Optional[str]:
         """Check if a post is from a study user."""
-        return post_uri in self.post_uri_to_study_user_did_map
+        return self.post_uri_to_study_user_did_map.get(post_uri, None)
 
     def insert_study_user_post(self, post_uri: str, user_did: str):
         """Insert a post from a study user."""
@@ -88,4 +104,4 @@ class StudyUserManager:
         self._write_post_uri_to_study_user_did_map_to_s3()
 
 
-study_user_manager = StudyUserManager.get_instance()
+study_user_manager = StudyUserManager.get_instance(load_from_aws=True)

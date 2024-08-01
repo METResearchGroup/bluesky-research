@@ -7,6 +7,11 @@ The intended tree structure should look something like this:
         /all
             /create
                 /follow
+                    (within local cache, it will only be top-level
+                    since they will get compressed upon write to S3)
+                    'follower_did={follower_did}_followee_did={followee_did}.json'
+
+                    (within S3, there will be this partitioning)
                     /year={year}
                         /month={month}
                             /day={day}
@@ -85,6 +90,8 @@ s3_export_key_map = {
 
 # helper paths for writing user activity data.
 study_user_activity_root_local_path = os.path.join(root_write_path, "study_user_activity")  # noqa
+study_user_activity_create_path = os.path.join(study_user_activity_root_local_path, "create")  # noqa
+study_user_activity_delete_path = os.path.join(study_user_activity_root_local_path, "delete")  # noqa
 study_user_activity_relative_path_map = {  # actual full path is {root}/{author_did}/{record_type}/{operation}
     "create": {
         "post": os.path.join("create", "post"),
@@ -114,6 +121,7 @@ def rebuild_cache_paths():
     if not os.path.exists(root_write_path):
         os.makedirs(root_write_path)
 
+    # create helper paths for generic firehose writes.
     for path in [root_create_path, root_delete_path]:
         if not os.path.exists(path):
             os.makedirs(path)
@@ -250,14 +258,22 @@ def export_study_user_post(
     """Exports a post record for a study user.
 
     Whenever a study participant creates a post, we want to track it.
+
+    The key will be structured as follows:
+    {root}/{author_did}/{operation}/post/author_did={author_did}_post_uri_suffix={post_uri_suffix}.json
+
+    Where `author_did` is the DID of the person who created the post (which
+    should be a person in the study). The `post_uri_suffix` is the last part of
+    the URI of the post.
     """
     relative_path = study_user_activity_relative_path_map[operation]["post"]
-    full_path = os.path.join(
-        study_user_activity_root_local_path,
-        author_did,
-        relative_path,
-        filename
-    )
+    root_path = os.path.join(study_user_activity_root_local_path, author_did)
+    if not os.path.exists(root_path):
+        os.makedirs(root_path)
+    folder_path = os.path.join(root_path, relative_path)
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    full_path = os.path.join(folder_path, filename)
     write_data_to_json(data=record, path=full_path)
 
 
@@ -273,16 +289,25 @@ def export_study_user_follow(
     Whenever a study participant follows another user, we want to track
     them as a "follower". Whenever a study participant is followed by another
     user, we want to track them as a "followee".
+
+    The key will be structured as follows:
+    {root}/{author_did}/{operation}/follow/{follower or followee}/{follower_did={follower_did}_followee_did={followee_did}.json
+
+    Where `author_did` is the DID of the person who is being followed or is
+    following someone, whichever is the study user. The `follower_did` is the
+    DID of the user that is following the account. The `followee_did` is the
+    DID of the user that is being followed.
     """
     if not follow_status:
         raise ValueError("Follow status must be provided for follow records.")
-    relative_path = study_user_activity_relative_path_map[operation]["follow"][follow_status]
-    full_path = os.path.join(
-        study_user_activity_root_local_path,
-        author_did,
-        relative_path,
-        filename
-    )
+    relative_path = study_user_activity_relative_path_map[operation]["follow"][follow_status]  # noqa
+    root_path = os.path.join(study_user_activity_root_local_path, author_did)
+    if not os.path.exists(root_path):
+        os.makedirs(root_path)
+    folder_path = os.path.join(root_path, relative_path)
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    full_path = os.path.join(folder_path, filename)
     write_data_to_json(data=record, path=full_path)
 
 
@@ -292,13 +317,25 @@ def export_study_user_like(
     author_did: str,
     filename: str
 ):
+    """Exports a like record for a study user.
+
+    The key will be structured as follows:
+    {root}/{like_author_did}/{operation}/like/{post_uri_suffix}/like_author_did={like_author_did}_like_uri_suffix={uri_suffix}.json
+
+    Where `like_author_did` is the DID of the person who liked the post (which
+    should be a person in the study). The `post_uri_suffix` is the last part of
+    the post URI that was liked. The `like_uri_suffix` is the last part of the
+    URI of the like record.
+    """
     relative_path = study_user_activity_relative_path_map[operation]["like"]
-    full_path = os.path.join(
-        study_user_activity_root_local_path,
-        author_did,
-        relative_path,
-        filename
-    )
+    post_uri_suffix = record["record"]["subject"]["uri"].split('/')[-1]
+    root_path = os.path.join(study_user_activity_root_local_path, author_did)
+    if not os.path.exists(root_path):
+        os.makedirs(root_path)
+    folder_path = os.path.join(root_path, relative_path, post_uri_suffix)
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    full_path = os.path.join(folder_path, filename)
     write_data_to_json(data=record, path=full_path)
 
 
@@ -313,17 +350,23 @@ def export_like_on_study_user_post(
     Unlike other exports, this also has the additional key level of the post URI.
 
     The key will be structured as follows:
-    {root}/{author_did}/{operation}/like_on_user_post/{post_uri}/{ID}.json
+    {root}/{author_did}/{operation}/like_on_user_post/{post_uri_suffix}/like_author_did={like_author_did}_like_uri_suffix={uri_suffix}.json
+
+    Where `author_did` is the author of the post that was liked. This should be
+    a person in the study. The `post_uri_suffix` is the last part of the URI of
+    the post that was liked. The `like_author_did` is the DID of the person who
+    liked the post. The `uri_suffix` is the last part of the URI of the like
+    record.
     """
-    relative_path = study_user_activity_relative_path_map[operation]["like_on_user_post"]
-    post_uri = record["record"]["subject"]["uri"]  # NOTE: any '/' must be stripped.
-    full_path = os.path.join(
-        study_user_activity_root_local_path,
-        author_did,
-        relative_path,
-        post_uri,
-        filename
-    )
+    relative_path = study_user_activity_relative_path_map[operation]["like_on_user_post"]  # noqa
+    post_uri_suffix = record["record"]["subject"]["uri"].split('/')[-1]
+    root_path = os.path.join(study_user_activity_root_local_path, author_did)
+    if not os.path.exists(root_path):
+        os.makedirs(root_path)
+    folder_path = os.path.join(root_path, relative_path, post_uri_suffix)
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    full_path = os.path.join(folder_path, filename)
     write_data_to_json(data=record, path=full_path)
 
 
@@ -337,25 +380,31 @@ def export_reply_to_study_user_post(
     """Exports a reply to a user post.
 
     The key will be structured as follows:
-    {root}/{author_did}/{operation}/repost_of_user_post/{post_uri}/{ID}.json
+    {root}/{root/parent_author_did}/{operation}/reply_to_user_post/{root/parent_post_uri_suffix}/author_did={author_did}_post_uri_suffix={post_uri_suffix}.json
 
     If the user post was the first post in a thread, then the thread type is
     "root". If the user post was a reply to another post, then the thread type
-    is "parent".
-    """
-    relative_path = study_user_activity_relative_path_map[operation]["repost_of_user_post"]
-    original_study_user_post_uri = (
-        record["reply_root"]
-        if user_post_type == "root" else record["reply_parent"]
+    is "parent". The `root/parent_author_did` is the DID of the post that the
+    study user wrote and that the post was replying to (this study user post is
+    either the parent of the post or the root post of the thread). The
+    `root/parent_post_uri_suffix` is the last part of the URI of the study user's
+    post (which is either the parent or the root post of the thread). The
+    `author_did` is the DID of the person who wrote the reply. The
+    `post_uri_suffix` is the last part of the URI of the reply record.
+    """  # noqa
+    relative_path = study_user_activity_relative_path_map[operation]["reply_to_user_post"]
+    original_study_user_post_uri_suffix = (
+        record["reply_root"].split('/')[-1]
+        if user_post_type == "root"
+        else record["reply_parent"].split('/')[-1]
     )
-
-    full_path = os.path.join(
-        study_user_activity_root_local_path,
-        author_did,
-        relative_path,
-        original_study_user_post_uri,
-        filename
-    )
+    root_path = os.path.join(study_user_activity_root_local_path, author_did)
+    if not os.path.exists(root_path):
+        os.makedirs(root_path)
+    folder_path = os.path.join(root_path, relative_path, original_study_user_post_uri_suffix)
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    full_path = os.path.join(folder_path, filename)
     write_data_to_json(data=record, path=full_path)
 
 
@@ -369,11 +418,7 @@ def export_study_user_data_local(
     filename: str,
     kwargs: Optional[dict] = None
 ):
-    """Writes study user activity to local cache storage.
-
-    The data is written to the local storage in the following format:
-    {root}/{author_did}/{operation}/{record_type}/{ID}.json
-    """
+    """Writes study user activity to local cache storage."""
     if not kwargs:
         kwargs = {}
     if record_type == "post":
