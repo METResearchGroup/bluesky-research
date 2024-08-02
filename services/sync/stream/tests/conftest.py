@@ -39,6 +39,10 @@ class MockS3():
     def __init__(self):
         super().__init__()
         self.write_dict_json_to_s3 = Mock()
+        self.write_local_jsons_to_s3 = Mock()
+        self.create_partition_key_based_on_timestamp = Mock(
+            return_value="year=2024/month=08/day=01/hour=20/minute=39"
+        )
 
 
 mock_s3 = MockS3()
@@ -78,9 +82,30 @@ def mock_study_user_manager(monkeypatch):
 @pytest.fixture(autouse=True)
 def mock_s3_fixture(monkeypatch):
     monkeypatch.setattr("services.sync.stream.export_data.s3", mock_s3)
+    # patch study user activity writes
     monkeypatch.setattr(
         "services.sync.stream.export_data.s3.write_dict_json_to_s3",
         mock_s3.write_dict_json_to_s3
+    )
+    # patch general firehose writes
+    monkeypatch.setattr(
+        "services.sync.stream.export_data.s3.write_local_jsons_to_s3",
+        mock_s3.write_local_jsons_to_s3
+    )
+    # patch partition key on export.
+    # monkeypatch.setattr(
+    #     "services.sync.stream.export_data.s3.create_partition_key_based_on_timestamp", # noqa
+    #     "year=2024/month=08/day=01/hour=20/minute=39"
+    # )
+    monkeypatch.setattr(
+        "lib.aws.s3.S3.create_partition_key_based_on_timestamp",  # noqa
+        mock_s3.create_partition_key_based_on_timestamp
+    )
+    # patch the `generate_current_datetime_str` since this'll determine the
+    # compressed file's name.
+    monkeypatch.setattr(
+        "services.sync.stream.export_data.generate_current_datetime_str",
+        lambda: "2024-08-01-20:39:38"
     )
 
 

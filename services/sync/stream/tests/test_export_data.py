@@ -1,21 +1,15 @@
 """Tests for export_data.py."""
 import os
 
-import pytest
-
 from services.sync.stream.data_filter import operations_callback
-from services.sync.stream.export_data import export_study_user_activity_local_data  # noqa
+from services.sync.stream.export_data import (
+    export_batch, export_study_user_activity_local_data, root_write_path
+)
 from services.sync.stream.tests.conftest import (
-    mock_follow_records_fixture, mock_like_records_fixture,
+    clean_path, mock_follow_records_fixture, mock_like_records_fixture,
     mock_post_records_fixture, mock_s3_fixture, mock_study_user_manager,
     mock_s3
 )
-
-# TODO: write a function to clean up all study activity data files
-# (I need this generally, but I can also use it here as well).
-# TODO: this should fit in the functionality of clearing all the cache files,
-# and I can run that anyways.
-# TODO: I should also create a unit test for the general firehose data as well?
 
 
 class TestExportStudyUserActivityLocalData:
@@ -66,4 +60,98 @@ class TestExportStudyUserActivityLocalData:
         ])
         assert actual_keys == expected_keys
 
-        # TODO: clear out the files that were written to the local directory
+        # clear paths
+        paths = [os.path.join(root_write_path, key) for key in actual_keys]
+        for path in paths:
+            clean_path(path)
+
+
+class TestExportBatch():
+    """Tests the `export_batch` function.
+
+    This function exports both the general firehose data and the
+    study user activity data. This test checks that the function
+    calls the correct functions and that the correct data is uploaded
+    to S3.
+    """
+
+    def test_export_batch(
+        self, mock_follow_records_fixture, mock_like_records_fixture,
+        mock_post_records_fixture, mock_s3_fixture, mock_study_user_manager
+    ):
+        operations_by_type = {
+            "posts": {"created": mock_post_records_fixture, "deleted": []},
+            "likes": {"created": mock_like_records_fixture, "deleted": []},
+            "follows": {"created": mock_follow_records_fixture, "deleted": []}
+        }
+        operations_callback(operations_by_type)
+        export_batch(compressed=True, clear_cache=True, external_store=["s3"])
+        ### Test 1: check that functions are called with the correct args. ###
+
+        # Test 1a: check that `write_local_jsons_to_s3`, which is used
+        # to export the general firehose posts, is called with the
+        # correct arguments.
+
+        # for all created posts/follows/likes and for all deleted posts/follows/likes,
+        # there should be a key. We write a separate compressed file for each
+        # created and deleted set of post/follow/like, so we should have
+        # 6 keys for 6 writes.
+        expected_general_firehose_keys: set[str] = set([
+            "sync/firehose/create/post/year=2024/month=08/day=01/hour=20/minute=39/2024-08-01-20:39:38.jsonl",
+            "sync/firehose/create/like/year=2024/month=08/day=01/hour=20/minute=39/2024-08-01-20:39:38.jsonl",
+            "sync/firehose/create/follow/year=2024/month=08/day=01/hour=20/minute=39/2024-08-01-20:39:38.jsonl",
+            "sync/firehose/delete/post/year=2024/month=08/day=01/hour=20/minute=39/2024-08-01-20:39:38.jsonl",
+            "sync/firehose/delete/like/year=2024/month=08/day=01/hour=20/minute=39/2024-08-01-20:39:38.jsonl",
+            "sync/firehose/delete/follow/year=2024/month=08/day=01/hour=20/minute=39/2024-08-01-20:39:38.jsonl"
+        ])
+
+        actual_general_firehose_keys = {
+            call_args.kwargs['key']
+            for call_args
+            in mock_s3.write_local_jsons_to_s3.call_args_list
+        }
+        assert actual_general_firehose_keys == expected_general_firehose_keys
+
+        # Test 1b: check that `write_dict_json_to_s3`, which is used to
+        # export the study user activity data, is called with the correct
+        # arguments.
+        expected_study_user_activity_keys = set([
+            ### did:plc:study-user-1 ###
+            ## follows ##
+            "study_user_activity/did:plc:study-user-1/create/follow/followee/follower_did=did:plc:generic-user-1_followee_did=did:plc:study-user-1.json",
+            "study_user_activity/did:plc:study-user-1/create/follow/follower/follower_did=did:plc:study-user-1_followee_did=did:plc:generic-user-1.json",
+            ## likes ##
+            "study_user_activity/did:plc:study-user-1/create/like/generic-post-uri-1/like_author_did=did:plc:study-user-1_like_uri_suffix=like-record-suffix-456.json",
+            ## post ##
+            "study_user_activity/did:plc:study-user-1/create/post/author_did=did:plc:study-user-1_post_uri_suffix=post-uri-1.json",
+            ## reply_to_user_post ##
+            "study_user_activity/did:plc:study-user-1/create/reply_to_user_post/post-uri-1/author_did=did:plc:generic-user-1_post_uri_suffix=generic-post-uri-1.json",
+            ### did:plc:study-user-2 ###
+            ## like_on_user_post ##
+            "study_user_activity/did:plc:study-user-2/create/like_on_user_post/post-uri-2/like_author_did=did:plc:generic-user-1_like_uri_suffix=like-record-suffix-789.json"
+        ])
+        actual_study_user_activity_keys: set[str] = {
+            call_args.kwargs['key']
+            for call_args
+            in mock_s3.write_dict_json_to_s3.call_args_list
+        }
+        assert actual_study_user_activity_keys == expected_study_user_activity_keys  # noqa
+
+        ### Test 2: check that there are no more files in the cache. ###
+        remaining_files = []
+        for _, _, files in os.walk(root_write_path):
+            if files:
+                remaining_files.extend(files)
+        assert not remaining_files
+
+        ### Test 3: check that the folders are rebuilt. ###
+        assert os.path.exists(root_write_path)
+        assert os.path.exists(os.path.join(root_write_path, "create"))
+        assert os.path.exists(os.path.join(root_write_path, "create", "post"))
+        assert os.path.exists(os.path.join(root_write_path, "create", "like"))
+        assert os.path.exists(os.path.join(root_write_path, "create", "follow"))  # noqa
+        assert os.path.exists(os.path.join(root_write_path, "delete"))
+        assert os.path.exists(os.path.join(root_write_path, "delete", "post"))
+        assert os.path.exists(os.path.join(root_write_path, "delete", "like"))
+        assert os.path.exists(os.path.join(root_write_path, "delete", "follow"))  # noqa
+        assert os.path.exists(os.path.join(root_write_path, "study_user_activity"))  # noqa

@@ -44,7 +44,6 @@ import json
 import os
 import shutil
 from typing import Literal, Optional
-from uuid import uuid4
 
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
@@ -130,6 +129,10 @@ def rebuild_cache_paths():
             if not os.path.exists(op_path):
                 os.makedirs(op_path)
 
+    # create helper path for writing user activity data.
+    if not os.path.exists(study_user_activity_root_local_path):
+        os.makedirs(study_user_activity_root_local_path)
+
 
 def delete_cache_paths():
     """Deletes the cache paths. Recursively removes from the root path."""
@@ -150,7 +153,7 @@ def compress_cached_files_and_write_to_storage(
     operation: Literal["create", "delete"],
     operation_type: Literal["post", "like", "follow"],
     compressed: bool = True,
-    external_store: Literal["local", "s3"] = "local"
+    external_store: Literal["local", "s3"] = "s3"
 ):
     """For a given set of files in a directory, compress them into a single
     cached file and write to S3.
@@ -158,13 +161,11 @@ def compress_cached_files_and_write_to_storage(
     Loops through all the JSON files in the directory and loads them into
     memory. Then writes to a single .jsonl file (.jsonl.gz if compressed).
     """
+    timestamp_str = generate_current_datetime_str()
     partition_key = S3.create_partition_key_based_on_timestamp(
-        timestamp_str=generate_current_datetime_str()
+        timestamp_str=timestamp_str
     )
-    # needs a random filename since it is possible that within a single minute,
-    # we might have multiple batches that need to be written to S3
-    uuid = str(uuid4())
-    filename = f"{uuid}.jsonl"
+    filename = f"{timestamp_str}.jsonl"
     s3_export_key = s3_export_key_map[operation][operation_type]
     full_key = os.path.join(s3_export_key, partition_key, filename)
     if external_store == "s3":
@@ -362,15 +363,17 @@ def export_reply_to_study_user_post_s3(base_path: str):
 
 
 def export_study_user_activity_local_data():
-    """Exports the activity data of study users to external S3 store."""
-    # steps:
-    # 1. Recursively list all the files in the study_user_activity directory.
-    # 2. Take the relative path of each file and turn that into the key.
-    # 3. Dump to s3.
+    """Exports the activity data of study users to external S3 store.
 
-    # list out all study user DIDs that appeared in this batch. These are
-    # all the users for whom we got activities for in this batch of the
-    # firehose.
+    Steps:
+    1. Recursively list all the user DIDs in the study_user_activity directory.
+    2. Takes the files for each user DID.
+    3. Dump to s3.
+
+    list out all study user DIDs that appeared in this batch. These are
+    all the users for whom we got activities for in this batch of the
+    firehose.
+    """
     study_users = os.listdir(study_user_activity_root_local_path)
     for author_did in study_users:
         print(f"Exporting study user activity data for author DID {author_did}.")  # noqa
@@ -405,7 +408,7 @@ def export_batch(
     clear_cache: bool = True,
     external_store: list[Literal["local", "s3"]] = ["local", "s3"]
 ):
-    """Writes the batched data to external stores (local store and S3 store).
+    """Writes the batched data to external stores (local store and/or S3 store).
 
     Crawls the "created" and "deleted" folders and updates the records
     where necessary.
@@ -420,7 +423,7 @@ def export_batch(
     )
     export_study_user_activity_local_data()
 
-    # TODO: update to include removal of user activity data from local as well.
+    # clears cache for next batch.
     if clear_cache:
         delete_cache_paths()
     rebuild_cache_paths()

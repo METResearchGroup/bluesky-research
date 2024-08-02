@@ -143,7 +143,7 @@ def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
             if counter_value % cursor_update_frequency == 0:
                 print(f"Counter: {counter_value}")
                 print("Writing cached records to S3 and resetting cache...")
-                export_batch(external_store=["local", "s3"])
+                export_batch(external_store=["s3"])
                 print(f"Updating cursor state with cursor={counter_value}...")  # noqa
                 cursor_state = {
                     "service": name,
