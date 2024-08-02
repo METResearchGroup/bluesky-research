@@ -48,7 +48,17 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
         # manage tracking the posts liked later, as long as we know who
         # created the like.
         filename = f"like_author_did={like_author_did}_like_uri_suffix={uri_suffix}.json"
+        ### TEMPORARY CODE CHUNK, JUST FOR TESTING ###
+        # Case 1: the user is the one who likes a post.
+        is_study_user = study_user_manager.is_study_user(user_did=like_author_did)
+        if not is_study_user:
+            return
+        breakpoint()
+        ### END OF TEMPORARY CODE CHUNK ###
     elif operation == "delete":
+        ### TEMPORARY CODE CHUNK, JUST FOR TESTING ###
+        return
+        ### END OF TEMPORARY CODE CHUNK ###
         uri_suffix = like["uri"].split('/')[-1]
         filename = f"like_uri_suffix={uri_suffix}.json"
         like_model_dict = like
@@ -153,7 +163,17 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
         follower_did = follow_model.follower_did
         followee_did = follow_model.followee_did
         filename = f"follower_did={follower_did}_followee_did={followee_did}.json"
+        ### TEMPORARY CODE CHUNK, JUST FOR TESTING ###
+        user_is_follower = study_user_manager.is_study_user(user_did=follower_did)  # noqa
+        user_is_followee = study_user_manager.is_study_user(user_did=followee_did)  # noqa
+        if not (user_is_follower or user_is_followee):
+            return
+        breakpoint()
+        ### END OF TEMPORARY CODE CHUNK ###
     elif operation == "delete":
+        ### TEMPORARY CODE CHUNK, JUST FOR TESTING ###
+        return
+        ### END OF TEMPORARY CODE CHUNK ###
         follow_uri_suffix = follow["uri"].split('/')[-1]
         filename = f"follow_uri_suffix={follow_uri_suffix}.json"
         follow_model_dict = follow
@@ -170,10 +190,8 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
         user_is_follower = study_user_manager.is_study_user(user_did=follower_did)  # noqa
         user_is_followee = study_user_manager.is_study_user(user_did=followee_did)  # noqa
         if user_is_follower or user_is_followee:
-            # edge case: user can't be both follower and followee. User can't follow themselves.
-            if user_is_follower and user_is_followee:
-                raise ValueError("User can't be both follower and followee.")
-
+            # someone can follow someone else in the study, in which case both
+            # the follower and followee need to be registered.
             if user_is_follower:
                 print(f"User {follower_did} followed a new account, {followee_did}.")  # noqa
                 export_study_user_data_local(
@@ -184,7 +202,7 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
                     filename=filename,
                     kwargs={"follow_status": "follower"}
                 )
-            elif user_is_followee:
+            if user_is_followee:
                 print(f"User {followee_did} was followed by a new account, {follower_did}.")  # noqa
                 export_study_user_data_local(
                     record=follow_model_dict,
@@ -253,7 +271,16 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
         # URI takes the form at://<author DID>/<collection>/<post URI>
         post_uri_suffix = consolidated_post_dict["uri"].split('/')[-1]  # e.g., 3kwd3wuubke2i # noqa
         filename = f"author_did={author_did}_post_uri_suffix={post_uri_suffix}.json"  # noqa
+        ### TEMPORARY CODE CHUNK, JUST FOR TESTING ###
+        is_study_user = study_user_manager.is_study_user(user_did=author_did)
+        if not is_study_user:
+            return
+        breakpoint()
+        ### END OF TEMPORARY CODE CHUNK ###
     elif operation == "delete":
+        ### TEMPORARY CODE CHUNK, JUST FOR TESTING ###
+        return
+        ### END OF TEMPORARY CODE CHUNK ###
         post_uri_suffix = post["uri"].split('/')[-1]
         filename = f"post_uri_suffix={post_uri_suffix}.json"
         consolidated_post_dict = post
