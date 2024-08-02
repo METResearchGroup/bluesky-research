@@ -1,9 +1,6 @@
 """Tests for data_filter.py."""
-import copy
 import os
-from typing import Optional
 
-import pytest
 
 from services.sync.stream.data_filter import (
     manage_follow, manage_follows, manage_like, manage_likes, manage_post,
@@ -13,79 +10,11 @@ from services.sync.stream.export_data import (
     export_filepath_map, study_user_activity_relative_path_map,
     study_user_activity_root_local_path
 )
-from services.sync.stream.tests.mock_firehose_data import (
-    mock_user_dids, mock_post_uri_to_user_did_map, mock_follow_records,
-    mock_like_records, mock_post_records
+from services.sync.stream.tests.conftest import (
+    clean_path, mock_study_user_manager,
+    mock_follow_records_fixture, mock_like_records_fixture,
+    mock_post_records_fixture
 )
-
-
-class MockStudyUserManager:
-    """Mock class for the StudyUserManager singleton."""
-
-    def __init__(self):
-        self.study_users_dids_set = mock_user_dids
-        self.post_uri_to_study_user_did_map = mock_post_uri_to_user_did_map
-
-    def is_study_user(self, user_did: str) -> bool:
-        """Mock function for checking if a user is a study user."""
-        return user_did in self.study_users_dids_set
-
-    def is_study_user_post(self, post_uri: str) -> Optional[str]:
-        """Mock function for checking if a post is from a study user."""
-        return self.post_uri_to_study_user_did_map.get(post_uri, None)
-
-
-mock_study_manager = MockStudyUserManager()
-
-
-def clean_path(path: str):
-    if os.path.exists(path):
-        os.remove(path)
-
-
-@pytest.fixture
-def mock_study_user_manager(monkeypatch):
-    monkeypatch.setattr(
-        "services.sync.stream.data_filter.study_user_manager.is_study_user",
-        mock_study_manager.is_study_user
-    )
-    monkeypatch.setattr(
-        "services.sync.stream.data_filter.study_user_manager.is_study_user_post",
-        mock_study_manager.is_study_user_post
-    )
-
-
-@pytest.fixture
-def cleanup_files(request):
-    files_to_cleanup = []
-
-    def add_file(filepath):
-        files_to_cleanup.append(filepath)
-
-    def cleanup():
-        for filepath in files_to_cleanup:
-            clean_path(filepath)
-            print(f"Deleted {filepath}")
-
-    request.addfinalizer(cleanup)
-    return add_file
-
-
-# create fixtures for each mock records list, to avoid different tests
-# collidiing with each other.
-@pytest.fixture
-def mock_follow_records_fixture():
-    return copy.deepcopy(mock_follow_records)
-
-
-@pytest.fixture
-def mock_like_records_fixture():
-    return copy.deepcopy(mock_like_records)
-
-
-@pytest.fixture
-def mock_post_records_fixture():
-    return copy.deepcopy(mock_post_records)
 
 
 class TestManageFollow:
@@ -94,7 +23,7 @@ class TestManageFollow:
     Checks that the files are written locally as intended, and then deletes them.
     """
 
-    def test_manage_follow_create_default(self, mock_follow_records_fixture):
+    def test_manage_follow_create_default(self, mock_study_user_manager, mock_follow_records_fixture):
         """Test manage_follow for 'create' operation (for a generic follow record)."""  # noqa
         relative_filepath = export_filepath_map["create"]["follow"]
         mock_follower_did = "did:plc:generic-user-2"
@@ -106,7 +35,7 @@ class TestManageFollow:
         assert os.path.exists(expected_filepath)
         clean_path(expected_filepath)
 
-    def test_manage_follow_delete_default(self, mock_follow_records_fixture):
+    def test_manage_follow_delete_default(self, mock_study_user_manager, mock_follow_records_fixture):
         """Test manage_follow for 'delete' operation (for a generic follow record)."""  # noqa
         relative_filepath = export_filepath_map["delete"]["follow"]
         mock_follow_uri_suffix = "random-hash"
@@ -248,7 +177,7 @@ class TestManageFollows:
 class TestManageLike:
     """Tests for manage_like."""
 
-    def test_manage_create_default_like(self, mock_like_records_fixture):
+    def test_manage_create_default_like(self, mock_study_user_manager, mock_like_records_fixture):
         relative_filepath = export_filepath_map["create"]["like"]
         mock_author_did = "did:plc:generic-user-1"
         mock_uri_suffix = "like-record-suffix-123"
@@ -259,7 +188,7 @@ class TestManageLike:
         assert os.path.exists(expected_filepath)
         clean_path(expected_filepath)
 
-    def test_manage_delete_default_like(self, mock_like_records_fixture):
+    def test_manage_delete_default_like(self, mock_study_user_manager, mock_like_records_fixture):
         relative_filepath = export_filepath_map["delete"]["like"]
         mock_uri_suffix = "like-record-suffix-123"
         expected_filename = f"like_uri_suffix={mock_uri_suffix}.json"
@@ -420,7 +349,7 @@ class TestManageLikes:
 class TestManagePost:
     """Tests for manage_post."""
 
-    def test_manage_post_create_default(self, mock_post_records_fixture):
+    def test_manage_post_create_default(self, mock_study_user_manager, mock_post_records_fixture):
         """Tests the creation of a default post from the firehose."""
         relative_filepath = export_filepath_map["create"]["post"]
         mock_author_did = "did:plc:generic-user-1"
@@ -432,7 +361,7 @@ class TestManagePost:
         assert os.path.exists(expected_filepath)
         clean_path(expected_filepath)
 
-    def test_manage_post_delete_default(self, mock_post_records_fixture):
+    def test_manage_post_delete_default(self, mock_study_user_manager, mock_post_records_fixture):
         """Tests the deletion of a default post from the firehose."""
         relative_filepath = export_filepath_map["delete"]["post"]
         mock_post_uri_suffix = "post-uri-1"

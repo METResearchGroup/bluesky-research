@@ -36,6 +36,14 @@ class StudyUserManager:
             raise Exception("StudyUserManager class is intended to be a singleton instance.")  # noqa
         self.s3 = boto3.client("s3")
         self.s3_bucket = "bluesky-research"
+        self.file_to_key_map = {
+            "study_user_dids": os.path.join(
+                "participant_data", "study_user_dids.json"
+            ),
+            "post_uri_to_study_user_did": os.path.join(
+                "participant_data", "post_uri_to_study_user_did.json"
+            )
+        }
         if load_from_aws:
             print("Using AWS version of StudyUserManager class.")
             self.study_users_dids_set: set = self._load_study_user_dids()
@@ -48,14 +56,6 @@ class StudyUserManager:
             print("Using local version of StudyUserManager class.")
             self.study_users_dids_set = set()
             self.post_uri_to_study_user_did_map = {}
-        self.file_to_key_map = {
-            "study_user_dids": os.path.join(
-                "participant_data", "study_user_dids.json"
-            ),
-            "post_uri_to_study_user_did": os.path.join(
-                "participant_data", "post_uri_to_study_user_did.json"
-            )
-        }
 
     def _load_study_user_dids(self):
         """Load the study_users_dids_set from DynamoDB."""
@@ -70,7 +70,7 @@ class StudyUserManager:
         """Load the post_uri_to_study_user_did_map from S3."""
         key = self.file_to_key_map["post_uri_to_study_user_did"]
         try:
-            response = self.s3.get_object(Bucket=self.bucket, Key=key)
+            response = self.s3.get_object(Bucket=self.s3_bucket, Key=key)
             post_uri_to_study_user_did_map = json.loads(response["Body"].read())
         except self.s3.exceptions.NoSuchKey or use_new_hashmap:
             post_uri_to_study_user_did_map = {}
@@ -104,4 +104,6 @@ class StudyUserManager:
         self._write_post_uri_to_study_user_did_map_to_s3()
 
 
-study_user_manager = StudyUserManager.get_instance(load_from_aws=True)
+def get_study_user_manager(load_from_aws: bool = True):
+    """Get the singleton instance of the StudyUserManager."""
+    return StudyUserManager.get_instance(load_from_aws=load_from_aws)

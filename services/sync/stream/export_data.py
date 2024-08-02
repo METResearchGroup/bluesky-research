@@ -180,18 +180,11 @@ def compress_cached_files_and_write_to_storage(
         raise ValueError("Invalid export store.")
 
 
-def export_batch(
+def export_general_firehose_sync(
     compressed: bool = True,
-    clear_cache: bool = True,
     external_store: list[Literal["local", "s3"]] = ["local", "s3"]
 ):
-    """Writes the batched data to external stores (local store and S3 store).
-
-    Crawls the "created" and "deleted" folders and updates the records
-    where necessary.
-
-    Then deletes the local cache.
-    """
+    """Exports the general firehose sync data to external store."""
     for operation in ["create", "delete"]:
         for operation_type in operation_types:
             directory = export_filepath_map[operation][operation_type]
@@ -203,6 +196,231 @@ def export_batch(
                     compressed=compressed,
                     external_store=store
                 )
+
+
+def export_study_user_post_s3(base_path: str):
+    """Exports the post data of study users to external S3 store.
+
+    The key will be structured as follows:
+    {root}/{author_did}/{operation}/post/author_did={author_did}_post_uri_suffix={post_uri_suffix}.json
+
+    We want to match the structure of the local cache to the S3 store.
+
+    The S3 key will be structured as follows:
+    /study_user_activity/{author_did}/create/post/author_did={author_did}_post_uri_suffix={post_uri_suffix}.json
+    """  # noqa
+    key_root: list[str] = base_path.split('/')[-3:]  # ['study_user_activity', '{author_did}', 'create']
+    key_root.append("post")
+    base_key = '/'.join(key_root)
+
+    # loop through all the files in the post directory and write them to S3.
+    posts_filenames: list[str] = os.listdir(os.path.join(base_path, "post"))
+    for path in posts_filenames:
+        full_path = os.path.join(base_path, "post", path)
+        full_key = os.path.join(base_key, path)
+        with open(full_path, 'r') as f:
+            data = json.load(f)
+            s3.write_dict_json_to_s3(data=data, key=full_key)
+
+    print(f"Exported {len(posts_filenames)} post records to S3 for study user DID {key_root[1]}.")  # noqa
+
+
+def export_study_user_follow_s3(base_path: str):
+    """Exports the follow data of study users to external S3 store.
+
+    The key will be structured as follows:
+    {root}/{author_did}/{operation}/follow/{follower or followee}/{follower_did={follower_did}_followee_did={followee_did}.json
+
+    We want to match the structure of the local cache to the S3 store.
+
+    The S3 key will be structured as follows:
+    /study_user_activity/{author_did}/create/follow/{follower or followee}/{follower_did={follower_did}_followee_did={followee_did}.json
+    """  # noqa
+    key_root: list[str] = base_path.split('/')[-3:]  # ['study_user_activity', '{author_did}', 'create']
+    key_root.append("follow")
+    base_key = '/'.join(key_root)
+
+    # loop through follow/follower subdirectories and export follow data to S3.
+    total_records = 0
+    follows_path = os.path.join(base_path, "follow")
+    for follow_type in os.listdir(follows_path):
+        follow_path = os.path.join(base_path, "follow", follow_type)
+        follow_records = os.listdir(follow_path)
+        for filepath in follow_records:
+            full_path = os.path.join(follow_path, filepath)
+            full_key = os.path.join(base_key, follow_type, filepath)
+            with open(full_path, 'r') as f:
+                data = json.load(f)
+                s3.write_dict_json_to_s3(data=data, key=full_key)
+            total_records += 1
+
+    print(f"Exported {total_records} follow records to S3 for study user DID {key_root[1]}.")  # noqa
+
+
+def export_study_user_like_s3(base_path: str):
+    """Exports the like data of study users to external S3 store.
+
+    The key will be structured as follows:
+    {root}/{like_author_did}/{operation}/like/{post_uri_suffix}/like_author_did={like_author_did}_like_uri_suffix={uri_suffix}.json
+
+    `like_author_did` is the DID of the person who liked the post (which should
+    be a person in the study). The `post_uri_suffix` is the last part of the
+    post URI that was liked. The `like_uri_suffix` is the last part of the URI
+    of the like record.
+
+    We want to match the structure of the local cache to the S3 store.
+
+    The S3 key will be structured as follows:
+    /study_user_activity/{like_author_did}/create/like/{post_uri_suffix}/like_author_did={like_author_did}_like_uri_suffix={uri_suffix}.json
+    """  # noqa
+    key_root: list[str] = base_path.split('/')[-3:]  # ['study_user_activity', '{author_did}', 'create']
+    key_root.append("like")
+    base_key = '/'.join(key_root)
+
+    # loop through all the files in the like directory and write them to S3.
+    total_records = 0
+    liked_posts_path = os.path.join(base_path, "like")
+    for post_uri in os.listdir(liked_posts_path):
+        post_path = os.path.join(base_path, "like", post_uri)
+        for like_record in os.listdir(post_path):
+            full_path = os.path.join(post_path, like_record)
+            full_key = os.path.join(base_key, post_uri, like_record)
+            with open(full_path, 'r') as f:
+                data = json.load(f)
+                s3.write_dict_json_to_s3(data=data, key=full_key)
+            total_records += 1
+
+    print(f"Exported {total_records} like records to S3 for study user DID {key_root[1]}.")  # noqa
+
+
+def export_like_on_study_user_post_s3(base_path: str):
+    """Exports a like on a post by a user in the study.
+
+    The key will be structured as follows:
+    {root}/{author_did}/{operation}/like_on_user_post/{post_uri_suffix}/like_author_did={like_author_did}_like_uri_suffix={uri_suffix}.json
+
+    We want to match the structure of the local cache to the S3 store.
+
+    The S3 key will be structured as follows:
+    /study_user_activity/{author_did}/create/like_on_user_post/{post_uri_suffix}/like_author_did={like_author_did}_like_uri_suffix={uri_suffix}.json
+    """  # noqa
+    key_root: list[str] = base_path.split('/')[-3:]  # ['study_user_activity', '{author_did}', 'create']
+    key_root.append("like_on_user_post")
+    base_key = '/'.join(key_root)
+
+    # loop through all the files in the like_on_user_post directory and write them to S3.
+    total_records = 0
+    liked_posts_path = os.path.join(base_path, "like_on_user_post")
+    for post_uri in os.listdir(liked_posts_path):
+        post_path = os.path.join(base_path, "like_on_user_post", post_uri)
+        for like_record in os.listdir(post_path):
+            full_path = os.path.join(post_path, like_record)
+            full_key = os.path.join(base_key, post_uri, like_record)
+            with open(full_path, 'r') as f:
+                data = json.load(f)
+                s3.write_dict_json_to_s3(data=data, key=full_key)
+            total_records += 1
+
+    print(f"Exported {total_records} like on user post records to S3 for study user DID {key_root[1]}.")  # noqa
+
+
+def export_reply_to_study_user_post_s3(base_path: str):
+    """Exports a reply to a study user's post.
+
+    The key will be structured as follows:
+    {root}/{root/parent_author_did}/{operation}/reply_to_user_post/{root/parent_post_uri_suffix}/author_did={author_did}_post_uri_suffix={post_uri_suffix}.json
+
+    We want to match the structure of the local cache to the S3 store.
+
+    The S3 key will be structured as follows:
+    /study_user_activity/{root/parent_author_did}/create/reply_to_user_post/{root/parent_post_uri_suffix}/author_did={author_did}_post_uri_suffix={post_uri_suffix}.json
+
+    Where `root/parent_author_did` is the DID of the author of the root/parent
+    post (which should be the study user) and `root/parent_post_uri_suffix` is
+    the last part of the URI of the root/parent post. The `author_did` is the
+    DID of the person who wrote the reply. The `post_uri_suffix` is the last
+    part of the URI of the reply record.
+    """  # noqa
+    key_root: list[str] = base_path.split('/')[-3:]  # ['study_user_activity', '{author_did}', 'create']
+    key_root.append("reply_to_user_post")
+    base_key = '/'.join(key_root)
+
+    # loop through all the files in the reply_to_user_post directory and write them to S3.
+    total_records = 0
+    reply_posts_path = os.path.join(base_path, "reply_to_user_post")
+    for post_uri in os.listdir(reply_posts_path):
+        post_path = os.path.join(base_path, "reply_to_user_post", post_uri)
+        for reply_record in os.listdir(post_path):
+            full_path = os.path.join(post_path, reply_record)
+            full_key = os.path.join(base_key, post_uri, reply_record)
+            with open(full_path, 'r') as f:
+                data = json.load(f)
+                s3.write_dict_json_to_s3(data=data, key=full_key)
+            total_records += 1
+
+    print(f"Exported {total_records} reply to user post records to S3 for study user DID {key_root[1]}.")  # noqa
+
+
+def export_study_user_activity_local_data():
+    """Exports the activity data of study users to external S3 store."""
+    # steps:
+    # 1. Recursively list all the files in the study_user_activity directory.
+    # 2. Take the relative path of each file and turn that into the key.
+    # 3. Dump to s3.
+
+    # list out all study user DIDs that appeared in this batch. These are
+    # all the users for whom we got activities for in this batch of the
+    # firehose.
+    study_users = os.listdir(study_user_activity_root_local_path)
+    for author_did in study_users:
+        print(f"Exporting study user activity data for author DID {author_did}.")  # noqa
+        author_path = os.path.join(study_user_activity_root_local_path, author_did)
+        for operation in ["create", "delete"]:
+            if operation == "create":
+                create_path = os.path.join(author_path, "create")
+                # ["post", "like", "follow", "like_on_user_post", "reply_to_user_post"]
+                # (but might not be, and likely won't be, all available at once)
+                # (it is much more likely that a subset, maybe only 1 of these,
+                # is actually available in a given batch).
+                record_types = os.listdir(create_path)
+                for record_type in record_types:
+                    if record_type == "post":
+                        export_study_user_post_s3(base_path=create_path)
+                    elif record_type == "like":
+                        export_study_user_like_s3(base_path=create_path)
+                    elif record_type == "follow":
+                        export_study_user_follow_s3(base_path=create_path)
+                    elif record_type == "like_on_user_post":
+                        export_like_on_study_user_post_s3(base_path=create_path)  # noqa
+                    elif record_type == "reply_to_user_post":
+                        export_reply_to_study_user_post_s3(base_path=create_path)  # noqa
+            elif operation == "delete":
+                # deletions are more of an edge case, might have to deal with
+                # it at some point but it's much lower priority.
+                pass
+
+
+def export_batch(
+    compressed: bool = True,
+    clear_cache: bool = True,
+    external_store: list[Literal["local", "s3"]] = ["local", "s3"]
+):
+    """Writes the batched data to external stores (local store and S3 store).
+
+    Crawls the "created" and "deleted" folders and updates the records
+    where necessary.
+
+    Then deletes the local cache.
+
+    Exports both the general firehose sync data and the study user activity data.
+    that has been tracked in this batch.
+    """  # noqa
+    export_general_firehose_sync(
+        compressed=compressed, external_store=external_store
+    )
+    export_study_user_activity_local_data()
+
+    # TODO: update to include removal of user activity data from local as well.
     if clear_cache:
         delete_cache_paths()
     rebuild_cache_paths()

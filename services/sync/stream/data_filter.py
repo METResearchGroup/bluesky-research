@@ -17,8 +17,11 @@ from services.sync.stream.export_data import (
 )
 from services.consolidate_post_records.helper import consolidate_firehose_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
-from services.participant_data.study_users import study_user_manager
+from services.participant_data.study_users import get_study_user_manager
 from transform.transform_raw_data import process_firehose_post
+
+
+study_user_manager = get_study_user_manager()
 
 
 def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
