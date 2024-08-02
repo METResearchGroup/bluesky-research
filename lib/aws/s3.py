@@ -67,6 +67,7 @@ class S3:
     ) -> None:
         """Writes list of dictionaries as JSONL to S3."""
         if not data:
+            print("No data to write to S3.")
             return
         if not key.endswith(".jsonl"):
             key = f"{key}.jsonl"
@@ -196,6 +197,9 @@ class S3:
                     with open(fp, "r") as f:
                         jsons.append(json.load(f))
                     filepaths.append(fp)
+            if len(jsons) == 0:
+                print(f"No JSON files found in directory: {directory}.")
+                print("Not writing anything to S3.")
             if not key:
                 key = os.path.join(S3_FIREHOSE_KEY_ROOT, filename)
             if compressed:
