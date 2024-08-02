@@ -57,16 +57,28 @@ class StudyUserManager:
             self.study_users_dids_set = set()
             self.post_uri_to_study_user_did_map = {}
 
-    def _load_study_user_dids(self):
+    def _load_study_user_dids(self) -> set[str]:
         """Load the study_users_dids_set from DynamoDB."""
+        print(
+            """
+            THIS SHOULD ONLY BE CALLED AT THE BEGINNING OF THE STREAMING
+            PROCESS
+            """
+        )
+        print(
+            """
+            Since this is a singleton class, the study users should only
+            be loaded once at the beginning of the streaming process.
+            """
+        )
         study_users = get_all_users()
-        self.study_users_dids_set = set(
+        return set(
             [user.bluesky_user_did for user in study_users]
         )
 
     def _load_post_uri_to_study_user_did_map_from_s3(
         self, use_new_hashmap: bool = False
-    ):
+    ) -> dict:
         """Load the post_uri_to_study_user_did_map from S3."""
         key = self.file_to_key_map["post_uri_to_study_user_did"]
         try:
@@ -74,7 +86,7 @@ class StudyUserManager:
             post_uri_to_study_user_did_map = json.loads(response["Body"].read())
         except self.s3.exceptions.NoSuchKey or use_new_hashmap:
             post_uri_to_study_user_did_map = {}
-        self.post_uri_to_study_user_did_map = post_uri_to_study_user_did_map
+        return post_uri_to_study_user_did_map
 
     def _load_aws_data(self):
         """Load the study user data from AWS."""
