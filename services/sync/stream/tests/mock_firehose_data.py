@@ -28,6 +28,9 @@ mock_follow_records = [
         'author': 'did:plc:generic-user-2'
     },  # generic follow record
     {
+        'uri': 'at://did:plc:follow-record/app.bsky.graph.follow/random-hash'
+    },  # generic deleted record
+    {
         'record': FollowRecord(
             created_at='2024-07-02T17:48:48.627Z',
             subject='did:plc:study-user-1',
@@ -64,6 +67,9 @@ mock_like_records = [
         ),
         'uri': 'at://did:plc:like-record-1/app.bsky.feed.like/like-record-suffix-123'  # noqa
     },  # generic like record
+    {
+        'uri': 'at://did:plc:like-record-1/app.bsky.feed.like/like-record-suffix-123'
+    },  # generic deleted like record
     {
         'author': 'did:plc:study-user-1',
         'cid': 'bafyreihus4wvodsdmhsschvb57dn7qsl6wxanu5fv6httkq2njd7zqadri',
@@ -112,6 +118,9 @@ mock_post_records = [
         'cid': 'bafyreidmb5wsupl6iz5wo2xjgusjpsrduug6qkpytjjckupdttot6jrbna',
         'author': 'did:plc:generic-user-1'
     },  # generic post record
+    {
+        'uri': 'at://did:plc:sjeosezgc7mpqn6sfc7neabg/app.bsky.feed.post/post-uri-1'
+    },  # generic deleted post record
     {
         'record': Record(
             created_at='2024-02-07T05:10:02.159Z',

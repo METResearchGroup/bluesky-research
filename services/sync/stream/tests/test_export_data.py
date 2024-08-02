@@ -27,10 +27,35 @@ class TestExportStudyUserActivityLocalData:
         self, mock_follow_records_fixture, mock_like_records_fixture,
         mock_post_records_fixture, mock_s3_fixture, mock_study_user_manager
     ):
+        # skip deleted records. We test those in individual unit tests
+        # but for e2e/integration tests we care that 'create' is implemented
+        # correctly.
         operations_by_type = {
-            "posts": {"created": mock_post_records_fixture, "deleted": []},
-            "likes": {"created": mock_like_records_fixture, "deleted": []},
-            "follows": {"created": mock_follow_records_fixture, "deleted": []}
+            "posts": {
+                # skip the second post, which is the deleted post
+                "created": [
+                    post for idx, post in enumerate(mock_post_records_fixture)
+                    if idx != 1
+                ],
+                "deleted": []
+            },
+            "likes": {
+                # skip the second like, which is the deleted like
+                "created": [
+                    like for idx, like in enumerate(mock_like_records_fixture)
+                    if idx != 1
+                ],
+                "deleted": []
+            },
+            "follows": {
+                # skip the second follow, which is the deleted follow
+                "created": [
+                    follow for idx, follow
+                    in enumerate(mock_follow_records_fixture)
+                    if idx != 1
+                ],
+                "deleted": []
+            }
         }
         operations_callback(operations_by_type)
 
@@ -79,10 +104,35 @@ class TestExportBatch():
         self, mock_follow_records_fixture, mock_like_records_fixture,
         mock_post_records_fixture, mock_s3_fixture, mock_study_user_manager
     ):
+        # skip deleted records. We test those in individual unit tests
+        # but for e2e/integration tests we care that 'create' is implemented
+        # correctly.
         operations_by_type = {
-            "posts": {"created": mock_post_records_fixture, "deleted": []},
-            "likes": {"created": mock_like_records_fixture, "deleted": []},
-            "follows": {"created": mock_follow_records_fixture, "deleted": []}
+            "posts": {
+                # skip the second post, which is the deleted post
+                "created": [
+                    post for idx, post in enumerate(mock_post_records_fixture)
+                    if idx != 1
+                ],
+                "deleted": []
+            },
+            "likes": {
+                # skip the second like, which is the deleted like
+                "created": [
+                    like for idx, like in enumerate(mock_like_records_fixture)
+                    if idx != 1
+                ],
+                "deleted": []
+            },
+            "follows": {
+                # skip the second follow, which is the deleted follow
+                "created": [
+                    follow for idx, follow
+                    in enumerate(mock_follow_records_fixture)
+                    if idx != 1
+                ],
+                "deleted": []
+            }
         }
         operations_callback(operations_by_type)
         export_batch(compressed=True, clear_cache=True, external_store=["s3"])

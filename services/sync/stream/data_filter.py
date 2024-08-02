@@ -52,7 +52,6 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
         uri_suffix = like["uri"].split('/')[-1]
         filename = f"like_uri_suffix={uri_suffix}.json"
         like_model_dict = like
-        like_model_dict["record"] = like["record"].dict()
 
     folder_path = export_filepath_map[operation]["like"]
     full_path = os.path.join(folder_path, filename)
@@ -158,7 +157,6 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
         follow_uri_suffix = follow["uri"].split('/')[-1]
         filename = f"follow_uri_suffix={follow_uri_suffix}.json"
         follow_model_dict = follow
-        follow_model_dict["record"] = follow["record"].dict()
 
     folder_path = export_filepath_map[operation]["follow"]
     full_path = os.path.join(folder_path, filename)
@@ -259,7 +257,6 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
         post_uri_suffix = post["uri"].split('/')[-1]
         filename = f"post_uri_suffix={post_uri_suffix}.json"
         consolidated_post_dict = post
-        consolidated_post_dict["record"] = post["record"].dict()
 
     folder_path = export_filepath_map[operation]["post"]
     full_path = os.path.join(folder_path, filename)
