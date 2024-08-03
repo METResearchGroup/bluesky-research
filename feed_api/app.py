@@ -9,12 +9,19 @@ import logging
 import os
 from typing import Optional, Annotated
 
-from fastapi import FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from mangum import Mangum
 
 from lib.aws.s3 import S3
+from services.participant_data.helper import (
+    get_all_users, manage_bsky_study_user
+)
+from services.participant_data.models import UserOperation
+from transform.bluesky_helper import get_author_did_from_handle
+
+
 app = FastAPI()
 
 s3 = S3()
@@ -80,6 +87,76 @@ async def fetch_test_file_from_s3():
         "message": "Successfully fetched test file.",
         "data": json.dumps(res),
     }
+
+
+@app.post("/manage_user")
+async def manage_user(user_operation: UserOperation):
+    """Manage user operations.
+
+    Add, modify, or delete a user in the study.
+
+    Auth required with API key. Managed by API gateway.
+    """
+    operation = user_operation.operation.lower()
+    if operation not in ["add", "modify", "delete"]:
+        raise HTTPException(status_code=400, detail="Invalid operation")
+
+    profile_link = user_operation.bluesky_user_profile_link
+
+    if not profile_link.startswith("https://bsky.app/profile/"):
+        raise HTTPException(status_code=400, detail="Invalid profile link")
+
+    if operation != "delete" and user_operation.condition is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Study condition required for add or modify operation"
+        )
+
+    # get profile info from Bsky.
+    bluesky_handle = profile_link.split("/")[-1]
+
+    # first, check if handle is in the study already.
+    # should be OK to reload this each time. Plus this is a small table
+    # and we're not doing this operation frequently.
+    study_users = get_all_users()
+    existing_study_user_bsky_handles = [
+        user.bluesky_handle for user in study_users
+    ]
+    if (
+        operation == "add"
+        and bluesky_handle in existing_study_user_bsky_handles
+    ):
+        raise HTTPException(
+            status_code=400, detail="User already exists in study"
+        )
+    elif (
+        operation == "delete" or operation == "modify"
+        and bluesky_handle not in existing_study_user_bsky_handles
+    ):
+        raise HTTPException(
+            status_code=400, detail="User does not exist in study"
+        )
+
+    # then, get info from Bluesky.
+    bsky_author_did = get_author_did_from_handle(bluesky_handle)
+
+    if operation in ["add", "modify"]:
+        res = manage_bsky_study_user(
+            payload={
+                "operation": "POST",
+                "bluesky_handle": bluesky_handle,
+                "condition": user_operation.condition,
+                "bluesky_user_did": bsky_author_did,
+                "is_study_user": user_operation.is_study_user,
+            }
+        )
+    elif operation in ["delete"]:
+        res = manage_bsky_study_user(
+            payload={
+                "operation": "DELETE", "bluesky_user_did": bsky_author_did
+            }
+        )
+    return res
 
 
 @app.get('/xrpc/app.bsky.feed.describeFeedGenerator')
