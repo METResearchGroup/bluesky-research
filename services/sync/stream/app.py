@@ -1,7 +1,10 @@
+"""Flask app for connecting to the firehose data stream and running  pipeline."""
+
 import sys
 import signal
 import threading
 import time
+from typing import Optional
 
 from flask import Flask
 
@@ -10,14 +13,22 @@ from services.sync.stream.data_filter import operations_callback
 
 
 app = Flask(__name__)
-firehose_name = "firehose_stream"
+default_firehose_name = "firehose_stream"
 
 
-def start_app():
+def start_app(
+    firehose_name: Optional[str] = default_firehose_name,
+    restart_cursor: bool = False
+):
     start_time = time.time()
     stream_stop_event = threading.Event()
-    stream_args = (firehose_name, operations_callback, stream_stop_event)
-    stream_thread = threading.Thread(target=firehose.run, args=stream_args)
+    stream_kwargs = {
+        "name": firehose_name,
+        "operations_callback": operations_callback,
+        "stream_stop_event": stream_stop_event,
+        "restart_cursor": restart_cursor
+    }
+    stream_thread = threading.Thread(target=firehose.run, kwargs=stream_kwargs)
     print('Starting data stream...')
     # something like 3:49pm UTC
     start_time_str = time.strftime(

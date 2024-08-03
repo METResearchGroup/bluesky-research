@@ -90,20 +90,38 @@ def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict
     return operation_by_type
 
 
-def run(name, operations_callback, stream_stop_event=None):
+def run(
+    name,
+    operations_callback,
+    stream_stop_event=None,
+    restart_cursor: bool = False
+):
     while stream_stop_event is None or not stream_stop_event.is_set():
         try:
-            _run(name, operations_callback, stream_stop_event)
+            _run(
+                name=name,
+                operations_callback=operations_callback,
+                stream_stop_event=stream_stop_event,
+                restart_cursor=restart_cursor
+            )
         except FirehoseError as e:
             # here we can handle different errors to reconnect to firehose
             raise e
 
 
-def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
+def _run(
+    name,
+    operations_callback,
+    stream_stop_event=None,
+    restart_cursor: bool = False
+):
     """Run firehose stream."""
-    state: Optional[FirehoseSubscriptionStateCursorModel] = (
-        load_cursor_state_s3(service_name=name)
-    )
+    if not restart_cursor:
+        state: Optional[FirehoseSubscriptionStateCursorModel] = (
+            load_cursor_state_s3(service_name=name)
+        )
+    else:
+        state = None
 
     if state:
         params = models.ComAtprotoSyncSubscribeRepos.Params(cursor=state.cursor)  # noqa
@@ -143,7 +161,7 @@ def _run(name, operations_callback, stream_stop_event=None):  # noqa: C901
             if counter_value % cursor_update_frequency == 0:
                 print(f"Counter: {counter_value}")
                 print("Writing cached records to S3 and resetting cache...")
-                export_batch(external_store=["local", "s3"])
+                export_batch(external_store=["s3"])
                 print(f"Updating cursor state with cursor={counter_value}...")  # noqa
                 cursor_state = {
                     "service": name,

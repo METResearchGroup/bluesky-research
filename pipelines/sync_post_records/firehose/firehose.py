@@ -8,7 +8,7 @@ logger = Logger(__name__)
 def get_posts() -> None:
     logger.info("Getting posts from the firehose.")
     try:
-        start_app()
+        start_app(restart_cursor=True)
         logger.info("Successfully fetched posts from the firehose.")
     except Exception as e:
         logger.error(f"Error getting posts from the firehose: {e}")
