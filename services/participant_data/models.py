@@ -33,7 +33,7 @@ class UserToBlueskyProfileModel(BaseModel):
 class UserOperation(BaseModel):
     """Base class for controlling API operations that we can perform when
     adding a new user to the study.."""
-    operation: te.Literal["create", "update", "delete"]
+    operation: str = Field(..., description="The operation to perform.")
     condition: Optional[te.Literal[
         "reverse_chronological", "engagement", "representative_diversification"
     ]] = Field(..., description="The condition the user is in.")

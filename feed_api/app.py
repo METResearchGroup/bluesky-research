@@ -9,7 +9,7 @@ import logging
 import os
 from typing import Optional, Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from mangum import Mangum
@@ -97,9 +97,14 @@ async def manage_user(user_operation: UserOperation):
 
     Auth required with API key. Managed by API gateway.
     """
+    logger.info(f"User operation: {user_operation}")
     operation = user_operation.operation.lower()
-    if operation not in ["add", "modify", "delete"]:
-        raise HTTPException(status_code=400, detail="Invalid operation")
+    valid_operations = ["add", "modify", "delete"]
+    if operation not in valid_operations:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid operation: {operation} (only {valid_operations} allowed)"  # noqa
+        )
 
     profile_link = user_operation.bluesky_user_profile_link
 
@@ -130,7 +135,7 @@ async def manage_user(user_operation: UserOperation):
             status_code=400, detail="User already exists in study"
         )
     elif (
-        operation == "delete" or operation == "modify"
+        (operation == "delete" or operation == "modify")
         and bluesky_handle not in existing_study_user_bsky_handles
     ):
         raise HTTPException(
@@ -138,7 +143,13 @@ async def manage_user(user_operation: UserOperation):
         )
 
     # then, get info from Bluesky.
-    bsky_author_did = get_author_did_from_handle(bluesky_handle)
+    try:
+        bsky_author_did = get_author_did_from_handle(bluesky_handle)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error getting user information from Bluesky: {e}"
+        )
 
     if operation in ["add", "modify"]:
         res = manage_bsky_study_user(

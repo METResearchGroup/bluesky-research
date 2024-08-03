@@ -2,9 +2,8 @@ import boto3
 from botocore.exceptions import ClientError
 
 
-def get_secret():
+def get_secret(secret_name: str):
     """Get secret for website private key."""
-    secret_name = "website_private_key_pem"
     region_name = "us-east-2"
 
     # Create a Secrets Manager client
@@ -24,3 +23,4 @@ def get_secret():
         raise e
 
     secret = get_secret_value_response['SecretString']
+    return secret
