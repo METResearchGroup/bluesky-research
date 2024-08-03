@@ -91,7 +91,9 @@ class StudyUserManager:
     def _load_aws_data(self):
         """Load the study user data from AWS."""
         self.study_users_dids_set = self._load_study_user_dids()
-        self.post_uri_to_study_user_did_map = self._load_post_uri_to_study_user_did_map_from_s3()
+        self.post_uri_to_study_user_did_map = (
+            self._load_post_uri_to_study_user_did_map_from_s3()
+        )
 
     def _write_post_uri_to_study_user_did_map_to_s3(self):
         """Write the post_uri_to_study_user_did_map to S3."""

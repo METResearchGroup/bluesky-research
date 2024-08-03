@@ -51,6 +51,7 @@ from lib.constants import root_local_data_directory
 from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.db.manage_local_data import write_jsons_to_local_store
 from lib.helper import generate_current_datetime_str
+from services.participant_data.study_users import get_study_user_manager
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 root_write_path = os.path.join(current_file_directory, "cache")
@@ -113,6 +114,8 @@ s3 = S3()
 dynamodb = DynamoDB()
 
 SUBSCRIPTION_STATE_TABLE_NAME = "firehoseSubscriptionState"
+
+study_user_manager = get_study_user_manager()
 
 
 def rebuild_cache_paths():
@@ -495,7 +498,15 @@ def export_study_user_post(
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     full_path = os.path.join(folder_path, filename)
+
+    # export JSON file.
     write_data_to_json(data=record, path=full_path)
+
+    # update StudyUserManager store with new post.
+    study_user_manager.insert_study_user_post(
+        post_uri=record["uri"],
+        user_did=author_did
+    )
 
 
 def export_study_user_follow(
@@ -679,7 +690,3 @@ def export_study_user_data_local(
             filename=filename,
             user_post_type=kwargs.get("user_post_type")
         )
-
-
-def export_study_user_data_s3():
-    pass
