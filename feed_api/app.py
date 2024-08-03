@@ -55,10 +55,6 @@ async def get_api_key(api_key_header: Optional[str] = Security(api_key_header)):
         )
 
 
-print(f"API key: {API_KEY_NAME}")
-print(f"Required API key: {REQUIRED_API_KEY}")
-
-
 @app.middleware("http")
 async def log_request(request: Request, call_next):
     logger.info(f"Request method: {request.method}")
