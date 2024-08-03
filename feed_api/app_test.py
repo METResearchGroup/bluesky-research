@@ -5,12 +5,13 @@ import requests
 import base64
 
 root_url = "https://mindtechnologylab.com/"
+# root_url = "http://127.0.0.1:8000"
 endpoint = "manage_user"
 url = os.path.join(root_url, endpoint)
 
-# api_key = "your_secret_api_key"
+api_key = ""
 headers = {
-    # "x-api-key": api_key,
+    "bsky-internal-api-key": api_key,
     "Content-Type": "application/json"
 }
 # test_profile_link = "https://bsky.app/profile/jbouie.bsky.social" # this user is very active.
@@ -65,9 +66,13 @@ operation_to_payload_map = {
     "delete": base64_delete_user_payload
 }
 
-response = requests.post(
-    url=url, headers=headers, json=add_user_payload
-)
+request_args = {
+    "url": url, "headers": headers, "json": add_user_payload
+}
+
+print("Request args:", request_args)
+
+response = requests.post(**request_args)
 
 # breakpoint()
 print(response.status_code)

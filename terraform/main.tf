@@ -276,7 +276,10 @@ resource "aws_iam_policy" "lambda_access_policy" {
           "secretsmanager:GetSecretValue"
         ],
         Effect   = "Allow",
-        Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:bluesky_account_credentials-cX3wOk"
+        Resource = [
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:bluesky_account_credentials-cX3wOk",
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:bsky-internal-api-key-jNloNG"
+        ]
       },
       # Add DynamoDB policy
       {
@@ -285,6 +288,16 @@ resource "aws_iam_policy" "lambda_access_policy" {
         ],
         Effect   = "Allow",
         Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/study_participants"
+      },
+      # Add CloudWatch Logs policy
+      {
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Effect   = "Allow",
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.bsky_api_lambda_name}:*"
       }
     ]
   })
