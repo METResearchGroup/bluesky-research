@@ -9,7 +9,7 @@ from atproto_client.models.app.bsky.embed.external import External, Main as Exte
 from atproto_client.models.app.bsky.embed.images import Image, Main as ImageEmbed  # noqa
 from atproto_client.models.app.bsky.embed.record import Main as RecordEmbed
 from atproto_client.models.app.bsky.embed.record_with_media import Main as RecordWithMediaEmbed  # noqa
-from atproto_client.models.app.bsky.feed.post import Entity, Main as Record, ReplyRef  # noqa
+from atproto_client.models.app.bsky.feed.post import Entity, Record, ReplyRef
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, PostView
 from atproto_client.models.app.bsky.richtext.facet import Link, Main as Facet, Mention, Tag  # noqa
 from atproto_client.models.com.atproto.label.defs import SelfLabel, SelfLabels
@@ -480,6 +480,8 @@ def process_tags(tags: Optional[list[str]]) -> Optional[str]:
     return LIST_SEPARATOR_CHAR.join(tags)
 
 
+# NOTE: 'Main' refs were changed to 'Record'
+# https://github.com/MarshalX/atproto/pull/323
 def process_firehose_post(post: dict) -> Optional[TransformedRecordWithAuthorModel]:  # noqa
     """Processes a post from the firehose.
 
