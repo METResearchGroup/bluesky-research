@@ -255,6 +255,7 @@ resource "aws_iam_policy" "lambda_access_policy" {
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
+      # Add S3 policy
       {
         Action = [
           "s3:GetObject",
@@ -269,12 +270,21 @@ resource "aws_iam_policy" "lambda_access_policy" {
           "arn:aws:s3:::${var.s3_root_bucket_name}/*"
         ]
       },
+      # Add Secrets Manager policy
       {
         Action = [
           "secretsmanager:GetSecretValue"
         ],
         Effect   = "Allow",
         Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:bluesky_account_credentials-cX3wOk"
+      },
+      # Add DynamoDB policy
+      {
+        Action = [
+          "dynamodb:PutItem"
+        ],
+        Effect   = "Allow",
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/study_participants"
       }
     ]
   })
