@@ -1,7 +1,7 @@
 """Mock firehose data, useful for unit testing."""
 from atproto_client.models.app.bsky.graph.follow import Record as FollowRecord
 from atproto_client.models.app.bsky.feed.like import Record as LikeRecord
-from atproto_client.models.app.bsky.feed.post import Main as Record, ReplyRef
+from atproto_client.models.app.bsky.feed.post import Record, ReplyRef
 from atproto_client.models.com.atproto.repo.strong_ref import Main as StrongRef
 
 

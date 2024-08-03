@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from functools import wraps
+import json
 import logging
 from memory_profiler import memory_usage
 import os
@@ -10,6 +11,7 @@ import time
 
 from atproto import Client
 
+from lib.aws.secretsmanager import get_secret
 from lib.constants import timestamp_format
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
@@ -24,6 +26,17 @@ setup_env()
 
 BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_PASSWORD")
+
+if not BLUESKY_HANDLE or not BLUESKY_APP_PASSWORD:
+    print("Fetching secrets from AWS Secrets Manager instead of the env...")
+    bsky_credentials = json.loads(
+        get_secret("bluesky_account_credentials")
+    )
+    BLUESKY_HANDLE = bsky_credentials["bluesky_handle"]
+    BLUESKY_APP_PASSWORD = bsky_credentials["bluesky_password"]
+else:
+    print("Fetching secrets from the local env...")
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 NYTIMES_API_KEY = os.getenv("NYTIMES_KEY")
 HF_TOKEN = os.getenv("HF_TOKEN")

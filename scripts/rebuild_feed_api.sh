@@ -13,5 +13,5 @@ $SCRIPTS_DIR/deploy_image_to_ecr.sh feed_api
 
 # Update the lambda with the new image
 aws lambda update-function-code \
-    --function-name bsky-api-lambda-test \
+    --function-name bsky-api-lambda \
     --image-uri 517478598677.dkr.ecr.us-east-2.amazonaws.com/feed_api_service:latest

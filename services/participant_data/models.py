@@ -28,3 +28,16 @@ class UserToBlueskyProfileModel(BaseModel):
         True, description="Whether the user is a study user (as opposed to a mock user for testing purposes)"  # noqa
     )
     created_timestamp: str = Field(..., description="The timestamp when the user was created.")  # noqa
+
+
+class UserOperation(BaseModel):
+    """Base class for controlling API operations that we can perform when
+    adding a new user to the study.."""
+    operation: str = Field(..., description="The operation to perform.")
+    condition: Optional[te.Literal[
+        "reverse_chronological", "engagement", "representative_diversification"
+    ]] = Field(..., description="The condition the user is in.")
+    bluesky_user_profile_link: str = Field(..., description="The link to the user's profile in Bluesky.")  # noqa
+    is_study_user: Optional[bool] = Field(
+        default=True, description="Whether the user is a study user or a test user."  # noqa
+    )

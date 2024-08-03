@@ -173,6 +173,7 @@ cython_debug/
 *.tfstate
 *.tfstate.backup
 *cache*
+*.backup
 
 # secrets
 *.pem
