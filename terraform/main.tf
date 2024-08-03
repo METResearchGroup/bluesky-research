@@ -47,8 +47,10 @@ resource "aws_lambda_function" "bluesky_feed_api_lambda" {
   function_name = var.bsky_api_lambda_name
   role          = aws_iam_role.lambda_exec.arn
   package_type  = "Image"
-  image_uri = "${aws_ecr_repository.feed_api_service.repository_url}:latest"
+  image_uri     = "${aws_ecr_repository.feed_api_service.repository_url}:latest"
   architectures = ["arm64"] # since images are built locally with an M1 Mac.
+  timeout       = 15 # 15 second timeout.
+  memory_size   = 256
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -104,6 +106,7 @@ resource "aws_api_gateway_integration" "bluesky_feed_api_proxy_integration" {
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.bluesky_feed_api_lambda.invoke_arn
+  timeout_milliseconds    = 15000  # Set to 15 seconds, to match lambda.
 }
 
 # Deploy API

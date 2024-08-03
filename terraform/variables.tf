@@ -16,7 +16,7 @@ variable "s3_root_bucket_name" {
 variable "bsky_api_lambda_name" {
   description = "The name of the Bluesky API Lambda function"
   type        = string
-  default     = "bsky-api-lambda-test"
+  default     = "bsky-api-lambda"
 }
 
 variable "bsky_api_policy_name" {
