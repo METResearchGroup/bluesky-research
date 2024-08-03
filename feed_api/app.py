@@ -9,12 +9,14 @@ import logging
 import os
 from typing import Optional, Annotated
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from fastapi.security.api_key import APIKeyHeader
 from mangum import Mangum
 
 from lib.aws.s3 import S3
+from lib.aws.secretsmanager import get_secret
 from services.participant_data.helper import (
     get_all_users, manage_bsky_study_user
 )
@@ -35,6 +37,26 @@ app.add_middleware(
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+API_KEY_NAME = "bsky-internal-api-key"
+REQUIRED_API_KEY = json.loads(
+    get_secret("bsky-internal-api-key")
+)["BSKY_INTERNAL_API_KEY"]
+
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+
+async def get_api_key(api_key_header: Optional[str] = Security(api_key_header)):
+    if api_key_header == REQUIRED_API_KEY:
+        return api_key_header
+    else:
+        raise HTTPException(
+            status_code=403, detail="Could not validate credentials"
+        )
+
+
+print(f"API key: {API_KEY_NAME}")
+print(f"Required API key: {REQUIRED_API_KEY}")
 
 
 @app.middleware("http")
@@ -89,7 +111,7 @@ async def fetch_test_file_from_s3():
     }
 
 
-@app.post("/manage_user")
+@app.post("/manage_user", dependencies=[Security(get_api_key)])
 async def manage_user(user_operation: UserOperation):
     """Manage user operations.
 
