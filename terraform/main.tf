@@ -227,23 +227,18 @@ resource "aws_api_gateway_stage" "api_gateway_stage" {
   depends_on = [aws_api_gateway_account.api_gateway_account]
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_cloudwatch_logs" {
-  role       = aws_iam_role.lambda_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
 ### IAM Roles and Policies ###
 
 # Create IAM role for Lambda
 # https://spacelift.io/blog/terraform-aws-lambda
 resource "aws_iam_role" "lambda_exec" {
-  name = "LambdaS3AccessRole"
+  name = "LambdaAccessRole"
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version = "2012-10-17",
     Statement = [
       {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
+        Action = "sts:AssumeRole",
+        Effect = "Allow",
         Principal = {
           Service = "lambda.amazonaws.com"
         }
@@ -252,10 +247,10 @@ resource "aws_iam_role" "lambda_exec" {
   })
 }
 
-
-resource "aws_iam_policy" "lambda_s3_policy" {
-  name        = var.bsky_api_policy_name
-  description = "IAM policy for Bluesky API Lambda to access S3."
+# Define new IAM policy for Secrets Manager and S3
+resource "aws_iam_policy" "lambda_access_policy" {
+  name        = "LambdaSecretsAndS3Policy"
+  description = "IAM policy for Bluesky API Lambda to access S3 and Secrets Manager."
 
   policy = jsonencode({
     Version = "2012-10-17",
@@ -273,14 +268,28 @@ resource "aws_iam_policy" "lambda_s3_policy" {
           "arn:aws:s3:::${var.s3_root_bucket_name}",
           "arn:aws:s3:::${var.s3_root_bucket_name}/*"
         ]
+      },
+      {
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ],
+        Effect   = "Allow",
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:bluesky_account_credentials-cX3wOk"
       }
     ]
   })
 }
 
+# Attach the new policy to the Lambda execution role
 resource "aws_iam_role_policy_attachment" "lambda_attach_policy" {
   role       = aws_iam_role.lambda_exec.name
-  policy_arn = aws_iam_policy.lambda_s3_policy.arn
+  policy_arn = aws_iam_policy.lambda_access_policy.arn
+}
+
+# Attach existing policy for CloudWatch logs to the Lambda execution role
+resource "aws_iam_role_policy_attachment" "lambda_cloudwatch_logs" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = aws_iam_policy.lambda_access_policy.arn
 }
 
 # S3 bucket policy, to allow read access for lambda.
@@ -311,6 +320,5 @@ resource "aws_s3_bucket_policy" "bluesky_research_bucket_policy" {
     ]
   })
 }
-
 
 data "aws_caller_identity" "current" {}
