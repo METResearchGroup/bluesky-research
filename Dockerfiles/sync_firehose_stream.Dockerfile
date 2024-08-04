@@ -18,6 +18,10 @@ COPY transform/* ./transform/
 COPY services/participant_data/study_users.py ./services/participant_data/study_users.py
 COPY services/sync/stream/* ./services/sync/stream/
 COPY services/consolidate_post_records/* ./services/consolidate_post_records/
+COPY services/participant_data/helper.py ./services/participant_data/helper.py
+COPY services/participant_data/mock_users.py ./services/participant_data/mock_users.py
+COPY services/participant_data/models.py ./services/participant_data/models.py
+COPY services/participant_data/study_users.py ./services/participant_data/study_users.py
 
 WORKDIR /app/pipelines/sync_post_records/firehose
 
