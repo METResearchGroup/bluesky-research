@@ -18,6 +18,10 @@ resource "aws_ecr_repository" "add_users_to_study_service" {
   name = "add_users_to_study_service"
 }
 
+resource "aws_ecr_repository" "analytics_platform_service" {
+  name = "analytics_platform_service"
+}
+
 resource "aws_ecr_repository" "calculate_superposters_service" {
   name = "calculate_superposters_service"
 }
