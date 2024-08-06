@@ -68,6 +68,8 @@ resource "aws_lambda_function" "sync_most_liked_feed_lambda" {
   architectures = ["arm64"] # since images are built locally with an M1 Mac.
   timeout       = 15 # 15 second timeout.
   memory_size   = 256
+
+  depends_on = [aws_cloudwatch_log_group.sync_most_liked_feed_log_group]
 }
 
 ### API Gateway ###
@@ -238,6 +240,12 @@ resource "aws_api_gateway_stage" "api_gateway_stage" {
   }
 
   depends_on = [aws_api_gateway_account.api_gateway_account]
+}
+
+# CloudWatch log group for sync_most_liked_feed_lambda
+resource "aws_cloudwatch_log_group" "sync_most_liked_feed_log_group" {
+  name              = "/aws/lambda/sync_most_liked_feed_lambda"
+  retention_in_days = 14  # Adjust retention period as needed
 }
 
 ### Cloudwatch event triggering sync most liked feed lambda ###
