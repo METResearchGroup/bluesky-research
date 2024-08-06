@@ -250,7 +250,7 @@ resource "aws_cloudwatch_event_rule" "sync_most_liked_feed_rule" {
 # set lambda function as target for cloudwatch event
 resource "aws_cloudwatch_event_target" "sync_most_liked_feed_target" {
   rule    = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.name
-  arn     = aws_lambda_function.sync_most_liked_feed_lambda.invoke_arn
+  arn     = aws_lambda_function.sync_most_liked_feed_lambda.arn
 }
 
 # permission for cloudwatch event to invoke lambda
@@ -259,7 +259,7 @@ resource "aws_lambda_permission" "sync_most_liked_feed_lambda_permission" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.sync_most_liked_feed_lambda.function_name
   principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.execution_arn
+  source_arn    = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.arn
 }
 
 
