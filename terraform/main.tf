@@ -349,3 +349,186 @@ resource "aws_s3_bucket_policy" "bluesky_research_bucket_policy" {
 }
 
 data "aws_caller_identity" "current" {}
+
+### Elastic Beanstalk ###
+resource "aws_elastic_beanstalk_application" "analytics_platform" {
+  name        = "analytics-platform"
+  description = "Analytics Platform Streamlit App"
+}
+
+# Create a VPC
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = {
+    Name = "main-vpc"
+  }
+}
+
+# Create an Internet Gateway
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "main-igw"
+  }
+}
+
+# Create a public subnet
+resource "aws_subnet" "public" {
+  count                   = 2
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.${count.index + 1}.0/24"
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "public-subnet-${count.index + 1}"
+  }
+}
+
+# Create a private subnet
+resource "aws_subnet" "private" {
+  count             = 2
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.${count.index + 101}.0/24"
+  availability_zone = data.aws_availability_zones.available.names[count.index]
+
+  tags = {
+    Name = "private-subnet-${count.index + 1}"
+  }
+}
+
+# Create a route table for public subnets
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+
+  tags = {
+    Name = "public-route-table"
+  }
+}
+
+# Associate public subnets with the public route table
+resource "aws_route_table_association" "public" {
+  count          = 2
+  subnet_id      = aws_subnet.public[count.index].id
+  route_table_id = aws_route_table.public.id
+}
+
+# Get available AZs
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
+resource "aws_elastic_beanstalk_environment" "analytics_platform_env" {
+  name                = "analytics-platform-env"
+  application         = aws_elastic_beanstalk_application.analytics_platform.name
+  solution_stack_name = "64bit Amazon Linux 2023 v4.3.5 running Docker"
+
+  setting {
+    namespace = "aws:autoscaling:launchconfiguration"
+    name      = "IamInstanceProfile"
+    value     = aws_iam_instance_profile.eb_instance_profile.name
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:application:environment"
+    name      = "DOCKER_REGISTRY_URL"
+    value     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:application:environment"
+    name      = "DOCKER_IMAGE"
+    value     = "${aws_ecr_repository.analytics_platform_service.repository_url}:latest"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "EnvironmentType"
+    value     = "SingleInstance"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "LoadBalancerType"
+    value     = "application"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment:process:default"
+    name      = "Port"
+    value     = "8501"  # The port your Streamlit app is running on
+  }
+
+  # Add VPC configuration
+  setting {
+    namespace = "aws:ec2:vpc"
+    name      = "VPCId"
+    value     = aws_vpc.main.id
+  }
+
+  setting {
+    namespace = "aws:ec2:vpc"
+    name      = "Subnets"
+    value     = join(",", aws_subnet.private[*].id)
+  }
+
+  setting {
+    namespace = "aws:ec2:vpc"
+    name      = "ELBSubnets"
+    value     = join(",", aws_subnet.public[*].id)
+  }
+}
+
+# IAM role for Elastic Beanstalk EC2 instances
+resource "aws_iam_role" "eb_ec2_role" {
+  name = "eb-ec2-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# Attach policies to the Elastic Beanstalk EC2 role
+resource "aws_iam_role_policy_attachment" "eb_web_tier" {
+  policy_arn = "arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier"
+  role       = aws_iam_role.eb_ec2_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "eb_worker_tier" {
+  policy_arn = "arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier"
+  role       = aws_iam_role.eb_ec2_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "eb_ecr_read_only" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       = aws_iam_role.eb_ec2_role.name
+}
+
+# Create an instance profile for Elastic Beanstalk
+resource "aws_iam_instance_profile" "eb_instance_profile" {
+  name = "eb-instance-profile"
+  role = aws_iam_role.eb_ec2_role.name
+}
+
+# Output the URL of the deployed application
+output "analytics_platform_url" {
+  value = aws_elastic_beanstalk_environment.analytics_platform_env.cname
+}

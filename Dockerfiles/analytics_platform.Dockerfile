@@ -17,4 +17,8 @@ COPY pipelines/analytics_platform/app.py ./app.py
 EXPOSE 8501
 
 # Set the command to run the Streamlit app
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Set environment variable for Streamlit to run on 0.0.0.0
+ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
+
+# Use a shell to run the Streamlit app and make it accessible from outside the container
+CMD ["streamlit", "run", "--server.address", "0.0.0.0", "--server.port", "8501", "app.py"]
