@@ -43,6 +43,8 @@ resource "aws_ecr_repository" "sync_most_liked_feed_service" {
 }
 
 ### Lambdas ###
+
+# feed api lambda
 resource "aws_lambda_function" "bluesky_feed_api_lambda" {
   function_name = var.bsky_api_lambda_name
   role          = aws_iam_role.lambda_exec.arn
@@ -55,6 +57,17 @@ resource "aws_lambda_function" "bluesky_feed_api_lambda" {
   lifecycle {
     ignore_changes = [image_uri]
   }
+}
+
+# sync most liked feed lambda
+resource "aws_lambda_function" "sync_most_liked_feed_lambda" {
+  function_name = "sync_most_liked_feed_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.sync_most_liked_feed_service.repository_url}:latest"
+  architectures = ["arm64"] # since images are built locally with an M1 Mac.
+  timeout       = 15 # 15 second timeout.
+  memory_size   = 256
 }
 
 ### API Gateway ###
@@ -226,6 +239,30 @@ resource "aws_api_gateway_stage" "api_gateway_stage" {
 
   depends_on = [aws_api_gateway_account.api_gateway_account]
 }
+
+### Cloudwatch event triggering sync most liked feed lambda ###
+resource "aws_cloudwatch_event_rule" "sync_most_liked_feed_rule" {
+  name                = "trigger-most-liked-sync-daily"
+  description         = "Triggers the most liked sync Lambda function daily"
+  schedule_expression = "rate(24 hours)"
+}
+
+# set lambda function as target for cloudwatch event
+resource "aws_cloudwatch_event_target" "sync_most_liked_feed_target" {
+  rule    = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.name
+  arn     = aws_lambda_function.sync_most_liked_feed_lambda.invoke_arn
+}
+
+# permission for cloudwatch event to invoke lambda
+resource "aws_lambda_permission" "sync_most_liked_feed_lambda_permission" {
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.sync_most_liked_feed_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.execution_arn
+}
+
+
 
 ### IAM Roles and Policies ###
 

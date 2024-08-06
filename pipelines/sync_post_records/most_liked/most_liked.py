@@ -4,7 +4,7 @@ from services.sync.most_liked_posts.helper import main as get_most_liked_posts
 logger = Logger(__name__)
 
 
-def get_posts() -> None:
+def lambda_handler(event, context):
     logger.info("Getting posts from the most liked feed.")
     try:
         args = {
@@ -15,10 +15,13 @@ def get_posts() -> None:
         }
         get_most_liked_posts(**args)
         logger.info("Successfully got posts from the most liked feed.")
+        return {
+            'statusCode': 200,
+            'body': 'Successfully synced most liked posts'
+        }
     except Exception as e:
         logger.error(f"Error getting posts from the most liked feed: {e}")
-        raise
-
-
-if __name__ == "__main__":
-    get_posts()
+        return {
+            'statusCode': 500,
+            'body': f'Error: {str(e)}'
+        }
