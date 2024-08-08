@@ -24,10 +24,10 @@ from services.sync.stream.export_data import (
 # 50,000 posts, took about 2 hours to stream (3pm-5pm Eastern Time)
 # stream_limit = 250000
 # 150,000 posts expected.
-stream_limit = 750000
+# stream_limit = 750000
 
 # how often to (1) write to S3 and (2) update the cursor state
-cursor_update_frequency = 250
+cursor_update_frequency = 5000
 
 
 def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict:  # noqa
@@ -172,7 +172,7 @@ def _run(
                     FirehoseSubscriptionStateCursorModel(**cursor_state)
                 )
                 update_cursor_state_s3(cursor_state_model)
-            if counter.get_value() > stream_limit:
-                sys.exit(0)
+            # if counter.get_value() > stream_limit:
+            #     sys.exit(0)
 
     firehose_client.start(on_message_handler)

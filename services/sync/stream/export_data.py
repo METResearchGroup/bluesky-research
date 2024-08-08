@@ -44,6 +44,7 @@ import json
 import os
 import shutil
 from typing import Literal, Optional
+import uuid
 
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
@@ -168,7 +169,7 @@ def compress_cached_files_and_write_to_storage(
     partition_key = S3.create_partition_key_based_on_timestamp(
         timestamp_str=timestamp_str
     )
-    filename = f"{timestamp_str}.jsonl"
+    filename = f"{timestamp_str}-{str(uuid.uuid4())}.jsonl"
     s3_export_key = s3_export_key_map[operation][operation_type]
     full_key = os.path.join(s3_export_key, partition_key, filename)
     if external_store == "s3":
