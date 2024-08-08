@@ -26,8 +26,7 @@ COPY services/participant_data/study_users.py ./services/participant_data/study_
 
 WORKDIR /app/pipelines/sync_post_records/firehose
 
-RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install awscli==1.33.38
+RUN pip install --no-cache-dir -r requirements.txt && pip install awscli==1.33.38
 
 ENV PYTHONPATH=/app
 
