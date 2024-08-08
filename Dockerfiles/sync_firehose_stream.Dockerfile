@@ -1,7 +1,5 @@
 FROM python:3.10-slim
 
-RUN pip install awscli
-
 WORKDIR /app
 
 # add .env env vars to the container
@@ -29,6 +27,7 @@ COPY services/participant_data/study_users.py ./services/participant_data/study_
 WORKDIR /app/pipelines/sync_post_records/firehose
 
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install awscli==1.33.38
 
 ENV PYTHONPATH=/app
 
