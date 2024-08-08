@@ -1,5 +1,7 @@
 FROM python:3.10-slim
 
+RUN pip install awscli
+
 WORKDIR /app
 
 # add .env env vars to the container

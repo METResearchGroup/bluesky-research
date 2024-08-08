@@ -193,9 +193,11 @@ def process_facet(facet: Facet) -> str:
     features_list = []
 
     for feature in features:
+        # noticed a #Tag, so lowering manually to avoid errors while maintaining
+        # backwards compatibility.
         if (
             isinstance(feature, Tag)
-            or get_object_type_str(feature) == "app.bsky.richtext.facet#tag"
+            or get_object_type_str(feature).lower() == "app.bsky.richtext.facet#tag"
         ):
             features_list.append(process_hashtag(feature))
         elif (
