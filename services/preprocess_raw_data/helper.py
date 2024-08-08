@@ -67,9 +67,8 @@ def preprocess_latest_raw_data():
     if not previous_timestamp:
         previous_timestamp = default_latest_timestamp
 
-    # TODO: change to s3 later, after testing.
     latest_posts: list[ConsolidatedPostRecordModel] = load_latest_posts(
-        source="local", latest_preprocessing_timestamp=previous_timestamp
+        source="s3", latest_preprocessing_timestamp=previous_timestamp
     )
     latest_likes = load_latest_likes(
         source="s3", latest_preprocessing_timestamp=previous_timestamp
