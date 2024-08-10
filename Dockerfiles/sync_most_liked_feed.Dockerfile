@@ -11,6 +11,7 @@ COPY pipelines/sync_post_records/most_liked ./pipelines/sync_post_records/most_l
 COPY lib/aws/*.py ./lib/aws/
 COPY lib/constants.py ./lib/constants.py
 COPY lib/db/bluesky_models/* ./lib/db/bluesky_models/
+COPY lib/db/manage_local_data.py ./lib/db/manage_local_data.py
 COPY lib/db/mongodb.py ./lib/db/mongodb.py
 COPY lib/helper.py ./lib/helper.py
 COPY lib/log/logger.py ./lib/log/logger.py
@@ -27,10 +28,12 @@ COPY transform/* ./transform/
 
 WORKDIR /app/pipelines/sync_post_records/most_liked
 
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Make port 80 available to the world outside this container
-EXPOSE 80
+# install packages. Install fasttext from source to avoid dependency hell
+RUN apt update && apt install -y git g++ \
+    && pip install --no-cache-dir -r requirements.txt \
+    && git clone https://github.com/facebookresearch/fastText.git \
+    && cd fastText \
+    && pip install .
 
 ENV PYTHONPATH=/app
 

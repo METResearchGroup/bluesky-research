@@ -87,7 +87,7 @@ def get_and_transform_latest_most_liked_posts(
 
 
 def export_posts(
-    posts: Union[list[TransformedFeedViewPostModel], list[dict]],
+    new_posts: Union[list[ConsolidatedPostRecordModel], list[dict]],
     store_local: bool = True,
     store_remote: bool = True
 ) -> None:
@@ -95,8 +95,14 @@ def export_posts(
     timestamp_key = S3.create_partition_key_based_on_timestamp(
         timestamp_str=current_datetime_str
     )
-    if isinstance(posts[0], dict):
-        posts = [TransformedFeedViewPostModel(**post) for post in posts]
+    # transform the dicts to ConsolidatedPostRecordModels
+    # (not strictly necessary but done in case dicts are passed in, to ensure
+    # that the types are correct)
+    if isinstance(new_posts[0], dict):
+        posts = [ConsolidatedPostRecordModel(**post) for post in new_posts]
+    else:
+        posts: list[ConsolidatedPostRecordModel] = new_posts
+    consolidated_post_dicts = [post.dict() for post in posts]
     filename = "posts.jsonl"
     if store_local:
         full_export_filepath = os.path.join(
@@ -106,10 +112,6 @@ def export_posts(
             filename
         )
         print(f"Exporting most liked posts to local store at {full_export_filepath}")  # noqa
-        consolidated_posts: list[ConsolidatedPostRecordModel] = [
-            consolidate_feedview_post(post) for post in posts
-        ]
-        consolidated_post_dicts = [post.dict() for post in consolidated_posts]
         write_jsons_to_local_store(
             records=consolidated_post_dicts,
             export_filepath=full_export_filepath,
@@ -121,10 +123,6 @@ def export_posts(
             root_most_liked_s3_key, timestamp_key, filename
         )
         print(f"Exporting most liked posts to S3 at {full_key}")
-        consolidated_posts: list[ConsolidatedPostRecordModel] = [
-            consolidate_feedview_post(post) for post in posts
-        ]
-        consolidated_post_dicts = [post.dict() for post in consolidated_posts]
         s3.write_dicts_jsonl_to_s3(
             data=consolidated_post_dicts, key=full_key
         )
@@ -190,8 +188,10 @@ def main(
         ]
         post_dicts = [post.dict() for post in consolidated_posts]
         print(f"Exporting {len(post_dicts)} total posts...")
+    # NOTE: the type of the new_posts is dict but it's actually
+    # the ConsolidatedPostRecordModel as a dict.
     export_posts(
-        posts=post_dicts, store_local=store_local,
+        new_posts=post_dicts, store_local=store_local,
         store_remote=store_remote
     )
 

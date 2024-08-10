@@ -8,7 +8,7 @@ def get_posts() -> None:
     logger.info("Getting posts from the most liked feed.")
     try:
         args = {
-            "use_latest_local": True,
+            "use_latest_local": False,
             "store_local": True,
             "store_remote": True,
             "feeds": ["today"]
