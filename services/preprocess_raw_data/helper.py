@@ -59,10 +59,20 @@ def preprocess_latest_raw_data():
     previous_session_metadata: dict = load_previous_session_metadata()
     if previous_session_metadata:
         previous_timestamp = previous_session_metadata["current_preprocessing_timestamp"]  # noqa
+        # we don't want to process data too far back, we really care most
+        # about the most recent data. Can be changed later if needed, to
+        # support processing data further back.
+        if previous_timestamp < default_latest_timestamp:
+            print(f"Previous timestamp is too far back ({previous_timestamp}), setting to default latest timestamp: {default_latest_timestamp}")  # noqa
+            print(f"Number of default lookback days: {num_days_lookback}")
+            previous_timestamp = default_latest_timestamp
     else:
         previous_timestamp = None
 
     session_metadata: dict = init_session_data(previous_timestamp=previous_timestamp)  # noqa
+
+    print(f"Previous session metadata: {previous_session_metadata}")
+    print(f"Current session metadata: {session_metadata}")
 
     if not previous_timestamp:
         previous_timestamp = default_latest_timestamp
@@ -70,12 +80,18 @@ def preprocess_latest_raw_data():
     latest_posts: list[ConsolidatedPostRecordModel] = load_latest_posts(
         source="s3", latest_preprocessing_timestamp=previous_timestamp
     )
+    print(f"Loaded {len(latest_posts)} posts from S3.")
     latest_likes = load_latest_likes(
         source="s3", latest_preprocessing_timestamp=previous_timestamp
     )
+    print(f"Loaded {len(latest_likes)} likes from S3.")
     latest_follows = load_latest_follows(
         source="s3", latest_preprocessing_timestamp=previous_timestamp
     )
+    print(f"Loaded {len(latest_follows)} follows from S3.")
+    # TODO: preprocess study posts
+
+    breakpoint()
 
     # we export only the posts that have passed preprocessing
     passed_posts, posts_metadata = (
@@ -89,12 +105,17 @@ def preprocess_latest_raw_data():
     session_metadata["num_raw_records"]["likes"] = likes_metadata["num_likes"]
     session_metadata["num_raw_records"]["follows"] = follows_metadata["num_follows"]
 
+    print(f"Final session metadata: {session_metadata}")
+
     export_latest_preprocessed_posts(
         latest_posts=passed_posts,
         session_metadata=session_metadata,
-        external_stores=["local", "s3"]
+        external_stores=["s3"]
     )
     export_latest_likes(preprocessed_likes)
     export_latest_follows(preprocessed_follows)
+
+    breakpoint()
+
     export_session_metadata(session_metadata)
     print(f"Preprocessing completed at {current_datetime_str}.")

@@ -49,18 +49,19 @@ def load_latest_firehose_posts(
     # NOTE: partitioning on year/month/day/hour/minute makes this much more
     # efficient since we get more fine-grained control over which files to load
     if source == "s3":
-        keys = s3.list_keys_given_prefix(prefix=posts_sync_key)
+        keys = s3.list_keys_given_prefix(prefix=posts_sync_key)  # NOTE: unpaginated.
         keys = [
             key for key in keys
             if key > os.path.join(posts_sync_key, latest_partition_timestamp)
         ]
+        logger.info(f"Found {len(keys)} keys to load for {posts_sync_key}")
         if not keys:
             logger.warning(f"No new posts to load for {posts_sync_key}")
             return []
         jsonl_data: list[dict] = []
         for key in keys:
-            data = s3.read_jsonl_from_s3(key)
-            jsonl_data.extend(data[0])
+            data: list[dict] = s3.read_jsonl_from_s3(key)
+            jsonl_data.extend(data)
     elif source == "local":
         full_import_filedir = os.path.join(root_local_data_directory, posts_sync_key)  # noqa
 
@@ -135,16 +136,18 @@ def load_latest_posts(
     res: list[ConsolidatedPostRecordModel] = []
     for source_feed in source_feeds:
         if source_feed == "firehose":
-            posts = load_latest_firehose_posts(
+            posts: list[ConsolidatedPostRecordModel] = load_latest_firehose_posts(
                 source=source,
                 latest_preprocessing_timestamp=latest_preprocessing_timestamp
             )
+            logger.info(f"Loaded {len(posts)} posts from firehose")
             res.extend(posts)
         elif source_feed == "most_liked":
-            posts = load_latest_most_liked_posts(
+            posts: list[ConsolidatedPostRecordModel] = load_latest_most_liked_posts(
                 source=source,
                 latest_preprocessing_timestamp=latest_preprocessing_timestamp
             )
+            logger.info(f"Loaded {len(posts)} posts from most liked")
             res.extend(posts)
     return res
 
