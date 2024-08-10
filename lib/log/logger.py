@@ -60,6 +60,7 @@ def get_logger(filename_dunder: str) -> Logger:
     root_idx = [
         idx for idx, word in enumerate(split_fp)
         if word == "bluesky-research" or word == "bluesky_research"
-    ][0]
+    ]
+    root_idx = root_idx[0] if root_idx else 0
     joined_fp = '/'.join(word for word in split_fp[root_idx:])
     return Logger(name=joined_fp)

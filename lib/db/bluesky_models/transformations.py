@@ -33,7 +33,7 @@ class TransformedRecordModel(BaseModel):
     reply_parent: Optional[str] = Field(default=None, description="The parent post that the record is responding to in the thread, if any.")  # noqa
     reply_root: Optional[str] = Field(default=None, description="The root post of the thread, if any.")  # noqa
     tags: Optional[str] = Field(default=None, description="The tags of the record, if any.")  # noqa
-    py_type: te.Literal["app.bsky.feed.post"] = Field(default="app.bsky.feed.post", frozen=True)  # noqa
+    py_type: Optional[te.Literal["app.bsky.feed.post"]] = Field(default="app.bsky.feed.post", frozen=True)  # noqa
 
 
 class PostMetadataModel(BaseModel):
