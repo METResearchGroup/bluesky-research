@@ -345,3 +345,47 @@ resource "aws_s3_bucket_policy" "bluesky_research_bucket_policy" {
 }
 
 data "aws_caller_identity" "current" {}
+
+### SQS Queue ###
+resource "aws_sqs_queue" "syncs_to_be_processed_queue" {
+  name                      = "syncsToBeProcessedQueue.fifo"
+  fifo_queue                = true
+  content_based_deduplication = true
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.dead_letter_queue.arn
+    maxReceiveCount     = 5
+  })
+}
+
+resource "aws_sqs_queue" "dead_letter_queue" {
+  name = "syncsToBeProcessedDLQ.fifo"
+  fifo_queue = true
+}
+
+### IAM Policies for SQS ###
+resource "aws_iam_role_policy" "lambda_sqs_policy" {
+  name   = "LambdaSQSPolicy"
+  role   = aws_iam_role.lambda_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = [
+          "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes"
+        ],
+        Effect   = "Allow",
+        Resource = aws_sqs_queue.syncs_to_be_processed_queue.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_attach_sqs_policy" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = aws_iam_policy.lambda_access_policy.arn
+}
