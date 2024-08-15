@@ -7,7 +7,9 @@ from lib.constants import current_datetime_str
 from lib.log.logger import get_logger
 
 queue_to_queue_url_map = {
-    "syncsToBeProcessedQueue": "https://sqs.us-east-2.amazonaws.com/517478598677/syncsToBeProcessedQueue.fifo"  # noqa
+    "syncsToBeProcessedQueue": "https://sqs.us-east-2.amazonaws.com/517478598677/syncsToBeProcessedQueue.fifo",  # noqa
+    "firehoseSyncsToBeProcessedQueue": "https://sqs.us-east-2.amazonaws.com/517478598677/firehoseSyncsToBeProcessedQueue.fifo",  # noqa
+    "mostLikedSyncsToBeProcessedQueue": "https://sqs.us-east-2.amazonaws.com/517478598677/mostLikedSyncsToBeProcessedQueue.fifo",  # noqa
 }
 
 

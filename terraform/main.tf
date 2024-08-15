@@ -412,6 +412,39 @@ resource "aws_sqs_queue" "dead_letter_queue" {
   fifo_queue = true
 }
 
+resource "aws_sqs_queue" "firehose_syncs_to_be_processed_queue" {
+  name                      = "firehoseSyncsToBeProcessedQueue.fifo"
+  fifo_queue                = true
+  content_based_deduplication = true
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.firehose_dead_letter_queue.arn
+    maxReceiveCount     = 5
+  })
+}
+
+resource "aws_sqs_queue" "firehose_dead_letter_queue" {
+  name = "firehoseSyncsToBeProcessedDLQ.fifo"
+  fifo_queue = true
+}
+
+resource "aws_sqs_queue" "most_liked_syncs_to_be_processed_queue" {
+  name                      = "mostLikedSyncsToBeProcessedQueue.fifo"
+  fifo_queue                = true
+  content_based_deduplication = true
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.most_liked_dead_letter_queue.arn
+    maxReceiveCount     = 5
+  })
+}
+
+resource "aws_sqs_queue" "most_liked_dead_letter_queue" {
+  name = "mostLikedSyncsToBeProcessedDLQ.fifo"
+  fifo_queue = true
+}
+
+
 ### IAM Policies for SQS ###
 resource "aws_iam_role_policy" "lambda_sqs_policy" {
   name   = "LambdaSQSPolicy"

@@ -6,6 +6,7 @@ from typing import Union
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost
 
 from lib.aws.s3 import S3, SYNC_KEY_ROOT
+from lib.aws.sqs import SQS
 from lib.constants import current_datetime_str, root_local_data_directory
 from lib.db.bluesky_models.transformations import (
     TransformedFeedViewPostModel, TransformedRecordModel
@@ -19,6 +20,8 @@ from transform.bluesky_helper import get_posts_from_custom_feed_url
 from transform.transform_raw_data import transform_feedview_posts
 
 s3 = S3()
+sqs = SQS("syncsToBeProcessedQueue")
+
 
 feed_to_info_map = {
     "today": {
@@ -173,6 +176,16 @@ def main(
     store_remote: bool = True,
     feeds: list[str] = ["today", "week"]
 ) -> None:
+    # TODO: test if SQS queue is working.
+    sqs_data_payload = {
+        "sync": {
+            "most_liked_feed": {
+                "s3_key": "sync/most_liked_posts/year=2024/month=08/day=10/hour=17/minute=08/posts.jsonl"
+            }
+        }
+    }
+    sqs.send_message(source="mostLikedSyncsToBeProcessedQueue", data=sqs_data_payload)
+    breakpoint()
     if use_latest_local:
         post_dicts: list[dict] = filter_most_recent_local_syncs(
             n_latest_local=n_latest_local
