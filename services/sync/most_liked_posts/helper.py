@@ -13,6 +13,7 @@ from lib.db.bluesky_models.transformations import (
 )
 from lib.db.manage_local_data import write_jsons_to_local_store
 from lib.db.mongodb import get_mongodb_collection
+from lib.log.logger import get_logger
 from services.consolidate_post_records.helper import consolidate_feedview_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.preprocess_raw_data.classify_language.helper import record_is_english  # noqa
@@ -20,7 +21,9 @@ from transform.bluesky_helper import get_posts_from_custom_feed_url
 from transform.transform_raw_data import transform_feedview_posts
 
 s3 = S3()
-sqs = SQS("syncsToBeProcessedQueue")
+sqs = SQS("mostLikedSyncsToBeProcessedQueue")
+
+logger = get_logger(__name__)
 
 
 feed_to_info_map = {
@@ -92,9 +95,14 @@ def get_and_transform_latest_most_liked_posts(
 def export_posts(
     new_posts: Union[list[ConsolidatedPostRecordModel], list[dict]],
     store_local: bool = True,
-    store_remote: bool = True
+    store_remote: bool = True,
+    send_sqs_message: bool = True
 ) -> None:
-    """Export the posts to a file, either locally as a JSON or remote in S3."""
+    """Export the posts to a file, either locally as a JSON or remote in S3.
+
+    Also sends a message to the SQS queue if the posts are stored remotely, so
+    that the posts are processed by the next service.
+    """
     timestamp_key = S3.create_partition_key_based_on_timestamp(
         timestamp_str=current_datetime_str
     )
@@ -130,6 +138,16 @@ def export_posts(
             data=consolidated_post_dicts, key=full_key
         )
         print(f"Exported {len(posts)} posts to S3 at {full_key}")
+    if send_sqs_message and store_remote:
+        # kick off SQS queue (only if files are written to S3)
+        logger.info(f"Sending message to SQS queue from most_liked feed for new posts at key={full_key}")  # noqa
+        sqs_data_payload = {
+            "sync": {
+                "most_liked_feed": {"s3_key": full_key}
+            }
+        }
+        custom_log = f"Sending message to SQS queue from most_liked feed for new posts at key={full_key}"  # noqa
+        sqs.send_message(source="most_liked_feed", data=sqs_data_payload, custom_log=custom_log)
 
 
 def load_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:
@@ -176,16 +194,6 @@ def main(
     store_remote: bool = True,
     feeds: list[str] = ["today", "week"]
 ) -> None:
-    # TODO: test if SQS queue is working.
-    sqs_data_payload = {
-        "sync": {
-            "most_liked_feed": {
-                "s3_key": "sync/most_liked_posts/year=2024/month=08/day=10/hour=17/minute=08/posts.jsonl"
-            }
-        }
-    }
-    sqs.send_message(source="mostLikedSyncsToBeProcessedQueue", data=sqs_data_payload)
-    breakpoint()
     if use_latest_local:
         post_dicts: list[dict] = filter_most_recent_local_syncs(
             n_latest_local=n_latest_local

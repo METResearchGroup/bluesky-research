@@ -20,12 +20,18 @@ class SQS:
     """Wrapper class for all SQS interactions."""
 
     def __init__(self, queue: str):
+        self._validate_queue(queue)
         queue_url = queue_to_queue_url_map[queue]
+        self.queue = queue
         self.queue_url = queue_url
         self.client = create_client("sqs")
 
+    def _validate_queue(self, queue: str):
+        if queue not in queue_to_queue_url_map:
+            raise ValueError(f"Invalid queue name: {queue}")
+
     @retry_on_aws_rate_limit
-    def send_message(self, source: str, data: dict):
+    def send_message(self, source: str, data: dict, custom_log: Optional[str] = None):
         """Send a message to the queue."""
         payload = {
             "source": source,
@@ -40,11 +46,13 @@ class SQS:
             # group, so that they're processed in order.
             MessageGroupId=source
         )
+        if custom_log:
+            logger.info(custom_log)
 
     @retry_on_aws_rate_limit
     def receive_latest_messages(
         self,
-        queue: str,
+        queue: Optional[str] = None,
         max_num_messages: Optional[int] = None,
         latest_timestamp: Optional[str] = None
     ):
@@ -55,23 +63,31 @@ class SQS:
         a timestamp greater than the latest timestamp, it will not be
         processed in that round.
         """
+        if queue:
+            self._validate_queue(queue)
+        else:
+            queue = self.queue
+        queue_url = queue_to_queue_url_map[queue]
         if not latest_timestamp:
             logger.warning(
                 f"No latest timestamp provided, using current timestamp of {current_datetime_str}"  # noqa
             )
             latest_timestamp = current_datetime_str
-        queue_url = queue_to_queue_url_map[queue]
         if max_num_messages is not None:
+            logger.info(
+                f"Attempting to receive a maximum of {max_num_messages} messages from the queue {queue}"  # noqa
+            )
             response = self.client.receive_message(
                 QueueUrl=queue_url,
                 MaxNumberOfMessages=max_num_messages,
                 MessageAttributeNames=["All"]
             )
         else:
+            logger.info(f"Receiving all messages from the queue {queue}")
             response = self.client.receive_message(
                 QueueUrl=queue_url,
                 AttributeNames=["All"],
-                MessageSystemAttributeNames=["All"]
+                MessageAttributeNames=["All"]
             )
         messages = response["Messages"]
         res: list[dict] = []
@@ -110,10 +126,9 @@ class SQS:
 
 
 if __name__ == "__main__":
-    sqs = SQS("syncsToBeProcessedQueue")
-    sqs.send_message(source="test-feed", data={"test": "test"})
-    messages: list[dict] = sqs.receive_latest_messages(
-        queue="syncsToBeProcessedQueue"
-    )
+    sqs = SQS("mostLikedSyncsToBeProcessedQueue")
+    # sqs = SQS("syncsToBeProcessedQueue")
+    # sqs.send_message(source="test-feed", data={"test": "test"})
+    messages: list[dict] = sqs.receive_latest_messages()
     print(len(messages))
-    sqs.delete_messages(messages)
+    # sqs.delete_messages(messages)
