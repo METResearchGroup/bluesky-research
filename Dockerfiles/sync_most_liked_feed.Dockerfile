@@ -29,11 +29,12 @@ COPY transform/* ./transform/
 WORKDIR /app/pipelines/sync_post_records/most_liked
 
 # install packages. Install fasttext from source to avoid dependency hell
-RUN apt update && apt install -y git g++ \
+# hadolint ignore=DL3003,DL3027
+RUN apt update && apt install -y git g++ \ 
     && pip install --no-cache-dir -r requirements.txt \
     && git clone https://github.com/facebookresearch/fastText.git \
     && cd fastText \
-    && pip install .
+    && pip install . --no-cache-dir
 
 ENV PYTHONPATH=/app
 

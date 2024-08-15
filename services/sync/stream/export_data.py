@@ -52,7 +52,10 @@ from lib.constants import root_local_data_directory
 from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.db.manage_local_data import write_jsons_to_local_store
 from lib.helper import generate_current_datetime_str
+from lib.log.logger import get_logger
 from services.participant_data.study_users import get_study_user_manager
+
+logger = get_logger(__name__)
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 root_write_path = os.path.join(current_file_directory, "cache")
@@ -227,7 +230,7 @@ def export_study_user_post_s3(base_path: str):
             data = json.load(f)
             s3.write_dict_json_to_s3(data=data, key=full_key)
 
-    print(f"Exported {len(posts_filenames)} post records to S3 for study user DID {key_root[1]}.")  # noqa
+    logger.info(f"Exported {len(posts_filenames)} post records to S3 for study user DID {key_root[1]}.")  # noqa
 
 
 def export_study_user_follow_s3(base_path: str):
@@ -259,7 +262,7 @@ def export_study_user_follow_s3(base_path: str):
                 s3.write_dict_json_to_s3(data=data, key=full_key)
             total_records += 1
 
-    print(f"Exported {total_records} follow records to S3 for study user DID {key_root[1]}.")  # noqa
+    logger.info(f"Exported {total_records} follow records to S3 for study user DID {key_root[1]}.")  # noqa
 
 
 def export_study_user_like_s3(base_path: str):
@@ -295,7 +298,7 @@ def export_study_user_like_s3(base_path: str):
                 s3.write_dict_json_to_s3(data=data, key=full_key)
             total_records += 1
 
-    print(f"Exported {total_records} like records to S3 for study user DID {key_root[1]}.")  # noqa
+    logger.info(f"Exported {total_records} like records to S3 for study user DID {key_root[1]}.")  # noqa
 
 
 def export_like_on_study_user_post_s3(base_path: str):
@@ -326,7 +329,7 @@ def export_like_on_study_user_post_s3(base_path: str):
                 s3.write_dict_json_to_s3(data=data, key=full_key)
             total_records += 1
 
-    print(f"Exported {total_records} like on user post records to S3 for study user DID {key_root[1]}.")  # noqa
+    logger.info(f"Exported {total_records} like on user post records to S3 for study user DID {key_root[1]}.")  # noqa
 
 
 def export_reply_to_study_user_post_s3(base_path: str):
@@ -363,7 +366,7 @@ def export_reply_to_study_user_post_s3(base_path: str):
                 s3.write_dict_json_to_s3(data=data, key=full_key)
             total_records += 1
 
-    print(f"Exported {total_records} reply to user post records to S3 for study user DID {key_root[1]}.")  # noqa
+    logger.info(f"Exported {total_records} reply to user post records to S3 for study user DID {key_root[1]}.")  # noqa
 
 
 def export_study_user_activity_local_data():
@@ -380,7 +383,7 @@ def export_study_user_activity_local_data():
     """
     study_users = os.listdir(study_user_activity_root_local_path)
     for author_did in study_users:
-        print(f"Exporting study user activity data for author DID {author_did}.")  # noqa
+        logger.info(f"Exporting study user activity data for author DID {author_did}.")  # noqa
         author_path = os.path.join(study_user_activity_root_local_path, author_did)
         for operation in ["create", "delete"]:
             if operation == "create":
