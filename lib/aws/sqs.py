@@ -2,12 +2,16 @@
 import json
 from typing import Optional
 
-from lib.constants import current_datetime_str
 from lib.aws.helper import create_client, retry_on_aws_rate_limit
+from lib.constants import current_datetime_str
+from lib.log.logger import get_logger
 
 queue_to_queue_url_map = {
     "syncsToBeProcessedQueue": "https://sqs.us-east-2.amazonaws.com/517478598677/syncsToBeProcessedQueue.fifo"  # noqa
 }
+
+
+logger = get_logger(__name__)
 
 
 class SQS:
@@ -49,6 +53,11 @@ class SQS:
         a timestamp greater than the latest timestamp, it will not be
         processed in that round.
         """
+        if not latest_timestamp:
+            logger.warning(
+                f"No latest timestamp provided, using current timestamp of {current_datetime_str}"  # noqa
+            )
+            latest_timestamp = current_datetime_str
         queue_url = queue_to_queue_url_map[queue]
         if max_num_messages is not None:
             response = self.client.receive_message(
@@ -60,33 +69,42 @@ class SQS:
             response = self.client.receive_message(
                 QueueUrl=queue_url,
                 AttributeNames=["All"],
-                MessageSystemAttributeNames=["All"],
-                # MessageAttributeNames=["All"]
+                MessageSystemAttributeNames=["All"]
             )
         messages = response["Messages"]
         res: list[dict] = []
         for message in messages:
-            breakpoint()
-            message_dict = json.loads(message)
-            if message.get("insert_timestamp") > latest_timestamp:
+            message["Body"] = json.loads(message["Body"])
+            if message["Body"].get("insert_timestamp") > latest_timestamp:
+                logger.info(
+                    f"Message with insert timestamp {message['Body'].get('insert_timestamp')} is "  # noqa
+                    f"greater than latest timestamp {latest_timestamp}, skipping this message"  # noqa
+                    "as well as all subsequent messages"  # noqa
+                )
                 break
             res.append(message)
-
+        logger.info(f"Received {len(res)} messages from the queue {queue}")
         return res
 
     def delete_messages(self, messages: list[dict]):
         """Delete messages from the queue."""
+        total_messages_deleted = 0
         for message in messages:
             self.client.delete_message(
                 QueueUrl=self.queue_url,
                 ReceiptHandle=message['ReceiptHandle']
             )
+            total_messages_deleted += 1
+        logger.info(
+            f"Deleted {total_messages_deleted} latest messages from the queue"
+        )
 
 
 if __name__ == "__main__":
     sqs = SQS("syncsToBeProcessedQueue")
     sqs.send_message(source="test-feed", data={"test": "test"})
-    messages = sqs.receive_latest_messages(
+    messages: list[dict] = sqs.receive_latest_messages(
         queue="syncsToBeProcessedQueue"
     )
-    print(messages)
+    print(len(messages))
+    sqs.delete_messages(messages)
