@@ -10,8 +10,7 @@ chmod 400 firehoseSyncEc2Key.pem
 
 # 2. SSH into the instance
 # replace with the correct instance address
-ssh -i "firehoseSyncEc2Key.pem" ec2-user@ec2-18-188-39-255.us-east-2.compute.amazonaws.com
-
+ssh -i "firehoseSyncEc2Key.pem" ec2-user@ec2-18-222-193-178.us-east-2.compute.amazonaws.com
 # 3. Basic setup
 sudo yum update -y
 sudo yum install git -y
@@ -22,8 +21,7 @@ sudo usermod -a -G docker ec2-user
 
 # exit instance, then SSH back in
 exit
-ssh -i "firehoseSyncEc2Key.pem" ec2-user@ec2-18-188-39-255.us-east-2.compute.amazonaws.com
-
+ssh -i "firehoseSyncEc2Key.pem" ec2-user@ec2-18-222-193-178.us-east-2.compute.amazonaws.com
 # install Github CLI: https://github.com/cli/cli/blob/trunk/docs/install_linux.md#amazon-linux-2-yum
 type -p yum-config-manager >/dev/null || sudo yum install yum-utils
 sudo yum-config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
