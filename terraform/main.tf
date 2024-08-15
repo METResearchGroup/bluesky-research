@@ -345,3 +345,53 @@ resource "aws_s3_bucket_policy" "bluesky_research_bucket_policy" {
 }
 
 data "aws_caller_identity" "current" {}
+
+# add IAM policy for CloudWatch agent for EC2 instances
+resource "aws_iam_role" "cloudwatch_ec2_instance_agent_role" {
+  name = "CloudWatchAgentServerRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy" "cloudwatch_agent_policy" {
+  name        = "CloudWatchAgentPolicy"
+  description = "IAM policy for CloudWatch Agent to access CloudWatch Logs."
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams",
+          "logs:DescribeLogGroups"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "cloudwatch_agent_attach_policy" {
+  role       = aws_iam_role.cloudwatch_ec2_instance_agent_role.name
+  policy_arn = aws_iam_policy.cloudwatch_agent_policy.arn
+}
+
+resource "aws_iam_instance_profile" "cloudwatch_agent_instance_profile" {
+  name = "CloudWatchAgentInstanceProfile"
+  role = aws_iam_role.cloudwatch_ec2_instance_agent_role.name
+}
