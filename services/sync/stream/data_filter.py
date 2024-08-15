@@ -12,6 +12,7 @@ from lib.db.bluesky_models.raw import (
     RawFollow, RawFollowRecord, RawLike, RawLikeRecord
 )
 from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel  # noqa
+from lib.log.logger import get_logger
 from services.sync.stream.export_data import (
     export_filepath_map, export_study_user_data_local, write_data_to_json
 )
@@ -22,6 +23,8 @@ from transform.transform_raw_data import process_firehose_post
 
 
 study_user_manager = get_study_user_manager()
+
+logger = get_logger(__name__)
 
 
 def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
@@ -65,7 +68,7 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
         # Case 1: the user is the one who likes a post.
         is_study_user = study_user_manager.is_study_user(user_did=like_author_did)
         if is_study_user:
-            print(f"Exporting like data for user {like_author_did}")
+            logger.info(f"Exporting like data for user {like_author_did}")
             export_study_user_data_local(
                 record=like_model_dict,
                 record_type="like",
@@ -82,7 +85,7 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
             post_uri=raw_liked_record_model.subject.uri
         )  # checks the author of a post that was liked and checks to see if it's a user in the study # noqa
         if liked_post_is_study_user_post:
-            print(f"Exporting like data for post {raw_liked_record_model.subject.uri}")
+            logger.info(f"Exporting like data for post {raw_liked_record_model.subject.uri}")
             export_study_user_data_local(
                 record=like_model_dict,
                 record_type="like_on_user_post",
@@ -173,7 +176,7 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
             # someone can follow someone else in the study, in which case both
             # the follower and followee need to be registered.
             if user_is_follower:
-                print(f"User {follower_did} followed a new account, {followee_did}.")  # noqa
+                logger.info(f"User {follower_did} followed a new account, {followee_did}.")  # noqa
                 export_study_user_data_local(
                     record=follow_model_dict,
                     record_type="follow",
@@ -183,7 +186,7 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
                     kwargs={"follow_status": "follower"}
                 )
             if user_is_followee:
-                print(f"User {followee_did} was followed by a new account, {follower_did}.")  # noqa
+                logger.info(f"User {followee_did} was followed by a new account, {follower_did}.")  # noqa
                 export_study_user_data_local(
                     record=follow_model_dict,
                     record_type="follow",
@@ -264,7 +267,7 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
         # Case 1: Check if the post was written by the study user.
         is_study_user = study_user_manager.is_study_user(user_did=author_did)
         if is_study_user:
-            print(f"Study user {author_did} created a new post: {post_uri_suffix}")  # noqa
+            logger.info(f"Study user {author_did} created a new post: {post_uri_suffix}")  # noqa
             export_study_user_data_local(
                 record=consolidated_post_dict,
                 record_type="post",
@@ -294,7 +297,7 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
             )
 
             if post_is_reply_to_study_user_post:
-                print(f"Post {post_uri_suffix} is a reply to a post by a study user.")
+                logger.info(f"Post {post_uri_suffix} is a reply to a post by a study user.")
                 export_study_user_data_local(
                     record=consolidated_post_dict,
                     record_type="reply_to_user_post",
@@ -385,5 +388,5 @@ def operations_callback(operations_by_type: dict) -> bool:
         manage_follows(follows=operations_by_type["follows"])
         return True
     except Exception as e:
-        print(f"Error in exporting latest writes to cache: {e}")
+        logger.info(f"Error in exporting latest writes to cache: {e}")
         raise e
