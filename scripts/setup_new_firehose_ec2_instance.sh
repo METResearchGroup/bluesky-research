@@ -31,6 +31,23 @@ sudo service docker start
 # sudo service docker start
 sudo usermod -a -G docker ec2-user
 
+# Configure Docker log rotation. This is so that we don't accumulate a ton of
+# logs in the EC2 instance. We're not using a large instance, so we do need to
+# limit the amount of space we're using. The logs are stored in Cloudwatch, so
+# we don't need to worry about filling up the disk.
+sudo tee /etc/docker/daemon.json > /dev/null <<EOL
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOL
+
+# Restart Docker to apply the new configuration
+sudo systemctl restart docker
+
 # exit instance, then SSH back in
 exit
 ssh -i "firehoseSyncEc2Key.pem" ec2-user@ec2-3-129-70-136.us-east-2.compute.amazonaws.com# install Github CLI: https://github.com/cli/cli/blob/trunk/docs/install_linux.md#amazon-linux-2-yum
