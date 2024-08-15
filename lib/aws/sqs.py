@@ -99,6 +99,13 @@ class SQS:
             f"Deleted {total_messages_deleted} latest messages from the queue"
         )
 
+    def clear_messages_in_queue(self):
+        """Clear all messages in the queue."""
+        logger.warning(
+            f"Clearing all messages in the queue {self.queue_url}. DESTRUCTIVE."
+        )
+        self.client.purge_queue(QueueUrl=self.queue_url)
+
 
 if __name__ == "__main__":
     sqs = SQS("syncsToBeProcessedQueue")
