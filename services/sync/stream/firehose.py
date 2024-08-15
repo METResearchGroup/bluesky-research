@@ -2,7 +2,6 @@
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_stream.py
 """  # noqa
-import sys
 from typing import Optional
 
 from atproto import (
@@ -13,6 +12,7 @@ from atproto.exceptions import FirehoseError
 
 from lib.constants import current_datetime_str
 from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
+from lib.log.logger import get_logger
 from lib.helper import ThreadSafeCounter
 from services.sync.stream.export_data import (
     load_cursor_state_s3, update_cursor_state_s3, export_batch
@@ -28,6 +28,8 @@ from services.sync.stream.export_data import (
 
 # how often to (1) write to S3 and (2) update the cursor state
 cursor_update_frequency = 5000
+
+logger = get_logger(__name__)
 
 
 def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict:  # noqa
@@ -159,10 +161,10 @@ def _run(
             counter.increment()
             counter_value = counter.get_value()
             if counter_value % cursor_update_frequency == 0:
-                print(f"Counter: {counter_value}")
-                print("Writing cached records to S3 and resetting cache...")
+                logger.info(f"Counter: {counter_value}")
+                logger.info("Writing cached records to S3 and resetting cache...")
                 export_batch(external_store=["s3"])
-                print(f"Updating cursor state with cursor={counter_value}...")  # noqa
+                logger.info(f"Updating cursor state with cursor={counter_value}...")  # noqa
                 cursor_state = {
                     "service": name,
                     "cursor": commit.seq,
