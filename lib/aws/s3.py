@@ -10,6 +10,7 @@ from typing import Optional
 import botocore
 
 from lib.aws.helper import create_client, retry_on_aws_rate_limit
+from lib.log.logger import get_logger
 
 ROOT_BUCKET = "bluesky-research"
 POST_BATCH_SIZE = 100
@@ -23,6 +24,7 @@ S3_FIREHOSE_KEY_ROOT = "firehose"
 USERS_KEY_ROOT = "users"
 
 thread_lock = threading.Lock()
+logger = get_logger(__name__)
 
 
 class S3:
@@ -45,7 +47,7 @@ class S3:
         try:
             self.client.put_object(Bucket=bucket, Key=key, Body=blob)
         except Exception as e:
-            print(f"Failure in putting object to S3: {e}")
+            logger.info(f"Failure in putting object to S3: {e}")
             raise e
 
     # NOTE: misleading name, doesn't need to be dict. Just needs to be
@@ -67,8 +69,10 @@ class S3:
     ) -> None:
         """Writes list of dictionaries as JSONL to S3."""
         if not data:
-            print("No data to write to S3.")
+            logger.info("No data to write to S3.")
             return
+        else:
+            logger.info(f"Writing {len(data)} objects to {key}")
         if not key.endswith(".jsonl"):
             key = f"{key}.jsonl"
         jsonl_body = "\n".join([json.dumps(d) for d in data])
@@ -83,13 +87,13 @@ class S3:
             return response['Body'].read()
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == 'NoSuchKey':
-                print(f"Key not found in S3: {key}")
+                logger.info(f"Key not found in S3: {key}")
                 return None
             else:
-                print(f"Failure in getting object from S3: {e}")
+                logger.info(f"Failure in getting object from S3: {e}")
                 raise e
         except Exception as e:
-            print(f"Failure in getting object from S3: {e}")
+            logger.info(f"Failure in getting object from S3: {e}")
             raise e
 
     def read_json_from_s3(
@@ -150,7 +154,7 @@ class S3:
         try:
             self.client.delete_object(Bucket=bucket, Key=key)
         except Exception as e:
-            print(f"Failure in deleting object from S3: {e}")
+            logger.info(f"Failure in deleting object from S3: {e}")
             raise e
 
     def write_batch_posts_to_s3(
@@ -158,7 +162,7 @@ class S3:
     ) -> None:
         """Writes batch of posts to s3."""
         with thread_lock:
-            print(f"Writing batch of {len(posts)} posts to S3 in chunks of {batch_size}...")  # noqa
+            logger.info(f"Writing batch of {len(posts)} posts to S3 in chunks of {batch_size}...")  # noqa
             while posts:
                 batch = posts[:batch_size]
                 timestamp = str(int(time.time()))
@@ -172,10 +176,10 @@ class S3:
                         data=batch, bucket=ROOT_BUCKET, key=key
                     )
                 except Exception as e:
-                    print(f"Unable to write post to S3: {e}")
-                    print(f"Batch: {batch}")
+                    logger.info(f"Unable to write post to S3: {e}")
+                    logger.info(f"Batch: {batch}")
                 posts = posts[batch_size:]
-            print(f"Finished writing {len(posts)} posts to S3.")
+            logger.info(f"Finished writing {len(posts)} posts to S3.")
 
     def write_local_jsons_to_s3(
         self,
@@ -198,8 +202,8 @@ class S3:
                         jsons.append(json.load(f))
                     filepaths.append(fp)
             if len(jsons) == 0:
-                print(f"No JSON files found in directory: {directory}.")
-                print("Not writing anything to S3.")
+                logger.info(f"No JSON files found in directory: {directory}.")
+                logger.info("Not writing anything to S3.")
             if not key:
                 key = os.path.join(S3_FIREHOSE_KEY_ROOT, filename)
             if compressed:
@@ -210,14 +214,14 @@ class S3:
                     self.write_to_s3(
                         blob=compressed_data, bucket=ROOT_BUCKET, key=key
                     )
-                    print(f"Successfully wrote compressed data to S3: {key}")
+                    logger.info(f"Successfully wrote compressed data to S3: {key}")
                 else:
                     self.write_dicts_jsonl_to_s3(
                         data=jsons, bucket=ROOT_BUCKET, key=key
                     )
-                    print(f"Successfully wrote data to S3: {key}")
+                    logger.info(f"Successfully wrote data to S3: {key}")
             except Exception as e:
-                print(f"Unable to write post to S3: {e}")
+                logger.info(f"Unable to write post to S3: {e}")
 
     @classmethod
     def create_partition_key_based_on_timestamp(cls, timestamp_str: str) -> str:

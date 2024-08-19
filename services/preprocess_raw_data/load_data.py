@@ -125,28 +125,48 @@ def load_latest_most_liked_posts(
     return transformed_jsonl_data
 
 
+# @track_performance
+# def load_latest_posts(
+#     source: Literal["s3", "local"],
+#     source_feeds: list[str] = ["firehose", "most_liked"],
+#     latest_preprocessing_timestamp: Optional[str] = None
+# ) -> list[ConsolidatedPostRecordModel]:
+#     """Loads latest synced posts."""
+#     res: list[ConsolidatedPostRecordModel] = []
+#     for source_feed in source_feeds:
+#         if source_feed == "firehose":
+#             posts = load_latest_firehose_posts(
+#                 source=source,
+#                 latest_preprocessing_timestamp=latest_preprocessing_timestamp
+#             )
+#             res.extend(posts)
+#         elif source_feed == "most_liked":
+#             posts = load_latest_most_liked_posts(
+#                 source=source,
+#                 latest_preprocessing_timestamp=latest_preprocessing_timestamp
+#             )
+#             res.extend(posts)
+#     return res
+
+
 @track_performance
-def load_latest_posts(
-    source: Literal["s3", "local"],
-    source_feeds: list[str] = ["firehose", "most_liked"],
-    latest_preprocessing_timestamp: Optional[str] = None
-) -> list[ConsolidatedPostRecordModel]:
-    """Loads latest synced posts."""
-    res: list[ConsolidatedPostRecordModel] = []
-    for source_feed in source_feeds:
-        if source_feed == "firehose":
-            posts = load_latest_firehose_posts(
-                source=source,
-                latest_preprocessing_timestamp=latest_preprocessing_timestamp
-            )
-            res.extend(posts)
-        elif source_feed == "most_liked":
-            posts = load_latest_most_liked_posts(
-                source=source,
-                latest_preprocessing_timestamp=latest_preprocessing_timestamp
-            )
-            res.extend(posts)
-    return res
+def load_latest_posts(post_keys: list[str]) -> list[ConsolidatedPostRecordModel]:  # noqa
+    jsonl_data: list[dict] = []
+    for key in post_keys:
+        data = s3.read_jsonl_from_s3(key)
+        if not data:
+            logger.warning(f"No data found for key {key}. Check if keys are correct. For example, a firehose post likely should end in '.gz'.")  # noqa
+            continue
+        else:
+            if key.endswith(".gz"):
+                # need special processing for any compressed files.
+                jsonl_data.extend(data[0])
+            else:
+                jsonl_data.extend(data)
+    transformed_jsonl_data: list[ConsolidatedPostRecordModel] = [
+        ConsolidatedPostRecordModel(**post) for post in jsonl_data
+    ]
+    return transformed_jsonl_data
 
 
 def load_latest_likes(

@@ -395,3 +395,79 @@ resource "aws_iam_instance_profile" "cloudwatch_agent_instance_profile" {
   name = "CloudWatchAgentInstanceProfile"
   role = aws_iam_role.cloudwatch_ec2_instance_agent_role.name
 }
+### SQS Queue ###
+resource "aws_sqs_queue" "syncs_to_be_processed_queue" {
+  name                      = "syncsToBeProcessedQueue.fifo"
+  fifo_queue                = true
+  content_based_deduplication = true
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.dead_letter_queue.arn
+    maxReceiveCount     = 5
+  })
+}
+
+resource "aws_sqs_queue" "dead_letter_queue" {
+  name = "syncsToBeProcessedDLQ.fifo"
+  fifo_queue = true
+}
+
+resource "aws_sqs_queue" "firehose_syncs_to_be_processed_queue" {
+  name                      = "firehoseSyncsToBeProcessedQueue.fifo"
+  fifo_queue                = true
+  content_based_deduplication = true
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.firehose_dead_letter_queue.arn
+    maxReceiveCount     = 5
+  })
+}
+
+resource "aws_sqs_queue" "firehose_dead_letter_queue" {
+  name = "firehoseSyncsToBeProcessedDLQ.fifo"
+  fifo_queue = true
+}
+
+resource "aws_sqs_queue" "most_liked_syncs_to_be_processed_queue" {
+  name                      = "mostLikedSyncsToBeProcessedQueue.fifo"
+  fifo_queue                = true
+  content_based_deduplication = true
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.most_liked_dead_letter_queue.arn
+    maxReceiveCount     = 5
+  })
+}
+
+resource "aws_sqs_queue" "most_liked_dead_letter_queue" {
+  name = "mostLikedSyncsToBeProcessedDLQ.fifo"
+  fifo_queue = true
+}
+
+
+### IAM Policies for SQS ###
+resource "aws_iam_role_policy" "lambda_sqs_policy" {
+  name   = "LambdaSQSPolicy"
+  role   = aws_iam_role.lambda_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = [
+          "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes"
+        ],
+        Effect   = "Allow",
+        Resource = aws_sqs_queue.syncs_to_be_processed_queue.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_attach_sqs_policy" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = aws_iam_policy.lambda_access_policy.arn
+}
