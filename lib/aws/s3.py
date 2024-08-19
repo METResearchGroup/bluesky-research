@@ -69,6 +69,8 @@ class S3:
         if not data:
             print("No data to write to S3.")
             return
+        else:
+            print(f"Writing {len(data)} objects to {key}")
         if not key.endswith(".jsonl"):
             key = f"{key}.jsonl"
         jsonl_body = "\n".join([json.dumps(d) for d in data])

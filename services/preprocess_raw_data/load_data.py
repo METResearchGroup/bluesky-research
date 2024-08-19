@@ -149,12 +149,20 @@ def load_latest_most_liked_posts(
 #     return res
 
 
-# TODO: load from SQS messages.
+@track_performance
 def load_latest_posts(post_keys: list[str]) -> list[ConsolidatedPostRecordModel]:  # noqa
     jsonl_data: list[dict] = []
     for key in post_keys:
         data = s3.read_jsonl_from_s3(key)
-        jsonl_data.extend(data)  # TODO: check this for the firehose posts, since I use data[0] for those?
+        if not data:
+            logger.warning(f"No data found for key {key}. Check if keys are correct. For example, a firehose post likely should end in '.gz'.")  # noqa
+            continue
+        else:
+            if key.endswith(".gz"):
+                # need special processing for any compressed files.
+                jsonl_data.extend(data[0])
+            else:
+                jsonl_data.extend(data)
     transformed_jsonl_data: list[ConsolidatedPostRecordModel] = [
         ConsolidatedPostRecordModel(**post) for post in jsonl_data
     ]

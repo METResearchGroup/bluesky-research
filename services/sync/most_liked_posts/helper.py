@@ -143,11 +143,12 @@ def export_posts(
         logger.info(f"Sending message to SQS queue from most_liked feed for new posts at key={full_key}")  # noqa
         sqs_data_payload = {
             "sync": {
-                "most_liked_feed": {"s3_key": full_key}
+                "source": "most_liked_feed",
+                "s3_key": full_key
             }
         }
         custom_log = f"Sending message to SQS queue from most_liked feed for new posts at key={full_key}"  # noqa
-        sqs.send_message(source="most_liked_feed", data=sqs_data_payload, custom_log=custom_log)
+        sqs.send_message(source="most_liked_feed", data=sqs_data_payload, custom_log=custom_log)  # noqa
 
 
 def load_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:

@@ -48,6 +48,7 @@ import uuid
 
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
+from lib.aws.sqs import SQS
 from lib.constants import root_local_data_directory
 from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.db.manage_local_data import write_jsons_to_local_store
@@ -116,6 +117,7 @@ study_user_activity_relative_path_map = {  # actual full path is {root}/{author_
 
 s3 = S3()
 dynamodb = DynamoDB()
+sqs = SQS("firehoseSyncsToBeProcessedQueue")
 
 SUBSCRIPTION_STATE_TABLE_NAME = "firehoseSubscriptionState"
 
@@ -160,13 +162,17 @@ def compress_cached_files_and_write_to_storage(
     operation: Literal["create", "delete"],
     operation_type: Literal["post", "like", "follow"],
     compressed: bool = True,
-    external_store: Literal["local", "s3"] = "s3"
+    external_store: Literal["local", "s3"] = "s3",
+    send_sqs_message: bool = True
 ):
     """For a given set of files in a directory, compress them into a single
     cached file and write to S3.
 
     Loops through all the JSON files in the directory and loads them into
     memory. Then writes to a single .jsonl file (.jsonl.gz if compressed).
+
+    Then, sends an SQS message indicating that the corresponding file has been
+    synced, for the downstream preprocessing module to process.
     """
     timestamp_str = generate_current_datetime_str()
     partition_key = S3.create_partition_key_based_on_timestamp(
@@ -179,6 +185,24 @@ def compress_cached_files_and_write_to_storage(
         s3.write_local_jsons_to_s3(
             directory=directory, key=full_key, compressed=compressed
         )
+        # NOTE: for now, we will only preprocess posts, so we'll send the SQS
+        # message only for posts.
+        if send_sqs_message and operation_type == "post":
+            s3_key = full_key
+            if compressed:
+                s3_key += ".gz"
+            sqs_data_payload = {
+                "sync": {
+                    "source": "firehose",
+                    "operation": operation,
+                    "operation_type": operation_type,
+                    "s3_key": s3_key
+                }
+            }
+            custom_log = f"Sending message to SQS queue from firehose feed for new posts at {s3_key}"  # noqa
+            sqs.send_message(
+                source="firehose", data=sqs_data_payload, custom_log=custom_log
+            )
     elif external_store == "local":
         full_export_filepath = os.path.join(root_local_data_directory, full_key)  # noqa
         write_jsons_to_local_store(

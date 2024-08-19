@@ -14,6 +14,8 @@ queue_to_queue_url_map = {
 
 
 logger = get_logger(__name__)
+# default_visibility_timeout = 300 # for prod.
+default_visibility_timeout = 30  # for debugging.
 
 
 class SQS:
@@ -39,13 +41,18 @@ class SQS:
             "data": data
         }
         json_payload = json.dumps(payload)
-        self.client.send_message(
+        response = self.client.send_message(
             QueueUrl=self.queue_url,
             MessageBody=json_payload,
             # make sure that messages from the same source are in the same
             # group, so that they're processed in order.
-            MessageGroupId=source
+            MessageGroupId=source,
+            MessageDeduplicationId=str(hash(json_payload))
         )
+        if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
+            error_message = f"Failed to send message to queue {self.queue_url}: {response}"  # noqa
+            logger.error(error_message)
+            raise Exception(error_message)
         if custom_log:
             logger.info(custom_log)
 
@@ -53,21 +60,36 @@ class SQS:
     def receive_latest_messages(
         self,
         queue: Optional[str] = None,
-        max_num_messages: Optional[int] = None,
+        max_num_messages: Optional[int] = 10,  # default 10 is max, see https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sqs/client/receive_message.html # noqa
         latest_timestamp: Optional[str] = None,
-        visibility_timeout: int = 900  # 15 minutes.
-    ):
+        visibility_timeout: int = default_visibility_timeout
+    ) -> list[dict]:
         """Receive messages from a queue.
 
         Optionally can specify a latest timestamp to filter messages.
         Processes messages in order from the same source. If a message has
         a timestamp greater than the latest timestamp, it will not be
         processed in that round.
+
+        `visibility_timeout` is the number of seconds to wait for a message
+        to become visible before we start processing it. When we receive messages
+        from an SQS queue, the messages are invisible to other consumers for the
+        duration of the visibility timeout, and then become visible again. But the message is
+        visible in the queue for the duration of the visibility timeout.
+
+        When we repeatedly poll, the `visibility_timeout` is what guarantees
+        that we don't see a message again; once a message is pulled, it becomes
+        "invisible" and unable to be fetched again during the duration of the
+        timeout period.
+
+        Note that this means that we'll need to be able to load the messages,
+        do the intermediate steps, and then delete the messages, all within
+        the visibility timeout period, otherwise the message expires and is
+        returned to the queue and needs to be re-polled.
+
+        While debugging, should set `visibility_timeout` to something lower, like
+        30 seconds. In production, should increase the timeout.
         """
-        if queue:
-            self._validate_queue(queue)
-        else:
-            queue = self.queue
         queue_url = queue_to_queue_url_map[queue]
         if not latest_timestamp:
             logger.warning(
@@ -92,7 +114,8 @@ class SQS:
                 MessageAttributeNames=["All"],
                 VisibilityTimeout=visibility_timeout
             )
-        messages = response["Messages"]
+        # "Messages" won't be in the response if there are none to query.
+        messages = response.get("Messages", [])
         res: list[dict] = []
         for message in messages:
             message["Body"] = json.loads(message["Body"])
@@ -106,6 +129,38 @@ class SQS:
             res.append(message)
         logger.info(f"Received {len(res)} messages from the queue {queue}")
         return res
+
+    def receive_all_messages(
+        self,
+        queue: Optional[str] = None,
+        visibility_timeout: int = default_visibility_timeout
+    ) -> list[dict]:
+        """Receive all messages from a queue by polling multiple times.
+
+        This implementation is required since we can only receive a maximum of
+        10 messages at a time from SQS.
+        """
+        all_messages = []
+        processed_message_ids = set()
+        if queue:
+            self._validate_queue(queue)
+        else:
+            queue = self.queue
+        while True:
+            messages = self.receive_latest_messages(
+                queue=queue,
+                max_num_messages=10,
+                visibility_timeout=visibility_timeout
+            )
+            if not messages:
+                break
+            for message in messages:
+                message_id = message['MessageId']
+                if message_id not in processed_message_ids:
+                    processed_message_ids.add(message_id)
+                    all_messages.append(message)
+        logger.info(f"Received {len(all_messages)} messages from the queue {queue}")  # noqa
+        return all_messages
 
     def delete_messages(self, messages: list[dict]):
         """Delete messages from the queue."""
