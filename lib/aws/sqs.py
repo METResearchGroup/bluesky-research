@@ -54,7 +54,8 @@ class SQS:
         self,
         queue: Optional[str] = None,
         max_num_messages: Optional[int] = None,
-        latest_timestamp: Optional[str] = None
+        latest_timestamp: Optional[str] = None,
+        visibility_timeout: int = 900  # 15 minutes.
     ):
         """Receive messages from a queue.
 
@@ -80,14 +81,16 @@ class SQS:
             response = self.client.receive_message(
                 QueueUrl=queue_url,
                 MaxNumberOfMessages=max_num_messages,
-                MessageAttributeNames=["All"]
+                MessageAttributeNames=["All"],
+                VisibilityTimeout=visibility_timeout
             )
         else:
             logger.info(f"Receiving all messages from the queue {queue}")
             response = self.client.receive_message(
                 QueueUrl=queue_url,
                 AttributeNames=["All"],
-                MessageAttributeNames=["All"]
+                MessageAttributeNames=["All"],
+                VisibilityTimeout=visibility_timeout
             )
         messages = response["Messages"]
         res: list[dict] = []

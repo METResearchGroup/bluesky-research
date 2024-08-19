@@ -125,28 +125,40 @@ def load_latest_most_liked_posts(
     return transformed_jsonl_data
 
 
-@track_performance
-def load_latest_posts(
-    source: Literal["s3", "local"],
-    source_feeds: list[str] = ["firehose", "most_liked"],
-    latest_preprocessing_timestamp: Optional[str] = None
-) -> list[ConsolidatedPostRecordModel]:
-    """Loads latest synced posts."""
-    res: list[ConsolidatedPostRecordModel] = []
-    for source_feed in source_feeds:
-        if source_feed == "firehose":
-            posts = load_latest_firehose_posts(
-                source=source,
-                latest_preprocessing_timestamp=latest_preprocessing_timestamp
-            )
-            res.extend(posts)
-        elif source_feed == "most_liked":
-            posts = load_latest_most_liked_posts(
-                source=source,
-                latest_preprocessing_timestamp=latest_preprocessing_timestamp
-            )
-            res.extend(posts)
-    return res
+# @track_performance
+# def load_latest_posts(
+#     source: Literal["s3", "local"],
+#     source_feeds: list[str] = ["firehose", "most_liked"],
+#     latest_preprocessing_timestamp: Optional[str] = None
+# ) -> list[ConsolidatedPostRecordModel]:
+#     """Loads latest synced posts."""
+#     res: list[ConsolidatedPostRecordModel] = []
+#     for source_feed in source_feeds:
+#         if source_feed == "firehose":
+#             posts = load_latest_firehose_posts(
+#                 source=source,
+#                 latest_preprocessing_timestamp=latest_preprocessing_timestamp
+#             )
+#             res.extend(posts)
+#         elif source_feed == "most_liked":
+#             posts = load_latest_most_liked_posts(
+#                 source=source,
+#                 latest_preprocessing_timestamp=latest_preprocessing_timestamp
+#             )
+#             res.extend(posts)
+#     return res
+
+
+# TODO: load from SQS messages.
+def load_latest_posts(post_keys: list[str]) -> list[ConsolidatedPostRecordModel]:  # noqa
+    jsonl_data: list[dict] = []
+    for key in post_keys:
+        data = s3.read_jsonl_from_s3(key)
+        jsonl_data.extend(data)  # TODO: check this for the firehose posts, since I use data[0] for those?
+    transformed_jsonl_data: list[ConsolidatedPostRecordModel] = [
+        ConsolidatedPostRecordModel(**post) for post in jsonl_data
+    ]
+    return transformed_jsonl_data
 
 
 def load_latest_likes(
