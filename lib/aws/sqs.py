@@ -14,8 +14,8 @@ queue_to_queue_url_map = {
 
 
 logger = get_logger(__name__)
-# default_visibility_timeout = 300 # for prod.
-default_visibility_timeout = 30  # for debugging.
+default_visibility_timeout = 300  # for prod.
+# default_visibility_timeout = 30  # for debugging.
 
 
 class SQS:
