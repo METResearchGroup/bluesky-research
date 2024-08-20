@@ -15,7 +15,7 @@ COPY lib/db/manage_local_data.py ./lib/db/manage_local_data.py
 COPY lib/helper.py ./lib/helper.py
 COPY lib/log/logger.py ./lib/log/logger.py
 
-COPY services/calculate_superposters/helper.py /app/services/calculate_superposters
+COPY services/calculate_superposters/helper.py ./services/calculate_superposters/helper.py
 
 # copy handler code to /app
 COPY pipelines/calculate_superposters/__init__.py /app/__init__.py

@@ -1,12 +1,14 @@
 """Wrapper class for all Athena-related access."""
+import io
 import time
 
 import pandas as pd
 
 from lib.aws.helper import create_client
 from lib.aws.s3 import S3
+from lib.log.logger import get_logger
 
-DEFAULT_DB_NAME = "default-db"
+DEFAULT_DB_NAME = "default_db"
 
 # NOTE: the output location must correspond to the workgroup's output location
 # set in the Terraform config.
@@ -15,6 +17,7 @@ DEFAULT_MAX_WAITING_TRIES = 5
 DEFAULT_WORKGROUP = "prod_workgroup"
 
 s3 = S3()
+logger = get_logger(__name__)
 
 
 class Athena:
@@ -29,6 +32,7 @@ class Athena:
         max_waiting_tries: int = DEFAULT_MAX_WAITING_TRIES,
         workgroup: str = DEFAULT_WORKGROUP
     ):
+        logger.info(f"Running query: {query}")
         response = self.client.start_query_execution(
             QueryString=query,
             QueryExecutionContext={"Database": db_name},
@@ -79,7 +83,6 @@ class Athena:
         if result_data is None:
             raise Exception("Failed to read query results from S3")
 
-        # Assuming the result is in CSV format
-        df = pd.read_csv(pd.compat.StringIO(result_data.decode('utf-8')))
+        df = pd.read_csv(io.StringIO(result_data.decode('utf-8')))
 
         return df

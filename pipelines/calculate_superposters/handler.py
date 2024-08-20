@@ -10,7 +10,7 @@ logger = Logger(__name__)
 def lambda_handler(event, context):
     try:
         logger.info("Starting calculation of superposters in Lambda.")
-        calculate_latest_superposters()
+        calculate_latest_superposters(top_n_percent=None, threshold=5)
         logger.info("Completed calculation of superposters in Lambda.")
         return {
             'statusCode': 200,
