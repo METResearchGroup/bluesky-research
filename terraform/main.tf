@@ -12,6 +12,30 @@ provider "aws" {
   profile = var.aws_profile
 }
 
+### S3 ###
+resource "aws_s3_bucket" "bluesky_research_bucket" {
+  bucket = var.s3_root_bucket_name
+  region = "us-east-2"
+}
+
+# add 1-day TTL to the daily superposter data
+resource "aws_s3_bucket_lifecycle_configuration" "fizz_lifecycle" {
+  bucket = aws_s3_bucket.bluesky_research_bucket.id
+
+  rule {
+    id     = "DeleteDailyPostsAfterOneDay"
+    status = "Enabled"
+
+    filter {
+      prefix = "daily-posts/"
+    }
+
+    expiration {
+      days = 1
+    }
+  }
+}
+
 
 ### ECR repos ###
 resource "aws_ecr_repository" "add_users_to_study_service" {
@@ -505,4 +529,38 @@ resource "aws_iam_role_policy" "lambda_sqs_policy" {
 resource "aws_iam_role_policy_attachment" "lambda_attach_sqs_policy" {
   role       = aws_iam_role.lambda_exec.name
   policy_arn = aws_iam_policy.lambda_access_policy.arn
+}
+
+### AWS Glue ###
+
+# Glue DB for the daily superposter data
+resource "aws_glue_catalog_database" "default" {
+  name = "default-db"
+}
+
+resource "aws_glue_catalog_table" "daily_posts" {
+  database_name = aws_glue_catalog_database.default.name
+  name          = "daily_posts"
+
+  storage_descriptor {
+    columns {
+      name = "author_did" # DID of the post author.
+      type = "string"
+    }
+    columns {
+      name = "uri" # URI of the post.
+      type = "string"
+    }
+
+    location      = "s3://${var.s3_root_bucket_name}/daily-posts/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+  }
+
+  table_type = "EXTERNAL_TABLE"
 }
