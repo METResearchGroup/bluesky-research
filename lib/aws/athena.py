@@ -7,8 +7,12 @@ from lib.aws.helper import create_client
 from lib.aws.s3 import S3
 
 DEFAULT_DB_NAME = "default-db"
+
+# NOTE: the output location must correspond to the workgroup's output location
+# set in the Terraform config.
 DEFAULT_OUTPUT_LOCATION = f"s3://bluesky-research/athena-results"
 DEFAULT_MAX_WAITING_TRIES = 5
+DEFAULT_WORKGROUP = "prod_workgroup"
 
 s3 = S3()
 
@@ -22,12 +26,14 @@ class Athena:
         query: str,
         db_name: str = DEFAULT_DB_NAME,
         output_location: str = DEFAULT_OUTPUT_LOCATION,
-        max_waiting_tries: int = DEFAULT_MAX_WAITING_TRIES
+        max_waiting_tries: int = DEFAULT_MAX_WAITING_TRIES,
+        workgroup: str = DEFAULT_WORKGROUP
     ):
         response = self.client.start_query_execution(
             QueryString=query,
             QueryExecutionContext={"Database": db_name},
-            ResultConfiguration={"OutputLocation": output_location}
+            ResultConfiguration={"OutputLocation": output_location},
+            WorkGroup=workgroup
         )
         query_execution_id = response['QueryExecutionId']
         status = 'RUNNING'
@@ -56,10 +62,17 @@ class Athena:
         query: str,
         db_name: str = DEFAULT_DB_NAME,
         output_location: str = DEFAULT_OUTPUT_LOCATION,
-        max_waiting_tries: int = DEFAULT_MAX_WAITING_TRIES
+        max_waiting_tries: int = DEFAULT_MAX_WAITING_TRIES,
+        workgroup: str = DEFAULT_WORKGROUP
     ):
 
-        _, result_key = self.run_query(query, db_name, output_location, max_waiting_tries)
+        _, result_key = self.run_query(
+            query=query,
+            db_name=db_name,
+            output_location=output_location,
+            max_waiting_tries=max_waiting_tries,
+            workgroup=workgroup
+        )
 
         result_data = s3.read_from_s3(result_key)
 

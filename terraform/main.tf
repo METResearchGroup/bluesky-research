@@ -12,15 +12,9 @@ provider "aws" {
   profile = var.aws_profile
 }
 
-### S3 ###
-resource "aws_s3_bucket" "bluesky_research_bucket" {
-  bucket = var.s3_root_bucket_name
-  region = "us-east-2"
-}
-
 # add 1-day TTL to the daily superposter data
-resource "aws_s3_bucket_lifecycle_configuration" "fizz_lifecycle" {
-  bucket = aws_s3_bucket.bluesky_research_bucket.id
+resource "aws_s3_bucket_lifecycle_configuration" "daily_superposter_posts_lifecycle" {
+  bucket = "bluesky-research"
 
   rule {
     id     = "DeleteDailyPostsAfterOneDay"
@@ -563,4 +557,19 @@ resource "aws_glue_catalog_table" "daily_posts" {
   }
 
   table_type = "EXTERNAL_TABLE"
+}
+
+### AWS Athena ###
+
+# set default workgroup and output location for said workgroup.
+resource "aws_athena_workgroup" "prod_workgroup" {
+  name = "prod_workgroup"
+
+  configuration {
+    enforce_workgroup_configuration    = true
+    publish_cloudwatch_metrics_enabled = true
+    result_configuration {
+      output_location = "s3://${var.s3_root_bucket_name}/athena-results/"
+    }
+  }
 }
