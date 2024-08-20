@@ -1,8 +1,5 @@
 """Helper functions for updating the mute lists."""
 from services.preprocess_raw_data.update_bluesky_mute_lists.constants import MUTE_LIST_LINKS  # noqa
-from lib.db.sql.muted_users_database import (
-    batch_create_mute_lists, batch_create_muted_users
-)
 from transform.bluesky_helper import get_list_and_user_data_from_list_links
 
 
@@ -11,8 +8,6 @@ def save_list_and_user_data_to_db(
 ) -> None:
     """Given a list of lists and a list of users, save them to the mute list
     database."""
-    batch_create_mute_lists(lists)
-    batch_create_muted_users(users)
     print("Saved list and user data to the database.")
 
 

@@ -149,7 +149,9 @@ def delete_cache_paths():
         shutil.rmtree(root_write_path)
 
 
-rebuild_cache_paths()
+# if not running in a lambda container, rebuild the cache paths.
+if not os.path.exists("/app"):
+    rebuild_cache_paths()
 
 
 def write_data_to_json(data: dict, path: str):

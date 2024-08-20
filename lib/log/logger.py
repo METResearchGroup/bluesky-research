@@ -6,7 +6,11 @@ from typing import Any, Dict
 
 from lib.constants import current_datetime_str
 
-log_directory = os.path.dirname(os.path.abspath(__file__))
+# if running in lambda, log to /tmp. Otherwise, log to the current directory.
+if os.path.exists('/app'):
+    log_directory = "/tmp"
+else:
+    log_directory = os.path.dirname(os.path.abspath(__file__))
 if not os.path.exists(log_directory):
     os.makedirs(log_directory, exist_ok=True)
 
