@@ -12,6 +12,41 @@ provider "aws" {
   profile = var.aws_profile
 }
 
+# add 1-day TTL to the daily superposter data
+resource "aws_s3_bucket_lifecycle_configuration" "daily_superposter_posts_lifecycle" {
+  bucket = "bluesky-research"
+
+  rule {
+    id     = "DeleteDailyPostsAfterOneDay"
+    status = "Enabled"
+
+    filter {
+      prefix = "daily-posts/"
+    }
+
+    expiration {
+      days = 1
+    }
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "athena_results_lifecycle" {
+  bucket = "bluesky-research"
+
+  rule {
+    id     = "DeleteAthenaResultsAfterOneDay"
+    status = "Enabled"
+
+    filter {
+      prefix = "athena-results/"
+    }
+
+    expiration {
+      days = 1
+    }
+  }
+}
+
 
 ### ECR repos ###
 resource "aws_ecr_repository" "add_users_to_study_service" {
@@ -73,6 +108,25 @@ resource "aws_lambda_function" "preprocess_raw_data_lambda" {
 
 resource "aws_cloudwatch_log_group" "preprocess_raw_data_lambda_log_group" {
   name              = "/aws/lambda/preprocess_raw_data_lambda"
+  retention_in_days = 7
+}
+
+resource "aws_lambda_function" "calculate_superposters_lambda" {
+  function_name = "calculate_superposters_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.calculate_superposters_service.repository_url}:latest"
+  architectures = ["arm64"]
+  timeout       = 90 # 90 seconds timeout
+  memory_size   = 512 # 512 MB of memory
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "calculate_superposters_lambda_log_group" {
+  name              = "/aws/lambda/calculate_superposters_lambda"
   retention_in_days = 7
 }
 
@@ -277,11 +331,20 @@ resource "aws_iam_policy" "lambda_access_policy" {
       # Add S3 policy
       {
         Action = [
+          "s3:AbortMultipartUpload",
+          "s3:CreateBucket",
           "s3:GetObject",
-          "s3:ListBucket",
+          "s3:GetBucketLocation", # https://repost.aws/knowledge-center/athena-output-bucket-error
           "s3:GetObjectVersion",
           "s3:GetObjectAcl",
-          "s3:GetObjectTagging"
+          "s3:GetObjectTagging",
+          "s3:ListBucket",
+          "s3:ListBuckets",
+          "s3:ListBucketMultipartUploads",
+          "s3:ListMultipartUploadParts",
+          "s3:ListObjects",
+          "s3:PutObject",
+          "s3:PutObjectAcl"
         ],
         Effect   = "Allow",
         Resource = [
@@ -333,6 +396,27 @@ resource "aws_iam_policy" "lambda_access_policy" {
         ],
         Effect   = "Allow",
         Resource = "arn:aws:sqs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:*"
+      },
+      # Add Glue policy for accessing Glue tables
+      {
+        Action = [
+          "glue:GetTable",
+          "glue:GetTables",
+          "glue:GetTableVersion",
+          "glue:GetTableVersions"
+        ],
+        Effect   = "Allow",
+        Resource = "*"
+      },
+      # Add Athena policy for accessing Athena tables
+      {
+        Action = [
+          "athena:StartQueryExecution",
+          "athena:GetQueryExecution",
+          "athena:GetQueryResults"
+        ],
+        Effect   = "Allow",
+        Resource = "*"
       }
     ]
   })
@@ -505,4 +589,69 @@ resource "aws_iam_role_policy" "lambda_sqs_policy" {
 resource "aws_iam_role_policy_attachment" "lambda_attach_sqs_policy" {
   role       = aws_iam_role.lambda_exec.name
   policy_arn = aws_iam_policy.lambda_access_policy.arn
+}
+
+### AWS Glue ###
+
+# Glue DB for the daily superposter data
+resource "aws_glue_catalog_database" "default" {
+  name = "default_db"
+}
+
+resource "aws_glue_catalog_table" "daily_posts" {
+  database_name = aws_glue_catalog_database.default.name
+  name          = "daily_posts"
+
+  storage_descriptor {
+    columns {
+      name = "author_did" # DID of the post author.
+      type = "string"
+    }
+    columns {
+      name = "uri" # URI of the post.
+      type = "string"
+    }
+
+    location      = "s3://${var.s3_root_bucket_name}/daily-posts/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+  }
+
+  table_type = "EXTERNAL_TABLE"
+}
+
+### AWS Athena ###
+
+# set default workgroup and output location for said workgroup.
+resource "aws_athena_workgroup" "prod_workgroup" {
+  name = "prod_workgroup"
+
+  configuration {
+    enforce_workgroup_configuration    = true
+    publish_cloudwatch_metrics_enabled = true
+    result_configuration {
+      output_location = "s3://${var.s3_root_bucket_name}/athena-results/"
+    }
+  }
+}
+
+### DynamoDB ###
+resource "aws_dynamodb_table" "superposters" {
+  name           = "superposters"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "insert_date_timestamp"
+
+  attribute {
+    name = "insert_date_timestamp"
+    type = "S"
+  }
+
+  tags = {
+    Name = "superposters"
+  }
 }

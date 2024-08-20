@@ -187,14 +187,14 @@ class S3:
         key: Optional[str] = None,
         filename: Optional[str] = None,
         compressed: bool = True
-    ) -> None:
+    ) -> list[dict]:
         """Given a directory, pull all the JSONs and write them as a .jsonl.
 
         Optionally, clear the cache directory of .json files after writing.
         """
         with thread_lock:
             filepaths = []
-            jsons = []
+            jsons: list[dict] = []
             for file in os.listdir(directory):
                 if file.endswith(".json"):
                     fp = os.path.join(directory, file)
@@ -222,6 +222,7 @@ class S3:
                     logger.info(f"Successfully wrote data to S3: {key}")
             except Exception as e:
                 logger.info(f"Unable to write post to S3: {e}")
+            return jsons
 
     @classmethod
     def create_partition_key_based_on_timestamp(cls, timestamp_str: str) -> str:

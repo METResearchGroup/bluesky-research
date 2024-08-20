@@ -184,12 +184,12 @@ def compress_cached_files_and_write_to_storage(
     s3_export_key = s3_export_key_map[operation][operation_type]
     full_key = os.path.join(s3_export_key, partition_key, filename)
     if external_store == "s3":
-        s3.write_local_jsons_to_s3(
+        json_dicts: list[dict] = s3.write_local_jsons_to_s3(
             directory=directory, key=full_key, compressed=compressed
         )
         # NOTE: for now, we will only preprocess posts, so we'll send the SQS
         # message only for posts.
-        if send_sqs_message and operation_type == "post":
+        if send_sqs_message and operation_type == "post" and operation == "create":  # noqa
             s3_key = full_key
             if compressed:
                 s3_key += ".gz"
@@ -205,6 +205,23 @@ def compress_cached_files_and_write_to_storage(
             sqs.send_message(
                 source="firehose", data=sqs_data_payload, custom_log=custom_log
             )
+        if operation_type == "post" and operation == "create":
+            # write post to separate location to track daily posts (for daily
+            # superposter calculation)
+            daily_posts_dicts: list[dict] = []
+            for post in json_dicts:
+                author_did = post["author_did"]
+                uri = post["uri"]
+                payload = {
+                    "author_did": author_did,
+                    "uri": uri
+                }
+                daily_posts_dicts.append(payload)
+            # daily-posts is hardcoded in the Glue tf config.
+            daily_posts_key = os.path.join("daily-posts", filename)
+            s3.write_dicts_jsonl_to_s3(data=daily_posts_dicts, key=daily_posts_key)  # noqa
+            logger.info(f"Exported {len(daily_posts_dicts)} daily posts to S3 for daily superposter calculation")  # noqa
+
     elif external_store == "local":
         full_export_filepath = os.path.join(root_local_data_directory, full_key)  # noqa
         write_jsons_to_local_store(

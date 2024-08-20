@@ -1,122 +1,82 @@
-"""Helper functions for calculating superposters."""
-from datetime import datetime, timedelta, timezone
-from typing import Literal
-import os
+"""Calculate superposters."""
+from typing import Optional
 
-import pandas as pd
+from boto3.dynamodb.types import TypeSerializer
 
-from lib.aws.s3 import S3
-from lib.constants import (
-    current_datetime_str, root_local_data_directory, timestamp_format
-)
-from lib.db.manage_local_data import load_jsonl_data, write_jsons_to_local_store  # noqa
-from services.preprocess_raw_data.export_data import s3_export_key_map
+from lib.aws.athena import Athena, DEFAULT_DB_NAME
+from lib.aws.dynamodb import DynamoDB
+from lib.constants import current_datetime, current_datetime_str
+from lib.log.logger import get_logger
 
-superposter_threshold = 5
+DB_NAME = DEFAULT_DB_NAME
+GLUE_TABLE_NAME = "daily_posts"
+DYNAMODB_TABLE_NAME = "superposters"
 
-s3 = S3()
+athena = Athena()
+dynamodb = DynamoDB()
+logger = get_logger(__name__)
 
-s3_export_root_key = "superposters"
-
-
-def load_posts(
-    source: Literal["s3", "local"],
-    source_feeds: list[str] = ["firehose", "most_liked"],
-    lookback_hours: int = 24
-) -> list[dict]:
-    """Loads the latest preprocessed posts.
-
-    Has a default lookback period that we use to determine the earliest
-    preprocessed posts that we'll load.
-    """
-    lookback_timestamp: str = (
-        datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
-    ).strftime(timestamp_format)
-    # NOTE: assumes lookback_hours <= 24, else you can have an edge case
-    # where there's a day in between the two partition keys.
-    current_date_partition_key = S3.create_partition_key_based_on_timestamp(
-        timestamp_str=current_datetime_str
-    )
-    lookback_partition_key = S3.create_partition_key_based_on_timestamp(
-        timestamp_str=lookback_timestamp
-    )
-
-    # remove last 2 subdirs from partition keys, since those are hour and
-    # minute values.
-    current_date_partition_key = os.path.join(*current_date_partition_key.split("/")[:-2])  # noqa
-    lookback_partition_key = os.path.join(*lookback_partition_key.split("/")[:-2])  # noqa
-
-    partition_keys = [lookback_partition_key, current_date_partition_key]
-
-    if source == "s3":
-        jsonl_data: list[dict] = []
-        for source_feed in source_feeds:
-            s3_keys = []
-            for partition_key in partition_keys:
-                prefix = os.path.join(
-                    s3_export_key_map["post"], source_feed, partition_key
-                )
-                keys = s3.list_keys_given_prefix(prefix=prefix)
-                s3_keys.extend(keys)
-            for key in s3_keys:
-                data = s3.read_jsonl_from_s3(key)
-                jsonl_data.extend(data)
-    elif source == "local":
-        jsonl_data: list[dict] = []
-        for source_feed in source_feeds:
-            for partition_key in partition_keys:
-                full_import_filedir = os.path.join(
-                    root_local_data_directory,
-                    s3_export_key_map["post"],
-                    source_feed,
-                    partition_key
-                )
-                files_to_load = []
-                for root, _, files in os.walk(full_import_filedir):
-                    for file in files:
-                        files_to_load.append(os.path.join(root, file))
-                for filepath in files_to_load:
-                    data = load_jsonl_data(filepath)
-                    jsonl_data.extend(data)
-    return jsonl_data
+serializer = TypeSerializer()
 
 
-def export_superposters(
-    superposters: pd.DataFrame,
-    external_stores: list[Literal["local", "s3"]] = ["local", "s3"]
+def calculate_latest_superposters(
+    top_n_percent: Optional[float] = None,
+    threshold: Optional[float] = None
 ):
-    """Export superposters."""
-    partition_key = S3.create_partition_key_based_on_timestamp(
-        timestamp_str=current_datetime_str
-    )
-    filename = f"superposters_{current_datetime_str}.jsonl"
-    superposters_dicts = superposters.to_dict(orient="records")
-    full_key = os.path.join(s3_export_root_key, partition_key, filename)  # noqa
-    for external_store in external_stores:
-        if external_store == "s3":
-            s3.write_dicts_jsonl_to_s3(data=superposters_dicts, key=full_key)
-        elif external_store == "local":
-            full_export_filepath = os.path.join(
-                root_local_data_directory, full_key
-            )
-            write_jsons_to_local_store(
-                records=superposters_dicts,
-                export_filepath=full_export_filepath
-            )
-        else:
-            raise ValueError("Invalid export store.")
+    """Get latest superposters.
+
+    Calculates either based on percentile (e.g., top 5% of posters)
+    or threshold (e.g., >=5 posts).
+
+    Prioritizes percentile over threshold if both are given.
+    """
+    if top_n_percent is not None:
+        query = f"""
+        WITH ranked_users AS (
+            SELECT author_did, COUNT(*) as count,
+                ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as row_num, # returns row number for the resulting grouped output
+                COUNT(*) OVER () as total_count # calculates the total number of distinct author_did values.
+            FROM {DB_NAME}.{GLUE_TABLE_NAME}
+            GROUP BY author_did
+        )
+        SELECT author_did, count
+        FROM ranked_users
+        WHERE row_num <= total_count * {top_n_percent}
+        ORDER BY count DESC
+        """  # noqa
+    elif threshold is not None:
+        query = f"""
+        SELECT author_did, COUNT(*) as count
+        FROM {DB_NAME}.{GLUE_TABLE_NAME}
+        GROUP BY author_did
+        HAVING COUNT(*) >= {threshold}
+        ORDER BY count DESC
+        """
+    else:
+        raise ValueError("Either percentile or threshold must be provided.")
+
+    # fetch results from Athena.
+    superposters_df = athena.query_results_as_df(query)
+    logger.info(f"Fetched {len(superposters_df)} superposters from Athena.")
+
+    # transform results, get as a list of dicts.
+    superposter_dicts = superposters_df.to_dict(orient="records")
+    output = {
+        "insert_date_timestamp": current_datetime_str,
+        "insert_date": current_datetime.strftime("%Y-%m-%d"),
+        "superposters": superposter_dicts,
+        "method": "top_n_percent" if top_n_percent is not None else "threshold",
+        "top_n_percent": top_n_percent,
+        "threshold": threshold
+    }
+
+    serialized_output = {k: serializer.serialize(v) for k, v in output.items()}
+
+    # write to DynamoDB.
+    dynamodb.insert_item_into_table(serialized_output, DYNAMODB_TABLE_NAME)
+
+    logger.info(f"Wrote {len(output)} superposters to DynamoDB.")
 
 
-def calculate_latest_superposters():
-    """Calculate the latest superposters."""
-    posts: list[dict] = load_posts(source="s3")
-    df = pd.DataFrame(posts)
-
-    superposters = df['author_did'].value_counts()
-    superposters = superposters[superposters >= superposter_threshold]
-
-    superposter_counts_df = pd.DataFrame(superposters).reset_index()
-    superposter_counts_df.columns = ['author_did', 'number_of_posts']
-    superposter_counts_df["superposter_calculation_timestamp"] = current_datetime_str  # noqa
-    superposter_counts_df["insert_timestamp"] = current_datetime_str
-    export_superposters(superposter_counts_df)
+if __name__ == "__main__":
+    calculate_latest_superposters(top_n_percent=None, threshold=5)
