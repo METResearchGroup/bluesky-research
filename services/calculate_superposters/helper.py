@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 
 def calculate_latest_superposters(
-    percentile: Optional[float] = None,
+    top_n_percent: Optional[float] = None,
     threshold: Optional[float] = None
 ):
     """Get latest superposters.
@@ -26,24 +26,25 @@ def calculate_latest_superposters(
 
     Prioritizes percentile over threshold if both are given.
     """
-    if percentile is not None:
+    if top_n_percent is not None:
         query = f"""
         WITH ranked_users AS (
-            SELECT id, COUNT(*) as count,
-                   PERCENT_RANK() OVER (ORDER BY COUNT(*) DESC) as percentile_rank
+            SELECT author_did, COUNT(*) as count,
+                ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as row_num, # returns row number for the resulting grouped output
+                COUNT(*) OVER () as total_count # calculates the total number of distinct author_did values.
             FROM {DB_NAME}.{GLUE_TABLE_NAME}
-            GROUP BY id
+            GROUP BY author_did
         )
-        SELECT id, count
+        SELECT author_did, count
         FROM ranked_users
-        WHERE percentile_rank <= {percentile}
+        WHERE row_num <= total_count * {top_n_percent}
         ORDER BY count DESC
         """  # noqa
     elif threshold is not None:
         query = f"""
-        SELECT id, COUNT(*) as count
+        SELECT author_did, COUNT(*) as count
         FROM {DB_NAME}.{GLUE_TABLE_NAME}
-        GROUP BY id
+        GROUP BY author_did
         HAVING COUNT(*) >= {threshold}
         ORDER BY count DESC
         """
@@ -60,8 +61,8 @@ def calculate_latest_superposters(
         "insert_date_timestamp": current_datetime_str,
         "insert_date": current_datetime.strftime("%Y-%m-%d"),
         "superposters": superposter_dicts,
-        "method": "percentile" if percentile is not None else "threshold",
-        "percentile": percentile,
+        "method": "top_n_percent" if top_n_percent is not None else "threshold",
+        "top_n_percent": top_n_percent,
         "threshold": threshold
     }
 
