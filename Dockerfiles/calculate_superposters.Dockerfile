@@ -1,11 +1,12 @@
-FROM python:3.10-slim
+FROM public.ecr.aws/lambda/python:3.10
 
 WORKDIR /app
 
 # add .env env vars to the container
 COPY ../.env ./.env
 
-COPY pipelines/calculate_superposters/ ./pipelines/calculate_superposters/
+COPY pipelines/calculate_superposters/*.py ./pipelines/calculate_superposters/
+COPY pipelines/calculate_superposters/requirements.txt ./pipelines/calculate_superposters/
 
 COPY lib/aws/*.py ./lib/aws/
 COPY lib/constants.py ./lib/constants.py
@@ -14,14 +15,22 @@ COPY lib/db/manage_local_data.py ./lib/db/manage_local_data.py
 COPY lib/helper.py ./lib/helper.py
 COPY lib/log/logger.py ./lib/log/logger.py
 
-COPY services/preprocess_raw_data/models.py ./services/preprocess_raw_data/models.py
-COPY services/preprocess_raw_data/export_data.py ./services/preprocess_raw_data/export_data.py
-COPY services/calculate_superposters /app/services/calculate_superposters
+COPY services/calculate_superposters/helper.py /app/services/calculate_superposters
+
+# copy handler code to /app
+COPY pipelines/calculate_superposters/__init__.py /app/__init__.py
+COPY pipelines/calculate_superposters/handler.py /app/handler.py
 
 WORKDIR /app/pipelines/calculate_superposters
 
-RUN pip install --no-cache-dir -r requirements.txt
+# hadolint ignore=DL3003,DL3013,DL3042
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir awslambdaric
+
+WORKDIR /app
 
 ENV PYTHONPATH=/app
 
-CMD ["python", "main.py"]
+ENTRYPOINT ["python", "-m", "awslambdaric"]
+
+CMD ["handler.lambda_handler"]
