@@ -15,7 +15,7 @@ dynamodb = DynamoDB()
 logger = get_logger(__name__)
 
 
-def get_latest_superposters(
+def calculate_latest_superposters(
     percentile: Optional[float] = None,
     threshold: Optional[float] = None
 ):
@@ -38,7 +38,7 @@ def get_latest_superposters(
         FROM ranked_users
         WHERE percentile_rank <= {percentile}
         ORDER BY count DESC
-        """
+        """  # noqa
     elif threshold is not None:
         query = f"""
         SELECT id, COUNT(*) as count
