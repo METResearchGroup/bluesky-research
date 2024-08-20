@@ -75,7 +75,7 @@ def calculate_latest_superposters(
     # write to DynamoDB.
     dynamodb.insert_item_into_table(serialized_output, DYNAMODB_TABLE_NAME)
 
-    logger.info(f"Wrote {len(serialized_output)} superposters to DynamoDB.")
+    logger.info(f"Wrote {len(output)} superposters to DynamoDB.")
 
 
 if __name__ == "__main__":
