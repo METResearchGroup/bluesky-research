@@ -12,7 +12,6 @@ from lib.db.bluesky_models.transformations import (
     TransformedFeedViewPostModel, TransformedRecordModel
 )
 from lib.db.manage_local_data import write_jsons_to_local_store
-from lib.db.mongodb import get_mongodb_collection
 from lib.log.logger import get_logger
 from services.consolidate_post_records.helper import consolidate_feedview_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
@@ -40,16 +39,17 @@ feed_to_info_map = {
 current_directory = os.path.dirname(os.path.abspath(__file__))
 sync_dir = "syncs"
 full_sync_dir = os.path.join(current_directory, sync_dir)
-if not os.path.exists(full_sync_dir):
+# make new path if it doesn't exist and if not running in a lambda container.
+if not os.path.exists(full_sync_dir) and not os.path.exists('/app'):
     os.makedirs(full_sync_dir)
 sync_fp = os.path.join(
     full_sync_dir, f"most_liked_posts_{current_datetime_str}.jsonl")
 urls_fp = os.path.join(full_sync_dir, f"urls_{current_datetime_str}.csv")
 
-task_name = "get_most_liked_posts"
-mongo_collection_name, mongo_collection = (
-    get_mongodb_collection(task=task_name)
-)
+# task_name = "get_most_liked_posts"
+# mongo_collection_name, mongo_collection = (
+#     get_mongodb_collection(task=task_name)
+# )
 
 root_most_liked_s3_key = os.path.join(SYNC_KEY_ROOT, "most_liked_posts")
 

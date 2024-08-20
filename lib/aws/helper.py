@@ -5,13 +5,20 @@ import time
 
 import boto3
 from botocore.client import BaseClient
+from botocore.exceptions import ProfileNotFound
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 env_path = os.path.abspath(os.path.join(current_file_directory, "../../.env"))
 load_dotenv(env_path)
 
 AWS_PROFILE_NAME = os.getenv("AWS_PROFILE_NAME")
-session = boto3.Session(profile_name=AWS_PROFILE_NAME)
+
+try:
+    session = boto3.Session(profile_name=AWS_PROFILE_NAME)
+except ProfileNotFound:
+    print(f"Profile {AWS_PROFILE_NAME} not found. Falling back to default credentials.")
+    session = boto3.Session()
+    print("Session created from default credentials.")
 
 
 def create_client(client_name: str) -> BaseClient:

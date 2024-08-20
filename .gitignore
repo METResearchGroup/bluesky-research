@@ -177,3 +177,6 @@ cython_debug/
 
 # secrets
 *.pem
+
+# aws config
+.aws-copy/config

@@ -57,6 +57,25 @@ resource "aws_lambda_function" "bluesky_feed_api_lambda" {
   }
 }
 
+resource "aws_lambda_function" "preprocess_raw_data_lambda" {
+  function_name = "preprocess_raw_data_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.preprocess_raw_data_service.repository_url}:latest"
+  architectures = ["arm64"] # since images are built locally with an M1 Mac.
+  timeout       = 180 # 3 minute timeout
+  memory_size   = 1024 # 1 GB of memory
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "preprocess_raw_data_lambda_log_group" {
+  name              = "/aws/lambda/preprocess_raw_data_lambda"
+  retention_in_days = 7
+}
+
 ### API Gateway ###
 
 # define API Gateway REST API
@@ -284,10 +303,15 @@ resource "aws_iam_policy" "lambda_access_policy" {
       # Add DynamoDB policy
       {
         Action = [
-          "dynamodb:PutItem"
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem"
         ],
         Effect   = "Allow",
-        Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/study_participants"
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/*"
       },
       # Add CloudWatch Logs policy
       {
@@ -297,7 +321,18 @@ resource "aws_iam_policy" "lambda_access_policy" {
           "logs:PutLogEvents"
         ],
         Effect   = "Allow",
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.bsky_api_lambda_name}:*"
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/*"
+      },
+      # Add SQS policy
+      {
+        Action = [
+          "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes"
+        ],
+        Effect   = "Allow",
+        Resource = "arn:aws:sqs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:*"
       }
     ]
   })
