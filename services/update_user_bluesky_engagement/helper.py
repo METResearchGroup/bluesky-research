@@ -1,4 +1,5 @@
 """Helper functions for updating user engagement metrics in our database."""
+
 import json
 from typing import Optional
 
@@ -9,41 +10,44 @@ from atproto_client.models.com.atproto.repo.list_records import Record as ListRe
 
 from lib.constants import current_datetime_str
 from lib.db.bluesky_models.transformations import (
-    TransformedFeedViewPostModel, TransformedRecordModel
+    TransformedFeedViewPostModel,
+    TransformedRecordModel,
 )
-from lib.db.sql.participant_data_database import (
-    get_user_to_bluesky_profiles
-)
+from lib.db.sql.participant_data_database import get_user_to_bluesky_profiles
 from lib.db.sql.user_engagement_database import (
     batch_insert_engagement_metrics,
     get_most_recent_like_timestamp,
-    get_most_recent_post_timestamp
+    get_most_recent_post_timestamp,
 )
 from lib.helper import client
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.sync.search.helper import send_request_with_pagination
 from services.update_user_bluesky_engagement.models import (
-    UserLikeModel, UserLikedPostModel, PostWrittenByStudyUserModel,
-    UserEngagementMetricsModel
+    UserLikeModel,
+    UserLikedPostModel,
+    PostWrittenByStudyUserModel,
+    UserEngagementMetricsModel,
 )
 from transform.bluesky_helper import (
-    get_post_link_given_post_uri, get_post_record_given_post_uri
+    get_post_link_given_post_uri,
+    get_post_record_given_post_uri,
 )
-from transform.transform_raw_data import (
-    transform_feedview_post, transform_post_record
-)
+from transform.transform_raw_data import transform_feedview_post, transform_post_record
 
 
-def get_latest_likes_by_user(author_profile) -> tuple[list[UserLikeModel], list[UserLikedPostModel]]:  # noqa
+def get_latest_likes_by_user(
+    author_profile,
+) -> tuple[list[UserLikeModel], list[UserLikedPostModel]]:  # noqa
     """Get the latest posts liked by a user."""
     collection = "app.bsky.feed.like"
     repo = author_profile.did
     params = {"collection": collection, "repo": repo}
-    most_recent_liked_timestamp: Optional[str] = get_most_recent_like_timestamp(author_profile.handle)  # noqa
+    most_recent_liked_timestamp: Optional[str] = get_most_recent_like_timestamp(
+        author_profile.handle
+    )  # noqa
     if most_recent_liked_timestamp:
-        recency_callback = (
-            lambda like: like.value.created_at
-            > most_recent_liked_timestamp
+        recency_callback = (  # noqa
+            lambda like: like.value.created_at > most_recent_liked_timestamp
         )
     else:
         recency_callback = None
@@ -63,8 +67,7 @@ def get_latest_likes_by_user(author_profile) -> tuple[list[UserLikeModel], list[
     # get only likes related to posts (not feeds). We can also like feeds, and
     # these are saved as well, but we don't want to include those.
     post_like_records: list[LikeRecord] = [
-        like for like in like_records
-        if "app.bsky.feed.post" in like.subject.uri
+        like for like in like_records if "app.bsky.feed.post" in like.subject.uri
     ]
     print(f"Processing {len(post_like_records)} new post likes...")
     if not post_like_records or len(post_like_records) == 0:
@@ -74,16 +77,13 @@ def get_latest_likes_by_user(author_profile) -> tuple[list[UserLikeModel], list[
     # their feedview versions. There might be some None values based on if the
     # record exists or not (e.g., it might have been deleted)
     liked_record_responses: list[Optional[GetRecordResponse]] = [
-        get_post_record_given_post_uri(like.subject.uri)
-        for like in post_like_records
+        get_post_record_given_post_uri(like.subject.uri) for like in post_like_records
     ]
 
     likes: list[UserLikeModel] = []
     liked_posts: list[UserLikedPostModel] = []  # noqa
 
-    for like, hydrated_like_record in zip(
-        post_like_records, liked_record_responses
-    ):
+    for like, hydrated_like_record in zip(post_like_records, liked_record_responses):
         if hydrated_like_record is None:
             # these posts are deleted, so we skip.
             continue
@@ -109,7 +109,7 @@ def get_latest_likes_by_user(author_profile) -> tuple[list[UserLikeModel], list[
             # YYYY-MM-DD timestamp, then the created_at format (e.g.,
             # 2024-06-17T02:30:13.598Z) will always be greater than the
             # like_synctimestamp format (e.g., 2024-06-17-18:38:16).
-            like_synctimestamp=current_datetime_str
+            like_synctimestamp=current_datetime_str,
         )
         liked_post_model = UserLikedPostModel(
             uri=hydrated_like_record.uri,
@@ -130,13 +130,15 @@ def get_latest_likes_by_user(author_profile) -> tuple[list[UserLikeModel], list[
             langs=transformed_liked_record.langs,
             reply_parent=transformed_liked_record.reply_parent,
             reply_root=transformed_liked_record.reply_root,
-            tags=transformed_liked_record.tags
+            tags=transformed_liked_record.tags,
         )
         liked_posts.append(liked_post_model)
         likes.append(like_model)
 
     if len(likes) != len(liked_posts):
-        raise ValueError(f"The number of likes {len(likes)} does not match the number of transformed records {len(liked_posts)}")  # noqa
+        raise ValueError(
+            f"The number of likes {len(likes)} does not match the number of transformed records {len(liked_posts)}"
+        )  # noqa
     # return both the like and the actual record itself. We want to record
     # both the user liking the post as well as the post that was liked itself,
     # and then store these two separately (for example, two users can each like
@@ -161,14 +163,15 @@ def get_post_type(post: FeedViewPost) -> str:
         return "post"
 
 
-def get_latest_posts_written_by_user(author_profile) -> list[PostWrittenByStudyUserModel]:  # noqa
+def get_latest_posts_written_by_user(
+    author_profile,
+) -> list[PostWrittenByStudyUserModel]:  # noqa
     most_recent_post_timestamp: Optional[str] = get_most_recent_post_timestamp(
         author_handle=author_profile.handle
     )
     if most_recent_post_timestamp:
-        recency_callback = (
-            lambda post: post.post.record.created_at
-            > most_recent_post_timestamp
+        recency_callback = (  # noqa
+            lambda post: post.post.record.created_at > most_recent_post_timestamp
         )
     else:
         recency_callback = None
@@ -187,8 +190,10 @@ def get_latest_posts_written_by_user(author_profile) -> list[PostWrittenByStudyU
     for post in res:
         enrichment_data = {"source_feed": None, "feed_url": None}
         post_type = get_post_type(post)
-        transformed_feedview_post: TransformedFeedViewPostModel = transform_feedview_post(  # noqa
-            post=post, enrichment_data=enrichment_data
+        transformed_feedview_post: TransformedFeedViewPostModel = (
+            transform_feedview_post(  # noqa
+                post=post, enrichment_data=enrichment_data
+            )
         )
         transformed_feedview_record: TransformedRecordModel = (
             transformed_feedview_post.record
@@ -208,19 +213,21 @@ def get_latest_posts_written_by_user(author_profile) -> list[PostWrittenByStudyU
             like_count=post.post.like_count,
             reply_count=post.post.reply_count,
             repost_count=post.post.repost_count,
-            post_type=post_type
+            post_type=post_type,
         )
         transformed_latest_posts.append(transformed_post)
     return transformed_latest_posts
 
 
 def get_latest_user_engagement_metrics(
-    user: UserToBlueskyProfileModel
+    user: UserToBlueskyProfileModel,
 ) -> UserEngagementMetricsModel:
     """Get the latest user engagement metrics for a user."""
     author_profile = client.get_profile(user.bluesky_user_did)
     latest_likes, latest_liked_posts = get_latest_likes_by_user(author_profile)
-    latest_posts: list[PostWrittenByStudyUserModel] = get_latest_posts_written_by_user(author_profile)  # noqa
+    latest_posts: list[PostWrittenByStudyUserModel] = get_latest_posts_written_by_user(
+        author_profile
+    )  # noqa
     res = {
         "user_did": user.bluesky_user_did,
         "user_handle": user.bluesky_handle,
@@ -230,7 +237,7 @@ def get_latest_user_engagement_metrics(
         "latest_following_count": author_profile.follows_count,
         "latest_posts_written": latest_posts,
         "latest_total_posts_written_count": author_profile.posts_count,
-        "update_timestamp": current_datetime_str
+        "update_timestamp": current_datetime_str,
     }
     return UserEngagementMetricsModel(**res)
 
@@ -238,11 +245,9 @@ def get_latest_user_engagement_metrics(
 def update_latest_user_engagement_metrics():
     users: list[UserToBlueskyProfileModel] = get_user_to_bluesky_profiles()
     for user in users:
-        print('-' * 20)
+        print("-" * 20)
         print(f"Updating engagement metrics for user {user.bluesky_handle}")
-        latest_engagement_metrics = (
-            get_latest_user_engagement_metrics(user=user)
-        )
+        latest_engagement_metrics = get_latest_user_engagement_metrics(user=user)
         batch_insert_engagement_metrics([latest_engagement_metrics])
         print(f"Successfully updated engagement metrics for user {user.bluesky_handle}")  # noqa
-        print('-' * 20)
+        print("-" * 20)
