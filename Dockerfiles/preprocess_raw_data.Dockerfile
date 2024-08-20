@@ -40,7 +40,7 @@ COPY pipelines/preprocess_raw_data/handler.py /app/handler.py
 
 # install Git and build-essential
 # requires yum instead of apt-get (if building on top of lambda base image)
-# hadolint ignore=DL3008,DL3015
+# hadolint ignore=DL3008,DL3015,DL3033
 RUN yum -y update \
     && yum groupinstall -y "Development Tools" \
     && yum install -y git \
@@ -54,6 +54,7 @@ RUN git clone https://github.com/facebookresearch/fastText.git \
 
 WORKDIR /app/pipelines/preprocess_raw_data/
 
+# hadolint ignore=DL3003,DL3013,DL3042
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir awslambdaric
 
