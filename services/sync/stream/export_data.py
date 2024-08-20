@@ -189,7 +189,7 @@ def compress_cached_files_and_write_to_storage(
         )
         # NOTE: for now, we will only preprocess posts, so we'll send the SQS
         # message only for posts.
-        if send_sqs_message and operation_type == "post":
+        if send_sqs_message and operation_type == "post" and operation == "create":  # noqa
             s3_key = full_key
             if compressed:
                 s3_key += ".gz"
@@ -205,7 +205,7 @@ def compress_cached_files_and_write_to_storage(
             sqs.send_message(
                 source="firehose", data=sqs_data_payload, custom_log=custom_log
             )
-        if operation_type == "post":
+        if operation_type == "post" and operation == "create":
             # write post to separate location to track daily posts (for daily
             # superposter calculation)
             daily_posts_dicts: list[dict] = []
