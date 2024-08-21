@@ -122,13 +122,15 @@ def update_completed_fetch_user_network(user_handle: str):
     )  # noqa
 
 
-def get_users_whose_social_network_has_been_fetched() -> list[str]:
+def get_users_whose_social_network_has_been_fetched() -> set[str]:
     """Gets the list of users whose social network has been fetched.
 
     Retrieves from DynamoDB.
     """
     res = dynamodb.get_all_items_from_table(dynamodb_table_name)
-    return [item["user_handle"] for item in res]
+    user_handles_res = [item["user_handle"] for item in res]
+    user_handles = set([item["S"] for item in user_handles_res])
+    return user_handles
 
 
 def export_follows_and_followers_for_user(
@@ -156,7 +158,7 @@ def get_social_network_for_user(user_handle: str):
 
 def get_social_networks_for_users(user_handles: list[str]):
     """Given a list of user handles, fetches the social networks for each user."""
-    users_whose_social_network_has_been_fetched = (
+    users_whose_social_network_has_been_fetched: set[str] = (
         get_users_whose_social_network_has_been_fetched()
     )
     logger.info(
@@ -167,6 +169,9 @@ def get_social_networks_for_users(user_handles: list[str]):
         for user_handle in user_handles
         if user_handle not in users_whose_social_network_has_been_fetched
     ]
+    if len(user_handles) == 0:
+        logger.info("No users to fetch social networks for.")
+        return
     logger.info(f"Fetching social networks for {len(user_handles)} users.")
     for i, user_handle in enumerate(user_handles):
         if i % 10 == 0:
