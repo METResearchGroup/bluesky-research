@@ -625,6 +625,51 @@ resource "aws_glue_catalog_table" "daily_posts" {
   table_type = "EXTERNAL_TABLE"
 }
 
+# Glue table for user social networks
+resource "aws_glue_catalog_table" "user_social_networks" {
+  database_name = aws_glue_catalog_database.default.name
+  name          = "user_social_networks"
+
+  storage_descriptor {
+    columns {
+      name = "follow_handle"
+      type = "string"
+    }
+    columns {
+      name = "follow_url"
+      type = "string"
+    }
+    columns {
+      name = "follower_handle"
+      type = "string"
+    }
+    columns {
+      name = "follower_url"
+      type = "string"
+    }
+    columns {
+      name = "insert_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "relationship_to_study_user"
+      type = "string"
+    }
+
+    location      = "s3://${var.s3_root_bucket_name}/scraped-user-social-network/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+  }
+
+  table_type = "EXTERNAL_TABLE"
+}
+
+
 ### AWS Athena ###
 
 # set default workgroup and output location for said workgroup.
@@ -653,5 +698,20 @@ resource "aws_dynamodb_table" "superposters" {
 
   tags = {
     Name = "superposters"
+  }
+}
+
+resource "aws_dynamodb_table" "users_whose_social_network_has_been_fetched" {
+  name           = "users_whose_social_network_has_been_fetched"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "user_handle"
+
+  attribute {
+    name = "user_handle"
+    type = "S"
+  }
+
+  tags = {
+    Name = "users_whose_social_network_has_been_fetched"
   }
 }

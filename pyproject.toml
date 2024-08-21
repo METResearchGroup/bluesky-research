@@ -1,4 +1,13 @@
+[project]
+name = "bluesky-research"
+version = "0.1.0"
+description = "Bluesky Research"
+readme = "README.md"
+
 [tool.flake8]
 exclude = ["*/experiments/*", "./demos/*"]
 max-line-length = 80
 max-complexity = 10
+
+[tool.uv.workspace]
+members = ["pipelines/get_existing_user_social_network"]
