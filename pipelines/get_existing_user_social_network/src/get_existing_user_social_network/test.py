@@ -85,16 +85,18 @@ def get_all_follows():
             aria_label = anchor.get_attribute("aria-label")
             href = anchor.get_attribute("href")
             if aria_label and href:
-                # Check if aria_label doesn't have any spaces
+                # Check if aria_label doesn't have any spaces.
+                # There are 2 anchors, one with the actual handle and one that
+                # has only the user's profile picture. The profile picture will
+                # have an aria-label of "[Name]'s avatar", so we want to filter
+                # these out.
                 if " " not in aria_label and href not in existing_hrefs:
                     follows_data.add((aria_label, href))
                     existing_hrefs.add(href)
                     if len(follows_data) % 10 == 0:
                         print(f"Added {len(follows_data)} follows so far...")
                 else:
-                    print(
-                        f"Skipping entry ({aria_label}, {href}) (either spaces or it already exists...)"
-                    )
+                    pass
 
         # Scroll down slowly
         current_height = driver.execute_script("return window.pageYOffset")
@@ -120,11 +122,45 @@ def get_all_follows():
                 if new_height > last_height:
                     last_height = new_height
                     break
-            else:
+            else:  # matches with the for-loop, if we've gone through all wait times and still no change
                 # If we've gone through all wait times and still no change
-                print("No more follows to load.")
+                print("Rechecking the entire page one last time...")
+                follow_anchors = driver.find_elements(
+                    By.CSS_SELECTOR, 'a[href^="/profile/"]'
+                )
+                for anchor in follow_anchors:
+                    aria_label = anchor.get_attribute("aria-label")
+                    href = anchor.get_attribute("href")
+                    if aria_label and href:
+                        if " " not in aria_label and href not in existing_hrefs:
+                            follows_data.add((aria_label, href))
+                            existing_hrefs.add(href)
+                            if len(follows_data) % 10 == 0:
+                                print(f"Added {len(follows_data)} follows so far...")
+                        else:
+                            print(
+                                f"Skipping entry ({aria_label}, {href}) (either spaces or it already exists...)"
+                            )
+                print("Final recheck complete. No more follows to load.")
                 break
+
         last_height = new_height
+
+        # Re-check the entire page for new elements
+        follow_anchors = driver.find_elements(By.CSS_SELECTOR, 'a[href^="/profile/"]')
+        for anchor in follow_anchors:
+            aria_label = anchor.get_attribute("aria-label")
+            href = anchor.get_attribute("href")
+            if aria_label and href:
+                if " " not in aria_label and href not in existing_hrefs:
+                    follows_data.add((aria_label, href))
+                    existing_hrefs.add(href)
+                    if len(follows_data) % 10 == 0:
+                        print(f"Added {len(follows_data)} follows so far...")
+                else:
+                    print(
+                        f"Skipping entry ({aria_label}, {href}) (either spaces or it already exists...)"
+                    )
 
     return list(follows_data)
 

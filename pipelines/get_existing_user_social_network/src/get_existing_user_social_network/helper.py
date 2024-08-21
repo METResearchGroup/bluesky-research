@@ -3,7 +3,9 @@
 import os
 import uuid
 
+from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
+from lib.constants import current_datetime_str
 from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
@@ -11,7 +13,9 @@ from services.participant_data.models import UserToBlueskyProfileModel
 logger = get_logger(__name__)
 
 s3 = S3()
+dynamodb = DynamoDB()
 key_root = "scraped-user-social-network"  # should match TF configuration.
+dynamodb_table_name = "users_whose_social_network_has_been_fetched"
 
 
 def fetch_profiles(url) -> list[dict]:
@@ -68,7 +72,11 @@ def fetch_follows_and_followers_for_user(user_handle: str):
 def update_completed_fetch_user_network(user_handle: str):
     """Once a user's social network has been fetched, update the completed
     user's status in DynamoDB."""
-    pass
+    payload = {"user_handle": user_handle, "insert_timestamp": current_datetime_str}
+    dynamodb.put_item_to_table(payload, dynamodb_table_name)
+    print(
+        f"Updated DynamoDB table `{dynamodb_table_name}` by adding user {user_handle}."
+    )  # noqa
 
 
 def get_users_whose_social_network_has_been_fetched() -> list[str]:
@@ -76,7 +84,8 @@ def get_users_whose_social_network_has_been_fetched() -> list[str]:
 
     Retrieves from DynamoDB.
     """
-    pass
+    res = dynamodb.get_all_items_from_table(dynamodb_table_name)
+    return [item["user_handle"] for item in res]
 
 
 def export_follows_and_followers_for_user(

@@ -655,3 +655,18 @@ resource "aws_dynamodb_table" "superposters" {
     Name = "superposters"
   }
 }
+
+resource "aws_dynamodb_table" "users_whose_social_network_has_been_fetched" {
+  name           = "users_whose_social_network_has_been_fetched"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "user_handle"
+
+  attribute {
+    name = "user_handle"
+    type = "S"
+  }
+
+  tags = {
+    Name = "users_whose_social_network_has_been_fetched"
+  }
+}

@@ -1,4 +1,5 @@
 """Wrapper client for DynamoDB."""
+
 from typing import Optional
 
 import boto3
@@ -18,8 +19,7 @@ class DynamoDB:
         try:
             return getattr(self.client, name)
         except AttributeError:
-            raise AttributeError(
-                f"'DynamoDB' object has no attribute '{name}'")
+            raise AttributeError(f"'DynamoDB' object has no attribute '{name}'")
 
     @retry_on_aws_rate_limit
     def insert_item_into_table(self, item: dict, table_name: str) -> None:
@@ -38,4 +38,14 @@ class DynamoDB:
             return response.get("Item")
         except Exception as e:
             print(f"Failure in getting item from DynamoDB: {e}")
+            raise e
+
+    @retry_on_aws_rate_limit
+    def get_all_items_from_table(self, table_name: str) -> list[dict]:
+        """Gets all items from a table."""
+        try:
+            response = self.client.scan(TableName=table_name)
+            return response.get("Items")
+        except Exception as e:
+            print(f"Failure in getting all items from DynamoDB: {e}")
             raise e
