@@ -1,5 +1,6 @@
-import time
+import json
 import random
+import time
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -165,13 +166,83 @@ def get_all_follows():
     return list(follows_data)
 
 
-# Get all follows
-follows_data = get_all_follows()
+# New function to capture requests and extract did and handle
+def capture_follows_requests():
+    follows_data = []
 
-# Print the total number of results
-print(f"Total follows found: {len(follows_data)}")
+    def request_interceptor(request):
+        if "app.bsky.graph.getFollows" in request.url:
+            response = request.response.body.decode("utf-8")
+            data = json.loads(response)
+            follows = data.get("follows", [])
+            print(f"Fetched {len(follows)} follows...")
+            for follow in follows:
+                follows_data.append({"did": follow["did"], "handle": follow["handle"]})
 
-breakpoint()
+    # Set up request interception
+    driver.request_interceptor = request_interceptor
 
-# kill browser instance
-driver.quit()
+    last_height = driver.execute_script("return document.body.scrollHeight")
+
+    while True:
+        # Scroll down slowly
+        current_height = driver.execute_script("return window.pageYOffset")
+        target_height = driver.execute_script("return document.body.scrollHeight")
+        step = 30  # Adjust this value to control scroll speed (smaller value = slower scroll)
+        while current_height < target_height:
+            current_height += step
+            driver.execute_script(f"window.scrollTo(0, {current_height});")
+            time.sleep(
+                0.1 + random.uniform(0, 0.25)
+            )  # Add a small delay with slight randomness between each scroll step
+
+        # Wait for the page to load
+        time.sleep(5)
+
+        # Calculate new scroll height and compare with last scroll height
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            # Progressive backoff to check if more content needs to load
+            for wait_time in [10, 20, 30, 30]:
+                time.sleep(wait_time)
+                new_height = driver.execute_script("return document.body.scrollHeight")
+                if new_height > last_height:
+                    last_height = new_height
+                    break
+            else:  # matches with the for-loop, if we've gone through all wait times and still no change
+                # If we've gone through all wait times and still no change
+                print("Final recheck complete. No more follows to load.")
+                break
+
+        last_height = new_height
+
+    # Wait 10 seconds to see if any more requests are received
+    time.sleep(10)
+
+    print(f"Total of {len(follows_data)} follows found...")
+
+    return follows_data
+
+
+if __name__ == "__main__":
+    # # follows_data = get_all_follows()
+    # follows_data = capture_follows_requests()
+
+    # # Print the total number of results
+    # print(f"Total follows found: {len(follows_data)}")
+
+    # breakpoint()
+
+    # # kill browser instance
+    # driver.quit()
+    import requests
+
+    response = requests.get("https://plc.directory/export")
+    if response.status_code == 200:
+        json_lines = response.text.splitlines()
+        data = [json.loads(line) for line in json_lines]
+        print(data)
+    else:
+        print("Failed to fetch data")
+        print(response.text)
+        breakpoint()
