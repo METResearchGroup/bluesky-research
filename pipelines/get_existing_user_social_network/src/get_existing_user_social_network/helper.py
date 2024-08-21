@@ -46,6 +46,7 @@ def fetch_follows_for_user(user_handle: str):
             "follow_url": profile["profile_url"],
             "follower_handle": user_handle,
             "follower_url": f"https://bsky.app/profile/{user_handle}",
+            "insert_timestamp": current_datetime_str,
         }
         for profile in profiles
     ]
@@ -61,6 +62,7 @@ def fetch_followers_for_user(user_handle: str):
             "follower_url": profile["profile_url"],
             "follow_handle": user_handle,
             "follow_url": f"https://bsky.app/profile/{user_handle}",
+            "insert_timestamp": current_datetime_str,
         }
         for profile in profiles
     ]
