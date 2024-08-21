@@ -651,6 +651,10 @@ resource "aws_glue_catalog_table" "user_social_networks" {
       name = "insert_timestamp"
       type = "string"
     }
+    columns {
+      name = "relationship_to_study_user"
+      type = "string"
+    }
 
     location      = "s3://${var.s3_root_bucket_name}/scraped-user-social-network/"
     input_format  = "org.apache.hadoop.mapred.TextInputFormat"

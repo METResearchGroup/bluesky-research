@@ -1,6 +1,7 @@
 """Helper tooling for fetching a user's existing social network."""
 
 import os
+from typing import Literal
 import uuid
 
 from boto3.dynamodb.types import TypeSerializer
@@ -8,9 +9,11 @@ from boto3.dynamodb.types import TypeSerializer
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import current_datetime_str
+from lib.helper import client
 from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
+from services.sync.search.helper import send_request_with_pagination
 
 logger = get_logger(__name__)
 
@@ -21,8 +24,12 @@ dynamodb_table_name = "users_whose_social_network_has_been_fetched"
 
 serializer = TypeSerializer()
 
+max_requests_per_url = 5  # max 500 results, 100 per request.
 
-def fetch_profiles(url) -> list[dict]:
+
+def fetch_profiles(
+    user_handle: str, network_type: Literal["follows", "followers"]
+) -> list[dict]:
     """Given a url (follow/follower list), fetches the profiles.
 
     Returns a list of dicts, in the form:
@@ -31,15 +38,39 @@ def fetch_profiles(url) -> list[dict]:
         "profile_url": <the URL for the profile>
     }
     """
-    return [
-        {"handle": f"example_handle_{i}", "profile_url": f"example_profile_url_{i}"}
-        for i in range(10)
+    if network_type == "follows":
+        res = send_request_with_pagination(
+            func=client.get_follows,
+            kwargs={"actor": user_handle},
+            response_key="follows",
+            max_requests=max_requests_per_url,
+        )
+        print(f"Returning {len(res)} follows for {user_handle}.")
+    elif network_type == "followers":
+        res = send_request_with_pagination(
+            func=client.get_followers,
+            kwargs={"actor": user_handle},
+            response_key="followers",
+            max_requests=max_requests_per_url,
+        )
+        print(f"Returning {len(res)} followers for {user_handle}.")
+    else:
+        raise ValueError(f"Invalid network type: {network_type}")
+
+    output: list[dict] = [
+        {
+            "handle": profile.handle,
+            "profile_url": f"https://bsky.app/profile/{profile.handle}",
+        }
+        for profile in res
     ]
+    return output
 
 
 def fetch_follows_for_user(user_handle: str):
-    url = f"https://bsky.app/profile/{user_handle}/follows"
-    profiles: list[dict] = fetch_profiles(url)
+    profiles: list[dict] = fetch_profiles(
+        user_handle=user_handle, network_type="follows"
+    )
     follows = [
         {
             "follow_handle": profile["handle"],
@@ -47,6 +78,7 @@ def fetch_follows_for_user(user_handle: str):
             "follower_handle": user_handle,
             "follower_url": f"https://bsky.app/profile/{user_handle}",
             "insert_timestamp": current_datetime_str,
+            "relationship_to_study_user": "follow",
         }
         for profile in profiles
     ]
@@ -54,8 +86,9 @@ def fetch_follows_for_user(user_handle: str):
 
 
 def fetch_followers_for_user(user_handle: str):
-    url = f"https://bsky.app/profile/{user_handle}/followers"
-    profiles: list[dict] = fetch_profiles(url)
+    profiles: list[dict] = fetch_profiles(
+        user_handle=user_handle, network_type="followers"
+    )
     followers = [
         {
             "follower_handle": profile["handle"],
@@ -63,6 +96,7 @@ def fetch_followers_for_user(user_handle: str):
             "follow_handle": user_handle,
             "follow_url": f"https://bsky.app/profile/{user_handle}",
             "insert_timestamp": current_datetime_str,
+            "relationship_to_study_user": "follower",
         }
         for profile in profiles
     ]
