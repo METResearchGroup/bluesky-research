@@ -3,6 +3,8 @@
 import os
 import uuid
 
+from boto3.dynamodb.types import TypeSerializer
+
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import current_datetime_str
@@ -16,6 +18,8 @@ s3 = S3()
 dynamodb = DynamoDB()
 key_root = "scraped-user-social-network"  # should match TF configuration.
 dynamodb_table_name = "users_whose_social_network_has_been_fetched"
+
+serializer = TypeSerializer()
 
 
 def fetch_profiles(url) -> list[dict]:
@@ -73,7 +77,10 @@ def update_completed_fetch_user_network(user_handle: str):
     """Once a user's social network has been fetched, update the completed
     user's status in DynamoDB."""
     payload = {"user_handle": user_handle, "insert_timestamp": current_datetime_str}
-    dynamodb.put_item_to_table(payload, dynamodb_table_name)
+    serialized_payload = {k: serializer.serialize(v) for k, v in payload.items()}
+    dynamodb.insert_item_into_table(
+        item=serialized_payload, table_name=dynamodb_table_name
+    )
     print(
         f"Updated DynamoDB table `{dynamodb_table_name}` by adding user {user_handle}."
     )  # noqa
@@ -138,3 +145,7 @@ def main():
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
     user_handles = [user.bluesky_handle for user in study_users]
     get_social_networks_for_users(user_handles)
+
+
+if __name__ == "__main__":
+    main()
