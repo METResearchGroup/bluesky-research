@@ -5,6 +5,8 @@ import uuid
 
 from lib.aws.s3 import S3
 from lib.log.logger import get_logger
+from services.participant_data.helper import get_all_users
+from services.participant_data.models import UserToBlueskyProfileModel
 
 logger = get_logger(__name__)
 
@@ -21,7 +23,10 @@ def fetch_profiles(url) -> list[dict]:
         "profile_url": <the URL for the profile>
     }
     """
-    pass
+    return [
+        {"handle": f"example_handle_{i}", "profile_url": f"example_profile_url_{i}"}
+        for i in range(10)
+    ]
 
 
 def fetch_follows_for_user(user_handle: str):
@@ -118,3 +123,9 @@ def get_social_networks_for_users(user_handles: list[str]):
             )  # noqa
         get_social_network_for_user(user_handle)
     logger.info(f"Finished fetching social networks for {len(user_handles)} users.")
+
+
+def main():
+    study_users: list[UserToBlueskyProfileModel] = get_all_users()
+    user_handles = [user.bluesky_handle for user in study_users]
+    get_social_networks_for_users(user_handles)
