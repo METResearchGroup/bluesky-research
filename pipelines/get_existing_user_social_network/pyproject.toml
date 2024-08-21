@@ -1,0 +1,16 @@
+[project]
+name = "get-existing-user-social-network"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "selenium>=4.23.1",
+    "selenium-wire>=5.1.0",
+    "packaging>=24.1",
+    "blinker>=1.8.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
