@@ -60,6 +60,7 @@ def fetch_profiles(
     output: list[dict] = [
         {
             "handle": profile.handle,
+            "did": profile.did,
             "profile_url": f"https://bsky.app/profile/{profile.handle}",
         }
         for profile in res
@@ -67,7 +68,7 @@ def fetch_profiles(
     return output
 
 
-def fetch_follows_for_user(user_handle: str):
+def fetch_follows_for_user(user_handle: str, user_did: str):
     profiles: list[dict] = fetch_profiles(
         user_handle=user_handle, network_type="follows"
     )
@@ -75,8 +76,10 @@ def fetch_follows_for_user(user_handle: str):
         {
             "follow_handle": profile["handle"],
             "follow_url": profile["profile_url"],
+            "follow_did": profile["did"],
             "follower_handle": user_handle,
             "follower_url": f"https://bsky.app/profile/{user_handle}",
+            "follower_did": user_did,
             "insert_timestamp": current_datetime_str,
             "relationship_to_study_user": "follow",
         }
@@ -85,7 +88,7 @@ def fetch_follows_for_user(user_handle: str):
     return follows
 
 
-def fetch_followers_for_user(user_handle: str):
+def fetch_followers_for_user(user_handle: str, user_did: str):
     profiles: list[dict] = fetch_profiles(
         user_handle=user_handle, network_type="followers"
     )
@@ -93,8 +96,10 @@ def fetch_followers_for_user(user_handle: str):
         {
             "follower_handle": profile["handle"],
             "follower_url": profile["profile_url"],
+            "follower_did": profile["did"],
             "follow_handle": user_handle,
             "follow_url": f"https://bsky.app/profile/{user_handle}",
+            "follow_did": user_did,
             "insert_timestamp": current_datetime_str,
             "relationship_to_study_user": "follower",
         }
@@ -103,9 +108,9 @@ def fetch_followers_for_user(user_handle: str):
     return followers
 
 
-def fetch_follows_and_followers_for_user(user_handle: str):
-    follows = fetch_follows_for_user(user_handle)
-    followers = fetch_followers_for_user(user_handle)
+def fetch_follows_and_followers_for_user(user_handle: str, user_did: str):
+    follows = fetch_follows_for_user(user_handle, user_did)
+    followers = fetch_followers_for_user(user_handle, user_did)
     return follows, followers
 
 
@@ -147,16 +152,20 @@ def export_follows_and_followers_for_user(
     update_completed_fetch_user_network(user_handle)
 
 
-def get_social_network_for_user(user_handle: str):
+def get_social_network_for_user(user_handle: str, user_did: str):
     """Given a user handle, fetches the user's social network."""
-    follows, followers = fetch_follows_and_followers_for_user(user_handle)
-    export_follows_and_followers_for_user(user_handle, follows, followers)
+    follows, followers = fetch_follows_and_followers_for_user(
+        user_handle=user_handle, user_did=user_did
+    )
+    export_follows_and_followers_for_user(
+        user_handle=user_handle, follows=follows, followers=followers
+    )
     logger.info(
         f"Exported {len(follows)} follows and {len(followers)} followers for user {user_handle}."
     )  # noqa
 
 
-def get_social_networks_for_users(user_handles: list[str]):
+def get_social_networks_for_users(study_users: list[UserToBlueskyProfileModel]):  # noqa
     """Given a list of user handles, fetches the social networks for each user."""
     users_whose_social_network_has_been_fetched: set[str] = (
         get_users_whose_social_network_has_been_fetched()
@@ -164,28 +173,30 @@ def get_social_networks_for_users(user_handles: list[str]):
     logger.info(
         f"Number of users whose social network has been fetched: {users_whose_social_network_has_been_fetched}"
     )
-    user_handles = [
-        user_handle
-        for user_handle in user_handles
-        if user_handle not in users_whose_social_network_has_been_fetched
+    users = [
+        user
+        for user in study_users
+        if user.bluesky_handle not in users_whose_social_network_has_been_fetched
     ]
-    if len(user_handles) == 0:
+    if len(users) == 0:
         logger.info("No users to fetch social networks for.")
         return
-    logger.info(f"Fetching social networks for {len(user_handles)} users.")
-    for i, user_handle in enumerate(user_handles):
+    total_users = len(users)
+    logger.info(f"Fetching social networks for {total_users} users.")
+    for i, user in enumerate(users):
         if i % 10 == 0:
             logger.info(
-                f"Fetching social network for user {i+1}/{len(user_handles)}: {user_handle}"
+                f"Fetching social network for user {i+1}/{total_users}: {user.bluesky_handle}"
             )  # noqa
-        get_social_network_for_user(user_handle)
-    logger.info(f"Finished fetching social networks for {len(user_handles)} users.")
+        get_social_network_for_user(
+            user_handle=user.bluesky_handle, user_did=user.bluesky_user_did
+        )
+    logger.info(f"Finished fetching social networks for {total_users} users.")
 
 
 def main():
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
-    user_handles = [user.bluesky_handle for user in study_users]
-    get_social_networks_for_users(user_handles)
+    get_social_networks_for_users(study_users)
 
 
 if __name__ == "__main__":

@@ -640,11 +640,19 @@ resource "aws_glue_catalog_table" "user_social_networks" {
       type = "string"
     }
     columns {
+      name = "follow_did"
+      type = "string"
+    }
+    columns {
       name = "follower_handle"
       type = "string"
     }
     columns {
       name = "follower_url"
+      type = "string"
+    }
+    columns {
+      name = "follower_did"
       type = "string"
     }
     columns {
