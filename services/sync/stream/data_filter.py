@@ -14,6 +14,7 @@ from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorMod
 from lib.log.logger import get_logger
 from services.sync.stream.export_data import (
     export_filepath_map,
+    export_in_network_user_data_local,
     export_study_user_data_local,
     write_data_to_json,
 )
@@ -100,13 +101,6 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
                 author_did=liked_post_is_study_user_post,  # the author of the liked post, which should be a user in the study # noqa
                 filename=filename,
             )
-
-        # Case 3: the user is an in-network user.
-        liked_post_by_in_network_user: bool = study_user_manager.is_in_network_user(
-            user_did=like_author_did
-        )  # noqa
-        if liked_post_by_in_network_user:
-            pass
 
 
 def manage_likes(likes: dict[str, list]) -> dict:
@@ -346,6 +340,21 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
                         )
                     },
                 )
+
+        # Case 4: post is written by an in-network user.
+        is_in_network_user: bool = study_user_manager.is_in_network_user(
+            user_did=author_did
+        )  # noqa
+        if is_in_network_user:
+            logger.info(
+                f"In-network user {author_did} created a new post: {post_uri_suffix}"
+            )  # noqa
+            export_in_network_user_data_local(
+                record=consolidated_post_dict,
+                record_type="post",
+                author_did=author_did,
+                filename=filename,
+            )
 
 
 def manage_posts(posts: dict[str, list]) -> dict:

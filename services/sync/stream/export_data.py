@@ -126,16 +126,6 @@ study_user_activity_relative_path_map = {  # actual full path is {root}/{author_
 in_network_user_activity_root_local_path = os.path.join(
     root_write_path, "in_network_user_activity"
 )  # noqa
-in_network_user_activity_create_path = os.path.join(
-    in_network_user_activity_root_local_path, "create"
-)  # noqa
-in_network_user_activity_relative_path_map = {
-    "create": {
-        "post": os.path.join("create", "post"),
-        "follow": os.path.join("create", "follow"),
-        "like": os.path.join("create", "like"),
-    }
-}
 
 s3 = S3()
 dynamodb = DynamoDB()
@@ -494,6 +484,20 @@ def export_study_user_activity_local_data():
                 pass
 
 
+def export_in_network_user_activity_local_data():
+    """Exports the activity data of in-network users to external S3 store."""
+    key_root = os.path.join("in_network_user_activity", "create", "post")
+    post_filenames: list[str] = os.listdir(os.path.join(root_write_path, key_root))  # noqa
+    for path in post_filenames:
+        full_key = os.path.join(key_root, path)
+        with open(full_key, "r") as f:
+            data = json.load(f)
+            s3.write_dict_json_to_s3(data=data, key=full_key)
+    logger.info(
+        f"Exported {len(post_filenames)} post records to S3 for in-network user activity."
+    )  # noqa
+
+
 def export_batch(
     compressed: bool = True,
     clear_cache: bool = True,
@@ -767,40 +771,8 @@ def export_study_user_data_local(
 
 def export_in_network_user_post(record: dict, author_did: str, filename: str):
     """Exports a post record for an in-network user."""
-    relative_path = in_network_user_activity_relative_path_map["create"]["post"]
     folder_path = os.path.join(
-        in_network_user_activity_root_local_path, relative_path, author_did
-    )
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-    full_path = os.path.join(folder_path, filename)
-    write_data_to_json(data=record, path=full_path)
-
-
-def export_in_network_user_follow(
-    record: dict,
-    author_did: str,
-    filename: str,
-    follow_status: Optional[Literal["follower", "followee"]] = None,
-):
-    """Exports a follow record for an in-network user."""
-    relative_path = in_network_user_activity_relative_path_map["create"]["follow"]
-    folder_path = os.path.join(
-        in_network_user_activity_root_local_path, relative_path, author_did
-    )
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-    full_path = os.path.join(folder_path, filename)
-    write_data_to_json(data=record, path=full_path)
-
-    # TODO: insert follow record into follow/follower table.
-
-
-def export_in_network_user_like(record: dict, author_did: str, filename: str):
-    """Exports a like record for an in-network user."""
-    relative_path = in_network_user_activity_relative_path_map["create"]["like"]
-    folder_path = os.path.join(
-        in_network_user_activity_root_local_path, relative_path, author_did
+        in_network_user_activity_root_local_path, "create", "post", author_did
     )
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
@@ -819,16 +791,9 @@ def export_in_network_user_data_local(
         export_in_network_user_post(
             record=record, author_did=author_did, filename=filename
         )
-    elif record_type == "follow":
-        export_in_network_user_follow(
-            record=record, author_did=author_did, filename=filename
-        )
-    elif record_type == "like":
-        export_in_network_user_like(
-            record=record, author_did=author_did, filename=filename
-        )
-
-
-# TODO: if there is a new follow/follower, I should
-# also insert a new record into the follow/follower table.
-# I won't have the user handles for those users but that's OK.
+    else:
+        # NOTE: no use to implement follow/like yet, since we currently
+        # only care about when an in-network user writes a post (so that,
+        # for example, we can recommend users posts that others in their
+        # network published)
+        pass
