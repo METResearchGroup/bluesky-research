@@ -2,11 +2,16 @@
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_stream.py
 """  # noqa
+
 from typing import Optional
 
 from atproto import (
-    AtUri, CAR, firehose_models, FirehoseSubscribeReposClient, models,
-    parse_subscribe_repos_message
+    AtUri,
+    CAR,
+    firehose_models,
+    FirehoseSubscribeReposClient,
+    models,
+    parse_subscribe_repos_message,
 )
 from atproto.exceptions import FirehoseError
 
@@ -15,7 +20,9 @@ from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.log.logger import get_logger
 from lib.helper import ThreadSafeCounter
 from services.sync.stream.export_data import (
-    load_cursor_state_s3, update_cursor_state_s3, export_batch
+    load_cursor_state_s3,
+    update_cursor_state_s3,
+    export_batch,
 )
 
 # number of events to stream before exiting
@@ -27,76 +34,73 @@ from services.sync.stream.export_data import (
 # stream_limit = 750000
 
 # how often to (1) write to S3 and (2) update the cursor state
-cursor_update_frequency = 5000
+# cursor_update_frequency = 5000
+cursor_update_frequency = 250
 
 logger = get_logger(__name__)
 
 
 def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict:  # noqa
     operation_by_type = {
-        'posts': {'created': [], 'deleted': []},
+        "posts": {"created": [], "deleted": []},
         # NOTE: is it possible to track reposts?
-        'reposts': {'created': [], 'deleted': []},
-        'likes': {'created': [], 'deleted': []},
-        'follows': {'created': [], 'deleted': []},
+        "reposts": {"created": [], "deleted": []},
+        "likes": {"created": [], "deleted": []},
+        "follows": {"created": [], "deleted": []},
     }
 
     car = CAR.from_bytes(commit.blocks)
     for op in commit.ops:
-        uri = AtUri.from_str(f'at://{commit.repo}/{op.path}')
+        uri = AtUri.from_str(f"at://{commit.repo}/{op.path}")
 
-        if op.action == 'update':
+        if op.action == "update":
             # not supported yet
             continue
 
-        if op.action == 'create':
+        if op.action == "create":
             if not op.cid:
                 continue
 
-            create_info = {'uri': str(uri), 'cid': str(
-                op.cid), 'author': commit.repo}
+            create_info = {"uri": str(uri), "cid": str(op.cid), "author": commit.repo}
 
             record_raw_data = car.blocks.get(op.cid)
             if not record_raw_data:
                 continue
 
             record = models.get_or_create(record_raw_data, strict=False)
-            if (
-                uri.collection == models.ids.AppBskyFeedLike
-                and models.is_record_type(record, models.AppBskyFeedLike)
+            if uri.collection == models.ids.AppBskyFeedLike and models.is_record_type(
+                record, models.AppBskyFeedLike
             ):
-                operation_by_type['likes']['created'].append(
-                    {'record': record, **create_info})
-            elif (
-                uri.collection == models.ids.AppBskyFeedPost
-                and models.is_record_type(record, models.AppBskyFeedPost)
+                operation_by_type["likes"]["created"].append(
+                    {"record": record, **create_info}
+                )
+            elif uri.collection == models.ids.AppBskyFeedPost and models.is_record_type(
+                record, models.AppBskyFeedPost
             ):
-                operation_by_type['posts']['created'].append(
-                    {'record': record, **create_info})
+                operation_by_type["posts"]["created"].append(
+                    {"record": record, **create_info}
+                )
             elif (
                 uri.collection == models.ids.AppBskyGraphFollow
                 and models.is_record_type(record, models.AppBskyGraphFollow)
             ):
-                operation_by_type['follows']['created'].append(
-                    {'record': record, **create_info})
+                operation_by_type["follows"]["created"].append(
+                    {"record": record, **create_info}
+                )
 
-        if op.action == 'delete':
+        if op.action == "delete":
             if uri.collection == models.ids.AppBskyFeedLike:
-                operation_by_type['likes']['deleted'].append({'uri': str(uri)})
+                operation_by_type["likes"]["deleted"].append({"uri": str(uri)})
             if uri.collection == models.ids.AppBskyFeedPost:
-                operation_by_type['posts']['deleted'].append({'uri': str(uri)})
+                operation_by_type["posts"]["deleted"].append({"uri": str(uri)})
             if uri.collection == models.ids.AppBskyGraphFollow:
-                operation_by_type['follows']['deleted'].append(
-                    {'uri': str(uri)})
+                operation_by_type["follows"]["deleted"].append({"uri": str(uri)})
 
     return operation_by_type
 
 
 def run(
-    name,
-    operations_callback,
-    stream_stop_event=None,
-    restart_cursor: bool = False
+    name, operations_callback, stream_stop_event=None, restart_cursor: bool = False
 ):
     while stream_stop_event is None or not stream_stop_event.is_set():
         try:
@@ -104,7 +108,7 @@ def run(
                 name=name,
                 operations_callback=operations_callback,
                 stream_stop_event=stream_stop_event,
-                restart_cursor=restart_cursor
+                restart_cursor=restart_cursor,
             )
         except FirehoseError as e:
             # here we can handle different errors to reconnect to firehose
@@ -112,15 +116,12 @@ def run(
 
 
 def _run(
-    name,
-    operations_callback,
-    stream_stop_event=None,
-    restart_cursor: bool = False
+    name, operations_callback, stream_stop_event=None, restart_cursor: bool = False
 ):
     """Run firehose stream."""
     if not restart_cursor:
-        state: Optional[FirehoseSubscriptionStateCursorModel] = (
-            load_cursor_state_s3(service_name=name)
+        state: Optional[FirehoseSubscriptionStateCursorModel] = load_cursor_state_s3(
+            service_name=name
         )
     else:
         state = None
@@ -168,10 +169,10 @@ def _run(
                 cursor_state = {
                     "service": name,
                     "cursor": commit.seq,
-                    "timestamp": current_datetime_str
+                    "timestamp": current_datetime_str,
                 }
-                cursor_state_model = (
-                    FirehoseSubscriptionStateCursorModel(**cursor_state)
+                cursor_state_model = FirehoseSubscriptionStateCursorModel(
+                    **cursor_state
                 )
                 update_cursor_state_s3(cursor_state_model)
             # if counter.get_value() > stream_limit:

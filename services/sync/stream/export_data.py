@@ -126,6 +126,9 @@ study_user_activity_relative_path_map = {  # actual full path is {root}/{author_
 in_network_user_activity_root_local_path = os.path.join(
     root_write_path, "in_network_user_activity"
 )  # noqa
+in_network_user_activity_create_post_local_path = os.path.join(
+    in_network_user_activity_root_local_path, "create", "post"
+)
 
 s3 = S3()
 dynamodb = DynamoDB()
@@ -153,6 +156,10 @@ def rebuild_cache_paths():
     # create helper path for writing user activity data.
     if not os.path.exists(study_user_activity_root_local_path):
         os.makedirs(study_user_activity_root_local_path)
+
+    # create helper path for writing in-network activity
+    if not os.path.exists(in_network_user_activity_create_post_local_path):
+        os.makedirs(in_network_user_activity_create_post_local_path)
 
 
 def delete_cache_paths():
@@ -487,15 +494,19 @@ def export_study_user_activity_local_data():
 def export_in_network_user_activity_local_data():
     """Exports the activity data of in-network users to external S3 store."""
     key_root = os.path.join("in_network_user_activity", "create", "post")
-    post_filenames: list[str] = os.listdir(os.path.join(root_write_path, key_root))  # noqa
-    for path in post_filenames:
-        full_key = os.path.join(key_root, path)
-        with open(full_key, "r") as f:
-            data = json.load(f)
-            s3.write_dict_json_to_s3(data=data, key=full_key)
-    logger.info(
-        f"Exported {len(post_filenames)} post records to S3 for in-network user activity."
-    )  # noqa
+    author_dids: list[str] = os.listdir(os.path.join(root_write_path, key_root))  # noqa
+    for author_did in author_dids:
+        post_filenames: list[str] = os.listdir(
+            os.path.join(root_write_path, key_root, author_did)
+        )
+        for post_filename in post_filenames:
+            full_key = os.path.join(key_root, author_did, post_filename)
+            with open(os.path.join(root_write_path, full_key), "r") as f:
+                data = json.load(f)
+                s3.write_dict_json_to_s3(data=data, key=full_key)
+        logger.info(
+            f"Exported {len(post_filenames)} post records for author {author_did} to S3 for in-network user activity."
+        )  # noqa
 
 
 def export_batch(
@@ -515,6 +526,7 @@ def export_batch(
     """  # noqa
     export_general_firehose_sync(compressed=compressed, external_store=external_store)
     export_study_user_activity_local_data()
+    export_in_network_user_activity_local_data()
 
     # clears cache for next batch.
     if clear_cache:
