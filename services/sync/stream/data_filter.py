@@ -2,19 +2,20 @@
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_filter.py
 """  # noqa
+
 import os
 from typing import Literal, Optional
 
 from atproto_client.models.app.bsky.graph.follow import Record as FollowRecord
 from atproto_client.models.app.bsky.feed.like import Record as LikeRecord  # noqa
 
-from lib.db.bluesky_models.raw import (
-    RawFollow, RawFollowRecord, RawLike, RawLikeRecord
-)
+from lib.db.bluesky_models.raw import RawFollow, RawFollowRecord, RawLike, RawLikeRecord
 from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel  # noqa
 from lib.log.logger import get_logger
 from services.sync.stream.export_data import (
-    export_filepath_map, export_study_user_data_local, write_data_to_json
+    export_filepath_map,
+    export_study_user_data_local,
+    write_data_to_json,
 )
 from services.consolidate_post_records.helper import consolidate_firehose_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
@@ -40,19 +41,21 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
                 "author": like["author"],
                 "cid": like["cid"],
                 "record": raw_liked_record_model.dict(),
-                "uri": like["uri"]
+                "uri": like["uri"],
             }
         )
         like_model_dict = like_model.dict()
         like_author_did = like_model.author
-        uri_suffix = like_model.uri.split('/')[-1]
+        uri_suffix = like_model.uri.split("/")[-1]
         # we save this using both the DID and like URI so that then we can
         # easily parse this and write to the correct place in S3. We'll
         # manage tracking the posts liked later, as long as we know who
         # created the like.
-        filename = f"like_author_did={like_author_did}_like_uri_suffix={uri_suffix}.json"
+        filename = (
+            f"like_author_did={like_author_did}_like_uri_suffix={uri_suffix}.json"
+        )
     elif operation == "delete":
-        uri_suffix = like["uri"].split('/')[-1]
+        uri_suffix = like["uri"].split("/")[-1]
         filename = f"like_uri_suffix={uri_suffix}.json"
         like_model_dict = like
 
@@ -74,25 +77,36 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
                 record_type="like",
                 operation=operation,
                 author_did=like_author_did,
-                filename=filename
+                filename=filename,
             )
 
         # Case 2: the user is the one who created the post that was liked.
         # NOTE: this doesn't backfill with a user's past posts, so we only
         # have posts that were created after the user was added to the study
         # and the firehose was run.
-        liked_post_is_study_user_post: Optional[str] = study_user_manager.is_study_user_post(
-            post_uri=raw_liked_record_model.subject.uri
+        liked_post_is_study_user_post: Optional[str] = (
+            study_user_manager.is_study_user_post(
+                post_uri=raw_liked_record_model.subject.uri
+            )
         )  # checks the author of a post that was liked and checks to see if it's a user in the study # noqa
         if liked_post_is_study_user_post:
-            logger.info(f"Exporting like data for post {raw_liked_record_model.subject.uri}")
+            logger.info(
+                f"Exporting like data for post {raw_liked_record_model.subject.uri}"
+            )
             export_study_user_data_local(
                 record=like_model_dict,
                 record_type="like_on_user_post",
                 operation=operation,
                 author_did=liked_post_is_study_user_post,  # the author of the liked post, which should be a user in the study # noqa
-                filename=filename
+                filename=filename,
             )
+
+        # Case 3: the user is an in-network user.
+        liked_post_by_in_network_user: bool = study_user_manager.is_in_network_user(
+            user_did=like_author_did
+        )  # noqa
+        if liked_post_by_in_network_user:
+            pass
 
 
 def manage_likes(likes: dict[str, list]) -> dict:
@@ -149,7 +163,7 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
                 "record": raw_follow_record_model.dict(),
                 "author": follow["author"],
                 "follower_did": follow["author"],
-                "followee_did": raw_follow_record_model.subject
+                "followee_did": raw_follow_record_model.subject,
             }
         )
         follow_model_dict = follow_model.dict()
@@ -157,7 +171,7 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
         followee_did = follow_model.followee_did
         filename = f"follower_did={follower_did}_followee_did={followee_did}.json"
     elif operation == "delete":
-        follow_uri_suffix = follow["uri"].split('/')[-1]
+        follow_uri_suffix = follow["uri"].split("/")[-1]
         filename = f"follow_uri_suffix={follow_uri_suffix}.json"
         follow_model_dict = follow
 
@@ -176,24 +190,28 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
             # someone can follow someone else in the study, in which case both
             # the follower and followee need to be registered.
             if user_is_follower:
-                logger.info(f"User {follower_did} followed a new account, {followee_did}.")  # noqa
+                logger.info(
+                    f"User {follower_did} followed a new account, {followee_did}."
+                )  # noqa
                 export_study_user_data_local(
                     record=follow_model_dict,
                     record_type="follow",
                     operation=operation,
                     author_did=follower_did,
                     filename=filename,
-                    kwargs={"follow_status": "follower"}
+                    kwargs={"follow_status": "follower"},
                 )
             if user_is_followee:
-                logger.info(f"User {followee_did} was followed by a new account, {follower_did}.")  # noqa
+                logger.info(
+                    f"User {followee_did} was followed by a new account, {follower_did}."
+                )  # noqa
                 export_study_user_data_local(
                     record=follow_model_dict,
                     record_type="follow",
                     operation=operation,
                     author_did=followee_did,
                     filename=filename,
-                    kwargs={"follow_status": "followee"}
+                    kwargs={"follow_status": "followee"},
                 )
             else:
                 raise ValueError("User is neither follower nor followee.")
@@ -246,16 +264,20 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
     """
     if operation == "create":
         firehose_post: TransformedRecordWithAuthorModel = process_firehose_post(post)  # noqa
-        consolidated_post: ConsolidatedPostRecordModel = consolidate_firehose_post(firehose_post)  # noqa
+        consolidated_post: ConsolidatedPostRecordModel = consolidate_firehose_post(
+            firehose_post
+        )  # noqa
         consolidated_post_dict = consolidated_post.dict()
         author_did = consolidated_post_dict["author_did"]
         # e.g., full URI = at://did:plc:iphiwbyfi2qhid2mbxmvl3st/app.bsky.feed.post/3kwd3wuubke2i # noqa
         # so we only want a small portion.
         # URI takes the form at://<author DID>/<collection>/<post URI>
-        post_uri_suffix = consolidated_post_dict["uri"].split('/')[-1]  # e.g., 3kwd3wuubke2i # noqa
+        post_uri_suffix = consolidated_post_dict["uri"].split("/")[
+            -1
+        ]  # e.g., 3kwd3wuubke2i # noqa
         filename = f"author_did={author_did}_post_uri_suffix={post_uri_suffix}.json"  # noqa
     elif operation == "delete":
-        post_uri_suffix = post["uri"].split('/')[-1]
+        post_uri_suffix = post["uri"].split("/")[-1]
         filename = f"post_uri_suffix={post_uri_suffix}.json"
         consolidated_post_dict = post
 
@@ -267,13 +289,15 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
         # Case 1: Check if the post was written by the study user.
         is_study_user = study_user_manager.is_study_user(user_did=author_did)
         if is_study_user:
-            logger.info(f"Study user {author_did} created a new post: {post_uri_suffix}")  # noqa
+            logger.info(
+                f"Study user {author_did} created a new post: {post_uri_suffix}"
+            )  # noqa
             export_study_user_data_local(
                 record=consolidated_post_dict,
                 record_type="post",
                 operation=operation,
                 author_did=author_did,
-                filename=filename
+                filename=filename,
             )
         # Case 2: Check if the post is a repost of a post written by the study
         # user. TODO: come back to this. Unsure if this can be tracked from
@@ -285,11 +309,15 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
             consolidated_post_dict["reply_parent"]
             or consolidated_post_dict["reply_root"]
         ):
-            reply_parent_is_user_study_post: Optional[str] = study_user_manager.is_study_user_post(  # noqa
-                post_uri=consolidated_post_dict["reply_parent"]
+            reply_parent_is_user_study_post: Optional[str] = (
+                study_user_manager.is_study_user_post(  # noqa
+                    post_uri=consolidated_post_dict["reply_parent"]
+                )
             )
-            reply_root_is_user_study_post: Optional[str] = study_user_manager.is_study_user_post(  # noqa
-                post_uri=consolidated_post_dict["reply_root"]
+            reply_root_is_user_study_post: Optional[str] = (
+                study_user_manager.is_study_user_post(  # noqa
+                    post_uri=consolidated_post_dict["reply_root"]
+                )
             )
             post_is_reply_to_study_user_post = (
                 reply_parent_is_user_study_post is not None
@@ -297,7 +325,9 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
             )
 
             if post_is_reply_to_study_user_post:
-                logger.info(f"Post {post_uri_suffix} is a reply to a post by a study user.")
+                logger.info(
+                    f"Post {post_uri_suffix} is a reply to a post by a study user."
+                )
                 export_study_user_data_local(
                     record=consolidated_post_dict,
                     record_type="reply_to_user_post",
@@ -312,10 +342,9 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
                     filename=filename,
                     kwargs={
                         "user_post_type": (
-                            "root" if reply_root_is_user_study_post
-                            else "parent"
+                            "root" if reply_root_is_user_study_post else "parent"
                         )
-                    }
+                    },
                 )
 
 
