@@ -184,7 +184,6 @@ def compress_cached_files_and_write_to_storage(
     operation_type: Literal["post", "like", "follow"],
     compressed: bool = True,
     external_store: Literal["local", "s3"] = "s3",
-    send_sqs_message: bool = True,
 ):
     """For a given set of files in a directory, compress them into a single
     cached file and write to S3.
@@ -526,7 +525,11 @@ def export_batch(
     Exports both the general firehose sync data and the study user activity data.
     that has been tracked in this batch.
     """  # noqa
-    export_general_firehose_sync(compressed=compressed, external_store=external_store)
+    write_all_data_to_s3 = False
+    if write_all_data_to_s3:
+        export_general_firehose_sync(
+            compressed=compressed, external_store=external_store
+        )
     export_study_user_activity_local_data()
     export_in_network_user_activity_local_data()
 
