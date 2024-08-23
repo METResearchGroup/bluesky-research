@@ -12,18 +12,11 @@ from datetime import datetime, timezone
 import json
 from typing import Literal, Optional
 
-from langchain.output_parsers import RetryOutputParser
-from langchain_core.output_parsers import JsonOutputParser
-
 from lib.constants import current_datetime_str
 from lib.helper import create_batches, track_performance
 from lib.log.logger import get_logger
-from ml_tooling.llm.model import (
-    DEFAULT_BATCH_SIZE,
-    DEFAULT_DELAY_SECONDS,
-    LLM_MODEL_NAME,
-    get_llm_model,
-)
+from ml_tooling.llm.inference import run_query
+from ml_tooling.llm.model import DEFAULT_BATCH_SIZE, DEFAULT_DELAY_SECONDS
 from services.ml_inference.helper import get_posts_to_classify, insert_labeling_session  # noqa
 from services.ml_inference.models import (
     LLMSociopoliticalLabelModel,
@@ -36,57 +29,13 @@ from services.ml_inference.sociopolitical.export_data import (
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 logger = get_logger(__name__)
-
-# TODO: change to local=True for testing.
-llm_model = get_llm_model(local=False)
-parser = JsonOutputParser(pydantic_object=LLMSociopoliticalLabelModel)
-retry_parser = RetryOutputParser.from_llm(parser=parser, llm=llm_model)
-
-
-# @traceable
-# def run_chain(
-#     post: FilteredPreprocessedPostModel,
-#     model=llm_model,
-#     task_name: Optional[str] = DEFAULT_TASK_NAME,
-# ) -> LLMSociopoliticalLabelModel:
-#     """Create chain to run inference task."""
-#     task_prompt = task_name_to_task_prompt_map[task_name]
-#     full_prompt = f"""
-# {task_prompt}
-# {single_text_explanation_prompt}
-#     """
-#     langchain_prompt = PromptTemplate(
-#         template=f"{full_prompt}\n" + "{text}" + "{format_instructions}",
-#         input_variables=["text"],
-#         partial_variables={"format_instructions": parser.get_format_instructions()},  # noqa
-#     )
-#     chain = LLMChain(prompt=langchain_prompt, llm=model, output_parser=parser)
-#     try:
-#         result: dict = chain.invoke({"text": post.text})
-#     except (ValidationError, ValueError, json.JSONDecodeError) as e:
-#         # Langchain will try to validate the response and in the case where
-#         # the output format is incorrect, we can retry.
-#         print(f"Error decoding JSON response: {e}")
-#         print("Retrying with formatted prompt.")
-#         formatted_prompt = langchain_prompt.format_prompt(text=post.text)
-#         result = retry_parser.parse_with_prompt(result, formatted_prompt)
-#     model = LLMSociopoliticalLabelModel(
-#         is_sociopolitical=result["text"]["is_sociopolitical"],
-#         political_ideology_label=result["text"]["political_ideology_label"],
-#     )
-#     return model
+LLM_MODEL_NAME = "GPT-4o mini"
 
 
 # TODO: implement.
 def generate_prompt(posts: list[FilteredPreprocessedPostModel]) -> str:
     """Generates a prompt for the LLM."""
     pass
-
-
-# TODO: implement.
-def run_inference(prompt: str) -> str:
-    """Runs inference for a given prompt."""
-    return ""
 
 
 # TODO: implement
@@ -118,14 +67,12 @@ def parse_llm_result(
 # TODO: implement.
 def process_sociopolitical_batch(
     posts: list[FilteredPreprocessedPostModel],
-    retry_count: int = 0,
-    max_retries: Optional[int] = 5,
 ) -> list[LLMSociopoliticalLabelModel]:
     """Takes batch and runs the LLM for it."""
     # TODO: still need output validation somehow, but don't want to
     # overcomplicate things by using chains.
     prompt: str = generate_prompt(posts)
-    json_result: str = run_inference(prompt)
+    json_result: str = run_query(prompt=prompt, model_name=LLM_MODEL_NAME)
     # Parse the JSON lines string into a list of dictionaries
     results: list[LLMSociopoliticalLabelModel] = parse_llm_result(
         json_result=json_result, expected_number_of_posts=len(posts)
@@ -160,7 +107,6 @@ def export_validated_llm_output(
 def process_llm_batch(
     post_batch: list[FilteredPreprocessedPostModel],
     source_feed: Literal["firehose", "most_liked"],
-    max_retries: Optional[int] = 5,
 ) -> dict:
     """Process a batch of posts and prompt using the LLM.
 
@@ -172,7 +118,7 @@ def process_llm_batch(
     """
     inserted_results: list[LLMSociopoliticalLabelModel] = []
     results: list[LLMSociopoliticalLabelModel] = process_sociopolitical_batch(
-        posts=post_batch, max_retries=max_retries
+        posts=post_batch
     )  # noqa
     output_models: list[SociopoliticalLabelsModel] = export_validated_llm_output(  # noqa
         posts=post_batch, results=results, source_feed=source_feed
