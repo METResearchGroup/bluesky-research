@@ -1365,6 +1365,31 @@ resource "aws_glue_catalog_table" "perspective_api_most_liked_labels" {
   }
 }
 
+resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
+  name        = "perspective_api_labels_glue_crawler"
+  role        = aws_iam_role.glue_crawler_role.arn
+  database_name = var.default_glue_database_name
+
+  s3_target {
+    path = "s3://bluesky-research/ml_inference_perspective_api/firehose/"
+  }
+
+  s3_target {
+    path = "s3://bluesky-research/ml_inference_perspective_api/most_liked/"
+  }
+
+  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+
+  configuration = jsonencode({
+    "Version" = 1.0,
+    "CrawlerOutput" = {
+      "Partitions" = {
+        "AddOrUpdateBehavior" = "InheritFromTable"
+      }
+    }
+  })
+}
+
 
 
 ### AWS Athena ###

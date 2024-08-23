@@ -4,7 +4,7 @@ import os
 import shutil
 from typing import Literal
 
-from lib.aws.dynamodb import DynamoDB
+from lib.aws.glue import Glue
 from lib.aws.s3 import S3
 from lib.constants import root_local_data_directory
 from lib.db.manage_local_data import write_jsons_to_local_store
@@ -18,11 +18,8 @@ from services.ml_inference.perspective_api.load_data import (
     load_classified_posts_from_cache,
 )  # noqa
 
-dynamodb_table_name = "perspectiveApiClassificationMetadata"
-dynamodb = DynamoDB()
-dynamodb_table = dynamodb.resource.Table(dynamodb_table_name)
-
 s3 = S3()
+glue = Glue()
 
 
 def write_post_to_cache(
@@ -95,6 +92,8 @@ def export_classified_posts(
                 )
             else:
                 raise ValueError("Invalid external store.")
+    # trigger Glue crawler to recognize new data and partitions
+    glue.start_crawler(crawler_name="perspective_api_labels_glue_crawler")
     return {
         "total_classified_posts": len(firehose_posts) + len(most_liked_posts),
         "total_classified_posts_by_source": {
@@ -115,12 +114,6 @@ def export_classified_post_uris(post_uris: set[str], source: Literal["local", "s
         write_jsons_to_local_store(
             records=list(post_uris), export_filepath=full_export_filepath
         )
-
-
-def export_session_metadata(session_metadata: dict):
-    dynamodb_table.put_item(Item=session_metadata)
-    print("Session data exported to DynamoDB.")
-    return
 
 
 def delete_cache_paths():
@@ -150,16 +143,6 @@ def export_results(
     results = export_classified_posts(
         current_timestamp=current_timestamp, external_stores=external_stores
     )
-    # total_classified_uris = previous_classified_post_uris.union(classified_uris)  # noqa
-    # export_classified_post_uris(total_classified_uris, source="local")
-    # export_classified_post_uris(total_classified_uris, source="s3")
-    # export_session_metadata(session_metadata)
-
     delete_cache_paths()
     rebuild_cache_paths()
-
     return results
-
-    # print(
-    #     f"Exported results from classifying {len(classified_uris)} posts using the Perspective API."
-    # )  # noqa
