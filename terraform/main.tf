@@ -1108,3 +1108,35 @@ resource "aws_dynamodb_table" "users_whose_social_network_has_been_fetched" {
     Name = "users_whose_social_network_has_been_fetched"
   }
 }
+
+resource "aws_dynamodb_table" "ml_inference_labeling_sessions" {
+  name           = "ml_inference_labeling_sessions"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "inference_timestamp"
+
+  attribute {
+    name = "inference_timestamp"
+    type = "S"
+  }
+
+  attribute {
+    name = "inference_type"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "inference_type-index"
+    hash_key           = "inference_type"
+    projection_type    = "ALL"
+  }
+
+  global_secondary_index {
+    name               = "inference_timestamp-index"
+    hash_key           = "inference_timestamp"
+    projection_type    = "ALL"
+  }
+
+  tags = {
+    Name = "ml_inference_labeling_sessions"
+  }
+}

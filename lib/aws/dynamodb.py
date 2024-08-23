@@ -49,3 +49,20 @@ class DynamoDB:
         except Exception as e:
             print(f"Failure in getting all items from DynamoDB: {e}")
             raise e
+
+    @retry_on_aws_rate_limit
+    def query_items_by_inference_type(
+        self, table_name: str, inference_type: str
+    ) -> list[dict]:  # noqa
+        """Query items by inference_type."""
+        try:
+            response = self.client.query(
+                TableName=table_name,
+                IndexName="inference_type-index",
+                KeyConditionExpression="inference_type = :inference_type",
+                ExpressionAttributeValues={":inference_type": {"S": inference_type}},
+            )
+            return response.get("Items", [])
+        except Exception as e:
+            print(f"Failure in querying items from DynamoDB: {e}")
+            raise e

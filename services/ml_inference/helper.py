@@ -13,18 +13,53 @@ dynamodb = DynamoDB()
 athena = Athena()
 
 logger = get_logger(__name__)
+dynamodb_table_name = "ml_inference_labeling_sessions"
 
 
 def get_latest_labeling_session(
     inference_type: Literal["llm", "perspective_api"],
 ) -> dict:  # noqa
     """Get the latest labeling session for the inference type."""
-    return dynamodb.get_latest_labeling_session(inference_type)
+    # Query the table to get items by inference_type
+    filtered_items = dynamodb.query_items_by_inference_type(
+        table_name=dynamodb_table_name,
+        inference_type=inference_type,
+    )
+
+    if not filtered_items:
+        logger.info(
+            f"No previous labeling sessions found for inference type {inference_type}."
+        )  # noqa
+        return None
+
+    # Sort filtered items by inference_timestamp in descending order
+    sorted_items = sorted(
+        filtered_items,
+        key=lambda x: x.get("inference_timestamp", {}).get("S", ""),
+        reverse=True,
+    )  # noqa
+
+    logger.info(f"Latest labeling session: {sorted_items[0]}")
+
+    # Return the most recent item
+    return sorted_items[0]
 
 
 def insert_labeling_session(labeling_session: dict):
     """Insert a labeling session."""
-    dynamodb.insert_labeling_session(labeling_session)
+    try:
+        # check that required fields are present
+        if "inference_type" not in labeling_session:
+            raise ValueError("inference_type is required")
+        if "inference_timestamp" not in labeling_session:
+            raise ValueError("inference_timestamp is required")
+        dynamodb.insert_item_into_table(
+            item=labeling_session, table_name=dynamodb_table_name
+        )
+        logger.info(f"Successfully inserted labeling session: {labeling_session}")
+    except Exception as e:
+        logger.error(f"Failed to insert labeling session: {e}")
+        raise
 
 
 def get_posts_to_classify(inference_type: Literal["llm", "perspective_api"]):
@@ -46,9 +81,7 @@ def get_posts_to_classify(inference_type: Literal["llm", "perspective_api"]):
         )  # noqa
         latest_inference_timestamp = None
     else:
-        latest_inference_timestamp = latest_labeling_session[
-            "latest_inference_timestamp"
-        ]  # noqa
+        latest_inference_timestamp = latest_labeling_session["inference_timestamp"]  # noqa
 
     logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")
