@@ -303,11 +303,70 @@ def export_study_user_follow_s3(base_path: str):
         follow_path = os.path.join(base_path, "follow", follow_type)
         follow_records = os.listdir(follow_path)
         for filepath in follow_records:
+            # Write 1: write to study_user_activity
             full_path = os.path.join(follow_path, filepath)
             full_key = os.path.join(base_key, follow_type, filepath)
+            # Write 2: write to scraped-user-social-network (so we can add it
+            # to the running list of in-network users).
+            # TODO: resync the study_user_manager singleton.
+            split_key = full_key.split("/")
+            filename = split_key[-1]
+            follow_type = split_key[-2]  # followee/follower
+            user_social_network_key = os.path.join(
+                "scraped-user-social-network", filename
+            )
             with open(full_path, "r") as f:
                 data = json.load(f)
+                # Write 1: write to study_user_activity
                 s3.write_dict_json_to_s3(data=data, key=full_key)
+                logger.info(f"Wrote a new follow record to S3 at {full_key}")
+                # Write 2: write to scraped-user-social-network
+                # NOTE: I implemented this backwards: from the firehose side,
+                # I wrote followee/follower from the PoV of the study user (i.e.,
+                # is the study user the followee, or is the study user the follower).
+                # Therefore, "study_user_activity/{user_did}/create/follow/followee"
+                # actually gives the list of all followers, since these are the profiles
+                # for which the study user is the followee. Conversely,
+                # "study_user_activity/{user_did}/create/follow/follower"
+                # actually gives the list of all followees, since these are the
+                # profiles for which the study user is the follower. Confusing,
+                # yes, but not worth going back and changing for now tbh.
+                if follow_type == "followee":
+                    # user is followee (so someone is following them)
+                    # if user is followee, then the other person is a follower
+                    user_social_network_data = {
+                        "follow_did": data["followee_did"],
+                        "follow_handle": None,
+                        "follow_url": None,
+                        "follower_did": data["follower_did"],
+                        "follower_handle": None,
+                        "follower_url": None,
+                        "insert_timestamp": generate_current_datetime_str(),
+                        "relationship_to_study_user": "follower",
+                    }
+                elif follow_type == "follower":
+                    # user is follower (so they're following someone else)
+                    user_social_network_data = {
+                        "follow_did": data["followee_did"],
+                        "follow_handle": None,
+                        "follow_url": None,
+                        "follower_did": data["follower_did"],
+                        "follower_handle": None,
+                        "follower_url": None,
+                        "insert_timestamp": generate_current_datetime_str(),
+                        "relationship_to_study_user": "follow",  # same as 'followee'
+                    }
+                logger.info(
+                    f"Writing a new {'follow' if follow_type == 'follower' else 'follower'} for user social network data to S3 for {user_social_network_key}"
+                )  # noqa
+                s3.write_dict_json_to_s3(
+                    data=user_social_network_data, key=user_social_network_key
+                )
+
+                # reload the list of study follows/followers.
+                study_user_manager.in_network_user_dids_set = (
+                    study_user_manager._load_in_network_user_dids(is_refresh=True)  # noqa
+                )
             total_records += 1
 
     logger.info(

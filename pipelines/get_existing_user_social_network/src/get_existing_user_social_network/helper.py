@@ -81,7 +81,7 @@ def fetch_follows_for_user(user_handle: str, user_did: str):
             "follower_url": f"https://bsky.app/profile/{user_handle}",
             "follower_did": user_did,
             "insert_timestamp": current_datetime_str,
-            "relationship_to_study_user": "follow",
+            "relationship_to_study_user": "follow",  # equivalent to 'followee'
         }
         for profile in profiles
     ]
