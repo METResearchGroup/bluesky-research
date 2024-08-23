@@ -3,7 +3,6 @@
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_filter.py
 """  # noqa
 
-import os
 from typing import Literal, Optional
 
 from atproto_client.models.app.bsky.graph.follow import Record as FollowRecord
@@ -13,10 +12,8 @@ from lib.db.bluesky_models.raw import RawFollow, RawFollowRecord, RawLike, RawLi
 from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel  # noqa
 from lib.log.logger import get_logger
 from services.sync.stream.export_data import (
-    export_filepath_map,
     export_in_network_user_data_local,
     export_study_user_data_local,
-    write_data_to_json,
 )
 from services.consolidate_post_records.helper import consolidate_firehose_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
@@ -60,9 +57,11 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
         filename = f"like_uri_suffix={uri_suffix}.json"
         like_model_dict = like
 
-    folder_path = export_filepath_map[operation]["like"]
-    full_path = os.path.join(folder_path, filename)
-    write_data_to_json(like_model_dict, full_path)
+    # NOTE: here in case we want to revisit writing all data to S3. Right now
+    # we're only writing in-network posts to S3.
+    # folder_path = export_filepath_map[operation]["like"]
+    # full_path = os.path.join(folder_path, filename)
+    # write_data_to_json(like_model_dict, full_path)
 
     # we care about the likes they create, not the ones they delete.
     # plus, deleted likes only have the URI of the original like and not
@@ -169,9 +168,11 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
         filename = f"follow_uri_suffix={follow_uri_suffix}.json"
         follow_model_dict = follow
 
-    folder_path = export_filepath_map[operation]["follow"]
-    full_path = os.path.join(folder_path, filename)
-    write_data_to_json(follow_model_dict, full_path)
+    # NOTE: here in case we want to revisit writing all data to S3. Right now
+    # we're only writing in-network posts to S3.
+    # folder_path = export_filepath_map[operation]["follow"]
+    # full_path = os.path.join(folder_path, filename)
+    # write_data_to_json(follow_model_dict, full_path)
 
     # we only care about the follows they create, not the ones they delete.
     # plus, deleted follows only have the URI of the original like and not
@@ -275,9 +276,12 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
         filename = f"post_uri_suffix={post_uri_suffix}.json"
         consolidated_post_dict = post
 
-    folder_path = export_filepath_map[operation]["post"]
-    full_path = os.path.join(folder_path, filename)
-    write_data_to_json(consolidated_post_dict, full_path)
+    # NOTE: here in case we want to revisit writing all data to S3. Right now
+    # we're only writing in-network posts to S3.
+
+    # folder_path = export_filepath_map[operation]["post"]
+    # full_path = os.path.join(folder_path, filename)
+    # write_data_to_json(consolidated_post_dict, full_path)
 
     if operation == "create":
         # Case 1: Check if the post was written by the study user.

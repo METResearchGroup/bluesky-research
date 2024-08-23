@@ -78,20 +78,23 @@ class StudyUserManager:
         study_users = get_all_users()
         return set([user.bluesky_user_did for user in study_users])
 
-    def _load_in_network_user_dids(self) -> set[str]:
-        """Load the in_network_nuser_dids_set from DynamoDB."""
-        print(
-            """
-            THIS SHOULD ONLY BE CALLED AT THE BEGINNING OF THE STREAMING
-            PROCESS
-            """
-        )
-        print(
-            """
-            Since this is a singleton class, the in-network user DIDs should
-            only be loaded once at the beginning of the streaming process.
-            """
-        )
+    def _load_in_network_user_dids(self, is_refresh: bool = False) -> set[str]:
+        """Load the in_network_user_dids_set from DynamoDB."""
+        if is_refresh:
+            print("Refreshing the list of in-network user DIDs.")
+        else:
+            print(
+                """
+                THIS SHOULD ONLY BE CALLED AT THE BEGINNING OF THE STREAMING
+                PROCESS
+                """
+            )
+            print(
+                """
+                Since this is a singleton class, the in-network user DIDs should
+                only be loaded once at the beginning of the streaming process.
+                """
+            )
         query = """
         SELECT 
             CASE 
