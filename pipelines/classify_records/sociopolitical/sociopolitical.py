@@ -86,12 +86,19 @@ def generate_prompt(posts: list[FilteredPreprocessedPostModel]) -> str:
 # TODO: implement.
 def run_inference(prompt: str) -> str:
     """Runs inference for a given prompt."""
-    pass
+    return ""
 
 
 # TODO: implement
-def parse_llm_result(json_result: str) -> list[LLMSociopoliticalLabelModel]:  # noqa
+def parse_llm_result(
+    json_result: str, expected_number_of_posts: int
+) -> list[LLMSociopoliticalLabelModel]:  # noqa
     results = []
+    dummy_label = json.dumps(
+        {"is_sociopolitical": True, "political_ideology_label": "left"}
+    )
+    # Create a JSON string that repeats the dummy label expected_number_of_posts times
+    json_result = "\n".join([dummy_label for _ in range(expected_number_of_posts)])
     for line in json_result.strip().split("\n"):
         try:
             result = json.loads(line)
@@ -100,6 +107,12 @@ def parse_llm_result(json_result: str) -> list[LLMSociopoliticalLabelModel]:  # 
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON line: {e}")
             continue
+    if len(results) != expected_number_of_posts:
+        # TODO: need to raise error and retry.
+        raise ValueError(
+            f"Number of results ({len(results)}) does not match number of posts ({expected_number_of_posts})."
+        )
+    return results
 
 
 # TODO: implement.
@@ -114,12 +127,9 @@ def process_sociopolitical_batch(
     prompt: str = generate_prompt(posts)
     json_result: str = run_inference(prompt)
     # Parse the JSON lines string into a list of dictionaries
-    results: list[LLMSociopoliticalLabelModel] = parse_llm_result(json_result)
-    if len(results) != len(posts):
-        # TODO: need to raise error and retry.
-        raise ValueError(
-            f"Number of results ({len(results)}) does not match number of posts ({len(posts)})."
-        )
+    results: list[LLMSociopoliticalLabelModel] = parse_llm_result(
+        json_result=json_result, expected_number_of_posts=len(posts)
+    )
     return results
 
 
