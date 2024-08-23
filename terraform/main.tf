@@ -595,9 +595,10 @@ resource "aws_iam_role_policy_attachment" "lambda_attach_sqs_policy" {
 
 # Glue DB for the daily superposter data
 resource "aws_glue_catalog_database" "default" {
-  name = "default_db"
+  name = var.default_glue_database_name
 }
 
+# Glue table for tracking daily posts (for superposter calculation)
 resource "aws_glue_catalog_table" "daily_posts" {
   database_name = aws_glue_catalog_database.default.name
   name          = "daily_posts"
@@ -677,6 +678,7 @@ resource "aws_glue_catalog_table" "user_social_networks" {
   table_type = "EXTERNAL_TABLE"
 }
 
+# Glue table for preprocessed firehose posts
 resource "aws_glue_catalog_table" "preprocessed_firehose_posts" {
   database_name = aws_glue_catalog_database.default.name
   name          = "preprocessed_firehose_posts"
@@ -825,6 +827,7 @@ resource "aws_glue_catalog_table" "preprocessed_firehose_posts" {
   }
 }
 
+# Glue table for preprocessed most liked posts
 resource "aws_glue_catalog_table" "preprocessed_most_liked_posts" {
   name          = "preprocessed_most_liked_posts"
   database_name = aws_glue_catalog_database.default.name
@@ -974,6 +977,91 @@ resource "aws_glue_catalog_table" "preprocessed_most_liked_posts" {
 }
 
 
+# Glue crawler, to make sure that new partitions are registered and added
+# to the respective Glue tables.
+resource "aws_iam_role" "glue_crawler_role" {
+  name = "glue_crawler_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Service = "glue.amazonaws.com"
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+
+resource "aws_iam_policy" "glue_crawler_policy" {
+  name        = "glue_crawler_policy"
+  description = "Policy for Glue Crawler to access S3 and Glue Data Catalog"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ],
+        Resource = [
+          "arn:aws:s3:::bluesky-research",
+          "arn:aws:s3:::bluesky-research/*"
+        ]
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "glue:CreateTable",
+          "glue:UpdateTable",
+          "glue:GetTable",
+          "glue:GetTables",
+          "glue:BatchCreatePartition",
+          "glue:BatchUpdatePartition",
+          "glue:GetPartition",
+          "glue:GetPartitions"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "glue_crawler_attach_policy" {
+  role       = aws_iam_role.glue_crawler_role.name
+  policy_arn = aws_iam_policy.glue_crawler_policy.arn
+}
+
+resource "aws_glue_crawler" "preprocessed_posts_crawler" {
+  name        = "preprocessed_posts_crawler"
+  role        = aws_iam_role.glue_crawler_role.arn
+  database_name = var.default_glue_database_name
+
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/most_liked/"
+  }
+
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/firehose/"
+  }
+
+  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+
+  configuration = jsonencode({
+    "Version" = 1.0,
+    "CrawlerOutput" = {
+      "Partitions" = {
+        "AddOrUpdateBehavior" = "InheritFromTable"
+      }
+    }
+  })
+}
 
 ### AWS Athena ###
 
