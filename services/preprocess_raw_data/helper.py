@@ -143,7 +143,7 @@ def preprocess_latest_raw_data():
         sources=["in-network-user-activity", "most_liked"]
     )  # noqa
     total_messages_start_of_job = (
-        len(sqs_sync_messages["firehose"]["create"]["post"])
+        len(sqs_sync_messages["in-network-user-activity"]["create"]["post"])
         + len(sqs_sync_messages["in-network-user-activity"]["create"]["like"])
         + len(sqs_sync_messages["in-network-user-activity"]["create"]["follow"])
         + len(sqs_sync_messages["most_liked"])
