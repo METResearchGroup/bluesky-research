@@ -65,6 +65,10 @@ def insert_labeling_session(labeling_session: dict):
 
 def get_posts_to_classify(
     inference_type: Literal["llm", "perspective_api"],
+    source_tables: list[str] = [
+        "preprocessed_firehose_posts",
+        "preprocessed_most_liked_posts",
+    ],  # noqa
 ) -> list[FilteredPreprocessedPostModel]:
     """Get posts to classify.
 
@@ -94,13 +98,11 @@ def get_posts_to_classify(
         else "1=1"
     )  # noqa
 
-    query = f"""
-    SELECT * FROM preprocessed_firehose_posts
-    WHERE {where_filter}
-    UNION ALL
-    SELECT * FROM preprocessed_most_liked_posts
-    WHERE {where_filter}
-    """
+    # default syncs both firehose and most-liked tables, but doesn't have to
+    # be the case.
+    query = " UNION ALL ".join(
+        [f"SELECT * FROM {table} WHERE {where_filter}" for table in source_tables]
+    )
 
     df: pd.DataFrame = athena.query_results_as_df(query)
 
