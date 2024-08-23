@@ -59,7 +59,7 @@ def write_post_to_cache(
 def export_classified_posts(
     current_timestamp: str,
     external_stores: list[Literal["local", "s3"]] = ["local", "s3"],
-) -> set[str]:
+) -> dict:
     """Export classified posts.
 
     Loads latest posts from cache and exports them to an external store.
@@ -141,24 +141,25 @@ def rebuild_cache_paths():
 
 
 def export_results(
-    previous_classified_post_uris: set[str],
-    session_metadata: dict,
-    external_stores: list[str] = ["local", "s3"],
-):
+    current_timestamp: str,
+    external_stores: list[Literal["local", "s3"]] = ["local", "s3"],
+) -> dict:
     """Exports the results of classifying posts to external store, then empties
     out the cache.
     """
-    classified_uris: set[str] = export_classified_posts(
-        session_metadata=session_metadata, external_stores=external_stores
+    results = export_classified_posts(
+        current_timestamp=current_timestamp, external_stores=external_stores
     )
-    total_classified_uris = previous_classified_post_uris.union(classified_uris)  # noqa
-    export_classified_post_uris(total_classified_uris, source="local")
-    export_classified_post_uris(total_classified_uris, source="s3")
-    export_session_metadata(session_metadata)
+    # total_classified_uris = previous_classified_post_uris.union(classified_uris)  # noqa
+    # export_classified_post_uris(total_classified_uris, source="local")
+    # export_classified_post_uris(total_classified_uris, source="s3")
+    # export_session_metadata(session_metadata)
 
     delete_cache_paths()
     rebuild_cache_paths()
 
-    print(
-        f"Exported results from classifying {len(classified_uris)} posts using the Perspective API."
-    )  # noqa
+    return results
+
+    # print(
+    #     f"Exported results from classifying {len(classified_uris)} posts using the Perspective API."
+    # )  # noqa

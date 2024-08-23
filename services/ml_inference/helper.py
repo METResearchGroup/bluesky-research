@@ -109,6 +109,28 @@ def get_posts_to_classify(
     logger.info(f"Number of posts to classify: {len(df)}")
 
     df_dicts = df.to_dict(orient="records")
-    posts_to_classify = [FilteredPreprocessedPostModel(**post) for post in df_dicts]
+    # convert NaN values to None, remove extra fields.
+    fields_to_remove = [
+        "year",
+        "month",
+        "day",
+        "hour",
+        "minute",
+    ]  # extra fields from preprocessing partitions.
+    df_dicts_cleaned = [
+        {
+            k: (None if pd.isna(v) else v)
+            for k, v in post.items()
+            if k not in fields_to_remove
+        }
+        for post in df_dicts
+    ]
+    # remove values without text
+    df_dicts_cleaned = [post for post in df_dicts_cleaned if post["text"] is not None]
+
+    # convert to pydantic model
+    posts_to_classify = [
+        FilteredPreprocessedPostModel(**post) for post in df_dicts_cleaned
+    ]
 
     return posts_to_classify
