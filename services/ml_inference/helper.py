@@ -8,6 +8,7 @@ from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.log.logger import get_logger
 
+from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 dynamodb = DynamoDB()
 athena = Athena()
@@ -62,7 +63,9 @@ def insert_labeling_session(labeling_session: dict):
         raise
 
 
-def get_posts_to_classify(inference_type: Literal["llm", "perspective_api"]):
+def get_posts_to_classify(
+    inference_type: Literal["llm", "perspective_api"],
+) -> list[FilteredPreprocessedPostModel]:
     """Get posts to classify.
 
     Steps:
@@ -104,4 +107,7 @@ def get_posts_to_classify(inference_type: Literal["llm", "perspective_api"]):
 
     logger.info(f"Number of posts to classify: {len(df)}")
 
-    return df
+    df_dicts = df.to_dict(orient="records")
+    posts_to_classify = [FilteredPreprocessedPostModel(**post) for post in df_dicts]
+
+    return posts_to_classify
