@@ -15,6 +15,18 @@ athena = Athena()
 logger = get_logger(__name__)
 
 
+def get_latest_labeling_session(
+    inference_type: Literal["llm", "perspective_api"],
+) -> dict:  # noqa
+    """Get the latest labeling session for the inference type."""
+    return dynamodb.get_latest_labeling_session(inference_type)
+
+
+def insert_labeling_session(labeling_session: dict):
+    """Insert a labeling session."""
+    dynamodb.insert_labeling_session(labeling_session)
+
+
 def get_posts_to_classify(inference_type: Literal["llm", "perspective_api"]):
     """Get posts to classify.
 
@@ -27,18 +39,32 @@ def get_posts_to_classify(inference_type: Literal["llm", "perspective_api"]):
     - Get the rows of data to label.
     """
     # TODO: implement.
-    latest_labeling_session = dynamodb.get_latest_labeling_session(inference_type)
-    latest_inference_timestamp = latest_labeling_session["latest_inference_timestamp"]  # noqa
+    latest_labeling_session = get_latest_labeling_session(inference_type)
+    if latest_labeling_session is None:
+        logger.info(
+            "No latest labeling session found. By default, labeling all posts..."
+        )  # noqa
+        latest_inference_timestamp = None
+    else:
+        latest_inference_timestamp = latest_labeling_session[
+            "latest_inference_timestamp"
+        ]  # noqa
 
     logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")
 
+    where_filter = (
+        f"synctimestamp > '{latest_inference_timestamp}'"
+        if latest_inference_timestamp
+        else "1=1"
+    )  # noqa
+
     query = f"""
     SELECT * FROM preprocessed_firehose_posts
-    WHERE synctimestamp > '{latest_inference_timestamp}'
+    WHERE {where_filter}
     UNION ALL
     SELECT * FROM preprocessed_most_liked_posts
-    WHERE synctimestamp > '{latest_inference_timestamp}'
+    WHERE {where_filter}
     """
 
     df: pd.DataFrame = athena.query_results_as_df(query)
