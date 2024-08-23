@@ -76,7 +76,6 @@ def get_posts_to_classify(
     - Use that as a filter for labeling.
     - Get the rows of data to label.
     """
-    # TODO: implement.
     latest_labeling_session = get_latest_labeling_session(inference_type)
     if latest_labeling_session is None:
         logger.info(
