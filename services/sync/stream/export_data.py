@@ -206,24 +206,6 @@ def compress_cached_files_and_write_to_storage(
         json_dicts: list[dict] = s3.write_local_jsons_to_s3(
             directory=directory, key=full_key, compressed=compressed
         )
-        # NOTE: for now, we will only preprocess posts, so we'll send the SQS
-        # message only for posts.
-        if send_sqs_message and operation_type == "post" and operation == "create":  # noqa
-            s3_key = full_key
-            if compressed:
-                s3_key += ".gz"
-            sqs_data_payload = {
-                "sync": {
-                    "source": "firehose",
-                    "operation": operation,
-                    "operation_type": operation_type,
-                    "s3_key": s3_key,
-                }
-            }
-            custom_log = f"Sending message to SQS queue from firehose feed for new posts at {s3_key}"  # noqa
-            sqs.send_message(
-                source="firehose", data=sqs_data_payload, custom_log=custom_log
-            )
         if operation_type == "post" and operation == "create":
             # write post to separate location to track daily posts (for daily
             # superposter calculation)
@@ -495,18 +477,38 @@ def export_in_network_user_activity_local_data():
     """Exports the activity data of in-network users to external S3 store."""
     key_root = os.path.join("in_network_user_activity", "create", "post")
     author_dids: list[str] = os.listdir(os.path.join(root_write_path, key_root))  # noqa
+    all_s3_keys: list[str] = []
+    # NOTE: I'm ok writing the individual posts instead of compressing them
+    # since within one batch, it's likely that there's only 1-2 posts from
+    # in-network users anyways, so we'd likely have batch sizes of 1. Plus even
+    # if we didn't, PUT calls are $0.005/1,000 requests (or $1 per 200,000
+    # PUT requests).
     for author_did in author_dids:
         post_filenames: list[str] = os.listdir(
             os.path.join(root_write_path, key_root, author_did)
         )
         for post_filename in post_filenames:
             full_key = os.path.join(key_root, author_did, post_filename)
+            all_s3_keys.append(full_key)
             with open(os.path.join(root_write_path, full_key), "r") as f:
                 data = json.load(f)
                 s3.write_dict_json_to_s3(data=data, key=full_key)
         logger.info(
             f"Exported {len(post_filenames)} post records for author {author_did} to S3 for in-network user activity."
         )  # noqa
+    # send SQS message referencing all posts.
+    sqs.send_message(
+        source="firehose",
+        data={
+            "sync": {
+                "source": "in-network-user-activity",
+                "operation": "create",
+                "operation_type": "post",
+                "s3_keys": all_s3_keys,
+            }
+        },
+        custom_log=f"Sending message to SQS queue from firehose feed for new posts at {all_s3_keys}",  # noqa
+    )
 
 
 def export_batch(
