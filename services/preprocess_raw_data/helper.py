@@ -74,20 +74,20 @@ def load_latest_most_liked_sqs_sync_messages() -> list[dict]:
 
 # TODO: process latest study user activity as well?
 def load_latest_sqs_sync_messages(
-    sources: list[str] = Literal["firehose", "most_liked"],
+    sources: list[str] = Literal["in-network-user-activity", "most_liked"],
 ) -> list[dict]:
     """Load the latest SQS sync messages.
 
     Output dictionary follows the same tree structure as in S3.
     """
     res = {
-        "firehose": {
+        "in-network-user-activity": {
             "create": {"post": [], "like": [], "follow": []},
             "delete": {"post": [], "like": [], "follow": []},
         },
         "most_liked": [],
     }
-    if "firehose" in sources:
+    if "in-network-user-activity" in sources:
         latest_firehose_sqs_sync_messages: list[dict] = (
             load_latest_firehose_sqs_sync_messages()
         )  # noqa
@@ -95,7 +95,7 @@ def load_latest_sqs_sync_messages(
             object_body = message["Body"]["data"]["sync"]
             operation = object_body["operation"]
             operation_type = object_body["operation_type"]
-            res["firehose"][operation][operation_type].append(message)
+            res["in-network-user-activity"][operation][operation_type].append(message)
     if "most_liked" in sources:
         latest_most_liked_sqs_sync_messages: list[dict] = (
             load_latest_most_liked_sqs_sync_messages()
@@ -107,11 +107,14 @@ def load_latest_sqs_sync_messages(
 
 def get_latest_post_filenames_from_sqs(sqs_sync_messages: dict) -> dict[str, list[str]]:  # noqa
     """Process SQS messages to get the filenames to load."""
-    res = {"firehose": [], "most_liked": []}
-    firehose_post_sqs_messages = sqs_sync_messages["firehose"]["create"]["post"]  # noqa
+    res = {"in-network-user-activity": [], "most_liked": []}
+    firehose_post_sqs_messages = sqs_sync_messages["in-network-user-activity"][
+        "create"
+    ]["post"]  # noqa
     most_liked_post_sqs_messages = sqs_sync_messages["most_liked"]
     for message in firehose_post_sqs_messages:
-        res["firehose"].append(message["Body"]["data"]["sync"]["s3_key"])
+        keys: list[str] = message["Body"]["data"]["sync"]["s3_keys"]
+        res["in-network-user-activity"].extend(keys)
     for message in most_liked_post_sqs_messages:
         res["most_liked"].append(message["Body"]["data"]["sync"]["s3_key"])
     return res
@@ -137,12 +140,12 @@ def preprocess_latest_raw_data():
     # can do this in lieu of the logic below to load latest_posts, latest_likes, and latest_follows.
     # TODO: add firehose back in once we have the firehose data in S3.
     sqs_sync_messages: dict = load_latest_sqs_sync_messages(
-        sources=["firehose", "most_liked"]
+        sources=["in-network-user-activity", "most_liked"]
     )  # noqa
     total_messages_start_of_job = (
         len(sqs_sync_messages["firehose"]["create"]["post"])
-        + len(sqs_sync_messages["firehose"]["create"]["like"])
-        + len(sqs_sync_messages["firehose"]["create"]["follow"])
+        + len(sqs_sync_messages["in-network-user-activity"]["create"]["like"])
+        + len(sqs_sync_messages["in-network-user-activity"]["create"]["follow"])
         + len(sqs_sync_messages["most_liked"])
     )
 
@@ -150,10 +153,12 @@ def preprocess_latest_raw_data():
     latest_post_file_keys: dict = get_latest_post_filenames_from_sqs(
         sqs_sync_messages=sqs_sync_messages
     )  # noqa
-    latest_firehose_post_file_keys: list[str] = latest_post_file_keys["firehose"]
+    latest_firehose_post_file_keys: list[str] = latest_post_file_keys[
+        "in-network-user-activity"
+    ]
     latest_most_liked_post_file_keys: list[str] = latest_post_file_keys["most_liked"]
     logger.info(
-        f"Processing {len(latest_firehose_post_file_keys)} firehose post files and {len(latest_most_liked_post_file_keys)} most-liked post files..."
+        f"Processing {len(latest_firehose_post_file_keys)} in-network-user-activity post files and {len(latest_most_liked_post_file_keys)} most-liked post files..."
     )  # noqa
     latest_likes_file_keys: list[str] = []
     latest_follows_file_keys: list[str] = []
@@ -199,9 +204,9 @@ def preprocess_latest_raw_data():
 
     # clear the SQS queue of the processed messages.
     total_messages_end_of_job = (
-        len(sqs_sync_messages["firehose"]["create"]["post"])
-        + len(sqs_sync_messages["firehose"]["create"]["like"])
-        + len(sqs_sync_messages["firehose"]["create"]["follow"])
+        len(sqs_sync_messages["in-network-user-activity"]["create"]["post"])
+        + len(sqs_sync_messages["in-network-user-activity"]["create"]["like"])
+        + len(sqs_sync_messages["in-network-user-activity"]["create"]["follow"])
         + len(sqs_sync_messages["most_liked"])
     )
     if total_messages_start_of_job == total_messages_end_of_job:
@@ -217,21 +222,21 @@ def preprocess_latest_raw_data():
             "Some messages might have timed out. Need to modify the visibility timeout."
         )  # noqa
     firehose_sqs_queue.delete_messages(
-        messages=sqs_sync_messages["firehose"]["create"]["post"]
+        messages=sqs_sync_messages["in-network-user-activity"]["create"]["post"]
     )
     firehose_sqs_queue.delete_messages(
-        messages=sqs_sync_messages["firehose"]["create"]["like"]
+        messages=sqs_sync_messages["in-network-user-activity"]["create"]["like"]
     )
     firehose_sqs_queue.delete_messages(
-        messages=sqs_sync_messages["firehose"]["create"]["follow"]
+        messages=sqs_sync_messages["in-network-user-activity"]["create"]["follow"]
     )
     firehose_sqs_queue.delete_messages(
-        messages=sqs_sync_messages["firehose"]["delete"]["post"]
+        messages=sqs_sync_messages["in-network-user-activity"]["delete"]["post"]
     )
     firehose_sqs_queue.delete_messages(
-        messages=sqs_sync_messages["firehose"]["delete"]["like"]
+        messages=sqs_sync_messages["in-network-user-activity"]["delete"]["like"]
     )
     firehose_sqs_queue.delete_messages(
-        messages=sqs_sync_messages["firehose"]["delete"]["follow"]
+        messages=sqs_sync_messages["in-network-user-activity"]["delete"]["follow"]
     )
     most_liked_sqs_queue.delete_messages(messages=sqs_sync_messages["most_liked"])
