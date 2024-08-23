@@ -3,8 +3,11 @@
 from typing import Optional
 
 import boto3
+from boto3.dynamodb.types import TypeSerializer
 
 from lib.aws.helper import create_client, retry_on_aws_rate_limit
+
+serializer = TypeSerializer()
 
 
 class DynamoDB:
@@ -21,10 +24,23 @@ class DynamoDB:
         except AttributeError:
             raise AttributeError(f"'DynamoDB' object has no attribute '{name}'")
 
+    def is_serialized(self, item: dict) -> bool:
+        """Check if the item is already serialized for DynamoDB."""
+        if not isinstance(item, dict):
+            return False
+        for value in item.values():
+            if not isinstance(value, dict) or len(value) != 1:
+                return False
+            if not any(k in value for k in ["S", "N", "B", "BOOL", "NULL", "M", "L"]):
+                return False
+        return True
+
     @retry_on_aws_rate_limit
     def insert_item_into_table(self, item: dict, table_name: str) -> None:
         """Inserts an item into a table."""
         try:
+            if not self.is_serialized(item):
+                item = {k: serializer.serialize(v) for k, v in item.items()}
             self.client.put_item(TableName=table_name, Item=item)
         except Exception as e:
             print(f"Failure in putting item to DynamoDB: {e}")

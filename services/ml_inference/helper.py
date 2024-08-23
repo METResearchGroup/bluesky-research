@@ -65,6 +65,10 @@ def insert_labeling_session(labeling_session: dict):
 
 def get_posts_to_classify(
     inference_type: Literal["llm", "perspective_api"],
+    source_tables: list[str] = [
+        "preprocessed_firehose_posts",
+        "preprocessed_most_liked_posts",
+    ],  # noqa
 ) -> list[FilteredPreprocessedPostModel]:
     """Get posts to classify.
 
@@ -94,19 +98,39 @@ def get_posts_to_classify(
         else "1=1"
     )  # noqa
 
-    query = f"""
-    SELECT * FROM preprocessed_firehose_posts
-    WHERE {where_filter}
-    UNION ALL
-    SELECT * FROM preprocessed_most_liked_posts
-    WHERE {where_filter}
-    """
+    # default syncs both firehose and most-liked tables, but doesn't have to
+    # be the case.
+    query = " UNION ALL ".join(
+        [f"SELECT * FROM {table} WHERE {where_filter}" for table in source_tables]
+    )
 
     df: pd.DataFrame = athena.query_results_as_df(query)
 
     logger.info(f"Number of posts to classify: {len(df)}")
 
     df_dicts = df.to_dict(orient="records")
-    posts_to_classify = [FilteredPreprocessedPostModel(**post) for post in df_dicts]
+    # convert NaN values to None, remove extra fields.
+    fields_to_remove = [
+        "year",
+        "month",
+        "day",
+        "hour",
+        "minute",
+    ]  # extra fields from preprocessing partitions.
+    df_dicts_cleaned = [
+        {
+            k: (None if pd.isna(v) else v)
+            for k, v in post.items()
+            if k not in fields_to_remove
+        }
+        for post in df_dicts
+    ]
+    # remove values without text
+    df_dicts_cleaned = [post for post in df_dicts_cleaned if post["text"] is not None]
+
+    # convert to pydantic model
+    posts_to_classify = [
+        FilteredPreprocessedPostModel(**post) for post in df_dicts_cleaned
+    ]
 
     return posts_to_classify

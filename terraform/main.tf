@@ -1063,6 +1063,335 @@ resource "aws_glue_crawler" "preprocessed_posts_crawler" {
   })
 }
 
+resource "aws_glue_catalog_table" "perspective_api_firehose_labels" {
+  name          = "perspective_api_firehose_labels"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    "classification" = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://bluesky-research/ml_inference_perspective_api/firehose/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "perspective_api_firehose_labels_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "was_successfully_labeled"
+      type = "boolean"
+    }
+    columns {
+      name = "reason"
+      type = "string"
+    }
+    columns {
+      name = "label_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "prob_toxic"
+      type = "float"
+    }
+    columns {
+      name = "prob_severe_toxic"
+      type = "float"
+    }
+    columns {
+      name = "prob_identity_attack"
+      type = "float"
+    }
+    columns {
+      name = "prob_insult"
+      type = "float"
+    }
+    columns {
+      name = "prob_profanity"
+      type = "float"
+    }
+    columns {
+      name = "prob_threat"
+      type = "float"
+    }
+    columns {
+      name = "prob_affinity"
+      type = "float"
+    }
+    columns {
+      name = "prob_compassion"
+      type = "float"
+    }
+    columns {
+      name = "prob_constructive"
+      type = "float"
+    }
+    columns {
+      name = "prob_curiosity"
+      type = "float"
+    }
+    columns {
+      name = "prob_nuance"
+      type = "float"
+    }
+    columns {
+      name = "prob_personal_story"
+      type = "float"
+    }
+    columns {
+      name = "prob_reasoning"
+      type = "float"
+    }
+    columns {
+      name = "prob_respect"
+      type = "float"
+    }
+    columns {
+      name = "prob_alienation"
+      type = "float"
+    }
+    columns {
+      name = "prob_fearmongering"
+      type = "float"
+    }
+    columns {
+      name = "prob_generalization"
+      type = "float"
+    }
+    columns {
+      name = "prob_moral_outrage"
+      type = "float"
+    }
+    columns {
+      name = "prob_scapegoating"
+      type = "float"
+    }
+    columns {
+      name = "prob_sexually_explicit"
+      type = "float"
+    }
+    columns {
+      name = "prob_flirtation"
+      type = "float"
+    }
+    columns {
+      name = "prob_spam"
+      type = "float"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "string"
+  }
+  partition_keys {
+    name = "month"
+    type = "string"
+  }
+  partition_keys {
+    name = "day"
+    type = "string"
+  }
+  partition_keys {
+    name = "hour"
+    type = "string"
+  }
+  partition_keys {
+    name = "minute"
+    type = "string"
+  }
+}
+
+resource "aws_glue_catalog_table" "perspective_api_most_liked_labels" {
+  name          = "perspective_api_most_liked_labels"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    "classification" = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://bluesky-research/ml_inference_perspective_api/most_liked/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "perspective_api_most_liked_labels_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "was_successfully_labeled"
+      type = "boolean"
+    }
+    columns {
+      name = "reason"
+      type = "string"
+    }
+    columns {
+      name = "label_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "prob_toxic"
+      type = "float"
+    }
+    columns {
+      name = "prob_severe_toxic"
+      type = "float"
+    }
+    columns {
+      name = "prob_identity_attack"
+      type = "float"
+    }
+    columns {
+      name = "prob_insult"
+      type = "float"
+    }
+    columns {
+      name = "prob_profanity"
+      type = "float"
+    }
+    columns {
+      name = "prob_threat"
+      type = "float"
+    }
+    columns {
+      name = "prob_affinity"
+      type = "float"
+    }
+    columns {
+      name = "prob_compassion"
+      type = "float"
+    }
+    columns {
+      name = "prob_constructive"
+      type = "float"
+    }
+    columns {
+      name = "prob_curiosity"
+      type = "float"
+    }
+    columns {
+      name = "prob_nuance"
+      type = "float"
+    }
+    columns {
+      name = "prob_personal_story"
+      type = "float"
+    }
+    columns {
+      name = "prob_reasoning"
+      type = "float"
+    }
+    columns {
+      name = "prob_respect"
+      type = "float"
+    }
+    columns {
+      name = "prob_alienation"
+      type = "float"
+    }
+    columns {
+      name = "prob_fearmongering"
+      type = "float"
+    }
+    columns {
+      name = "prob_generalization"
+      type = "float"
+    }
+    columns {
+      name = "prob_moral_outrage"
+      type = "float"
+    }
+    columns {
+      name = "prob_scapegoating"
+      type = "float"
+    }
+    columns {
+      name = "prob_sexually_explicit"
+      type = "float"
+    }
+    columns {
+      name = "prob_flirtation"
+      type = "float"
+    }
+    columns {
+      name = "prob_spam"
+      type = "float"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "string"
+  }
+  partition_keys {
+    name = "month"
+    type = "string"
+  }
+  partition_keys {
+    name = "day"
+    type = "string"
+  }
+  partition_keys {
+    name = "hour"
+    type = "string"
+  }
+  partition_keys {
+    name = "minute"
+    type = "string"
+  }
+}
+
+resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
+  name        = "perspective_api_labels_glue_crawler"
+  role        = aws_iam_role.glue_crawler_role.arn
+  database_name = var.default_glue_database_name
+
+  s3_target {
+    path = "s3://bluesky-research/ml_inference_perspective_api/firehose/"
+  }
+
+  s3_target {
+    path = "s3://bluesky-research/ml_inference_perspective_api/most_liked/"
+  }
+
+  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+
+  configuration = jsonencode({
+    "Version" = 1.0,
+    "CrawlerOutput" = {
+      "Partitions" = {
+        "AddOrUpdateBehavior" = "InheritFromTable"
+      }
+    }
+  })
+}
+
+
+
 ### AWS Athena ###
 
 # set default workgroup and output location for said workgroup.
