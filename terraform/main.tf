@@ -833,12 +833,12 @@ resource "aws_glue_catalog_table" "preprocessed_most_liked_posts" {
 
   storage_descriptor {
     location      = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/most_liked/"
-    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
-    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
 
     ser_de_info {
       name                  = "JsonSerDe"
-      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
     }
 
     columns {
