@@ -595,9 +595,10 @@ resource "aws_iam_role_policy_attachment" "lambda_attach_sqs_policy" {
 
 # Glue DB for the daily superposter data
 resource "aws_glue_catalog_database" "default" {
-  name = "default_db"
+  name = var.default_glue_database_name
 }
 
+# Glue table for tracking daily posts (for superposter calculation)
 resource "aws_glue_catalog_table" "daily_posts" {
   database_name = aws_glue_catalog_database.default.name
   name          = "daily_posts"
@@ -677,6 +678,390 @@ resource "aws_glue_catalog_table" "user_social_networks" {
   table_type = "EXTERNAL_TABLE"
 }
 
+# Glue table for preprocessed firehose posts
+resource "aws_glue_catalog_table" "preprocessed_firehose_posts" {
+  database_name = aws_glue_catalog_database.default.name
+  name          = "preprocessed_firehose_posts"
+
+  table_type = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/firehose/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "indexed_at"
+      type = "string"
+    }
+    columns {
+      name = "author_did"
+      type = "string"
+    }
+    columns {
+      name = "author_handle"
+      type = "string"
+    }
+    columns {
+      name = "author_avatar"
+      type = "string"
+    }
+    columns {
+      name = "author_display_name"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "embed"
+      type = "string"
+    }
+    columns {
+      name = "entities"
+      type = "string"
+    }
+    columns {
+      name = "facets"
+      type = "string"
+    }
+    columns {
+      name = "labels"
+      type = "string"
+    }
+    columns {
+      name = "langs"
+      type = "string"
+    }
+    columns {
+      name = "reply_parent"
+      type = "string"
+    }
+    columns {
+      name = "reply_root"
+      type = "string"
+    }
+    columns {
+      name = "tags"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+    columns {
+      name = "url"
+      type = "string"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "like_count"
+      type = "string"
+    }
+    columns {
+      name = "reply_count"
+      type = "string"
+    }
+    columns {
+      name = "repost_count"
+      type = "string"
+    }
+    columns {
+      name = "passed_filters"
+      type = "string"
+    }
+    columns {
+      name = "filtered_at"
+      type = "string"
+    }
+    columns {
+      name = "filtered_by_func"
+      type = "string"
+    }
+    columns {
+      name = "preprocessing_timestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "string"
+  }
+  partition_keys {
+    name = "month"
+    type = "string"
+  }
+  partition_keys {
+    name = "day"
+    type = "string"
+  }
+  partition_keys {
+    name = "hour"
+    type = "string"
+  }
+  partition_keys {
+    name = "minute"
+    type = "string"
+  }
+}
+
+# Glue table for preprocessed most liked posts
+resource "aws_glue_catalog_table" "preprocessed_most_liked_posts" {
+  name          = "preprocessed_most_liked_posts"
+  database_name = aws_glue_catalog_database.default.name
+
+  table_type = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/most_liked/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "indexed_at"
+      type = "string"
+    }
+    columns {
+      name = "author_did"
+      type = "string"
+    }
+    columns {
+      name = "author_handle"
+      type = "string"
+    }
+    columns {
+      name = "author_avatar"
+      type = "string"
+    }
+    columns {
+      name = "author_display_name"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "embed"
+      type = "string"
+    }
+    columns {
+      name = "entities"
+      type = "string"
+    }
+    columns {
+      name = "facets"
+      type = "string"
+    }
+    columns {
+      name = "labels"
+      type = "string"
+    }
+    columns {
+      name = "langs"
+      type = "string"
+    }
+    columns {
+      name = "reply_parent"
+      type = "string"
+    }
+    columns {
+      name = "reply_root"
+      type = "string"
+    }
+    columns {
+      name = "tags"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+    columns {
+      name = "url"
+      type = "string"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "like_count"
+      type = "string"
+    }
+    columns {
+      name = "reply_count"
+      type = "string"
+    }
+    columns {
+      name = "repost_count"
+      type = "string"
+    }
+    columns {
+      name = "passed_filters"
+      type = "string"
+    }
+    columns {
+      name = "filtered_at"
+      type = "string"
+    }
+    columns {
+      name = "filtered_by_func"
+      type = "string"
+    }
+    columns {
+      name = "preprocessing_timestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "string"
+  }
+  partition_keys {
+    name = "month"
+    type = "string"
+  }
+  partition_keys {
+    name = "day"
+    type = "string"
+  }
+  partition_keys {
+    name = "hour"
+    type = "string"
+  }
+  partition_keys {
+    name = "minute"
+    type = "string"
+  }
+}
+
+
+# Glue crawler, to make sure that new partitions are registered and added
+# to the respective Glue tables.
+resource "aws_iam_role" "glue_crawler_role" {
+  name = "glue_crawler_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Service = "glue.amazonaws.com"
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+
+resource "aws_iam_policy" "glue_crawler_policy" {
+  name        = "glue_crawler_policy"
+  description = "Policy for Glue Crawler to access S3 and Glue Data Catalog"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ],
+        Resource = [
+          "arn:aws:s3:::bluesky-research",
+          "arn:aws:s3:::bluesky-research/*"
+        ]
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "glue:CreateTable",
+          "glue:UpdateTable",
+          "glue:GetTable",
+          "glue:GetTables",
+          "glue:BatchCreatePartition",
+          "glue:BatchUpdatePartition",
+          "glue:GetPartition",
+          "glue:GetPartitions"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "glue_crawler_attach_policy" {
+  role       = aws_iam_role.glue_crawler_role.name
+  policy_arn = aws_iam_policy.glue_crawler_policy.arn
+}
+
+resource "aws_glue_crawler" "preprocessed_posts_crawler" {
+  name        = "preprocessed_posts_crawler"
+  role        = aws_iam_role.glue_crawler_role.arn
+  database_name = var.default_glue_database_name
+
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/most_liked/"
+  }
+
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/firehose/"
+  }
+
+  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+
+  configuration = jsonencode({
+    "Version" = 1.0,
+    "CrawlerOutput" = {
+      "Partitions" = {
+        "AddOrUpdateBehavior" = "InheritFromTable"
+      }
+    }
+  })
+}
 
 ### AWS Athena ###
 
@@ -721,5 +1106,37 @@ resource "aws_dynamodb_table" "users_whose_social_network_has_been_fetched" {
 
   tags = {
     Name = "users_whose_social_network_has_been_fetched"
+  }
+}
+
+resource "aws_dynamodb_table" "ml_inference_labeling_sessions" {
+  name           = "ml_inference_labeling_sessions"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "inference_timestamp"
+
+  attribute {
+    name = "inference_timestamp"
+    type = "S"
+  }
+
+  attribute {
+    name = "inference_type"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "inference_type-index"
+    hash_key           = "inference_type"
+    projection_type    = "ALL"
+  }
+
+  global_secondary_index {
+    name               = "inference_timestamp-index"
+    hash_key           = "inference_timestamp"
+    projection_type    = "ALL"
+  }
+
+  tags = {
+    Name = "ml_inference_labeling_sessions"
   }
 }

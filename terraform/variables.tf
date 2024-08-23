@@ -24,6 +24,12 @@ variable "s3_root_bucket_name" {
   default     = "bluesky-research"
 }
 
+variable "default_glue_database_name" {
+  description = "The name of the default Glue database"
+  type        = string
+  default     = "default_db"
+}
+
 # TODO: change to actual value, not just test one.
 variable "bsky_api_lambda_name" {
   description = "The name of the Bluesky API Lambda function"
