@@ -244,9 +244,7 @@ def classify_latest_posts():
     posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
         inference_type="llm"
     )
-    logger.info(
-        f"Classifying {len(posts_to_classify)} posts with the Perspective API..."
-    )  # noqa
+    logger.info(f"Classifying {len(posts_to_classify)} posts with an LLM...")  # noqa
     if len(posts_to_classify) == 0:
         logger.warning("No posts to classify with LLM. Exiting...")
         return
@@ -270,7 +268,7 @@ def classify_latest_posts():
         current_timestamp=current_datetime_str, external_stores=["s3"]
     )
     labeling_session = {
-        "inference_type": "perspective_api",
+        "inference_type": "llm",
         "inference_timestamp": current_datetime_str,
         "total_classified_posts": results["total_classified_posts"],
         "total_classified_posts_by_source": results["total_classified_posts_by_source"],  # noqa
@@ -279,15 +277,5 @@ def classify_latest_posts():
 
 
 if __name__ == "__main__":
-    num_repetitions = 1
-    test_texts = [
-        "I think that the government should be more involved in the economy.",
-        "I think that the government should be less involved in the economy.",
-        "I think that the government should be more involved in social issues.",  # noqa
-        "I think that the government should be less involved in social issues.",  # noqa
-        "I think that the government should be more involved in foreign policy.",  # noqa
-        "I think that the government should be less involved in foreign policy.",  # noqa
-        "I think that the government should be more involved in the environment.",  # noqa
-        "I think that the government should be less involved in the environment.",  # noqa
-    ] * num_repetitions
-    # TODO: just test the text inference portion.
+    classify_latest_posts()
+    print("LLM classification complete.")

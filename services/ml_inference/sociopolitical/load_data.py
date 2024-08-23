@@ -4,6 +4,7 @@ import json
 import os
 
 from services.ml_inference.models import SociopoliticalLabelsModel
+from services.ml_inference.sociopolitical.constants import root_cache_path
 
 
 def load_classified_posts_from_cache() -> dict:
@@ -12,8 +13,8 @@ def load_classified_posts_from_cache() -> dict:
     Note: shouldn't be too much memory, though it depends in practice on how
     often this service is run.
     """
-    firehose_path = ""
-    most_liked_path = ""
+    firehose_path = os.path.join(root_cache_path, "firehose")
+    most_liked_path = os.path.join(root_cache_path, "most_liked")
     firehose_posts: list[SociopoliticalLabelsModel] = []
     most_liked_posts: list[SociopoliticalLabelsModel] = []
     for path in [firehose_path, most_liked_path]:

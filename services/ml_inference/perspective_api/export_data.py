@@ -125,12 +125,16 @@ def delete_cache_paths():
 def rebuild_cache_paths():
     if not os.path.exists(root_cache_path):
         os.makedirs(root_cache_path)
-    os.mkdir(os.path.join(root_cache_path, "firehose"))
-    os.mkdir(os.path.join(root_cache_path, "most_liked"))
-    os.mkdir(os.path.join(root_cache_path, "firehose", "valid"))
-    os.mkdir(os.path.join(root_cache_path, "firehose", "invalid"))
-    os.mkdir(os.path.join(root_cache_path, "most_liked", "valid"))
-    os.mkdir(os.path.join(root_cache_path, "most_liked", "invalid"))
+    for path in [
+        os.path.join(root_cache_path, "firehose"),
+        os.path.join(root_cache_path, "most_liked"),
+        os.path.join(root_cache_path, "firehose", "valid"),
+        os.path.join(root_cache_path, "firehose", "invalid"),
+        os.path.join(root_cache_path, "most_liked", "valid"),
+        os.path.join(root_cache_path, "most_liked", "invalid"),
+    ]:
+        if not os.path.exists(path):
+            os.makedirs(path)
 
 
 def export_results(
@@ -146,3 +150,7 @@ def export_results(
     delete_cache_paths()
     rebuild_cache_paths()
     return results
+
+
+# in case we need to rebuild the cache paths before running the script.
+rebuild_cache_paths()

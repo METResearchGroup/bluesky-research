@@ -1,6 +1,7 @@
 """Exports the results of classifying posts."""
 
 import os
+import shutil
 from typing import Literal
 
 from lib.aws.s3 import S3
@@ -27,6 +28,23 @@ def write_post_to_cache(
     full_key = os.path.join(root_cache_path, source_feed, f"{joint_pk}.json")
     with open(full_key, "w") as f:
         f.write(classified_post.json())
+
+
+def delete_cache_paths():
+    """Deletes the cache paths."""
+    if os.path.exists(root_cache_path):
+        shutil.rmtree(root_cache_path)
+
+
+def rebuild_cache_paths():
+    """Rebuilds the cache paths."""
+    if not os.path.exists(root_cache_path):
+        os.makedirs(root_cache_path)
+    firehose_path = os.path.join(root_cache_path, "firehose")
+    most_liked_path = os.path.join(root_cache_path, "most_liked")
+    for path in [firehose_path, most_liked_path]:
+        if not os.path.exists(path):
+            os.makedirs(path)
 
 
 def export_results(
@@ -56,6 +74,10 @@ def export_results(
             if external_store == "s3":
                 s3.write_dicts_jsonl_to_s3(data=classified_post_dicts, key=full_key)  # noqa
     # TODO: trigger Glue crawler.
+
+    delete_cache_paths()
+    rebuild_cache_paths()
+
     return {
         "total_classified_posts": len(firehose_posts) + len(most_liked_posts),
         "total_classified_posts_by_source": {
@@ -63,3 +85,7 @@ def export_results(
             "most_liked": len(most_liked_posts),
         },
     }
+
+
+# in case we need to rebuild the cache paths before running the script.
+rebuild_cache_paths()
