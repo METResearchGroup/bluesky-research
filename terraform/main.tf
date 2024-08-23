@@ -1365,6 +1365,157 @@ resource "aws_glue_catalog_table" "perspective_api_most_liked_labels" {
   }
 }
 
+resource "aws_glue_catalog_table" "llm_sociopolitical_firehose_labels" {
+  name          = "llm_sociopolitical_firehose_labels"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    "classification" = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/firehose/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "llm_sociopolitical_firehose_labels_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "llm_model_name"
+      type = "string"
+    }
+    columns {
+      name = "was_successfully_labeled"
+      type = "boolean"
+    }
+    columns {
+      name = "reason"
+      type = "string"
+    }
+    columns {
+      name = "label_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "is_sociopolitical"
+      type = "boolean"
+    }
+    columns {
+      name = "political_ideology_label"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "string"
+  }
+  partition_keys {
+    name = "month"
+    type = "string"
+  }
+  partition_keys {
+    name = "day"
+    type = "string"
+  }
+  partition_keys {
+    name = "hour"
+    type = "string"
+  }
+  partition_keys {
+    name = "minute"
+    type = "string"
+  }
+}
+
+resource "aws_glue_catalog_table" "llm_sociopolitical_most_liked_labels" {
+  name          = "llm_sociopolitical_most_liked_labels"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    "classification" = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/most_liked/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "llm_sociopolitical_most_liked_labels_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "llm_model_name"
+      type = "string"
+    }
+    columns {
+      name = "was_successfully_labeled"
+      type = "boolean"
+    }
+    columns {
+      name = "reason"
+      type = "string"
+    }
+    columns {
+      name = "label_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "is_sociopolitical"
+      type = "boolean"
+    }
+    columns {
+      name = "political_ideology_label"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "string"
+  }
+  partition_keys {
+    name = "month"
+    type = "string"
+  }
+  partition_keys {
+    name = "day"
+    type = "string"
+  }
+  partition_keys {
+    name = "hour"
+    type = "string"
+  }
+  partition_keys {
+    name = "minute"
+    type = "string"
+  }
+}
+
+
 resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
   name        = "perspective_api_labels_glue_crawler"
   role        = aws_iam_role.glue_crawler_role.arn
@@ -1376,6 +1527,32 @@ resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
 
   s3_target {
     path = "s3://bluesky-research/ml_inference_perspective_api/most_liked/"
+  }
+
+  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+
+  configuration = jsonencode({
+    "Version" = 1.0,
+    "CrawlerOutput" = {
+      "Partitions" = {
+        "AddOrUpdateBehavior" = "InheritFromTable"
+      }
+    }
+  })
+}
+
+
+resource "aws_glue_crawler" "llm_sociopolitical_labels_glue_crawler" {
+  name        = "llm_sociopolitical_labels_glue_crawler"
+  role        = aws_iam_role.glue_crawler_role.arn
+  database_name = var.default_glue_database_name
+
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/firehose/"
+  }
+
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/most_liked/"
   }
 
   schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
