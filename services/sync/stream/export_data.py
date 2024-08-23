@@ -496,18 +496,19 @@ def export_in_network_user_activity_local_data():
             f"Exported {len(post_filenames)} post records for author {author_did} to S3 for in-network user activity."
         )  # noqa
     # send SQS message referencing all posts.
-    sqs.send_message(
-        source="firehose",
-        data={
-            "sync": {
-                "source": "in-network-user-activity",
-                "operation": "create",
-                "operation_type": "post",
-                "s3_keys": all_s3_keys,
-            }
-        },
-        custom_log=f"Sending message to SQS queue from firehose feed for new posts at {all_s3_keys}",  # noqa
-    )
+    if len(all_s3_keys) > 0:
+        sqs.send_message(
+            source="firehose",
+            data={
+                "sync": {
+                    "source": "in-network-user-activity",
+                    "operation": "create",
+                    "operation_type": "post",
+                    "s3_keys": all_s3_keys,
+                }
+            },
+            custom_log=f"Sending message to SQS queue from firehose feed for new posts at {all_s3_keys}",  # noqa
+        )
 
 
 def export_batch(
