@@ -15,6 +15,7 @@ athena = Athena()
 
 logger = get_logger(__name__)
 dynamodb_table_name = "ml_inference_labeling_sessions"
+MIN_POST_TEXT_LENGTH = 5
 
 
 def get_latest_labeling_session(
@@ -127,6 +128,11 @@ def get_posts_to_classify(
     ]
     # remove values without text
     df_dicts_cleaned = [post for post in df_dicts_cleaned if post["text"] is not None]
+
+    # remove posts whose text fields are too short
+    df_dicts_cleaned = [
+        post for post in df_dicts_cleaned if len(post["text"]) > MIN_POST_TEXT_LENGTH
+    ]  # noqa
 
     # convert to pydantic model
     posts_to_classify = [

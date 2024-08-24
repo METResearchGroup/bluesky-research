@@ -1,12 +1,10 @@
 """Model for classifying posts using LLMs."""
+
 from langchain_community.llms import LlamaCpp
 from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler  # noqa
 
-from ml_tooling.llm.inference import (
-    BACKEND_OPTIONS, get_langchain_litellm_chat_model
-)
+from ml_tooling.llm.inference import BACKEND_OPTIONS, get_langchain_litellm_chat_model
 
-DEFAULT_BATCH_SIZE = 10
 DEFAULT_DELAY_SECONDS = 1.0
 DEFAULT_TASK_NAME = "civic_and_political_ideology"
 
@@ -31,9 +29,7 @@ LLM_MODEL_NAME = BACKEND_OPTIONS[default_remote_model]["model"]
 # default_remote_model = "Gemini-1.0"
 
 
-def get_llm_model(
-    local: bool = False, model_name=default_remote_model
-):
+def get_llm_model(local: bool = False, model_name=default_remote_model):
     """Define the model used for inference.
 
     If local, we will use KLC's hosted Llama model. Else we'll use an external
