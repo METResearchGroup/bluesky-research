@@ -7,7 +7,7 @@ from litellm import acompletion, completion
 from litellm.utils import ModelResponse
 import tiktoken
 
-from services.ml_inference.models import LLMSociopoliticalLabelModel
+from services.ml_inference.models import LLMSociopoliticalLabelsModel
 
 from lib.helper import (
     GOOGLE_AI_STUDIO_KEY,
@@ -107,7 +107,14 @@ BACKEND_OPTIONS = {
             "temperature": 0.0,
             # https://docs.litellm.ai/docs/completion/json_mode
             # https://docs.litellm.ai/docs/completion/json_mode#pass-in-json_schema
-            "response_format": LLMSociopoliticalLabelModel,
+            # "response_format": {
+            #     "type": "json_schema",
+            #     # if this doesn't work for a list of samples,
+            #     # can try the LLMSociopoliticalLabelsModel
+            #     "json_schema": LLMSociopoliticalLabelModel.model_json_schema(),
+            #     "strict": True,
+            # },
+            "response_format": LLMSociopoliticalLabelsModel,
         },
     },
 }

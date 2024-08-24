@@ -15,10 +15,10 @@ from lib.constants import current_datetime_str
 from lib.helper import create_batches, track_performance
 from lib.log.logger import get_logger
 from ml_tooling.llm.inference import run_query
-from ml_tooling.llm.model import DEFAULT_BATCH_SIZE
 from services.ml_inference.helper import get_posts_to_classify, insert_labeling_session  # noqa
 from services.ml_inference.models import (
     LLMSociopoliticalLabelModel,
+    LLMSociopoliticalLabelsModel,
     SociopoliticalLabelsModel,
 )
 from services.ml_inference.sociopolitical.export_data import (
@@ -29,6 +29,7 @@ from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 logger = get_logger(__name__)
 LLM_MODEL_NAME = "GPT-4o mini"
+DEFAULT_BATCH_SIZE = 10
 
 
 def generate_prompt(posts: list[FilteredPreprocessedPostModel]) -> str:
@@ -51,15 +52,7 @@ If the text is not sociopolitical, return "unclear". Base your response on US po
 
 Think through your response step by step.
 
-Return your response as JSON with the following fields:
-- "is_sociopolitical": <boolean, two values, True or False. Required.>,
-- "political_ideology_label": <string, four values, 'left', 'right', 'unclear', None. If the post is not sociopolitical, return None>,
-
-All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
-
 Do NOT include any explanation. Only return the JSON output.
-
-You will be given a numbered list of posts. Return a list of JSONs.
 
 TEXT:
 ```
@@ -72,21 +65,15 @@ TEXT:
 def parse_llm_result(
     json_result: str, expected_number_of_posts: int
 ) -> list[LLMSociopoliticalLabelModel]:  # noqa
-    results = []
-    for line in json_result.strip().split("\n"):
-        try:
-            result = json.loads(line)
-            result_model = LLMSociopoliticalLabelModel(**result)
-            results.append(result_model)
-        except json.JSONDecodeError as e:
-            print(f"Error decoding JSON line: {e}")
-            continue
-    if len(results) != expected_number_of_posts:
-        # TODO: need to raise error and retry.
+    json_result: LLMSociopoliticalLabelsModel = LLMSociopoliticalLabelsModel(
+        **json.loads(json_result)
+    )
+    label_models: list[LLMSociopoliticalLabelModel] = json_result.labels
+    if len(label_models) != expected_number_of_posts:
         raise ValueError(
-            f"Number of results ({len(results)}) does not match number of posts ({expected_number_of_posts})."
+            f"Number of results ({len(label_models)}) does not match number of posts ({expected_number_of_posts})."
         )
-    return results
+    return label_models
 
 
 def process_sociopolitical_batch(
@@ -95,9 +82,16 @@ def process_sociopolitical_batch(
     """Takes batch and runs the LLM for it."""
     prompt: str = generate_prompt(posts)
     json_result: str = run_query(prompt=prompt, model_name=LLM_MODEL_NAME)
-    results: list[LLMSociopoliticalLabelModel] = parse_llm_result(
-        json_result=json_result, expected_number_of_posts=len(posts)
-    )
+    try:
+        results: list[LLMSociopoliticalLabelModel] = parse_llm_result(
+            json_result=json_result, expected_number_of_posts=len(posts)
+        )
+    except ValueError as e:
+        # NOTE: taking this approach for now to avoid errors in the batch and
+        # to just return empty results. We won't write any posts that are
+        # misclassified; we'll revisit how to implement this better later.
+        logger.error(f"Error parsing LLM result: {e}")
+        return []
     return results
 
 
@@ -141,11 +135,14 @@ def process_llm_batch(
     results: list[LLMSociopoliticalLabelModel] = process_sociopolitical_batch(
         posts=post_batch
     )  # noqa
-    output_models: list[SociopoliticalLabelsModel] = export_validated_llm_output(  # noqa
-        posts=post_batch, results=results, source_feed=source_feed
-    )
-    inserted_results.extend(output_models)
-    return {"succeeded": True, "response": inserted_results}
+    if len(results) > 0:
+        output_models: list[SociopoliticalLabelsModel] = export_validated_llm_output(  # noqa
+            posts=post_batch, results=results, source_feed=source_feed
+        )
+        inserted_results.extend(output_models)
+        return {"succeeded": True, "response": inserted_results}
+    else:
+        return {"succeeded": False, "response": []}
 
 
 @track_performance
@@ -183,7 +180,7 @@ def run_batch_classification(
     return results
 
 
-def classify_latest_posts():
+def classify_latest_posts(skip_inference: bool = False):
     """Classifies the latest posts using LLM inference.
 
     NOTE: for now we're just using an LLM. Would be nice to eventually use a
@@ -205,17 +202,20 @@ def classify_latest_posts():
         post for post in posts_to_classify if post.source == "most_liked"
     ]
 
-    source_to_posts_tuples = [
-        ("firehose", firehose_posts),
-        ("most_liked", most_liked_posts),
-    ]  # noqa
-    for source, posts in source_to_posts_tuples:
-        # labels stored in local storage, and then loaded
-        # later. This format is done to make it more
-        # robust to errors and to the script failing (though
-        # tbh I could probably just return the posts directly
-        # and then write to S3).
-        run_batch_classification(posts=posts, source_feed=source)
+    if not skip_inference:
+        source_to_posts_tuples = [
+            ("firehose", firehose_posts),
+            ("most_liked", most_liked_posts),
+        ]  # noqa
+        for source, posts in source_to_posts_tuples:
+            # labels stored in local storage, and then loaded
+            # later. This format is done to make it more
+            # robust to errors and to the script failing (though
+            # tbh I could probably just return the posts directly
+            # and then write to S3).
+            run_batch_classification(posts=posts, source_feed=source)
+
+    # export cached results to S3 store.
     results = export_results(
         current_timestamp=current_datetime_str, external_stores=["s3"]
     )

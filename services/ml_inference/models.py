@@ -136,6 +136,18 @@ class LLMSociopoliticalLabelModel(BaseModel):
     ] = Field(default=None, description="If the field is sociopolitical, its stance.")
 
 
+# NOTE: looks like to enforce schema to LLM request, I need to pass in the
+# exact expected schema. If I want a list of labels, I need to pass in a
+# model that expects a list of labels.
+class LLMSociopoliticalLabelsModel(BaseModel):
+    """Stores results of sociopolitical and political ideology labels from
+    the LLM."""
+
+    labels: list[LLMSociopoliticalLabelModel] = Field(
+        ..., description="The labels for the posts."
+    )
+
+
 class SociopoliticalLabelsModel(BaseModel):
     """Stores results of sociopolitical and political ideology labels from
     the LLM."""
