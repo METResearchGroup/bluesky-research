@@ -7,6 +7,8 @@ from litellm import acompletion, completion
 from litellm.utils import ModelResponse
 import tiktoken
 
+from services.ml_inference.models import LLMSociopoliticalLabelModel
+
 from lib.helper import (
     GOOGLE_AI_STUDIO_KEY,
     GROQ_API_KEY,
@@ -104,7 +106,8 @@ BACKEND_OPTIONS = {
         "kwargs": {
             "temperature": 0.0,
             # https://docs.litellm.ai/docs/completion/json_mode
-            "response_format": {"type": "json_object"},
+            # https://docs.litellm.ai/docs/completion/json_mode#pass-in-json_schema
+            "response_format": LLMSociopoliticalLabelModel,
         },
     },
 }

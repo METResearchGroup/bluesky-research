@@ -7,7 +7,6 @@ be more restrictive about the posts that will be classified as compared to the
 Perspective API classification.
 """
 
-import asyncio
 from datetime import datetime, timezone
 import json
 from typing import Literal, Optional
@@ -16,7 +15,7 @@ from lib.constants import current_datetime_str
 from lib.helper import create_batches, track_performance
 from lib.log.logger import get_logger
 from ml_tooling.llm.inference import run_query
-from ml_tooling.llm.model import DEFAULT_BATCH_SIZE, DEFAULT_DELAY_SECONDS
+from ml_tooling.llm.model import DEFAULT_BATCH_SIZE
 from services.ml_inference.helper import get_posts_to_classify, insert_labeling_session  # noqa
 from services.ml_inference.models import (
     LLMSociopoliticalLabelModel,
@@ -32,22 +31,48 @@ logger = get_logger(__name__)
 LLM_MODEL_NAME = "GPT-4o mini"
 
 
-# TODO: implement.
 def generate_prompt(posts: list[FilteredPreprocessedPostModel]) -> str:
     """Generates a prompt for the LLM."""
-    pass
+    enumerated_texts = ""
+    for i, post in enumerate(posts):
+        post_text = post.text.strip()
+        enumerated_texts += f"{i+1}. {post_text}\n"
+    prompt = f"""
+You are a classifier that predicts whether a post has sociopolitical content or not. Sociopolitical refers \
+to whether a given post is related to politics (government, elections, politicians, activism, etc.) or \
+social issues (major issues that affect a large group of people, such as the economy, inequality, \
+racism, education, immigration, human rights, the environment, etc.). We refer to any content \
+that is classified as being either of these two categories as "sociopolitical"; otherwise they are not sociopolitical. \
+Please classify the following text as "sociopolitical" or "not sociopolitical". 
+
+Then, if the post is sociopolitical, classify the text based on the political lean of the opinion or argument \
+it presents. Your options are "left", "right", or 'unclear'. \
+If the text is not sociopolitical, return "unclear". Base your response on US politics.\
+
+Think through your response step by step.
+
+Return your response as JSON with the following fields:
+- "is_sociopolitical": <boolean, two values, True or False. Required.>,
+- "political_ideology_label": <string, four values, 'left', 'right', 'unclear', None. If the post is not sociopolitical, return None>,
+
+All of the fields in the JSON must be present for the response to be valid, and the answer must be returned in JSON format.
+
+Do NOT include any explanation. Only return the JSON output.
+
+You will be given a numbered list of posts. Return a list of JSONs.
+
+TEXT:
+```
+{enumerated_texts}
+```
+"""
+    return prompt
 
 
-# TODO: implement
 def parse_llm_result(
     json_result: str, expected_number_of_posts: int
 ) -> list[LLMSociopoliticalLabelModel]:  # noqa
     results = []
-    dummy_label = json.dumps(
-        {"is_sociopolitical": True, "political_ideology_label": "left"}
-    )
-    # Create a JSON string that repeats the dummy label expected_number_of_posts times
-    json_result = "\n".join([dummy_label for _ in range(expected_number_of_posts)])
     for line in json_result.strip().split("\n"):
         try:
             result = json.loads(line)
@@ -64,16 +89,12 @@ def parse_llm_result(
     return results
 
 
-# TODO: implement.
 def process_sociopolitical_batch(
     posts: list[FilteredPreprocessedPostModel],
 ) -> list[LLMSociopoliticalLabelModel]:
     """Takes batch and runs the LLM for it."""
-    # TODO: still need output validation somehow, but don't want to
-    # overcomplicate things by using chains.
     prompt: str = generate_prompt(posts)
     json_result: str = run_query(prompt=prompt, model_name=LLM_MODEL_NAME)
-    # Parse the JSON lines string into a list of dictionaries
     results: list[LLMSociopoliticalLabelModel] = parse_llm_result(
         json_result=json_result, expected_number_of_posts=len(posts)
     )
@@ -128,11 +149,10 @@ def process_llm_batch(
 
 
 @track_performance
-async def batch_classify_posts(
+def batch_classify_posts(
     posts: list[FilteredPreprocessedPostModel],
     source_feed: Literal["firehose", "most_liked"],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
-    seconds_delay_per_batch: Optional[float] = DEFAULT_DELAY_SECONDS,
 ) -> list[SociopoliticalLabelsModel]:
     """Classify posts in batches."""
     post_batches: list[list[FilteredPreprocessedPostModel]] = create_batches(
@@ -142,19 +162,10 @@ async def batch_classify_posts(
     failed_batches: list[tuple] = []
     for batch in post_batches:
         result_dict = process_llm_batch(post_batch=batch, source_feed=source_feed)  # noqa
-        await asyncio.sleep(seconds_delay_per_batch)
         if result_dict["succeeded"]:
             successful_batches.extend(result_dict["response"])
         else:
             failed_batches.extend(result_dict["response"])
-
-    for post_batch in failed_batches:
-        result_dict = process_llm_batch(post_batch=post_batch, source_feed=source_feed)  # noqa
-        if not result_dict["succeeded"]:
-            # TODO: not sure what to do if it still fails after so many tries?
-            print(
-                "Failed to process batch after retrying for 2 iterations of batched inference."
-            )  # noqa
     return successful_batches
 
 
@@ -163,16 +174,11 @@ def run_batch_classification(
     posts: list[FilteredPreprocessedPostModel],
     source_feed: Literal["firehose", "most_liked"],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
-    seconds_delay_per_batch: Optional[float] = DEFAULT_DELAY_SECONDS,
 ) -> list[SociopoliticalLabelsModel]:
-    loop = asyncio.get_event_loop()
-    results: list[SociopoliticalLabelsModel] = loop.run_until_complete(
-        batch_classify_posts(
-            posts=posts,
-            source_feed=source_feed,
-            batch_size=batch_size,
-            seconds_delay_per_batch=seconds_delay_per_batch,
-        )
+    results: list[SociopoliticalLabelsModel] = batch_classify_posts(
+        posts=posts,
+        source_feed=source_feed,
+        batch_size=batch_size,
     )
     return results
 
