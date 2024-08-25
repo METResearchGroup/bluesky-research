@@ -1,5 +1,11 @@
 """Helper functions for the consolidate_enrichment_integrations service."""
 
+import pandas as pd
+
+from lib.aws.athena import Athena
+from lib.aws.dynamodb import DynamoDB
+from lib.aws.s3 import S3
+from lib.constants import current_datetime_str
 from lib.log.logger import get_logger
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
@@ -13,38 +19,97 @@ from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 
 logger = get_logger(__name__)
+root_s3_key = "consolidated_enriched_post_records"
+
+athena = Athena()
+dynamodb = DynamoDB()
+s3 = S3()
+
+dynamodb_table_name = "enrichment_consolidation_sessions"
 
 
 def get_latest_enrichment_consolidation_session() -> dict:
     """Get the latest enrichment consolidation session."""
-    return {}
+    try:
+        sessions: list[dict] = dynamodb.get_all_items_from_table(
+            table_name=dynamodb_table_name
+        )  # noqa
+        if not sessions:
+            logger.info("No enrichment consolidation sessions found.")
+            return None
+        sorted_sessions = sorted(
+            sessions,
+            key=lambda x: x.get("enrichment_consolidation_timestamp", {}).get("S", ""),  # noqa
+            reverse=True,
+        )  # noqa
+        return sorted_sessions[0]
+    except Exception as e:
+        logger.error(f"Failed to get latest enrichment consolidation session: {e}")  # noqa
+        raise
 
 
 def insert_enrichment_consolidation_session(enrichment_consolidation_session: dict):  # noqa
     """Insert the enrichment consolidation session."""
-    pass
+    try:
+        dynamodb.insert_item_into_table(
+            item=enrichment_consolidation_session, table_name=dynamodb_table_name
+        )
+        logger.info(
+            f"Successfully inserted enrichment consolidation session: {enrichment_consolidation_session}"
+        )  # noqa
+    except Exception as e:
+        logger.error(f"Failed to insert enrichment consolidation session: {e}")  # noqa
+        raise
 
 
 def load_latest_preprocessed_posts(
     timestamp: str,
 ) -> list[FilteredPreprocessedPostModel]:
-    return []
+    return athena.get_latest_preprocessed_posts(timestamp=timestamp)
 
 
 def load_latest_perspective_api_labels(
     timestamp: str,
 ) -> list[PerspectiveApiLabelsModel]:
-    return []
+    source_tables = [
+        "perspective_api_firehose_labels",
+        "perspective_api_most_liked_labels",
+    ]
+    where_filter = f"synctimestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
+    query = " UNION ALL ".join(
+        [f"SELECT * FROM {table} WHERE {where_filter}" for table in source_tables]  # noqa
+    )
+
+    df: pd.DataFrame = athena.query_results_as_df(query)
+    df_dicts = df.to_dict(orient="records")
+    return [PerspectiveApiLabelsModel(**label) for label in df_dicts]
 
 
 def load_latest_sociopolitical_labels(
     timestamp: str,
 ) -> list[SociopoliticalLabelsModel]:
-    return []
+    source_tables = [
+        "llm_sociopolitical_firehose_labels",
+        "llm_sociopolitical_most_liked_labels",
+    ]
+    where_filter = f"synctimestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
+    query = " UNION ALL ".join(
+        [f"SELECT * FROM {table} WHERE {where_filter}" for table in source_tables]  # noqa
+    )
+    df: pd.DataFrame = athena.query_results_as_df(query)
+    df_dicts = df.to_dict(orient="records")
+    return [SociopoliticalLabelsModel(**label) for label in df_dicts]
 
 
 def load_latest_similarity_scores(timestamp: str) -> list[PostSimilarityScoreModel]:
-    return []
+    source_tables = ["post_cosine_similarity_scores"]
+    where_filter = f"synctimestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
+    query = " UNION ALL ".join(
+        [f"SELECT * FROM {table} WHERE {where_filter}" for table in source_tables]  # noqa
+    )
+    df: pd.DataFrame = athena.query_results_as_df(query)
+    df_dicts = df.to_dict(orient="records")
+    return [PostSimilarityScoreModel(**score) for score in df_dicts]
 
 
 def consolidate_enrichment_integrations(
@@ -162,7 +227,9 @@ def consolidate_enrichment_integrations(
 
 def export_posts(posts: list[ConsolidatedEnrichedPostModel]):
     """Exports the posts to S3."""
-    pass
+    post_dicts = [post.dict() for post in posts]
+    s3.write_dicts_jsonl_to_s3(data=post_dicts, key=root_s3_key)
+    logger.info(f"Exported {len(post_dicts)} posts to S3.")
 
 
 def do_consolidate_enrichment_integrations():
@@ -206,8 +273,10 @@ def do_consolidate_enrichment_integrations():
 
     # export results and update session metadata
     export_posts(consolidated_posts)
-    logger.info(f"Exported {len(consolidated_posts)} posts to S3.")
-    enrichment_consolidation_session = {}
+    enrichment_consolidation_session = {
+        "enrichment_consolidation_timestamp": current_datetime_str,
+        "total_posts_consolidated": len(consolidated_posts),
+    }
     insert_enrichment_consolidation_session(enrichment_consolidation_session)
 
 
