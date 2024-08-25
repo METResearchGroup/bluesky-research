@@ -1,6 +1,6 @@
 """Service for generating vector embeddings for posts."""
 
-import json
+import os
 
 from sklearn.metrics.pairwise import cosine_similarity
 import torch
@@ -25,6 +25,29 @@ dynamodb = DynamoDB()
 s3 = S3()
 
 dynamodb_table_name = "vector_embedding_sessions"
+batch_size = 64
+
+
+def get_device():
+    if torch.cuda.is_available():
+        print("CUDA backend available.")
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        print("Arm mac GPU available, using GPU.")
+        print(f"{torch.backends.mps.is_available()=}")
+        print(f"{torch.backends.mps.is_built()=}")
+        device = torch.device("mps")  # for Arm Macs
+    else:
+        print("GPU not available, using CPU")
+        device = torch.device("cpu")
+        raise ValueError("GPU not available, using CPU")
+    return device
+
+
+torch.cuda.empty_cache()
+device = get_device()
+tokenizer = AutoTokenizer.from_pretrained(DEFAULT_EMBEDDING_MODEL_NAME)
+model = AutoModel.from_pretrained(DEFAULT_EMBEDDING_MODEL_NAME).to(device)
 
 
 def get_latest_embedding_session() -> dict:
@@ -71,37 +94,73 @@ def get_posts_to_embed() -> list[FilteredPreprocessedPostModel]:
     return posts
 
 
-def get_embeddings(text: str, model_name=DEFAULT_EMBEDDING_MODEL_NAME) -> torch.Tensor:
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name)
-
-    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)  # noqa
-    with torch.no_grad():
-        outputs = model(**inputs)
-
-    # Use the mean of the token embeddings as the sentence embedding
-    embeddings = outputs.last_hidden_state.mean(dim=1)
-    return embeddings
-
-
-def get_average_embedding(embeddings: list[torch.Tensor]) -> torch.Tensor:
+def get_embeddings(
+    texts: list[str], model_name=DEFAULT_EMBEDDING_MODEL_NAME
+) -> torch.Tensor:
     """
-    Calculate the average embedding from a list of embeddings.
+    Generate embeddings for a list of texts using a specified model.
 
     Args:
-    embeddings (list[torch.Tensor]): A list of tensors, each of shape (1, 768)
+    texts (list[str]): A list of text strings to embed.
+    model_name (str): The name of the pre-trained model to use for embedding.
+
+    Returns:
+    torch.Tensor: A tensor of shape (batch, 1, 768) containing the embeddings.
+
+    This function tokenizes the input texts, passes them through the specified model,
+    and returns the mean of the last hidden state as the embedding for each text.
+    The output is reshaped to (batch, 1, 768) to match the expected format.
+    """
+    logger.info(
+        f"Getting embeddings for {len(texts)} texts with embedding model {model_name}..."
+    )  # noqa
+
+    all_embeddings = []
+
+    for i in range(0, len(texts), batch_size):
+        batch_texts = texts[i : i + batch_size]
+        inputs = tokenizer(
+            batch_texts, return_tensors="pt", padding=True, truncation=True
+        ).to(device)
+
+        with torch.no_grad():
+            outputs = model(**inputs)
+
+        # Use the mean of the token embeddings as the sentence embedding
+        embeddings = outputs.last_hidden_state.mean(dim=1)  # (batch, 768)
+
+        # Reshape to (batch, 1, 768)
+        embeddings = embeddings.unsqueeze(1)
+
+        all_embeddings.append(
+            embeddings.cpu()
+        )  # Move the result back to CPU if it was on GPU
+
+        # Clear cache to free up memory
+        if device == torch.device("cuda") or device == torch.device("mps"):
+            torch.cuda.empty_cache()
+
+    return torch.cat(all_embeddings, dim=0)
+
+
+def get_average_embedding(embeddings: torch.Tensor) -> torch.Tensor:
+    """
+    Calculate the average embedding from a batch of embeddings.
+
+    Args:
+    embeddings (torch.Tensor): A tensor of shape (batch, 1, 768)
 
     Returns:
     torch.Tensor: The average embedding of shape (1, 768)
     """
-    if not embeddings:
-        raise ValueError("The list of embeddings is empty")
+    if embeddings.size(0) == 0:
+        raise ValueError("The batch of embeddings is empty")
 
-    # Stack the tensors along a new dimension
-    stacked_embeddings = torch.stack(embeddings)
+    # Calculate the mean along the batch dimension
+    average_embedding = torch.mean(embeddings, dim=0)
 
-    # Calculate the mean along the first dimension (across all embeddings)
-    average_embedding = torch.mean(stacked_embeddings, dim=0)
+    # Squeeze the result to get a (1, 768) tensor
+    average_embedding = average_embedding.squeeze(0)
 
     return average_embedding
 
@@ -129,19 +188,22 @@ def generate_vector_embeddings_and_calculate_similarity_scores(
         for post in most_liked_posts
         if post.uri not in previously_embedded_post_uris
     ]
-    in_network_user_activity_embeddings: list[torch.Tensor] = [
-        get_embeddings(post.text) for post in in_network_user_activity_posts
-    ]
-    most_liked_embeddings: list[torch.Tensor] = [
-        get_embeddings(post.text) for post in most_liked_posts
-    ]
+    in_network_user_activity_embeddings: torch.Tensor = get_embeddings(
+        [post.text for post in in_network_user_activity_posts]
+    )  # [batch, 1, 768]
+    most_liked_embeddings: torch.Tensor = get_embeddings(
+        [post.text for post in most_liked_posts]
+    )  # [batch, 1, 768]
     most_liked_average_embedding: torch.Tensor = get_average_embedding(
         most_liked_embeddings
-    )
-    post_cosine_similarity_scores = [
-        cosine_similarity(post_embedding, most_liked_average_embedding)
+    ).reshape(1, -1)  # [1, 768]
+
+    post_cosine_similarity_scores: list[float] = [
+        # [1, 768] -> [768] for post_embedding, to match most_liked_average_embedding
+        cosine_similarity(post_embedding, most_liked_average_embedding)[0][0].item()
         for post_embedding in in_network_user_activity_embeddings
     ]
+
     return {
         "in_network_user_activity_embeddings": in_network_user_activity_embeddings,
         "most_liked_embeddings": most_liked_embeddings,
@@ -172,20 +234,38 @@ def do_vector_embeddings():
     )
 
     # export embeddings and similarity scores
-    in_network_user_activity_embeddings = res["in_network_user_activity_embeddings"]
-    most_liked_embeddings = res["most_liked_embeddings"]
-    most_liked_average_embedding = res["most_liked_average_embedding"]
-    post_cosine_similarity_scores = res["post_cosine_similarity_scores"]
+    in_network_user_activity_embeddings: torch.Tensor = res[
+        "in_network_user_activity_embeddings"
+    ]  # noqa
+    most_liked_embeddings: torch.Tensor = res["most_liked_embeddings"]  # noqa
+    most_liked_average_embedding: torch.Tensor = res["most_liked_average_embedding"]  # noqa
+    post_cosine_similarity_scores: list[float] = res["post_cosine_similarity_scores"]  # noqa
 
-    in_network_post_embedding_key = f"{vector_embeddings_root_s3_key}/in_network_post_embeddings/{current_datetime_str}.parquet"
-    most_liked_post_embedding_key = f"{vector_embeddings_root_s3_key}/most_liked_post_embeddings/{current_datetime_str}.parquet"
-    average_most_liked_feed_embeddings_key = f"{vector_embeddings_root_s3_key}/average_most_liked_feed_embeddings/{current_datetime_str}.parquet"
-    similarity_scores_key = f"{vector_embeddings_root_s3_key}/similarity_scores/{current_datetime_str}.parquet"
+    in_network_post_embedding_key = os.path.join(
+        vector_embeddings_root_s3_key,
+        "in_network_post_embeddings",
+        f"{current_datetime_str}.parquet",
+    )
+    most_liked_post_embedding_key = os.path.join(
+        vector_embeddings_root_s3_key,
+        "most_liked_post_embeddings",
+        f"{current_datetime_str}.parquet",
+    )
+    average_most_liked_feed_embeddings_key = os.path.join(
+        vector_embeddings_root_s3_key,
+        "average_most_liked_feed_embeddings",
+        f"{current_datetime_str}.parquet",
+    )
+    similarity_scores_key = os.path.join(
+        vector_embeddings_root_s3_key,
+        "similarity_scores",
+        f"{current_datetime_str}.parquet",
+    )
 
     in_network_post_embedding_results: list[dict] = [
         {
             "uri": post.uri,
-            "embedding": post_embedding.tolist(),  # convert tensor to list. Necessary?
+            "embedding": post_embedding.cpu().tolist(),  # convert tensor to list. Necessary?
             "embedding_model": DEFAULT_EMBEDDING_MODEL_NAME,
             "insert_timestamp": current_datetime_str,
         }
@@ -196,7 +276,7 @@ def do_vector_embeddings():
     most_liked_post_embedding_results: list[dict] = [
         {
             "uri": post.uri,
-            "embedding": post_embedding.tolist(),  # convert tensor to list. Necessary?
+            "embedding": post_embedding.cpu().tolist(),  # convert tensor to list. Necessary?
             "embedding_model": DEFAULT_EMBEDDING_MODEL_NAME,
             "insert_timestamp": current_datetime_str,
         }
@@ -204,7 +284,7 @@ def do_vector_embeddings():
     ]
     average_most_liked_feed_embeddings: dict = {
         "uris": [post.uri for post in most_liked_posts],
-        "embedding": most_liked_average_embedding.tolist(),
+        "embedding": most_liked_average_embedding.cpu().tolist(),
         "embedding_model": DEFAULT_EMBEDDING_MODEL_NAME,
         "insert_timestamp": current_datetime_str,
     }
@@ -220,14 +300,16 @@ def do_vector_embeddings():
         )
     ]
 
-    with open(in_network_post_embedding_key, "w") as f:
-        f.write(json.dumps(in_network_post_embedding_results))
-    with open(most_liked_post_embedding_key, "w") as f:
-        f.write(json.dumps(most_liked_post_embedding_results))
-    with open(average_most_liked_feed_embeddings_key, "w") as f:
-        f.write(json.dumps(average_most_liked_feed_embeddings))
-    with open(similarity_scores_key, "w") as f:
-        f.write(json.dumps(similarity_scores_results))
+    s3.write_dicts_parquet_to_s3(
+        in_network_post_embedding_results, in_network_post_embedding_key
+    )
+    s3.write_dicts_parquet_to_s3(
+        most_liked_post_embedding_results, most_liked_post_embedding_key
+    )
+    s3.write_dict_parquet_to_s3(
+        average_most_liked_feed_embeddings, average_most_liked_feed_embeddings_key
+    )
+    s3.write_dicts_parquet_to_s3(similarity_scores_results, similarity_scores_key)
 
     logger.info(
         f"Exported embeddings and similarity scores to {in_network_post_embedding_key}, {most_liked_post_embedding_key}, {average_most_liked_feed_embeddings_key}, {similarity_scores_key}"
