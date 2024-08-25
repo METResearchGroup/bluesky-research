@@ -2,7 +2,6 @@
 
 from typing import Literal
 
-import pandas as pd
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
@@ -92,51 +91,7 @@ def get_posts_to_classify(
 
     logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")
-
-    where_filter = (
-        f"synctimestamp > '{latest_inference_timestamp}'"
-        if latest_inference_timestamp
-        else "1=1"
-    )  # noqa
-
-    # default syncs both firehose and most-liked tables, but doesn't have to
-    # be the case.
-    query = " UNION ALL ".join(
-        [f"SELECT * FROM {table} WHERE {where_filter}" for table in source_tables]
+    posts = athena.get_latest_preprocessed_posts(
+        timestamp=latest_inference_timestamp, source_tables=source_tables
     )
-
-    df: pd.DataFrame = athena.query_results_as_df(query)
-
-    logger.info(f"Number of posts to classify: {len(df)}")
-
-    df_dicts = df.to_dict(orient="records")
-    # convert NaN values to None, remove extra fields.
-    fields_to_remove = [
-        "year",
-        "month",
-        "day",
-        "hour",
-        "minute",
-    ]  # extra fields from preprocessing partitions.
-    df_dicts_cleaned = [
-        {
-            k: (None if pd.isna(v) else v)
-            for k, v in post.items()
-            if k not in fields_to_remove
-        }
-        for post in df_dicts
-    ]
-    # remove values without text
-    df_dicts_cleaned = [post for post in df_dicts_cleaned if post["text"] is not None]
-
-    # remove posts whose text fields are too short
-    df_dicts_cleaned = [
-        post for post in df_dicts_cleaned if len(post["text"]) > MIN_POST_TEXT_LENGTH
-    ]  # noqa
-
-    # convert to pydantic model
-    posts_to_classify = [
-        FilteredPreprocessedPostModel(**post) for post in df_dicts_cleaned
-    ]
-
-    return posts_to_classify
+    return posts

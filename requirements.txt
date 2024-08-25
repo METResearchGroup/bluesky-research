@@ -355,7 +355,7 @@ threadpoolctl==3.5.0
     # via scikit-learn
 tiktoken==0.7.0
     # via litellm
-tokenizers==0.15.2
+tokenizers==0.19.1
     # via
     #   litellm
     #   transformers
@@ -368,7 +368,7 @@ tqdm==4.66.5
     #   openai
     #   sentence-transformers
     #   transformers
-transformers==4.39.1
+transformers==4.44.2
     # via
     #   -r requirements.in
     #   sentence-transformers
