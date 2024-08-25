@@ -2,12 +2,15 @@
 
 import io
 import time
+from typing import Optional
 
 import pandas as pd
 
 from lib.aws.helper import create_client
 from lib.aws.s3 import S3
 from lib.log.logger import get_logger
+
+from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 DEFAULT_DB_NAME = "default_db"
 
@@ -16,6 +19,7 @@ DEFAULT_DB_NAME = "default_db"
 DEFAULT_OUTPUT_LOCATION = "s3://bluesky-research/athena-results"
 DEFAULT_MAX_WAITING_TRIES = 5
 DEFAULT_WORKGROUP = "prod_workgroup"
+MIN_POST_TEXT_LENGTH = 5
 
 s3 = S3()
 logger = get_logger(__name__)
@@ -92,3 +96,59 @@ class Athena:
         df = pd.read_csv(io.StringIO(result_data.decode("utf-8")))
 
         return df
+
+    def get_latest_preprocessed_posts(
+        self,
+        timestamp: Optional[str],
+        source_tables: list = [
+            "preprocessed_firehose_posts",
+            "preprocessed_most_liked_posts",
+        ],  # noqa
+    ) -> list[FilteredPreprocessedPostModel]:  # noqa
+        where_filter = f"synctimestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
+
+        # default syncs both firehose and most-liked tables, but doesn't have to
+        # be the case.
+        query = " UNION ALL ".join(
+            [f"SELECT * FROM {table} WHERE {where_filter}" for table in source_tables]
+        )
+
+        df: pd.DataFrame = self.query_results_as_df(query)
+
+        logger.info(f"Number of posts to classify: {len(df)}")
+
+        df_dicts = df.to_dict(orient="records")
+        # convert NaN values to None, remove extra fields.
+        fields_to_remove = [
+            "year",
+            "month",
+            "day",
+            "hour",
+            "minute",
+        ]  # extra fields from preprocessing partitions.
+        df_dicts_cleaned = [
+            {
+                k: (None if pd.isna(v) else v)
+                for k, v in post.items()
+                if k not in fields_to_remove
+            }
+            for post in df_dicts
+        ]
+        # remove values without text
+        df_dicts_cleaned = [
+            post for post in df_dicts_cleaned if post["text"] is not None
+        ]
+
+        # remove posts whose text fields are too short
+        df_dicts_cleaned = [
+            post
+            for post in df_dicts_cleaned
+            if len(post["text"]) > MIN_POST_TEXT_LENGTH
+        ]  # noqa
+
+        # convert to pydantic model
+        posts_to_classify = [
+            FilteredPreprocessedPostModel(**post) for post in df_dicts_cleaned
+        ]
+
+        return posts_to_classify

@@ -15,4 +15,4 @@ pymongo==4.7.1
 python-dotenv==0.21.0 
 requests==2.31.0
 sentence-transformers==2.6.1
-transformers==4.39.1
+transformers==4.44.2

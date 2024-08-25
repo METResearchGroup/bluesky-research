@@ -1515,6 +1515,182 @@ resource "aws_glue_catalog_table" "llm_sociopolitical_most_liked_labels" {
   }
 }
 
+resource "aws_glue_catalog_table" "in_network_embeddings" {
+  name          = "in_network_embeddings"
+  database_name = var.default_glue_database_name
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/vector_embeddings/in_network_post_embeddings/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    # columns { # Athena doesn't like the multi-nested field.
+    #   name = "embedding"
+    #   type = "array<array<array<double>>>"
+    # }
+    columns {
+      name = "embedding_model"
+      type = "string"
+    }
+    columns {
+      name = "insert_timestamp"
+      type = "string"
+    }
+  }
+}
+
+resource "aws_glue_catalog_table" "most_liked_feed_embeddings" {
+  name          = "most_liked_feed_embeddings"
+  database_name = var.default_glue_database_name
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/vector_embeddings/most_liked_post_embeddings/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    # columns { # Athena doesn't like the multi-nested field.
+    #   name = "embedding"
+    #   type = "array<array<array<double>>>"
+    # }
+    columns {
+      name = "embedding_model"
+      type = "string"
+    }
+    columns {
+      name = "insert_timestamp"
+      type = "string"
+    }
+  }
+}
+
+
+resource "aws_glue_catalog_table" "average_most_liked_feed_embeddings" {
+  name          = "average_most_liked_feed_embeddings"
+  database_name = var.default_glue_database_name
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/vector_embeddings/average_most_liked_feed_embeddings/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uris"
+      type = "array<string>"
+    }
+    # columns { # Athena doesn't like the multi-nested field.
+    #   name = "embedding"
+    #   type = "array<array<array<double>>>"
+    # }
+    columns {
+      name = "embedding_model"
+      type = "string"
+    }
+    columns {
+      name = "insert_timestamp"
+      type = "string"
+    }
+  }
+}
+resource "aws_glue_catalog_table" "post_cosine_similarity_scores" {
+  name          = "post_cosine_similarity_scores"
+  database_name = var.default_glue_database_name
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/vector_embeddings/similarity_scores/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "similarity_score"
+      type = "double"
+    }
+    columns {
+      name = "most_liked_average_embedding_key"
+      type = "string"
+    }
+    columns {
+      name = "insert_timestamp"
+      type = "string"
+    }
+  }
+}
+
 
 resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
   name        = "perspective_api_labels_glue_crawler"
@@ -1644,5 +1820,20 @@ resource "aws_dynamodb_table" "ml_inference_labeling_sessions" {
 
   tags = {
     Name = "ml_inference_labeling_sessions"
+  }
+}
+
+resource "aws_dynamodb_table" "vector_embedding_sessions" {
+  name           = "vector_embedding_sessions"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "embedding_timestamp"
+
+  attribute {
+    name = "embedding_timestamp"
+    type = "S"
+  }
+
+  tags = {
+    Name = "vector_embedding_sessions"
   }
 }

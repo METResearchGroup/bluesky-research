@@ -113,7 +113,13 @@ def get_latest_post_filenames_from_sqs(sqs_sync_messages: dict) -> dict[str, lis
     ]["post"]  # noqa
     most_liked_post_sqs_messages = sqs_sync_messages["most_liked"]
     for message in firehose_post_sqs_messages:
-        keys: list[str] = message["Body"]["data"]["sync"]["s3_keys"]
+        # TODO: need to verify that the keys are valid.
+        keys: list[str] = message["Body"]["data"]["sync"].get("s3_keys", [])
+        if len(keys) == 0:
+            # could have old key structure.
+            print("Message using old key structure...")
+            key = message["Body"]["data"]["sync"].get("s3_key", [])
+            res["in-network-user-activity"].append(key)
         res["in-network-user-activity"].extend(keys)
     for message in most_liked_post_sqs_messages:
         res["most_liked"].append(message["Body"]["data"]["sync"]["s3_key"])
