@@ -1966,8 +1966,8 @@ resource "aws_glue_catalog_table" "custom_feeds" {
   table_type = "EXTERNAL_TABLE"
 
   parameters = {
-    "classification" = "json"
-    "jsonPath"       = "$.feed"
+    EXTERNAL              = "TRUE"
+    "classification"      = "json"
   }
 
   storage_descriptor {
