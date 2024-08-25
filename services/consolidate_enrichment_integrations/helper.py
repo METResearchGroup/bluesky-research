@@ -75,13 +75,15 @@ def load_latest_perspective_api_labels(
         "perspective_api_firehose_labels",
         "perspective_api_most_liked_labels",
     ]
-    where_filter = f"synctimestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
+    where_filter = f"label_timestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
     query = " UNION ALL ".join(
         [f"SELECT * FROM {table} WHERE {where_filter}" for table in source_tables]  # noqa
     )
 
     df: pd.DataFrame = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
+    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    breakpoint()
     return [PerspectiveApiLabelsModel(**label) for label in df_dicts]
 
 
@@ -92,23 +94,25 @@ def load_latest_sociopolitical_labels(
         "llm_sociopolitical_firehose_labels",
         "llm_sociopolitical_most_liked_labels",
     ]
-    where_filter = f"synctimestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
+    where_filter = f"label_timestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
     query = " UNION ALL ".join(
         [f"SELECT * FROM {table} WHERE {where_filter}" for table in source_tables]  # noqa
     )
     df: pd.DataFrame = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
+    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     return [SociopoliticalLabelsModel(**label) for label in df_dicts]
 
 
 def load_latest_similarity_scores(timestamp: str) -> list[PostSimilarityScoreModel]:
     source_tables = ["post_cosine_similarity_scores"]
-    where_filter = f"synctimestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
+    where_filter = f"insert_timestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
     query = " UNION ALL ".join(
         [f"SELECT * FROM {table} WHERE {where_filter}" for table in source_tables]  # noqa
     )
     df: pd.DataFrame = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
+    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     return [PostSimilarityScoreModel(**score) for score in df_dicts]
 
 
