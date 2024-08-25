@@ -5,6 +5,7 @@ import os
 import random
 
 from lib.aws.athena import Athena
+from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import current_datetime, timestamp_format
 from lib.helper import generate_current_datetime_str
@@ -18,24 +19,40 @@ from services.participant_data.models import UserToBlueskyProfileModel
 max_feed_length = 50
 default_lookback_days = 5
 consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
+user_to_social_network_map_table_name = "user_social_networks"
 feeds_root_s3_key = "custom_feeds"
 dynamodb_table_name = "rank_score_feed_sessions"
 
 athena = Athena()
 s3 = S3()
+dynamodb = DynamoDB()
 logger = get_logger(__name__)
 
 
 def insert_feed_generation_session(feed_generation_session: dict):
-    pass
+    try:
+        dynamodb.insert_item_into_table(
+            item=feed_generation_session, table_name=dynamodb_table_name
+        )
+        logger.info(
+            f"Successfully inserted feed generation session: {feed_generation_session}"
+        )
+    except Exception as e:
+        logger.error(f"Failed to insert feed generation session: {e}")
+        raise
 
 
 def export_results(user_to_ranked_feed_map: dict, timestamp: str):
     """Exports results. Partitions on user DID."""
     for user, ranked_feed in user_to_ranked_feed_map.items():
-        s3.write_to_s3(
-            ranked_feed,
-            os.path.join(
+        data = {
+            "user": user,
+            "feed": ranked_feed,
+            "feed_generation_timestamp": timestamp,
+        }
+        s3.write_dict_json_to_s3(
+            data=data,
+            key=os.path.join(
                 feeds_root_s3_key, f"user_did={user}", f"{user}_{timestamp}.jsonl"
             ),
         )
@@ -60,14 +77,34 @@ def load_latest_consolidated_enriched_posts(
     return [ConsolidatedEnrichedPostModel(**post) for post in df_dicts]
 
 
-# TODO: implement.
 def load_user_social_network() -> dict[str, list[str]]:
     """Loads a user's social network (followees/followers).
 
     Returns a list of users mapped to a list of their followees/followers
     (list of DIDs).
     """
-    return {}
+    query = f"""
+    SELECT * FROM {user_to_social_network_map_table_name}
+    """
+    df = athena.query_results_as_df(query)
+    df_dicts = df.to_dict(orient="records")
+    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+
+    res = {}
+    for row in df_dicts:
+        if row["relationship_to_study_user"] == "follower":
+            study_user_did = row["follow_did"]
+            connection_did = row["follower_did"]
+        elif row["relationship_to_study_user"] == "follow":
+            study_user_did = row["follower_did"]
+            connection_did = row["follow_did"]
+        else:
+            logger.warning(f"Skipping row with unknown relationship: {row}")
+            continue  # Skip if relationship is not recognized
+        if study_user_did not in res:
+            res[study_user_did] = []
+        res[study_user_did].append(connection_did)
+    return res
 
 
 def calculate_post_score(post: ConsolidatedEnrichedPostModel) -> float:
@@ -191,10 +228,10 @@ def do_rank_score_feeds():
     }
 
     # write feeds to s3
-    export_results(user_to_ranked_feed_map)
     timestamp = generate_current_datetime_str()
+    export_results(user_to_ranked_feed_map=user_to_ranked_feed_map, timestamp=timestamp)
     feed_generation_session = {
-        "timestamp": timestamp,
+        "feed_generation_timestamp": timestamp,
         "number_of_new_feeds": len(user_to_ranked_feed_map),
     }
     insert_feed_generation_session(feed_generation_session)
