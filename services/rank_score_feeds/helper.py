@@ -6,6 +6,7 @@ import random
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
+from lib.aws.glue import Glue
 from lib.aws.s3 import S3
 from lib.constants import current_datetime, timestamp_format
 from lib.helper import generate_current_datetime_str
@@ -26,6 +27,7 @@ dynamodb_table_name = "rank_score_feed_sessions"
 athena = Athena()
 s3 = S3()
 dynamodb = DynamoDB()
+glue = Glue()
 logger = get_logger(__name__)
 
 
@@ -53,7 +55,9 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
         s3.write_dict_json_to_s3(
             data=data,
             key=os.path.join(
-                feeds_root_s3_key, f"user_did={user}", f"{user}_{timestamp}.jsonl"
+                feeds_root_s3_key,
+                f"user_did={user}",
+                f"{user}_{timestamp}.json",
             ),
         )
     logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3.")
@@ -68,7 +72,8 @@ def load_latest_consolidated_enriched_posts(
     lookback_datetime = current_datetime - timedelta(days=lookback_days)
     lookback_datetime_str = lookback_datetime.strftime(timestamp_format)
     query = f"""
-    SELECT * FROM {consolidated_enriched_posts_table_name} 
+    SELECT *
+    FROM {consolidated_enriched_posts_table_name} 
     WHERE consolidation_timestamp > '{lookback_datetime_str}'
     """
     df = athena.query_results_as_df(query)
@@ -187,6 +192,8 @@ def do_rank_score_feeds():
     post_uri_to_score_map: dict[str, float] = {
         post.uri: score for post, score in zip(consolidated_enriched_posts, post_scores)
     }
+    logger.info(f"Calculated {len(post_uri_to_score_map)} post scores.")
+
     # list of all in-network user posts, across all study users. Needs to be
     # filtered for the in-network posts relevant for a given study user.
     candidate_in_network_user_activity_posts: list[ConsolidatedEnrichedPostModel] = [  # noqa
@@ -201,7 +208,10 @@ def do_rank_score_feeds():
     out_of_network_post_uris: list[str] = [
         post.uri for post in out_of_network_user_activity_posts
     ]
-
+    logger.info(
+        f"Loaded {len(candidate_in_network_user_activity_posts)} in-network posts."
+    )  # noqa
+    logger.info(f"Loaded {len(out_of_network_post_uris)} out-of-network posts.")  # noqa
     # get lists of in-network and out-of-network posts
     user_to_in_network_post_uris_map: dict[str, list[str]] = {
         user.bluesky_user_did: calculate_in_network_posts_for_user(
@@ -230,6 +240,7 @@ def do_rank_score_feeds():
     # write feeds to s3
     timestamp = generate_current_datetime_str()
     export_results(user_to_ranked_feed_map=user_to_ranked_feed_map, timestamp=timestamp)
+    glue.start_crawler(crawler_name="custom_feeds_glue_crawler")
     feed_generation_session = {
         "feed_generation_timestamp": timestamp,
         "number_of_new_feeds": len(user_to_ranked_feed_map),
