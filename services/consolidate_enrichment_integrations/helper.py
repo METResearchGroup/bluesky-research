@@ -85,7 +85,6 @@ def load_latest_perspective_api_labels(
     df: pd.DataFrame = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
-    breakpoint()
     return [PerspectiveApiLabelsModel(**label) for label in df_dicts]
 
 
@@ -224,6 +223,8 @@ def consolidate_enrichment_integrations(
             # Fields from similarity_scores_results
             similarity_score=similarity.similarity_score,
             most_liked_average_embedding_key=similarity.most_liked_average_embedding_key,
+            # consolidation-specific logic
+            consolidation_timestamp=generate_current_datetime_str(),
         )
 
         consolidated_posts.append(consolidated_post)

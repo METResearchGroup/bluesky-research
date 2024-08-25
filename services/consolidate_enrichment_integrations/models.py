@@ -197,3 +197,8 @@ class ConsolidatedEnrichedPostModel(BaseModel):
         ...,
         description="S3 key of the average most liked feed embedding used for comparison.",
     )
+    # consolidation-specific logic
+    consolidation_timestamp: str = Field(
+        ...,
+        description="Timestamp when the post was consolidated.",
+    )

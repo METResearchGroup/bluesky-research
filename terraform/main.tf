@@ -1952,6 +1952,10 @@ resource "aws_glue_catalog_table" "consolidated_enriched_post_records" {
       name = "most_liked_average_embedding_key"
       type = "string"
     }
+    columns {
+      name = "consolidation_timestamp"
+      type = "string"
+    }
   }
 }
 
