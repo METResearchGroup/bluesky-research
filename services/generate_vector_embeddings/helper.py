@@ -165,10 +165,12 @@ def get_average_embedding(embeddings: torch.Tensor) -> torch.Tensor:
     return average_embedding
 
 
-# TODO: implement. Can fetch the URIs from Athena table.
 def get_previously_embedded_post_uris() -> set[str]:
     """Get the URIs of the posts that have already been embedded."""
-    return set()
+    source_tables = ["in_network_embeddings", "most_liked_feed_embeddings"]
+    query = " UNION ALL ".join([f"SELECT uri FROM {table}" for table in source_tables])
+    df = athena.query_results_as_df(query)
+    return set(df["uri"].tolist())
 
 
 @track_performance
@@ -188,6 +190,12 @@ def generate_vector_embeddings_and_calculate_similarity_scores(
         for post in most_liked_posts
         if post.uri not in previously_embedded_post_uris
     ]
+    if len(in_network_user_activity_posts) == 0:
+        logger.info("No in-network user activity posts to embed.")
+        return {}
+    if len(most_liked_posts) == 0:
+        logger.info("No most liked posts to embed.")
+        return {}
     in_network_user_activity_embeddings: torch.Tensor = get_embeddings(
         [post.text for post in in_network_user_activity_posts]
     )  # [batch, 1, 768]
