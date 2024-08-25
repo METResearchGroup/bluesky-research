@@ -5,7 +5,7 @@ import pandas as pd
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
-from lib.constants import current_datetime_str
+from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
@@ -112,6 +112,7 @@ def load_latest_similarity_scores(timestamp: str) -> list[PostSimilarityScoreMod
     return [PostSimilarityScoreModel(**score) for score in df_dicts]
 
 
+@track_performance
 def consolidate_enrichment_integrations(
     preprocessed_posts: list[FilteredPreprocessedPostModel],
     perspective_api_labels: list[PerspectiveApiLabelsModel],
@@ -232,6 +233,7 @@ def export_posts(posts: list[ConsolidatedEnrichedPostModel]):
     logger.info(f"Exported {len(post_dicts)} posts to S3.")
 
 
+@track_performance
 def do_consolidate_enrichment_integrations():
     """Do the enrichment consolidation."""
     # load previous session data
@@ -273,8 +275,9 @@ def do_consolidate_enrichment_integrations():
 
     # export results and update session metadata
     export_posts(consolidated_posts)
+    timestamp = generate_current_datetime_str()
     enrichment_consolidation_session = {
-        "enrichment_consolidation_timestamp": current_datetime_str,
+        "enrichment_consolidation_timestamp": timestamp,
         "total_posts_consolidated": len(consolidated_posts),
     }
     insert_enrichment_consolidation_session(enrichment_consolidation_session)

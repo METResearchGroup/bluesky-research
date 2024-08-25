@@ -9,8 +9,7 @@ from transformers import AutoTokenizer, AutoModel
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
-from lib.constants import current_datetime_str
-from lib.helper import track_performance
+from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from services.generate_vector_embeddings.models import PostSimilarityScoreModel
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
@@ -252,26 +251,26 @@ def do_vector_embeddings():
     most_liked_embeddings: torch.Tensor = res["most_liked_embeddings"]  # noqa
     most_liked_average_embedding: torch.Tensor = res["most_liked_average_embedding"]  # noqa
     post_cosine_similarity_scores: list[float] = res["post_cosine_similarity_scores"]  # noqa
-
+    timestamp = generate_current_datetime_str()
     in_network_post_embedding_key = os.path.join(
         vector_embeddings_root_s3_key,
         "in_network_post_embeddings",
-        f"{current_datetime_str}.parquet",
+        f"{timestamp}.parquet",
     )
     most_liked_post_embedding_key = os.path.join(
         vector_embeddings_root_s3_key,
         "most_liked_post_embeddings",
-        f"{current_datetime_str}.parquet",
+        f"{timestamp}.parquet",
     )
     average_most_liked_feed_embeddings_key = os.path.join(
         vector_embeddings_root_s3_key,
         "average_most_liked_feed_embeddings",
-        f"{current_datetime_str}.parquet",
+        f"{timestamp}.parquet",
     )
     similarity_scores_key = os.path.join(
         vector_embeddings_root_s3_key,
         "similarity_scores",
-        f"{current_datetime_str}.parquet",
+        f"{timestamp}.parquet",
     )
 
     in_network_post_embedding_results: list[dict] = [
@@ -279,7 +278,7 @@ def do_vector_embeddings():
             "uri": post.uri,
             "embedding": post_embedding.cpu().tolist(),  # convert tensor to list. Necessary?
             "embedding_model": DEFAULT_EMBEDDING_MODEL_NAME,
-            "insert_timestamp": current_datetime_str,
+            "insert_timestamp": timestamp,
         }
         for (post, post_embedding) in zip(
             in_network_user_activity_posts, in_network_user_activity_embeddings
@@ -290,7 +289,7 @@ def do_vector_embeddings():
             "uri": post.uri,
             "embedding": post_embedding.cpu().tolist(),  # convert tensor to list. Necessary?
             "embedding_model": DEFAULT_EMBEDDING_MODEL_NAME,
-            "insert_timestamp": current_datetime_str,
+            "insert_timestamp": timestamp,
         }
         for (post, post_embedding) in zip(most_liked_posts, most_liked_embeddings)
     ]
@@ -298,13 +297,13 @@ def do_vector_embeddings():
         "uris": [post.uri for post in most_liked_posts],
         "embedding": most_liked_average_embedding.cpu().tolist(),
         "embedding_model": DEFAULT_EMBEDDING_MODEL_NAME,
-        "insert_timestamp": current_datetime_str,
+        "insert_timestamp": timestamp,
     }
     similarity_scores_results: list[dict] = [
         PostSimilarityScoreModel(
             uri=post.uri,
             similarity_score=score,
-            insert_timestamp=current_datetime_str,
+            insert_timestamp=timestamp,
             most_liked_average_embedding_key=average_most_liked_feed_embeddings_key,  # noqa
         ).dict()
         for (post, score) in zip(
@@ -328,7 +327,7 @@ def do_vector_embeddings():
     )  # noqa
 
     labeling_session = {
-        "embedding_timestamp": current_datetime_str,
+        "embedding_timestamp": timestamp,
         "total_embedded_posts": len(in_network_user_activity_posts)
         + len(most_liked_posts),
         "total_embedded_posts_by_source": {
