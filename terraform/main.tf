@@ -1646,3 +1646,18 @@ resource "aws_dynamodb_table" "ml_inference_labeling_sessions" {
     Name = "ml_inference_labeling_sessions"
   }
 }
+
+resource "aws_dynamodb_table" "vector_embedding_sessions" {
+  name           = "vector_embedding_sessions"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "embedding_timestamp"
+
+  attribute {
+    name = "embedding_timestamp"
+    type = "S"
+  }
+
+  tags = {
+    Name = "vector_embedding_sessions"
+  }
+}
