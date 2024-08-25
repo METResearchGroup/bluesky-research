@@ -10,6 +10,7 @@ from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import current_datetime_str
+from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
@@ -105,11 +106,13 @@ def get_average_embedding(embeddings: list[torch.Tensor]) -> torch.Tensor:
     return average_embedding
 
 
+# TODO: implement. Can fetch the URIs from Athena table.
 def get_previously_embedded_post_uris() -> set[str]:
     """Get the URIs of the posts that have already been embedded."""
     return set()
 
 
+@track_performance
 def generate_vector_embeddings_and_calculate_similarity_scores(
     in_network_user_activity_posts: list[FilteredPreprocessedPostModel],
     most_liked_posts: list[FilteredPreprocessedPostModel],
@@ -147,6 +150,7 @@ def generate_vector_embeddings_and_calculate_similarity_scores(
     }
 
 
+@track_performance
 def do_vector_embeddings():
     """Generate vector embeddings for posts and store them in S3."""
     posts_to_embed: list[FilteredPreprocessedPostModel] = get_posts_to_embed()
@@ -162,7 +166,7 @@ def do_vector_embeddings():
     )  # noqa
 
     # generate embeddings and similarity scores
-    res = generate_vector_embeddings_and_calculate_similarity_scores(
+    res: dict = generate_vector_embeddings_and_calculate_similarity_scores(
         in_network_user_activity_posts,
         most_liked_posts,
     )
@@ -248,9 +252,4 @@ def do_vector_embeddings():
 
 
 if __name__ == "__main__":
-    text = "The fact that the Democrats are in power is a good thing."
-    text2 = "I am glad that Joe Biden is president."
-    embeddings = get_embeddings(text)
-    embeddings2 = get_embeddings(text2)
-    print(cosine_similarity(embeddings, embeddings2))
-    breakpoint()
+    do_vector_embeddings()
