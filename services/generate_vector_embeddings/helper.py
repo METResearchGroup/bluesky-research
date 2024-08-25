@@ -12,6 +12,7 @@ from lib.aws.s3 import S3
 from lib.constants import current_datetime_str
 from lib.helper import track_performance
 from lib.log.logger import get_logger
+from services.generate_vector_embeddings.models import PostSimilarityScoreModel
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 
@@ -300,12 +301,12 @@ def do_vector_embeddings():
         "insert_timestamp": current_datetime_str,
     }
     similarity_scores_results: list[dict] = [
-        {
-            "uri": post.uri,
-            "similarity_score": score,
-            "insert_timestamp": current_datetime_str,
-            "most_liked_average_embedding_key": average_most_liked_feed_embeddings_key,  # noqa
-        }
+        PostSimilarityScoreModel(
+            uri=post.uri,
+            similarity_score=score,
+            insert_timestamp=current_datetime_str,
+            most_liked_average_embedding_key=average_most_liked_feed_embeddings_key,  # noqa
+        ).dict()
         for (post, score) in zip(
             in_network_user_activity_posts, post_cosine_similarity_scores
         )
