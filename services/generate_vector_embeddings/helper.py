@@ -240,6 +240,9 @@ def do_vector_embeddings():
         in_network_user_activity_posts,
         most_liked_posts,
     )
+    if not res:
+        logger.info("No embeddings to export.")
+        return
 
     # export embeddings and similarity scores
     in_network_user_activity_embeddings: torch.Tensor = res[
