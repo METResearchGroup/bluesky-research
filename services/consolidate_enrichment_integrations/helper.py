@@ -1,5 +1,7 @@
 """Helper functions for the consolidate_enrichment_integrations service."""
 
+import os
+
 import pandas as pd
 
 from lib.aws.athena import Athena
@@ -233,7 +235,10 @@ def consolidate_enrichment_integrations(
 def export_posts(posts: list[ConsolidatedEnrichedPostModel]):
     """Exports the posts to S3."""
     post_dicts = [post.dict() for post in posts]
-    s3.write_dicts_jsonl_to_s3(data=post_dicts, key=root_s3_key)
+    s3.write_dicts_jsonl_to_s3(
+        data=post_dicts,
+        key=os.path.join(root_s3_key, f"{generate_current_datetime_str()}.jsonl"),  # noqa
+    )
     logger.info(f"Exported {len(post_dicts)} posts to S3.")
 
 
