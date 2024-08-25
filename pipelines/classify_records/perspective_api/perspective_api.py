@@ -1,8 +1,7 @@
 """Base file for classifying posts in batch using the Perspective API."""
 
 from lib.aws.s3 import S3
-from lib.constants import current_datetime_str
-from lib.helper import track_performance
+from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from services.ml_inference.perspective_api.export_data import export_results
 from ml_tooling.perspective_api.model import run_batch_classification
@@ -17,10 +16,6 @@ logger = get_logger(__name__)
 @track_performance
 def classify_latest_posts():
     """Classifies the latest preprocessed posts using the Perspective API."""
-    labeling_session = {
-        "inference_type": "perspective_api",
-        "inference_timestamp": current_datetime_str,
-    }
     posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
         inference_type="perspective_api"
     )
@@ -46,12 +41,11 @@ def classify_latest_posts():
         # tbh I could probably just return the posts directly
         # and then write to S3).
         run_batch_classification(posts=posts, source_feed=source)
-    results = export_results(
-        current_timestamp=current_datetime_str, external_stores=["s3"]
-    )
+    timestamp = generate_current_datetime_str()
+    results = export_results(current_timestamp=timestamp, external_stores=["s3"])
     labeling_session = {
         "inference_type": "perspective_api",
-        "inference_timestamp": current_datetime_str,
+        "inference_timestamp": timestamp,
         "total_classified_posts": results["total_classified_posts"],
         "total_classified_posts_by_source": results["total_classified_posts_by_source"],  # noqa
     }

@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 import json
 from typing import Literal, Optional
 
-from lib.constants import current_datetime_str
+from lib.helper import generate_current_datetime_str
 from lib.helper import create_batches, track_performance
 from lib.log.logger import get_logger
 from ml_tooling.llm.inference import run_query
@@ -186,10 +186,6 @@ def classify_latest_posts(skip_inference: bool = False):
     NOTE: for now we're just using an LLM. Would be nice to eventually use a
     fine-tuned BERT model, but we'll revisit this later.
     """
-    labeling_session = {
-        "inference_type": "llm",
-        "inference_timestamp": current_datetime_str,
-    }
     posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
         inference_type="llm"
     )
@@ -216,12 +212,11 @@ def classify_latest_posts(skip_inference: bool = False):
             run_batch_classification(posts=posts, source_feed=source)
 
     # export cached results to S3 store.
-    results = export_results(
-        current_timestamp=current_datetime_str, external_stores=["s3"]
-    )
+    timestamp = generate_current_datetime_str()
+    results = export_results(current_timestamp=timestamp, external_stores=["s3"])
     labeling_session = {
         "inference_type": "llm",
-        "inference_timestamp": current_datetime_str,
+        "inference_timestamp": timestamp,
         "total_classified_posts": results["total_classified_posts"],
         "total_classified_posts_by_source": results["total_classified_posts_by_source"],  # noqa
     }

@@ -1691,6 +1691,269 @@ resource "aws_glue_catalog_table" "post_cosine_similarity_scores" {
   }
 }
 
+resource "aws_glue_catalog_table" "consolidated_enriched_post_records" {
+  name          = "consolidated_enriched_post_records"
+  database_name = var.default_glue_database_name
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "classification"      = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/consolidated_enriched_post_records/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "indexed_at"
+      type = "string"
+    }
+    columns {
+      name = "author_did"
+      type = "string"
+    }
+    columns {
+      name = "author_handle"
+      type = "string"
+    }
+    columns {
+      name = "author_avatar"
+      type = "string"
+    }
+    columns {
+      name = "author_display_name"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "embed"
+      type = "string"
+    }
+    columns {
+      name = "entities"
+      type = "string"
+    }
+    columns {
+      name = "facets"
+      type = "string"
+    }
+    columns {
+      name = "labels"
+      type = "string"
+    }
+    columns {
+      name = "langs"
+      type = "string"
+    }
+    columns {
+      name = "reply_parent"
+      type = "string"
+    }
+    columns {
+      name = "reply_root"
+      type = "string"
+    }
+    columns {
+      name = "tags"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+    columns {
+      name = "url"
+      type = "string"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "like_count"
+      type = "int"
+    }
+    columns {
+      name = "reply_count"
+      type = "int"
+    }
+    columns {
+      name = "repost_count"
+      type = "int"
+    }
+    columns {
+      name = "passed_filters"
+      type = "boolean"
+    }
+    columns {
+      name = "filtered_at"
+      type = "string"
+    }
+    columns {
+      name = "filtered_by_func"
+      type = "string"
+    }
+    columns {
+      name = "preprocessing_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "llm_model_name"
+      type = "string"
+    }
+    columns {
+      name = "sociopolitical_was_successfully_labeled"
+      type = "boolean"
+    }
+    columns {
+      name = "sociopolitical_reason"
+      type = "string"
+    }
+    columns {
+      name = "sociopolitical_label_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "is_sociopolitical"
+      type = "boolean"
+    }
+    columns {
+      name = "political_ideology_label"
+      type = "string"
+    }
+    columns {
+      name = "perspective_was_successfully_labeled"
+      type = "boolean"
+    }
+    columns {
+      name = "perspective_reason"
+      type = "string"
+    }
+    columns {
+      name = "perspective_label_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "prob_toxic"
+      type = "double"
+    }
+    columns {
+      name = "prob_severe_toxic"
+      type = "double"
+    }
+    columns {
+      name = "prob_identity_attack"
+      type = "double"
+    }
+    columns {
+      name = "prob_insult"
+      type = "double"
+    }
+    columns {
+      name = "prob_profanity"
+      type = "double"
+    }
+    columns {
+      name = "prob_threat"
+      type = "double"
+    }
+    columns {
+      name = "prob_affinity"
+      type = "double"
+    }
+    columns {
+      name = "prob_compassion"
+      type = "double"
+    }
+    columns {
+      name = "prob_constructive"
+      type = "double"
+    }
+    columns {
+      name = "prob_curiosity"
+      type = "double"
+    }
+    columns {
+      name = "prob_nuance"
+      type = "double"
+    }
+    columns {
+      name = "prob_personal_story"
+      type = "double"
+    }
+    columns {
+      name = "prob_reasoning"
+      type = "double"
+    }
+    columns {
+      name = "prob_respect"
+      type = "double"
+    }
+    columns {
+      name = "prob_alienation"
+      type = "double"
+    }
+    columns {
+      name = "prob_fearmongering"
+      type = "double"
+    }
+    columns {
+      name = "prob_generalization"
+      type = "double"
+    }
+    columns {
+      name = "prob_moral_outrage"
+      type = "double"
+    }
+    columns {
+      name = "prob_scapegoating"
+      type = "double"
+    }
+    columns {
+      name = "prob_sexually_explicit"
+      type = "double"
+    }
+    columns {
+      name = "prob_flirtation"
+      type = "double"
+    }
+    columns {
+      name = "prob_spam"
+      type = "double"
+    }
+    columns {
+      name = "similarity_score"
+      type = "double"
+    }
+    columns {
+      name = "most_liked_average_embedding_key"
+      type = "string"
+    }
+  }
+}
 
 resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
   name        = "perspective_api_labels_glue_crawler"
@@ -1835,5 +2098,20 @@ resource "aws_dynamodb_table" "vector_embedding_sessions" {
 
   tags = {
     Name = "vector_embedding_sessions"
+  }
+}
+
+resource "aws_dynamodb_table" "enrichment_consolidation_sessions" {
+  name           = "enrichment_consolidation_sessions"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "enrichment_consolidation_timestamp"
+
+  attribute {
+    name = "enrichment_consolidation_timestamp"
+    type = "S"
+  }
+
+  tags = {
+    Name = "enrichment_consolidation_sessions"
   }
 }

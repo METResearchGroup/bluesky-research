@@ -1,6 +1,6 @@
 """Wrapper client for AWS Glue."""
 
-from botocore.exceptions import CrawlerRunningException
+from botocore.exceptions import ClientError
 
 from lib.aws.helper import create_client
 from lib.log.logger import get_logger
@@ -20,8 +20,13 @@ class Glue:
         try:
             self.client.start_crawler(Name=crawler_name)
             logger.info(f"Crawler {crawler_name} started.")
-        except CrawlerRunningException as e:
-            logger.info(f"Crawler {crawler_name} is already running (this is OK): {e}")  # noqa
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "CrawlerRunningException":
+                logger.info(
+                    f"Crawler {crawler_name} is already running (this is OK): {e}"
+                )  # noqa
+            else:
+                raise e
         except Exception as e:
             logger.error(f"Failed to start crawler {crawler_name}: {e}")
             raise e

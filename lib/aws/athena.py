@@ -97,6 +97,32 @@ class Athena:
 
         return df
 
+    def remove_timestamp_partition_fields(self, dicts: list[dict]) -> list[dict]:
+        """Remove fields related to timestamp partitions."""
+        fields_to_remove = [
+            "year",
+            "month",
+            "day",
+            "hour",
+            "minute",
+        ]  # extra fields from preprocessing partitions.
+        return [
+            {k: v for k, v in post.items() if k not in fields_to_remove}
+            for post in dicts
+        ]
+
+    def convert_nan_to_none(self, dicts: list[dict]) -> list[dict]:
+        """Convert NaN values to None."""
+        return [
+            {k: (None if pd.isna(v) else v) for k, v in post.items()} for post in dicts
+        ]
+
+    def parse_converted_pandas_dicts(self, dicts: list[dict]) -> list[dict]:
+        """Parse converted pandas dicts."""
+        df_dicts = self.remove_timestamp_partition_fields(dicts)
+        df_dicts = self.convert_nan_to_none(df_dicts)
+        return df_dicts
+
     def get_latest_preprocessed_posts(
         self,
         timestamp: Optional[str],
@@ -105,7 +131,9 @@ class Athena:
             "preprocessed_most_liked_posts",
         ],  # noqa
     ) -> list[FilteredPreprocessedPostModel]:  # noqa
-        where_filter = f"synctimestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
+        where_filter = (
+            f"preprocessing_timestamp > '{timestamp}'" if timestamp else "1=1"
+        )  # noqa
 
         # default syncs both firehose and most-liked tables, but doesn't have to
         # be the case.
@@ -119,25 +147,9 @@ class Athena:
 
         df_dicts = df.to_dict(orient="records")
         # convert NaN values to None, remove extra fields.
-        fields_to_remove = [
-            "year",
-            "month",
-            "day",
-            "hour",
-            "minute",
-        ]  # extra fields from preprocessing partitions.
-        df_dicts_cleaned = [
-            {
-                k: (None if pd.isna(v) else v)
-                for k, v in post.items()
-                if k not in fields_to_remove
-            }
-            for post in df_dicts
-        ]
+        df_dicts = self.parse_converted_pandas_dicts(df_dicts)
         # remove values without text
-        df_dicts_cleaned = [
-            post for post in df_dicts_cleaned if post["text"] is not None
-        ]
+        df_dicts_cleaned = [post for post in df_dicts if post["text"] is not None]
 
         # remove posts whose text fields are too short
         df_dicts_cleaned = [

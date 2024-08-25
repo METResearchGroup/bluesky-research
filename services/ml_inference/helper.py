@@ -87,7 +87,9 @@ def get_posts_to_classify(
         )  # noqa
         latest_inference_timestamp = None
     else:
-        latest_inference_timestamp = latest_labeling_session["inference_timestamp"]  # noqa
+        latest_inference_timestamp: str = latest_labeling_session[
+            "inference_timestamp"
+        ]["S"]  # noqa
 
     logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")
