@@ -1,0 +1,4 @@
+parquet-tools==0.2.16
+pyarrow==14.0.1
+s3fs==2024.6.1
+transformers==4.44.2
