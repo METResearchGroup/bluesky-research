@@ -17,6 +17,7 @@ from services.consolidate_enrichment_integrations.models import (
 )  # noqa
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
+from services.rank_score_feeds.models import CustomFeedModel
 
 max_feed_length = 50
 default_lookback_days = 5
@@ -53,8 +54,9 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
             "feed": ranked_feed,
             "feed_generation_timestamp": timestamp,
         }
+        custom_feed_model = CustomFeedModel(**data)
         s3.write_dict_json_to_s3(
-            data=data,
+            data=custom_feed_model.dict(),
             key=os.path.join(
                 feeds_root_s3_key,
                 f"user_did={user}",
