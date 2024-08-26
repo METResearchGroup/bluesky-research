@@ -10,12 +10,14 @@ import logging
 import os
 from typing import Optional, Annotated
 
-from fastapi import FastAPI, HTTPException, Query, Request, Security
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.security.api_key import APIKeyHeader
 from mangum import Mangum
 
+from feed_api.auth import AuthorizationError, validate_auth
 from feed_api.helper import load_test_feed_from_s3
 from lib.aws.s3 import S3
 from lib.aws.secretsmanager import get_secret
@@ -34,6 +36,7 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+security = HTTPBearer()
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -187,30 +190,22 @@ async def describe_feed_generator():  # def or async def?
 
 @app.get("/xrpc/app.bsky.feed.getFeedSkeleton")
 async def get_feed_skeleton(
+    request: Request,
     cursor: Annotated[Optional[str], Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
-    # try:
-    #     return JSONResponse(content={"message": "Not implemented yet."})
-    # except ValueError:
-    #     raise HTTPException(status_code=400, detail="Malformed cursor")
-
-    # sourced from "most liked" feed on June 10th and 11th, 2024.
-    # s3://bluesky-research/sync/most_liked_posts/year=2024/month=07/day=06/hour=22/minute=03/posts.jsonl
-    # NOTE: should get from s3 later.
-    # test_uris = [
-    # "at://did:plc:nvfposmpmhegtyvhbs75s3pw/app.bsky.feed.post/3kumciaqa6c2c",
-    # "at://did:plc:s6j27rxb3ic2rxw73ixgqv2p/app.bsky.feed.post/3kum6oz3cov2m",
-    # "at://did:plc:qzgy45vpvfpvbjsqhqjapghf/app.bsky.feed.post/3kum5fughrb2r",
-    # "at://did:plc:hun6pmxagw3xmzzlmfjpj4fw/app.bsky.feed.post/3kunsu423vo2",
-    # "at://did:plc:efx3llkdwipqoz4ie37tego6/app.bsky.feed.post/3kumf6mwle42z",
-    # "at://did:plc:kfdiz4ohpkjfceecgiiideek/app.bsky.feed.post/3kumsroimvr2o",
-    # "at://did:plc:4lydetq2xtcnkp7vf7r5ljwm/app.bsky.feed.post/3kulxwqjxsz2g"
-    # "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3kyj33eengz2f"
-    # ]
-    # example_posts = [
-    #     {"post": uri} for uri in test_uris
-    # ]
+    try:
+        requester_did = await validate_auth(credentials)
+    except AuthorizationError:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    except HTTPException as e:
+        if e.status_code == 403:
+            logger.error("Invalid or missing Authorization header")
+        raise
+    logger.info(f"Validated request for DID={requester_did}...")
+    # TODO: check that it's validated, and then get the feed using
+    # load_latest_user_feed_from_s3 instead of load_test_feed_from_s3.
     example_posts: list[dict] = load_test_feed_from_s3()
     return {"cursor": "eof", "feed": example_posts}
 

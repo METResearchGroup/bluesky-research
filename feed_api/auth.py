@@ -2,61 +2,53 @@
 
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/auth.py
 """  # noqa
+
 from atproto import DidInMemoryCache, IdResolver, verify_jwt
 from atproto.exceptions import TokenInvalidSignatureError
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-# from feed_api.helper import get_valid_dids
+from lib.log.logger import get_logger
 
 _CACHE = DidInMemoryCache()
 _ID_RESOLVER = IdResolver(cache=_CACHE)
-_AUTHORIZATION_HEADER_VALUE_PREFIX = 'Bearer '
+_AUTHORIZATION_HEADER_VALUE_PREFIX = "Bearer "
 
-
-# valid_dids = get_valid_dids()
+logger = get_logger(__name__)
 
 
 class AuthorizationError(Exception):
     pass
 
 
-# Dependency to be used in FastAPI routes
 security = HTTPBearer()
 
 
-def get_requester_did(credentials: HTTPAuthorizationCredentials = Security(security)) -> str:  # noqa
-    """FastAPI dependency to validate authorization header and extract DID."""
-    auth_header = credentials.credentials
-    print(f"Auth header: {auth_header}")
-    if not auth_header.startswith(_AUTHORIZATION_HEADER_VALUE_PREFIX):
-        raise HTTPException(status_code=401, detail="Invalid authorization header")  # noqa
+async def validate_auth(
+    credentials: HTTPAuthorizationCredentials = Security(security),
+) -> str:
+    """Validate authorization header.
 
-    jwt = auth_header[len(_AUTHORIZATION_HEADER_VALUE_PREFIX):].strip()
+    Args:
+        credentials: The authorization credentials.
 
+    Returns:
+        str: Requester DID.
+
+    Raises:
+        HTTPException: If the authorization header is invalid.
+    """
+    # no need to check for "Bearer " prefix as in the docs
+    # at https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/auth.py#L17
+    # since FastAPI strips "Bearer " prefix from the header
+    jwt = credentials.credentials
     try:
-        return verify_jwt(jwt, _ID_RESOLVER.did.resolve_atproto_key).iss
-    except TokenInvalidSignatureError:
-        raise HTTPException(status_code=401, detail="Invalid signature")
-    except AuthorizationError as e:
-        raise HTTPException(status_code=401, detail=str(e))
-
-
-# def validate_did(requester_did: str) -> str:
-#     """Validate the requester DID against a list of valid DIDs.
-
-#     Args:
-#         requester_did: The DID of the requester to validate.
-
-#     Returns:
-#         The valid requester DID.
-
-#     Raises:
-#         HTTPException: If the DID is not valid.
-#     """
-#     print(f"Valid DIDs: {valid_dids}")
-#     print(f"Requester DID: {requester_did}")
-#     print(f"Requester DID in valid DIDs: {requester_did in valid_dids}")
-#     if requester_did not in valid_dids:
-#         raise HTTPException(status_code=403, detail="Invalid DID")
-#     return requester_did
+        did = verify_jwt(jwt, _ID_RESOLVER.did.resolve_atproto_key).iss
+        logger.info(f"Validated request for DID={did}...")
+        return did
+    except TokenInvalidSignatureError as e:
+        logger.error(f"Invalid token signature: {e}")
+        raise HTTPException(status_code=403, detail="Invalid signature") from e
+    except Exception as e:
+        logger.error(f"Token validation failed: {e}")
+        raise HTTPException(status_code=403, detail="Token validation failed")
