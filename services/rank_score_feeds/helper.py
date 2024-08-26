@@ -11,6 +11,7 @@ from lib.aws.s3 import S3
 from lib.constants import current_datetime, timestamp_format
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
+from services.calculate_superposters.helper import load_latest_superposters
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
@@ -186,6 +187,8 @@ def do_rank_score_feeds():
         load_latest_consolidated_enriched_posts()
     )
     user_to_social_network_map: dict = load_user_social_network()
+    superposter_dids: set[str] = load_latest_superposters()
+    logger.info(f"Loaded {len(superposter_dids)} superposters.")  # noqa
 
     # calculate scores for all the posts
     post_scores: list[float] = calculate_post_scores(consolidated_enriched_posts)  # noqa
@@ -240,7 +243,6 @@ def do_rank_score_feeds():
     # write feeds to s3
     timestamp = generate_current_datetime_str()
     export_results(user_to_ranked_feed_map=user_to_ranked_feed_map, timestamp=timestamp)
-    glue.start_crawler(crawler_name="custom_feeds_glue_crawler")
     feed_generation_session = {
         "feed_generation_timestamp": timestamp,
         "number_of_new_feeds": len(user_to_ranked_feed_map),
