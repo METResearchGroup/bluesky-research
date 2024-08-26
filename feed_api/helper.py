@@ -6,6 +6,7 @@ import re
 from typing import Optional
 
 from lib.aws.athena import Athena
+from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 
@@ -13,6 +14,7 @@ from services.participant_data.models import UserToBlueskyProfileModel
 CURSOR_EOF = "eof"
 
 athena = Athena()
+logger = get_logger(__name__)
 
 
 # TODO: we'll have to account for pagination, so the output of the feed
@@ -82,6 +84,7 @@ def parse_feed_string(feed_string: str) -> list[dict]:
 
 def load_latest_user_feed_from_s3(user_did: str) -> list[dict]:
     """Loads the latest feed for a user from S3."""
+    logger.info(f"Loading latest feed for user={user_did}...")
     query = f"""
     SELECT feed FROM "custom_feeds"
     WHERE user = '{user_did}'
@@ -96,13 +99,6 @@ def load_latest_user_feed_from_s3(user_did: str) -> list[dict]:
     return [{"post": feed_dict["item"]} for feed_dict in feed_dicts]
 
 
-# TODO: implement.
-def load_test_feed_from_s3() -> list[dict]:
-    test_user_did = "did:plc:w5mjarupsl6ihdrzwgnzdh4y"  # my personal DID.
-    feed: list[dict] = load_latest_user_feed_from_s3(user_did=test_user_did)
-    return feed
-
-
 def get_valid_dids() -> set[str]:
     """Get the set of valid DIDs. These DIDs refer to the DIDs of the users in
     the study.
@@ -113,4 +109,4 @@ def get_valid_dids() -> set[str]:
 
 
 if __name__ == "__main__":
-    load_test_feed_from_s3()
+    pass

@@ -18,7 +18,7 @@ from fastapi.security.api_key import APIKeyHeader
 from mangum import Mangum
 
 from feed_api.auth import AuthorizationError, validate_auth
-from feed_api.helper import load_test_feed_from_s3
+from feed_api.helper import load_latest_user_feed_from_s3
 from lib.aws.s3 import S3
 from lib.aws.secretsmanager import get_secret
 from services.participant_data.helper import get_all_users, manage_bsky_study_user
@@ -204,13 +204,9 @@ async def get_feed_skeleton(
             logger.error("Invalid or missing Authorization header")
         raise
     logger.info(f"Validated request for DID={requester_did}...")
-    # TODO: check that it's validated, and then get the feed using
-    # load_latest_user_feed_from_s3 instead of load_test_feed_from_s3.
-    example_posts: list[dict] = load_test_feed_from_s3()
-    return {"cursor": "eof", "feed": example_posts}
-
-
-# handler = Mangum(app)
+    feed: list[dict] = load_latest_user_feed_from_s3(user_did=requester_did)
+    logger.info(f"Fetched {len(feed)} posts for user={requester_did}...")
+    return {"cursor": "eof", "feed": feed}
 
 
 # https://stackoverflow.com/questions/76844538/the-adapter-was-unable-to-infer-a-handler-to-use-for-the-event-this-is-likely-r
