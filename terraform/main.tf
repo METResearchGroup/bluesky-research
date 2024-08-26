@@ -1997,6 +1997,55 @@ resource "aws_glue_catalog_table" "custom_feeds" {
   }
 }
 
+resource "aws_glue_catalog_table" "daily_superposters" {
+  name          = "daily_superposters"
+  database_name = var.default_glue_database_name
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "classification"      = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/daily_superposters/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "daily_superposters_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "insert_date_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "insert_date"
+      type = "string"
+    }
+    columns {
+      name = "superposters"
+      type = "array<struct<author_did:string,count:int>>"
+    }
+    columns {
+      name = "method"
+      type = "string"
+    }
+    columns {
+      name = "top_n_percent"
+      type = "float"
+    }
+    columns {
+      name = "threshold"
+      type = "int"
+    }
+  }
+}
+
+
 resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
   name        = "perspective_api_labels_glue_crawler"
   role        = aws_iam_role.glue_crawler_role.arn
