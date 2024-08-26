@@ -2066,21 +2066,6 @@ resource "aws_athena_workgroup" "prod_workgroup" {
 }
 
 ### DynamoDB ###
-resource "aws_dynamodb_table" "superposters" {
-  name           = "superposters"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "insert_date_timestamp"
-
-  attribute {
-    name = "insert_date_timestamp"
-    type = "S"
-  }
-
-  tags = {
-    Name = "superposters"
-  }
-}
-
 resource "aws_dynamodb_table" "users_whose_social_network_has_been_fetched" {
   name           = "users_whose_social_network_has_been_fetched"
   billing_mode   = "PAY_PER_REQUEST"
