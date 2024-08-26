@@ -1,6 +1,8 @@
 """Calculate superposters."""
 
+import json
 import os
+import re
 from typing import Optional
 
 from boto3.dynamodb.types import TypeSerializer
@@ -113,6 +115,22 @@ def calculate_latest_superposters(
     logger.info(f"Wrote {len(superposters)} superposters to S3.")
 
 
+def transform_string(input_str: str) -> str:
+    """Transforms the superposter string.
+
+    e.g.,
+    >> transform_string('{author_did=did:plc:jhfzhcn4lgr5bapem2lyodwm, count=5}')
+    '{"author_did":"did:plc:jhfzhcn4lgr5bapem2lyodwm", "count":5}'
+    """
+    # Step 1: Surround keys with quotes
+    input_str = re.sub(r"(\w+)=", r'"\1":', input_str)
+
+    # Step 2: Surround the did:plc:<some string> with quotes
+    input_str = re.sub(r"(did:plc:[\w]+)", r'"\1"', input_str)
+
+    return input_str
+
+
 def load_latest_superposters() -> set[str]:
     """Loads the latest superposter DIDs."""
     query = f"""
@@ -123,7 +141,11 @@ def load_latest_superposters() -> set[str]:
     superposters_df = athena.query_results_as_df(query)
     superposter_dicts = superposters_df.to_dict(orient="records")
     superposter_dicts = athena.parse_converted_pandas_dicts(superposter_dicts)
-    superposter_model = SuperposterCalculationModel(**superposter_dicts[0])
+    superposter_dict = superposter_dicts[0]
+    superposters: str = superposter_dict["superposters"]
+    superposter_list: list[dict] = json.loads(transform_string(superposters))
+    superposter_dict["superposters"] = superposter_list
+    superposter_model = SuperposterCalculationModel(**superposter_dict)
     author_dids = [
         superposter.author_did for superposter in superposter_model.superposters
     ]
@@ -132,3 +154,4 @@ def load_latest_superposters() -> set[str]:
 
 if __name__ == "__main__":
     calculate_latest_superposters(top_n_percent=None, threshold=5)
+    # load_latest_superposters()
