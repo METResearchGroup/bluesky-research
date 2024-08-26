@@ -15,3 +15,8 @@ $SCRIPTS_DIR/deploy_image_to_ecr.sh feed_api
 aws lambda update-function-code \
     --function-name bsky-api-lambda \
     --image-uri 517478598677.dkr.ecr.us-east-2.amazonaws.com/feed_api_service:latest
+
+# redeploy API Gateway API.
+aws apigatewayv2 create-deployment \
+    --api-id $(aws apigateway get-rest-apis --query "items[?name=='bluesky_feed_api_gateway'].id" --output text) \
+    --stage-name prod
