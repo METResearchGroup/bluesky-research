@@ -93,7 +93,7 @@ def load_latest_user_feed_from_s3(user_did: str) -> list[dict]:
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     feed: str = df_dicts[0]["feed"]
     feed_dicts: list[dict] = parse_feed_string(feed)
-    return [{"uri": feed_dict["item"]} for feed_dict in feed_dicts]
+    return [{"post": feed_dict["item"]} for feed_dict in feed_dicts]
 
 
 # TODO: implement.
