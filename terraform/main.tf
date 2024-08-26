@@ -2206,3 +2206,18 @@ resource "aws_dynamodb_table" "rank_score_feed_sessions" {
     Name = "rank_score_feed_sessions"
   }
 }
+
+resource "aws_dynamodb_table" "superposter_calculation_sessions" {
+  name           = "superposter_calculation_sessions"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "insert_date_timestamp"
+
+  attribute {
+    name = "insert_date_timestamp"
+    type = "S"
+  }
+
+  tags = {
+    Name = "superposter_calculation_sessions"
+  }
+}
