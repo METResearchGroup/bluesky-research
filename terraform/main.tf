@@ -1995,32 +1995,6 @@ resource "aws_glue_catalog_table" "custom_feeds" {
       type = "string"
     }
   }
-
-  partition_keys {
-    name = "user_did"
-    type = "string"
-  }
-}
-
-resource "aws_glue_crawler" "custom_feeds_glue_crawler" {
-  name          = "custom_feeds_glue_crawler"
-  role          = aws_iam_role.glue_crawler_role.arn
-  database_name = var.default_glue_database_name
-
-  s3_target {
-    path = "s3://${var.s3_root_bucket_name}/custom_feeds/"
-  }
-
-  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
-
-  configuration = jsonencode({
-    "Version" = 1.0,
-    "CrawlerOutput" = {
-      "Partitions" = {
-        "AddOrUpdateBehavior" = "InheritFromTable"
-      }
-    }
-  })
 }
 
 resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
