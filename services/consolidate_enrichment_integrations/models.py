@@ -189,12 +189,14 @@ class ConsolidatedEnrichedPostModel(BaseModel):
     )
     prob_spam: Optional[float] = Field(default=None, description="Probability of spam.")
 
-    # Fields from similarity_scores_results
-    similarity_score: float = Field(
-        ..., description="Cosine similarity score of the post."
+    # Fields from similarity_scores_results. This will only exist
+    # for the in-network posts. The most-liked posts will not have
+    # similarity scores.
+    similarity_score: Optional[float] = Field(
+        default=None, description="Cosine similarity score of the post."
     )
-    most_liked_average_embedding_key: str = Field(
-        ...,
+    most_liked_average_embedding_key: Optional[str] = Field(
+        default=None,
         description="S3 key of the average most liked feed embedding used for comparison.",
     )
     # consolidation-specific logic
