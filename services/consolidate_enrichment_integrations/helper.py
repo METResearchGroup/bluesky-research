@@ -28,6 +28,7 @@ dynamodb = DynamoDB()
 s3 = S3()
 
 dynamodb_table_name = "enrichment_consolidation_sessions"
+athena_table_name = "consolidated_enriched_post_records"
 
 
 def get_latest_enrichment_consolidation_session() -> dict:
@@ -70,6 +71,14 @@ def load_latest_preprocessed_posts(
     return athena.get_latest_preprocessed_posts(timestamp=timestamp)
 
 
+def load_previously_consolidated_enriched_post_uris() -> set[str]:
+    query = f"""
+    SELECT uri FROM {athena_table_name}
+    """
+    df = athena.query_results_as_df(query)
+    return set(df["uri"].tolist())
+
+
 def load_latest_perspective_api_labels(
     timestamp: str,
 ) -> list[PerspectiveApiLabelsModel]:
@@ -85,7 +94,6 @@ def load_latest_perspective_api_labels(
     df: pd.DataFrame = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
-    breakpoint()
     return [PerspectiveApiLabelsModel(**label) for label in df_dicts]
 
 
@@ -144,8 +152,10 @@ def consolidate_enrichment_integrations(
         set(preprocessed_dict.keys())
         & set(perspective_dict.keys())
         & set(sociopolitical_dict.keys())
-        & set(similarity_dict.keys())
     )
+
+    # remove those that have been previously processed.
+    all_uris = all_uris - load_previously_consolidated_enriched_post_uris()
 
     logger.info(
         f"Number of shared URIs to combine enrichment sources for: {len(all_uris)}"
@@ -157,7 +167,7 @@ def consolidate_enrichment_integrations(
         preprocessed = preprocessed_dict[uri]
         perspective = perspective_dict[uri]
         sociopolitical = sociopolitical_dict[uri]
-        similarity = similarity_dict[uri]
+        similarity = similarity_dict.get(uri, None)
 
         consolidated_post = ConsolidatedEnrichedPostModel(
             # Fields from FilteredPreprocessedPostModel
@@ -222,8 +232,14 @@ def consolidate_enrichment_integrations(
             prob_flirtation=perspective.prob_flirtation,
             prob_spam=perspective.prob_spam,
             # Fields from similarity_scores_results
-            similarity_score=similarity.similarity_score,
-            most_liked_average_embedding_key=similarity.most_liked_average_embedding_key,
+            # (only the in-network posts will have similarity scores. The most-liked
+            # posts will not have similarity scores.)
+            similarity_score=similarity.similarity_score if similarity else None,
+            most_liked_average_embedding_key=similarity.most_liked_average_embedding_key
+            if similarity
+            else None,
+            # consolidation-specific logic
+            consolidation_timestamp=generate_current_datetime_str(),
         )
 
         consolidated_posts.append(consolidated_post)
@@ -282,12 +298,19 @@ def do_consolidate_enrichment_integrations():
         )
     )
 
+    firehose_posts = [post for post in consolidated_posts if post.source == "firehose"]  # noqa
+    most_liked_posts = [
+        post for post in consolidated_posts if post.source == "most_liked"
+    ]  # noqa
+
     # export results and update session metadata
     export_posts(consolidated_posts)
     timestamp = generate_current_datetime_str()
     enrichment_consolidation_session = {
         "enrichment_consolidation_timestamp": timestamp,
         "total_posts_consolidated": len(consolidated_posts),
+        "consolidated_in_network_posts": len(firehose_posts),
+        "consolidated_most_liked_posts": len(most_liked_posts),
     }
     insert_enrichment_consolidation_session(enrichment_consolidation_session)
 

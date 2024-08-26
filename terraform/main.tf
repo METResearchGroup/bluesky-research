@@ -1952,8 +1952,99 @@ resource "aws_glue_catalog_table" "consolidated_enriched_post_records" {
       name = "most_liked_average_embedding_key"
       type = "string"
     }
+    columns {
+      name = "consolidation_timestamp"
+      type = "string"
+    }
   }
 }
+
+resource "aws_glue_catalog_table" "custom_feeds" {
+  name          = "custom_feeds"
+  database_name = var.default_glue_database_name
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "classification"      = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/custom_feeds/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "custom_feeds_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "user"
+      type = "string"
+    }
+
+    columns {
+      name = "feed"
+      type = "array<struct<item:string,score:float>>"
+    }
+
+    columns {
+      name = "feed_generation_timestamp"
+      type = "string"
+    }
+  }
+}
+
+resource "aws_glue_catalog_table" "daily_superposters" {
+  name          = "daily_superposters"
+  database_name = var.default_glue_database_name
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "classification"      = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/daily_superposters/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "daily_superposters_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "insert_date_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "insert_date"
+      type = "string"
+    }
+    columns {
+      name = "superposters"
+      type = "array<struct<author_did:string,count:int>>"
+    }
+    columns {
+      name = "method"
+      type = "string"
+    }
+    columns {
+      name = "top_n_percent"
+      type = "float"
+    }
+    columns {
+      name = "threshold"
+      type = "int"
+    }
+  }
+}
+
 
 resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
   name        = "perspective_api_labels_glue_crawler"
@@ -2024,21 +2115,6 @@ resource "aws_athena_workgroup" "prod_workgroup" {
 }
 
 ### DynamoDB ###
-resource "aws_dynamodb_table" "superposters" {
-  name           = "superposters"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "insert_date_timestamp"
-
-  attribute {
-    name = "insert_date_timestamp"
-    type = "S"
-  }
-
-  tags = {
-    Name = "superposters"
-  }
-}
-
 resource "aws_dynamodb_table" "users_whose_social_network_has_been_fetched" {
   name           = "users_whose_social_network_has_been_fetched"
   billing_mode   = "PAY_PER_REQUEST"
@@ -2113,5 +2189,35 @@ resource "aws_dynamodb_table" "enrichment_consolidation_sessions" {
 
   tags = {
     Name = "enrichment_consolidation_sessions"
+  }
+}
+
+resource "aws_dynamodb_table" "rank_score_feed_sessions" {
+  name           = "rank_score_feed_sessions"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "feed_generation_timestamp"
+
+  attribute {
+    name = "feed_generation_timestamp"
+    type = "S"
+  }
+
+  tags = {
+    Name = "rank_score_feed_sessions"
+  }
+}
+
+resource "aws_dynamodb_table" "superposter_calculation_sessions" {
+  name           = "superposter_calculation_sessions"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "insert_date_timestamp"
+
+  attribute {
+    name = "insert_date_timestamp"
+    type = "S"
+  }
+
+  tags = {
+    Name = "superposter_calculation_sessions"
   }
 }
