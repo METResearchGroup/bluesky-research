@@ -17,7 +17,7 @@ from services.calculate_superposters.models import (
 )
 
 DB_NAME = DEFAULT_DB_NAME
-GLUE_TABLE_NAME = "daily_posts"
+DAILY_POSTS_GLUE_TABLE_NAME = "daily_posts"
 athena_table_name = "daily_superposters"
 dynamodb_table_name = "superposter_calculation_sessions"
 
@@ -60,7 +60,7 @@ def calculate_latest_superposters(
             SELECT author_did, COUNT(*) as count,
                 ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as row_num, # returns row number for the resulting grouped output
                 COUNT(*) OVER () as total_count # calculates the total number of distinct author_did values.
-            FROM {DB_NAME}.{GLUE_TABLE_NAME}
+            FROM {DB_NAME}.{DAILY_POSTS_GLUE_TABLE_NAME}
             GROUP BY author_did
         )
         SELECT author_did, count
@@ -71,7 +71,7 @@ def calculate_latest_superposters(
     elif threshold is not None:
         query = f"""
         SELECT author_did, COUNT(*) as count
-        FROM {DB_NAME}.{GLUE_TABLE_NAME}
+        FROM {DB_NAME}.{DAILY_POSTS_GLUE_TABLE_NAME}
         GROUP BY author_did
         HAVING COUNT(*) >= {threshold}
         ORDER BY count DESC
@@ -110,7 +110,7 @@ def calculate_latest_superposters(
     }
     insert_superposter_session(superposter_calculation_session)
 
-    logger.info(f"Wrote {len(output)} superposters to S3.")
+    logger.info(f"Wrote {len(superposters)} superposters to S3.")
 
 
 def load_latest_superposters() -> set[str]:
