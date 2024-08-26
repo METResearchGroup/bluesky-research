@@ -17,6 +17,6 @@ aws lambda update-function-code \
     --image-uri 517478598677.dkr.ecr.us-east-2.amazonaws.com/feed_api_service:latest
 
 # redeploy API Gateway API.
-aws apigatewayv2 create-deployment \
-    --api-id $(aws apigateway get-rest-apis --query "items[?name=='bluesky_feed_api_gateway'].id" --output text) \
+aws apigateway create-deployment \
+    --rest-api-id $(aws apigateway get-rest-apis --query "items[?name=='bluesky_feed_api_gateway'].id" --output text) \
     --stage-name prod
