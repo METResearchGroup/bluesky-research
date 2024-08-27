@@ -99,15 +99,15 @@ sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /de
     "logs_collected": {
       "files": {
         "collect_list": [
-        #   {
-        #     "file_path": "/var/lib/docker/containers/*/*.log",
-        #     "log_group_name": "sync-firehose-logs",
-        #     "log_stream_name": "${CONTAINER_ID}"
-        #   },
           {
             "file_path": "/home/ec2-user/bluesky-research/lib/log/*.log",
             "log_group_name": "sync-firehose-logs",
             "log_stream_name": "{instance_id}/bsky-logs"
+          },
+          {
+            "file_path": "/home/ec2-user/bluesky-research/pipelines/sync_post_records/firehose/nohup.out",
+            "log_group_name": "sync-firehose-logs",
+            "log_stream_name": "nohup-logs-{instance_id}"
           }
         ]
       }
