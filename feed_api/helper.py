@@ -3,10 +3,18 @@
 from datetime import datetime
 import hashlib
 import json
+import os
 import re
 from typing import Optional
 
+from feed_api.serverless_cache import (
+    default_cache_name,
+    default_ttl_seconds,
+    ServerlessCache,
+)
 from lib.aws.athena import Athena
+from lib.aws.glue import Glue
+from lib.aws.s3 import S3
 from lib.log.logger import get_logger
 from lib.helper import generate_current_datetime_str
 from services.participant_data.helper import get_all_users
@@ -16,7 +24,15 @@ from services.participant_data.models import UserToBlueskyProfileModel
 CURSOR_EOF = "eof"
 
 athena = Athena()
+glue = Glue()
+s3 = S3()
+serverless_cache = ServerlessCache()
 logger = get_logger(__name__)
+
+study_users: list[UserToBlueskyProfileModel] = get_all_users()
+study_user_did_to_handle_map = {
+    user.bluesky_user_did: user.bluesky_handle for user in study_users
+}
 
 
 # TODO: we'll have to account for pagination, so the output of the feed
@@ -159,9 +175,48 @@ def get_valid_dids() -> set[str]:
     """Get the set of valid DIDs. These DIDs refer to the DIDs of the users in
     the study.
     """
-    users: list[UserToBlueskyProfileModel] = get_all_users()
-    valid_dids = {user.bluesky_user_did for user in users}
+    valid_dids = {user.bluesky_user_did for user in study_users}
     return valid_dids
+
+
+def cache_request(user_did: str, cursor: Optional[str], data: dict):
+    """Cache the request. Uses a default TTL time for the cache."""
+    data_json = json.dumps(data)
+    cache_key = f"{user_did}::{cursor}"
+    serverless_cache.set(
+        cache_name=default_cache_name,
+        key=cache_key,
+        value=data_json,
+        ttl=default_ttl_seconds,
+    )
+
+
+def get_cached_request(user_did: str, cursor: Optional[str]) -> Optional[dict]:
+    """Get the cached request."""
+    cache_key = f"{user_did}::{cursor}"
+    res: Optional[str] = serverless_cache.get(
+        cache_name=default_cache_name,
+        key=cache_key,
+    )
+    if res:
+        return json.loads(res)
+    return None
+
+
+def export_log_data(log: dict):
+    """Export user session log data"""
+    user_did = log["user_did"]
+    # partitioning on handle instead of DID since I'm having trouble getting
+    # Hive to recognize the partitions on DID, possibly due to ':' char?
+    handle = study_user_did_to_handle_map[user_did]
+    timestamp = log["timestamp"]
+    key = os.path.join("user_session_logs", f"bluesky_user_handle={handle}", timestamp)
+    s3.write_dict_json_to_s3(
+        data=log,
+        key=key,
+    )
+    glue.start_crawler(crawler_name="user_session_logs_glue_crawler")
+    logger.info(f"Exported user session logs to S3 (key={key}): {log}")
 
 
 if __name__ == "__main__":

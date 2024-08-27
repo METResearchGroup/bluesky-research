@@ -85,7 +85,7 @@ resource "aws_lambda_function" "bluesky_feed_api_lambda" {
   image_uri     = "${aws_ecr_repository.feed_api_service.repository_url}:latest"
   architectures = ["arm64"] # since images are built locally with an M1 Mac.
   timeout       = 15 # 15 second timeout.
-  memory_size   = 256
+  memory_size   = 512
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -360,7 +360,8 @@ resource "aws_iam_policy" "lambda_access_policy" {
         Effect   = "Allow",
         Resource = [
           "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:bluesky_account_credentials-cX3wOk",
-          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:bsky-internal-api-key-jNloNG"
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:bsky-internal-api-key-jNloNG",
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:momento_credentials-FhSxD6",
         ]
       },
       # Add DynamoDB policy
@@ -414,6 +415,29 @@ resource "aws_iam_policy" "lambda_access_policy" {
           "athena:StartQueryExecution",
           "athena:GetQueryExecution",
           "athena:GetQueryResults"
+        ],
+        Effect   = "Allow",
+        Resource = "*"
+      },
+      # Add Elasticache policy to be able to access Elasticache
+      {
+        Action = [
+          "elasticache:*",
+        ],
+        Effect   = "Allow",
+        Resource = "*"
+      },
+      # Glue crawler permissions
+      {
+        Action = [
+          "glue:StartCrawler",
+          "glue:GetCrawler",
+          "glue:GetCrawlerMetrics",
+          "glue:GetCrawls",
+          "glue:GetTable",
+          "glue:GetTables",
+          "glue:GetTableVersion",
+          "glue:GetTableVersions"
         ],
         Effect   = "Allow",
         Resource = "*"
@@ -2043,6 +2067,78 @@ resource "aws_glue_catalog_table" "daily_superposters" {
       type = "int"
     }
   }
+}
+
+
+resource "aws_glue_catalog_table" "user_session_logs" {
+  name          = "user_session_logs"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    "classification" = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/user_session_logs/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "user_session_logs_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+    columns {
+      name = "user_did"
+      type = "string"
+    }
+    columns {
+      name = "cursor"
+      type = "string"
+    }
+    columns {
+      name = "limit"
+      type = "int"
+    }
+    columns {
+      name = "feed_length"
+      type = "int"
+    }
+    columns {
+      name = "feed"
+      type = "array<struct<post:string>>"
+    }
+    columns {
+      name = "timestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "bluesky_user_handle"
+    type = "string"
+  }
+}
+
+resource "aws_glue_crawler" "user_session_logs_glue_crawler" {
+  name        = "user_session_logs_glue_crawler"
+  role        = aws_iam_role.glue_crawler_role.arn
+  database_name = var.default_glue_database_name
+
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/user_session_logs/"
+  }
+
+  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+
+  configuration = jsonencode({
+    "Version" = 1.0,
+    "CrawlerOutput" = {
+      "Partitions" = {
+        "AddOrUpdateBehavior" = "InheritFromTable"
+      }
+    }
+  })
 }
 
 
