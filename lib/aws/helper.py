@@ -13,7 +13,7 @@ env_path = os.path.abspath(os.path.join(current_file_directory, "../../.env"))
 load_dotenv(env_path)
 
 AWS_PROFILE_NAME = os.getenv("AWS_PROFILE_NAME")
-AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
+AWS_REGION = "us-east-2"
 
 try:
     session = boto3.Session(profile_name=AWS_PROFILE_NAME, region_name=AWS_REGION)
@@ -25,7 +25,7 @@ except ProfileNotFound:
 
 def create_client(client_name: str) -> BaseClient:
     """Creates generic AWS client."""
-    return session.client(client_name)
+    return session.client(client_name, region_name=AWS_REGION)
 
 
 def retry_on_aws_rate_limit(
