@@ -11,7 +11,7 @@ aws ec2 run-instances \
     --count 1 \
     --instance-type t4g.small \
     --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=firehose-sync-ec2-instance-arm64}]' \
-    --iam-instance-profile Name=CloudWatchAgentInstanceProfile \
+    --iam-instance-profile Name=EC2InstanceProfile \
     --key-name firehoseSyncEc2Key \
 	--security-group-ids sg-0b3e24638f16807d5 # "launch-wizard
 
@@ -61,10 +61,16 @@ gh auth login
 # clone repo
 git clone https://github.com/METResearchGroup/bluesky-research.git
 
+# add pythonpath
+echo "export PYTHONPATH=/home/ec2-user/bluesky-research:$PYTHONPATH" >> ~/.bashrc && source ~/.bashrc
+
+# add default region
+echo 'export AWS_REGION="us-east-2"' >> ~/.bashrc && source ~/.bashrc
+
 # set up AWS access
-aws configure # use the same creds as in .aws/config
-aws configure sso # use the same creds as in .aws/config
-export AWS_PROFILE="AWSAdministratorAccess-517478598677"
+# aws configure # use the same creds as in .aws/config
+# aws configure sso # use the same creds as in .aws/config
+# export AWS_PROFILE="AWSAdministratorAccess-517478598677"
 ACCOUNT_ID=$(aws sts get-caller-identity --profile ${AWS_PROFILE} --query "Account" --output text)
 
 # connect to ECR
@@ -77,8 +83,6 @@ docker pull ${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com/${FIREHOSE_REPO}:lates
 # run container (with the correct AWS credentials mounted)
 export CONTAINER_NAME="sync-firehose-container"
 export CONTAINER_ID=$(docker run -d --name ${CONTAINER_NAME} --platform linux/arm64 \
-     -v ~/.aws:/root/.aws \
-     -e AWS_PROFILE=${AWS_PROFILE} \
      ${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com/${FIREHOSE_REPO}:latest)
 
 # set up Cloudwatch logs for Docker container
@@ -88,6 +92,7 @@ export CONTAINER_ID=$(docker run -d --name ${CONTAINER_NAME} --platform linux/ar
 sudo yum install -y amazon-cloudwatch-agent
 
 # Create the CloudWatch agent configuration file
+# NOTE: can comment out the Docker log files if we don't run in a container.
 sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null <<EOL
 {
   "logs": {
@@ -95,9 +100,14 @@ sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /de
       "files": {
         "collect_list": [
           {
-            "file_path": "/var/lib/docker/containers/*/*.log",
+            "file_path": "/home/ec2-user/bluesky-research/lib/log/*.log",
             "log_group_name": "sync-firehose-logs",
-            "log_stream_name": "${CONTAINER_ID}"
+            "log_stream_name": "{instance_id}/bsky-logs"
+          },
+          {
+            "file_path": "/home/ec2-user/bluesky-research/pipelines/sync_post_records/firehose/nohup.out",
+            "log_group_name": "sync-firehose-logs",
+            "log_stream_name": "nohup-logs-{instance_id}"
           }
         ]
       }
@@ -107,13 +117,17 @@ sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /de
 EOL
 
 # Start the CloudWatch agent
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a start
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
 
 # Optional: stop and restart the CloudWatch agent
 # if you need to change the config or if you are restarting the Docker container
 # sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a stop -m ec2
 # sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
-
+# To check logs for Cloudwatch agent:
+# sudo tail -f /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log
+# To get status for Cloudwatch agent:
+# sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a status
 # to stop a container
 # docker stop $CONTAINER_NAME
 # docker rm $CONTAINER_NAME
