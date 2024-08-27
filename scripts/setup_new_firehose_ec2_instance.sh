@@ -11,7 +11,7 @@ aws ec2 run-instances \
     --count 1 \
     --instance-type t4g.small \
     --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=firehose-sync-ec2-instance-arm64}]' \
-    --iam-instance-profile Name=CloudWatchAgentInstanceProfile \
+    --iam-instance-profile Name=EC2InstanceProfile \
     --key-name firehoseSyncEc2Key \
 	--security-group-ids sg-0b3e24638f16807d5 # "launch-wizard
 
@@ -61,10 +61,13 @@ gh auth login
 # clone repo
 git clone https://github.com/METResearchGroup/bluesky-research.git
 
+# add pythonpath
+echo "export PYTHONPATH=/home/ec2-user/bluesky-research:$PYTHONPATH" >> ~/.bashrc && source ~/.bashrc
+
 # set up AWS access
-aws configure # use the same creds as in .aws/config
-aws configure sso # use the same creds as in .aws/config
-export AWS_PROFILE="AWSAdministratorAccess-517478598677"
+# aws configure # use the same creds as in .aws/config
+# aws configure sso # use the same creds as in .aws/config
+# export AWS_PROFILE="AWSAdministratorAccess-517478598677"
 ACCOUNT_ID=$(aws sts get-caller-identity --profile ${AWS_PROFILE} --query "Account" --output text)
 
 # connect to ECR
