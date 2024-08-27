@@ -120,6 +120,8 @@ def load_latest_user_feed_from_s3(
     hash_uri_of_last_post_in_full_feed = hashed_uris_lst[-1]
 
     if cursor:
+        if cursor == CURSOR_EOF:
+            return ([], CURSOR_EOF)
         logger.info(f"Cursor found and will be used to subset feed: {cursor}")
         cursor_parts = cursor.split("::")
         if len(cursor_parts) != 2:
