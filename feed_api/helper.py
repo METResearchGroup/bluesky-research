@@ -7,6 +7,11 @@ import os
 import re
 from typing import Optional
 
+from feed_api.serverless_cache import (
+    default_cache_name,
+    default_ttl_seconds,
+    ServerlessCache,
+)
 from lib.aws.athena import Athena
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
@@ -21,6 +26,7 @@ CURSOR_EOF = "eof"
 athena = Athena()
 glue = Glue()
 s3 = S3()
+serverless_cache = ServerlessCache()
 logger = get_logger(__name__)
 
 study_users: list[UserToBlueskyProfileModel] = get_all_users()
@@ -171,6 +177,27 @@ def get_valid_dids() -> set[str]:
     """
     valid_dids = {user.bluesky_user_did for user in study_users}
     return valid_dids
+
+
+def cache_request(user_did: str, cursor: Optional[str], data: dict):
+    """Cache the request."""
+    data_json = json.dumps(data)
+    cache_key = f"{user_did}::{cursor}"
+    serverless_cache.set(
+        cache_name=default_cache_name,
+        key=cache_key,
+        value=data_json,
+        ttl=default_ttl_seconds,
+    )
+
+
+def get_cached_request(user_did: str, cursor: Optional[str]) -> Optional[dict]:
+    """Get the cached request."""
+    cache_key = f"{user_did}::{cursor}"
+    return serverless_cache.get(
+        cache_name=default_cache_name,
+        key=cache_key,
+    )
 
 
 def export_log_data(log: dict):
