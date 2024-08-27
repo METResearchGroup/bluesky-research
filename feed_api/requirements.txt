@@ -40,6 +40,10 @@ fastapi==0.111.0
     # via -r requirements.in
 fastapi-cli==0.0.5
     # via fastapi
+grpcio==1.66.0
+    # via
+    #   momento
+    #   momento-wire-types
 h11==0.14.0
     # via
     #   httpcore
@@ -75,12 +79,18 @@ mdurl==0.1.2
     # via markdown-it-py
 memory-profiler==0.61.0
     # via -r requirements.in
+momento==1.21.0
+    # via -r requirements.in
+momento-wire-types==0.106.2
+    # via momento
 numpy==1.26.4
     # via pandas
 orjson==3.10.7
     # via fastapi
 pandas==2.2.0
     # via -r requirements.in
+protobuf==4.25.4
+    # via momento-wire-types
 psutil==6.0.0
     # via memory-profiler
 pycparser==2.22
@@ -94,6 +104,8 @@ pydantic-core==2.18.4
     # via pydantic
 pygments==2.18.0
     # via rich
+pyjwt==2.9.0
+    # via momento
 python-dateutil==2.9.0.post0
     # via
     #   botocore
@@ -108,7 +120,7 @@ pytz==2024.1
     # via pandas
 pyyaml==6.0.2
     # via uvicorn
-rich==13.7.1
+rich==13.8.0
     # via typer
 s3transfer==0.10.2
     # via boto3
