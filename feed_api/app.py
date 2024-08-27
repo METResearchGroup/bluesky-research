@@ -17,7 +17,12 @@ from fastapi.security.api_key import APIKeyHeader
 from mangum import Mangum
 
 from feed_api.auth import AuthorizationError, validate_auth
-from feed_api.helper import export_log_data, load_latest_user_feed_from_s3
+from feed_api.helper import (
+    cache_request,
+    export_log_data,
+    get_cached_request,
+    load_latest_user_feed_from_s3,
+)
 from lib.aws.s3 import S3
 from lib.aws.secretsmanager import get_secret
 from lib.helper import generate_current_datetime_str
@@ -197,6 +202,11 @@ async def get_feed_skeleton(
     ] = 30,  # Bluesky fetches 30 results by default.
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
+    """Fetches the feed skeleton for a user.
+
+    Returns a cached request if it exists.
+    Otherwise, fetches the feed from S3 and caches it.
+    """
     try:
         requester_did = await validate_auth(credentials)
     except AuthorizationError:
@@ -206,9 +216,15 @@ async def get_feed_skeleton(
             logger.error("Invalid or missing Authorization header")
         raise
     logger.info(f"Validated request for DID={requester_did}...")
+    cached_request = get_cached_request(user_did=requester_did, cursor=cursor)
+    if cached_request:
+        logger.info(f"Found cached request for user={requester_did}...")
+        return cached_request
     feed, cursor = load_latest_user_feed_from_s3(
         user_did=requester_did, cursor=cursor, limit=limit
     )
+    output = {"cursor": cursor, "feed": feed}
+    cache_request(user_did=requester_did, cursor=cursor, data=output)
     user_session_log = {
         "user_did": requester_did,
         "cursor": cursor,
@@ -219,7 +235,7 @@ async def get_feed_skeleton(
     }
     export_log_data(user_session_log)
     logger.info(f"Fetched {len(feed)} posts for user={requester_did}...")
-    return {"cursor": cursor, "feed": feed}
+    return output
 
 
 # https://stackoverflow.com/questions/76844538/the-adapter-was-unable-to-infer-a-handler-to-use-for-the-event-this-is-likely-r

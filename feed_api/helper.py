@@ -180,7 +180,7 @@ def get_valid_dids() -> set[str]:
 
 
 def cache_request(user_did: str, cursor: Optional[str], data: dict):
-    """Cache the request."""
+    """Cache the request. Uses a default TTL time for the cache."""
     data_json = json.dumps(data)
     cache_key = f"{user_did}::{cursor}"
     serverless_cache.set(
