@@ -486,6 +486,16 @@ resource "aws_iam_policy" "lambda_access_policy" {
         Effect   = "Allow",
         Resource = "*"
       },
+      # get log perms
+      {
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Effect   = "Allow",
+        Resource = "*"
+      },
     ]
   })
 }
