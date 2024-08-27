@@ -220,14 +220,15 @@ async def get_feed_skeleton(
     if cached_request:
         logger.info(f"Found cached request for user={requester_did}...")
         return cached_request
-    feed, cursor = load_latest_user_feed_from_s3(
-        user_did=requester_did, cursor=cursor, limit=limit
+    request_cursor = cursor
+    feed, next_cursor = load_latest_user_feed_from_s3(
+        user_did=requester_did, cursor=request_cursor, limit=limit
     )
-    output = {"cursor": cursor, "feed": feed}
-    cache_request(user_did=requester_did, cursor=cursor, data=output)
+    output = {"cursor": next_cursor, "feed": feed}
+    cache_request(user_did=requester_did, cursor=request_cursor, data=output)
     user_session_log = {
         "user_did": requester_did,
-        "cursor": cursor,
+        "cursor": next_cursor,
         "limit": limit,
         "feed_length": len(feed),
         "feed": feed,

@@ -194,10 +194,13 @@ def cache_request(user_did: str, cursor: Optional[str], data: dict):
 def get_cached_request(user_did: str, cursor: Optional[str]) -> Optional[dict]:
     """Get the cached request."""
     cache_key = f"{user_did}::{cursor}"
-    return serverless_cache.get(
+    res: Optional[str] = serverless_cache.get(
         cache_name=default_cache_name,
         key=cache_key,
     )
+    if res:
+        return json.loads(res)
+    return None
 
 
 def export_log_data(log: dict):

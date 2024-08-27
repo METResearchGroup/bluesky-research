@@ -85,7 +85,7 @@ class ServerlessCache:
         # NOTE: all values will be stored as string.
         response = self.client.set(cache_name, key, value, ttl)
         if isinstance(response, CacheSet.Success):
-            logger.info(f"Successfully set value for key: {key}")
+            logger.info(f"Successfully set value in cache {cache_name} for key: {key}")
         elif isinstance(response, CacheSet.Error):
             error = response
             logger.info(f"Error setting value: {error.message}")
