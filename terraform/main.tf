@@ -302,6 +302,35 @@ resource "aws_api_gateway_stage" "api_gateway_stage" {
 
 ### IAM Roles and Policies ###
 
+# Create IAM role for EC2.
+resource "aws_iam_role" "ec2_instance_role" {
+  name = "EC2InstanceAccessRole"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = "sts:AssumeRole",
+        Effect = "Allow",
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      },
+    ]
+  })
+}
+
+resource "aws_iam_instance_profile" "ec2_instance_profile" {
+  name = "EC2InstanceProfile"
+  role = aws_iam_role.ec2_instance_role.name
+}
+
+# Give the EC2 role the same policy as the lambda (so it can do the
+# same things).
+resource "aws_iam_role_policy_attachment" "ec2_instance_attach_policy" {
+  role       = aws_iam_role.ec2_instance_role.name
+  policy_arn = aws_iam_policy.lambda_access_policy.arn
+}
+
 # Create IAM role for Lambda
 # https://spacelift.io/blog/terraform-aws-lambda
 resource "aws_iam_role" "lambda_exec" {
