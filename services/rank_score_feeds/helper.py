@@ -242,6 +242,16 @@ def do_rank_score_feeds():
         for user in study_users
     }
 
+    # insert default feed, for users that aren't logged in or for if a user
+    # isn't in the study but opens the link.
+    default_feed = create_ranked_candidate_feed(
+        in_network_candidate_post_uris=[],
+        out_of_network_candidate_post_uris=out_of_network_post_uris,
+        post_uri_to_score_map=post_uri_to_score_map,
+        max_feed_length=max_feed_length,
+    )
+    user_to_ranked_feed_map["default"] = default_feed
+
     # write feeds to s3
     timestamp = generate_current_datetime_str()
     export_results(user_to_ranked_feed_map=user_to_ranked_feed_map, timestamp=timestamp)

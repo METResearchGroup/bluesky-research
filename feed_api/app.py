@@ -21,6 +21,7 @@ from feed_api.helper import (
     cache_request,
     export_log_data,
     get_cached_request,
+    is_valid_user_did,
     load_latest_user_feed_from_s3,
 )
 from lib.aws.s3 import S3
@@ -215,6 +216,9 @@ async def get_feed_skeleton(
         if e.status_code == 403:
             logger.error("Invalid or missing Authorization header")
         raise
+    if not is_valid_user_did(requester_did):
+        logger.info(f"Invalid user DID: {requester_did}. Using default feed.")
+        requester_did = "default"
     logger.info(f"Validated request for DID={requester_did}...")
     cached_request = get_cached_request(user_did=requester_did, cursor=cursor)
     if cached_request:
