@@ -14,6 +14,8 @@ load_dotenv(env_path)
 
 AWS_PROFILE_NAME = os.getenv("AWS_PROFILE_NAME")
 AWS_REGION = "us-east-2"
+os.environ["AWS_DEFAULT_REGION"] = AWS_REGION
+
 
 try:
     session = boto3.Session(profile_name=AWS_PROFILE_NAME, region_name=AWS_REGION)
