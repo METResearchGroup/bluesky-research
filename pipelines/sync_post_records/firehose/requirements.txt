@@ -58,8 +58,10 @@ markupsafe==2.1.5
     #   werkzeug
 memory-profiler==0.61.0
     # via -r requirements.in
-numpy==2.1.0
-    # via pandas
+numpy==1.26.4
+    # via
+    #   -r requirements.in
+    #   pandas
 pandas==2.2.2
     # via -r requirements.in
 psutil==6.0.0
