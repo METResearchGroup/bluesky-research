@@ -6,7 +6,6 @@ Based on specs in the following docs:
 """  # noqa
 
 import json
-import logging
 import os
 from typing import Optional, Annotated
 
@@ -21,6 +20,7 @@ from feed_api.auth import AuthorizationError, validate_auth
 from feed_api.helper import load_latest_user_feed_from_s3
 from lib.aws.s3 import S3
 from lib.aws.secretsmanager import get_secret
+from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users, manage_bsky_study_user
 from services.participant_data.models import UserOperation
 from transform.bluesky_helper import get_author_did_from_handle
@@ -38,8 +38,7 @@ app.add_middleware(
 )
 security = HTTPBearer()
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger = get_logger(__file__)
 
 API_KEY_NAME = "bsky-internal-api-key"
 REQUIRED_API_KEY = json.loads(get_secret("bsky-internal-api-key"))[
@@ -192,7 +191,9 @@ async def describe_feed_generator():  # def or async def?
 async def get_feed_skeleton(
     request: Request,
     cursor: Annotated[Optional[str], Query()] = None,
-    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    limit: Annotated[
+        int, Query(ge=1, le=100)
+    ] = 30,  # Bluesky fetches 30 results by default.
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     try:
@@ -204,9 +205,11 @@ async def get_feed_skeleton(
             logger.error("Invalid or missing Authorization header")
         raise
     logger.info(f"Validated request for DID={requester_did}...")
-    feed: list[dict] = load_latest_user_feed_from_s3(user_did=requester_did)
+    feed, cursor = load_latest_user_feed_from_s3(
+        user_did=requester_did, cursor=cursor, limit=limit
+    )
     logger.info(f"Fetched {len(feed)} posts for user={requester_did}...")
-    return {"cursor": "eof", "feed": feed}
+    return {"cursor": cursor, "feed": feed}
 
 
 # https://stackoverflow.com/questions/76844538/the-adapter-was-unable-to-infer-a-handler-to-use-for-the-event-this-is-likely-r
