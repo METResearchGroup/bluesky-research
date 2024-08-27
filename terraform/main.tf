@@ -85,7 +85,7 @@ resource "aws_lambda_function" "bluesky_feed_api_lambda" {
   image_uri     = "${aws_ecr_repository.feed_api_service.repository_url}:latest"
   architectures = ["arm64"] # since images are built locally with an M1 Mac.
   timeout       = 15 # 15 second timeout.
-  memory_size   = 256
+  memory_size   = 512
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -427,6 +427,21 @@ resource "aws_iam_policy" "lambda_access_policy" {
         Effect   = "Allow",
         Resource = "*"
       },
+      # Glue crawler permissions
+      {
+        Action = [
+          "glue:StartCrawler",
+          "glue:GetCrawler",
+          "glue:GetCrawlerMetrics",
+          "glue:GetCrawls",
+          "glue:GetTable",
+          "glue:GetTables",
+          "glue:GetTableVersion",
+          "glue:GetTableVersions"
+        ],
+        Effect   = "Allow",
+        Resource = "*"
+      }
     ]
   })
 }
