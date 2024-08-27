@@ -2293,3 +2293,124 @@ resource "aws_dynamodb_table" "superposter_calculation_sessions" {
     Name = "superposter_calculation_sessions"
   }
 }
+
+### ElastiCache + Redis ###
+resource "aws_elasticache_serverless_cache" "bluesky_request_logging_cache" {
+  engine = "memcached"
+  name   = "bluesky-request-logging-cache"
+  cache_usage_limits {
+    data_storage {
+      maximum = 1
+      unit    = "GB"
+    }
+    ecpu_per_second {
+      maximum = 5000
+    }
+  }
+  description          = "Elasticache setup for caching Bluesky request logs"
+  kms_key_id           = aws_kms_key.elasticache_kms_key.arn
+  major_engine_version = "1.6"
+  security_group_ids   = [aws_security_group.elasticache_sg.id]
+  subnet_ids           = aws_subnet.elasticache_subnet[*].id
+}
+
+# required resources for Elasticache.
+resource "aws_kms_key" "elasticache_kms_key" {
+  description             = "KMS key for ElastiCache Serverless"
+  deletion_window_in_days = 10
+}
+
+resource "aws_kms_alias" "elasticache_kms_alias" {
+  name          = "alias/elasticache_serverless"
+  target_key_id = aws_kms_key.elasticache_kms_key.key_id
+}
+
+resource "aws_security_group" "elasticache_sg" {
+  name        = "elasticache_sg"
+  description = "Allow Redis access"
+  vpc_id      = aws_vpc.elasticache_vpc.id
+
+  ingress {
+    from_port   = 6379 # default Redis port
+    to_port     = 6379 # default Redis port
+    protocol    = "tcp"
+    # allows access from anywhere. NOTE: might have to restrict later, but
+    # seems OK for now just to ship.
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_vpc" "elasticache_vpc" {
+  cidr_block = "10.0.0.0/16"
+}
+
+resource "aws_subnet" "elasticache_subnet" {
+  count                   = 2
+  vpc_id                  = aws_vpc.elasticache_vpc.id
+  cidr_block              = cidrsubnet(aws_vpc.elasticache_vpc.cidr_block, 8, count.index)
+  availability_zone       = element(data.aws_availability_zones.available.names, count.index)
+  map_public_ip_on_launch = true
+}
+
+data "aws_availability_zones" "available" {}
+
+
+# required IAM roles for Elasticache
+resource "aws_iam_role" "elasticache_role" {
+  name               = "elasticache_role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action    = "sts:AssumeRole"
+        Principal = {
+          Service = "elasticache.amazonaws.com"
+        }
+        Effect    = "Allow"
+      },
+    ]
+  })
+}
+
+resource "aws_iam_policy" "elasticache_policy" {
+  name        = "elasticache_policy"
+  description = "Policy for Elasticache role to allow all Elasticache, Lambda, and S3 actions"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "elasticache:*",
+          "lambda:*",
+        ],
+        Resource = [
+          "*"
+        ]
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "s3:*"
+        ],
+        Resource = [
+          "arn:aws:s3:::bluesky-research/*"
+        ]
+      }
+    ]
+  })
+}
+
+
+resource "aws_iam_role_policy_attachment" "elasticache_policy_attachment" {
+  role       = aws_iam_role.elasticache_role.name
+  policy_arn = aws_iam_policy.elasticache_policy.arn
+}
