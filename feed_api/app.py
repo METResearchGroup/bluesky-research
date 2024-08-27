@@ -17,9 +17,10 @@ from fastapi.security.api_key import APIKeyHeader
 from mangum import Mangum
 
 from feed_api.auth import AuthorizationError, validate_auth
-from feed_api.helper import load_latest_user_feed_from_s3
+from feed_api.helper import export_log_data, load_latest_user_feed_from_s3
 from lib.aws.s3 import S3
 from lib.aws.secretsmanager import get_secret
+from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users, manage_bsky_study_user
 from services.participant_data.models import UserOperation
@@ -208,6 +209,15 @@ async def get_feed_skeleton(
     feed, cursor = load_latest_user_feed_from_s3(
         user_did=requester_did, cursor=cursor, limit=limit
     )
+    user_session_log = {
+        "user_did": requester_did,
+        "cursor": cursor,
+        "limit": limit,
+        "feed_length": len(feed),
+        "feed": feed,
+        "timestamp": generate_current_datetime_str(),
+    }
+    export_log_data(user_session_log)
     logger.info(f"Fetched {len(feed)} posts for user={requester_did}...")
     return {"cursor": cursor, "feed": feed}
 

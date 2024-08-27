@@ -3,10 +3,12 @@
 from datetime import datetime
 import hashlib
 import json
+import os
 import re
 from typing import Optional
 
 from lib.aws.athena import Athena
+from lib.aws.s3 import S3
 from lib.log.logger import get_logger
 from lib.helper import generate_current_datetime_str
 from services.participant_data.helper import get_all_users
@@ -16,6 +18,7 @@ from services.participant_data.models import UserToBlueskyProfileModel
 CURSOR_EOF = "eof"
 
 athena = Athena()
+s3 = S3()
 logger = get_logger(__name__)
 
 
@@ -162,6 +165,18 @@ def get_valid_dids() -> set[str]:
     users: list[UserToBlueskyProfileModel] = get_all_users()
     valid_dids = {user.bluesky_user_did for user in users}
     return valid_dids
+
+
+def export_log_data(log: dict):
+    """Export user session log data"""
+    user_did = log["user_did"]
+    timestamp = log["timestamp"]
+    key = os.path.join("user_session_logs", f"user_did={user_did}", timestamp)
+    s3.write_dict_json_to_s3(
+        data=log,
+        key=key,
+    )
+    logger.info(f"Exported user session logs to S3 (key={key}): {log}")
 
 
 if __name__ == "__main__":
