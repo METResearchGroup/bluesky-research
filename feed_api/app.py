@@ -212,12 +212,18 @@ async def get_feed_skeleton(
         requester_did = await validate_auth(credentials)
     except AuthorizationError:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    # NOTE: feeds can be accessed by Bluesky users who aren't in the study,
+    # but I couldn't figure out how to get it to be accessed when you're
+    # not logged in. I think the error is related to
+    # `credentials: HTTPAuthorizationCredentials = Depends(security)`
+    # but it's not worth figuring out for now.
     except HTTPException as e:
+        logger.error(f"Error validating auth: {e}")
         if e.status_code == 403:
-            logger.error("Invalid or missing Authorization header")
-        raise
+            logger.error("Invalid or missing Authorization header. Using default feed.")
+            raise
     if not is_valid_user_did(requester_did):
-        logger.info(f"Invalid user DID: {requester_did}. Using default feed.")
+        logger.info(f"User DID not in the study: {requester_did}. Using default feed.")
         requester_did = "default"
     logger.info(f"Validated request for DID={requester_did}...")
     cached_request = get_cached_request(user_did=requester_did, cursor=cursor)
