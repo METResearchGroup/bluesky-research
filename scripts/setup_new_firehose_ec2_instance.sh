@@ -64,6 +64,9 @@ git clone https://github.com/METResearchGroup/bluesky-research.git
 # add pythonpath
 echo "export PYTHONPATH=/home/ec2-user/bluesky-research:$PYTHONPATH" >> ~/.bashrc && source ~/.bashrc
 
+# add default region
+echo 'export AWS_REGION="us-east-2"' >> ~/.bashrc && source ~/.bashrc
+
 # set up AWS access
 # aws configure # use the same creds as in .aws/config
 # aws configure sso # use the same creds as in .aws/config
@@ -80,8 +83,6 @@ docker pull ${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com/${FIREHOSE_REPO}:lates
 # run container (with the correct AWS credentials mounted)
 export CONTAINER_NAME="sync-firehose-container"
 export CONTAINER_ID=$(docker run -d --name ${CONTAINER_NAME} --platform linux/arm64 \
-     -v ~/.aws:/root/.aws \
-     -e AWS_PROFILE=${AWS_PROFILE} \
      ${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com/${FIREHOSE_REPO}:latest)
 
 # set up Cloudwatch logs for Docker container
@@ -91,16 +92,22 @@ export CONTAINER_ID=$(docker run -d --name ${CONTAINER_NAME} --platform linux/ar
 sudo yum install -y amazon-cloudwatch-agent
 
 # Create the CloudWatch agent configuration file
+# NOTE: can comment out the Docker log files if we don't run in a container.
 sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null <<EOL
 {
   "logs": {
     "logs_collected": {
       "files": {
         "collect_list": [
+        #   {
+        #     "file_path": "/var/lib/docker/containers/*/*.log",
+        #     "log_group_name": "sync-firehose-logs",
+        #     "log_stream_name": "${CONTAINER_ID}"
+        #   },
           {
-            "file_path": "/var/lib/docker/containers/*/*.log",
+            "file_path": "/home/ec2-user/bluesky-research/lib/log/*.log",
             "log_group_name": "sync-firehose-logs",
-            "log_stream_name": "${CONTAINER_ID}"
+            "log_stream_name": "{instance_id}/bsky-logs"
           }
         ]
       }
