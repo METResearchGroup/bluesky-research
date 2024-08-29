@@ -92,6 +92,26 @@ resource "aws_lambda_function" "bluesky_feed_api_lambda" {
   }
 }
 
+resource "aws_lambda_function" "sync_most_liked_feed_lambda" {
+  function_name = "sync_most_liked_feed_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.sync_most_liked_feed_service.repository_url}:latest"
+  architectures = ["arm64"]
+  timeout       = 90 # 90 seconds timeout
+  memory_size   = 256 # 256 MB of memory
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "sync_most_liked_feed_lambda_log_group" {
+  name              = "/aws/lambda/sync_most_liked_feed_lambda"
+  retention_in_days = 7
+}
+
+
 resource "aws_lambda_function" "preprocess_raw_data_lambda" {
   function_name = "preprocess_raw_data_lambda"
   role          = aws_iam_role.lambda_exec.arn
@@ -128,6 +148,28 @@ resource "aws_lambda_function" "calculate_superposters_lambda" {
 resource "aws_cloudwatch_log_group" "calculate_superposters_lambda_log_group" {
   name              = "/aws/lambda/calculate_superposters_lambda"
   retention_in_days = 7
+}
+
+### Event rules triggers ###
+
+# 24-hour sync for most liked feed.
+resource "aws_cloudwatch_event_rule" "sync_most_liked_feed_rule" {
+  name                = "sync_most_liked_feed_rule"
+  schedule_expression = "cron(0 0 * * ? *)"  # Triggers at 00:00 UTC every day
+}
+
+resource "aws_cloudwatch_event_target" "sync_most_liked_feed_target" {
+  rule      = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.name
+  target_id = "syncMostLikedFeedLambda"
+  arn       = aws_lambda_function.sync_most_liked_feed_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sync_most_liked_feed" {
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.sync_most_liked_feed_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.arn
 }
 
 ### API Gateway ###
