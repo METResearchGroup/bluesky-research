@@ -61,6 +61,9 @@ def consume_sqs_messages_from_queues(
         export_sqs_messages_to_s3(
             sqs_message_bodies=sqs_message_bodies, queue_name=queue_name
         )
+        logger.info(
+            f"Finished consuming and exporting messages for queue: {queue_name}"
+        )  # noqa
     logger.info("Finished consuming messages for all queues")
 
 
