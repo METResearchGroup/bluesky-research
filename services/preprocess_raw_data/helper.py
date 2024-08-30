@@ -61,6 +61,7 @@ def init_session_data(previous_timestamp: str) -> dict:
 def load_latest_firehose_sqs_sync_messages() -> list[dict]:
     """Load the latest Firehose SQS sync messages."""
     messages: list[dict] = firehose_sqs_queue.receive_all_messages()
+    breakpoint()
     # TODO: should be parsed and process to split up based on post/likes/follows
     # as well as study user activity.
     return messages
@@ -117,7 +118,7 @@ def get_latest_post_filenames_from_sqs(sqs_sync_messages: dict) -> dict[str, lis
         keys: list[str] = message["Body"]["data"]["sync"].get("s3_keys", [])
         if len(keys) == 0:
             # could have old key structure.
-            print("Message using old key structure...")
+            logger.info("Message using old key structure...")
             key = message["Body"]["data"]["sync"].get("s3_key", [])
             res["in-network-user-activity"].append(key)
         res["in-network-user-activity"].extend(keys)

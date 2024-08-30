@@ -172,6 +172,27 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sync_most_liked_fee
   source_arn    = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.arn
 }
 
+# Trigger for preprocessing lambda every 20 minutes.
+resource "aws_cloudwatch_event_rule" "preprocess_raw_data_event_rule" {
+  name                = "preprocess_raw_data_event_rule"
+  schedule_expression = "cron(0/20 * * * ? *)"  # Triggers every 20 minutes
+}
+
+resource "aws_cloudwatch_event_target" "preprocess_raw_data_event_target" {
+  rule      = aws_cloudwatch_event_rule.preprocess_raw_data_event_rule.name
+  target_id = "preprocessRawDataLambda"
+  arn       = aws_lambda_function.preprocess_raw_data_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_preprocess_raw_data" {
+  statement_id  = "AllowExecutionFromCloudWatchPreprocessRawData"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.preprocess_raw_data_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.preprocess_raw_data_event_rule.arn
+}
+
+
 ### API Gateway ###
 
 # define API Gateway REST API
