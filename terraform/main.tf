@@ -12,8 +12,10 @@ provider "aws" {
   profile = var.aws_profile
 }
 
-# add 1-day TTL to the daily superposter data
-resource "aws_s3_bucket_lifecycle_configuration" "daily_superposter_posts_lifecycle" {
+# add TTLs
+# NOTE: only one lifecycle configuration is allowed, else they'll conflict
+# and override each other. See https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_lifecycle_configuration
+resource "aws_s3_bucket_lifecycle_configuration" "s3_ttl_lifecycle" {
   bucket = "bluesky-research"
 
   rule {
@@ -28,10 +30,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "daily_superposter_posts_lifecy
       days = 1
     }
   }
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "athena_results_lifecycle" {
-  bucket = "bluesky-research"
 
   rule {
     id     = "DeleteAthenaResultsAfterOneDay"
@@ -45,11 +43,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "athena_results_lifecycle" {
       days = 1
     }
   }
-}
-
-# add 1 day TTL to the data in "sqs_messages"
-resource "aws_s3_bucket_lifecycle_configuration" "sqs_messages_lifecycle" {
-  bucket = "bluesky-research"
 
   rule {
     id     = "DeleteSqsMessagesAfterOneDay"
@@ -557,6 +550,7 @@ resource "aws_iam_policy" "lambda_access_policy" {
       # Add Glue policy for accessing Glue tables
       {
         Action = [
+          "glue:GetPartitions",
           "glue:GetTable",
           "glue:GetTables",
           "glue:GetTableVersion",
