@@ -14,11 +14,11 @@ logger = get_logger(__name__)
 def lambda_handler(event, context):
     try:
         logger.info("Starting to consume SQS messages for queues.")
-        queue_names = ["syncsToBeProcessedQueue"]
-        # queue_names = [
-        #     "firehoseSyncsToBeProcessedQueue",
-        #     "mostLikedSyncsToBeProcessedQueue"
-        # ]
+        # queue_names = ["syncsToBeProcessedQueue"]
+        queue_names = [
+            "firehoseSyncsToBeProcessedQueue",
+            "mostLikedSyncsToBeProcessedQueue",
+        ]
         consume_sqs_messages_from_queues(queue_names)
         logger.info("Completed consuming SQS messages for queues.")
         return {
