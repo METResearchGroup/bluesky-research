@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM public.ecr.aws/lambda/python:3.10
 
 WORKDIR /app
 
@@ -26,16 +26,25 @@ COPY services/sync/most_liked_posts/helper.py ./services/sync/most_liked_posts/
 
 COPY transform/* ./transform/
 
+# copy handler code to /app
+COPY pipelines/sync_post_records/most_liked/__init__.py /app/__init__.py
+COPY pipelines/sync_post_records/most_liked/handler.py /app/handler.py
+
 WORKDIR /app/pipelines/sync_post_records/most_liked
 
 # install packages. Install fasttext from source to avoid dependency hell
-# hadolint ignore=DL3003,DL3027
+# hadolint ignore=DL3003,DL3027,DL3013,DL3042
 RUN apt update && apt install -y git g++ \ 
     && pip install --no-cache-dir -r requirements.txt \
     && git clone https://github.com/facebookresearch/fastText.git \
     && cd fastText \
-    && pip install . --no-cache-dir
+    && pip install . --no-cache-dir \
+    && pip install --no-cache-dir awslambdaric
+
+WORKDIR /app
 
 ENV PYTHONPATH=/app
+    
+ENTRYPOINT ["python", "-m", "awslambdaric"]
 
-CMD ["python", "most_liked.py"]
+CMD ["handler.lambda_handler"]
