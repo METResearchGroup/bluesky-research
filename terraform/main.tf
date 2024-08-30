@@ -179,7 +179,7 @@ resource "aws_lambda_function" "consume_sqs_messages_lambda" {
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.consume_sqs_messages_service.repository_url}:latest"
   architectures = ["arm64"]
-  timeout       = 60 # 60 seconds timeout
+  timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
   memory_size   = 256 # 256 MB of memory
 
   lifecycle {
@@ -234,6 +234,27 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_preprocess_raw_data
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.preprocess_raw_data_event_rule.arn
 }
+
+# Trigger for consume_sqs_messages_lambda every 15 minutes.
+resource "aws_cloudwatch_event_rule" "consume_sqs_messages_event_rule" {
+  name                = "consume_sqs_messages_event_rule"
+  schedule_expression = "cron(0/15 * * * ? *)"  # Triggers every 15 minutes
+}
+
+resource "aws_cloudwatch_event_target" "consume_sqs_messages_event_target" {
+  rule      = aws_cloudwatch_event_rule.consume_sqs_messages_event_rule.name
+  target_id = "consumeSqsMessagesLambda"
+  arn       = aws_lambda_function.consume_sqs_messages_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consume_sqs_messages" {
+  statement_id  = "AllowExecutionFromCloudWatchConsumeSqsMessages"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.consume_sqs_messages_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.consume_sqs_messages_event_rule.arn
+}
+
 
 
 ### API Gateway ###
