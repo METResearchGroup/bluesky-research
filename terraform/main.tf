@@ -12,8 +12,10 @@ provider "aws" {
   profile = var.aws_profile
 }
 
-# add 1-day TTL to the daily superposter data
-resource "aws_s3_bucket_lifecycle_configuration" "daily_superposter_posts_lifecycle" {
+# add TTLs
+# NOTE: only one lifecycle configuration is allowed, else they'll conflict
+# and override each other. See https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_lifecycle_configuration
+resource "aws_s3_bucket_lifecycle_configuration" "s3_ttl_lifecycle" {
   bucket = "bluesky-research"
 
   rule {
@@ -28,10 +30,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "daily_superposter_posts_lifecy
       days = 1
     }
   }
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "athena_results_lifecycle" {
-  bucket = "bluesky-research"
 
   rule {
     id     = "DeleteAthenaResultsAfterOneDay"
@@ -45,7 +43,21 @@ resource "aws_s3_bucket_lifecycle_configuration" "athena_results_lifecycle" {
       days = 1
     }
   }
+
+  rule {
+    id     = "DeleteSqsMessagesAfterOneDay"
+    status = "Enabled"
+
+    filter {
+      prefix = "sqs_messages/"
+    }
+
+    expiration {
+      days = 1
+    }
+  }
 }
+
 
 
 ### ECR repos ###
@@ -55,6 +67,10 @@ resource "aws_ecr_repository" "add_users_to_study_service" {
 
 resource "aws_ecr_repository" "calculate_superposters_service" {
   name = "calculate_superposters_service"
+}
+
+resource "aws_ecr_repository" "consume_sqs_messages_service" {
+  name = "consume_sqs_messages_service"
 }
 
 resource "aws_ecr_repository" "feed_api_service" {
@@ -98,8 +114,8 @@ resource "aws_lambda_function" "sync_most_liked_feed_lambda" {
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.sync_most_liked_feed_service.repository_url}:latest"
   architectures = ["arm64"]
-  timeout       = 90 # 90 seconds timeout
-  memory_size   = 256 # 256 MB of memory
+  timeout       = 180 # 180 seconds timeout
+  memory_size   = 512 # 512 MB of memory
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -150,6 +166,26 @@ resource "aws_cloudwatch_log_group" "calculate_superposters_lambda_log_group" {
   retention_in_days = 7
 }
 
+resource "aws_lambda_function" "consume_sqs_messages_lambda" {
+  function_name = "consume_sqs_messages_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.consume_sqs_messages_service.repository_url}:latest"
+  architectures = ["arm64"]
+  timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
+  memory_size   = 512 # 512 MB of memory
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "consume_sqs_messages_lambda_log_group" {
+  name              = "/aws/lambda/consume_sqs_messages_lambda"
+  retention_in_days = 7
+}
+
+
 ### Event rules triggers ###
 
 # 24-hour sync for most liked feed.
@@ -171,6 +207,48 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sync_most_liked_fee
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.arn
 }
+
+# Trigger for preprocessing lambda every 20 minutes.
+resource "aws_cloudwatch_event_rule" "preprocess_raw_data_event_rule" {
+  name                = "preprocess_raw_data_event_rule"
+  schedule_expression = "cron(0/20 * * * ? *)"  # Triggers every 20 minutes
+}
+
+resource "aws_cloudwatch_event_target" "preprocess_raw_data_event_target" {
+  rule      = aws_cloudwatch_event_rule.preprocess_raw_data_event_rule.name
+  target_id = "preprocessRawDataLambda"
+  arn       = aws_lambda_function.preprocess_raw_data_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_preprocess_raw_data" {
+  statement_id  = "AllowExecutionFromCloudWatchPreprocessRawData"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.preprocess_raw_data_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.preprocess_raw_data_event_rule.arn
+}
+
+# Trigger for consume_sqs_messages_lambda every 15 minutes.
+resource "aws_cloudwatch_event_rule" "consume_sqs_messages_event_rule" {
+  name                = "consume_sqs_messages_event_rule"
+  schedule_expression = "cron(0/15 * * * ? *)"  # Triggers every 15 minutes
+}
+
+resource "aws_cloudwatch_event_target" "consume_sqs_messages_event_target" {
+  rule      = aws_cloudwatch_event_rule.consume_sqs_messages_event_rule.name
+  target_id = "consumeSqsMessagesLambda"
+  arn       = aws_lambda_function.consume_sqs_messages_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consume_sqs_messages" {
+  statement_id  = "AllowExecutionFromCloudWatchConsumeSqsMessages"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.consume_sqs_messages_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.consume_sqs_messages_event_rule.arn
+}
+
+
 
 ### API Gateway ###
 
@@ -472,6 +550,7 @@ resource "aws_iam_policy" "lambda_access_policy" {
       # Add Glue policy for accessing Glue tables
       {
         Action = [
+          "glue:GetPartitions",
           "glue:GetTable",
           "glue:GetTables",
           "glue:GetTableVersion",
@@ -2215,6 +2294,87 @@ resource "aws_glue_catalog_table" "user_session_logs" {
     type = "string"
   }
 }
+
+resource "aws_glue_catalog_table" "sqs_messages" {
+  name          = "sqs_messages"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    "classification" = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/sqs_messages/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "sqs_messages_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "insert_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "data"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "queue_name"
+    type = "string"
+  }
+  partition_keys {
+    name = "year"
+    type = "int"
+  }
+  partition_keys {
+    name = "month"
+    type = "int"
+  }
+  partition_keys {
+    name = "day"
+    type = "int"
+  }
+  partition_keys {
+    name = "hour"
+    type = "int"
+  }
+  partition_keys {
+    name = "minute"
+    type = "int"
+  }
+}
+
+resource "aws_glue_crawler" "sqs_messages_glue_crawler" {
+  name        = "sqs_messages_glue_crawler"
+  role        = aws_iam_role.glue_crawler_role.arn
+  database_name = var.default_glue_database_name
+
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/sqs_messages/"
+  }
+
+  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+
+  configuration = jsonencode({
+    "Version" = 1.0,
+    "CrawlerOutput" = {
+      "Partitions" = {
+        "AddOrUpdateBehavior" = "InheritFromTable"
+      }
+    }
+  })
+}
+
+
 
 resource "aws_glue_crawler" "user_session_logs_glue_crawler" {
   name        = "user_session_logs_glue_crawler"

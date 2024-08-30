@@ -19,13 +19,15 @@ certifi==2024.8.30
 cffi==1.17.0
     # via cryptography
 click==8.1.7
-    # via atproto
+    # via
+    #   atproto
+    #   typer
 cryptography==42.0.8
     # via atproto
 dnspython==2.6.1
-    # via
-    #   atproto
-    #   pymongo
+    # via atproto
+exceptiongroup==1.2.2
+    # via anyio
 h11==0.14.0
     # via httpcore
 httpcore==1.0.5
@@ -42,12 +44,14 @@ jmespath==1.0.1
     #   botocore
 libipld==1.2.3
     # via atproto
+markdown-it-py==3.0.0
+    # via rich
+mdurl==0.1.2
+    # via markdown-it-py
 memory-profiler==0.61.0
     # via -r requirements.in
 numpy==1.26.4
-    # via
-    #   -r requirements.in
-    #   pandas
+    # via pandas
 pandas==2.2.0
     # via -r requirements.in
 psutil==6.0.0
@@ -60,8 +64,8 @@ pydantic==2.7.4
     #   atproto
 pydantic-core==2.18.4
     # via pydantic
-pymongo==4.7.1
-    # via -r requirements.in
+pygments==2.18.0
+    # via rich
 python-dateutil==2.9.0.post0
     # via
     #   botocore
@@ -70,20 +74,28 @@ python-dotenv==1.0.1
     # via -r requirements.in
 pytz==2024.1
     # via pandas
+rich==13.8.0
+    # via typer
 s3transfer==0.10.2
     # via boto3
+shellingham==1.5.4
+    # via typer
 six==1.16.0
     # via python-dateutil
 sniffio==1.3.1
     # via
     #   anyio
     #   httpx
+typer==0.12.3
+    # via -r requirements.in
 typing-extensions==4.12.2
     # via
     #   -r requirements.in
+    #   anyio
     #   atproto
     #   pydantic
     #   pydantic-core
+    #   typer
 tzdata==2024.1
     # via pandas
 urllib3==2.2.2

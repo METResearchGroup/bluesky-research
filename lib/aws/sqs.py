@@ -1,4 +1,5 @@
 """Wrapper client for AWS SQS."""
+
 import json
 from typing import Optional
 
@@ -38,7 +39,7 @@ class SQS:
         payload = {
             "source": source,
             "insert_timestamp": current_datetime_str,
-            "data": data
+            "data": data,
         }
         json_payload = json.dumps(payload)
         response = self.client.send_message(
@@ -47,10 +48,12 @@ class SQS:
             # make sure that messages from the same source are in the same
             # group, so that they're processed in order.
             MessageGroupId=source,
-            MessageDeduplicationId=str(hash(json_payload))
+            MessageDeduplicationId=str(hash(json_payload)),
         )
         if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
-            error_message = f"Failed to send message to queue {self.queue_url}: {response}"  # noqa
+            error_message = (
+                f"Failed to send message to queue {self.queue_url}: {response}"  # noqa
+            )
             logger.error(error_message)
             raise Exception(error_message)
         if custom_log:
@@ -60,9 +63,11 @@ class SQS:
     def receive_latest_messages(
         self,
         queue: Optional[str] = None,
-        max_num_messages: Optional[int] = 10,  # default 10 is max, see https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sqs/client/receive_message.html # noqa
+        max_num_messages: Optional[
+            int
+        ] = 10,  # default 10 is max, see https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sqs/client/receive_message.html # noqa
         latest_timestamp: Optional[str] = None,
-        visibility_timeout: int = default_visibility_timeout
+        visibility_timeout: int = default_visibility_timeout,
     ) -> list[dict]:
         """Receive messages from a queue.
 
@@ -90,6 +95,8 @@ class SQS:
         While debugging, should set `visibility_timeout` to something lower, like
         30 seconds. In production, should increase the timeout.
         """
+        if not queue:
+            queue = self.queue
         queue_url = queue_to_queue_url_map[queue]
         if not latest_timestamp:
             logger.warning(
@@ -104,7 +111,7 @@ class SQS:
                 QueueUrl=queue_url,
                 MaxNumberOfMessages=max_num_messages,
                 MessageAttributeNames=["All"],
-                VisibilityTimeout=visibility_timeout
+                VisibilityTimeout=visibility_timeout,
             )
         else:
             logger.info(f"Receiving all messages from the queue {queue}")
@@ -112,7 +119,7 @@ class SQS:
                 QueueUrl=queue_url,
                 AttributeNames=["All"],
                 MessageAttributeNames=["All"],
-                VisibilityTimeout=visibility_timeout
+                VisibilityTimeout=visibility_timeout,
             )
         # "Messages" won't be in the response if there are none to query.
         messages = response.get("Messages", [])
@@ -133,7 +140,7 @@ class SQS:
     def receive_all_messages(
         self,
         queue: Optional[str] = None,
-        visibility_timeout: int = default_visibility_timeout
+        visibility_timeout: int = default_visibility_timeout,
     ) -> list[dict]:
         """Receive all messages from a queue by polling multiple times.
 
@@ -148,14 +155,12 @@ class SQS:
             queue = self.queue
         while True:
             messages = self.receive_latest_messages(
-                queue=queue,
-                max_num_messages=10,
-                visibility_timeout=visibility_timeout
+                queue=queue, max_num_messages=10, visibility_timeout=visibility_timeout
             )
             if not messages:
                 break
             for message in messages:
-                message_id = message['MessageId']
+                message_id = message["MessageId"]
                 if message_id not in processed_message_ids:
                     processed_message_ids.add(message_id)
                     all_messages.append(message)
@@ -167,13 +172,10 @@ class SQS:
         total_messages_deleted = 0
         for message in messages:
             self.client.delete_message(
-                QueueUrl=self.queue_url,
-                ReceiptHandle=message['ReceiptHandle']
+                QueueUrl=self.queue_url, ReceiptHandle=message["ReceiptHandle"]
             )
             total_messages_deleted += 1
-        logger.info(
-            f"Deleted {total_messages_deleted} latest messages from the queue"
-        )
+        logger.info(f"Deleted {total_messages_deleted} latest messages from the queue")
 
     def clear_messages_in_queue(self):
         """Clear all messages in the queue."""

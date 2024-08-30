@@ -1,4 +1,5 @@
 """Helper functions for getting most liked Bluesky posts in the past day/week."""  # noqa
+
 import json
 import os
 from typing import Union
@@ -9,7 +10,8 @@ from lib.aws.s3 import S3, SYNC_KEY_ROOT
 from lib.aws.sqs import SQS
 from lib.constants import current_datetime_str, root_local_data_directory
 from lib.db.bluesky_models.transformations import (
-    TransformedFeedViewPostModel, TransformedRecordModel
+    TransformedFeedViewPostModel,
+    TransformedRecordModel,
 )
 from lib.db.manage_local_data import write_jsons_to_local_store
 from lib.log.logger import get_logger
@@ -28,22 +30,21 @@ logger = get_logger(__name__)
 feed_to_info_map = {
     "today": {
         "description": "Most popular posts from the last 24 hours",
-        "url": "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/catch-up"  # noqa
+        "url": "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/catch-up",  # noqa
     },
     "week": {
         "description": "Most popular posts from the last 7 days",
-        "url": "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/catch-up-weekly"  # noqa
-    }
+        "url": "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/catch-up-weekly",  # noqa
+    },
 }
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 sync_dir = "syncs"
 full_sync_dir = os.path.join(current_directory, sync_dir)
 # make new path if it doesn't exist and if not running in a lambda container.
-if not os.path.exists(full_sync_dir) and not os.path.exists('/app'):
+if not os.path.exists(full_sync_dir) and not os.path.exists("/app"):
     os.makedirs(full_sync_dir)
-sync_fp = os.path.join(
-    full_sync_dir, f"most_liked_posts_{current_datetime_str}.jsonl")
+sync_fp = os.path.join(full_sync_dir, f"most_liked_posts_{current_datetime_str}.jsonl")
 urls_fp = os.path.join(full_sync_dir, f"urls_{current_datetime_str}.csv")
 
 # task_name = "get_most_liked_posts"
@@ -62,30 +63,26 @@ def post_passed_filters(post: TransformedFeedViewPostModel) -> bool:
 
 
 def filter_posts(
-    posts: list[TransformedFeedViewPostModel]
+    posts: list[TransformedFeedViewPostModel],
 ) -> list[TransformedFeedViewPostModel]:
     """Filter the posts."""
     return list(filter(post_passed_filters, posts))
 
 
 def get_and_transform_latest_most_liked_posts(
-    feeds: list[str] = ["today", "week"]
+    feeds: list[str] = ["today", "week"],
 ) -> list[TransformedFeedViewPostModel]:
     """Get the latest batch of most liked posts and transform them."""
     res: list[TransformedFeedViewPostModel] = []
     for feed in feeds:
         feed_url = feed_to_info_map[feed]["url"]
-        enrichment_data = {
-            "source_feed": feed, "feed_url": feed_url
-        }
+        enrichment_data = {"source_feed": feed, "feed_url": feed_url}
         print(f"Getting most liked posts from {feed} feed with URL={feed_url}")
         posts: list[FeedViewPost] = get_posts_from_custom_feed_url(
             feed_url=feed_url, limit=None
         )
         transformed_posts: list[TransformedFeedViewPostModel] = (
-            transform_feedview_posts(
-                posts=posts, enrichment_data=enrichment_data
-            )
+            transform_feedview_posts(posts=posts, enrichment_data=enrichment_data)
         )
         res.extend(transformed_posts)
         print(f"Finished processing {len(posts)} posts from {feed} feed")
@@ -94,9 +91,9 @@ def get_and_transform_latest_most_liked_posts(
 
 def export_posts(
     new_posts: Union[list[ConsolidatedPostRecordModel], list[dict]],
-    store_local: bool = True,
+    store_local: bool = False,
     store_remote: bool = True,
-    send_sqs_message: bool = True
+    send_sqs_message: bool = True,
 ) -> None:
     """Export the posts to a file, either locally as a JSON or remote in S3.
 
@@ -117,38 +114,30 @@ def export_posts(
     filename = "posts.jsonl"
     if store_local:
         full_export_filepath = os.path.join(
-            root_local_data_directory,
-            root_most_liked_s3_key,
-            timestamp_key,
-            filename
+            root_local_data_directory, root_most_liked_s3_key, timestamp_key, filename
         )
         print(f"Exporting most liked posts to local store at {full_export_filepath}")  # noqa
         write_jsons_to_local_store(
             records=consolidated_post_dicts,
             export_filepath=full_export_filepath,
-            compressed=True
+            compressed=True,
         )
         print(f"Exported {len(posts)} posts to local store at {full_export_filepath}")  # noqa
     if store_remote:
-        full_key = os.path.join(
-            root_most_liked_s3_key, timestamp_key, filename
-        )
+        full_key = os.path.join(root_most_liked_s3_key, timestamp_key, filename)
         print(f"Exporting most liked posts to S3 at {full_key}")
-        s3.write_dicts_jsonl_to_s3(
-            data=consolidated_post_dicts, key=full_key
-        )
+        s3.write_dicts_jsonl_to_s3(data=consolidated_post_dicts, key=full_key)
         print(f"Exported {len(posts)} posts to S3 at {full_key}")
     if send_sqs_message and store_remote:
         # kick off SQS queue (only if files are written to S3)
-        logger.info(f"Sending message to SQS queue from most_liked feed for new posts at key={full_key}")  # noqa
-        sqs_data_payload = {
-            "sync": {
-                "source": "most_liked_feed",
-                "s3_key": full_key
-            }
-        }
+        logger.info(
+            f"Sending message to SQS queue from most_liked feed for new posts at key={full_key}"
+        )  # noqa
+        sqs_data_payload = {"sync": {"source": "most_liked_feed", "s3_key": full_key}}
         custom_log = f"Sending message to SQS queue from most_liked feed for new posts at key={full_key}"  # noqa
-        sqs.send_message(source="most_liked_feed", data=sqs_data_payload, custom_log=custom_log)  # noqa
+        sqs.send_message(
+            source="most_liked_feed", data=sqs_data_payload, custom_log=custom_log
+        )  # noqa
 
 
 def load_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:
@@ -157,9 +146,7 @@ def load_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:
     posts: list[dict] = []
     most_recent_filenames = sorted(sync_files)[-n_latest_local:]
     for filename in most_recent_filenames:
-        sync_fp = os.path.join(
-            current_directory, sync_dir, filename
-        )
+        sync_fp = os.path.join(current_directory, sync_dir, filename)
         print(f"Reading most recent sync file {sync_fp}")
         with open(sync_fp, "r") as f:
             posts.extend([json.loads(line) for line in f])
@@ -168,9 +155,7 @@ def load_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:
 
 def filter_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:
     """Filter the most recent local sync files."""
-    posts: list[dict] = load_most_recent_local_syncs(
-        n_latest_local=n_latest_local
-    )
+    posts: list[dict] = load_most_recent_local_syncs(n_latest_local=n_latest_local)
     transformed_posts: list[TransformedFeedViewPostModel] = [
         TransformedFeedViewPostModel(**post) for post in posts
     ]
@@ -183,9 +168,7 @@ def filter_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:
 def dump_most_recent_local_sync_to_remote() -> None:
     """Dump the most recent local sync to the remote MongoDB collection."""
     posts: list[dict] = load_most_recent_local_syncs()
-    export_posts(
-        posts=posts, store_local=False, store_remote=True
-    )
+    export_posts(posts=posts, store_local=False, store_remote=True)
 
 
 def main(
@@ -193,7 +176,7 @@ def main(
     n_latest_local: int = 1,
     store_local: bool = True,
     store_remote: bool = True,
-    feeds: list[str] = ["today", "week"]
+    feeds: list[str] = ["today", "week"],
 ) -> None:
     if use_latest_local:
         post_dicts: list[dict] = filter_most_recent_local_syncs(
@@ -213,8 +196,7 @@ def main(
     # NOTE: the type of the new_posts is dict but it's actually
     # the ConsolidatedPostRecordModel as a dict.
     export_posts(
-        new_posts=post_dicts, store_local=store_local,
-        store_remote=store_remote
+        new_posts=post_dicts, store_local=store_local, store_remote=store_remote
     )
 
 
