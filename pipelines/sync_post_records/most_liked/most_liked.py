@@ -9,9 +9,9 @@ def get_posts() -> None:
     try:
         args = {
             "use_latest_local": False,
-            "store_local": True,
+            "store_local": False,
             "store_remote": True,
-            "feeds": ["today"]
+            "feeds": ["today"],
         }
         get_most_liked_posts(**args)
         logger.info("Successfully got posts from the most liked feed.")

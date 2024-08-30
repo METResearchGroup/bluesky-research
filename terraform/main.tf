@@ -121,8 +121,8 @@ resource "aws_lambda_function" "sync_most_liked_feed_lambda" {
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.sync_most_liked_feed_service.repository_url}:latest"
   architectures = ["arm64"]
-  timeout       = 90 # 90 seconds timeout
-  memory_size   = 256 # 256 MB of memory
+  timeout       = 180 # 180 seconds timeout
+  memory_size   = 512 # 512 MB of memory
 
   lifecycle {
     ignore_changes = [image_uri]
