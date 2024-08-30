@@ -33,8 +33,7 @@ COPY pipelines/sync_post_records/most_liked/handler.py /app/handler.py
 WORKDIR /app/pipelines/sync_post_records/most_liked
 
 # install packages. Install fasttext from source to avoid dependency hell
-# hadolint ignore=DL3003,DL3027,DL3013,DL3042
-# Start of Selection
+# hadolint ignore=DL3003,DL3027,DL3013,DL3042,DL3032,DL3033
 RUN yum update -y && yum install -y git gcc-c++ \
     && pip install --no-cache-dir -r requirements.txt \
     && git clone https://github.com/facebookresearch/fastText.git \
