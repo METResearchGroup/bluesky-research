@@ -34,7 +34,8 @@ WORKDIR /app/pipelines/sync_post_records/most_liked
 
 # install packages. Install fasttext from source to avoid dependency hell
 # hadolint ignore=DL3003,DL3027,DL3013,DL3042
-RUN apt update && apt install -y git g++ \ 
+# Start of Selection
+RUN yum update -y && yum install -y git gcc-c++ \
     && pip install --no-cache-dir -r requirements.txt \
     && git clone https://github.com/facebookresearch/fastText.git \
     && cd fastText \
