@@ -22,7 +22,7 @@ def delete_old_objects(s3_client: S3, prefix: str) -> None:
     keys = s3_client.list_keys_given_prefix(prefix)
     logger.info(f"Loaded {len(keys)} objects from {prefix}")
     total_deleted_objects = 0
-    for key in keys:
+    for i, key in enumerate(keys):
         # Get the object's metadata to retrieve the last modified timestamp
         response = s3_client.client.head_object(Bucket=s3_client.bucket, Key=key)
         last_modified = response["LastModified"]
@@ -31,6 +31,10 @@ def delete_old_objects(s3_client: S3, prefix: str) -> None:
         if now - last_modified > timedelta(hours=24):
             s3_client.delete_from_s3(key)
             total_deleted_objects += 1
+        if i % 100 == 0:
+            logger.info(
+                f"Index={i}: Deleted {total_deleted_objects} old objects from {prefix}"
+            )
     logger.info(f"Deleted {total_deleted_objects} old objects from {prefix}")
 
 
