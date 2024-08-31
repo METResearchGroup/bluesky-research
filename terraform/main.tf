@@ -523,6 +523,7 @@ resource "aws_iam_policy" "lambda_access_policy" {
         Action = [
           "s3:AbortMultipartUpload",
           "s3:CreateBucket",
+          "s3:DeleteObject",
           "s3:GetObject",
           "s3:GetBucketLocation", # https://repost.aws/knowledge-center/athena-output-bucket-error
           "s3:GetObjectVersion",
