@@ -1175,6 +1175,155 @@ resource "aws_glue_catalog_table" "preprocessed_most_liked_posts" {
   }
 }
 
+resource "aws_glue_catalog_table" "preprocessed_compressed_deduped_posts" {
+  database_name = aws_glue_catalog_database.default.name
+  name          = "preprocessed_compressed_deduped_posts"
+
+  table_type = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/compacted_deduped_data/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "indexed_at"
+      type = "string"
+    }
+    columns {
+      name = "author_did"
+      type = "string"
+    }
+    columns {
+      name = "author_handle"
+      type = "string"
+    }
+    columns {
+      name = "author_avatar"
+      type = "string"
+    }
+    columns {
+      name = "author_display_name"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "embed"
+      type = "string"
+    }
+    columns {
+      name = "entities"
+      type = "string"
+    }
+    columns {
+      name = "facets"
+      type = "string"
+    }
+    columns {
+      name = "labels"
+      type = "string"
+    }
+    columns {
+      name = "langs"
+      type = "string"
+    }
+    columns {
+      name = "reply_parent"
+      type = "string"
+    }
+    columns {
+      name = "reply_root"
+      type = "string"
+    }
+    columns {
+      name = "tags"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+    columns {
+      name = "url"
+      type = "string"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "like_count"
+      type = "string"
+    }
+    columns {
+      name = "reply_count"
+      type = "string"
+    }
+    columns {
+      name = "repost_count"
+      type = "string"
+    }
+    columns {
+      name = "passed_filters"
+      type = "string"
+    }
+    columns {
+      name = "filtered_at"
+      type = "string"
+    }
+    columns {
+      name = "filtered_by_func"
+      type = "string"
+    }
+    columns {
+      name = "preprocessing_timestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "string"
+  }
+  partition_keys {
+    name = "month"
+    type = "string"
+  }
+  partition_keys {
+    name = "day"
+    type = "string"
+  }
+  partition_keys {
+    name = "hour"
+    type = "string"
+  }
+  partition_keys {
+    name = "minute"
+    type = "string"
+  }
+}
+
+
 
 # Glue crawler, to make sure that new partitions are registered and added
 # to the respective Glue tables.
@@ -1248,6 +1397,10 @@ resource "aws_glue_crawler" "preprocessed_posts_crawler" {
 
   s3_target {
     path = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/firehose/"
+  }
+
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/compacted_deduped_data/"
   }
 
   schedule = "cron(0 */6 * * ? *)"  # Every 6 hours

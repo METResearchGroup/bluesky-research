@@ -21,6 +21,8 @@ pd.set_option("display.max_columns", None)
 pd.set_option("max_colwidth", None)
 
 
+# TODO: at some point, I should split up the compressed files tbh
+# into files of size X (not sure if I will get to that scale).
 def export_preprocessed_posts(posts: list[FilteredPreprocessedPostModel]):
     """Exports the deduped and compacted preprocessed posts to S3."""
     partition_key = S3.create_partition_key_based_on_timestamp(
@@ -70,16 +72,16 @@ def compact_dedupe_preprocessed_data():
     )
     df_dicts = df.to_dict(orient="records")
     logger.info(f"Number of posts after dedupe: {len(df_dicts)}")
+    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     df_dict_models = [FilteredPreprocessedPostModel(**df_dict) for df_dict in df_dicts]
     # load existing keys from S3 (load before exporting new file so that
     # we have all the key names for the non-compacted files).
     existing_keys: list[str] = get_existing_keys()
     logger.info(f"Number of existing keys: {len(existing_keys)}")
     # export new file to S3.
-    breakpoint()
     export_preprocessed_posts(df_dict_models)
     # drop existing keys from S3.
-    # delete_keys(existing_keys) # TODO: verify that the approach works.
+    delete_keys(existing_keys)
     logger.info("Successfully compacted dedupe preprocessed data")
 
 
