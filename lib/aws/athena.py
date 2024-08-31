@@ -129,6 +129,7 @@ class Athena:
         source_tables: list = [
             "preprocessed_firehose_posts",
             "preprocessed_most_liked_posts",
+            "preprocessed_compressed_deduped_posts",
         ],  # noqa
     ) -> list[FilteredPreprocessedPostModel]:  # noqa
         where_filter = (

@@ -69,6 +69,10 @@ resource "aws_ecr_repository" "calculate_superposters_service" {
   name = "calculate_superposters_service"
 }
 
+resource "aws_ecr_repository" "compact_dedupe_data_service" {
+  name = "compact_dedupe_data_service"
+}
+
 resource "aws_ecr_repository" "consume_sqs_messages_service" {
   name = "consume_sqs_messages_service"
 }
@@ -185,6 +189,24 @@ resource "aws_cloudwatch_log_group" "consume_sqs_messages_lambda_log_group" {
   retention_in_days = 7
 }
 
+resource "aws_lambda_function" "compact_dedupe_data_lambda" {
+  function_name = "compact_dedupe_data_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.compact_dedupe_data_service.repository_url}:latest"
+  architectures = ["arm64"]
+  timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
+  memory_size   = 512 # 512 MB of memory
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "compact_dedupe_data_lambda_log_group" {
+  name              = "/aws/lambda/compact_dedupe_data_lambda"
+  retention_in_days = 7
+}
 
 ### Event rules triggers ###
 
@@ -248,6 +270,25 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consume_sqs_message
   source_arn    = aws_cloudwatch_event_rule.consume_sqs_messages_event_rule.arn
 }
 
+# Trigger for compact_dedupe_data_lambda every 8 hours.
+resource "aws_cloudwatch_event_rule" "compact_dedupe_data_event_rule" {
+  name                = "compact_dedupe_data_event_rule"
+  schedule_expression = "cron(0 0/8 * * ? *)"  # Triggers every 8 hours
+}
+
+resource "aws_cloudwatch_event_target" "compact_dedupe_data_event_target" {
+  rule      = aws_cloudwatch_event_rule.compact_dedupe_data_event_rule.name
+  target_id = "compactDedupeDataLambda"
+  arn       = aws_lambda_function.compact_dedupe_data_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_compact_dedupe_data" {
+  statement_id  = "AllowExecutionFromCloudWatchCompactDedupeData"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.compact_dedupe_data_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.compact_dedupe_data_event_rule.arn
+}
 
 
 ### API Gateway ###
@@ -1175,6 +1216,155 @@ resource "aws_glue_catalog_table" "preprocessed_most_liked_posts" {
   }
 }
 
+resource "aws_glue_catalog_table" "preprocessed_compressed_deduped_posts" {
+  database_name = aws_glue_catalog_database.default.name
+  name          = "preprocessed_compressed_deduped_posts"
+
+  table_type = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/compacted_deduped_data/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "indexed_at"
+      type = "string"
+    }
+    columns {
+      name = "author_did"
+      type = "string"
+    }
+    columns {
+      name = "author_handle"
+      type = "string"
+    }
+    columns {
+      name = "author_avatar"
+      type = "string"
+    }
+    columns {
+      name = "author_display_name"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "embed"
+      type = "string"
+    }
+    columns {
+      name = "entities"
+      type = "string"
+    }
+    columns {
+      name = "facets"
+      type = "string"
+    }
+    columns {
+      name = "labels"
+      type = "string"
+    }
+    columns {
+      name = "langs"
+      type = "string"
+    }
+    columns {
+      name = "reply_parent"
+      type = "string"
+    }
+    columns {
+      name = "reply_root"
+      type = "string"
+    }
+    columns {
+      name = "tags"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+    columns {
+      name = "url"
+      type = "string"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "like_count"
+      type = "string"
+    }
+    columns {
+      name = "reply_count"
+      type = "string"
+    }
+    columns {
+      name = "repost_count"
+      type = "string"
+    }
+    columns {
+      name = "passed_filters"
+      type = "string"
+    }
+    columns {
+      name = "filtered_at"
+      type = "string"
+    }
+    columns {
+      name = "filtered_by_func"
+      type = "string"
+    }
+    columns {
+      name = "preprocessing_timestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "year"
+    type = "string"
+  }
+  partition_keys {
+    name = "month"
+    type = "string"
+  }
+  partition_keys {
+    name = "day"
+    type = "string"
+  }
+  partition_keys {
+    name = "hour"
+    type = "string"
+  }
+  partition_keys {
+    name = "minute"
+    type = "string"
+  }
+}
+
+
 
 # Glue crawler, to make sure that new partitions are registered and added
 # to the respective Glue tables.
@@ -1248,6 +1438,10 @@ resource "aws_glue_crawler" "preprocessed_posts_crawler" {
 
   s3_target {
     path = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/firehose/"
+  }
+
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/preprocessed_data/post/compacted_deduped_data/"
   }
 
   schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
