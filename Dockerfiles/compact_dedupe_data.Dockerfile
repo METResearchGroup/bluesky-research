@@ -15,6 +15,7 @@ COPY lib/helper.py ./lib/helper.py
 COPY lib/log/logger.py ./lib/log/logger.py
 
 COPY services/compact_dedupe_data/helper.py ./services/compact_dedupe_data/helper.py
+COPY services/preprocess_raw_data/models.py ./services/preprocess_raw_data/models.py
 
 # copy handler code to /app
 COPY pipelines/compact_dedupe_data/__init__.py /app/__init__.py
