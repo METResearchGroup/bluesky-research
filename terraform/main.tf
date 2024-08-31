@@ -69,6 +69,10 @@ resource "aws_ecr_repository" "calculate_superposters_service" {
   name = "calculate_superposters_service"
 }
 
+resource "aws_ecr_repository" "compact_dedupe_data_service" {
+  name = "compact_dedupe_data_service"
+}
+
 resource "aws_ecr_repository" "consume_sqs_messages_service" {
   name = "consume_sqs_messages_service"
 }
@@ -185,6 +189,24 @@ resource "aws_cloudwatch_log_group" "consume_sqs_messages_lambda_log_group" {
   retention_in_days = 7
 }
 
+resource "aws_lambda_function" "compact_dedupe_data_lambda" {
+  function_name = "compact_dedupe_data_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.compact_dedupe_data_service.repository_url}:latest"
+  architectures = ["arm64"]
+  timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
+  memory_size   = 512 # 512 MB of memory
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "compact_dedupe_data_lambda_log_group" {
+  name              = "/aws/lambda/compact_dedupe_data_lambda"
+  retention_in_days = 7
+}
 
 ### Event rules triggers ###
 
@@ -248,6 +270,25 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consume_sqs_message
   source_arn    = aws_cloudwatch_event_rule.consume_sqs_messages_event_rule.arn
 }
 
+# Trigger for compact_dedupe_data_lambda every 8 hours.
+resource "aws_cloudwatch_event_rule" "compact_dedupe_data_event_rule" {
+  name                = "compact_dedupe_data_event_rule"
+  schedule_expression = "cron(0 0/8 * * ? *)"  # Triggers every 8 hours
+}
+
+resource "aws_cloudwatch_event_target" "compact_dedupe_data_event_target" {
+  rule      = aws_cloudwatch_event_rule.compact_dedupe_data_event_rule.name
+  target_id = "compactDedupeDataLambda"
+  arn       = aws_lambda_function.compact_dedupe_data_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_compact_dedupe_data" {
+  statement_id  = "AllowExecutionFromCloudWatchCompactDedupeData"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.compact_dedupe_data_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.compact_dedupe_data_event_rule.arn
+}
 
 
 ### API Gateway ###
