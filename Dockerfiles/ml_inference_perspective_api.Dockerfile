@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM public.ecr.aws/lambda/python:3.10
 
 WORKDIR /app
 
@@ -23,10 +23,20 @@ COPY services/ml_inference/perspective_api/ ./services/ml_inference/perspective_
 COPY services/preprocess_raw_data/export_data.py ./services/preprocess_raw_data/export_data.py
 COPY services/preprocess_raw_data/models.py ./services/preprocess_raw_data/models.py
 
+# copy handler code to /app
+COPY pipelines/classify_records/perspective_api/__init__.py /app/__init__.py
+COPY pipelines/classify_records/perspective_api/handler.py /app/handler.py
+
 WORKDIR /app/pipelines/classify_records/perspective_api/
 
-RUN pip install --no-cache-dir -r requirements.txt
+# hadolint ignore=DL3003,DL3013,DL3042
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir awslambdaric
+
+WORKDIR /app
 
 ENV PYTHONPATH=/app
 
-CMD ["python", "perspective_api.py"]
+ENTRYPOINT ["python", "-m", "awslambdaric"]
+
+CMD ["handler.lambda_handler"]
