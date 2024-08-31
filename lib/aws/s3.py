@@ -34,6 +34,7 @@ class S3:
 
     def __init__(self):
         self.client = create_client("s3")
+        self.bucket = ROOT_BUCKET
 
     @retry_on_aws_rate_limit
     def list_buckets(self) -> list[str]:
