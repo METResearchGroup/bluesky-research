@@ -119,7 +119,7 @@ resource "aws_lambda_function" "sync_most_liked_feed_lambda" {
   image_uri     = "${aws_ecr_repository.sync_most_liked_feed_service.repository_url}:latest"
   architectures = ["arm64"]
   timeout       = 180 # 180 seconds timeout
-  memory_size   = 512 # 512 MB of memory
+  memory_size   = 768 # 768 MB of memory. Think that the fasttext inference takes up memory.
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -208,6 +208,26 @@ resource "aws_cloudwatch_log_group" "compact_dedupe_data_lambda_log_group" {
   retention_in_days = 7
 }
 
+resource "aws_lambda_function" "ml_inference_perspective_api_lambda" {
+  function_name = "ml_inference_perspective_api_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.ml_inference_perspective_api_service.repository_url}:latest"
+  architectures = ["arm64"]
+  timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
+  memory_size   = 512 # 512 MB of memory
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "ml_inference_perspective_api_lambda_log_group" {
+  name              = "/aws/lambda/ml_inference_perspective_api_lambda"
+  retention_in_days = 7
+}
+
+
 ### Event rules triggers ###
 
 # 24-hour sync for most liked feed.
@@ -288,6 +308,25 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_compact_dedupe_data
   function_name = aws_lambda_function.compact_dedupe_data_lambda.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.compact_dedupe_data_event_rule.arn
+}
+
+resource "aws_cloudwatch_event_rule" "perspective_api_event_rule" {
+  name                = "perspective_api_event_rule"
+  schedule_expression = "cron(0 0/4 * * ? *)"  # Triggers every 4 hours
+}
+
+resource "aws_cloudwatch_event_target" "perspective_api_event_target" {
+  rule      = aws_cloudwatch_event_rule.perspective_api_event_rule.name
+  target_id = "perspectiveApiLambda"
+  arn       = aws_lambda_function.ml_inference_perspective_api_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_perspective_api" {
+  statement_id  = "AllowExecutionFromCloudWatchPerspectiveAPI"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ml_inference_perspective_api_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.perspective_api_event_rule.arn
 }
 
 
@@ -523,6 +562,7 @@ resource "aws_iam_policy" "lambda_access_policy" {
         Action = [
           "s3:AbortMultipartUpload",
           "s3:CreateBucket",
+          "s3:DeleteObject",
           "s3:GetObject",
           "s3:GetBucketLocation", # https://repost.aws/knowledge-center/athena-output-bucket-error
           "s3:GetObjectVersion",
