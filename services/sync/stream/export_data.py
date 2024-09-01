@@ -48,6 +48,7 @@ from typing import Literal, Optional
 import uuid
 
 from lib.aws.dynamodb import DynamoDB
+from lib.aws.glue import Glue
 from lib.aws.s3 import S3
 from lib.aws.sqs import SQS
 from lib.constants import root_local_data_directory
@@ -130,6 +131,7 @@ in_network_user_activity_create_post_local_path = os.path.join(
     in_network_user_activity_root_local_path, "create", "post"
 )
 
+glue = Glue()
 s3 = S3()
 dynamodb = DynamoDB()
 sqs = SQS("firehoseSyncsToBeProcessedQueue")
@@ -556,18 +558,19 @@ def export_in_network_user_activity_local_data():
         )  # noqa
     # send SQS message referencing all posts.
     if len(all_s3_keys) > 0:
-        sqs.send_message(
-            source="firehose",
-            data={
-                "sync": {
-                    "source": "in-network-user-activity",
-                    "operation": "create",
-                    "operation_type": "post",
-                    "s3_keys": all_s3_keys,
-                }
-            },
-            custom_log=f"Sending message to SQS queue from firehose feed for new posts at {all_s3_keys}",  # noqa
-        )
+        payload = {
+            "sync": {
+                "source": "in-network-user-activity",
+                "operation": "create",
+                "operation_type": "post",
+                "s3_keys": all_s3_keys,
+            }
+        }
+        s3.send_queue_message(source="most_liked", data=payload)
+        glue.start_crawler("queue_messages_crawler")
+        logger.info(
+            f"Completed sending message to SQS queue from firehose feed for new posts at {all_s3_keys}"
+        )  # noqa
 
 
 def export_batch(
