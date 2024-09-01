@@ -188,6 +188,18 @@ def do_rank_score_feeds():
     consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = (
         load_latest_consolidated_enriched_posts()
     )
+    unique_uris = set()
+    deduplicated_consolidated_enriched_posts = []
+
+    for post in consolidated_enriched_posts:
+        if post.uri not in unique_uris:
+            unique_uris.add(post.uri)
+            deduplicated_consolidated_enriched_posts.append(post)
+
+    logger.info(
+        f"Deduplicated posts from {len(consolidated_enriched_posts)} to {len(deduplicated_consolidated_enriched_posts)}."
+    )
+    consolidated_enriched_posts = deduplicated_consolidated_enriched_posts
     user_to_social_network_map: dict = load_user_social_network()
     superposter_dids: set[str] = load_latest_superposters()
     logger.info(f"Loaded {len(superposter_dids)} superposters.")  # noqa
