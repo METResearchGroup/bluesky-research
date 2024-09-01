@@ -1,25 +1,15 @@
-#!/bin/bash
+# This bash script will create a cron job that runs the sbatch submit_job.sh every 6 hours.
 
-#SBATCH -A p32375
-#SBATCH -p gengpu
-#SBATCH --gres=gpu:a100:1
-#SBATCH -N 1
-#SBATCH -n 1
-#SBATCH -t 0:30:00
-#SBATCH --mem=10G
-#SBATCH --job-name=generate_vector_embeddings_job_jya0297_%j
-#SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --mail-user=markptorres1@gmail.com
+# Get the current directory
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# NOTE: submit with `sbatch create_cron_job.sh`
+# 6 hours
+CRON_EXPRESSION="0 */6 * * *"
 
-# load conda env
-CONDA_PATH="/hpc/software/mamba/23.1.0/etc/profile.d/conda.sh"
+# Define the cron job command
+SBATCH_CRON_JOB="$CRON_EXPRESSION cd $DIR && sbatch submit_job.sh >> /projects/p32375/bluesky-research/lib/log/sbatch_log.log"
 
-# set pythonpath
-PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
+# Add the cron job to the current user's crontab
+(crontab -l 2>/dev/null; echo "$SBATCH_CRON_JOB") | crontab -
 
-source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
-echo "Starting slurm job."
-python handler.py
-echo "Completed slurm job."
+echo "Cron job created to run sbatch submit_job.sh every 6 hours."
