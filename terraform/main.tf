@@ -77,6 +77,10 @@ resource "aws_ecr_repository" "consume_sqs_messages_service" {
   name = "consume_sqs_messages_service"
 }
 
+resource "aws_ecr_repository" "consolidate_enrichment_integrations_service" {
+  name = "consolidate_enrichment_integrations_service"
+}
+
 resource "aws_ecr_repository" "feed_api_service" {
   name = "feed_api_service"
 }
@@ -215,6 +219,26 @@ resource "aws_cloudwatch_log_group" "compact_dedupe_data_lambda_log_group" {
   name              = "/aws/lambda/compact_dedupe_data_lambda"
   retention_in_days = 7
 }
+
+resource "aws_lambda_function" "consolidate_enrichment_integrations_lambda" {
+  function_name = "consolidate_enrichment_integrations_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.consolidate_enrichment_integrations_service.repository_url}:latest"
+  architectures = ["arm64"]
+  timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
+  memory_size   = 512 # 512 MB of memory
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "consolidate_enrichment_integrations_lambda_log_group" {
+  name              = "/aws/lambda/consolidate_enrichment_integrations_lambda"
+  retention_in_days = 7
+}
+
 
 resource "aws_lambda_function" "generate_vector_embeddings_lambda" {
   function_name = "generate_vector_embeddings_lambda"
@@ -394,6 +418,25 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sociopolitical" {
   function_name = aws_lambda_function.ml_inference_sociopolitical_lambda.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.sociopolitical_event_rule.arn
+}
+
+resource "aws_cloudwatch_event_rule" "consolidate_enrichment_integrations_event_rule" {
+  name                = "consolidate_enrichment_integrations_event_rule"
+  schedule_expression = "cron(0 0/4 * * ? *)"  # Triggers every 4 hours
+}
+
+resource "aws_cloudwatch_event_target" "consolidate_enrichment_integrations_event_target" {
+  rule      = aws_cloudwatch_event_rule.consolidate_enrichment_integrations_event_rule.name
+  target_id = "consolidateEnrichmentIntegrationsLambda"
+  arn       = aws_lambda_function.consolidate_enrichment_integrations_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consolidate_enrichment_integrations" {
+  statement_id  = "AllowExecutionFromCloudWatchConsolidateEnrichmentIntegrations"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.consolidate_enrichment_integrations_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.consolidate_enrichment_integrations_event_rule.arn
 }
 
 
