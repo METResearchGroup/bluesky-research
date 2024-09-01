@@ -101,6 +101,10 @@ resource "aws_ecr_repository" "preprocess_raw_data_service" {
   name = "preprocess_raw_data_service"
 }
 
+resource "aws_ecr_repository" "rank_score_feeds_service" {
+  name = "rank_score_feeds_service"
+}
+
 resource "aws_ecr_repository" "sync_firehose_stream_service" {
   name = "sync_firehose_stream_service"
 }
