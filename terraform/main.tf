@@ -220,6 +220,26 @@ resource "aws_cloudwatch_log_group" "compact_dedupe_data_lambda_log_group" {
   retention_in_days = 7
 }
 
+resource "aws_lambda_function" "consolidate_enrichment_integrations_lambda" {
+  function_name = "consolidate_enrichment_integrations_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.consolidate_enrichment_integrations_service.repository_url}:latest"
+  architectures = ["arm64"]
+  timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
+  memory_size   = 512 # 512 MB of memory
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "consolidate_enrichment_integrations_lambda_log_group" {
+  name              = "/aws/lambda/consolidate_enrichment_integrations_lambda"
+  retention_in_days = 7
+}
+
+
 resource "aws_lambda_function" "generate_vector_embeddings_lambda" {
   function_name = "generate_vector_embeddings_lambda"
   role          = aws_iam_role.lambda_exec.arn
