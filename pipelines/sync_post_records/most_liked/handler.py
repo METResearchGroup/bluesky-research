@@ -1,11 +1,12 @@
 """Lambda handler for getting most liked posts."""
 
 import json
+import traceback
 
-from lib.log.logger import Logger
+from lib.log.logger import get_logger
 from services.sync.most_liked_posts.helper import main as get_most_liked_posts
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 def lambda_handler(event, context):
@@ -24,10 +25,14 @@ def lambda_handler(event, context):
             "body": json.dumps("Get most liked posts completed successfully"),
         }
     except Exception as e:
-        logger.error(f"Error in getting most liked posts: {e}")
+        logger.error(
+            f"Error in getting most liked posts: {e}\n{traceback.format_exc()}"
+        )
         return {
             "statusCode": 500,
-            "body": json.dumps(f"Error in getting most liked posts: {str(e)}"),
+            "body": json.dumps(
+                f"Error in getting most liked posts: {e}\n{traceback.format_exc()}"
+            ),
         }
 
 

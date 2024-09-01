@@ -56,6 +56,19 @@ resource "aws_s3_bucket_lifecycle_configuration" "s3_ttl_lifecycle" {
       days = 1
     }
   }
+
+  rule {
+    id     = "DeleteQueueMessagesAfterOneDay"
+    status = "Enabled"
+
+    filter {
+      prefix = "queue_messages/"
+    }
+
+    expiration {
+      days = 1
+    }
+  }
 }
 
 
@@ -343,10 +356,10 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sync_most_liked_fee
   source_arn    = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.arn
 }
 
-# Trigger for preprocessing lambda every 20 minutes.
+# Trigger for preprocessing lambda every 45 minutes.
 resource "aws_cloudwatch_event_rule" "preprocess_raw_data_event_rule" {
   name                = "preprocess_raw_data_event_rule"
-  schedule_expression = "cron(0/20 * * * ? *)"  # Triggers every 20 minutes
+  schedule_expression = "cron(0/45 * * * ? *)"  # Triggers every 45 minutes
 }
 
 resource "aws_cloudwatch_event_target" "preprocess_raw_data_event_target" {
@@ -1533,6 +1546,62 @@ resource "aws_glue_catalog_table" "preprocessed_compressed_deduped_posts" {
     }
   }
 
+  partition_keys {
+    name = "year"
+    type = "string"
+  }
+  partition_keys {
+    name = "month"
+    type = "string"
+  }
+  partition_keys {
+    name = "day"
+    type = "string"
+  }
+  partition_keys {
+    name = "hour"
+    type = "string"
+  }
+  partition_keys {
+    name = "minute"
+    type = "string"
+  }
+}
+
+resource "aws_glue_catalog_table" "queue_messages" {
+  database_name = aws_glue_catalog_database.default.name
+  name          = "queue_messages"
+
+  table_type = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/queue_messages/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "insert_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "data"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "message_source"
+    type = "string"
+  }
   partition_keys {
     name = "year"
     type = "string"
@@ -2834,9 +2903,28 @@ resource "aws_glue_crawler" "llm_sociopolitical_labels_glue_crawler" {
   })
 }
 
+resource "aws_glue_crawler" "queue_messages_crawler" {
+  name        = "queue_messages_crawler"
+  role        = aws_iam_role.glue_crawler_role.arn
+  database_name = var.default_glue_database_name
 
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/queue_messages/"
+  }
 
-### AWS Athena ###
+  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+
+  configuration = jsonencode({
+    "Version" = 1.0,
+    "CrawlerOutput" = {
+      "Partitions" = {
+        "AddOrUpdateBehavior" = "InheritFromTable"
+      }
+    }
+  })
+}
+
+### AWS Athena ###  
 
 # set default workgroup and output location for said workgroup.
 resource "aws_athena_workgroup" "prod_workgroup" {

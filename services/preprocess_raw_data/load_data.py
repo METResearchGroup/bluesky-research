@@ -1,13 +1,12 @@
 """Load raw data for preprocessing"""
+
 import os
 from typing import Literal, Optional
 
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import root_local_data_directory
-from lib.db.manage_local_data import (
-    load_jsonl_data, find_files_after_timestamp
-)
+from lib.db.manage_local_data import load_jsonl_data, find_files_after_timestamp
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
@@ -38,8 +37,7 @@ def load_previous_session_metadata():
 
 
 def load_latest_firehose_posts(
-    source: Literal["s3", "local"],
-    latest_preprocessing_timestamp: Optional[str] = None
+    source: Literal["s3", "local"], latest_preprocessing_timestamp: Optional[str] = None
 ) -> list[ConsolidatedPostRecordModel]:
     posts_sync_key = s3_export_key_map["create"]["post"]
     latest_partition_timestamp = (
@@ -52,7 +50,8 @@ def load_latest_firehose_posts(
     if source == "s3":
         keys = s3.list_keys_given_prefix(prefix=posts_sync_key)
         keys = [
-            key for key in keys
+            key
+            for key in keys
             if key > os.path.join(posts_sync_key, latest_partition_timestamp)
         ]
         jsonl_data: list[dict] = []
@@ -71,7 +70,7 @@ def load_latest_firehose_posts(
         # directory to find the files that are newer than the timestamp.
         files_to_load: list[str] = find_files_after_timestamp(
             base_path=full_import_filedir,
-            target_timestamp_path=latest_partition_timestamp
+            target_timestamp_path=latest_partition_timestamp,
         )
         jsonl_data: list[dict] = []
         for filepath in files_to_load:
@@ -85,8 +84,7 @@ def load_latest_firehose_posts(
 
 
 def load_latest_most_liked_posts(
-    source: Literal["s3", "local"],
-    latest_preprocessing_timestamp: Optional[str] = None
+    source: Literal["s3", "local"], latest_preprocessing_timestamp: Optional[str] = None
 ) -> list[ConsolidatedPostRecordModel]:
     latest_partition_timestamp = (
         S3.create_partition_key_based_on_timestamp(latest_preprocessing_timestamp)  # noqa
@@ -94,10 +92,9 @@ def load_latest_most_liked_posts(
     if source == "s3":
         keys = s3.list_keys_given_prefix(prefix=root_most_liked_s3_key)
         keys = [
-            key for key in keys
-            if key > os.path.join(
-                root_most_liked_s3_key, latest_partition_timestamp
-            )
+            key
+            for key in keys
+            if key > os.path.join(root_most_liked_s3_key, latest_partition_timestamp)
         ]
         jsonl_data: list[dict] = []
         for key in keys:
@@ -112,7 +109,7 @@ def load_latest_most_liked_posts(
         )
         files_to_load: list[str] = find_files_after_timestamp(
             base_path=full_import_filedir,
-            target_timestamp_path=latest_partition_timestamp
+            target_timestamp_path=latest_partition_timestamp,
         )
         jsonl_data: list[dict] = []
         for filepath in files_to_load:
@@ -155,7 +152,9 @@ def load_latest_posts(post_keys: list[str]) -> list[ConsolidatedPostRecordModel]
     for key in post_keys:
         data = s3.read_jsonl_from_s3(key)
         if not data:
-            logger.warning(f"No data found for key {key}. Check if keys are correct. For example, a firehose post likely should end in '.gz'.")  # noqa
+            logger.warning(
+                f"No data found for key {key}. Check if keys are correct. For example, a firehose post likely should end in '.gz'."
+            )  # noqa
             continue
         else:
             if key.endswith(".gz"):
@@ -166,18 +165,23 @@ def load_latest_posts(post_keys: list[str]) -> list[ConsolidatedPostRecordModel]
     transformed_jsonl_data: list[ConsolidatedPostRecordModel] = [
         ConsolidatedPostRecordModel(**post) for post in jsonl_data
     ]
-    return transformed_jsonl_data
+    # dedupe posts
+    unique_posts = {}
+    res = []
+    for post in transformed_jsonl_data:
+        if post.uri not in unique_posts:
+            unique_posts[post.uri] = post
+            res.append(post)
+    return res
 
 
 def load_latest_likes(
-    source: Literal["s3", "local"],
-    latest_preprocessing_timestamp: Optional[str] = None
+    source: Literal["s3", "local"], latest_preprocessing_timestamp: Optional[str] = None
 ):
     return []
 
 
 def load_latest_follows(
-    source: Literal["s3", "local"],
-    latest_preprocessing_timestamp: Optional[str] = None
+    source: Literal["s3", "local"], latest_preprocessing_timestamp: Optional[str] = None
 ):
     return []

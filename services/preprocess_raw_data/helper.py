@@ -11,8 +11,8 @@ from lib.helper import track_performance
 from lib.log.logger import Logger
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.preprocess_raw_data.export_data import (
-    export_latest_follows,
-    export_latest_likes,
+    # export_latest_follows,
+    # export_latest_likes,
     export_latest_preprocessed_posts,
     export_session_metadata,
 )
@@ -22,8 +22,8 @@ from services.preprocess_raw_data.load_data import (
 )
 from services.preprocess_raw_data.preprocess import (
     preprocess_latest_posts,
-    preprocess_latest_likes,
-    preprocess_latest_follows,
+    # preprocess_latest_likes,
+    # preprocess_latest_follows,
 )
 
 DEFAULT_BATCH_SIZE = 100000
@@ -59,29 +59,31 @@ def init_session_data(previous_timestamp: str) -> dict:
                 },
             }
         },
-        "latest_processed_insert_timestamp": None,
+        # let's set, by default, the latest processed insert_timestamp
+        # to be equal to the timestamp of the previous session.
+        "latest_processed_insert_timestamp": previous_timestamp,
     }
 
 
 def load_latest_sqs_messages_from_athena(
-    queue_name: str,
+    source: str,
     limit: Optional[int] = None,
     latest_processed_insert_timestamp: Optional[str] = None,
 ) -> list[dict]:
-    """Load the latest Firehose SQS sync messages."""
+    """Load the latest sync messages."""
     where_condition = (
         f"insert_timestamp > '{latest_processed_insert_timestamp}'"
         if latest_processed_insert_timestamp
         else "1=1"
     )
     where_clause = f"""
-    WHERE queue_name = '{queue_name}'
+    WHERE source = '{source}'
     AND {where_condition}
     """
     limit_clause = f"LIMIT {limit}" if limit else ""
     # get the oldest messages first.
     query = f"""
-    SELECT * FROM sqs_messages
+    SELECT * FROM queue_messages
     {where_clause}
     {limit_clause}
     ORDER BY insert_timestamp ASC
@@ -114,7 +116,7 @@ def load_latest_sqs_sync_messages(
     if "in-network-user-activity" in sources:
         latest_firehose_sqs_sync_messages: list[dict] = (
             load_latest_sqs_messages_from_athena(
-                queue_name="firehoseSyncsToBeProcessedQueue",
+                source="firehose",
                 limit=None,
                 latest_processed_insert_timestamp=latest_processed_insert_timestamp,  # noqa
             )
@@ -127,7 +129,7 @@ def load_latest_sqs_sync_messages(
     if "most_liked" in sources:
         latest_most_liked_sqs_sync_messages: list[dict] = (
             load_latest_sqs_messages_from_athena(
-                queue_name="mostLikedSyncsToBeProcessedQueue",
+                source="most_liked",
                 limit=None,
                 latest_processed_insert_timestamp=latest_processed_insert_timestamp,
             )
@@ -212,54 +214,61 @@ def preprocess_latest_raw_data():
     latest_posts: list[ConsolidatedPostRecordModel] = load_latest_posts(
         post_keys=post_keys
     )  # noqa
-    latest_likes = []
-    latest_follows = []
+    # latest_likes = []
+    # latest_follows = []
 
     # we export only the posts that have passed preprocessing
-    passed_posts, posts_metadata = preprocess_latest_posts(latest_posts=latest_posts)  # noqa
-    preprocessed_likes, likes_metadata = preprocess_latest_likes(
-        latest_likes=latest_likes
-    )  # noqa
-    preprocessed_follows, follows_metadata = preprocess_latest_follows(
-        latest_follows=latest_follows
-    )  # noqa
-    # get the latest timestamp of the posts that have been processed.
-    firehose_posts = sqs_sync_messages["in-network-user-activity"]["create"]["post"]
-    firehose_insert_timestamps = [res["insert_timestamp"] for res in firehose_posts]
-    if firehose_insert_timestamps:
-        max_firehose_insert_timestamp = max(firehose_insert_timestamps)
-    else:
-        max_firehose_insert_timestamp = None
-    most_liked_posts = sqs_sync_messages["most_liked"]
-    most_liked_insert_timestamps = [res["insert_timestamp"] for res in most_liked_posts]
-    if most_liked_insert_timestamps:
-        max_most_liked_insert_timestamp = max(most_liked_insert_timestamps)
-    else:
-        max_most_liked_insert_timestamp = None
-    max_processed_insert_timestamp = (
-        max_firehose_insert_timestamp
-        if max_most_liked_insert_timestamp is None
-        else max_most_liked_insert_timestamp
-        if max_firehose_insert_timestamp is None
-        else max(max_firehose_insert_timestamp, max_most_liked_insert_timestamp)
-    )
+    if len(latest_posts) > 0:
+        passed_posts, posts_metadata = preprocess_latest_posts(
+            latest_posts=latest_posts
+        )  # noqa
+        # preprocessed_likes, likes_metadata = preprocess_latest_likes(
+        #     latest_likes=latest_likes
+        # )  # noqa
+        # preprocessed_follows, follows_metadata = preprocess_latest_follows(
+        #     latest_follows=latest_follows
+        # )  # noqa
+        # get the latest timestamp of the posts that have been processed.
+        firehose_posts = sqs_sync_messages["in-network-user-activity"]["create"]["post"]
+        firehose_insert_timestamps = [res["insert_timestamp"] for res in firehose_posts]
+        if firehose_insert_timestamps:
+            max_firehose_insert_timestamp = max(firehose_insert_timestamps)
+        else:
+            max_firehose_insert_timestamp = None
+        most_liked_posts = sqs_sync_messages["most_liked"]
+        most_liked_insert_timestamps = [
+            res["insert_timestamp"] for res in most_liked_posts
+        ]
+        if most_liked_insert_timestamps:
+            max_most_liked_insert_timestamp = max(most_liked_insert_timestamps)
+        else:
+            max_most_liked_insert_timestamp = None
+        max_processed_insert_timestamp = (
+            max_firehose_insert_timestamp
+            if max_most_liked_insert_timestamp is None
+            else max_most_liked_insert_timestamp
+            if max_firehose_insert_timestamp is None
+            else max(max_firehose_insert_timestamp, max_most_liked_insert_timestamp)
+        )
 
-    session_metadata["num_raw_records"]["posts"] = posts_metadata["num_posts"]
-    session_metadata["num_records_after_filtering"]["posts"] = posts_metadata[
-        "num_records_after_filtering"
-    ]["posts"]  # noqa
-    session_metadata["num_raw_records"]["likes"] = likes_metadata["num_likes"]
-    session_metadata["num_raw_records"]["follows"] = follows_metadata["num_follows"]
-    session_metadata["latest_processed_insert_timestamp"] = (
-        max_processed_insert_timestamp
-    )
+        session_metadata["num_raw_records"]["posts"] = posts_metadata["num_posts"]
+        session_metadata["num_records_after_filtering"]["posts"] = posts_metadata[
+            "num_records_after_filtering"
+        ]["posts"]  # noqa
+        # session_metadata["num_raw_records"]["likes"] = likes_metadata["num_likes"]
+        # session_metadata["num_raw_records"]["follows"] = follows_metadata["num_follows"]
+        session_metadata["latest_processed_insert_timestamp"] = (
+            max_processed_insert_timestamp
+        )
 
-    export_latest_preprocessed_posts(
-        latest_posts=passed_posts,
-        session_metadata=session_metadata,
-        external_stores=["s3"],
-    )
-    export_latest_likes(preprocessed_likes)
-    export_latest_follows(preprocessed_follows)
+        export_latest_preprocessed_posts(
+            latest_posts=passed_posts,
+            session_metadata=session_metadata,
+            external_stores=["s3"],
+        )
+    # export_latest_likes(preprocessed_likes)
+    # export_latest_follows(preprocessed_follows)
+    else:
+        logger.info("No posts to process.")
     export_session_metadata(session_metadata)
     logger.info(f"Preprocessing completed at {current_datetime_str}.")
