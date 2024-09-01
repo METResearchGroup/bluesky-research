@@ -15,9 +15,12 @@ COPY lib/helper.py ./lib/helper.py
 COPY lib/log/logger.py ./lib/log/logger.py
 
 COPY services/calculate_superposters/helper.py ./services/calculate_superposters/helper.py
+COPY services/calculate_superposters/models.py ./services/calculate_superposters/models.py
 COPY services/consolidate_enrichment_integrations/models.py ./services/consolidate_enrichment_integrations/models.py
 COPY services/participant_data/helper.py ./services/participant_data/helper.py
+COPY services/participant_data/mock_users.py ./services/participant_data/mock_users.py
 COPY services/participant_data/models.py ./services/participant_data/models.py
+COPY services/preprocess_raw_data/models.py ./services/preprocess_raw_data/models.py
 COPY services/rank_score_feeds/helper.py ./services/rank_score_feeds/helper.py
 COPY services/rank_score_feeds/models.py ./services/rank_score_feeds/models.py
 
