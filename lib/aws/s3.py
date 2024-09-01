@@ -6,12 +6,13 @@ import json
 import os
 import threading
 import time
-from typing import Optional
+from typing import Literal, Optional
 
 import botocore
 import pandas as pd
 
 from lib.aws.helper import create_client, retry_on_aws_rate_limit
+from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 ROOT_BUCKET = "bluesky-research"
@@ -272,3 +273,29 @@ class S3:
             f"year={year}/month={month}/day={day}/hour={hour}/minute={minute}"
         )
         return partition_key
+
+    def send_queue_message(
+        self,
+        source: Literal["firehose", "most_liked"],
+        data: dict,
+        timestamp: Optional[str] = None,
+    ):
+        """Writes a queue message to downstream services.
+
+        Done as an alternative to SQS (I kept getting bugs with SQS, I probably
+        just didn't implement it right tbh, and I need to ship and I know that
+        this approach is a hack but that it works).
+        """
+        timestamp = timestamp or generate_current_datetime_str()
+        timestamp_partition = self.create_partition_key_based_on_timestamp(timestamp)  # noqa
+        filename = f"{timestamp}.json"
+        payload = {
+            "source": source,
+            "insert_timestamp": timestamp,
+            "data": data,
+        }
+        full_key = os.path.join(
+            "queue_messages", f"message_source={source}", timestamp_partition, filename
+        )
+        self.write_dict_json_to_s3(data=payload, key=full_key)
+        logger.info(f"Wrote queue message for source={source} to S3 at key={full_key}")

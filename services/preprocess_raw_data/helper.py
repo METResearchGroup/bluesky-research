@@ -64,24 +64,24 @@ def init_session_data(previous_timestamp: str) -> dict:
 
 
 def load_latest_sqs_messages_from_athena(
-    queue_name: str,
+    source: str,
     limit: Optional[int] = None,
     latest_processed_insert_timestamp: Optional[str] = None,
 ) -> list[dict]:
-    """Load the latest Firehose SQS sync messages."""
+    """Load the latest sync messages."""
     where_condition = (
         f"insert_timestamp > '{latest_processed_insert_timestamp}'"
         if latest_processed_insert_timestamp
         else "1=1"
     )
     where_clause = f"""
-    WHERE queue_name = '{queue_name}'
+    WHERE source = '{source}'
     AND {where_condition}
     """
     limit_clause = f"LIMIT {limit}" if limit else ""
     # get the oldest messages first.
     query = f"""
-    SELECT * FROM sqs_messages
+    SELECT * FROM queue_messages
     {where_clause}
     {limit_clause}
     ORDER BY insert_timestamp ASC
@@ -114,7 +114,7 @@ def load_latest_sqs_sync_messages(
     if "in-network-user-activity" in sources:
         latest_firehose_sqs_sync_messages: list[dict] = (
             load_latest_sqs_messages_from_athena(
-                queue_name="firehoseSyncsToBeProcessedQueue",
+                source="firehose",
                 limit=None,
                 latest_processed_insert_timestamp=latest_processed_insert_timestamp,  # noqa
             )
@@ -127,7 +127,7 @@ def load_latest_sqs_sync_messages(
     if "most_liked" in sources:
         latest_most_liked_sqs_sync_messages: list[dict] = (
             load_latest_sqs_messages_from_athena(
-                queue_name="mostLikedSyncsToBeProcessedQueue",
+                source="most_liked",
                 limit=None,
                 latest_processed_insert_timestamp=latest_processed_insert_timestamp,
             )

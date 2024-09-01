@@ -6,6 +6,7 @@ from typing import Union
 
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost
 
+from lib.aws.glue import Glue
 from lib.aws.s3 import S3, SYNC_KEY_ROOT
 from lib.aws.sqs import SQS
 from lib.constants import current_datetime_str, root_local_data_directory
@@ -21,6 +22,7 @@ from services.preprocess_raw_data.classify_language.helper import record_is_engl
 from transform.bluesky_helper import get_posts_from_custom_feed_url
 from transform.transform_raw_data import transform_feedview_posts
 
+glue = Glue()
 s3 = S3()
 sqs = SQS("mostLikedSyncsToBeProcessedQueue")
 
@@ -129,15 +131,11 @@ def export_posts(
         s3.write_dicts_jsonl_to_s3(data=consolidated_post_dicts, key=full_key)
         print(f"Exported {len(posts)} posts to S3 at {full_key}")
     if send_sqs_message and store_remote:
-        # kick off SQS queue (only if files are written to S3)
-        logger.info(
-            f"Sending message to SQS queue from most_liked feed for new posts at key={full_key}"
-        )  # noqa
+        # I initially had this as an SQS message, but I had trouble implementing
+        # SQS so this'll just be written to S3.
         sqs_data_payload = {"sync": {"source": "most_liked_feed", "s3_key": full_key}}
-        custom_log = f"Sending message to SQS queue from most_liked feed for new posts at key={full_key}"  # noqa
-        sqs.send_message(
-            source="most_liked_feed", data=sqs_data_payload, custom_log=custom_log
-        )  # noqa
+        s3.send_queue_message(source="most_liked", data=sqs_data_payload)
+        glue.start_crawler("queue_messages_crawler")
 
 
 def load_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:
