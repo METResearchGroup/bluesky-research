@@ -56,6 +56,19 @@ resource "aws_s3_bucket_lifecycle_configuration" "s3_ttl_lifecycle" {
       days = 1
     }
   }
+
+  rule {
+    id     = "DeleteQueueMessagesAfterOneDay"
+    status = "Enabled"
+
+    filter {
+      prefix = "queue_messages/"
+    }
+
+    expiration {
+      days = 1
+    }
+  }
 }
 
 
