@@ -85,6 +85,10 @@ resource "aws_ecr_repository" "ml_inference_perspective_api_service" {
   name = "ml_inference_perspective_api_service"
 }
 
+resource "aws_ecr_repository" "ml_inference_sociopolitical_service" {
+  name = "ml_inference_sociopolitical_service"
+}
+
 resource "aws_ecr_repository" "preprocess_raw_data_service" {
   name = "preprocess_raw_data_service"
 }
@@ -227,6 +231,25 @@ resource "aws_cloudwatch_log_group" "ml_inference_perspective_api_lambda_log_gro
   retention_in_days = 7
 }
 
+resource "aws_lambda_function" "ml_inference_sociopolitical_lambda" {
+  function_name = "ml_inference_sociopolitical_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.ml_inference_sociopolitical_service.repository_url}:latest"
+  architectures = ["arm64"]
+  timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
+  memory_size   = 512 # 512 MB of memory
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "ml_inference_sociopolitical_lambda_log_group" {
+  name              = "/aws/lambda/ml_inference_sociopolitical_lambda"
+  retention_in_days = 7
+}
+
 
 ### Event rules triggers ###
 
@@ -310,6 +333,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_compact_dedupe_data
   source_arn    = aws_cloudwatch_event_rule.compact_dedupe_data_event_rule.arn
 }
 
+# Trigger ML lambdas every 4 hours.
 resource "aws_cloudwatch_event_rule" "perspective_api_event_rule" {
   name                = "perspective_api_event_rule"
   schedule_expression = "cron(0 0/4 * * ? *)"  # Triggers every 4 hours
@@ -327,6 +351,25 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_perspective_api" {
   function_name = aws_lambda_function.ml_inference_perspective_api_lambda.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.perspective_api_event_rule.arn
+}
+
+resource "aws_cloudwatch_event_rule" "sociopolitical_event_rule" {
+  name                = "sociopolitical_event_rule"
+  schedule_expression = "cron(0 0/4 * * ? *)"  # Triggers every 4 hours
+}
+
+resource "aws_cloudwatch_event_target" "sociopolitical_event_target" {
+  rule      = aws_cloudwatch_event_rule.sociopolitical_event_rule.name
+  target_id = "sociopoliticalLambda"
+  arn       = aws_lambda_function.ml_inference_sociopolitical_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sociopolitical" {
+  statement_id  = "AllowExecutionFromCloudWatchSociopolitical"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ml_inference_sociopolitical_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.sociopolitical_event_rule.arn
 }
 
 
