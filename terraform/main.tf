@@ -85,6 +85,10 @@ resource "aws_ecr_repository" "ml_inference_perspective_api_service" {
   name = "ml_inference_perspective_api_service"
 }
 
+resource "aws_ecr_repository" "ml_inference_sociopolitical_service" {
+  name = "ml_inference_sociopolitical_service"
+}
+
 resource "aws_ecr_repository" "preprocess_raw_data_service" {
   name = "preprocess_raw_data_service"
 }
