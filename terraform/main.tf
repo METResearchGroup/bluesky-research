@@ -420,6 +420,25 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sociopolitical" {
   source_arn    = aws_cloudwatch_event_rule.sociopolitical_event_rule.arn
 }
 
+resource "aws_cloudwatch_event_rule" "consolidate_enrichment_integrations_event_rule" {
+  name                = "consolidate_enrichment_integrations_event_rule"
+  schedule_expression = "cron(0 0/4 * * ? *)"  # Triggers every 4 hours
+}
+
+resource "aws_cloudwatch_event_target" "consolidate_enrichment_integrations_event_target" {
+  rule      = aws_cloudwatch_event_rule.consolidate_enrichment_integrations_event_rule.name
+  target_id = "consolidateEnrichmentIntegrationsLambda"
+  arn       = aws_lambda_function.consolidate_enrichment_integrations_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consolidate_enrichment_integrations" {
+  statement_id  = "AllowExecutionFromCloudWatchConsolidateEnrichmentIntegrations"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.consolidate_enrichment_integrations_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.consolidate_enrichment_integrations_event_rule.arn
+}
+
 
 ### API Gateway ###
 
