@@ -101,6 +101,10 @@ resource "aws_ecr_repository" "preprocess_raw_data_service" {
   name = "preprocess_raw_data_service"
 }
 
+resource "aws_ecr_repository" "rank_score_feeds_service" {
+  name = "rank_score_feeds_service"
+}
+
 resource "aws_ecr_repository" "sync_firehose_stream_service" {
   name = "sync_firehose_stream_service"
 }
@@ -298,6 +302,24 @@ resource "aws_cloudwatch_log_group" "ml_inference_sociopolitical_lambda_log_grou
   retention_in_days = 7
 }
 
+resource "aws_lambda_function" "rank_score_feeds_lambda" {
+  function_name = "rank_score_feeds_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.rank_score_feeds_service.repository_url}:latest"
+  architectures = ["arm64"]
+  timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
+  memory_size   = 512 # 512 MB of memory
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "rank_score_feeds_lambda_log_group" {
+  name              = "/aws/lambda/rank_score_feeds_lambda"
+  retention_in_days = 7
+}
 
 ### Event rules triggers ###
 
@@ -437,6 +459,25 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consolidate_enrichm
   function_name = aws_lambda_function.consolidate_enrichment_integrations_lambda.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.consolidate_enrichment_integrations_event_rule.arn
+}
+
+resource "aws_cloudwatch_event_rule" "rank_score_feeds_event_rule" {
+  name                = "rank_score_feeds_event_rule"
+  schedule_expression = "cron(0 0/8 * * ? *)"  # Triggers every 8 hours
+}
+
+resource "aws_cloudwatch_event_target" "rank_score_feeds_event_target" {
+  rule      = aws_cloudwatch_event_rule.rank_score_feeds_event_rule.name
+  target_id = "rankScoreFeedsLambda"
+  arn       = aws_lambda_function.rank_score_feeds_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_rank_score_feeds" {
+  statement_id  = "AllowExecutionFromCloudWatchRankScoreFeeds"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.rank_score_feeds_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.rank_score_feeds_event_rule.arn
 }
 
 
