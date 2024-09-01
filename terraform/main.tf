@@ -396,25 +396,6 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sociopolitical" {
   source_arn    = aws_cloudwatch_event_rule.sociopolitical_event_rule.arn
 }
 
-resource "aws_cloudwatch_event_rule" "generate_vector_embeddings_event_rule" {
-  name                = "generate_vector_embeddings_event_rule"
-  schedule_expression = "cron(0 0/4 * * ? *)"  # Triggers every 4 hours
-}
-
-resource "aws_cloudwatch_event_target" "generate_vector_embeddings_event_target" {
-  rule      = aws_cloudwatch_event_rule.generate_vector_embeddings_event_rule.name
-  target_id = "generateVectorEmbeddingsLambda"
-  arn       = aws_lambda_function.generate_vector_embeddings_lambda.arn
-}
-
-resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_generate_vector_embeddings" {
-  statement_id  = "AllowExecutionFromCloudWatchGenerateVectorEmbeddings"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.generate_vector_embeddings_lambda.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.generate_vector_embeddings_event_rule.arn
-}
-
 
 ### API Gateway ###
 
