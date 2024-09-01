@@ -566,7 +566,7 @@ def export_in_network_user_activity_local_data():
                 "s3_keys": all_s3_keys,
             }
         }
-        s3.send_queue_message(source="most_liked", data=payload)
+        s3.send_queue_message(source="firehose", data=payload)
         glue.start_crawler("queue_messages_crawler")
         logger.info(
             f"Completed sending message to S3 queue from firehose feed for new posts at {all_s3_keys}"
