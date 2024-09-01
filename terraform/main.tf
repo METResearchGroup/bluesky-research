@@ -81,6 +81,10 @@ resource "aws_ecr_repository" "feed_api_service" {
   name = "feed_api_service"
 }
 
+resource "aws_ecr_repository" "generate_vector_embeddings_service" {
+  name = "generate_vector_embeddings_service"
+}
+
 resource "aws_ecr_repository" "ml_inference_perspective_api_service" {
   name = "ml_inference_perspective_api_service"
 }
