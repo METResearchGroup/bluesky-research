@@ -6,7 +6,6 @@ WORKDIR /app
 COPY ../.env ./.env
 
 COPY pipelines/classify_records/perspective_api/ ./pipelines/classify_records/perspective_api/
-COPY pipelines/classify_records/helper.py ./pipelines/classify_records/helper.py
 
 COPY lib/aws/*.py ./lib/aws/
 COPY lib/constants.py ./lib/constants.py
@@ -18,6 +17,7 @@ COPY lib/log/logger.py ./lib/log/logger.py
 COPY ml_tooling/inference_helpers.py ./ml_tooling/inference_helpers.py
 COPY ml_tooling/perspective_api/ ./ml_tooling/perspective_api/
 
+COPY services/ml_inference/helper.py ./services/ml_inference/helper.py
 COPY services/ml_inference/models.py ./services/ml_inference/models.py
 COPY services/ml_inference/perspective_api/ ./services/ml_inference/perspective_api/
 COPY services/preprocess_raw_data/export_data.py ./services/preprocess_raw_data/export_data.py

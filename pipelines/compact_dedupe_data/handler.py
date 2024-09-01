@@ -1,10 +1,10 @@
 import json
 import traceback
 
-from lib.log.logger import Logger
+from lib.log.logger import get_logger
 from services.compact_dedupe_data.helper import compact_dedupe_preprocessed_data
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 def lambda_handler(event, context):

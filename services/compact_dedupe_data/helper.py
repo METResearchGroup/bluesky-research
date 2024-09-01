@@ -81,7 +81,7 @@ def compact_dedupe_preprocessed_data():
     # export new file to S3.
     export_preprocessed_posts(df_dict_models)
     # drop existing keys from S3.
-    delete_keys(existing_keys)
+    # delete_keys(existing_keys)
     logger.info("Successfully compacted dedupe preprocessed data")
 
 
