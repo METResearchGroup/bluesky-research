@@ -461,6 +461,25 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consolidate_enrichm
   source_arn    = aws_cloudwatch_event_rule.consolidate_enrichment_integrations_event_rule.arn
 }
 
+resource "aws_cloudwatch_event_rule" "rank_score_feeds_event_rule" {
+  name                = "rank_score_feeds_event_rule"
+  schedule_expression = "cron(0 0/8 * * ? *)"  # Triggers every 8 hours
+}
+
+resource "aws_cloudwatch_event_target" "rank_score_feeds_event_target" {
+  rule      = aws_cloudwatch_event_rule.rank_score_feeds_event_rule.name
+  target_id = "rankScoreFeedsLambda"
+  arn       = aws_lambda_function.rank_score_feeds_lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_rank_score_feeds" {
+  statement_id  = "AllowExecutionFromCloudWatchRankScoreFeeds"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.rank_score_feeds_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.rank_score_feeds_event_rule.arn
+}
+
 
 ### API Gateway ###
 
