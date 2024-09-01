@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -A jya0297
+#SBATCH -A p32375
 #SBATCH -p gengpu
 #SBATCH --gres=gpu:a100:1
 #SBATCH -N 1
