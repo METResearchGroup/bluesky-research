@@ -356,10 +356,10 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sync_most_liked_fee
   source_arn    = aws_cloudwatch_event_rule.sync_most_liked_feed_rule.arn
 }
 
-# Trigger for preprocessing lambda every 20 minutes.
+# Trigger for preprocessing lambda every 45 minutes.
 resource "aws_cloudwatch_event_rule" "preprocess_raw_data_event_rule" {
   name                = "preprocess_raw_data_event_rule"
-  schedule_expression = "cron(0/20 * * * ? *)"  # Triggers every 20 minutes
+  schedule_expression = "cron(0/45 * * * ? *)"  # Triggers every 45 minutes
 }
 
 resource "aws_cloudwatch_event_target" "preprocess_raw_data_event_target" {
