@@ -6,6 +6,8 @@
 #SBATCH -t 0:30:00
 #SBATCH --mem=10G
 
+# NOTE: submit with `sbatch create_cron_job.sh`
+
 # load conda env
 CONDA_PATH="/hpc/software/mamba/23.1.0/etc/profile.d/conda.sh"
 
