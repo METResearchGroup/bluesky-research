@@ -77,6 +77,10 @@ resource "aws_ecr_repository" "consume_sqs_messages_service" {
   name = "consume_sqs_messages_service"
 }
 
+resource "aws_ecr_repository" "consolidate_enrichment_integrations_service" {
+  name = "consolidate_enrichment_integrations_service"
+}
+
 resource "aws_ecr_repository" "feed_api_service" {
   name = "feed_api_service"
 }
