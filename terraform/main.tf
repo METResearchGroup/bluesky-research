@@ -1576,8 +1576,8 @@ resource "aws_glue_catalog_table" "queue_messages" {
 
   storage_descriptor {
     location      = "s3://${var.s3_root_bucket_name}/queue_messages/"
-    input_format  = "org.openx.data.jsonserde.JsonSerDe"
-    output_format = "org.apache.hadoop.hive.ql.io.HiveJsonOutputFormat"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
 
     ser_de_info {
       name                  = "JsonSerDe"
@@ -1599,7 +1599,7 @@ resource "aws_glue_catalog_table" "queue_messages" {
   }
 
   partition_keys {
-    name = "queue_message"
+    name = "message_source"
     type = "string"
   }
   partition_keys {
