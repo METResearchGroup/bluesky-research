@@ -216,6 +216,26 @@ resource "aws_cloudwatch_log_group" "compact_dedupe_data_lambda_log_group" {
   retention_in_days = 7
 }
 
+resource "aws_lambda_function" "generate_vector_embeddings_lambda" {
+  function_name = "generate_vector_embeddings_lambda"
+  role          = aws_iam_role.lambda_exec.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.generate_vector_embeddings_service.repository_url}:latest"
+  architectures = ["arm64"]
+  timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
+  memory_size   = 512 # 512 MB of memory
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "generate_vector_embeddings_lambda_log_group" {
+  name              = "/aws/lambda/generate_vector_embeddings_lambda"
+  retention_in_days = 7
+}
+
+
 resource "aws_lambda_function" "ml_inference_perspective_api_lambda" {
   function_name = "ml_inference_perspective_api_lambda"
   role          = aws_iam_role.lambda_exec.arn
