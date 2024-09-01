@@ -1568,6 +1568,62 @@ resource "aws_glue_catalog_table" "preprocessed_compressed_deduped_posts" {
   }
 }
 
+resource "aws_glue_catalog_table" "queue_messages" {
+  database_name = aws_glue_catalog_database.default.name
+  name          = "queue_messages"
+
+  table_type = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/queue_messages/"
+    input_format  = "org.openx.data.jsonserde.JsonSerDe"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveJsonOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "insert_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "data"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "queue_message"
+    type = "string"
+  }
+  partition_keys {
+    name = "year"
+    type = "string"
+  }
+  partition_keys {
+    name = "month"
+    type = "string"
+  }
+  partition_keys {
+    name = "day"
+    type = "string"
+  }
+  partition_keys {
+    name = "hour"
+    type = "string"
+  }
+  partition_keys {
+    name = "minute"
+    type = "string"
+  }
+}
+
 
 
 # Glue crawler, to make sure that new partitions are registered and added
@@ -2847,9 +2903,28 @@ resource "aws_glue_crawler" "llm_sociopolitical_labels_glue_crawler" {
   })
 }
 
+resource "aws_glue_crawler" "queue_messages_crawler" {
+  name        = "queue_messages_crawler"
+  role        = aws_iam_role.glue_crawler_role.arn
+  database_name = var.default_glue_database_name
 
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/queue_messages/"
+  }
 
-### AWS Athena ###
+  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+
+  configuration = jsonencode({
+    "Version" = 1.0,
+    "CrawlerOutput" = {
+      "Partitions" = {
+        "AddOrUpdateBehavior" = "InheritFromTable"
+      }
+    }
+  })
+}
+
+### AWS Athena ###  
 
 # set default workgroup and output location for said workgroup.
 resource "aws_athena_workgroup" "prod_workgroup" {

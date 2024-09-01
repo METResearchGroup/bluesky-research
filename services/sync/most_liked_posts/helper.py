@@ -6,6 +6,7 @@ from typing import Union
 
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost
 
+from lib.aws.glue import Glue
 from lib.aws.s3 import S3, SYNC_KEY_ROOT
 from lib.aws.sqs import SQS
 from lib.constants import current_datetime_str, root_local_data_directory
@@ -21,6 +22,7 @@ from services.preprocess_raw_data.classify_language.helper import record_is_engl
 from transform.bluesky_helper import get_posts_from_custom_feed_url
 from transform.transform_raw_data import transform_feedview_posts
 
+glue = Glue()
 s3 = S3()
 sqs = SQS("mostLikedSyncsToBeProcessedQueue")
 
@@ -133,6 +135,7 @@ def export_posts(
         # SQS so this'll just be written to S3.
         sqs_data_payload = {"sync": {"source": "most_liked_feed", "s3_key": full_key}}
         s3.send_queue_message(source="most_like", data=sqs_data_payload)
+        glue.start_crawler("queue_messages_crawler")
 
 
 def load_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:

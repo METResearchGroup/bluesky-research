@@ -294,6 +294,8 @@ class S3:
             "insert_timestamp": timestamp,
             "data": data,
         }
-        full_key = os.path.join("queue_messages", source, timestamp_partition, filename)  # noqa
+        full_key = os.path.join(
+            "queue_messages", f"message_source={source}", timestamp_partition, filename
+        )
         self.write_dict_json_to_s3(data=payload, key=full_key)
         logger.info(f"Wrote queue message for source={source} to S3 at key={full_key}")
