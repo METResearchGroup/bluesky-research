@@ -2,7 +2,6 @@
 
 import os
 
-from langchain_community.chat_models import ChatLiteLLM
 from litellm import acompletion, completion
 from litellm.utils import ModelResponse
 import tiktoken
@@ -118,13 +117,6 @@ BACKEND_OPTIONS = {
         },
     },
 }
-
-
-def get_langchain_litellm_chat_model(model_name: str = "Gemini") -> ChatLiteLLM:  # noqa
-    """Returns a Langchain LiteLLM chat model."""
-    model_dict = BACKEND_OPTIONS[model_name]
-    return ChatLiteLLM(model=model_dict["model"], model_kwargs=model_dict["kwargs"])
-
 
 # https://litellm.vercel.app/docs/completion/input
 # https://litellm.vercel.app/docs/completion/reliable_completions
