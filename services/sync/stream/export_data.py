@@ -260,6 +260,9 @@ def export_study_user_post_s3(base_path: str):
 
     The S3 key will be structured as follows:
     /study_user_activity/{author_did}/create/post/author_did={author_did}_post_uri_suffix={post_uri_suffix}.json
+
+    Also exports to the "daily_posts/" TTLed S3 path for the purposes of
+    calculating daily superposters.
     """  # noqa
     key_root: list[str] = base_path.split("/")[
         -3:
@@ -272,9 +275,12 @@ def export_study_user_post_s3(base_path: str):
     for path in posts_filenames:
         full_path = os.path.join(base_path, "post", path)
         full_key = os.path.join(base_key, path)
+        superposter_key = os.path.join("daily-posts", path)
         with open(full_path, "r") as f:
             data = json.load(f)
             s3.write_dict_json_to_s3(data=data, key=full_key)
+            superposter_dict = {"author_did": data["author_did"], "uri": data["uri"]}
+            s3.write_dict_json_to_s3(data=superposter_dict, key=superposter_key)
 
     logger.info(
         f"Exported {len(posts_filenames)} post records to S3 for study user DID {key_root[1]}."
