@@ -89,19 +89,23 @@ def calculate_latest_superposters(
         for _, row in superposters_df.iterrows()
     ]
 
-    output = SuperposterCalculationModel(
-        insert_date_timestamp=current_datetime_str,
-        insert_date=current_datetime.strftime("%Y-%m-%d"),
-        superposters=superposters,
-        method="top_n_percent" if top_n_percent is not None else "threshold",
-        top_n_percent=top_n_percent,
-        threshold=threshold,
-    )
-
-    output_dict = output.dict()
     timestamp = generate_current_datetime_str()
-    s3_full_key = os.path.join(s3_root_key, f"superposters_{timestamp}.json")
-    s3.write_dict_json_to_s3(data=output_dict, key=s3_full_key)
+    s3_full_key = None
+
+    if len(superposters) > 0:
+        output = SuperposterCalculationModel(
+            insert_date_timestamp=current_datetime_str,
+            insert_date=current_datetime.strftime("%Y-%m-%d"),
+            superposters=superposters,
+            method="top_n_percent" if top_n_percent is not None else "threshold",
+            top_n_percent=top_n_percent,
+            threshold=threshold,
+        )
+        output_dict = output.dict()
+        s3_full_key = os.path.join(s3_root_key, f"superposters_{timestamp}.json")
+        s3.write_dict_json_to_s3(data=output_dict, key=s3_full_key)
+    else:
+        logger.info("No superposters found. Not exporting file to S3.")
     superposter_calculation_session = {
         "insert_date_timestamp": timestamp,
         "insert_date": current_datetime.strftime("%Y-%m-%d"),

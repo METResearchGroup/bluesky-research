@@ -16,6 +16,8 @@ COPY lib/helper.py ./lib/helper.py
 COPY lib/log/logger.py ./lib/log/logger.py
 
 COPY services/calculate_superposters/helper.py ./services/calculate_superposters/helper.py
+COPY services/calculate_superposters/models.py ./services/calculate_superposters/models.py
+COPY services/preprocess_raw_data/models.py ./services/preprocess_raw_data/models.py
 
 # copy handler code to /app
 COPY pipelines/calculate_superposters/__init__.py /app/__init__.py
