@@ -1,17 +1,17 @@
 """Search by user."""
+
 from typing import Literal, Optional
 
-from atproto_client.models.app.bsky.actor.defs import (
-    ProfileView, ProfileViewDetailed
-)
+from atproto_client.models.app.bsky.actor.defs import ProfileView, ProfileViewDetailed
 
-from lib.helper import client
+from lib.helper import get_client
 from services.sync.search.helper import (
-    DEFAULT_LIMIT_RESULTS_PER_REQUEST, send_request_with_pagination
+    DEFAULT_LIMIT_RESULTS_PER_REQUEST,
+    send_request_with_pagination,
 )
-from transform.transform_raw_data import (
-    flatten_feed_view_post, FlattenedFeedViewPost
-)
+from transform.transform_raw_data import flatten_feed_view_post, FlattenedFeedViewPost
+
+client = get_client()
 
 
 def get_posts_by_user(
@@ -21,9 +21,9 @@ def get_posts_by_user(
         "posts_with_replies",
         "posts_no_replies",
         "posts_with_media",
-        "posts_and_author_threads"
+        "posts_and_author_threads",
     ] = "posts_with_replies",
-    limit: Optional[str] = DEFAULT_LIMIT_RESULTS_PER_REQUEST
+    limit: Optional[str] = DEFAULT_LIMIT_RESULTS_PER_REQUEST,
 ) -> list[FlattenedFeedViewPost]:
     """Get all the posts written by a user (and appears in their feed).
 
@@ -57,14 +57,13 @@ def get_posts_by_user(
         func=client.get_author_feed,
         kwargs={"actor": actor, "filter": filter},
         response_key="feed",
-        limit=limit
+        limit=limit,
     )
     return [flatten_feed_view_post(post) for post in author_feed]
 
 
 def get_profile_of_user(
-    author_handle: Optional[str] = None,
-    author_did: Optional[str] = None
+    author_handle: Optional[str] = None, author_did: Optional[str] = None
 ) -> ProfileViewDetailed:
     """Get the profile of a user.
 
@@ -97,7 +96,7 @@ def get_profile_of_user(
 def get_user_follows(
     author_handle: Optional[str] = None,
     author_did: Optional[str] = None,
-    limit: Optional[int] = DEFAULT_LIMIT_RESULTS_PER_REQUEST
+    limit: Optional[int] = DEFAULT_LIMIT_RESULTS_PER_REQUEST,
 ) -> list[ProfileView]:
     """Get a list of the user's follows.
 
@@ -125,7 +124,7 @@ def get_user_follows(
         func=client.get_follows,
         kwargs={"actor": actor},
         response_key="follows",
-        limit=limit
+        limit=limit,
     )
     return follows_list
 
@@ -133,7 +132,7 @@ def get_user_follows(
 def get_user_followers(
     author_handle: Optional[str] = None,
     author_did: Optional[str] = None,
-    limit: Optional[int] = DEFAULT_LIMIT_RESULTS_PER_REQUEST
+    limit: Optional[int] = DEFAULT_LIMIT_RESULTS_PER_REQUEST,
 ) -> list[ProfileView]:
     """Get a list of the user's followers.
 
@@ -162,7 +161,7 @@ def get_user_followers(
         func=client.get_followers,
         kwargs={"actor": actor},
         response_key="followers",
-        limit=limit
+        limit=limit,
     )
     return followers_list
 
