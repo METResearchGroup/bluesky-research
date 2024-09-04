@@ -84,7 +84,7 @@ def load_latest_perspective_api_labels(
 ) -> list[PerspectiveApiLabelsModel]:
     where_filter = f"label_timestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
     query = f"""
-    SELECT * FROM perspective_api_labels
+    SELECT * FROM ml_inference_perspective_api
     WHERE {where_filter}
     """
 
@@ -99,7 +99,7 @@ def load_latest_sociopolitical_labels(
 ) -> list[SociopoliticalLabelsModel]:
     where_filter = f"label_timestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
     query = f"""
-    SELECT * FROM llm_sociopolitical_labels
+    SELECT * FROM ml_inference_sociopolitical
     WHERE {where_filter}
     """
     df: pd.DataFrame = athena.query_results_as_df(query)
