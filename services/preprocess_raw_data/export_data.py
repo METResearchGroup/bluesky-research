@@ -19,7 +19,7 @@ s3 = S3()
 
 preprocessing_root_s3_key = "preprocessed_data"
 s3_export_key_map = {
-    "post": os.path.join(preprocessing_root_s3_key, "post"),
+    "post": os.path.join(preprocessing_root_s3_key, "preprocessed_posts"),
     "like": os.path.join(preprocessing_root_s3_key, "like"),
     "follow": os.path.join(preprocessing_root_s3_key, "follow"),
 }
@@ -57,7 +57,7 @@ def export_latest_preprocessed_posts(
 
     for feed_type, posts in feed_type_to_posts_tuples:
         full_key = os.path.join(
-            s3_export_key_map["post"], feed_type, partition_key, filename
+            s3_export_key_map["post"], f"source={feed_type}", partition_key, filename
         )  # noqa
         for external_store in external_stores:
             if external_store == "s3":
