@@ -124,23 +124,13 @@ class Athena:
         return df_dicts
 
     def get_latest_preprocessed_posts(
-        self,
-        timestamp: Optional[str],
-        source_tables: list = [
-            "preprocessed_firehose_posts",
-            "preprocessed_most_liked_posts",
-            "preprocessed_compressed_deduped_posts",
-        ],  # noqa
+        self, timestamp: Optional[str] = None
     ) -> list[FilteredPreprocessedPostModel]:  # noqa
         where_filter = (
             f"preprocessing_timestamp > '{timestamp}'" if timestamp else "1=1"
         )  # noqa
 
-        # default syncs both firehose and most-liked tables, but doesn't have to
-        # be the case.
-        query = " UNION ALL ".join(
-            [f"SELECT * FROM {table} WHERE {where_filter}" for table in source_tables]
-        )
+        query = f"SELECT * FROM preprocessed_posts WHERE {where_filter}"
 
         df: pd.DataFrame = self.query_results_as_df(query)
 
