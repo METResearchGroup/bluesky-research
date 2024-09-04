@@ -2633,11 +2633,7 @@ resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
   database_name = var.default_glue_database_name
 
   s3_target {
-    path = "s3://${var.s3_root_bucket_name}/ml_inference_perspective_api/firehose/"
-  }
-
-  s3_target {
-    path = "s3://${var.s3_root_bucket_name}/ml_inference_perspective_api/most_liked/"
+    path = "s3://${var.s3_root_bucket_name}/ml_inference_perspective_api/"
   }
 
   schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
@@ -2651,11 +2647,6 @@ resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
     Grouping = {
       TableGroupingPolicy = "CombineCompatibleSchemas"
     }
-    SchemaChangePolicy = {
-      UpdateBehavior = "UPDATE_IN_DATABASE"
-      DeleteBehavior = "LOG"
-    }
-    TablePrefix = "perspective_api_"
   })
 
   schema_change_policy {
@@ -2671,11 +2662,7 @@ resource "aws_glue_crawler" "llm_sociopolitical_labels_glue_crawler" {
   database_name = var.default_glue_database_name
 
   s3_target {
-    path = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/firehose/"
-  }
-
-  s3_target {
-    path = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/most_liked/"
+    path = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/"
   }
 
   schedule = "cron(0 */6 * * ? *)"  # Every 6 hours

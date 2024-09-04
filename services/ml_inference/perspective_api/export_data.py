@@ -81,7 +81,7 @@ def export_classified_posts(
         classified_post_dicts = [post.dict() for post in posts]
         for external_store in external_stores:
             full_key = os.path.join(
-                perspective_api_root_s3_key, source, partition_key, filename
+                perspective_api_root_s3_key, f"source={source}", partition_key, filename
             )
             if external_store == "s3":
                 s3.write_dicts_jsonl_to_s3(data=classified_post_dicts, key=full_key)  # noqa
