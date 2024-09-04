@@ -558,7 +558,7 @@ def export_in_network_user_activity_local_data():
             all_s3_keys.append(full_key)
             with open(os.path.join(root_write_path, full_key), "r") as f:
                 data = json.load(f)
-                s3.write_dict_json_to_s3(data=data, key=full_key, compressed=True)
+                s3.write_dict_json_to_s3(data=data, key=full_key)
         logger.info(
             f"Exported {len(post_filenames)} post records for author {author_did} to S3 for in-network user activity."
         )  # noqa
