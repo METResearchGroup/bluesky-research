@@ -4,6 +4,7 @@ import os
 import shutil
 from typing import Literal
 
+from lib.aws.athena import Athena
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
 from services.ml_inference.models import SociopoliticalLabelsModel
@@ -15,6 +16,7 @@ from services.ml_inference.sociopolitical.load_data import (
     load_classified_posts_from_cache,
 )  # noqa
 
+athena = Athena()
 glue = Glue()
 s3 = S3()
 
@@ -77,6 +79,7 @@ def export_results(
                 s3.write_dicts_jsonl_to_s3(data=classified_post_dicts, key=full_key)  # noqa
 
     # trigger Glue crawler to recognize the new data.
+    athena.run_query("MSCK REPAIR TABLE ml_inference_sociopolitical")
     glue.start_crawler(crawler_name="llm_sociopolitical_labels_glue_crawler")
 
     delete_cache_paths()
