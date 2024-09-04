@@ -1656,8 +1656,7 @@ resource "aws_iam_policy" "glue_crawler_policy" {
       {
         Effect = "Allow",
         Action = [
-          "s3:GetObject",
-          "s3:ListBucket"
+          "s3:*"
         ],
         Resource = [
           "arn:aws:s3:::bluesky-research",
@@ -1667,14 +1666,14 @@ resource "aws_iam_policy" "glue_crawler_policy" {
       {
         Effect = "Allow",
         Action = [
-          "glue:CreateTable",
-          "glue:UpdateTable",
-          "glue:GetTable",
-          "glue:GetTables",
-          "glue:BatchCreatePartition",
-          "glue:BatchUpdatePartition",
-          "glue:GetPartition",
-          "glue:GetPartitions"
+          "glue:*"
+        ],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:*",
         ],
         Resource = "*"
       }
@@ -1716,22 +1715,23 @@ resource "aws_glue_crawler" "preprocessed_posts_crawler" {
   })
 }
 
-resource "aws_glue_catalog_table" "perspective_api_firehose_labels" {
-  name          = "perspective_api_firehose_labels"
+resource "aws_glue_catalog_table" "perspective_api_labels" {
+  name          = "perspective_api_labels"
   database_name = var.default_glue_database_name
   table_type    = "EXTERNAL_TABLE"
 
   parameters = {
     "classification" = "json"
+    "compressionType" = "none"
   }
 
   storage_descriptor {
-    location      = "s3://bluesky-research/ml_inference_perspective_api/firehose/"
+    location      = "s3://bluesky-research/ml_inference_perspective_api/"
     input_format  = "org.apache.hadoop.mapred.TextInputFormat"
     output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
 
     ser_de_info {
-      name                  = "perspective_api_firehose_labels_json"
+      name                  = "perspective_api_labels_json"
       serialization_library = "org.openx.data.jsonserde.JsonSerDe"
     }
 
@@ -1757,94 +1757,98 @@ resource "aws_glue_catalog_table" "perspective_api_firehose_labels" {
     }
     columns {
       name = "prob_toxic"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_severe_toxic"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_identity_attack"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_insult"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_profanity"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_threat"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_affinity"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_compassion"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_constructive"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_curiosity"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_nuance"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_personal_story"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_reasoning"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_respect"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_alienation"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_fearmongering"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_generalization"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_moral_outrage"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_scapegoating"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_sexually_explicit"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_flirtation"
-      type = "float"
+      type = "double"
     }
     columns {
       name = "prob_spam"
-      type = "float"
+      type = "double"
     }
   }
 
+  partition_keys {
+    name = "source"
+    type = "string"
+  }
   partition_keys {
     name = "year"
     type = "string"
@@ -1867,168 +1871,18 @@ resource "aws_glue_catalog_table" "perspective_api_firehose_labels" {
   }
 }
 
-resource "aws_glue_catalog_table" "perspective_api_most_liked_labels" {
-  name          = "perspective_api_most_liked_labels"
+resource "aws_glue_catalog_table" "llm_sociopolitical_labels" {
+  name          = "llm_sociopolitical_labels"
   database_name = var.default_glue_database_name
   table_type    = "EXTERNAL_TABLE"
 
   parameters = {
     "classification" = "json"
+    "compressionType" = "none"
   }
 
   storage_descriptor {
-    location      = "s3://bluesky-research/ml_inference_perspective_api/most_liked/"
-    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
-    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
-
-    ser_de_info {
-      name                  = "perspective_api_most_liked_labels_json"
-      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
-    }
-
-    columns {
-      name = "uri"
-      type = "string"
-    }
-    columns {
-      name = "text"
-      type = "string"
-    }
-    columns {
-      name = "was_successfully_labeled"
-      type = "boolean"
-    }
-    columns {
-      name = "reason"
-      type = "string"
-    }
-    columns {
-      name = "label_timestamp"
-      type = "string"
-    }
-    columns {
-      name = "prob_toxic"
-      type = "float"
-    }
-    columns {
-      name = "prob_severe_toxic"
-      type = "float"
-    }
-    columns {
-      name = "prob_identity_attack"
-      type = "float"
-    }
-    columns {
-      name = "prob_insult"
-      type = "float"
-    }
-    columns {
-      name = "prob_profanity"
-      type = "float"
-    }
-    columns {
-      name = "prob_threat"
-      type = "float"
-    }
-    columns {
-      name = "prob_affinity"
-      type = "float"
-    }
-    columns {
-      name = "prob_compassion"
-      type = "float"
-    }
-    columns {
-      name = "prob_constructive"
-      type = "float"
-    }
-    columns {
-      name = "prob_curiosity"
-      type = "float"
-    }
-    columns {
-      name = "prob_nuance"
-      type = "float"
-    }
-    columns {
-      name = "prob_personal_story"
-      type = "float"
-    }
-    columns {
-      name = "prob_reasoning"
-      type = "float"
-    }
-    columns {
-      name = "prob_respect"
-      type = "float"
-    }
-    columns {
-      name = "prob_alienation"
-      type = "float"
-    }
-    columns {
-      name = "prob_fearmongering"
-      type = "float"
-    }
-    columns {
-      name = "prob_generalization"
-      type = "float"
-    }
-    columns {
-      name = "prob_moral_outrage"
-      type = "float"
-    }
-    columns {
-      name = "prob_scapegoating"
-      type = "float"
-    }
-    columns {
-      name = "prob_sexually_explicit"
-      type = "float"
-    }
-    columns {
-      name = "prob_flirtation"
-      type = "float"
-    }
-    columns {
-      name = "prob_spam"
-      type = "float"
-    }
-  }
-
-  partition_keys {
-    name = "year"
-    type = "string"
-  }
-  partition_keys {
-    name = "month"
-    type = "string"
-  }
-  partition_keys {
-    name = "day"
-    type = "string"
-  }
-  partition_keys {
-    name = "hour"
-    type = "string"
-  }
-  partition_keys {
-    name = "minute"
-    type = "string"
-  }
-}
-
-resource "aws_glue_catalog_table" "llm_sociopolitical_firehose_labels" {
-  name          = "llm_sociopolitical_firehose_labels"
-  database_name = var.default_glue_database_name
-  table_type    = "EXTERNAL_TABLE"
-
-  parameters = {
-    "classification" = "json"
-  }
-
-  storage_descriptor {
-    location      = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/firehose/"
+    location      = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/"
     input_format  = "org.apache.hadoop.mapred.TextInputFormat"
     output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
 
@@ -2072,80 +1926,9 @@ resource "aws_glue_catalog_table" "llm_sociopolitical_firehose_labels" {
   }
 
   partition_keys {
-    name = "year"
+    name = "source"
     type = "string"
   }
-  partition_keys {
-    name = "month"
-    type = "string"
-  }
-  partition_keys {
-    name = "day"
-    type = "string"
-  }
-  partition_keys {
-    name = "hour"
-    type = "string"
-  }
-  partition_keys {
-    name = "minute"
-    type = "string"
-  }
-}
-
-resource "aws_glue_catalog_table" "llm_sociopolitical_most_liked_labels" {
-  name          = "llm_sociopolitical_most_liked_labels"
-  database_name = var.default_glue_database_name
-  table_type    = "EXTERNAL_TABLE"
-
-  parameters = {
-    "classification" = "json"
-  }
-
-  storage_descriptor {
-    location      = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/most_liked/"
-    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
-    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
-
-    ser_de_info {
-      name                  = "llm_sociopolitical_most_liked_labels_json"
-      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
-    }
-
-    columns {
-      name = "uri"
-      type = "string"
-    }
-    columns {
-      name = "text"
-      type = "string"
-    }
-    columns {
-      name = "llm_model_name"
-      type = "string"
-    }
-    columns {
-      name = "was_successfully_labeled"
-      type = "boolean"
-    }
-    columns {
-      name = "reason"
-      type = "string"
-    }
-    columns {
-      name = "label_timestamp"
-      type = "string"
-    }
-    columns {
-      name = "is_sociopolitical"
-      type = "boolean"
-    }
-    columns {
-      name = "political_ideology_label"
-      type = "string"
-    }
-  }
-
   partition_keys {
     name = "year"
     type = "string"
@@ -2706,6 +2489,7 @@ resource "aws_glue_catalog_table" "user_session_logs" {
 
   parameters = {
     "classification" = "json"
+    "compressionType" = "none"
   }
 
   storage_descriptor {
@@ -2807,29 +2591,6 @@ resource "aws_glue_catalog_table" "sqs_messages" {
   }
 }
 
-resource "aws_glue_crawler" "sqs_messages_glue_crawler" {
-  name        = "sqs_messages_glue_crawler"
-  role        = aws_iam_role.glue_crawler_role.arn
-  database_name = var.default_glue_database_name
-
-  s3_target {
-    path = "s3://${var.s3_root_bucket_name}/sqs_messages/"
-  }
-
-  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
-
-  configuration = jsonencode({
-    "Version" = 1.0,
-    "CrawlerOutput" = {
-      "Partitions" = {
-        "AddOrUpdateBehavior" = "InheritFromTable"
-      }
-    }
-  })
-}
-
-
-
 resource "aws_glue_crawler" "user_session_logs_glue_crawler" {
   name        = "user_session_logs_glue_crawler"
   role        = aws_iam_role.glue_crawler_role.arn
@@ -2844,11 +2605,25 @@ resource "aws_glue_crawler" "user_session_logs_glue_crawler" {
   configuration = jsonencode({
     "Version" = 1.0,
     "CrawlerOutput" = {
-      "Partitions" = {
-        "AddOrUpdateBehavior" = "InheritFromTable"
-      }
+      Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
+      Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
+    }
+    Grouping = {
+      TableGroupingPolicy = "CombineCompatibleSchemas"
     }
   })
+
+  schema_change_policy {
+    delete_behavior = "LOG"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
+
+  # Error: updating Glue Crawler (user_session_logs_glue_crawler): InvalidInputException: The SchemaChangePolicy for "Crawl new folders only" Amazon S3 target can have only LOG DeleteBehavior value and LOG UpdateBehavior value.
+  # # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/glue_crawler#recrawl_behavior
+  # # https://geeks.wego.com/creating-glue-crawlers-via-terraform/
+  # recrawl_policy  {
+  #   recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"
+  # }
 }
 
 
@@ -2858,11 +2633,7 @@ resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
   database_name = var.default_glue_database_name
 
   s3_target {
-    path = "s3://bluesky-research/ml_inference_perspective_api/firehose/"
-  }
-
-  s3_target {
-    path = "s3://bluesky-research/ml_inference_perspective_api/most_liked/"
+    path = "s3://${var.s3_root_bucket_name}/ml_inference_perspective_api/"
   }
 
   schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
@@ -2870,11 +2641,18 @@ resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
   configuration = jsonencode({
     "Version" = 1.0,
     "CrawlerOutput" = {
-      "Partitions" = {
-        "AddOrUpdateBehavior" = "InheritFromTable"
-      }
+      Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
+      Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
+    }
+    Grouping = {
+      TableGroupingPolicy = "CombineCompatibleSchemas"
     }
   })
+
+  schema_change_policy {
+    delete_behavior = "LOG"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
 }
 
 
@@ -2884,11 +2662,7 @@ resource "aws_glue_crawler" "llm_sociopolitical_labels_glue_crawler" {
   database_name = var.default_glue_database_name
 
   s3_target {
-    path = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/firehose/"
-  }
-
-  s3_target {
-    path = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/most_liked/"
+    path = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/"
   }
 
   schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
@@ -2896,11 +2670,18 @@ resource "aws_glue_crawler" "llm_sociopolitical_labels_glue_crawler" {
   configuration = jsonencode({
     "Version" = 1.0,
     "CrawlerOutput" = {
-      "Partitions" = {
-        "AddOrUpdateBehavior" = "InheritFromTable"
-      }
+      Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
+      Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
+    }
+    Grouping = {
+      TableGroupingPolicy = "CombineCompatibleSchemas"
     }
   })
+
+  schema_change_policy {
+    delete_behavior = "LOG"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
 }
 
 resource "aws_glue_crawler" "queue_messages_crawler" {
@@ -2923,6 +2704,37 @@ resource "aws_glue_crawler" "queue_messages_crawler" {
     }
   })
 }
+
+resource "aws_cloudwatch_log_group" "glue_crawler_logs" {
+  name              = "/aws-glue/crawlers"
+  retention_in_days = 14  # Retain logs for 14 days
+}
+
+resource "aws_cloudwatch_log_stream" "llm_sociopolitical_labels_crawler_stream" {
+  log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
+  name           = "llm_sociopolitical_labels_crawler_stream"
+}
+
+resource "aws_cloudwatch_log_stream" "perspective_api_labels_crawler_stream" {
+  log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
+  name           = "perspective_api_labels_crawler_stream"
+}
+
+resource "aws_cloudwatch_log_stream" "preprocessed_posts_crawler_stream" {
+  log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
+  name           = "preprocessed_posts_crawler_stream"
+}
+
+resource "aws_cloudwatch_log_stream" "queue_messages_crawler_stream" {
+  log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
+  name           = "queue_messages_crawler_stream"
+}
+
+resource "aws_cloudwatch_log_stream" "user_session_logs_crawler_stream" {
+  log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
+  name           = "user_session_logs_crawler_stream"
+}
+
 
 ### AWS Athena ###  
 
