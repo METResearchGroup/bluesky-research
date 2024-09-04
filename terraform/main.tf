@@ -738,7 +738,8 @@ resource "aws_iam_policy" "lambda_access_policy" {
           "s3:ListMultipartUploadParts",
           "s3:ListObjects",
           "s3:PutObject",
-          "s3:PutObjectAcl"
+          "s3:PutObjectAcl",
+          "s3:*"
         ],
         Effect   = "Allow",
         Resource = [
@@ -774,12 +775,10 @@ resource "aws_iam_policy" "lambda_access_policy" {
       # Add CloudWatch Logs policy
       {
         Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
+          "logs:*"
         ],
         Effect   = "Allow",
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/*"
+        Resource = "*"
       },
       # Add SQS policy
       {
@@ -795,11 +794,7 @@ resource "aws_iam_policy" "lambda_access_policy" {
       # Add Glue policy for accessing Glue tables
       {
         Action = [
-          "glue:GetPartitions",
-          "glue:GetTable",
-          "glue:GetTables",
-          "glue:GetTableVersion",
-          "glue:GetTableVersions"
+          "glue:*"
         ],
         Effect   = "Allow",
         Resource = "*"
@@ -809,7 +804,8 @@ resource "aws_iam_policy" "lambda_access_policy" {
         Action = [
           "athena:StartQueryExecution",
           "athena:GetQueryExecution",
-          "athena:GetQueryResults"
+          "athena:GetQueryResults",
+          "athena:*"
         ],
         Effect   = "Allow",
         Resource = "*"
@@ -818,21 +814,6 @@ resource "aws_iam_policy" "lambda_access_policy" {
       {
         Action = [
           "elasticache:*",
-        ],
-        Effect   = "Allow",
-        Resource = "*"
-      },
-      # Glue crawler permissions
-      {
-        Action = [
-          "glue:StartCrawler",
-          "glue:GetCrawler",
-          "glue:GetCrawlerMetrics",
-          "glue:GetCrawls",
-          "glue:GetTable",
-          "glue:GetTables",
-          "glue:GetTableVersion",
-          "glue:GetTableVersions"
         ],
         Effect   = "Allow",
         Resource = "*"
@@ -851,17 +832,7 @@ resource "aws_iam_policy" "lambda_access_policy" {
         ],
         Effect   = "Allow",
         Resource = "*"
-      },
-      # get log perms
-      {
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ],
-        Effect   = "Allow",
-        Resource = "*"
-      },
+      }
     ]
   })
 }
