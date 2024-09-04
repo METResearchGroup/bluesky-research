@@ -32,21 +32,33 @@ def export_preprocessed_posts(posts: list[FilteredPreprocessedPostModel]):
     full_key = os.path.join(
         "preprocessed_data",
         "preprocessed_posts",
-        "source=preprocessed_compressed_deduped_posts",
+        "preprocessing_source=preprocessed_compressed_deduped_posts",
         partition_key,
         filename,
     )  # noqa
     post_dicts = [post.dict() for post in posts]
     s3.write_dicts_jsonl_to_s3(data=post_dicts, key=full_key)
-    glue.start_crawler(crawler_name="preprocessed_posts_crawler")
     logger.info(f"Exported deduped and compacted preprocessed posts to {full_key}")  # noqa
 
 
 def get_existing_keys() -> list[str]:
     res: list[str] = []
     root_keys = [
-        os.path.join("preprocessed_data", "post", "firehose"),
-        os.path.join("preprocessed_data", "post", "most_liked"),
+        os.path.join(
+            "preprocessed_data",
+            "preprocessed_posts",
+            "preprocessing_source=preprocessed_firehose_posts",
+        ),
+        os.path.join(
+            "preprocessed_data",
+            "preprocessed_posts",
+            "preprocessing_source=preprocessed_most_liked_posts",
+        ),
+        os.path.join(
+            "preprocessed_data",
+            "preprocessed_posts",
+            "preprocessing_source=preprocessed_compressed_deduped_posts",
+        ),
     ]
     for root_key in root_keys:
         res.extend(s3.list_keys_given_prefix(root_key))
@@ -54,11 +66,17 @@ def get_existing_keys() -> list[str]:
 
 
 def delete_keys(keys: list[str]):
-    for key in keys:
+    total_keys = len(keys)
+    for i, key in enumerate(keys):
         s3.client.delete_object(Bucket=ROOT_BUCKET, Key=key)
+        if i % 10 == 0:
+            logger.info(f"Deleted {i} keys out of {total_keys}")
     logger.info(f"Deleted {len(keys)} keys")
 
 
+# NOTE: in the future, could move this computation to Athena. TBH probably
+# isn't running at the scale where this would be a bottleneck, but
+# it's always good to have the option.
 def compact_dedupe_preprocessed_data():
     posts: list[FilteredPreprocessedPostModel] = athena.get_latest_preprocessed_posts(
         timestamp=None
@@ -81,7 +99,15 @@ def compact_dedupe_preprocessed_data():
     # export new file to S3.
     export_preprocessed_posts(df_dict_models)
     # drop existing keys from S3.
-    # delete_keys(existing_keys)
+    delete_keys(existing_keys)
+    # re-trigger Glue crawler to recognize new data and partitions
+    # NOTE: running MSCK REPAIR TABLE so that partitioned data can be
+    # available immediately. We do this here since we really don't want
+    # downtime, since downstream services will need to be able to query
+    # the data. We should run both though since using the Glue crawler
+    # is more thorough and also updates the table catalog.
+    athena.run_query("MSCK REPAIR TABLE preprocessed_posts")
+    glue.start_crawler(crawler_name="preprocessed_posts_crawler")
     logger.info("Successfully compacted dedupe preprocessed data")
 
 
