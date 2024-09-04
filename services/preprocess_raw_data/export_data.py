@@ -51,8 +51,8 @@ def export_latest_preprocessed_posts(
     ]  # noqa
 
     feed_type_to_posts_tuples = [
-        ("firehose", firehose_posts),
-        ("most_liked", most_liked_posts),
+        ("preprocessed_firehose_posts", firehose_posts),
+        ("preprocessed_most_liked_posts", most_liked_posts),
     ]  # noqa
 
     for feed_type, posts in feed_type_to_posts_tuples:

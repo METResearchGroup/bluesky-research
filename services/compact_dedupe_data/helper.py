@@ -32,7 +32,7 @@ def export_preprocessed_posts(posts: list[FilteredPreprocessedPostModel]):
     full_key = os.path.join(
         "preprocessed_data",
         "post",
-        "compacted_deduped_data",
+        "preprocessed_compressed_deduped_posts",
         partition_key,
         filename,
     )  # noqa
