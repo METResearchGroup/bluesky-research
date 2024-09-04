@@ -133,7 +133,9 @@ def export_posts(
     if send_sqs_message and store_remote:
         # I initially had this as an SQS message, but I had trouble implementing
         # SQS so this'll just be written to S3.
-        sqs_data_payload = {"sync": {"source": "most_liked_feed", "s3_key": full_key}}
+        sqs_data_payload = {
+            "sync": {"source": "most_liked_feed", "s3_keys": [full_key]}
+        }
         s3.send_queue_message(source="most_liked", data=sqs_data_payload)
         glue.start_crawler("queue_messages_crawler")
 

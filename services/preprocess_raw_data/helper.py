@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 import json
+import re
 from typing import Literal, Optional
 
 from lib.aws.athena import Athena
@@ -65,6 +66,47 @@ def init_session_data(previous_timestamp: str) -> dict:
     }
 
 
+def quote_s3_keys(match):
+    keys = match.group(1).split(",")
+    quoted_keys = [f'"{key.strip()}"' for key in keys]
+    return "[" + ", ".join(quoted_keys) + "]"
+
+
+def quote_keys(match):
+    key = match.group(1)
+    valid_keys = ["sync", "source", "operation", "operation_type", "s3_keys"]
+    if key in valid_keys:
+        return f'"{key}":'
+
+
+def quote_values(match):
+    key, value = match.groups()
+    if key in ["source", "operation", "operation_type"]:
+        return f'"{key}":"{value.strip()}"'
+    return f'"{key}":{value}'
+
+
+def preprocess_queue_message(message: dict) -> dict:
+    """Preprocess the queue message.
+
+    Example:
+    >>> message = '{sync:{source:in-network-user-activity, operation:create, operation_type:post, s3_keys:[in_network_user_activity/create/post/did:plc:oky5czdrnfjpqslsw2a5iclo/author_did=did:plc:oky5czdrnfjpqslsw2a5iclo_post_uri_suffix=3l35d7xvwt22z.json]}}'
+    >>> preprocess_queue_message(message)
+    {'sync': {'source': 'in-network-user-activity', 'operation': 'create', 'operation_type': 'post', 's3_keys': ['in_network_user_activity/create/post/oky5czdrnfjpqslsw2a5iclo/author_did=oky5czdrnfjpqslsw2a5iclo_post_uri_suffix=3l35d7xvwt22z.json']}}
+    """
+    data = message["data"]
+    pattern = r"=(?![^\[]*\])"
+    # replace all '=' with ':'
+    data = re.sub(pattern, ":", data)
+    # surround the items in the s3_keys array with quotes
+    result = re.sub(r"\[(.*?)\]", quote_s3_keys, data)
+    # Enclose all the keys, which are before the ':', with quotes
+    result = re.sub(r"(\w+):", quote_keys, result)
+    # Enclose the values, which are after the ':', with quotes
+    result = re.sub(r'"(\w+)":\s*([^{[\s][^,}]*)', quote_values, result)
+    return json.loads(result)
+
+
 def load_latest_sqs_messages_from_athena(
     source: str,
     limit: Optional[int] = None,
@@ -92,9 +134,8 @@ def load_latest_sqs_messages_from_athena(
     messages: list[dict] = response.to_dict(orient="records")
     messages: list[dict] = athena.parse_converted_pandas_dicts(messages)
     for message in messages:
-        # data is a stringified json object.
-        if "data" in message:
-            message["data"] = json.loads(message["data"])
+        data = preprocess_queue_message(message)
+        message["data"] = data
     return messages
 
 
@@ -147,16 +188,10 @@ def get_latest_post_filenames_from_sqs(sqs_sync_messages: dict) -> dict[str, lis
     most_liked_post_sqs_messages = sqs_sync_messages["most_liked"]
     for message in firehose_post_sqs_messages:
         keys: list[str] = message["data"]["sync"].get("s3_keys", [])
-        if len(keys) == 0:
-            # could have old key structure. Should be well-deprecated but
-            # some SQS messages before 2024-08-20 might have this. Shouldn't
-            # be a problem after that.
-            logger.info("Message using old key structure...")
-            key = message["data"]["sync"].get("s3_key", [])
-            res["in-network-user-activity"].append(key)
         res["in-network-user-activity"].extend(keys)
     for message in most_liked_post_sqs_messages:
-        res["most_liked"].append(message["data"]["sync"]["s3_key"])
+        keys = message["data"]["sync"]["s3_keys"]
+        res["most_liked"].extend(keys)
     return res
 
 

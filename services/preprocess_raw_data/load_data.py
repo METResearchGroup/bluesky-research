@@ -150,7 +150,10 @@ def load_latest_most_liked_posts(
 def load_latest_posts(post_keys: list[str]) -> list[ConsolidatedPostRecordModel]:  # noqa
     jsonl_data: list[dict] = []
     for key in post_keys:
-        data = s3.read_jsonl_from_s3(key)
+        if key.endswith(".json"):
+            data = s3.read_json_from_s3(key)
+        elif key.endswith(".jsonl"):
+            data = s3.read_jsonl_from_s3(key)
         if not data:
             logger.warning(
                 f"No data found for key {key}. Check if keys are correct. For example, a firehose post likely should end in '.gz'."
