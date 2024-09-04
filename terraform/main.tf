@@ -1392,7 +1392,7 @@ resource "aws_glue_crawler" "preprocessed_posts_crawler" {
 }
 
 resource "aws_glue_catalog_table" "perspective_api_labels" {
-  name          = "perspective_api_labels"
+  name          = "ml_inference_perspective_api"
   database_name = var.default_glue_database_name
   table_type    = "EXTERNAL_TABLE"
 
@@ -1548,7 +1548,7 @@ resource "aws_glue_catalog_table" "perspective_api_labels" {
 }
 
 resource "aws_glue_catalog_table" "llm_sociopolitical_labels" {
-  name          = "llm_sociopolitical_labels"
+  name          = "ml_inference_sociopolitical"
   database_name = var.default_glue_database_name
   table_type    = "EXTERNAL_TABLE"
 
