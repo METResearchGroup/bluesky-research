@@ -1612,7 +1612,7 @@ resource "aws_glue_catalog_table" "queue_messages" {
   }
   partition_keys {
     name = "day"
-    type = "string"
+    type = "struct<sync:struct<source:string,operation:string,operation_type:string,s3_keys:array<string>>>"
   }
   partition_keys {
     name = "hour"
