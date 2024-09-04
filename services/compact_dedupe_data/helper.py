@@ -31,8 +31,8 @@ def export_preprocessed_posts(posts: list[FilteredPreprocessedPostModel]):
     filename = "preprocessed_posts.jsonl"
     full_key = os.path.join(
         "preprocessed_data",
-        "post",
-        "preprocessed_compressed_deduped_posts",
+        "preprocessed_posts",
+        "source=preprocessed_compressed_deduped_posts",
         partition_key,
         filename,
     )  # noqa
