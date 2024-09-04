@@ -302,7 +302,7 @@ resource "aws_lambda_function" "ml_inference_sociopolitical_lambda" {
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.ml_inference_sociopolitical_service.repository_url}:latest"
   architectures = ["arm64"]
-  timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
+  timeout       = 720 # run for 12 minutes. Looks like I can do 750 posts/6 minutes, so this should support 1500 posts.
   memory_size   = 512 # 512 MB of memory
 
   lifecycle {
