@@ -55,7 +55,7 @@ class S3:
     # NOTE: misleading name, doesn't need to be dict. Just needs to be
     # JSON-serializable.
     def write_dict_json_to_s3(
-        self, data: dict, key: str, bucket: str = ROOT_BUCKET
+        self, data: dict, key: str, bucket: str = ROOT_BUCKET, compressed: bool = False
     ) -> None:
         """Writes dictionary as JSON to S3."""
         if not data:
@@ -64,6 +64,10 @@ class S3:
             key = f"{key}.json"
         json_body = json.dumps(data)
         json_body_bytes = bytes(json_body, "utf-8")
+        if compressed:
+            if not key.endswith(".gz"):
+                key = f"{key}.gz"
+            json_body_bytes = gzip.compress(json_body_bytes)
         self.write_to_s3(blob=json_body_bytes, bucket=bucket, key=key)
 
     def write_dicts_jsonl_to_s3(
