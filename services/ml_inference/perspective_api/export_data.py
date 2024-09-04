@@ -4,6 +4,7 @@ import os
 import shutil
 from typing import Literal
 
+from lib.aws.athena import Athena
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
 from lib.constants import root_local_data_directory
@@ -18,6 +19,7 @@ from services.ml_inference.perspective_api.load_data import (
     load_classified_posts_from_cache,
 )  # noqa
 
+athena = Athena()
 s3 = S3()
 glue = Glue()
 
@@ -93,7 +95,8 @@ def export_classified_posts(
             else:
                 raise ValueError("Invalid external store.")
     # trigger Glue crawler to recognize new data and partitions
-    glue.start_crawler(crawler_name="perspective_api_labels_glue_crawler")
+    athena.run_query("MSCK REPAIR TABLE ml_inference_perspective_api")
+    glue.start_crawler("perspective_api_labels_glue_crawler")
     return {
         "total_classified_posts": len(firehose_posts) + len(most_liked_posts),
         "total_classified_posts_by_source": {
