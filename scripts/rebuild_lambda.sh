@@ -7,7 +7,7 @@ else
     SCRIPTS_DIR="."
 fi
 
-VALID_LAMBDAS=("calculate_superposters" "ml_inference_sociopolitical" "ml_inference_perspective_api" "compact_dedupe_data" "consolidate_enrichment_integrations" "generate_vector_embeddings" "preprocess_raw_data" "sync_most_liked_feed")
+VALID_LAMBDAS=("calculate_superposters" "ml_inference_sociopolitical" "ml_inference_perspective_api" "compact_dedupe_data" "consolidate_enrichment_integrations" "generate_vector_embeddings" "preprocess_raw_data" "sync_most_liked_feed", "rank_score_feeds")
 
 if [ "$1" == "all" ]; then
     for lambda in "${VALID_LAMBDAS[@]}"; do
