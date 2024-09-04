@@ -19,10 +19,15 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.error(f"Error in preprocessing pipeline: {e}")
         logger.error(traceback.format_exc())
-        return {
-            "statusCode": 500,
-            "body": json.dumps(f"Error in preprocessing pipeline: {str(e)}"),
-        }
+        logger.error(
+            json.dumps(
+                {
+                    "statusCode": 500,
+                    "body": json.dumps(f"Error in preprocessing pipeline: {str(e)}"),
+                }
+            )
+        )
+        raise
 
 
 if __name__ == "__main__":
