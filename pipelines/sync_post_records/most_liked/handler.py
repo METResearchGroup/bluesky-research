@@ -28,12 +28,17 @@ def lambda_handler(event, context):
         logger.error(
             f"Error in getting most liked posts: {e}\n{traceback.format_exc()}"
         )
-        return {
-            "statusCode": 500,
-            "body": json.dumps(
-                f"Error in getting most liked posts: {e}\n{traceback.format_exc()}"
-            ),
-        }
+        logger.error(
+            json.dumps(
+                {
+                    "statusCode": 500,
+                    "body": json.dumps(
+                        f"Error in getting most liked posts: {e}\n{traceback.format_exc()}"
+                    ),
+                }
+            )
+        )
+        raise
 
 
 if __name__ == "__main__":
