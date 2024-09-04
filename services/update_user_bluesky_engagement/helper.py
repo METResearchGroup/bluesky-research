@@ -19,7 +19,7 @@ from lib.db.sql.user_engagement_database import (
     get_most_recent_like_timestamp,
     get_most_recent_post_timestamp,
 )
-from lib.helper import client
+from lib.helper import get_client
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.sync.search.helper import send_request_with_pagination
 from services.update_user_bluesky_engagement.models import (
@@ -33,6 +33,8 @@ from transform.bluesky_helper import (
     get_post_record_given_post_uri,
 )
 from transform.transform_raw_data import transform_feedview_post, transform_post_record
+
+client = get_client()
 
 
 def get_latest_likes_by_user(

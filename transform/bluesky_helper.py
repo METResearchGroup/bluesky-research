@@ -1,22 +1,31 @@
 """Helper functions for processing Bluesky data."""
+
 from typing import Optional
 
 from atproto_client.models.app.bsky.actor.defs import ProfileView, ProfileViewDetailed  # noqa
-from atproto_client.models.app.bsky.feed.defs import FeedViewPost, GeneratorView, ThreadViewPost  # noqa
+from atproto_client.models.app.bsky.feed.defs import (
+    FeedViewPost,
+    GeneratorView,
+    ThreadViewPost,
+)  # noqa
 from atproto_client.models.app.bsky.feed.post import GetRecordResponse
-from atproto_client.models.app.bsky.feed.get_actor_feeds import Response as GetActorFeedsResponse  # noqa
+from atproto_client.models.app.bsky.feed.get_actor_feeds import (
+    Response as GetActorFeedsResponse,
+)  # noqa
 from atproto_client.models.app.bsky.feed.get_likes import Like
-from atproto_client.models.app.bsky.feed.get_post_thread import Response as PostThreadResponse  # noqa
+from atproto_client.models.app.bsky.feed.get_post_thread import (
+    Response as PostThreadResponse,
+)  # noqa
 from atproto_client.models.app.bsky.graph.defs import ListItemView
 from atproto_client.models.app.bsky.graph.get_list import Response as GetListResponse  # noqa
 
 from lib.constants import current_datetime_str
-from lib.db.bluesky_models.transformations import (
-    TransformedRecordWithAuthorModel
-)
-from lib.helper import client
+from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel
+from lib.helper import get_client
 from services.sync.search.helper import send_request_with_pagination
 from transform.transform_raw_data import process_firehose_post
+
+client = get_client()
 
 
 def get_author_handle_and_post_id_from_link(link: str) -> dict[str, str]:
@@ -63,9 +72,7 @@ def get_post_record_from_post_link(link: str) -> GetRecordResponse:
     post_rkey = author_and_post_id["post_id"]
     profile_identify = author_did
     print(f"Getting post record for {post_rkey} by {profile_identify}")
-    response = client.get_post(
-        post_rkey=post_rkey, profile_identify=profile_identify
-    )
+    response = client.get_post(post_rkey=post_rkey, profile_identify=profile_identify)
     return response
 
 
@@ -89,7 +96,7 @@ def convert_post_link_to_post(
         "record": record.value,
         "uri": record.uri,
         "cid": record.cid,
-        "author": author
+        "author": author,
     }
     flattened_firehose_post: dict = process_firehose_post(post_dict).dict()
     return flattened_firehose_post
@@ -148,7 +155,9 @@ def get_post_link_given_post_uri(post_uri: str) -> Optional[str]:
     return f"https://bsky.app/profile/{post_author_handle}/post/{post_id}"
 
 
-def get_record_with_author_given_post_uri(post_uri: str) -> TransformedRecordWithAuthorModel:  # noqa
+def get_record_with_author_given_post_uri(
+    post_uri: str,
+) -> TransformedRecordWithAuthorModel:  # noqa
     # TODO: check what type the value is and then see if it's one
     # that exists already in the DB.
     # TODO: I should move all of the DBs to a single location, and then
@@ -160,10 +169,10 @@ def get_record_with_author_given_post_uri(post_uri: str) -> TransformedRecordWit
         "record": record_response.value,
         "uri": post_uri,
         "cid": record_response.cid,
-        "author": ""
+        "author": "",
     }
-    record_with_author: TransformedRecordWithAuthorModel = (
-        process_firehose_post(hydrated_embedded_record_dict)
+    record_with_author: TransformedRecordWithAuthorModel = process_firehose_post(
+        hydrated_embedded_record_dict
     )
     return record_with_author
 
@@ -175,7 +184,7 @@ def get_repost_profiles(post_uri: str) -> list[ProfileView]:
         kwargs={"uri": post_uri},
         response_key="reposted_by",
         limit=None,
-        silence_logs=True
+        silence_logs=True,
     )
     return reposts
 
@@ -187,7 +196,7 @@ def get_liked_by_profiles(post_uri: str) -> list[Like]:
         kwargs={"uri": post_uri},
         response_key="likes",
         limit=None,
-        silence_logs=True
+        silence_logs=True,
     )
     return likes
 
@@ -220,7 +229,7 @@ def calculate_post_engagement(post_response: GetRecordResponse) -> dict:
         "uri": uri,
         "num_likes": num_likes,
         "num_reposts": num_reposts,
-        "num_replies": num_replies
+        "num_replies": num_replies,
     }
 
 
@@ -231,7 +240,7 @@ def calculate_post_engagement_from_link(link: str) -> dict:
     return {
         "link": link,
         "created_at": post_response.value.created_at,
-        **post_engagement
+        **post_engagement,
     }
 
 
@@ -294,8 +303,7 @@ def generate_list_uri_given_list_url(list_url: str) -> str:
 def get_users_on_list_given_list_uri(list_uri: str) -> list[dict]:
     """Given a list uri, return a list of dictionaries with the user's
     blocked user id (did) and their handle (username)"""
-    res: GetListResponse = client.app.bsky.graph.get_list(
-        params={"list": list_uri})
+    res: GetListResponse = client.app.bsky.graph.get_list(params={"list": list_uri})
     return get_users_added_to_list(res.items)
 
 
@@ -310,9 +318,7 @@ def get_list_info_given_list_url(list_url: str) -> dict:
     the users on the list."""
     list_uri: str = generate_list_uri_given_list_url(list_url)
     try:
-        res: GetListResponse = client.app.bsky.graph.get_list(
-            params={"list": list_uri}
-        )
+        res: GetListResponse = client.app.bsky.graph.get_list(params={"list": list_uri})
     except Exception as e:
         if "List not found" in e.response.content.message:
             print(f"List not found: {list_url}")
@@ -365,7 +371,7 @@ def get_author_feeds(
     author_handle: Optional[str] = None,
     author_did: Optional[str] = None,
     limit: Optional[int] = 50,
-    cursor: Optional[str] = None
+    cursor: Optional[str] = None,
 ) -> list[dict]:
     """Given an author handle, get the feeds that they have.
 
@@ -422,17 +428,13 @@ def get_author_feeds(
         payload["limit"] = limit
     if cursor:
         payload["cursor"] = cursor
-    response: GetActorFeedsResponse = (
-        client.app.bsky.feed.get_actor_feeds(payload)
-    )
+    response: GetActorFeedsResponse = client.app.bsky.feed.get_actor_feeds(payload)
     feeds: list[GeneratorView] = response.feeds
     return feeds
 
 
 def get_posts_from_custom_feed(
-    feed_uri: str,
-    limit: Optional[int] = 50,
-    cursor: Optional[str] = None
+    feed_uri: str, limit: Optional[int] = 50, cursor: Optional[str] = None
 ) -> list[FeedViewPost]:
     """Given the URI of a post, get the posts from the feed.
 
@@ -525,7 +527,7 @@ def get_posts_from_custom_feed(
         kwargs={"params": kwargs},
         response_key="feed",
         limit=limit,
-        update_params_directly=True
+        update_params_directly=True,
     )
     return res
 
@@ -545,9 +547,7 @@ def construct_feed_uri_from_feed_url(feed_url: str) -> str:
 
 
 def get_posts_from_custom_feed_url(
-    feed_url: str,
-    limit: Optional[int] = 50,
-    cursor: Optional[str] = None
+    feed_url: str, limit: Optional[int] = 50, cursor: Optional[str] = None
 ) -> list[FeedViewPost]:
     """Given the link to a custom feed, get the posts from that feed.
 
@@ -562,6 +562,6 @@ def get_user_followers(handle: str) -> list[ProfileView]:
         func=client.get_followers,
         kwargs={"actor": handle},
         response_key="followers",
-        limit=None
+        limit=None,
     )
     return followers

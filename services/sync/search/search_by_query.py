@@ -1,11 +1,15 @@
 """Search by keyword."""
+
 from atproto_client.models.app.bsky.feed.defs import PostView
 
-from lib.helper import client
+from lib.helper import get_client
 from services.sync.search.helper import (
-    DEFAULT_LIMIT_RESULTS_PER_REQUEST, send_request_with_pagination
+    DEFAULT_LIMIT_RESULTS_PER_REQUEST,
+    send_request_with_pagination,
 )
 from services.transform.transform_raw_data import flatten_post
+
+client = get_client()
 
 
 def search_by_query(
@@ -54,7 +58,7 @@ def search_by_query(
         kwargs={"params": kwargs},
         response_key="posts",
         limit=limit,
-        update_params_directly=True
+        update_params_directly=True,
     )
     flattened_posts: list[dict] = [flatten_post(post) for post in posts]
     return flattened_posts
