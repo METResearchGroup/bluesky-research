@@ -1,4 +1,4 @@
-atproto==0.0.46
+atproto==0.0.52
 boto3==1.34.38
 faiss-cpu==1.8.0
 Flask==3.0.2

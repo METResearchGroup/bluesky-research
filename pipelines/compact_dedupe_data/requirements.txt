@@ -4,7 +4,7 @@ annotated-types==0.7.0
     # via pydantic
 anyio==4.4.0
     # via httpx
-atproto==0.0.46
+atproto==0.0.52
     # via -r requirements.in
 boto3==1.34.104
     # via -r requirements.in
@@ -16,7 +16,7 @@ certifi==2024.8.30
     # via
     #   httpcore
     #   httpx
-cffi==1.17.0
+cffi==1.17.1
     # via cryptography
 click==8.1.7
     # via
@@ -26,13 +26,11 @@ cryptography==42.0.8
     # via atproto
 dnspython==2.6.1
     # via atproto
-exceptiongroup==1.2.2
-    # via anyio
 h11==0.14.0
     # via httpcore
 httpcore==1.0.5
     # via httpx
-httpx==0.25.2
+httpx==0.26.0
     # via atproto
 idna==3.8
     # via
@@ -91,7 +89,6 @@ typer==0.12.3
 typing-extensions==4.12.2
     # via
     #   -r requirements.in
-    #   anyio
     #   atproto
     #   pydantic
     #   pydantic-core
@@ -100,5 +97,5 @@ tzdata==2024.1
     # via pandas
 urllib3==2.2.2
     # via botocore
-websockets==12.0
+websockets==13.0.1
     # via atproto

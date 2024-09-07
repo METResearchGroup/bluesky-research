@@ -12,9 +12,7 @@ anyio==4.4.0
     # via
     #   httpx
     #   openai
-async-timeout==4.0.3
-    # via aiohttp
-atproto==0.0.46
+atproto==0.0.52
     # via -r requirements.in
 attrs==24.2.0
     # via
@@ -32,7 +30,7 @@ certifi==2024.8.30
     #   httpcore
     #   httpx
     #   requests
-cffi==1.17.0
+cffi==1.17.1
     # via cryptography
 charset-normalizer==3.3.2
     # via requests
@@ -46,21 +44,19 @@ distro==1.9.0
     # via openai
 dnspython==2.6.1
     # via atproto
-exceptiongroup==1.2.2
-    # via anyio
 filelock==3.15.4
     # via huggingface-hub
 frozenlist==1.4.1
     # via
     #   aiohttp
     #   aiosignal
-fsspec==2024.6.1
+fsspec==2024.9.0
     # via huggingface-hub
 h11==0.14.0
     # via httpcore
 httpcore==1.0.5
     # via httpx
-httpx==0.25.2
+httpx==0.26.0
     # via
     #   atproto
     #   openai
@@ -100,7 +96,7 @@ multidict==6.0.5
     #   yarl
 numpy==1.26.4
     # via pandas
-openai==1.43.0
+openai==1.44.0
     # via litellm
 packaging==24.1
     # via huggingface-hub
@@ -167,7 +163,6 @@ tqdm==4.66.5
 typing-extensions==4.12.2
     # via
     #   -r requirements.in
-    #   anyio
     #   atproto
     #   huggingface-hub
     #   openai
@@ -179,9 +174,9 @@ urllib3==2.2.2
     # via
     #   botocore
     #   requests
-websockets==12.0
+websockets==13.0.1
     # via atproto
-yarl==1.9.6
+yarl==1.10.0
     # via aiohttp
 zipp==3.20.1
     # via importlib-metadata
