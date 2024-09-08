@@ -106,8 +106,8 @@ def compact_dedupe_preprocessed_data():
     # downtime, since downstream services will need to be able to query
     # the data. We should run both though since using the Glue crawler
     # is more thorough and also updates the table catalog.
-    athena.run_query("MSCK REPAIR TABLE preprocessed_posts")
-    glue.start_crawler(crawler_name="preprocessed_posts_crawler")
+    # athena.run_query("MSCK REPAIR TABLE preprocessed_posts")
+    # glue.start_crawler(crawler_name="preprocessed_posts_crawler")
     logger.info("Successfully compacted dedupe preprocessed data")
 
 

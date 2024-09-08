@@ -31,7 +31,7 @@ def export_sqs_messages_to_s3(sqs_message_bodies: list[dict], queue_name: str):
         root_s3_key, f"queue_name={queue_name}", partition_key, f"{timestamp}.jsonl"
     )  # noqa
     s3.write_dicts_jsonl_to_s3(sqs_message_bodies, key)
-    glue.start_crawler(crawler_name="sqs_messages_glue_crawler")
+    # glue.start_crawler(crawler_name="sqs_messages_glue_crawler")
     logger.info(f"Successfully exported {len(sqs_message_bodies)} messages to {key}")  # noqa
 
 

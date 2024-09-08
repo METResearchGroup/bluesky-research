@@ -79,8 +79,8 @@ def export_results(
                 s3.write_dicts_jsonl_to_s3(data=classified_post_dicts, key=full_key)  # noqa
 
     # trigger Glue crawler to recognize the new data.
-    athena.run_query("MSCK REPAIR TABLE ml_inference_sociopolitical")
-    glue.start_crawler(crawler_name="llm_sociopolitical_labels_glue_crawler")
+    # athena.run_query("MSCK REPAIR TABLE ml_inference_sociopolitical")
+    # glue.start_crawler(crawler_name="llm_sociopolitical_labels_glue_crawler")
 
     delete_cache_paths()
     rebuild_cache_paths()

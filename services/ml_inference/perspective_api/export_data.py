@@ -95,8 +95,8 @@ def export_classified_posts(
             else:
                 raise ValueError("Invalid external store.")
     # trigger Glue crawler to recognize new data and partitions
-    athena.run_query("MSCK REPAIR TABLE ml_inference_perspective_api")
-    glue.start_crawler("perspective_api_labels_glue_crawler")
+    # athena.run_query("MSCK REPAIR TABLE ml_inference_perspective_api")
+    # glue.start_crawler("perspective_api_labels_glue_crawler")
     return {
         "total_classified_posts": len(firehose_posts) + len(most_liked_posts),
         "total_classified_posts_by_source": {
