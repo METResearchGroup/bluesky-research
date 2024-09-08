@@ -137,7 +137,7 @@ def export_posts(
             "sync": {"source": "most_liked_feed", "s3_keys": [full_key]}
         }
         s3.send_queue_message(source="most_liked", data=sqs_data_payload)
-        glue.start_crawler("queue_messages_crawler")
+        # glue.start_crawler("queue_messages_crawler")
 
 
 def load_most_recent_local_syncs(n_latest_local: int = 1) -> list[dict]:
