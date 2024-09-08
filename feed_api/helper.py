@@ -161,6 +161,7 @@ def export_log_data(log: dict):
     user_did = log["user_did"]
     # partitioning on handle instead of DID since I'm having trouble getting
     # Hive to recognize the partitions on DID, possibly due to ':' char?
+    # NOTE: this is a known bug: https://docs.aws.amazon.com/athena/latest/ug/msck-repair-table.html
     handle = study_user_did_to_handle_map[user_did]
     timestamp = log["timestamp"]
     key = os.path.join("user_session_logs", f"bluesky_user_handle={handle}", timestamp)
