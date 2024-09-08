@@ -2,7 +2,8 @@
 
 from datetime import timedelta
 import os
-import random
+
+import numpy as np
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
@@ -25,6 +26,11 @@ consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"
 feeds_root_s3_key = "custom_feeds"
 dynamodb_table_name = "rank_score_feed_sessions"
+
+default_similarity_score = 0.75
+average_popular_post_like_count = 250
+coef_toxicity = 0.965
+coef_constructiveness = 1.02
 
 athena = Athena()
 s3 = S3()
@@ -117,7 +123,25 @@ def load_user_social_network() -> dict[str, list[str]]:
 
 def calculate_post_score(post: ConsolidatedEnrichedPostModel) -> float:
     """Calculate a post's score."""
-    return random.uniform(0, 3)  # returns a random float between 0 and 3
+    if post.sociopolitical_was_successfully_labeled and post.is_sociopolitical:
+        # if sociopolitical, uprank/downrank based on toxicity/constructiveness.
+        post_coef = (
+            post.prob_toxic * coef_toxicity
+            + post.prob_constructive * coef_constructiveness
+        ) / (post.prob_toxic + post.prob_constructive)
+    else:
+        # if it's not sociopolitical, use a coef of 1.
+        post_coef = 1.0
+    if post.like_count:
+        return post_coef * np.log(post.like_count + 1)
+    elif post.similarity_score:
+        expected_like_count = average_popular_post_like_count * post.similarity_score
+        return post_coef * np.log(expected_like_count + 1)
+    else:
+        # if we didn't have a like count or similarity score, return a
+        # score where we assume both of those.
+        expected_like_count = average_popular_post_like_count * default_similarity_score
+        return post_coef * np.log(expected_like_count + 1)
 
 
 def calculate_post_scores(posts: list[ConsolidatedEnrichedPostModel]) -> list[float]:  # noqa
@@ -188,6 +212,10 @@ def do_rank_score_feeds():
     consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = (
         load_latest_consolidated_enriched_posts()
     )
+
+    # TODO: implement filtering (e.g., English-language filtering)
+    # consolidated_enriched_posts = filter_posts(consolidated_enriched_posts)
+
     unique_uris = set()
     deduplicated_consolidated_enriched_posts = []
 
