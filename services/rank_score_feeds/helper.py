@@ -122,29 +122,40 @@ def load_user_social_network() -> dict[str, list[str]]:
 
 
 def calculate_post_score(post: ConsolidatedEnrichedPostModel) -> float:
-    """Calculate a post's score."""
+    """Calculate a post's score.
+
+    Calculates what a score's post would be, depending on whether or not it's
+    used for the engagement or the treatment condition.
+    """
+    engagement_score = None
+    treatment_score = None
+    engagement_coef = 1.0
     if post.sociopolitical_was_successfully_labeled and post.is_sociopolitical:
         # if sociopolitical, uprank/downrank based on toxicity/constructiveness.
-        post_coef = (
+        treatment_coef = (
             post.prob_toxic * coef_toxicity
             + post.prob_constructive * coef_constructiveness
         ) / (post.prob_toxic + post.prob_constructive)
     else:
         # if it's not sociopolitical, use a coef of 1.
-        post_coef = 1.0
+        treatment_coef = 1.0
     if post.like_count:
-        return post_coef * np.log(post.like_count + 1)
+        engagement_score = engagement_coef * np.log(post.like_count + 1)
+        treatment_score = treatment_coef * np.log(post.like_count + 1)
     elif post.similarity_score:
         expected_like_count = average_popular_post_like_count * post.similarity_score
-        return post_coef * np.log(expected_like_count + 1)
+        engagement_score = engagement_coef * np.log(expected_like_count + 1)
+        treatment_score = treatment_coef * np.log(expected_like_count + 1)
     else:
         # if we didn't have a like count or similarity score, return a
         # score where we assume both of those.
         expected_like_count = average_popular_post_like_count * default_similarity_score
-        return post_coef * np.log(expected_like_count + 1)
+        engagement_score = engagement_coef * np.log(expected_like_count + 1)
+        treatment_score = treatment_coef * np.log(expected_like_count + 1)
+    return {"engagement_score": engagement_score, "treatment_score": treatment_score}
 
 
-def calculate_post_scores(posts: list[ConsolidatedEnrichedPostModel]) -> list[float]:  # noqa
+def calculate_post_scores(posts: list[ConsolidatedEnrichedPostModel]) -> list[dict]:  # noqa
     """Calculate scores for a list of posts."""
     return [calculate_post_score(post) for post in posts]
 
@@ -172,36 +183,61 @@ def calculate_in_network_posts_for_user(
     return in_network_post_uris
 
 
+# TODO: should implement 50:50 balancing at some point tbh.
 # TODO: should I also return the source feed (firehose/most_liked), to make
 # sure that I am balancing the in-network and out-of-network posts?
 # TODO: add 50/50 balancing (or some similar sort of balancing) between
 # in-network and out-of-network posts.
 def create_ranked_candidate_feed(
     in_network_candidate_post_uris: list[str],
-    out_of_network_candidate_post_uris: list[str],
-    post_uri_to_score_map: dict[str, float],
+    post_pool: list[ConsolidatedEnrichedPostModel],
     max_feed_length: int = max_feed_length,
 ) -> list[tuple[str, float]]:
     """Create a ranked candidate feed.
 
     Returns a list of tuples of post URIs and their scores.
     """
-    # Combine in-network and out-of-network posts
-    candidate_post_uris: list[str] = (
-        in_network_candidate_post_uris + out_of_network_candidate_post_uris
-    )
-
-    # Create a list of tuples (post_uri, score) for all posts
-    post_uri_score_pairs: list[tuple[str, float]] = [
-        (post_uri, post_uri_to_score_map.get(post_uri, 0.0))
-        for post_uri in candidate_post_uris
+    in_network_posts: list[ConsolidatedEnrichedPostModel] = [
+        post for post in post_pool if post.uri in in_network_candidate_post_uris
     ]
+    total_in_network_posts = len(in_network_posts)
+    max_in_network_posts = max_feed_length // 2
+    max_allowed_in_network_posts = min(total_in_network_posts, max_in_network_posts)
+    in_network_posts = in_network_posts[:max_allowed_in_network_posts]
+    if len(post_pool) == 0:
+        return []
+    output_posts: list[ConsolidatedEnrichedPostModel] = []
+    in_network_post_set = set(post.uri for post in in_network_posts)
 
-    # Sort the posts by score in descending order
-    ranked_posts = sorted(post_uri_score_pairs, key=lambda x: x[1], reverse=True)  # noqa
+    # First, add all in-network posts to the output_posts while maintaining order
+    for post in post_pool:
+        if post.uri in in_network_post_set:
+            output_posts.append(post)
 
-    # Limit the feed to max_feed_length
-    return ranked_posts[:max_feed_length]
+    # Then, fill the remaining spots in output_posts with other posts from post_pool
+    for post in post_pool:
+        if post.uri not in in_network_post_set and len(output_posts) < max_feed_length:
+            output_posts.append(post)
+
+    # Now, sort the output posts based on the order that they were in in the
+    # original post pool. If post A was before post B, I want that to be true
+    # in the output posts. This implementation just ensures that we have a
+    # requisite amount of in-network posts in our feeds.
+    uri_to_post_map: dict[str, ConsolidatedEnrichedPostModel] = {
+        post.uri: post for post in output_posts
+    }
+    post_pool_uris = [
+        post.uri for post in post_pool if post.uri in uri_to_post_map.keys()
+    ]
+    res: list[ConsolidatedEnrichedPostModel] = []
+    for uri in post_pool_uris:
+        res.append(uri_to_post_map[uri])
+
+    # Ensure output_posts does not exceed max_feed_length
+    res = res[:max_feed_length]
+    # return a default score, just for backwards compatibility. We won't use
+    # this actual score.
+    return [(post.uri, 0.0) for post in res]
 
 
 def do_rank_score_feeds():
@@ -224,20 +260,26 @@ def do_rank_score_feeds():
             unique_uris.add(post.uri)
             deduplicated_consolidated_enriched_posts.append(post)
 
-    logger.info(
-        f"Deduplicated posts from {len(consolidated_enriched_posts)} to {len(deduplicated_consolidated_enriched_posts)}."
-    )
+    if len(consolidated_enriched_posts) != len(
+        deduplicated_consolidated_enriched_posts
+    ):
+        logger.info(
+            f"Deduplicated posts from {len(consolidated_enriched_posts)} to {len(deduplicated_consolidated_enriched_posts)}."
+        )
     consolidated_enriched_posts = deduplicated_consolidated_enriched_posts
     user_to_social_network_map: dict = load_user_social_network()
     superposter_dids: set[str] = load_latest_superposters()
     logger.info(f"Loaded {len(superposter_dids)} superposters.")  # noqa
 
     # calculate scores for all the posts
-    post_scores: list[float] = calculate_post_scores(consolidated_enriched_posts)  # noqa
-    post_uri_to_score_map: dict[str, float] = {
-        post.uri: score for post, score in zip(consolidated_enriched_posts, post_scores)
+    post_scores: list[dict] = calculate_post_scores(consolidated_enriched_posts)  # noqa
+    post_uri_to_post_score_map: dict[str, dict] = {
+        post.uri: {"post": post, "score": score}
+        for post, score in zip(consolidated_enriched_posts, post_scores)
     }
-    logger.info(f"Calculated {len(post_uri_to_score_map)} post scores.")
+    logger.info(f"Calculated {len(post_uri_to_post_score_map)} post scores.")
+
+    breakpoint()
 
     # list of all in-network user posts, across all study users. Needs to be
     # filtered for the in-network posts relevant for a given study user.
@@ -269,28 +311,71 @@ def do_rank_score_feeds():
         for user in study_users
     }
 
+    # sort posts per condition.
+    all_posts: list[dict] = [
+        post_score_dict
+        for post_score_dict in calculate_in_network_posts_for_user.values()
+    ]
+
+    # reverse chronological: sort by most recent posts descending
+    reverse_chronological_post_pool = sorted(
+        all_posts, key=lambda x: x["post"].created_at, reverse=True
+    )
+    reverse_chronological_post_pool: list[ConsolidatedEnrichedPostModel] = [
+        post_score_dict["post"] for post_score_dict in reverse_chronological_post_pool
+    ]
+
+    # engagement posts: sort by engagement score descending
+    engagement_post_pool: list[dict] = sorted(
+        all_posts, key=lambda x: x["score"]["engagement_score"], reverse=True
+    )
+    engagement_post_pool: list[ConsolidatedEnrichedPostModel] = [
+        post_score_dict["post"] for post_score_dict in engagement_post_pool
+    ]
+
+    # treatment posts: sort by treatment score descending.
+    treatment_post_pool: list[dict] = sorted(
+        all_posts, key=lambda x: x["score"]["treatment_score"], reverse=True
+    )
+    treatment_post_pool: list[ConsolidatedEnrichedPostModel] = [
+        post_score_dict["post"] for post_score_dict in treatment_post_pool
+    ]
+
+    # then, pass in these to create_ranked_candidate_feed to create the
+    # feed. We already pre-sort the posts so we don't have to do
+    # this step multiple times.
     # create feeds for each user. Map feeds to users.
-    user_to_ranked_feed_map: dict[str, list[tuple[str, float]]] = {
+
+    user_to_ranked_feed_map: dict[str, list[str]] = {
         user.bluesky_user_did: create_ranked_candidate_feed(
             in_network_candidate_post_uris=(
                 user_to_in_network_post_uris_map[user.bluesky_user_did]
             ),
-            out_of_network_candidate_post_uris=out_of_network_post_uris,
-            post_uri_to_score_map=post_uri_to_score_map,
+            post_pool=(
+                reverse_chronological_post_pool
+                if user.condition == "reverse_chronological"
+                else engagement_post_pool
+                if user.condition == "engagement"
+                else treatment_post_pool
+                if user.condition == "treatment"
+                else None
+            ),
             max_feed_length=max_feed_length,
         )
         for user in study_users
     }
 
+    breakpoint()
+
     # insert default feed, for users that aren't logged in or for if a user
     # isn't in the study but opens the link.
-    default_feed = create_ranked_candidate_feed(
-        in_network_candidate_post_uris=[],
-        out_of_network_candidate_post_uris=out_of_network_post_uris,
-        post_uri_to_score_map=post_uri_to_score_map,
-        max_feed_length=max_feed_length,
-    )
-    user_to_ranked_feed_map["default"] = default_feed
+    # default_feed = create_ranked_candidate_feed(
+    #     in_network_candidate_post_uris=[],
+    #     out_of_network_candidate_post_uris=out_of_network_post_uris,
+    #     post_uri_to_post_score_map=post_uri_to_post_score_map,
+    #     max_feed_length=max_feed_length,
+    # )
+    # user_to_ranked_feed_map["default"] = default_feed
 
     # write feeds to s3
     timestamp = generate_current_datetime_str()
