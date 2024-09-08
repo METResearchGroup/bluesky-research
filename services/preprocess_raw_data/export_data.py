@@ -65,7 +65,7 @@ def export_latest_preprocessed_posts(
             if external_store == "s3":
                 s3.write_dicts_jsonl_to_s3(data=posts, key=full_key)
                 # trigger Glue crawler to recognize the new data.
-                athena.run_query("MSCK REPAIR TABLE preprocessed_posts")
+                # athena.run_query("MSCK REPAIR TABLE preprocessed_posts")
                 # glue.start_crawler(crawler_name="preprocessed_posts_crawler")
             elif external_store == "local":
                 full_export_filepath = os.path.join(root_local_data_directory, full_key)
