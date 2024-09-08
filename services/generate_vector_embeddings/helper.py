@@ -87,7 +87,7 @@ def get_posts_to_embed() -> list[FilteredPreprocessedPostModel]:
         logger.info("No latest embedding session found. Embedding all posts...")
         latest_embedding_timestamp = None
     else:
-        latest_embedding_timestamp = latest_embedding_session["embedding_timestamp"]
+        latest_embedding_timestamp = latest_embedding_session["embedding_timestamp"]["S"]
 
     logger.info("Getting posts to embed.")
     posts = athena.get_latest_preprocessed_posts(timestamp=latest_embedding_timestamp)
