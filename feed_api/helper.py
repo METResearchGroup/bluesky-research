@@ -168,7 +168,14 @@ def export_log_data(log: dict):
         data=log,
         key=key,
     )
-    glue.start_crawler(crawler_name="user_session_logs_glue_crawler")
+    # glue.start_crawler(crawler_name="user_session_logs_glue_crawler")
+    # athena.run_query(
+    #     f"""
+    #     ALTER TABLE user_session_logs
+    #     ADD PARTITION (bluesky_user_handle='{handle}')
+    #     LOCATION 's3://bluesky-research/{key}'
+    #     """
+    # )
     logger.info(f"Exported user session logs to S3 (key={key}): {log}")
 
 
