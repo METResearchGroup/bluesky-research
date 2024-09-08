@@ -1219,30 +1219,30 @@ resource "aws_glue_catalog_table" "preprocessed_posts" {
     }
   }
 
-  partition_keys {
-    name = "source"
-    type = "string"
-  }
-  partition_keys {
-    name = "year"
-    type = "string"
-  }
-  partition_keys {
-    name = "month"
-    type = "string"
-  }
-  partition_keys {
-    name = "day"
-    type = "string"
-  }
-  partition_keys {
-    name = "hour"
-    type = "string"
-  }
-  partition_keys {
-    name = "minute"
-    type = "string"
-  }
+  # partition_keys {
+  #   name = "source"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "year"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "month"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "day"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "hour"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "minute"
+  #   type = "string"
+  # }
 }
 
 resource "aws_glue_catalog_table" "queue_messages" {
@@ -1338,33 +1338,33 @@ resource "aws_iam_role_policy_attachment" "glue_crawler_attach_policy" {
   policy_arn = aws_iam_policy.glue_crawler_policy.arn
 }
 
-resource "aws_glue_crawler" "preprocessed_posts_crawler" {
-  name        = "preprocessed_posts_crawler"
-  role        = aws_iam_role.glue_crawler_role.arn
-  database_name = var.default_glue_database_name
+# resource "aws_glue_crawler" "preprocessed_posts_crawler" {
+#   name        = "preprocessed_posts_crawler"
+#   role        = aws_iam_role.glue_crawler_role.arn
+#   database_name = var.default_glue_database_name
 
-  s3_target {
-    path = "s3://${var.s3_root_bucket_name}/preprocessed_data/preprocessed_posts/"
-  }
+#   s3_target {
+#     path = "s3://${var.s3_root_bucket_name}/preprocessed_data/preprocessed_posts/"
+#   }
 
-  schedule = "cron(0 */8 * * ? *)"  # Every 8 hours
+#   schedule = "cron(0 */8 * * ? *)"  # Every 8 hours
 
-  configuration = jsonencode({
-    "Version" = 1.0,
-    "CrawlerOutput" = {
-      Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
-      Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
-    }
-    Grouping = {
-      TableGroupingPolicy = "CombineCompatibleSchemas"
-    }
-  })
+#   configuration = jsonencode({
+#     "Version" = 1.0,
+#     "CrawlerOutput" = {
+#       Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
+#       Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
+#     }
+#     Grouping = {
+#       TableGroupingPolicy = "CombineCompatibleSchemas"
+#     }
+#   })
 
-  schema_change_policy {
-    delete_behavior = "LOG"
-    update_behavior = "UPDATE_IN_DATABASE"
-  }
-}
+#   schema_change_policy {
+#     delete_behavior = "LOG"
+#     update_behavior = "UPDATE_IN_DATABASE"
+#   }
+# }
 
 resource "aws_glue_catalog_table" "perspective_api_labels" {
   name          = "ml_inference_perspective_api"
@@ -1496,30 +1496,30 @@ resource "aws_glue_catalog_table" "perspective_api_labels" {
     }
   }
 
-  partition_keys {
-    name = "source"
-    type = "string"
-  }
-  partition_keys {
-    name = "year"
-    type = "string"
-  }
-  partition_keys {
-    name = "month"
-    type = "string"
-  }
-  partition_keys {
-    name = "day"
-    type = "string"
-  }
-  partition_keys {
-    name = "hour"
-    type = "string"
-  }
-  partition_keys {
-    name = "minute"
-    type = "string"
-  }
+  # partition_keys {
+  #   name = "source"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "year"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "month"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "day"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "hour"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "minute"
+  #   type = "string"
+  # }
 }
 
 resource "aws_glue_catalog_table" "llm_sociopolitical_labels" {
@@ -1576,30 +1576,30 @@ resource "aws_glue_catalog_table" "llm_sociopolitical_labels" {
     }
   }
 
-  partition_keys {
-    name = "source"
-    type = "string"
-  }
-  partition_keys {
-    name = "year"
-    type = "string"
-  }
-  partition_keys {
-    name = "month"
-    type = "string"
-  }
-  partition_keys {
-    name = "day"
-    type = "string"
-  }
-  partition_keys {
-    name = "hour"
-    type = "string"
-  }
-  partition_keys {
-    name = "minute"
-    type = "string"
-  }
+  # partition_keys {
+  #   name = "source"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "year"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "month"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "day"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "hour"
+  #   type = "string"
+  # }
+  # partition_keys {
+  #   name = "minute"
+  #   type = "string"
+  # }
 }
 
 resource "aws_glue_catalog_table" "in_network_embeddings" {
@@ -2178,69 +2178,69 @@ resource "aws_glue_catalog_table" "user_session_logs" {
     }
   }
 
-  partition_keys {
-    name = "bluesky_user_handle"
-    type = "string"
-  }
+  # partition_keys {
+  #   name = "bluesky_user_handle"
+  #   type = "string"
+  # }
 }
 
-resource "aws_glue_catalog_table" "sqs_messages" {
-  name          = "sqs_messages"
-  database_name = var.default_glue_database_name
-  table_type    = "EXTERNAL_TABLE"
+# resource "aws_glue_catalog_table" "sqs_messages" {
+#   name          = "sqs_messages"
+#   database_name = var.default_glue_database_name
+#   table_type    = "EXTERNAL_TABLE"
 
-  parameters = {
-    "classification" = "json"
-  }
+#   parameters = {
+#     "classification" = "json"
+#   }
 
-  storage_descriptor {
-    location      = "s3://${var.s3_root_bucket_name}/sqs_messages/"
-    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
-    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+#   storage_descriptor {
+#     location      = "s3://${var.s3_root_bucket_name}/sqs_messages/"
+#     input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+#     output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
 
-    ser_de_info {
-      name                  = "sqs_messages_json"
-      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
-    }
-    columns {
-      name = "source"
-      type = "string"
-    }
-    columns {
-      name = "insert_timestamp"
-      type = "string"
-    }
-    columns {
-      name = "data"
-      type = "string"
-    }
-  }
+#     ser_de_info {
+#       name                  = "sqs_messages_json"
+#       serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+#     }
+#     columns {
+#       name = "source"
+#       type = "string"
+#     }
+#     columns {
+#       name = "insert_timestamp"
+#       type = "string"
+#     }
+#     columns {
+#       name = "data"
+#       type = "string"
+#     }
+#   }
 
-  partition_keys {
-    name = "queue_name"
-    type = "string"
-  }
-  partition_keys {
-    name = "year"
-    type = "int"
-  }
-  partition_keys {
-    name = "month"
-    type = "int"
-  }
-  partition_keys {
-    name = "day"
-    type = "int"
-  }
-  partition_keys {
-    name = "hour"
-    type = "int"
-  }
-  partition_keys {
-    name = "minute"
-    type = "int"
-  }
-}
+#   partition_keys {
+#     name = "queue_name"
+#     type = "string"
+#   }
+#   partition_keys {
+#     name = "year"
+#     type = "int"
+#   }
+#   partition_keys {
+#     name = "month"
+#     type = "int"
+#   }
+#   partition_keys {
+#     name = "day"
+#     type = "int"
+#   }
+#   partition_keys {
+#     name = "hour"
+#     type = "int"
+#   }
+#   partition_keys {
+#     name = "minute"
+#     type = "int"
+#   }
+# }
 
 # resource "aws_glue_crawler" "user_session_logs_glue_crawler" {
 #   name        = "user_session_logs_glue_crawler"
@@ -2278,62 +2278,62 @@ resource "aws_glue_catalog_table" "sqs_messages" {
 # }
 
 
-resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
-  name        = "perspective_api_labels_glue_crawler"
-  role        = aws_iam_role.glue_crawler_role.arn
-  database_name = var.default_glue_database_name
+# resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
+#   name        = "perspective_api_labels_glue_crawler"
+#   role        = aws_iam_role.glue_crawler_role.arn
+#   database_name = var.default_glue_database_name
 
-  s3_target {
-    path = "s3://${var.s3_root_bucket_name}/ml_inference_perspective_api/"
-  }
+#   s3_target {
+#     path = "s3://${var.s3_root_bucket_name}/ml_inference_perspective_api/"
+#   }
 
-  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+#   schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
 
-  configuration = jsonencode({
-    "Version" = 1.0,
-    "CrawlerOutput" = {
-      Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
-      Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
-    }
-    Grouping = {
-      TableGroupingPolicy = "CombineCompatibleSchemas"
-    }
-  })
+#   configuration = jsonencode({
+#     "Version" = 1.0,
+#     "CrawlerOutput" = {
+#       Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
+#       Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
+#     }
+#     Grouping = {
+#       TableGroupingPolicy = "CombineCompatibleSchemas"
+#     }
+#   })
 
-  schema_change_policy {
-    delete_behavior = "LOG"
-    update_behavior = "UPDATE_IN_DATABASE"
-  }
-}
+#   schema_change_policy {
+#     delete_behavior = "LOG"
+#     update_behavior = "UPDATE_IN_DATABASE"
+#   }
+# }
 
 
-resource "aws_glue_crawler" "llm_sociopolitical_labels_glue_crawler" {
-  name        = "llm_sociopolitical_labels_glue_crawler"
-  role        = aws_iam_role.glue_crawler_role.arn
-  database_name = var.default_glue_database_name
+# resource "aws_glue_crawler" "llm_sociopolitical_labels_glue_crawler" {
+#   name        = "llm_sociopolitical_labels_glue_crawler"
+#   role        = aws_iam_role.glue_crawler_role.arn
+#   database_name = var.default_glue_database_name
 
-  s3_target {
-    path = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/"
-  }
+#   s3_target {
+#     path = "s3://${var.s3_root_bucket_name}/ml_inference_sociopolitical/"
+#   }
 
-  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+#   schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
 
-  configuration = jsonencode({
-    "Version" = 1.0,
-    "CrawlerOutput" = {
-      Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
-      Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
-    }
-    Grouping = {
-      TableGroupingPolicy = "CombineCompatibleSchemas"
-    }
-  })
+#   configuration = jsonencode({
+#     "Version" = 1.0,
+#     "CrawlerOutput" = {
+#       Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
+#       Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
+#     }
+#     Grouping = {
+#       TableGroupingPolicy = "CombineCompatibleSchemas"
+#     }
+#   })
 
-  schema_change_policy {
-    delete_behavior = "LOG"
-    update_behavior = "UPDATE_IN_DATABASE"
-  }
-}
+#   schema_change_policy {
+#     delete_behavior = "LOG"
+#     update_behavior = "UPDATE_IN_DATABASE"
+#   }
+# }
 
 # resource "aws_glue_crawler" "queue_messages_crawler" {
 #   name        = "queue_messages_crawler"
