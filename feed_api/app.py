@@ -30,7 +30,6 @@ from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users, manage_bsky_study_user
 from services.participant_data.models import UserOperation
-from transform.bluesky_helper import get_author_did_from_handle
 
 
 app = FastAPI()
@@ -148,6 +147,9 @@ async def manage_user(user_operation: UserOperation):
     # and we're not doing this operation frequently.
     study_users = get_all_users()
     existing_study_user_bsky_handles = [user.bluesky_handle for user in study_users]
+    handle_to_did_map = {
+        user.bluesky_handle: user.bluesky_user_did for user in study_users
+    }
     if operation == "add" and bluesky_handle in existing_study_user_bsky_handles:
         raise HTTPException(status_code=400, detail="User already exists in study")
     elif (
@@ -157,10 +159,10 @@ async def manage_user(user_operation: UserOperation):
 
     # then, get info from Bluesky.
     try:
-        bsky_author_did = get_author_did_from_handle(bluesky_handle)
+        bsky_author_did = handle_to_did_map[bluesky_handle]
     except Exception as e:
         raise HTTPException(
-            status_code=400, detail=f"Error getting user information from Bluesky: {e}"
+            status_code=400, detail=f"User doesn't exist in the study: {e}"
         )
 
     if operation in ["add", "modify"]:
