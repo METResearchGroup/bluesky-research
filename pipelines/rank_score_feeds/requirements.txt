@@ -26,6 +26,8 @@ cryptography==42.0.8
     # via atproto
 dnspython==2.6.1
     # via atproto
+exceptiongroup==1.2.2
+    # via anyio
 h11==0.14.0
     # via httpcore
 httpcore==1.0.5
@@ -49,7 +51,9 @@ mdurl==0.1.2
 memory-profiler==0.61.0
     # via -r requirements.in
 numpy==1.26.4
-    # via pandas
+    # via
+    #   -r requirements.in
+    #   pandas
 pandas==2.2.0
     # via -r requirements.in
 psutil==6.0.0
@@ -89,6 +93,7 @@ typer==0.12.3
 typing-extensions==4.12.2
     # via
     #   -r requirements.in
+    #   anyio
     #   atproto
     #   pydantic
     #   pydantic-core
