@@ -206,6 +206,8 @@ def create_ranked_candidate_feed(
     in_network_posts = in_network_posts[:max_allowed_in_network_posts]
     if len(post_pool) == 0:
         return []
+    if len(in_network_candidate_post_uris) == 0:
+        return [(post.uri, 0.0) for post in post_pool]
     output_posts: list[ConsolidatedEnrichedPostModel] = []
     in_network_post_set = set(post.uri for post in in_network_posts)
 
@@ -249,8 +251,16 @@ def do_rank_score_feeds():
         load_latest_consolidated_enriched_posts()
     )
 
-    # TODO: implement filtering (e.g., English-language filtering)
-    # consolidated_enriched_posts = filter_posts(consolidated_enriched_posts)
+    # immplement filtering (e.g., English-language filtering)
+    # (this should've been caught during preprocessing, so I'm not sure why
+    # it wasn't caught).
+    logger.info(f"Number of posts before filtering: {len(consolidated_enriched_posts)}")
+    consolidated_enriched_posts = [
+        post
+        for post in consolidated_enriched_posts
+        if post.langs is not None and post.langs == "en"
+    ]
+    logger.info(f"Number of posts after filtering: {len(consolidated_enriched_posts)}")
 
     unique_uris = set()
     deduplicated_consolidated_enriched_posts = []
@@ -278,8 +288,6 @@ def do_rank_score_feeds():
         for post, score in zip(consolidated_enriched_posts, post_scores)
     }
     logger.info(f"Calculated {len(post_uri_to_post_score_map)} post scores.")
-
-    breakpoint()
 
     # list of all in-network user posts, across all study users. Needs to be
     # filtered for the in-network posts relevant for a given study user.
@@ -365,17 +373,14 @@ def do_rank_score_feeds():
         for user in study_users
     }
 
-    breakpoint()
-
     # insert default feed, for users that aren't logged in or for if a user
     # isn't in the study but opens the link.
-    # default_feed = create_ranked_candidate_feed(
-    #     in_network_candidate_post_uris=[],
-    #     out_of_network_candidate_post_uris=out_of_network_post_uris,
-    #     post_uri_to_post_score_map=post_uri_to_post_score_map,
-    #     max_feed_length=max_feed_length,
-    # )
-    # user_to_ranked_feed_map["default"] = default_feed
+    default_feed = create_ranked_candidate_feed(
+        in_network_candidate_post_uris=[],
+        post_pool=reverse_chronological_post_pool,
+        max_feed_length=max_feed_length,
+    )
+    user_to_ranked_feed_map["default"] = default_feed
 
     # write feeds to s3
     timestamp = generate_current_datetime_str()
