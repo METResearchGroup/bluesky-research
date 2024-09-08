@@ -90,6 +90,12 @@ echo 'export AWS_REGION="us-east-2"' >> ~/.bashrc && source ~/.bashrc
 # set up Cloudwatch logs for Docker container
 # aws logs create-log-group --log-group-name sync-firehose-logs # should already exist.
 
+# NOTE: if rerunning an existence instance, just need to run the CloudWatch
+# agent steps and then run nohup. Do NOT try to auth to AWS or do anything
+# that interacts with the AWS cli. This will cause the job to look for the
+# AWS profile that will be in .aws/config. The EC2 instance does not have
+# this profile; instead, it has a profile that is attached to the instance.
+
 # Install the CloudWatch agent (ONLY if you're setting up a new instance)
 sudo yum install -y amazon-cloudwatch-agent
 
