@@ -113,6 +113,8 @@ def load_latest_sqs_messages_from_athena(
     latest_processed_insert_timestamp: Optional[str] = None,
 ) -> list[dict]:
     """Load the latest sync messages."""
+    logger.info("Getting latest queue messages.")
+    athena.run_query("MSCK REPAIR TABLE queue_messages")
     where_condition = (
         f"insert_timestamp > '{latest_processed_insert_timestamp}'"
         if latest_processed_insert_timestamp

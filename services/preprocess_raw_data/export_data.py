@@ -3,6 +3,7 @@
 import os
 from typing import Literal
 
+from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
@@ -14,6 +15,7 @@ dynamodb_table_name = "preprocessingPipelineMetadata"
 dynamodb = DynamoDB()
 dynamodb_table = dynamodb.resource.Table(dynamodb_table_name)
 
+athena = Athena()
 glue = Glue()
 s3 = S3()
 
@@ -63,7 +65,8 @@ def export_latest_preprocessed_posts(
             if external_store == "s3":
                 s3.write_dicts_jsonl_to_s3(data=posts, key=full_key)
                 # trigger Glue crawler to recognize the new data.
-                glue.start_crawler(crawler_name="preprocessed_posts_crawler")
+                athena.run_query("MSCK REPAIR TABLE preprocessed_posts")
+                # glue.start_crawler(crawler_name="preprocessed_posts_crawler")
             elif external_store == "local":
                 full_export_filepath = os.path.join(root_local_data_directory, full_key)
                 write_jsons_to_local_store(
