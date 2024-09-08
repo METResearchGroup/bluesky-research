@@ -197,6 +197,10 @@ def create_ranked_candidate_feed(
 
     Returns a list of tuples of post URIs and their scores.
     """
+    if post_pool is None:
+        raise ValueError(
+            "post_pool cannot be None. This means that a user condition is unexpected/invalid"
+        )  # noqa
     in_network_posts: list[ConsolidatedEnrichedPostModel] = [
         post for post in post_pool if post.uri in in_network_candidate_post_uris
     ]
@@ -321,8 +325,7 @@ def do_rank_score_feeds():
 
     # sort posts per condition.
     all_posts: list[dict] = [
-        post_score_dict
-        for post_score_dict in calculate_in_network_posts_for_user.values()
+        post_score_dict for post_score_dict in post_uri_to_post_score_map.values()
     ]
 
     # reverse chronological: sort by most recent posts descending
@@ -353,7 +356,6 @@ def do_rank_score_feeds():
     # feed. We already pre-sort the posts so we don't have to do
     # this step multiple times.
     # create feeds for each user. Map feeds to users.
-
     user_to_ranked_feed_map: dict[str, list[str]] = {
         user.bluesky_user_did: create_ranked_candidate_feed(
             in_network_candidate_post_uris=(
@@ -365,7 +367,7 @@ def do_rank_score_feeds():
                 else engagement_post_pool
                 if user.condition == "engagement"
                 else treatment_post_pool
-                if user.condition == "treatment"
+                if user.condition == "representative_diversification"
                 else None
             ),
             max_feed_length=max_feed_length,
