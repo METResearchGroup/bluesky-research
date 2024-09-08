@@ -1271,33 +1271,8 @@ resource "aws_glue_catalog_table" "queue_messages" {
     }
     columns {
       name = "data"
-      type = "string"
+      type = "struct<sync:struct<source:string,operation:string,operation_type:string,s3_keys:array<string>>>"
     }
-  }
-
-  partition_keys {
-    name = "message_source"
-    type = "string"
-  }
-  partition_keys {
-    name = "year"
-    type = "string"
-  }
-  partition_keys {
-    name = "month"
-    type = "string"
-  }
-  partition_keys {
-    name = "day"
-    type = "struct<sync:struct<source:string,operation:string,operation_type:string,s3_keys:array<string>>>"
-  }
-  partition_keys {
-    name = "hour"
-    type = "string"
-  }
-  partition_keys {
-    name = "minute"
-    type = "string"
   }
 }
 
@@ -1372,7 +1347,7 @@ resource "aws_glue_crawler" "preprocessed_posts_crawler" {
     path = "s3://${var.s3_root_bucket_name}/preprocessed_data/preprocessed_posts/"
   }
 
-  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+  schedule = "cron(0 */8 * * ? *)"  # Every 8 hours
 
   configuration = jsonencode({
     "Version" = 1.0,
@@ -2267,40 +2242,40 @@ resource "aws_glue_catalog_table" "sqs_messages" {
   }
 }
 
-resource "aws_glue_crawler" "user_session_logs_glue_crawler" {
-  name        = "user_session_logs_glue_crawler"
-  role        = aws_iam_role.glue_crawler_role.arn
-  database_name = var.default_glue_database_name
+# resource "aws_glue_crawler" "user_session_logs_glue_crawler" {
+#   name        = "user_session_logs_glue_crawler"
+#   role        = aws_iam_role.glue_crawler_role.arn
+#   database_name = var.default_glue_database_name
 
-  s3_target {
-    path = "s3://${var.s3_root_bucket_name}/user_session_logs/"
-  }
+#   s3_target {
+#     path = "s3://${var.s3_root_bucket_name}/user_session_logs/"
+#   }
 
-  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+#   schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
 
-  configuration = jsonencode({
-    "Version" = 1.0,
-    "CrawlerOutput" = {
-      Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
-      Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
-    }
-    Grouping = {
-      TableGroupingPolicy = "CombineCompatibleSchemas"
-    }
-  })
+#   configuration = jsonencode({
+#     "Version" = 1.0,
+#     "CrawlerOutput" = {
+#       Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
+#       Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
+#     }
+#     Grouping = {
+#       TableGroupingPolicy = "CombineCompatibleSchemas"
+#     }
+#   })
 
-  schema_change_policy {
-    delete_behavior = "LOG"
-    update_behavior = "UPDATE_IN_DATABASE"
-  }
+#   schema_change_policy {
+#     delete_behavior = "LOG"
+#     update_behavior = "UPDATE_IN_DATABASE"
+#   }
 
-  # Error: updating Glue Crawler (user_session_logs_glue_crawler): InvalidInputException: The SchemaChangePolicy for "Crawl new folders only" Amazon S3 target can have only LOG DeleteBehavior value and LOG UpdateBehavior value.
-  # # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/glue_crawler#recrawl_behavior
-  # # https://geeks.wego.com/creating-glue-crawlers-via-terraform/
-  # recrawl_policy  {
-  #   recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"
-  # }
-}
+#   # Error: updating Glue Crawler (user_session_logs_glue_crawler): InvalidInputException: The SchemaChangePolicy for "Crawl new folders only" Amazon S3 target can have only LOG DeleteBehavior value and LOG UpdateBehavior value.
+#   # # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/glue_crawler#recrawl_behavior
+#   # # https://geeks.wego.com/creating-glue-crawlers-via-terraform/
+#   # recrawl_policy  {
+#   #   recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"
+#   # }
+# }
 
 
 resource "aws_glue_crawler" "perspective_api_labels_glue_crawler" {
@@ -2360,26 +2335,26 @@ resource "aws_glue_crawler" "llm_sociopolitical_labels_glue_crawler" {
   }
 }
 
-resource "aws_glue_crawler" "queue_messages_crawler" {
-  name        = "queue_messages_crawler"
-  role        = aws_iam_role.glue_crawler_role.arn
-  database_name = var.default_glue_database_name
+# resource "aws_glue_crawler" "queue_messages_crawler" {
+#   name        = "queue_messages_crawler"
+#   role        = aws_iam_role.glue_crawler_role.arn
+#   database_name = var.default_glue_database_name
 
-  s3_target {
-    path = "s3://${var.s3_root_bucket_name}/queue_messages/"
-  }
+#   s3_target {
+#     path = "s3://${var.s3_root_bucket_name}/queue_messages/"
+#   }
 
-  schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
+#   schedule = "cron(0 */6 * * ? *)"  # Every 6 hours
 
-  configuration = jsonencode({
-    "Version" = 1.0,
-    "CrawlerOutput" = {
-      "Partitions" = {
-        "AddOrUpdateBehavior" = "InheritFromTable"
-      }
-    }
-  })
-}
+#   configuration = jsonencode({
+#     "Version" = 1.0,
+#     "CrawlerOutput" = {
+#       "Partitions" = {
+#         "AddOrUpdateBehavior" = "InheritFromTable"
+#       }
+#     }
+#   })
+# }
 
 resource "aws_cloudwatch_log_group" "glue_crawler_logs" {
   name              = "/aws-glue/crawlers"
@@ -2401,15 +2376,15 @@ resource "aws_cloudwatch_log_stream" "preprocessed_posts_crawler_stream" {
   name           = "preprocessed_posts_crawler_stream"
 }
 
-resource "aws_cloudwatch_log_stream" "queue_messages_crawler_stream" {
-  log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
-  name           = "queue_messages_crawler_stream"
-}
+# resource "aws_cloudwatch_log_stream" "queue_messages_crawler_stream" {
+#   log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
+#   name           = "queue_messages_crawler_stream"
+# }
 
-resource "aws_cloudwatch_log_stream" "user_session_logs_crawler_stream" {
-  log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
-  name           = "user_session_logs_crawler_stream"
-}
+# resource "aws_cloudwatch_log_stream" "user_session_logs_crawler_stream" {
+#   log_group_name = aws_cloudwatch_log_group.glue_crawler_logs.name
+#   name           = "user_session_logs_crawler_stream"
+# }
 
 
 ### AWS Athena ###  
