@@ -267,8 +267,10 @@ def do_consolidate_enrichment_integrations(
         current_time = datetime.now()
         if backfill_period == "days":
             backfill_time = current_time - timedelta(days=backfill_duration)
+            logger.info(f"Backfilling {backfill_duration} days of data.")
         elif backfill_period == "hours":
             backfill_time = current_time - timedelta(hours=backfill_duration)
+            logger.info(f"Backfilling {backfill_duration} hours of data.")
     else:
         backfill_time = None
 
