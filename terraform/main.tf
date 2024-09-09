@@ -322,7 +322,7 @@ resource "aws_lambda_function" "rank_score_feeds_lambda" {
   image_uri     = "${aws_ecr_repository.rank_score_feeds_service.repository_url}:latest"
   architectures = ["arm64"]
   timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
-  memory_size   = 512 # 512 MB of memory
+  memory_size   = 768 # 768 MB of memory
 
   lifecycle {
     ignore_changes = [image_uri]
