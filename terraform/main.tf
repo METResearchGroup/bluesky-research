@@ -126,6 +126,21 @@ resource "aws_ecr_repository" "sync_most_liked_feed_service" {
   name = "sync_most_liked_feed_service"
 }
 
+# TODO: get correct AMI.
+### EC2 instances ###
+resource "aws_instance" "feed_api" {
+  ami           = "ami-09efc42336106d2f2" # 64-bit x86
+  instance_type = "t3.micro"
+  key_name      = "firehoseSyncEc2Key"
+
+  tags = {
+    Name = "feed-api-ec2-instance"
+  }
+
+  iam_instance_profile = "EC2InstanceProfile"
+  vpc_security_group_ids = ["sg-0b3e24638f16807d5"]
+}
+
 ### Lambdas ###
 resource "aws_lambda_function" "bluesky_feed_api_lambda" {
   function_name = var.bsky_api_lambda_name
