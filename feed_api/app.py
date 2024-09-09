@@ -15,6 +15,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.security.api_key import APIKeyHeader
 from mangum import Mangum
+import uvicorn
 
 from feed_api.auth import AuthorizationError, validate_auth
 from feed_api.helper import (
@@ -257,3 +258,7 @@ def handler(event, context):
     logger.info(f"Context payload: {context}")
     asgi_handler = Mangum(app)
     return asgi_handler(event, context)
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)

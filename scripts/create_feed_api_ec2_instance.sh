@@ -39,7 +39,7 @@ rm ~/miniconda3/miniconda.sh
 # then restart the terminal
 # after restarting, do the following:
 # type "conda", to verify that it works.
-conda create --name bluesky-research python=3.9 -y
+conda create --name bluesky-research python=3.10 -y
 conda activate bluesky-research
 cd /home/ec2-user/bluesky-research/feed_api
 pip install -r requirements.txt
