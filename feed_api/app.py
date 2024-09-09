@@ -15,6 +15,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.security.api_key import APIKeyHeader
 from mangum import Mangum
+import uvicorn
 
 from feed_api.auth import AuthorizationError, validate_auth
 from feed_api.helper import (
@@ -251,9 +252,25 @@ async def get_feed_skeleton(
     return output
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint to verify the application is running."""
+    return {"status": "healthy"}
+
+
+@app.get("/test/")
+async def test_endpoint():
+    """Health check endpoint to verify the application is running."""
+    return {"status": "healthy"}
+
+
 # https://stackoverflow.com/questions/76844538/the-adapter-was-unable-to-infer-a-handler-to-use-for-the-event-this-is-likely-r
 def handler(event, context):
     logger.info(f"Event payload: {event}")
     logger.info(f"Context payload: {context}")
     asgi_handler = Mangum(app)
     return asgi_handler(event, context)
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -126,6 +126,62 @@ resource "aws_ecr_repository" "sync_most_liked_feed_service" {
   name = "sync_most_liked_feed_service"
 }
 
+# TODO: get correct AMI.
+### EC2 instances ###
+resource "aws_instance" "feed_api" {
+  ami           = "ami-09efc42336106d2f2" # 64-bit x86
+  instance_type = "t3.micro"
+  key_name      = "firehoseSyncEc2Key"
+
+  tags = {
+    Name = "feed-api-ec2-instance"
+  }
+
+  iam_instance_profile = "EC2InstanceProfile"
+  vpc_security_group_ids = ["sg-0b3e24638f16807d5"] # references feed_api_sg.
+}
+
+# this is the same security group for both the firehose and the Feed API.
+resource "aws_security_group" "feed_api_sg" {
+  name        = "launch-wizard"
+  description = "launch-wizard created 2024-08-12T20:56:38.950Z"
+  vpc_id      = "vpc-052fa7eed9a020314"
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # port access for FastAPI access.
+  ingress {
+    from_port   = 8000
+    to_port     = 8000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Allow access from anywhere (you might want to restrict this)
+  }
+
+  # TODO: double-check if this is the correct IPs for API Gateway.
+  ingress {
+    from_port   = 8000
+    to_port     = 8000
+    protocol    = "tcp"
+    cidr_blocks = ["3.145.192.0/24", "3.134.64.0/24", "3.134.128.0/24"]  # API Gateway IPs (us-east-2 example)
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  lifecycle {
+    ignore_changes = [name]
+  }
+}
+
 ### Lambdas ###
 resource "aws_lambda_function" "bluesky_feed_api_lambda" {
   function_name = var.bsky_api_lambda_name
@@ -548,7 +604,7 @@ resource "aws_api_gateway_integration" "bluesky_feed_api_root_integration" {
 resource "aws_api_gateway_resource" "bluesky_feed_api_proxy" {
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
   parent_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.root_resource_id
-  path_part   = "{proxy+}"
+  path_part   = "test"
 }
 
 # Define ANY method for /{proxy+}
@@ -574,7 +630,8 @@ resource "aws_api_gateway_integration" "bluesky_feed_api_proxy_integration" {
 resource "aws_api_gateway_deployment" "bluesky_feed_api_gateway_deployment" {
   depends_on = [
     aws_api_gateway_integration.bluesky_feed_api_proxy_integration,
-    aws_api_gateway_integration.bluesky_feed_api_root_integration
+    aws_api_gateway_integration.bluesky_feed_api_root_integration,
+    aws_api_gateway_integration.bluesky_ec2_feed_api_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
@@ -588,6 +645,44 @@ resource "aws_lambda_permission" "api_gateway_permission" {
   function_name = aws_lambda_function.bluesky_feed_api_lambda.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.bluesky_feed_api_gateway.execution_arn}/*/*"
+}
+
+## EC2 instance API ##
+resource "aws_api_gateway_resource" "bluesky_ec2_feed_api" {
+  rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
+  parent_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.root_resource_id
+  path_part   = "{proxy+}"
+}
+
+resource "aws_api_gateway_method" "bluesky_ec2_feed_api_method" {
+  rest_api_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
+  resource_id   = aws_api_gateway_resource.bluesky_ec2_feed_api.id
+  http_method   = "ANY"
+  authorization = "NONE"
+
+  request_parameters = {
+    "method.request.path.proxy" = true
+  }
+}
+
+# This resource defines an API Gateway method.
+# allowing HTTP GET requests without any authorization.
+# It serves as an entry point for clients to access the API,
+# enabling them to retrieve data or perform actions defined in the backend.
+resource "aws_api_gateway_integration" "bluesky_ec2_feed_api_integration" {
+  rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
+  resource_id = aws_api_gateway_resource.bluesky_ec2_feed_api.id
+  http_method = aws_api_gateway_method.bluesky_ec2_feed_api_method.http_method
+
+  type                    = "HTTP_PROXY"
+  integration_http_method = "ANY"
+  uri                     = "http://${aws_instance.feed_api.public_dns}:8000/{proxy}"
+
+  request_parameters = {
+    "integration.request.path.proxy" = "method.request.path.proxy"
+  }
+
+  connection_type = "INTERNET"
 }
 
 ### Custom domain + API Gateway mapping ###
