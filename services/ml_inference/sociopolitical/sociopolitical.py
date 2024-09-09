@@ -7,10 +7,11 @@ be more restrictive about the posts that will be classified as compared to the
 Perspective API classification.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from typing import Literal, Optional
 
+from lib.constants import timestamp_format
 from lib.helper import generate_current_datetime_str
 from lib.helper import create_batches, track_performance
 from lib.log.logger import get_logger
@@ -180,14 +181,33 @@ def run_batch_classification(
     return results
 
 
-def classify_latest_posts(skip_inference: bool = False):
+def classify_latest_posts(
+    skip_inference: bool = False,
+    backfill_period: Optional[str] = None,
+    backfill_duration: Optional[int] = None,
+):
     """Classifies the latest posts using LLM inference.
 
     NOTE: for now we're just using an LLM. Would be nice to eventually use a
     fine-tuned BERT model, but we'll revisit this later.
     """
+    if backfill_duration is not None and backfill_period in ["days", "hours"]:
+        current_time = datetime.now()
+        if backfill_period == "days":
+            backfill_time = current_time - timedelta(days=backfill_duration)
+            logger.info(f"Backfilling {backfill_duration} days of data.")
+        elif backfill_period == "hours":
+            backfill_time = current_time - timedelta(hours=backfill_duration)
+            logger.info(f"Backfilling {backfill_duration} hours of data.")
+    else:
+        backfill_time = None
+    if backfill_time is not None:
+        backfill_timestamp = backfill_time.strftime(timestamp_format)
+        timestamp = backfill_timestamp
+    else:
+        timestamp = None
     posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
-        inference_type="llm"
+        inference_type="llm", timestamp=timestamp
     )
     logger.info(f"Classifying {len(posts_to_classify)} posts with an LLM...")  # noqa
     if len(posts_to_classify) == 0:

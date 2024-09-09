@@ -9,8 +9,19 @@ logger = get_logger(__name__)
 
 def lambda_handler(event, context):
     try:
+        if not event:
+            event = {
+                "backfill_period": None,  # either "days" or "hours"
+                "backfill_duration": None,
+            }
+        backfill_period = event.get("backfill_period", None)
+        backfill_duration = event.get("backfill_duration", None)
+        if backfill_duration is not None:
+            backfill_duration = int(backfill_duration)
         logger.info("Starting classification of latest sociopolitical posts.")
-        classify_latest_posts()
+        classify_latest_posts(
+            backfill_period=backfill_period, backfill_duration=backfill_duration
+        )
         logger.info("Completed classification of latest sociopolitical posts.")
         return {
             "statusCode": 200,

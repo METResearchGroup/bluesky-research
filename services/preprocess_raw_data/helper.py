@@ -219,9 +219,21 @@ def get_latest_post_filenames_from_sqs(sqs_sync_messages: dict) -> dict[str, lis
 
 
 @track_performance
-def preprocess_latest_raw_data():
+def preprocess_latest_raw_data(
+    backfill_period: Optional[str] = None, backfill_duration: Optional[int] = None
+):
     """Preprocesses the latest raw data."""
     logger.info(f"Preprocessing the latest raw data at {current_datetime_str}.")
+    if backfill_duration is not None and backfill_period in ["days", "hours"]:
+        current_time = datetime.now()
+        if backfill_period == "days":
+            backfill_time = current_time - timedelta(days=backfill_duration)
+            logger.info(f"Backfilling {backfill_duration} days of data.")
+        elif backfill_period == "hours":
+            backfill_time = current_time - timedelta(hours=backfill_duration)
+            logger.info(f"Backfilling {backfill_duration} hours of data.")
+    else:
+        backfill_time = None
     previous_session_metadata: dict = load_previous_session_metadata()
     if previous_session_metadata:
         previous_timestamp = previous_session_metadata[
@@ -241,10 +253,16 @@ def preprocess_latest_raw_data():
         "latest_processed_insert_timestamp", None
     )
 
+    if backfill_time is not None:
+        backfill_timestamp = backfill_time.strftime(timestamp_format)
+        timestamp = backfill_timestamp
+    else:
+        timestamp = latest_processed_insert_timestamp
+
     # can do this in lieu of the logic below to load latest_posts, latest_likes, and latest_follows.
     sqs_sync_messages: dict = load_latest_sqs_sync_messages(
         sources=["in-network-user-activity", "most_liked"],
-        latest_processed_insert_timestamp=latest_processed_insert_timestamp,
+        latest_processed_insert_timestamp=timestamp,
     )  # noqa
 
     # get latest filenames to load.
