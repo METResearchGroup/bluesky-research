@@ -604,7 +604,7 @@ resource "aws_api_gateway_integration" "bluesky_feed_api_root_integration" {
 resource "aws_api_gateway_resource" "bluesky_feed_api_proxy" {
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
   parent_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.root_resource_id
-  path_part   = "{proxy+}"
+  path_part   = "test"
 }
 
 # Define ANY method for /{proxy+}
@@ -631,8 +631,7 @@ resource "aws_api_gateway_deployment" "bluesky_feed_api_gateway_deployment" {
   depends_on = [
     aws_api_gateway_integration.bluesky_feed_api_proxy_integration,
     aws_api_gateway_integration.bluesky_feed_api_root_integration,
-    aws_api_gateway_integration.bluesky_ec2_feed_api_integration,
-    aws_api_gateway_integration.bluesky_ec2_feed_api_proxy_integration
+    aws_api_gateway_integration.bluesky_ec2_feed_api_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
@@ -652,12 +651,6 @@ resource "aws_lambda_permission" "api_gateway_permission" {
 resource "aws_api_gateway_resource" "bluesky_ec2_feed_api" {
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
   parent_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.root_resource_id
-  path_part   = "test"
-}
-
-resource "aws_api_gateway_resource" "bluesky_ec2_feed_api_proxy" {
-  rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  parent_id   = aws_api_gateway_resource.bluesky_ec2_feed_api.id
   path_part   = "{proxy+}"
 }
 
@@ -666,9 +659,13 @@ resource "aws_api_gateway_method" "bluesky_ec2_feed_api_method" {
   resource_id   = aws_api_gateway_resource.bluesky_ec2_feed_api.id
   http_method   = "ANY"
   authorization = "NONE"
+
+  request_parameters = {
+    "method.request.path.proxy" = true
+  }
 }
 
-# This resource defines an API Gateway method for the "test" resource,
+# This resource defines an API Gateway method.
 # allowing HTTP GET requests without any authorization.
 # It serves as an entry point for clients to access the API,
 # enabling them to retrieve data or perform actions defined in the backend.
@@ -679,36 +676,13 @@ resource "aws_api_gateway_integration" "bluesky_ec2_feed_api_integration" {
 
   type                    = "HTTP_PROXY"
   integration_http_method = "ANY"
-  uri                     = "http://${aws_instance.feed_api.public_dns}:8000/test"
-
-  connection_type = "INTERNET"
-}
-
-resource "aws_api_gateway_method" "bluesky_ec2_feed_api_proxy_method" {
-  rest_api_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  resource_id   = aws_api_gateway_resource.bluesky_ec2_feed_api_proxy.id
-  http_method   = "ANY"
-  authorization = "NONE"
-
-  request_parameters = {
-    "method.request.path.proxy" = true
-  }
-}
-
-resource "aws_api_gateway_integration" "bluesky_ec2_feed_api_proxy_integration" {
-  rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  resource_id = aws_api_gateway_resource.bluesky_ec2_feed_api_proxy.id
-  http_method = aws_api_gateway_method.bluesky_ec2_feed_api_proxy_method.http_method
-
-  type                    = "HTTP_PROXY"
-  integration_http_method = "ANY"
   uri                     = "http://${aws_instance.feed_api.public_dns}:8000/{proxy}"
-
-  connection_type = "INTERNET"
 
   request_parameters = {
     "integration.request.path.proxy" = "method.request.path.proxy"
   }
+
+  connection_type = "INTERNET"
 }
 
 ### Custom domain + API Gateway mapping ###
