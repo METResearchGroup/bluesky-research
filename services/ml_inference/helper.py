@@ -1,6 +1,6 @@
 """Helper tooling for ML inference."""
 
-from typing import Literal
+from typing import Literal, Optional
 
 
 from lib.aws.athena import Athena
@@ -64,7 +64,7 @@ def insert_labeling_session(labeling_session: dict):
 
 
 def get_posts_to_classify(
-    inference_type: Literal["llm", "perspective_api"],
+    inference_type: Literal["llm", "perspective_api"], timestamp: Optional[str] = None
 ) -> list[FilteredPreprocessedPostModel]:
     """Get posts to classify.
 
@@ -87,7 +87,13 @@ def get_posts_to_classify(
             "inference_timestamp"
         ]["S"]  # noqa
 
+    if timestamp is not None:
+        logger.info(
+            f"Using backfill timestamp {timestamp} instead of latest inference timestamp: {latest_inference_timestamp}"
+        )  # noqa
+    else:
+        timestamp = latest_inference_timestamp
     logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")
-    posts = athena.get_latest_preprocessed_posts(timestamp=latest_inference_timestamp)  # noqa
+    posts = athena.get_latest_preprocessed_posts(timestamp=timestamp)
     return posts
