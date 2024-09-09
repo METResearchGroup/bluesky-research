@@ -351,7 +351,9 @@ def do_rank_score_feeds():
         all_posts, key=lambda x: x["post"].created_at, reverse=True
     )
     reverse_chronological_post_pool: list[ConsolidatedEnrichedPostModel] = [
-        post_score_dict["post"] for post_score_dict in reverse_chronological_post_pool
+        post_score_dict["post"]
+        for post_score_dict in reverse_chronological_post_pool
+        if post_score_dict["post"].source == "firehose"
     ]
 
     # engagement posts: sort by engagement score descending
