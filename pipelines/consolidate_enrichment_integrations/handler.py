@@ -13,8 +13,8 @@ def lambda_handler(event: dict, context: dict):
     try:
         if not event:
             event = {
-                "backfill_period": "hours",  # either "days" or "hours"
-                "backfill_duration": 1,
+                "backfill_period": None,  # either "days" or "hours"
+                "backfill_duration": None,
             }
         logger.info("Starting enrichment consolidation.")
         backfill_period = event.get("backfill_period", None)
