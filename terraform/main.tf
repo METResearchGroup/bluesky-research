@@ -2410,6 +2410,53 @@ resource "aws_cloudwatch_log_stream" "preprocessed_posts_crawler_stream" {
 #   name           = "user_session_logs_crawler_stream"
 # }
 
+# Log group.
+resource "aws_cloudwatch_log_group" "sync_firehose_logs" {
+  name = "sync-firehose-logs"
+  retention_in_days = 5
+}
+
+# set up alert if there's been no logs for 30 hours.
+resource "aws_cloudwatch_log_metric_filter" "no_logs_filter" {
+  name           = "NoLogsFilter"
+  pattern        = ""
+  log_group_name = aws_cloudwatch_log_group.sync_firehose_logs.name
+
+  metric_transformation {
+    name      = "EventCount"
+    namespace = "SyncFirehoseMetrics"
+    value     = "1"
+  }
+}
+
+resource "aws_sns_topic" "sync_firehose_alerts" {
+  name = "sync-firehose-alerts"
+}
+
+resource "aws_sns_topic_subscription" "email_subscription" {
+  topic_arn = aws_sns_topic.sync_firehose_alerts.arn
+  protocol  = "email"
+  endpoint  = "markptorres1@gmail.com"
+}
+
+resource "aws_cloudwatch_metric_alarm" "no_logs_alarm" {
+  alarm_name          = "NoLogsReceived"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "EventCount"
+  namespace           = "SyncFirehoseMetrics"
+  period              = "1800"  # 30 minutes
+  statistic           = "Sum"
+  threshold           = "1"
+  alarm_description   = "This alarm goes off if no logs are received in 30 minutes"
+  actions_enabled     = true
+  alarm_actions       = [aws_sns_topic.sync_firehose_alerts.arn]
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    LogGroupName = aws_cloudwatch_log_group.sync_firehose_logs.name
+  }
+}
 
 ### AWS Athena ###  
 
