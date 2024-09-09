@@ -1,12 +1,15 @@
 """Helper functions for the consolidate_enrichment_integrations service."""
 
+from datetime import datetime, timedelta
 import os
+from typing import Optional
 
 import pandas as pd
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
+from lib.constants import timestamp_format
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from services.consolidate_enrichment_integrations.models import (
@@ -253,8 +256,24 @@ def export_posts(posts: list[ConsolidatedEnrichedPostModel]):
 
 
 @track_performance
-def do_consolidate_enrichment_integrations():
-    """Do the enrichment consolidation."""
+def do_consolidate_enrichment_integrations(
+    backfill_period: Optional[str] = None, backfill_duration: Optional[int] = None
+):
+    """Do the enrichment consolidation.
+
+    Also includes optional backfill period and backfill duration.
+    """
+    if backfill_duration is not None and backfill_period in ["days", "hours"]:
+        current_time = datetime.now()
+        if backfill_period == "days":
+            backfill_time = current_time - timedelta(days=backfill_duration)
+            logger.info(f"Backfilling {backfill_duration} days of data.")
+        elif backfill_period == "hours":
+            backfill_time = current_time - timedelta(hours=backfill_duration)
+            logger.info(f"Backfilling {backfill_duration} hours of data.")
+    else:
+        backfill_time = None
+
     # load previous session data
     latest_enrichment_consolidation_session: dict = (
         get_latest_enrichment_consolidation_session()
@@ -268,18 +287,24 @@ def do_consolidate_enrichment_integrations():
     else:
         enrichment_consolidation_timestamp = None
 
+    if backfill_time is not None:
+        backfill_timestamp = backfill_time.strftime(timestamp_format)
+        timestamp = backfill_timestamp
+    else:
+        timestamp = enrichment_consolidation_timestamp
+
     # load data
     preprocessed_posts: list[FilteredPreprocessedPostModel] = (
-        load_latest_preprocessed_posts(timestamp=enrichment_consolidation_timestamp)  # noqa
+        load_latest_preprocessed_posts(timestamp=timestamp)
     )  # noqa
     perspective_api_labels: list[PerspectiveApiLabelsModel] = (
-        load_latest_perspective_api_labels(timestamp=enrichment_consolidation_timestamp)  # noqa
+        load_latest_perspective_api_labels(timestamp=timestamp)
     )  # noqa
     sociopolitical_labels: list[SociopoliticalLabelsModel] = (
-        load_latest_sociopolitical_labels(timestamp=enrichment_consolidation_timestamp)  # noqa
+        load_latest_sociopolitical_labels(timestamp=timestamp)
     )  # noqa
     similarity_scores: list[PostSimilarityScoreModel] = load_latest_similarity_scores(
-        timestamp=enrichment_consolidation_timestamp
+        timestamp=timestamp
     )  # noqa  # noqa
 
     # run enrichment consolidation
