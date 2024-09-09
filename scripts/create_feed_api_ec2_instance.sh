@@ -47,7 +47,9 @@ pip install -r requirements.txt
 # Install the CloudWatch agent (ONLY if you're setting up a new instance)
 sudo yum install -y amazon-cloudwatch-agent
 
-# TODO: update with the correct log path for the FastAPI logic.
+# create directory in case it doesn't exist.
+sudo mkdir -p /opt/aws/amazon-cloudwatch-agent/etc/
+
 # Create the CloudWatch agent configuration file
 sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null <<EOL
 {
@@ -56,8 +58,8 @@ sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /de
       "files": {
         "collect_list": [
           {
-            "file_path": "/home/ec2-user/bluesky-research/lib/log/*.log",
-            "log_group_name": "sync-firehose-logs",
+            "file_path": "/home/ec2-user/bluesky-research/feed_api/nohup.out",
+            "log_group_name": "ec2-feed-api-logs",
             "log_stream_name": "{instance_id}/bsky-logs"
           }
         ]
@@ -67,9 +69,14 @@ sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /de
 }
 EOL
 
+# verify file exists
+# ls -l /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
 # Start the CloudWatch agent
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a start
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
 
-# TODO: add correct command.
-# nohup python firehose.py > output.log 2>&1 & tail -f output.log
+# to kill the process, find the ID and then kill -9 <id>
+# sudo lsof -i :8000
+# to run the app with nohup
+# nohup python app.py &
