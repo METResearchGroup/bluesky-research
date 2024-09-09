@@ -2425,6 +2425,130 @@ resource "aws_cloudwatch_log_stream" "preprocessed_posts_crawler_stream" {
 #   name           = "user_session_logs_crawler_stream"
 # }
 
+# Log group.
+resource "aws_cloudwatch_log_group" "sync_firehose_logs" {
+  name = "sync-firehose-logs"
+  retention_in_days = 5
+}
+
+# set up alert if there's been no logs for 30 hours.
+resource "aws_cloudwatch_log_metric_filter" "no_logs_filter" {
+  name           = "NoLogsFilter"
+  pattern        = ""
+  log_group_name = aws_cloudwatch_log_group.sync_firehose_logs.name
+
+  metric_transformation {
+    name      = "EventCount"
+    namespace = "SyncFirehoseMetrics"
+    value     = "1"
+  }
+}
+
+resource "aws_sns_topic" "sync_firehose_alerts" {
+  name = "sync-firehose-alerts"
+}
+
+resource "aws_sns_topic_subscription" "email_subscription" {
+  topic_arn = aws_sns_topic.sync_firehose_alerts.arn
+  protocol  = "email"
+  endpoint  = "markptorres1@gmail.com"
+}
+
+resource "aws_cloudwatch_metric_alarm" "no_logs_alarm" {
+  alarm_name          = "NoLogsReceived"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "EventCount"
+  namespace           = "SyncFirehoseMetrics"
+  period              = "1800"  # 30 minutes
+  statistic           = "Sum"
+  threshold           = "1"
+  alarm_description   = "This alarm goes off if no logs are received in 30 minutes"
+  actions_enabled     = true
+  alarm_actions       = [aws_sns_topic.sync_firehose_alerts.arn]
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    LogGroupName = aws_cloudwatch_log_group.sync_firehose_logs.name
+  }
+}
+
+### Alerting for lambda failures ###
+resource "aws_sns_topic" "lambda_alerts" {
+  name = "lambda-failure-alerts"
+}
+
+# SNS Topic Subscription
+resource "aws_sns_topic_subscription" "lambda_alerts_email" {
+  topic_arn = aws_sns_topic.lambda_alerts.arn
+  protocol  = "email"
+  endpoint  = "markptorres1@gmail.com"
+}
+
+# CloudWatch Alarm for Lambda errors
+resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
+  for_each = toset([
+    "sync_most_liked_feed_lambda",
+    "preprocess_raw_data_lambda",
+    "calculate_superposters_lambda",
+    "compact_dedupe_data_lambda",
+    "ml_inference_perspective_api_lambda",
+    "ml_inference_sociopolitical_lambda",
+    "consolidate_enrichment_integrations_lambda",
+    "rank_score_feeds_lambda",
+  ])
+
+  alarm_name          = "Lambda-Errors-${each.key}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = "60"  # 1 minute
+  statistic           = "Sum"
+  threshold           = "0"
+  alarm_description   = "This alarm monitors for any errors in the Lambda function ${each.key}"
+  alarm_actions       = [aws_sns_topic.lambda_alerts.arn]
+
+  dimensions = {
+    FunctionName = each.key
+  }
+}
+
+# CloudWatch Dashboard
+resource "aws_cloudwatch_dashboard" "lambda_errors_dashboard" {
+  dashboard_name = "LambdaErrorsDashboard"
+
+  dashboard_body = jsonencode({
+    widgets = [
+      for lambda_name in [
+        "sync_most_liked_feed_lambda",
+        "preprocess_raw_data_lambda",
+        "calculate_superposters_lambda",
+        "compact_dedupe_data_lambda",
+        "ml_inference_perspective_api_lambda",
+        "ml_inference_sociopolitical_lambda",
+        "consolidate_enrichment_integrations_lambda",
+        "rank_score_feeds_lambda",
+      ] : {
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
+        height = 6
+
+        properties = {
+          metrics = [
+            ["AWS/Lambda", "Errors", "FunctionName", lambda_name]
+          ]
+          view    = "timeSeries"
+          stacked = false
+          region  = "us-east-1"  # replace with your region
+          title   = "Errors for ${lambda_name}"
+        }
+      }
+    ]
+  })
+}
 
 ### AWS Athena ###  
 

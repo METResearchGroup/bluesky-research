@@ -1,6 +1,10 @@
 """Base file for classifying posts in batch using the Perspective API."""
 
+from datetime import datetime, timedelta
+from typing import Optional
+
 from lib.aws.s3 import S3
+from lib.constants import timestamp_format
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from services.ml_inference.perspective_api.export_data import export_results
@@ -14,10 +18,27 @@ logger = get_logger(__name__)
 
 
 @track_performance
-def classify_latest_posts():
+def classify_latest_posts(
+    backfill_period: Optional[str] = None, backfill_duration: Optional[int] = None
+):
     """Classifies the latest preprocessed posts using the Perspective API."""
+    if backfill_duration is not None and backfill_period in ["days", "hours"]:
+        current_time = datetime.now()
+        if backfill_period == "days":
+            backfill_time = current_time - timedelta(days=backfill_duration)
+            logger.info(f"Backfilling {backfill_duration} days of data.")
+        elif backfill_period == "hours":
+            backfill_time = current_time - timedelta(hours=backfill_duration)
+            logger.info(f"Backfilling {backfill_duration} hours of data.")
+    else:
+        backfill_time = None
+    if backfill_time is not None:
+        backfill_timestamp = backfill_time.strftime(timestamp_format)
+        timestamp = backfill_timestamp
+    else:
+        timestamp = None
     posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
-        inference_type="perspective_api"
+        inference_type="perspective_api", timestamp=timestamp
     )
     logger.info(
         f"Classifying {len(posts_to_classify)} posts with the Perspective API..."

@@ -7,10 +7,21 @@ from services.preprocess_raw_data.helper import preprocess_latest_raw_data
 logger = Logger(__name__)
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: dict, context: dict):
     try:
+        if not event:
+            event = {
+                "backfill_period": None,  # either "days" or "hours"
+                "backfill_duration": None,
+            }
         logger.info("Starting preprocessing pipeline in Lambda.")
-        preprocess_latest_raw_data()
+        backfill_period = event.get("backfill_period", None)
+        backfill_duration = event.get("backfill_duration", None)
+        if backfill_duration is not None:
+            backfill_duration = int(backfill_duration)
+        preprocess_latest_raw_data(
+            backfill_period=backfill_period, backfill_duration=backfill_duration
+        )
         logger.info("Completed preprocessing pipeline in Lambda.")
         return {
             "statusCode": 200,
