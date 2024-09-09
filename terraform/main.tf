@@ -631,8 +631,8 @@ resource "aws_api_gateway_deployment" "bluesky_feed_api_gateway_deployment" {
   depends_on = [
     aws_api_gateway_integration.bluesky_feed_api_proxy_integration,
     aws_api_gateway_integration.bluesky_feed_api_root_integration,
-    aws_api_gateway_integration.test_integration,
-    aws_api_gateway_integration.test_proxy_integration
+    aws_api_gateway_integration.bluesky_ec2_feed_api_integration,
+    aws_api_gateway_integration.bluesky_ec2_feed_api_proxy_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
@@ -649,21 +649,21 @@ resource "aws_lambda_permission" "api_gateway_permission" {
 }
 
 ## EC2 instance API ##
-resource "aws_api_gateway_resource" "test_resource" {
+resource "aws_api_gateway_resource" "bluesky_ec2_feed_api" {
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
   parent_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.root_resource_id
   path_part   = "test"
 }
 
-resource "aws_api_gateway_resource" "test_proxy" {
+resource "aws_api_gateway_resource" "bluesky_ec2_feed_api_proxy" {
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  parent_id   = aws_api_gateway_resource.test_resource.id
+  parent_id   = aws_api_gateway_resource.bluesky_ec2_feed_api.id
   path_part   = "{proxy+}"
 }
 
-resource "aws_api_gateway_method" "test_method" {
+resource "aws_api_gateway_method" "bluesky_ec2_feed_api_method" {
   rest_api_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  resource_id   = aws_api_gateway_resource.test_resource.id
+  resource_id   = aws_api_gateway_resource.bluesky_ec2_feed_api.id
   http_method   = "ANY"
   authorization = "NONE"
 }
@@ -672,10 +672,10 @@ resource "aws_api_gateway_method" "test_method" {
 # allowing HTTP GET requests without any authorization.
 # It serves as an entry point for clients to access the API,
 # enabling them to retrieve data or perform actions defined in the backend.
-resource "aws_api_gateway_integration" "test_integration" {
+resource "aws_api_gateway_integration" "bluesky_ec2_feed_api_integration" {
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  resource_id = aws_api_gateway_resource.test_resource.id
-  http_method = aws_api_gateway_method.test_method.http_method
+  resource_id = aws_api_gateway_resource.bluesky_ec2_feed_api.id
+  http_method = aws_api_gateway_method.bluesky_ec2_feed_api_method.http_method
 
   type                    = "HTTP_PROXY"
   integration_http_method = "ANY"
@@ -684,17 +684,9 @@ resource "aws_api_gateway_integration" "test_integration" {
   connection_type = "INTERNET"
 }
 
-# TODO: include this later. Supposedly it takes all /test/* and forwards
-# it to the EC2 instance. Let's get /test/ to work first.
-# resource "aws_api_gateway_resource" "test_proxy" {
-#   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-#   parent_id   = aws_api_gateway_resource.test_resource.id
-#   path_part   = "{proxy+}"
-# }
-
-resource "aws_api_gateway_method" "test_proxy_method" {
+resource "aws_api_gateway_method" "bluesky_ec2_feed_api_proxy_method" {
   rest_api_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  resource_id   = aws_api_gateway_resource.test_proxy.id
+  resource_id   = aws_api_gateway_resource.bluesky_ec2_feed_api_proxy.id
   http_method   = "ANY"
   authorization = "NONE"
 
@@ -703,10 +695,10 @@ resource "aws_api_gateway_method" "test_proxy_method" {
   }
 }
 
-resource "aws_api_gateway_integration" "test_proxy_integration" {
+resource "aws_api_gateway_integration" "bluesky_ec2_feed_api_proxy_integration" {
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  resource_id = aws_api_gateway_resource.test_proxy.id
-  http_method = aws_api_gateway_method.test_proxy_method.http_method
+  resource_id = aws_api_gateway_resource.bluesky_ec2_feed_api_proxy.id
+  http_method = aws_api_gateway_method.bluesky_ec2_feed_api_proxy_method.http_method
 
   type                    = "HTTP_PROXY"
   integration_http_method = "ANY"
@@ -735,14 +727,6 @@ resource "aws_api_gateway_base_path_mapping" "custom_domain_mapping" {
   api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
   stage_name = aws_api_gateway_stage.api_gateway_stage.stage_name
   domain_name = aws_api_gateway_domain_name.custom_domain.domain_name
-}
-
-# add mapping for /test/ path.
-resource "aws_api_gateway_base_path_mapping" "test_mapping" {
-  api_id      = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  stage_name  = aws_api_gateway_stage.api_gateway_stage.stage_name
-  domain_name = "mindtechnologylab.com"
-  base_path   = "test"
 }
 
 ### Add Route53 record for custom domain ###
