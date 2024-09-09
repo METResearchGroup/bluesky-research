@@ -258,6 +258,12 @@ async def health_check():
     return {"status": "healthy"}
 
 
+@app.get("/test/")
+async def test_endpoint():
+    """Health check endpoint to verify the application is running."""
+    return {"status": "healthy"}
+
+
 # https://stackoverflow.com/questions/76844538/the-adapter-was-unable-to-infer-a-handler-to-use-for-the-event-this-is-likely-r
 def handler(event, context):
     logger.info(f"Event payload: {event}")
