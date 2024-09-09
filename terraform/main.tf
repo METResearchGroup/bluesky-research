@@ -138,7 +138,48 @@ resource "aws_instance" "feed_api" {
   }
 
   iam_instance_profile = "EC2InstanceProfile"
-  vpc_security_group_ids = ["sg-0b3e24638f16807d5"]
+  vpc_security_group_ids = ["sg-0b3e24638f16807d5"] # references feed_api_sg.
+}
+
+# this is the same security group for both the firehose and the Feed API.
+resource "aws_security_group" "feed_api_sg" {
+  name        = "launch-wizard"
+  description = "launch-wizard created 2024-08-12T20:56:38.950Z"
+  vpc_id      = "vpc-052fa7eed9a020314"
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # port access for FastAPI access.
+  ingress {
+    from_port   = 8000
+    to_port     = 8000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Allow access from anywhere (you might want to restrict this)
+  }
+
+  # TODO: double-check if this is the correct IPs for API Gateway.
+  ingress {
+    from_port   = 8000
+    to_port     = 8000
+    protocol    = "tcp"
+    cidr_blocks = ["3.145.192.0/24", "3.134.64.0/24", "3.134.128.0/24"]  # API Gateway IPs (us-east-2 example)
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  lifecycle {
+    ignore_changes = [name]
+  }
 }
 
 ### Lambdas ###
