@@ -252,6 +252,12 @@ async def get_feed_skeleton(
     return output
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint to verify the application is running."""
+    return {"status": "healthy"}
+
+
 # https://stackoverflow.com/questions/76844538/the-adapter-was-unable-to-infer-a-handler-to-use-for-the-event-this-is-likely-r
 def handler(event, context):
     logger.info(f"Event payload: {event}")
