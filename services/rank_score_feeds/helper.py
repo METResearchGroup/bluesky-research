@@ -18,6 +18,7 @@ from services.consolidate_enrichment_integrations.models import (
 )  # noqa
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
+from services.preprocess_raw_data.classify_language.model import classify
 from services.rank_score_feeds.models import CustomFeedModel
 
 max_feed_length = 50
@@ -246,6 +247,23 @@ def create_ranked_candidate_feed(
     return [(post.uri, 0.0) for post in res]
 
 
+def filter_post_is_english(post: ConsolidatedEnrichedPostModel) -> bool:
+    """Filters for if a post is English.
+
+    Returns True if the post has text and that text is in English. Returns False
+    if the post either has no text or that text is not in English.
+
+    Looks like posts are being labeled as "en" by Bluesky even when they're not
+    in English, so they're passing our filters since we assume Bluesky's language
+    filter is correct. Given that that isn't the case, we do it manually here.
+    """
+    text = post.text
+    if not text:
+        return False
+    text = text.replace("\n", " ").strip()
+    return classify(text=text)
+
+
 def do_rank_score_feeds():
     """Do the rank score feeds."""
     logger.info("Starting rank score feeds.")
@@ -256,13 +274,13 @@ def do_rank_score_feeds():
     )
 
     # immplement filtering (e.g., English-language filtering)
-    # (this should've been caught during preprocessing, so I'm not sure why
-    # it wasn't caught).
+    # looks like Bluesky's language filter is broken, so I'll do my own manual
+    # filtering here (could've done it upstream too tbh, this is just the quickest
+    # fix). My implementation is also imperfect, but it gets more correct.
+    # It uses fasttext. Some still make it through, but it's pretty good.
     logger.info(f"Number of posts before filtering: {len(consolidated_enriched_posts)}")
     consolidated_enriched_posts = [
-        post
-        for post in consolidated_enriched_posts
-        if post.langs is not None and post.langs == "en"
+        post for post in consolidated_enriched_posts if filter_post_is_english(post)
     ]
     logger.info(f"Number of posts after filtering: {len(consolidated_enriched_posts)}")
 
