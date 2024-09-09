@@ -165,6 +165,28 @@ def load_latest_sqs_sync_messages(
         )  # noqa
         for message in latest_firehose_sqs_sync_messages:
             object_body = message["data"]["sync"]
+            s3_keys = object_body["s3_keys"]
+            # add patch for missing "did:plc:" prefix to part of key path.
+            # NOTE: this could've been done in the firehose stream tbh.
+            revised_s3_keys = []
+            for s3_key in s3_keys:
+                # example key: 'in_network_user_activity/create/post/dmjuau7irhg2lg72ty6sofpa/author_did=dmjuau7irhg2lg72ty6sofpa_post_uri_suffix=3l3orq64pdc2f.json'
+                # needs to be 'in_network_user_activity/create/post/did:plc:dmjuau7irhg2lg72ty6sofpa/author_did=did:plc:dmjuau7irhg2lg72ty6sofpa_post_uri_suffix=3l3orq64pdc2f.json'
+                # split the key on the '/'
+                parts = s3_key.split("/")
+                user_did = parts[3]
+                fixed_user_did = f"did:plc:{user_did}"
+                parts[3] = fixed_user_did
+                filename = parts[
+                    -1
+                ]  # e.g., author_did=dmjuau7irhg2lg72ty6sofpa_post_uri_suffix=3l3orq64pdc2f.json
+                split_filename = filename.split("=")
+                revised_filename = f"{split_filename[0]}=did:plc:{split_filename[1]}={split_filename[2]}"
+                parts[-1] = revised_filename
+                revised_key = "/".join(parts)
+                revised_s3_keys.append(revised_key)
+            object_body["s3_keys"] = revised_s3_keys
+            message["data"]["sync"] = object_body
             operation = object_body["operation"]
             operation_type = object_body["operation_type"]
             res["in-network-user-activity"][operation][operation_type].append(message)  # noqa
@@ -220,7 +242,6 @@ def preprocess_latest_raw_data():
     )
 
     # can do this in lieu of the logic below to load latest_posts, latest_likes, and latest_follows.
-    # TODO: add firehose back in once we have the firehose data in S3.
     sqs_sync_messages: dict = load_latest_sqs_sync_messages(
         sources=["in-network-user-activity", "most_liked"],
         latest_processed_insert_timestamp=latest_processed_insert_timestamp,
