@@ -392,23 +392,43 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_preprocess_raw_data
 }
 
 # Trigger for consume_sqs_messages_lambda every 15 minutes.
-resource "aws_cloudwatch_event_rule" "consume_sqs_messages_event_rule" {
-  name                = "consume_sqs_messages_event_rule"
-  schedule_expression = "cron(0/15 * * * ? *)"  # Triggers every 15 minutes
+# resource "aws_cloudwatch_event_rule" "consume_sqs_messages_event_rule" {
+#   name                = "consume_sqs_messages_event_rule"
+#   schedule_expression = "cron(0/15 * * * ? *)"  # Triggers every 15 minutes
+# }
+
+# resource "aws_cloudwatch_event_target" "consume_sqs_messages_event_target" {
+#   rule      = aws_cloudwatch_event_rule.consume_sqs_messages_event_rule.name
+#   target_id = "consumeSqsMessagesLambda"
+#   arn       = aws_lambda_function.consume_sqs_messages_lambda.arn
+# }
+
+# resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consume_sqs_messages" {
+#   statement_id  = "AllowExecutionFromCloudWatchConsumeSqsMessages"
+#   action        = "lambda:InvokeFunction"
+#   function_name = aws_lambda_function.consume_sqs_messages_lambda.function_name
+#   principal     = "events.amazonaws.com"
+#   source_arn    = aws_cloudwatch_event_rule.consume_sqs_messages_event_rule.arn
+# }
+
+# Trigger to calculate superposters every 12 hours.
+resource "aws_cloudwatch_event_rule" "calculate_superposters_event_rule" {
+  name                = "calculate_superposters_event_rule"
+  schedule_expression = "cron(0 0/12 * * ? *)"  # Triggers every 12 hours
 }
 
-resource "aws_cloudwatch_event_target" "consume_sqs_messages_event_target" {
-  rule      = aws_cloudwatch_event_rule.consume_sqs_messages_event_rule.name
-  target_id = "consumeSqsMessagesLambda"
-  arn       = aws_lambda_function.consume_sqs_messages_lambda.arn
+resource "aws_cloudwatch_event_target" "calculate_superposters_event_target" {
+  rule      = aws_cloudwatch_event_rule.calculate_superposters_event_rule.name
+  target_id = "calculateSuperpostersLambda"
+  arn       = aws_lambda_function.calculate_superposters_lambda.arn
 }
 
-resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consume_sqs_messages" {
-  statement_id  = "AllowExecutionFromCloudWatchConsumeSqsMessages"
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_calculate_superposters" {
+  statement_id  = "AllowExecutionFromCloudWatchCalculateSuperposters"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.consume_sqs_messages_lambda.function_name
+  function_name = aws_lambda_function.calculate_superposters_lambda.function_name
   principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.consume_sqs_messages_event_rule.arn
+  source_arn    = aws_cloudwatch_event_rule.calculate_superposters_event_rule.arn
 }
 
 # Trigger for compact_dedupe_data_lambda every 8 hours.
@@ -470,9 +490,12 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sociopolitical" {
   source_arn    = aws_cloudwatch_event_rule.sociopolitical_event_rule.arn
 }
 
+# consolidate enrichment integrations every 4 hours, starting at the 20 minute mark.
+# this is run offset of the ML lambdas to avoid race conditions where
+# the ML lambdas are still running and modifying the data.
 resource "aws_cloudwatch_event_rule" "consolidate_enrichment_integrations_event_rule" {
   name                = "consolidate_enrichment_integrations_event_rule"
-  schedule_expression = "cron(0 0/4 * * ? *)"  # Triggers every 4 hours
+  schedule_expression = "cron(20 0/4 * * ? *)"  # Triggers every 4 hours, starting at 20 minutes past the hour
 }
 
 resource "aws_cloudwatch_event_target" "consolidate_enrichment_integrations_event_target" {
@@ -489,9 +512,10 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consolidate_enrichm
   source_arn    = aws_cloudwatch_event_rule.consolidate_enrichment_integrations_event_rule.arn
 }
 
+# Rank score feeds every 8 hours, starting at 45 minutes past the hour.
 resource "aws_cloudwatch_event_rule" "rank_score_feeds_event_rule" {
   name                = "rank_score_feeds_event_rule"
-  schedule_expression = "cron(0 0/8 * * ? *)"  # Triggers every 8 hours
+  schedule_expression = "cron(45 0/8 * * ? *)"  # Triggers every 8 hours, 45 minutes past the hour
 }
 
 resource "aws_cloudwatch_event_target" "rank_score_feeds_event_target" {

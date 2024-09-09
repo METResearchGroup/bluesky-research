@@ -59,7 +59,10 @@ def export_latest_preprocessed_posts(
 
     for feed_type, posts in feed_type_to_posts_tuples:
         full_key = os.path.join(
-            s3_export_key_map["post"], f"source={feed_type}", partition_key, filename
+            s3_export_key_map["post"],
+            f"preprocessing_source={feed_type}",
+            partition_key,
+            filename,
         )  # noqa
         for external_store in external_stores:
             if external_store == "s3":
