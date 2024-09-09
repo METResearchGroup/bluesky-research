@@ -2458,6 +2458,83 @@ resource "aws_cloudwatch_metric_alarm" "no_logs_alarm" {
   }
 }
 
+### Alerting for lambda failures ###
+resource "aws_sns_topic" "lambda_alerts" {
+  name = "lambda-failure-alerts"
+}
+
+# SNS Topic Subscription
+resource "aws_sns_topic_subscription" "lambda_alerts_email" {
+  topic_arn = aws_sns_topic.lambda_alerts.arn
+  protocol  = "email"
+  endpoint  = "markptorres1@gmail.com"
+}
+
+# CloudWatch Alarm for Lambda errors
+resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
+  for_each = toset([
+    "sync_most_liked_feed_lambda",
+    "preprocess_raw_data_lambda",
+    "calculate_superposters_lambda",
+    "compact_dedupe_data_lambda",
+    "ml_inference_perspective_api_lambda",
+    "ml_inference_sociopolitical_lambda",
+    "consolidate_enrichment_integrations_lambda",
+    "rank_score_feeds_lambda",
+  ])
+
+  alarm_name          = "Lambda-Errors-${each.key}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = "60"  # 1 minute
+  statistic           = "Sum"
+  threshold           = "0"
+  alarm_description   = "This alarm monitors for any errors in the Lambda function ${each.key}"
+  alarm_actions       = [aws_sns_topic.lambda_alerts.arn]
+
+  dimensions = {
+    FunctionName = each.key
+  }
+}
+
+# CloudWatch Dashboard
+resource "aws_cloudwatch_dashboard" "lambda_errors_dashboard" {
+  dashboard_name = "LambdaErrorsDashboard"
+
+  dashboard_body = jsonencode({
+    widgets = [
+      for lambda_name in [
+        "sync_most_liked_feed_lambda",
+        "preprocess_raw_data_lambda",
+        "calculate_superposters_lambda",
+        "compact_dedupe_data_lambda",
+        "ml_inference_perspective_api_lambda",
+        "ml_inference_sociopolitical_lambda",
+        "consolidate_enrichment_integrations_lambda",
+        "rank_score_feeds_lambda",
+      ] : {
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
+        height = 6
+
+        properties = {
+          metrics = [
+            ["AWS/Lambda", "Errors", "FunctionName", lambda_name]
+          ]
+          view    = "timeSeries"
+          stacked = false
+          region  = "us-east-1"  # replace with your region
+          title   = "Errors for ${lambda_name}"
+        }
+      }
+    ]
+  })
+}
+
 ### AWS Athena ###  
 
 # set default workgroup and output location for said workgroup.
