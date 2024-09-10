@@ -7,7 +7,7 @@ import pandas as pd
 from lib.aws.athena import Athena
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3, ROOT_BUCKET
-from lib.helper import generate_current_datetime_str
+from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
@@ -77,21 +77,25 @@ def delete_keys(keys: list[str]):
 # NOTE: in the future, could move this computation to Athena. TBH probably
 # isn't running at the scale where this would be a bottleneck, but
 # it's always good to have the option.
+@track_performance
 def compact_dedupe_preprocessed_data():
-    posts: list[FilteredPreprocessedPostModel] = athena.get_latest_preprocessed_posts(
-        timestamp=None
-    )
-    post_dicts = [post.dict() for post in posts]
-    df = pd.DataFrame(post_dicts)
-    logger.info(f"Number of posts to compact: {len(df)}")
-    # Sort by preprocessing_timestamp and dedupe by uri
-    df = df.sort_values(by="preprocessing_timestamp", ascending=False).drop_duplicates(
-        subset=["uri"]
-    )
+    query = """
+    SELECT *
+    FROM (
+        SELECT
+            *,
+            ROW_NUMBER() OVER (PARTITION BY uri ORDER BY preprocessing_timestamp DESC) AS row_num
+        FROM preprocessed_posts
+    ) ranked
+    WHERE row_num = 1
+    """
+    df = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
-    logger.info(f"Number of posts after dedupe: {len(df_dicts)}")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
-    df_dict_models = [FilteredPreprocessedPostModel(**df_dict) for df_dict in df_dicts]
+    df_dicts_cleaned = [post for post in df_dicts if post["text"] is not None]
+    df_dict_models = [
+        FilteredPreprocessedPostModel(**df_dict) for df_dict in df_dicts_cleaned
+    ]
     # load existing keys from S3 (load before exporting new file so that
     # we have all the key names for the non-compacted files).
     existing_keys: list[str] = get_existing_keys()
