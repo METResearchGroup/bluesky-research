@@ -164,7 +164,14 @@ def load_latest_posts(post_keys: list[str]) -> list[ConsolidatedPostRecordModel]
                 # need special processing for any compressed files.
                 jsonl_data.extend(data[0])
             else:
-                jsonl_data.append(data)
+                if isinstance(data, list):
+                    # from the most-liked feed. All the posts are in a .jsonl
+                    # list file, so it'll be a list of JSONs.
+                    jsonl_data.extend(data)
+                else:
+                    # from the firehose. All the posts are in a .json file
+                    # so it'll be a dict.
+                    jsonl_data.append(data)
     transformed_jsonl_data: list[ConsolidatedPostRecordModel] = [
         ConsolidatedPostRecordModel(**post) for post in jsonl_data
     ]
