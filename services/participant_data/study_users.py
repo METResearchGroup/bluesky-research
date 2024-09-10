@@ -102,7 +102,7 @@ class StudyUserManager:
                 WHEN relationship_to_study_user = 'follower' THEN follower_did
             END AS did
         FROM user_social_networks
-        WHERE relationship_to_study_user IN ('follow', 'follower')
+        WHERE relationship_to_study_user IN ('follow')
         """
         df = athena.query_results_as_df(query)
         user_dids = set(df["did"].tolist())
