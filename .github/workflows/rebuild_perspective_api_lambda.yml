@@ -1,0 +1,34 @@
+name: Rebuild Perspective API Lambda
+
+on:
+  push:
+    paths:
+      - 'pipelines/classify_records/perspective_api/**'
+      - 'ml_tooling/perspective_api/**'
+  workflow_dispatch:
+
+jobs:
+  rebuild-lambda:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-2
+
+    - name: List all S3 buckets
+      run: |
+        aws s3api list-buckets --query "Buckets[].Name" --output table
+
+    # https://github.com/aws-actions/amazon-ecr-login
+    # - name: Login to Amazon ECR
+    #   id: login-ecr
+    #   uses: aws-actions/amazon-ecr-login@v1
+
+    # - name: Rebuild and deploy Lambda
+    #   run: |
+    #     ./scripts/rebuild_lambda.sh ml_inference_perspective_api
