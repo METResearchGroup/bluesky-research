@@ -31,7 +31,8 @@ from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 logger = get_logger(__name__)
 LLM_MODEL_NAME = "GPT-4o mini"
 DEFAULT_BATCH_SIZE = 10
-max_num_posts = 2500
+# NOTE: will need to change as we make the sociopolitical lambda more efficient.
+max_num_posts = 800  # at current rate, it can handle ~100 posts/minute.
 
 
 def generate_prompt(posts: list[FilteredPreprocessedPostModel]) -> str:
