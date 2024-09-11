@@ -187,20 +187,21 @@ async def process_perspective_batch(requests):
             response_obj = json.loads(response_str)
             if "error" in response_obj:
                 print(f"Request {request_id} failed: {response_obj['error']}")
-                responses.append(response_obj)
-            classification_probs_and_labels = {}
-            for attribute, labels in attribute_to_labels_map.items():
-                if attribute in response_obj["attributeScores"]:
-                    prob_score = (
-                        response_obj["attributeScores"][attribute]["summaryScore"][
-                            "value"
-                        ]  # noqa
-                    )
-                    classification_probs_and_labels[labels["prob"]] = prob_score  # noqa
-                    classification_probs_and_labels[labels["label"]] = (
-                        0 if prob_score < 0.5 else 1
-                    )  # noqa
-            responses.append(classification_probs_and_labels)
+                responses.append(None)
+            else:
+                classification_probs_and_labels = {}
+                for attribute, labels in attribute_to_labels_map.items():
+                    if attribute in response_obj["attributeScores"]:
+                        prob_score = (
+                            response_obj["attributeScores"][attribute]["summaryScore"][
+                                "value"
+                            ]  # noqa
+                        )
+                        classification_probs_and_labels[labels["prob"]] = prob_score  # noqa
+                        classification_probs_and_labels[labels["label"]] = (
+                            0 if prob_score < 0.5 else 1
+                        )  # noqa
+                responses.append(classification_probs_and_labels)
 
     for _, request in enumerate(requests):
         batch.add(google_client.comments().analyze(body=request), callback=callback)
@@ -222,7 +223,7 @@ def create_label_models(
         # classified, not just the single timestamp that the job
         # was started.
         label_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H:%M:%S")  # noqa
-        if "error" in response_obj:
+        if response_obj is None or "error" in response_obj:
             print(
                 f"Error processing post {post.uri} using the Perspective API: {response_obj['error']}"
             )  # noqa
