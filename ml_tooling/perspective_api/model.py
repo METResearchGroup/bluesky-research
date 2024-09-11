@@ -224,6 +224,8 @@ def create_label_models(
         # was started.
         label_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H:%M:%S")  # noqa
         if response_obj is None or "error" in response_obj:
+            if response_obj is None:
+                response_obj = {"error": "No response from Perspective API"}
             print(
                 f"Error processing post {post.uri} using the Perspective API: {response_obj['error']}"
             )  # noqa
