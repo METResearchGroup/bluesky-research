@@ -124,13 +124,38 @@ class Athena:
         return df_dicts
 
     def get_latest_preprocessed_posts(
-        self, timestamp: Optional[str] = None
+        self,
+        timestamp: Optional[str] = None,
+        sort_descending: bool = True,
+        max_per_source: Optional[int] = None,
     ) -> list[FilteredPreprocessedPostModel]:  # noqa
         where_filter = (
             f"preprocessing_timestamp > '{timestamp}'" if timestamp else "1=1"
         )  # noqa
 
-        query = f"SELECT * FROM preprocessed_posts WHERE {where_filter}"
+        if max_per_source:
+            # get the latest posts from each source, limit to max_per_source
+            query = f"""
+            SELECT * FROM (
+                SELECT * FROM preprocessed_posts 
+                WHERE {where_filter} AND source='firehose' 
+                {'ORDER BY preprocessing_timestamp DESC' if sort_descending else ''} 
+                LIMIT {max_per_source}
+            ) AS firehose_posts
+            UNION ALL
+            SELECT * FROM (
+                SELECT * FROM preprocessed_posts 
+                WHERE {where_filter} AND source='most_liked' 
+                {'ORDER BY preprocessing_timestamp DESC' if sort_descending else ''} 
+                LIMIT {max_per_source}
+            ) AS most_liked_posts
+            """
+        else:
+            query = f"""
+            SELECT * FROM preprocessed_posts \
+            WHERE {where_filter} \
+            {'ORDER BY preprocessing_timestamp DESC' if sort_descending else ''} \
+            """
 
         df: pd.DataFrame = self.query_results_as_df(query)
 
