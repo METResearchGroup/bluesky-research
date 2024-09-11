@@ -2752,3 +2752,73 @@ resource "aws_dynamodb_table" "superposter_calculation_sessions" {
     Name = "superposter_calculation_sessions"
   }
 }
+
+### IAM ###
+resource "aws_iam_role" "github_actions_role" {
+  name = "AWS_GithubActions_Access"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Effect = "Allow"
+        Principal = {
+          Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
+        }
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:METResearchGroup/bluesky-research:*"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "github_actions_policy" {
+  name = "github_actions_policy"
+  role = aws_iam_role.github_actions_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:GetRepositoryPolicy",
+          "ecr:DescribeRepositories",
+          "ecr:ListImages",
+          "ecr:DescribeImages",
+          "ecr:BatchGetImage",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload",
+          "ecr:PutImage"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:GetFunction",
+          "lambda:ListFunctions",
+          "lambda:UpdateFunctionCode",
+          "lambda:UpdateFunctionConfiguration"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+output "github_actions_role_arn" {
+  value = aws_iam_role.github_actions_role.arn
+  description = "ARN of the IAM role for GitHub Actions"
+}
