@@ -31,6 +31,8 @@ from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 logger = get_logger(__name__)
 LLM_MODEL_NAME = "GPT-4o mini"
 DEFAULT_BATCH_SIZE = 10
+# NOTE: will need to change as we make the sociopolitical lambda more efficient.
+max_num_posts = 800  # at current rate, it can handle ~100 posts/minute.
 
 
 def generate_prompt(posts: list[FilteredPreprocessedPostModel]) -> str:
@@ -158,7 +160,10 @@ def batch_classify_posts(
     )
     successful_batches: list[SociopoliticalLabelsModel] = []
     failed_batches: list[tuple] = []
-    for batch in post_batches:
+    num_batches = len(post_batches)
+    for i, batch in enumerate(post_batches):
+        if i % 10 == 0:
+            logger.info(f"Processing batch {i} of {num_batches}...")
         result_dict = process_llm_batch(post_batch=batch, source_feed=source_feed)  # noqa
         if result_dict["succeeded"]:
             successful_batches.extend(result_dict["response"])
@@ -207,7 +212,10 @@ def classify_latest_posts(
     else:
         timestamp = None
     posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
-        inference_type="llm", timestamp=timestamp
+        inference_type="llm",
+        timestamp=timestamp,
+        max_per_source=max_num_posts,
+        sort_descending=True,
     )
     logger.info(f"Classifying {len(posts_to_classify)} posts with an LLM...")  # noqa
     if len(posts_to_classify) == 0:
@@ -224,6 +232,9 @@ def classify_latest_posts(
             ("most_liked", most_liked_posts),
         ]  # noqa
         for source, posts in source_to_posts_tuples:
+            print(f"For source {source}, there are {len(posts)} posts.")
+            posts = posts[:max_num_posts]  # Take the first X posts
+            print(f"Truncating to {max_num_posts} posts.")
             # labels stored in local storage, and then loaded
             # later. This format is done to make it more
             # robust to errors and to the script failing (though
