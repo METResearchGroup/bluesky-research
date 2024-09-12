@@ -300,7 +300,7 @@ resource "aws_lambda_function" "consolidate_enrichment_integrations_lambda" {
   image_uri     = "${aws_ecr_repository.consolidate_enrichment_integrations_service.repository_url}:latest"
   architectures = ["arm64"]
   timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
-  memory_size   = 512 # 512 MB of memory
+  memory_size   = 1024
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -340,7 +340,7 @@ resource "aws_lambda_function" "ml_inference_perspective_api_lambda" {
   image_uri     = "${aws_ecr_repository.ml_inference_perspective_api_service.repository_url}:latest"
   architectures = ["arm64"]
   timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
-  memory_size   = 512 # 512 MB of memory
+  memory_size   = 1024
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -359,7 +359,7 @@ resource "aws_lambda_function" "ml_inference_sociopolitical_lambda" {
   image_uri     = "${aws_ecr_repository.ml_inference_sociopolitical_service.repository_url}:latest"
   architectures = ["arm64"]
   timeout       = 720 # run for 12 minutes. Looks like I can do 750 posts/6 minutes, so this should support 1500 posts.
-  memory_size   = 768 # 768 MB of memory
+  memory_size   = 1024
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -378,7 +378,7 @@ resource "aws_lambda_function" "rank_score_feeds_lambda" {
   image_uri     = "${aws_ecr_repository.rank_score_feeds_service.repository_url}:latest"
   architectures = ["arm64"]
   timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
-  memory_size   = 768 # 768 MB of memory
+  memory_size   = 1024
 
   lifecycle {
     ignore_changes = [image_uri]
