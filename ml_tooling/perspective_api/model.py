@@ -39,10 +39,14 @@ attribute_to_labels_map = {
     # constructive attributes, from Perspective API
     "AFFINITY_EXPERIMENTAL": {"prob": "prob_affinity", "label": "label_affinity"},
     "COMPASSION_EXPERIMENTAL": {"prob": "prob_compassion", "label": "label_compassion"},
-    "CONSTRUCTIVE_EXPERIMENTAL": {
-        "prob": "prob_constructive",
-        "label": "label_constructive",
-    },
+    # According to the Perspective API team, the constructiveness endpoint has
+    # been deprecated in favor of the reasoning endpoint. I'll still keep the
+    # same naming convention of "constructiveness", but irl it's actually
+    # the "reasoning" endpoint.
+    # "CONSTRUCTIVE_EXPERIMENTAL": {
+    #     "prob": "prob_constructive",
+    #     "label": "label_constructive",
+    # },
     "CURIOSITY_EXPERIMENTAL": {"prob": "prob_curiosity", "label": "label_curiosity"},
     "NUANCE_EXPERIMENTAL": {"prob": "prob_nuance", "label": "label_nuance"},
     "PERSONAL_STORY_EXPERIMENTAL": {
@@ -150,6 +154,13 @@ def process_response(response_str: str) -> dict:
             classification_probs_and_labels[labels["label"]] = (
                 0 if prob_score < 0.5 else 1
             )  # noqa
+            # constructiveness == reasoning now, presumably, according to
+            # the Perspective API team.
+            if attribute == "REASONING_EXPERIMENTAL":
+                classification_probs_and_labels["prob_constructive"] = prob_score
+                classification_probs_and_labels["label_constructive"] = (
+                    0 if prob_score < 0.5 else 1
+                )
     return classification_probs_and_labels
 
 
