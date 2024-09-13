@@ -300,7 +300,7 @@ resource "aws_lambda_function" "consolidate_enrichment_integrations_lambda" {
   image_uri     = "${aws_ecr_repository.consolidate_enrichment_integrations_service.repository_url}:latest"
   architectures = ["arm64"]
   timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
-  memory_size   = 512 # 512 MB of memory
+  memory_size   = 1024
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -340,7 +340,7 @@ resource "aws_lambda_function" "ml_inference_perspective_api_lambda" {
   image_uri     = "${aws_ecr_repository.ml_inference_perspective_api_service.repository_url}:latest"
   architectures = ["arm64"]
   timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
-  memory_size   = 512 # 512 MB of memory
+  memory_size   = 1024
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -359,7 +359,7 @@ resource "aws_lambda_function" "ml_inference_sociopolitical_lambda" {
   image_uri     = "${aws_ecr_repository.ml_inference_sociopolitical_service.repository_url}:latest"
   architectures = ["arm64"]
   timeout       = 720 # run for 12 minutes. Looks like I can do 750 posts/6 minutes, so this should support 1500 posts.
-  memory_size   = 768 # 768 MB of memory
+  memory_size   = 1024
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -378,7 +378,7 @@ resource "aws_lambda_function" "rank_score_feeds_lambda" {
   image_uri     = "${aws_ecr_repository.rank_score_feeds_service.repository_url}:latest"
   architectures = ["arm64"]
   timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
-  memory_size   = 768 # 768 MB of memory
+  memory_size   = 1024
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -476,6 +476,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_calculate_superpost
 resource "aws_cloudwatch_event_rule" "compact_dedupe_data_event_rule" {
   name                = "compact_dedupe_data_event_rule"
   schedule_expression = "cron(0 0/8 * * ? *)"  # Triggers every 8 hours
+  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "compact_dedupe_data_event_target" {
@@ -1159,6 +1160,231 @@ resource "aws_glue_catalog_table" "daily_posts" {
 
   table_type = "EXTERNAL_TABLE"
 }
+
+# Glue table for firehose sync posts
+resource "aws_glue_catalog_table" "firehose_sync_posts" {
+  database_name = aws_glue_catalog_database.default.name
+  name          = "study_user_firehose_sync_posts"
+
+  storage_descriptor {
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "indexed_at"
+      type = "string"
+    }
+    columns {
+      name = "author_did"
+      type = "string"
+    }
+    columns {
+      name = "author_handle"
+      type = "string"
+    }
+    columns {
+      name = "author_avatar"
+      type = "string"
+    }
+    columns {
+      name = "author_display_name"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "embed"
+      type = "string"
+    }
+    columns {
+      name = "entities"
+      type = "string"
+    }
+    columns {
+      name = "facets"
+      type = "string"
+    }
+    columns {
+      name = "labels"
+      type = "string"
+    }
+    columns {
+      name = "langs"
+      type = "string"
+    }
+    columns {
+      name = "reply_parent"
+      type = "string"
+    }
+    columns {
+      name = "reply_root"
+      type = "string"
+    }
+    columns {
+      name = "tags"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+    columns {
+      name = "url"
+      type = "string"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "like_count"
+      type = "int"
+    }
+    columns {
+      name = "reply_count"
+      type = "int"
+    }
+    columns {
+      name = "repost_count"
+      type = "int"
+    }
+
+    location      = "s3://${var.s3_root_bucket_name}/study_user_activity/create/post/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+  }
+
+  table_type = "EXTERNAL_TABLE"
+}
+
+# Glue table for in-network user posts.
+resource "aws_glue_catalog_table" "in_network_firehose_sync_posts" {
+  database_name = aws_glue_catalog_database.default.name
+  name          = "in_network_firehose_sync_posts"
+
+  storage_descriptor {
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "indexed_at"
+      type = "string"
+    }
+    columns {
+      name = "author_did"
+      type = "string"
+    }
+    columns {
+      name = "author_handle"
+      type = "string"
+    }
+    columns {
+      name = "author_avatar"
+      type = "string"
+    }
+    columns {
+      name = "author_display_name"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "embed"
+      type = "string"
+    }
+    columns {
+      name = "entities"
+      type = "string"
+    }
+    columns {
+      name = "facets"
+      type = "string"
+    }
+    columns {
+      name = "labels"
+      type = "string"
+    }
+    columns {
+      name = "langs"
+      type = "string"
+    }
+    columns {
+      name = "reply_parent"
+      type = "string"
+    }
+    columns {
+      name = "reply_root"
+      type = "string"
+    }
+    columns {
+      name = "tags"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+    columns {
+      name = "url"
+      type = "string"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "like_count"
+      type = "int"
+    }
+    columns {
+      name = "reply_count"
+      type = "int"
+    }
+    columns {
+      name = "repost_count"
+      type = "int"
+    }
+
+    location      = "s3://${var.s3_root_bucket_name}/in_network_user_activity/create/post/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+  }
+
+  table_type = "EXTERNAL_TABLE"
+}
+
 
 # Glue table for user social networks
 resource "aws_glue_catalog_table" "user_social_networks" {
@@ -2752,3 +2978,19 @@ resource "aws_dynamodb_table" "superposter_calculation_sessions" {
     Name = "superposter_calculation_sessions"
   }
 }
+
+resource "aws_dynamodb_table" "compaction_sessions" {
+  name           = "compaction_sessions"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "compaction_timestamp"
+
+  attribute {
+    name = "compaction_timestamp"
+    type = "S"
+  }
+
+  tags = {
+    Name = "compaction_sessions"
+  }
+}
+

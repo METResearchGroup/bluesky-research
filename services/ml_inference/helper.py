@@ -64,7 +64,10 @@ def insert_labeling_session(labeling_session: dict):
 
 
 def get_posts_to_classify(
-    inference_type: Literal["llm", "perspective_api"], timestamp: Optional[str] = None
+    inference_type: Literal["llm", "perspective_api"],
+    timestamp: Optional[str] = None,
+    sort_descending: Optional[bool] = True,
+    max_per_source: Optional[int] = None,
 ) -> list[FilteredPreprocessedPostModel]:
     """Get posts to classify.
 
@@ -95,5 +98,9 @@ def get_posts_to_classify(
         timestamp = latest_inference_timestamp
     logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")
-    posts = athena.get_latest_preprocessed_posts(timestamp=timestamp)
+    posts = athena.get_latest_preprocessed_posts(
+        timestamp=timestamp,
+        sort_descending=sort_descending,
+        max_per_source=max_per_source,
+    )
     return posts

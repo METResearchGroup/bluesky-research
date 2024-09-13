@@ -131,7 +131,11 @@ def calculate_post_score(post: ConsolidatedEnrichedPostModel) -> float:
     engagement_score = None
     treatment_score = None
     engagement_coef = 1.0
-    if post.sociopolitical_was_successfully_labeled and post.is_sociopolitical:
+    if (
+        post.sociopolitical_was_successfully_labeled
+        and post.is_sociopolitical
+        and post.perspective_was_successfully_labeled
+    ):
         # if sociopolitical, uprank/downrank based on toxicity/constructiveness.
         treatment_coef = (
             post.prob_toxic * coef_toxicity

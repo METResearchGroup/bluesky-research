@@ -15,7 +15,7 @@ from lib.constants import timestamp_format
 from lib.helper import generate_current_datetime_str
 from lib.helper import create_batches, track_performance
 from lib.log.logger import get_logger
-from ml_tooling.llm.inference import run_query
+from ml_tooling.llm.inference import run_batch_queries
 from services.ml_inference.helper import get_posts_to_classify, insert_labeling_session  # noqa
 from services.ml_inference.models import (
     LLMSociopoliticalLabelModel,
@@ -30,7 +30,10 @@ from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 logger = get_logger(__name__)
 LLM_MODEL_NAME = "GPT-4o mini"
-DEFAULT_BATCH_SIZE = 10
+DEFAULT_BATCH_SIZE = 100
+DEFAULT_MINIBATCH_SIZE = 10
+# NOTE: will need to change as we make the sociopolitical lambda more efficient.
+max_num_posts = 800  # at current rate, it can handle ~100 posts/minute.
 
 
 def generate_prompt(posts: list[FilteredPreprocessedPostModel]) -> str:
@@ -81,19 +84,27 @@ def process_sociopolitical_batch(
     posts: list[FilteredPreprocessedPostModel],
 ) -> list[LLMSociopoliticalLabelModel]:
     """Takes batch and runs the LLM for it."""
-    prompt: str = generate_prompt(posts)
-    json_result: str = run_query(prompt=prompt, model_name=LLM_MODEL_NAME)
-    try:
-        results: list[LLMSociopoliticalLabelModel] = parse_llm_result(
-            json_result=json_result, expected_number_of_posts=len(posts)
-        )
-    except ValueError as e:
-        # NOTE: taking this approach for now to avoid errors in the batch and
-        # to just return empty results. We won't write any posts that are
-        # misclassified; we'll revisit how to implement this better later.
-        logger.error(f"Error parsing LLM result: {e}")
-        return []
-    return results
+    minibatches = [
+        posts[i : i + DEFAULT_MINIBATCH_SIZE]
+        for i in range(0, len(posts), DEFAULT_MINIBATCH_SIZE)
+    ]
+    prompts = [generate_prompt(batch) for batch in minibatches]
+    json_results: list[str] = run_batch_queries(
+        prompts, role="user", model_name=LLM_MODEL_NAME
+    )
+    all_results: list[LLMSociopoliticalLabelModel] = []
+    for json_result, minibatch in zip(json_results, minibatches):
+        try:
+            results: list[LLMSociopoliticalLabelModel] = parse_llm_result(
+                json_result=json_result, expected_number_of_posts=len(minibatch)
+            )
+            all_results.extend(results)
+        except ValueError as e:
+            # NOTE: taking this approach for now to avoid errors in the batch and
+            # to just return empty results. We won't write any posts that are
+            # misclassified; we'll revisit how to implement this better later.
+            logger.error(f"Error parsing LLM result: {e}")
+    return all_results
 
 
 def export_validated_llm_output(
@@ -158,7 +169,10 @@ def batch_classify_posts(
     )
     successful_batches: list[SociopoliticalLabelsModel] = []
     failed_batches: list[tuple] = []
-    for batch in post_batches:
+    num_batches = len(post_batches)
+    for i, batch in enumerate(post_batches):
+        if i % 10 == 0:
+            logger.info(f"Processing batch {i} of {num_batches}...")
         result_dict = process_llm_batch(post_batch=batch, source_feed=source_feed)  # noqa
         if result_dict["succeeded"]:
             successful_batches.extend(result_dict["response"])
@@ -207,7 +221,10 @@ def classify_latest_posts(
     else:
         timestamp = None
     posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
-        inference_type="llm", timestamp=timestamp
+        inference_type="llm",
+        timestamp=timestamp,
+        max_per_source=max_num_posts,
+        sort_descending=True,
     )
     logger.info(f"Classifying {len(posts_to_classify)} posts with an LLM...")  # noqa
     if len(posts_to_classify) == 0:
@@ -224,6 +241,9 @@ def classify_latest_posts(
             ("most_liked", most_liked_posts),
         ]  # noqa
         for source, posts in source_to_posts_tuples:
+            print(f"For source {source}, there are {len(posts)} posts.")
+            posts = posts[:max_num_posts]  # Take the first X posts
+            print(f"Truncating to {max_num_posts} posts.")
             # labels stored in local storage, and then loaded
             # later. This format is done to make it more
             # robust to errors and to the script failing (though
