@@ -30,7 +30,7 @@ from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 logger = get_logger(__name__)
 LLM_MODEL_NAME = "GPT-4o mini"
-DEFAULT_BATCH_SIZE = 60
+DEFAULT_BATCH_SIZE = 100
 DEFAULT_MINIBATCH_SIZE = 10
 # NOTE: will need to change as we make the sociopolitical lambda more efficient.
 max_num_posts = 800  # at current rate, it can handle ~100 posts/minute.
@@ -93,10 +93,10 @@ def process_sociopolitical_batch(
         prompts, role="user", model_name=LLM_MODEL_NAME
     )
     all_results: list[LLMSociopoliticalLabelModel] = []
-    for json_result in json_results:
+    for json_result, minibatch in zip(json_results, minibatches):
         try:
             results: list[LLMSociopoliticalLabelModel] = parse_llm_result(
-                json_result=json_result, expected_number_of_posts=len(posts)
+                json_result=json_result, expected_number_of_posts=len(minibatch)
             )
             all_results.extend(results)
         except ValueError as e:
