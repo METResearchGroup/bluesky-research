@@ -36,7 +36,9 @@ from services.sync.stream.export_data import (
 # how often to (1) write to S3 and (2) update the cursor state
 # cursor_update_frequency = 5000
 # cursor_update_frequency = 250
-cursor_update_frequency = 1500
+# cursor_update_frequency = 1500
+# cursor_update_frequency = 10000
+cursor_update_frequency = 20000
 
 logger = get_logger(__name__)
 

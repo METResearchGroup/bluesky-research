@@ -209,7 +209,7 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
                     kwargs={"follow_status": "followee"},
                 )
             else:
-                raise ValueError("User is neither follower nor followee.")
+                logger.error("User is neither follower nor followee.")
 
 
 def manage_follows(follows: dict[str, list]) -> dict:
