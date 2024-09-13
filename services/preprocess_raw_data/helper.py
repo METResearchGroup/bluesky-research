@@ -18,7 +18,8 @@ from services.preprocess_raw_data.export_data import (
     export_session_metadata,
 )
 from services.preprocess_raw_data.load_data import (
-    load_latest_posts,
+    load_latest_firehose_posts,
+    load_latest_most_liked_posts,
     load_previous_session_metadata,
 )
 from services.preprocess_raw_data.preprocess import (
@@ -28,6 +29,7 @@ from services.preprocess_raw_data.preprocess import (
 )
 
 DEFAULT_BATCH_SIZE = 100000
+max_firehose_posts_to_load = None
 num_days_lookback = 1
 default_latest_timestamp = (
     datetime.now(timezone.utc) - timedelta(days=num_days_lookback)
@@ -141,7 +143,7 @@ def load_latest_sqs_messages_from_athena(
 
 
 def load_latest_sqs_sync_messages(
-    sources: list[str] = Literal["in-network-user-activity", "most_liked"],
+    sources: list[str] = Literal["most_liked"],
     latest_processed_insert_timestamp: Optional[str] = None,
 ) -> list[dict]:
     """Load the latest SQS sync messages.
@@ -149,47 +151,8 @@ def load_latest_sqs_sync_messages(
     Output dictionary follows the same tree structure as in S3.
     """
     res = {
-        "in-network-user-activity": {
-            "create": {"post": [], "like": [], "follow": []},
-            "delete": {"post": [], "like": [], "follow": []},
-        },
         "most_liked": [],
     }
-    if "in-network-user-activity" in sources:
-        latest_firehose_sqs_sync_messages: list[dict] = (
-            load_latest_sqs_messages_from_athena(
-                source="firehose",
-                limit=None,
-                latest_processed_insert_timestamp=latest_processed_insert_timestamp,  # noqa
-            )
-        )  # noqa
-        for message in latest_firehose_sqs_sync_messages:
-            object_body = message["data"]["sync"]
-            s3_keys = object_body["s3_keys"]
-            # add patch for missing "did:plc:" prefix to part of key path.
-            # NOTE: this could've been done in the firehose stream tbh.
-            revised_s3_keys = []
-            for s3_key in s3_keys:
-                # example key: 'in_network_user_activity/create/post/dmjuau7irhg2lg72ty6sofpa/author_did=dmjuau7irhg2lg72ty6sofpa_post_uri_suffix=3l3orq64pdc2f.json'
-                # needs to be 'in_network_user_activity/create/post/did:plc:dmjuau7irhg2lg72ty6sofpa/author_did=did:plc:dmjuau7irhg2lg72ty6sofpa_post_uri_suffix=3l3orq64pdc2f.json'
-                # split the key on the '/'
-                parts = s3_key.split("/")
-                user_did = parts[3]
-                fixed_user_did = f"did:plc:{user_did}"
-                parts[3] = fixed_user_did
-                filename = parts[
-                    -1
-                ]  # e.g., author_did=dmjuau7irhg2lg72ty6sofpa_post_uri_suffix=3l3orq64pdc2f.json
-                split_filename = filename.split("=")
-                revised_filename = f"{split_filename[0]}=did:plc:{split_filename[1]}={split_filename[2]}"
-                parts[-1] = revised_filename
-                revised_key = "/".join(parts)
-                revised_s3_keys.append(revised_key)
-            object_body["s3_keys"] = revised_s3_keys
-            message["data"]["sync"] = object_body
-            operation = object_body["operation"]
-            operation_type = object_body["operation_type"]
-            res["in-network-user-activity"][operation][operation_type].append(message)  # noqa
     if "most_liked" in sources:
         latest_most_liked_sqs_sync_messages: list[dict] = (
             load_latest_sqs_messages_from_athena(
@@ -204,14 +167,8 @@ def load_latest_sqs_sync_messages(
 
 def get_latest_post_filenames_from_sqs(sqs_sync_messages: dict) -> dict[str, list[str]]:  # noqa
     """Process SQS messages to get the filenames to load."""
-    res = {"in-network-user-activity": [], "most_liked": []}
-    firehose_post_sqs_messages = sqs_sync_messages["in-network-user-activity"][
-        "create"
-    ]["post"]  # noqa
+    res = {"most_liked": []}
     most_liked_post_sqs_messages = sqs_sync_messages["most_liked"]
-    for message in firehose_post_sqs_messages:
-        keys: list[str] = message["data"]["sync"].get("s3_keys", [])
-        res["in-network-user-activity"].extend(keys)
     for message in most_liked_post_sqs_messages:
         keys = message["data"]["sync"]["s3_keys"]
         res["most_liked"].extend(keys)
@@ -261,7 +218,7 @@ def preprocess_latest_raw_data(
 
     # can do this in lieu of the logic below to load latest_posts, latest_likes, and latest_follows.
     sqs_sync_messages: dict = load_latest_sqs_sync_messages(
-        sources=["in-network-user-activity", "most_liked"],
+        sources=["most_liked"],
         latest_processed_insert_timestamp=timestamp,
     )  # noqa
 
@@ -269,26 +226,26 @@ def preprocess_latest_raw_data(
     latest_post_file_keys: dict = get_latest_post_filenames_from_sqs(
         sqs_sync_messages=sqs_sync_messages
     )  # noqa
-    latest_firehose_post_file_keys: list[str] = latest_post_file_keys[
-        "in-network-user-activity"
-    ]
     latest_most_liked_post_file_keys: list[str] = latest_post_file_keys["most_liked"]
-    logger.info(
-        f"Processing {len(latest_firehose_post_file_keys)} in-network-user-activity post files and {len(latest_most_liked_post_file_keys)} most-liked post files..."
-    )  # noqa
     latest_likes_file_keys: list[str] = []
     latest_follows_file_keys: list[str] = []
     logger.info(
         f"Processing {len(latest_likes_file_keys)} like files and {len(latest_follows_file_keys)} follow files..."
     )  # noqa
 
-    # load latest posts based on filenames in the sqs messages.
-    post_keys = latest_firehose_post_file_keys + latest_most_liked_post_file_keys  # noqa
-    if len(post_keys) == 0:
-        logger.warning("No posts to process. Check if this is expected behavior.")  # noqa
-    latest_posts: list[ConsolidatedPostRecordModel] = load_latest_posts(
-        post_keys=post_keys
+    # load latest posts
+    latest_firehose_posts: list[ConsolidatedPostRecordModel] = (
+        load_latest_firehose_posts(
+            timestamp=timestamp, limit=max_firehose_posts_to_load
+        )
+    )
+    latest_most_liked_posts: list[ConsolidatedPostRecordModel] = (
+        load_latest_most_liked_posts(post_keys=latest_most_liked_post_file_keys)
     )  # noqa
+    latest_posts: list[ConsolidatedPostRecordModel] = (
+        latest_firehose_posts + latest_most_liked_posts
+    )  # noqa
+    logger.info(f"Loaded {len(latest_posts)} posts for preprocessing.")
     # latest_likes = []
     # latest_follows = []
 
@@ -304,8 +261,9 @@ def preprocess_latest_raw_data(
         #     latest_follows=latest_follows
         # )  # noqa
         # get the latest timestamp of the posts that have been processed.
-        firehose_posts = sqs_sync_messages["in-network-user-activity"]["create"]["post"]
-        firehose_insert_timestamps = [res["insert_timestamp"] for res in firehose_posts]
+        firehose_insert_timestamps = [
+            res.synctimestamp for res in latest_firehose_posts
+        ]
         if firehose_insert_timestamps:
             max_firehose_insert_timestamp = max(firehose_insert_timestamps)
         else:
