@@ -2977,3 +2977,19 @@ resource "aws_dynamodb_table" "superposter_calculation_sessions" {
     Name = "superposter_calculation_sessions"
   }
 }
+
+resource "aws_dynamodb_table" "compaction_sessions" {
+  name           = "compaction_sessions"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "compaction_timestamp"
+
+  attribute {
+    name = "compaction_timestamp"
+    type = "S"
+  }
+
+  tags = {
+    Name = "compaction_sessions"
+  }
+}
+
