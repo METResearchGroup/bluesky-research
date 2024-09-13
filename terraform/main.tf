@@ -476,6 +476,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_calculate_superpost
 resource "aws_cloudwatch_event_rule" "compact_dedupe_data_event_rule" {
   name                = "compact_dedupe_data_event_rule"
   schedule_expression = "cron(0 0/8 * * ? *)"  # Triggers every 8 hours
+  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "compact_dedupe_data_event_target" {
@@ -2977,3 +2978,19 @@ resource "aws_dynamodb_table" "superposter_calculation_sessions" {
     Name = "superposter_calculation_sessions"
   }
 }
+
+resource "aws_dynamodb_table" "compaction_sessions" {
+  name           = "compaction_sessions"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "compaction_timestamp"
+
+  attribute {
+    name = "compaction_timestamp"
+    type = "S"
+  }
+
+  tags = {
+    Name = "compaction_sessions"
+  }
+}
+
