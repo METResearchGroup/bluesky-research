@@ -8,6 +8,7 @@ Based on specs in the following docs:
 import asyncio
 import json
 import os
+import threading
 from typing import Optional, Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Security
@@ -22,12 +23,12 @@ from feed_api.auth import AuthorizationError, validate_auth
 from feed_api.helper import (
     cache_request,
     get_cached_request,
-    export_log_data,
     is_valid_user_did,
     create_feed_and_cursor,
     load_latest_user_feed,
     valid_dids,
 )
+from feed_api.queue import background_s3_writer, log_queue
 from lib.aws.s3 import S3
 from lib.aws.secretsmanager import get_secret
 from lib.helper import generate_current_datetime_str
@@ -64,6 +65,8 @@ if not DEFAULT_FEED_TOKEN:
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 user_did_to_cached_feed: dict[str, list[dict]] = {}
+
+threading.Thread(target=background_s3_writer, daemon=True).start()
 
 
 async def get_api_key(api_key_header: Optional[str] = Security(api_key_header)):
@@ -312,10 +315,9 @@ async def get_feed_skeleton(
         "feed": feed,
         "timestamp": generate_current_datetime_str(),
     }
-    # NOTE: might be slow to export to S3. Maybe faster to write to cache
-    # and have the cache write to S3 offline?
-    export_log_data(user_session_log)
-    logger.info(f"Fetched {len(feed)} posts for user={requester_did}...")
+    # Write user session logs to queue in background thread, which will be
+    # periodically flushed and inserted into S3.
+    log_queue.put(user_session_log)
     return output
 
 
