@@ -121,7 +121,7 @@ def load_latest_user_feed(user_did: str) -> list[dict]:  # noqa
 
 
 def create_feed_and_cursor(
-    feed_dicts: list[dict], cursor: Optional[str] = None, limit: int = 30
+    feed_dicts: list[dict], user_did: str, cursor: Optional[str] = None, limit: int = 30
 ) -> tuple[list[dict], Optional[str]]:
     """Loads latest user feed."""
     logger.info(f"Creating feed for user={user_did}...")
