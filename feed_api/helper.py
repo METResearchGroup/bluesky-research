@@ -92,7 +92,9 @@ def load_latest_user_feed_from_cache(user_did: str) -> Optional[list[dict]]:
     return None
 
 
-def load_latest_user_feed(user_did: str, cursor: Optional[str] = None, limit: int = 30):  # noqa
+def load_latest_user_feed(
+    user_did: str, cursor: Optional[str] = None, limit: int = 30
+) -> tuple[list[dict], Optional[str]]:  # noqa
     """Loads latest user feed.
 
     Both the cache and the S3 feeds return the full complete feed. We
