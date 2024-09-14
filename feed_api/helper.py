@@ -14,6 +14,7 @@ from lib.helper import generate_current_datetime_str
 from lib.serverless_cache import (
     default_cache_name,
     default_ttl_seconds,
+    default_long_lived_ttl_seconds,
     ServerlessCache,
 )
 from services.participant_data.helper import get_all_users
@@ -81,24 +82,41 @@ def load_latest_user_feed_from_s3(user_did: str) -> list[dict]:
     return feed_dicts
 
 
-def load_latest_user_feed_from_cache(user_did: str) -> list[dict]:
-    pass
+def load_latest_user_feed_from_cache(user_did: str) -> Optional[list[dict]]:
+    """Fetches the latest feed from cache. Returns a list of URIs if it exists,
+    else None."""
+    cache_key = f"user_did={user_did}"
+    cache_value = serverless_cache.get(cache_name=default_cache_name, key=cache_key)
+    if cache_value:
+        return json.loads(cache_value)
+    return None
 
 
-def load_latest_user_feed(user_did: str, cursor: Optional[str] = None, limit: int = 30):
+def load_latest_user_feed(user_did: str, cursor: Optional[str] = None, limit: int = 30):  # noqa
     """Loads latest user feed.
 
     Both the cache and the S3 feeds return the full complete feed. We
     use the cursor to determine which subset of the feed to return.
     """
     logger.info(f"Loading latest feed for user={user_did}...")
-    feed_dicts: list[dict] = load_latest_user_feed_from_cache(user_did=user_did)  # noqa
+    feed_uris: list[dict] = load_latest_user_feed_from_cache(user_did=user_did)  # noqa
+    if feed_uris:
+        feed_dicts = [{"item": feed_uri} for feed_uri in feed_uris]
+    else:
+        feed_dicts = None
     if not feed_dicts:
         logger.info(
-            f"Cache miss for user={user_did} and cursor={cursor}. Loading feed from S3..."
+            f"Cache miss for user={user_did} and cursor={cursor}. Loading latest feed from S3 and then adding to cache."
         )  # noqa
         feed_dicts: list[dict] = load_latest_user_feed_from_s3(user_did=user_did)  # noqa
-        # TODO: insert feed into cache.
+        feed_uris = [feed_dict["item"] for feed_dict in feed_dicts]
+        cache_key = f"user_did={user_did}"
+        serverless_cache.set(
+            cache_name=default_cache_name,
+            key=cache_key,
+            value=json.dumps(feed_uris),
+            ttl=default_long_lived_ttl_seconds,
+        )
 
     timestamp = generate_current_datetime_str()
 
@@ -195,4 +213,5 @@ def export_log_data(log: dict):
 
 
 if __name__ == "__main__":
-    pass
+    user_did = "did:plc:wvb6v45g6oxrfebnlzllhrpv"
+    load_latest_user_feed(user_did=user_did)
