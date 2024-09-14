@@ -5,6 +5,7 @@ Based on specs in the following docs:
 - https://github.com/bluesky-social/feed-generator
 """  # noqa
 
+import asyncio
 import json
 import os
 from typing import Optional, Annotated
@@ -23,7 +24,9 @@ from feed_api.helper import (
     get_cached_request,
     export_log_data,
     is_valid_user_did,
+    create_feed_and_cursor,
     load_latest_user_feed,
+    valid_dids,
 )
 from lib.aws.s3 import S3
 from lib.aws.secretsmanager import get_secret
@@ -60,6 +63,8 @@ if not DEFAULT_FEED_TOKEN:
 
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
+user_did_to_cached_feed: dict[str, list[dict]] = {}
+
 
 async def get_api_key(api_key_header: Optional[str] = Security(api_key_header)):
     if api_key_header == REQUIRED_API_KEY:
@@ -78,6 +83,30 @@ async def log_request(request: Request, call_next):
     logger.info(f"Request body: {body.decode('utf-8')}")
     response = await call_next(request)
     return response
+
+
+def refresh_user_did_to_cached_feed():
+    for did in valid_dids:
+        user_did_to_cached_feed[did] = load_latest_user_feed(user_did=did)
+    logger.info("Initialized user DID to cache feed mapping.")
+
+
+refresh_user_did_to_cached_feed()
+
+
+async def refresh_feeds_periodically():
+    """Refreshes the local cached feeds every hour."""
+    refresh_seconds = 3600
+    while True:
+        refresh_user_did_to_cached_feed()
+        logger.info("Refreshed local cached feeds. Waiting 1 hour for next refresh.")  # noqa
+        await asyncio.sleep(refresh_seconds)
+
+
+# Start the periodic refresh in a background task
+@app.on_event("startup")
+async def start_refresh_task():
+    asyncio.create_task(refresh_feeds_periodically())
 
 
 # redirect to Billy's site: https://sites.google.com/u.northwestern.edu/mind-technology-lab
@@ -257,8 +286,21 @@ async def get_feed_skeleton(
         logger.info(f"Found cached request for user={requester_did}...")
         return cached_request
     request_cursor = cursor
-    feed, next_cursor = load_latest_user_feed(
-        user_did=requester_did, cursor=request_cursor, limit=limit
+    if requester_did in user_did_to_cached_feed:
+        feed_dicts: list[dict] = user_did_to_cached_feed[requester_did]
+    else:
+        logger.warning(
+            f"Feed for {requester_did} not in local cache (should be). Loading from external cache + S3..."
+        )  # noqa
+        feed_dicts: list[dict] = load_latest_user_feed(
+            user_did=requester_did, cursor=cursor, limit=limit
+        )
+        logger.info(
+            f"Loaded feed for {requester_did} from S3 + cache. Added to local store"
+        )  # noqa
+        user_did_to_cached_feed[requester_did] = feed_dicts
+    feed, next_cursor = create_feed_and_cursor(
+        feed_dicts=feed_dicts, cursor=request_cursor, limit=limit
     )
     output = {"cursor": next_cursor, "feed": feed}
     cache_request(user_did=requester_did, cursor=request_cursor, data=output)

@@ -92,9 +92,7 @@ def load_latest_user_feed_from_cache(user_did: str) -> Optional[list[dict]]:
     return None
 
 
-def load_latest_user_feed(
-    user_did: str, cursor: Optional[str] = None, limit: int = 30
-) -> tuple[list[dict], Optional[str]]:  # noqa
+def load_latest_user_feed(user_did: str) -> list[dict]:  # noqa
     """Loads latest user feed.
 
     Both the cache and the S3 feeds return the full complete feed. We
@@ -108,7 +106,7 @@ def load_latest_user_feed(
         feed_dicts = None
     if not feed_dicts:
         logger.info(
-            f"Cache miss for user={user_did} and cursor={cursor}. Loading latest feed from S3 and then adding to cache."
+            f"Cache miss for user={user_did}. Loading latest feed from S3 and then adding to cache."  # noqa
         )  # noqa
         feed_dicts: list[dict] = load_latest_user_feed_from_s3(user_did=user_did)  # noqa
         feed_uris = [feed_dict["item"] for feed_dict in feed_dicts]
@@ -119,9 +117,15 @@ def load_latest_user_feed(
             value=json.dumps(feed_uris),
             ttl=default_long_lived_ttl_seconds,
         )
+    return feed_dicts
 
+
+def create_feed_and_cursor(
+    feed_dicts: list[dict], cursor: Optional[str] = None, limit: int = 30
+) -> tuple[list[dict], Optional[str]]:
+    """Loads latest user feed."""
+    logger.info(f"Creating feed for user={user_did}...")
     timestamp = generate_current_datetime_str()
-
     hashed_uris_lst = [hash_feed_post(feed_dict) for feed_dict in feed_dicts]
     hash_uri_of_last_post_in_full_feed = hashed_uris_lst[-1]
 
