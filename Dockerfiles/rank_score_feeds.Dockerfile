@@ -13,6 +13,7 @@ COPY lib/db/bluesky_models/* ./lib/db/bluesky_models/
 COPY lib/db/manage_local_data.py ./lib/db/manage_local_data.py
 COPY lib/helper.py ./lib/helper.py
 COPY lib/log/logger.py ./lib/log/logger.py
+COPY lib/serverless_cache.py ./lib/serverless_cache.py
 
 COPY services/calculate_superposters/helper.py ./services/calculate_superposters/helper.py
 COPY services/calculate_superposters/models.py ./services/calculate_superposters/models.py

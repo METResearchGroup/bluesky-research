@@ -1,6 +1,7 @@
 """Helper functions for the rank_score_feeds service."""
 
 from datetime import timedelta
+import json
 import os
 
 import numpy as np
@@ -12,6 +13,11 @@ from lib.aws.s3 import S3
 from lib.constants import current_datetime, timestamp_format
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
+from lib.serverless_cache import (
+    default_cache_name,
+    default_long_lived_ttl_seconds,
+    ServerlessCache,
+)
 from services.calculate_superposters.helper import load_latest_superposters
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
@@ -38,6 +44,7 @@ s3 = S3()
 dynamodb = DynamoDB()
 glue = Glue()
 logger = get_logger(__name__)
+serverless_cache = ServerlessCache()
 
 
 def insert_feed_generation_session(feed_generation_session: dict):
@@ -54,7 +61,10 @@ def insert_feed_generation_session(feed_generation_session: dict):
 
 
 def export_results(user_to_ranked_feed_map: dict, timestamp: str):
-    """Exports results. Partitions on user DID."""
+    """Exports results. Partitions on user DID.
+
+    Exports to both S3 and the cache.
+    """
     for user, ranked_feed in user_to_ranked_feed_map.items():
         data = {
             "user": user,
@@ -70,7 +80,17 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
                 f"{user}_{timestamp}.json",
             ),
         )
-    logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3.")
+        # in the cache, all I need are the list of post URIs, so we will
+        # export only that.
+        feed_uris = [post[0] for post in custom_feed_model.feed]
+        cache_key = f"user_did={user}"
+        serverless_cache.set(
+            cache_name=default_cache_name,
+            key=cache_key,
+            value=json.dumps(feed_uris),
+            ttl=default_long_lived_ttl_seconds,
+        )
+    logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3 and to cache.")
 
 
 # NOTE: probably just want the most recent X days possibly, no?
