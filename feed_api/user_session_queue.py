@@ -38,6 +38,6 @@ def background_s3_writer():
             key = os.path.join("user_session_logs", filename)
             s3.write_dicts_jsonl_to_s3(data=logs_to_write, key=key)
             logger.info(
-                f"Exported {len(logs_to_write)}user session logs to S3 to key={key}"
+                f"Exported {len(logs_to_write)} user session logs to S3 to key={key}"
             )  # noqa
         time.sleep(10)

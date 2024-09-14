@@ -367,6 +367,17 @@ async def get_default_feed_skeleton(
     )
     output = {"cursor": next_cursor, "feed": feed}
     logger.info(f"Fetched {len(feed)} posts for user={requester_did}...")
+    user_session_log = {
+        "user_did": requester_did,
+        "cursor": next_cursor,
+        "limit": limit,
+        "feed_length": len(feed),
+        "feed": feed,
+        "timestamp": generate_current_datetime_str(),
+    }
+    # Write user session logs to queue in background thread, which will be
+    # periodically flushed and inserted into S3.
+    log_queue.put(user_session_log)
     return output
 
 

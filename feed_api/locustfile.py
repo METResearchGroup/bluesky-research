@@ -22,7 +22,7 @@ class MyUser(HttpUser):
     def get_default_feed(self):
         headers = {"Authorization": f"Bearer {self.TOKEN}"}
         with self.client.get(
-            "/get-default-feed", headers=headers, catch_response=True
+            "get-default-feed", headers=headers, catch_response=True
         ) as response:
             if response.status_code == 200:
                 # Optionally, you can add more checks here

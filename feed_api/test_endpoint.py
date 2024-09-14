@@ -46,7 +46,7 @@ def test_get_default_feed():
     except requests.exceptions.JSONDecodeError:
         print("Response is not in JSON format")
 
-    breakpoint()
+    # breakpoint()
 
 
 if __name__ == "__main__":
