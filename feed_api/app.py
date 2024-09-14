@@ -51,7 +51,9 @@ API_KEY_NAME = "bsky-internal-api-key"
 REQUIRED_API_KEY = json.loads(get_secret("bsky-internal-api-key"))[
     "BSKY_INTERNAL_API_KEY"
 ]
-DEFAULT_FEED_TOKEN = os.environ.get("DEFAULT_FEED_TOKEN")
+DEFAULT_FEED_TOKEN = json.loads(get_secret("feed-api-default-test-token"))[
+    "feed-api-default-test-token"
+]
 if not DEFAULT_FEED_TOKEN:
     raise ValueError("Need to provide a default token for test purposes")
 
