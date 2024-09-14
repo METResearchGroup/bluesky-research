@@ -7,10 +7,10 @@ import requests
 from lib.aws.secretsmanager import get_secret
 
 # The URL of your API
-BASE_URL = "https://mindtechnologylab.com"
+BASE_URL = "http://0.0.0.0:8000"
 
 # The endpoint we're testing
-ENDPOINT = "/get-default-feed"
+ENDPOINT = "get-default-feed"
 
 token = json.loads(get_secret("feed-api-default-test-token"))[
     "feed-api-default-test-token"
