@@ -138,36 +138,142 @@ resource "aws_instance" "feed_api" {
   }
 
   iam_instance_profile = "EC2InstanceProfile"
-  vpc_security_group_ids = ["sg-0b3e24638f16807d5"] # references feed_api_sg.
+  vpc_security_group_ids = [aws_security_group.feed_api_sg.id]
 }
 
-# this is the same security group for both the firehose and the Feed API.
+resource "aws_instance" "firehose" {
+  ami           = "ami-067df2907035c28c2"
+  instance_type = "t4g.small"
+  key_name      = "firehoseSyncEc2Key"
+
+  tags = {
+    Name = "firehose-ec2-instance"
+  }
+  iam_instance_profile = "EC2InstanceProfile"
+  vpc_security_group_ids = [aws_security_group.firehose_sg.id]
+}
+
+## Connect EC2 instance to API Gateway via VPC and NLB ##
+# Create NLB in the VPC that targets the EC2 instance
+# Create a VPC link for API Gateway to access the NLB
+# Create a listener for the NLB
+# Attach the EC2 instance to the target group
+
+# Create VPC
+resource "aws_vpc" "main" {
+  cidr_block = "172.31.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support = true
+  tags = {
+    Name = "bluesky-research-vpc"
+  }
+}
+
+# Create a Network Load Balancer
+resource "aws_lb" "api_nlb" {
+  name               = "api-nlb"
+  internal           = true
+  load_balancer_type = "network"
+  # aws ec2 describe-subnets --filters "Name=vpc-id,Values=vpc-052fa7eed9a020314" --query 'Subnets[*].{SubnetId:SubnetId,AvailabilityZone:AvailabilityZone,CidrBlock:CidrBlock,Name:Tags[?Key==`Name`].Value|[0]}' --output table
+  subnets            = ["subnet-0bb65ec9f850af1c6", "subnet-015f7cb4b6125b8c5", "subnet-0df87a873992b1e8e"]
+
+  enable_deletion_protection = false
+}
+
+# Create a target group for the NLB
+resource "aws_lb_target_group" "api_tg" {
+  name     = "api-tg"
+  port     = 8000
+  protocol = "TCP"
+  vpc_id   = aws_vpc.main.id
+
+  health_check {
+    port     = 8000
+    protocol = "TCP"
+  }
+}
+
+# Attach the EC2 instance to the target group
+resource "aws_lb_target_group_attachment" "api_tg_attachment" {
+  target_group_arn = aws_lb_target_group.api_tg.arn
+  target_id        = aws_instance.feed_api.id
+  port             = 8000
+}
+
+# Create a listener for the NLB
+resource "aws_lb_listener" "api_listener" {
+  load_balancer_arn = aws_lb.api_nlb.arn
+  port              = 8000
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.api_tg.arn
+  }
+}
+
+# Create a VPC Link for API Gateway
+resource "aws_api_gateway_vpc_link" "api_vpc_link" {
+  name        = "api-vpc-link"
+  description = "VPC Link for API Gateway to access EC2 instance"
+  target_arns = [aws_lb.api_nlb.arn]
+}
+
+# Updated security group for feed_api
 resource "aws_security_group" "feed_api_sg" {
-  name        = "launch-wizard"
-  description = "launch-wizard created 2024-08-12T20:56:38.950Z"
-  vpc_id      = "vpc-052fa7eed9a020314"
+  name        = "feed-api-security-group"
+  description = "Security group for Feed API EC2 instance"
+  vpc_id      = aws_vpc.main.id
 
   ingress {
-    from_port   = 22
-    to_port     = 22
+    from_port   = 8000
+    to_port     = 8000
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # port access for FastAPI access.
+  # API Gateway access
   ingress {
     from_port   = 8000
     to_port     = 8000
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]  # Allow access from anywhere (you might want to restrict this)
+    cidr_blocks = [aws_vpc.main.cidr_block] # Allow traffic from within the VPC
   }
 
-  # TODO: double-check if this is the correct IPs for API Gateway.
+  # SSH access from AWS console.
+  # https://ip-ranges.amazonaws.com/ip-ranges.json
+  # Should allow SSH access from the EC2 Instance Connect service.
+  # But, these IPs can change periodically.
   ingress {
-    from_port   = 8000
-    to_port     = 8000
+    from_port   = 22
+    to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["3.145.192.0/24", "3.134.64.0/24", "3.134.128.0/24"]  # API Gateway IPs (us-east-2 example)
+    cidr_blocks = ["3.16.146.0/29",  "3.17.228.0/29", "3.130.192.0/29"]  # AWS Console IP ranges
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# security group for firehose
+resource "aws_security_group" "firehose_sg" {
+  name        = "firehose-sg"
+  description = "Security group for Firehose EC2 instance"
+  vpc_id      = aws_vpc.main.id
+
+  # SSH access from AWS console.
+  # https://ip-ranges.amazonaws.com/ip-ranges.json
+  # Should allow SSH access from the EC2 Instance Connect service.
+  # But, these IPs can change periodically.
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["3.16.146.0/29"]  # AWS Console IP ranges
   }
 
   egress {
@@ -181,6 +287,7 @@ resource "aws_security_group" "feed_api_sg" {
     ignore_changes = [name]
   }
 }
+
 
 ### Lambdas ###
 resource "aws_lambda_function" "bluesky_feed_api_lambda" {
