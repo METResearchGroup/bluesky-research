@@ -227,7 +227,7 @@ async def manage_user(user_operation: UserOperation):
 async def describe_feed_generator():  # def or async def?
     feeds = [
         {
-            "uri": "at://did:plc:dupygefpurstnheocpdfi2qd/app.bsky.feed.generator/nw-feed-algos"
+            "uri": "at://did:plc:dupygefpurstnheocpdfi2qd/app.bsky.feed.generator/nw-study-feed"
         }
     ]
     response = {
