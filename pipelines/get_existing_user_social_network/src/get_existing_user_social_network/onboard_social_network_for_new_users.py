@@ -45,6 +45,11 @@ def main():
     if total_users_to_sync == 0:
         logger.info("No users to sync")
         return
+    logger.info(f"Syncing follows for {total_users_to_sync} users.")
+    user_bsky_handles_to_sync = "\n".join(
+        [user.bluesky_handle for user in users_not_synced]
+    )
+    logger.info(f"Users to sync: {user_bsky_handles_to_sync}")
     for i, user in enumerate(users_not_synced):
         if i % 10 == 0:
             logger.info(f"Syncing user {i} of {total_users_to_sync}")
