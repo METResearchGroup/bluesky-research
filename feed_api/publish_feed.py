@@ -22,19 +22,19 @@ HOSTNAME: str = "mindtechnologylab.com"
 # A short name for the record that will show in urls
 # Lowercase with no spaces.
 # Ex: whats-hot
-RECORD_NAME: str = "nw-feed-algos"
+RECORD_NAME: str = "nw-study-feed"
 
 # A display name for your feed
 # Ex: What's Hot
-DISPLAY_NAME: str = "Experimental Feed Algos"
+DISPLAY_NAME: str = "Bluesky Study Feed"
 
 # (Optional) A description of your feed
 # Ex: Top trending content from the whole network
-DESCRIPTION: str = "Experimental feed-ranking algorithms, powered by a team at Northwestern University. See https://sites.google.com/view/kellogg-bluesky-study/home for more information."
+DESCRIPTION: str = "Feed you were assigned for the study."
 
 # (Optional) The path to an image to be used as your feed's avatar
 # Ex: ./path/to/avatar.jpeg
-AVATAR_PATH: str = "./northwestern_university_logo.png"
+AVATAR_PATH: str = "./nw_logo_round.png"
 # (Optional). Only use this if you want a service did different from did:web
 SERVICE_DID: str = ""
 
