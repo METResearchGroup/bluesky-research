@@ -6,16 +6,17 @@ import os
 import re
 from typing import Optional
 
-from feed_api.serverless_cache import (
-    default_cache_name,
-    default_ttl_seconds,
-    ServerlessCache,
-)
 from lib.aws.athena import Athena
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
 from lib.log.logger import get_logger
 from lib.helper import generate_current_datetime_str
+from lib.serverless_cache import (
+    default_cache_name,
+    default_ttl_seconds,
+    default_long_lived_ttl_seconds,
+    ServerlessCache,
+)
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 
@@ -61,15 +62,7 @@ def hash_feed_post(post: dict) -> str:
     return hashlib.sha256(post["item"].encode()).hexdigest()
 
 
-# NOTE: how do we manage the case where we've generated a new feed for the
-# user and they're still viewing the old one? Something to consider.
-# Maybe a good behavior is that on pagination, we return the new feed, though
-# I think this is likely what would happen by default anyways?
-# NOTE: I could also just have the feeds refresh at weird times, i.e.,
-# 4am US time, making it highly unlikely for this collision to occur.
-def load_latest_user_feed_from_s3(
-    user_did: str, cursor: Optional[str] = None, limit: int = 30
-) -> tuple[list[dict], str]:
+def load_latest_user_feed_from_s3(user_did: str) -> list[dict]:
     """Loads the latest feed for a user from S3.
 
     Optionally ingests a cursor for pagination purposes.
@@ -86,8 +79,53 @@ def load_latest_user_feed_from_s3(
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     feed: str = df_dicts[0]["feed"]
     feed_dicts: list[dict] = parse_feed_string(feed)
-    timestamp = generate_current_datetime_str()
+    return feed_dicts
 
+
+def load_latest_user_feed_from_cache(user_did: str) -> Optional[list[dict]]:
+    """Fetches the latest feed from cache. Returns a list of URIs if it exists,
+    else None."""
+    cache_key = f"user_did={user_did}"
+    cache_value = serverless_cache.get(cache_name=default_cache_name, key=cache_key)
+    if cache_value:
+        return json.loads(cache_value)
+    return None
+
+
+def load_latest_user_feed(user_did: str) -> list[dict]:  # noqa
+    """Loads latest user feed.
+
+    Both the cache and the S3 feeds return the full complete feed. We
+    use the cursor to determine which subset of the feed to return.
+    """
+    logger.info(f"Loading latest feed for user={user_did}...")
+    feed_uris: list[dict] = load_latest_user_feed_from_cache(user_did=user_did)  # noqa
+    if feed_uris:
+        feed_dicts = [{"item": feed_uri} for feed_uri in feed_uris]
+    else:
+        feed_dicts = None
+    if not feed_dicts:
+        logger.info(
+            f"Cache miss for user={user_did}. Loading latest feed from S3 and then adding to cache."  # noqa
+        )  # noqa
+        feed_dicts: list[dict] = load_latest_user_feed_from_s3(user_did=user_did)  # noqa
+        feed_uris = [feed_dict["item"] for feed_dict in feed_dicts]
+        cache_key = f"user_did={user_did}"
+        serverless_cache.set(
+            cache_name=default_cache_name,
+            key=cache_key,
+            value=json.dumps(feed_uris),
+            ttl=default_long_lived_ttl_seconds,
+        )
+    return feed_dicts
+
+
+def create_feed_and_cursor(
+    feed_dicts: list[dict], user_did: str, cursor: Optional[str] = None, limit: int = 30
+) -> tuple[list[dict], Optional[str]]:
+    """Loads latest user feed."""
+    logger.info(f"Creating feed for user={user_did}...")
+    timestamp = generate_current_datetime_str()
     hashed_uris_lst = [hash_feed_post(feed_dict) for feed_dict in feed_dicts]
     hash_uri_of_last_post_in_full_feed = hashed_uris_lst[-1]
 
@@ -181,4 +219,5 @@ def export_log_data(log: dict):
 
 
 if __name__ == "__main__":
-    pass
+    user_did = "did:plc:wvb6v45g6oxrfebnlzllhrpv"
+    load_latest_user_feed(user_did=user_did)

@@ -18,6 +18,10 @@ from lib.log.logger import get_logger
 
 default_ttl_minutes = 10
 default_ttl_seconds = default_ttl_minutes * 60
+# 18 hours default long-lived TTL.
+# for feeds, have feeds live for a while in cache.
+default_long_lived_ttl_hours = 18
+default_long_lived_ttl_seconds = default_long_lived_ttl_hours * 60 * 60
 default_cache_name = "bluesky-cache"
 
 logger = get_logger(__name__)
