@@ -2,8 +2,7 @@
 
 import streamlit as st
 
-from lib.db.sql.participant_data_database import insert_bsky_user_to_study
-from services.participant_data.helper import get_all_users
+from services.participant_data.helper import get_all_users, manage_bsky_study_user
 from services.participant_data.models import UserToBlueskyProfileModel
 from transform.bluesky_helper import get_author_did_from_handle
 
@@ -68,7 +67,6 @@ def add_new_user_to_study():
     # first, add bluesky handle
     bluesky_handle = st.text_input("Bluesky Handle (or profile link):")
     add_user = st.button("Add user to study.")
-    add_user = False
 
     if add_user:
         st.write(f"Adding user with handle {bluesky_handle} to the study...")
@@ -88,12 +86,14 @@ def add_new_user_to_study():
                 st.stop()
 
             condition = map_label_to_condition[condition_label]
-
-            insert_bsky_user_to_study(
-                bluesky_handle=bluesky_handle,
-                condition=condition,
-                bluesky_user_did=bsky_author_did,
-            )
+            payload = {
+                "operation": "POST",
+                "bluesky_user_did": bsky_author_did,
+                "bluesky_handle": bluesky_handle,
+                "is_study_user": True,
+                "condition": condition,
+            }
+            manage_bsky_study_user(payload=payload)
             st.write("User added to study.")
         except Exception as e:
             st.error(f"Error adding user to study: {e}")
