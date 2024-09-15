@@ -261,8 +261,8 @@ resource "aws_security_group" "feed_api_sg" {
 
 # security group for firehose
 resource "aws_security_group" "firehose_sg" {
-  name        = "launch-wizard"
-  description = "launch-wizard created 2024-08-12T20:56:38.950Z"
+  name        = "firehose-sg"
+  description = "Security group for Firehose EC2 instance"
   vpc_id      = aws_vpc.main.id
 
   # SSH access from AWS console.
@@ -281,6 +281,10 @@ resource "aws_security_group" "firehose_sg" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  lifecycle {
+    ignore_changes = [name]
   }
 }
 
