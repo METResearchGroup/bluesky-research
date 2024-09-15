@@ -9,13 +9,14 @@ from boto3.dynamodb.types import TypeSerializer
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import current_datetime_str
-from lib.helper import client
+from lib.helper import get_client
 from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.sync.search.helper import send_request_with_pagination
 
 logger = get_logger(__name__)
+client = get_client()
 
 s3 = S3()
 dynamodb = DynamoDB()
@@ -28,7 +29,9 @@ max_requests_per_url = 5  # max 500 results, 100 per request.
 
 
 def fetch_profiles(
-    user_handle: str, network_type: Literal["follows", "followers"]
+    user_handle: str,
+    network_type: Literal["follows", "followers"],
+    max_requests: int = max_requests_per_url,
 ) -> list[dict]:
     """Given a url (follow/follower list), fetches the profiles.
 
@@ -43,7 +46,7 @@ def fetch_profiles(
             func=client.get_follows,
             kwargs={"actor": user_handle},
             response_key="follows",
-            max_requests=max_requests_per_url,
+            max_requests=max_requests,
         )
         print(f"Returning {len(res)} follows for {user_handle}.")
     elif network_type == "followers":
@@ -51,7 +54,7 @@ def fetch_profiles(
             func=client.get_followers,
             kwargs={"actor": user_handle},
             response_key="followers",
-            max_requests=max_requests_per_url,
+            max_requests=max_requests,
         )
         print(f"Returning {len(res)} followers for {user_handle}.")
     else:
@@ -68,9 +71,11 @@ def fetch_profiles(
     return output
 
 
-def fetch_follows_for_user(user_handle: str, user_did: str):
+def fetch_follows_for_user(
+    user_handle: str, user_did: str, max_requests: int = max_requests_per_url
+):
     profiles: list[dict] = fetch_profiles(
-        user_handle=user_handle, network_type="follows"
+        user_handle=user_handle, network_type="follows", max_requests=max_requests
     )
     follows = [
         {
@@ -88,9 +93,11 @@ def fetch_follows_for_user(user_handle: str, user_did: str):
     return follows
 
 
-def fetch_followers_for_user(user_handle: str, user_did: str):
+def fetch_followers_for_user(
+    user_handle: str, user_did: str, max_requests: int = max_requests_per_url
+):
     profiles: list[dict] = fetch_profiles(
-        user_handle=user_handle, network_type="followers"
+        user_handle=user_handle, network_type="followers", max_requests=max_requests
     )
     followers = [
         {
@@ -143,12 +150,14 @@ def export_follows_and_followers_for_user(
 ):
     """Exports the follows and followers for a user to S3."""
     hashed_value = str(uuid.uuid4())
-    follows_filename = f"follows_{user_handle}-{hashed_value}.json"
-    followers_filename = f"followers_{user_handle}-{hashed_value}.json"
-    follows_key = os.path.join(key_root, follows_filename)
-    followers_key = os.path.join(key_root, followers_filename)
-    s3.write_dicts_jsonl_to_s3(data=follows, key=follows_key)
-    s3.write_dicts_jsonl_to_s3(data=followers, key=followers_key)
+    if len(follows) > 0:
+        follows_filename = f"follows_{user_handle}-{hashed_value}.json"
+        follows_key = os.path.join(key_root, follows_filename)
+        s3.write_dicts_jsonl_to_s3(data=follows, key=follows_key)
+    if len(followers) > 0:
+        followers_filename = f"followers_{user_handle}-{hashed_value}.json"
+        followers_key = os.path.join(key_root, followers_filename)
+        s3.write_dicts_jsonl_to_s3(data=followers, key=followers_key)
     update_completed_fetch_user_network(user_handle)
 
 
