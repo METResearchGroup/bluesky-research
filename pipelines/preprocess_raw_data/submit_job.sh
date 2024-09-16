@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -A p32375
-#SBATCH -p gengpu
+#SBATCH -p short
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=2
 #SBATCH -t 0:30:00
