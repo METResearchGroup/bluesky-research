@@ -2505,6 +2505,55 @@ resource "aws_glue_catalog_table" "consolidated_enriched_post_records" {
   }
 }
 
+resource "aws_glue_catalog_table" "post_scores" {
+  name          = "post_scores"
+  database_name = var.default_glue_database_name
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "classification"      = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/post_scores/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "post_scores_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+
+    columns {
+      name = "text"
+      type = "string"
+    }
+
+    columns {
+      name = "engagement_score"
+      type = "double"
+    }
+
+    columns {
+      name = "treatment_score"
+      type = "double"
+    }
+
+    columns {
+      name = "scored_timestamp"
+      type = "string"
+    }
+  }
+}
+
+
 resource "aws_glue_catalog_table" "custom_feeds" {
   name          = "custom_feeds"
   database_name = var.default_glue_database_name

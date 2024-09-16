@@ -10,7 +10,7 @@ from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
-from lib.constants import current_datetime, timestamp_format
+from lib.constants import current_datetime, current_datetime_str, timestamp_format
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.serverless_cache import (
@@ -25,7 +25,7 @@ from services.consolidate_enrichment_integrations.models import (
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.preprocess_raw_data.classify_language.model import classify
-from services.rank_score_feeds.models import CustomFeedModel
+from services.rank_score_feeds.models import CustomFeedModel, ScoredPostModel
 
 max_feed_length = 50
 default_lookback_days = 3
@@ -142,6 +142,27 @@ def load_user_social_network() -> dict[str, list[str]]:
     return res
 
 
+def export_post_scores(post_uri_to_post_score_map: dict[str, str]):
+    """Exports post scores to S3."""
+    output: list[ScoredPostModel] = []
+    for post_uri, post_obj in post_uri_to_post_score_map.items():
+        output.append(
+            ScoredPostModel(
+                uri=post_uri,
+                text=post_obj["post"].text,
+                engagement_score=post_obj["score"]["engagement_score"],
+                treatment_score=post_obj["score"]["treatment_score"],
+                scored_timestamp=current_datetime_str,
+            )
+        )
+    # using native Pydantic JSON serialization instead of json.dumps()
+    # since that's more efficient for Pydantic models.
+    output_jsons = "\n".join([post.json() for post in output])
+    output_json_body_bytes = output_jsons.encode("utf-8")
+    key = os.path.join("feed_scores", f"post_scores_{current_datetime_str}.jsonl")  # noqa
+    s3.write_to_s3(blob=output_json_body_bytes, key=key)
+
+
 def calculate_post_score(post: ConsolidatedEnrichedPostModel) -> float:
     """Calculate a post's score.
 
@@ -220,10 +241,11 @@ def create_ranked_candidate_feed(
     in_network_candidate_post_uris: list[str],
     post_pool: list[ConsolidatedEnrichedPostModel],
     max_feed_length: int = max_feed_length,
-) -> list[tuple[str, float]]:
+) -> list[dict]:
     """Create a ranked candidate feed.
 
-    Returns a list of tuples of post URIs and their scores.
+    Returns a list of dicts of post URIs, their scores, and whether or
+    not the post is in-network.
     """
     if post_pool is None:
         raise ValueError(
@@ -239,7 +261,7 @@ def create_ranked_candidate_feed(
     if len(post_pool) == 0:
         return []
     if len(in_network_candidate_post_uris) == 0:
-        return [(post.uri, 0.0) for post in post_pool]
+        return [(post.uri, 0.0, False) for post in post_pool]
     output_posts: list[ConsolidatedEnrichedPostModel] = []
     in_network_post_set = set(post.uri for post in in_network_posts)
 
@@ -271,7 +293,15 @@ def create_ranked_candidate_feed(
     res = res[:max_feed_length]
     # return a default score, just for backwards compatibility. We won't use
     # this actual score.
-    return [(post.uri, 0.0) for post in res]
+    # TODO: add the actual scores...
+    return [
+        {
+            "uri": post.uri,
+            "score": 0.0,
+            "in_network": post.uri in in_network_post_set,
+        }
+        for post in res
+    ]
 
 
 def filter_post_is_english(post: ConsolidatedEnrichedPostModel) -> bool:
@@ -291,8 +321,17 @@ def filter_post_is_english(post: ConsolidatedEnrichedPostModel) -> bool:
     return classify(text=text)
 
 
-def do_rank_score_feeds():
-    """Do the rank score feeds."""
+def do_rank_score_feeds(
+    users_to_create_feeds_for: list[str] = None,
+    skip_export_post_scores: bool = False,
+):
+    """Do the rank score feeds.
+
+    Also takes as optional input a list of Bluesky users (by handle) to create
+    feeds for. If None, will create feeds for all users.
+
+    Also takes as optional input a flag to skip exporting post scores to S3.
+    """
     logger.info("Starting rank score feeds.")
     # load data
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
@@ -337,6 +376,11 @@ def do_rank_score_feeds():
         for post, score in zip(consolidated_enriched_posts, post_scores)
     }
     logger.info(f"Calculated {len(post_uri_to_post_score_map)} post scores.")
+
+    # export scores to S3.
+    if not skip_export_post_scores:
+        logger.info(f"Exporting {len(post_uri_to_post_score_map)} post scores to S3.")  # noqa
+        export_post_scores(post_uri_to_post_score_map=post_uri_to_post_score_map)
 
     # list of all in-network user posts, across all study users. Needs to be
     # filtered for the in-network posts relevant for a given study user.
@@ -399,26 +443,41 @@ def do_rank_score_feeds():
         post_score_dict["post"] for post_score_dict in treatment_post_pool
     ]
 
+    if users_to_create_feeds_for is not None:
+        logger.info(
+            f"Creating custom feeds for {len(users_to_create_feeds_for)} users provided in the input."
+        )  # noqa
+        study_users: list[UserToBlueskyProfileModel] = [
+            user
+            for user in study_users
+            if user.bluesky_handle in users_to_create_feeds_for
+        ]
+
     # then, pass in these to create_ranked_candidate_feed to create the
     # feed. We already pre-sort the posts so we don't have to do
     # this step multiple times.
     # create feeds for each user. Map feeds to users.
     user_to_ranked_feed_map: dict[str, list[str]] = {
-        user.bluesky_user_did: create_ranked_candidate_feed(
-            in_network_candidate_post_uris=(
-                user_to_in_network_post_uris_map[user.bluesky_user_did]
+        user.bluesky_user_did: {
+            "feed": (
+                create_ranked_candidate_feed(
+                    in_network_candidate_post_uris=(
+                        user_to_in_network_post_uris_map[user.bluesky_user_did]
+                    ),
+                    post_pool=(
+                        reverse_chronological_post_pool
+                        if user.condition == "reverse_chronological"
+                        else engagement_post_pool
+                        if user.condition == "engagement"
+                        else treatment_post_pool
+                        if user.condition == "representative_diversification"
+                        else None
+                    ),
+                    max_feed_length=max_feed_length,
+                )
             ),
-            post_pool=(
-                reverse_chronological_post_pool
-                if user.condition == "reverse_chronological"
-                else engagement_post_pool
-                if user.condition == "engagement"
-                else treatment_post_pool
-                if user.condition == "representative_diversification"
-                else None
-            ),
-            max_feed_length=max_feed_length,
-        )
+            "user": user,
+        }
         for user in study_users
     }
 

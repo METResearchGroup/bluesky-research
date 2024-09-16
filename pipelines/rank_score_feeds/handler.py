@@ -10,7 +10,11 @@ logger = Logger(__name__)
 def lambda_handler(event, context):
     try:
         logger.info("Starting rank score feeds.")
-        do_rank_score_feeds()
+        payload = {
+            "users_to_create_feeds_for": None,
+            "skip_export_post_scores": False,
+        }
+        do_rank_score_feeds(**payload)
         logger.info("Completed rank score feeds.")
         return {
             "statusCode": 200,
