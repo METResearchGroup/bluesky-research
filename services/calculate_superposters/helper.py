@@ -1,5 +1,6 @@
 """Calculate superposters."""
 
+from datetime import timedelta
 import json
 import os
 import re
@@ -10,7 +11,7 @@ from boto3.dynamodb.types import TypeSerializer
 from lib.aws.athena import Athena, DEFAULT_DB_NAME
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
-from lib.constants import current_datetime, current_datetime_str
+from lib.constants import current_datetime, current_datetime_str, timestamp_format  # noqa
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.calculate_superposters.models import (
@@ -56,24 +57,29 @@ def calculate_latest_superposters(
 
     Prioritizes percentile over threshold if both are given.
     """
+    lookback_days = 1
+    lookback_datetime = current_datetime - timedelta(days=lookback_days)
+    lookback_datetime_str = lookback_datetime.strftime(timestamp_format)
     if top_n_percent is not None:
         query = f"""
         WITH ranked_users AS (
             SELECT author_did, COUNT(*) as count,
                 ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) as row_num, # returns row number for the resulting grouped output
                 COUNT(*) OVER () as total_count # calculates the total number of distinct author_did values.
-            FROM {DB_NAME}.{DAILY_POSTS_GLUE_TABLE_NAME}
+            FROM preprocessed_posts
             GROUP BY author_did
         )
         SELECT author_did, count
         FROM ranked_users
-        WHERE row_num <= total_count * {top_n_percent}
+        WHERE created_at >= '{lookback_datetime_str}'
+        AND row_num <= total_count * {top_n_percent}
         ORDER BY count DESC
         """  # noqa
     elif threshold is not None:
         query = f"""
         SELECT author_did, COUNT(*) as count
-        FROM {DB_NAME}.{DAILY_POSTS_GLUE_TABLE_NAME}
+        FROM preprocessed_posts
+        WHERE created_at >= '{lookback_datetime_str}'
         GROUP BY author_did
         HAVING COUNT(*) >= {threshold}
         ORDER BY count DESC
