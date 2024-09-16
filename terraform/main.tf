@@ -520,24 +520,25 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sync_most_liked_fee
 }
 
 # Trigger for preprocessing lambda every 45 minutes.
-# resource "aws_cloudwatch_event_rule" "preprocess_raw_data_event_rule" {
-#   name                = "preprocess_raw_data_event_rule"
-#   schedule_expression = "cron(0/45 * * * ? *)"  # Triggers every 45 minutes
-# }
+resource "aws_cloudwatch_event_rule" "preprocess_raw_data_event_rule" {
+  name                = "preprocess_raw_data_event_rule"
+  schedule_expression = "cron(0/45 * * * ? *)"  # Triggers every 45 minutes
+  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
+}
 
-# resource "aws_cloudwatch_event_target" "preprocess_raw_data_event_target" {
-#   rule      = aws_cloudwatch_event_rule.preprocess_raw_data_event_rule.name
-#   target_id = "preprocessRawDataLambda"
-#   arn       = aws_lambda_function.preprocess_raw_data_lambda.arn
-# }
+resource "aws_cloudwatch_event_target" "preprocess_raw_data_event_target" {
+  rule      = aws_cloudwatch_event_rule.preprocess_raw_data_event_rule.name
+  target_id = "preprocessRawDataLambda"
+  arn       = aws_lambda_function.preprocess_raw_data_lambda.arn
+}
 
-# resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_preprocess_raw_data" {
-#   statement_id  = "AllowExecutionFromCloudWatchPreprocessRawData"
-#   action        = "lambda:InvokeFunction"
-#   function_name = aws_lambda_function.preprocess_raw_data_lambda.function_name
-#   principal     = "events.amazonaws.com"
-#   source_arn    = aws_cloudwatch_event_rule.preprocess_raw_data_event_rule.arn
-# }
+resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_preprocess_raw_data" {
+  statement_id  = "AllowExecutionFromCloudWatchPreprocessRawData"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.preprocess_raw_data_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.preprocess_raw_data_event_rule.arn
+}
 
 # Trigger for consume_sqs_messages_lambda every 15 minutes.
 # resource "aws_cloudwatch_event_rule" "consume_sqs_messages_event_rule" {
