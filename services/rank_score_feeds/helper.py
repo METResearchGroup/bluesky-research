@@ -197,7 +197,10 @@ def calculate_in_network_posts_for_user(
     that post was written by someone in that user's social network.
     """
     # get the followee/follower DIDs for the user's social network.
-    in_network_social_network_dids = user_to_social_network_map[user_did]
+    # This should only be empty if the user doesn't follow anyone (which is
+    # possible and has been observed) or if their social network hasn't been
+    # synced yet.
+    in_network_social_network_dids = user_to_social_network_map.get(user_did, [])  # noqa
     # filter the candidate in-network user activity posts to only include the
     # ones that are in the user's social network.
     in_network_post_uris: list[str] = [
