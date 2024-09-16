@@ -564,6 +564,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_preprocess_raw_data
 resource "aws_cloudwatch_event_rule" "calculate_superposters_event_rule" {
   name                = "calculate_superposters_event_rule"
   schedule_expression = "cron(0 0/12 * * ? *)"  # Triggers every 12 hours
+  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "calculate_superposters_event_target" {
