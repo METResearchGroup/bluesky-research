@@ -84,7 +84,7 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
         outputs.append(custom_feed_model.dict())
         # in the cache, all I need are the list of post URIs, so we will
         # export only that.
-        feed_uris = [post[0] for post in custom_feed_model.feed]
+        feed_uris = [post.item for post in custom_feed_model.feed]
         cache_key = f"user_did={user}"
         serverless_cache.set(
             cache_name=default_cache_name,
@@ -93,13 +93,12 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
             ttl=default_long_lived_ttl_seconds,
         )
     s3.write_dicts_jsonl_to_s3(
-        dicts=outputs,
+        data=outputs,
         key=os.path.join(feeds_root_s3_key, f"custom_feeds_{timestamp}.jsonl"),
     )
     logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3 and to cache.")
 
 
-# NOTE: probably just want the most recent X days possibly, no?
 # In practice, probably want to err on the side of more recent content.
 def load_latest_consolidated_enriched_posts(
     lookback_days: int = default_lookback_days,
@@ -269,7 +268,8 @@ def create_ranked_candidate_feed(
         return []
     if len(in_network_candidate_post_uris) == 0:
         return [
-            CustomFeedPost(item=post.uri, is_in_network=False) for post in post_pool
+            CustomFeedPost(item=post.uri, is_in_network=False)
+            for post in post_pool[:max_feed_length]
         ]
     output_posts: list[ConsolidatedEnrichedPostModel] = []
     in_network_post_set = set(post.uri for post in in_network_posts)
@@ -299,10 +299,9 @@ def create_ranked_candidate_feed(
         res.append(uri_to_post_map[uri])
 
     # Ensure output_posts does not exceed max_feed_length
-    res = res[:max_feed_length]
     return [
         CustomFeedPost(item=post.uri, is_in_network=post.uri in in_network_post_set)
-        for post in res
+        for post in res[:max_feed_length]
     ]
 
 
@@ -501,7 +500,7 @@ def do_rank_score_feeds(
 
     # insert default feed, for users that aren't logged in or for if a user
     # isn't in the study but opens the link.
-    default_feed = create_ranked_candidate_feed(
+    default_feed: list[CustomFeedPost] = create_ranked_candidate_feed(
         in_network_candidate_post_uris=[],
         post_pool=reverse_chronological_post_pool,
         max_feed_length=max_feed_length,
@@ -513,8 +512,6 @@ def do_rank_score_feeds(
         "condition": "default",
         "feed_statistics": generate_feed_statistics(feed=default_feed),
     }
-
-    breakpoint()
 
     # write feeds to s3
     timestamp = generate_current_datetime_str()

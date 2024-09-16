@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Optional
 
 
 class ScoredPostModel(BaseModel):
@@ -43,7 +43,7 @@ class CustomFeedModel(BaseModel):
     feed_statistics: str = Field(
         ..., description="The JSON-dumped statistics of the feed."
     )  # noqa
-    feed: List[CustomFeedPost] = Field(
+    feed: list[CustomFeedPost] = Field(
         ...,
         description="List of posts in the feed along with if the post is in-network or not.",  # noqa
     )
