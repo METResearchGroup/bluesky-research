@@ -374,18 +374,29 @@ def calculate_feed_analytics(
         if feed["condition"] == "representative_diversification"
         for post in feed["feed"]  # noqa
     ]
-    overlap_engagement_treatment_uris: list[str] = [
-        uri for uri in engagement_feed_uris if uri in treatment_feed_uris
-    ]
+    overlap_engagement_uris_in_treatment_uris = set(engagement_feed_uris).intersection(
+        set(treatment_feed_uris)
+    )
+    overlap_treatment_uris_in_engagement_uris = set(treatment_feed_uris).intersection(
+        set(engagement_feed_uris)
+    )
     total_unique_engagement_uris = len(set(engagement_feed_uris))
     total_unique_treatment_uris = len(set(treatment_feed_uris))
     prop_treatment_uris_in_engagement_uris = (
-        round(len(overlap_engagement_treatment_uris) / total_unique_engagement_uris, 3)
-        if total_unique_engagement_uris > 0
+        round(
+            len(overlap_treatment_uris_in_engagement_uris)
+            / total_unique_treatment_uris,
+            3,
+        )
+        if total_unique_treatment_uris > 0
         else 0.0
     )
     prop_engagement_uris_in_treatment_uris = (
-        round(len(overlap_engagement_treatment_uris) / total_unique_treatment_uris, 3)
+        round(
+            len(overlap_engagement_uris_in_treatment_uris)
+            / total_unique_engagement_uris,
+            3,
+        )
         if total_unique_treatment_uris > 0
         else 0.0
     )
