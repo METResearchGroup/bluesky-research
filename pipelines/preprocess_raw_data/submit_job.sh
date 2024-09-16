@@ -2,9 +2,8 @@
 
 #SBATCH -A p32375
 #SBATCH -p gengpu
-#SBATCH --gres=gpu:a100:1
-#SBATCH -N 1
-#SBATCH -n 1
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=2
 #SBATCH -t 0:30:00
 #SBATCH --mem=10G
 #SBATCH --job-name=preprocess_raw_data_job_jya0297_%j
