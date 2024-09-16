@@ -29,18 +29,27 @@ max_requests = max_follows_to_track // 100  # 100 per request.
 max_followers_to_track = 0
 
 
-def main():
+def main(users_to_sync: list[str] = None):
+    """Syncs social networks for users.
+
+    Optionally can pass in the list of Bluesky handles to sync.
+    """
     users: list[UserToBlueskyProfileModel] = get_all_users()
-    users_whose_social_network_has_been_fetched: set[str] = (
-        get_users_whose_social_network_has_been_fetched()
-    )  # noqa
-    # we assume that any users who have connections in the study have
-    # already been synced.
-    users_not_synced: list[UserToBlueskyProfileModel] = [
-        user
-        for user in users
-        if user.bluesky_handle not in users_whose_social_network_has_been_fetched
-    ]
+    if users_to_sync:
+        users_not_synced: list[UserToBlueskyProfileModel] = [
+            user for user in users if user.bluesky_handle in users_to_sync
+        ]
+    else:
+        users_whose_social_network_has_been_fetched: set[str] = (
+            get_users_whose_social_network_has_been_fetched()
+        )  # noqa
+        # we assume that any users who have connections in the study have
+        # already been synced.
+        users_not_synced: list[UserToBlueskyProfileModel] = [
+            user
+            for user in users
+            if user.bluesky_handle not in users_whose_social_network_has_been_fetched
+        ]
     total_users_to_sync = len(users_not_synced)
     if total_users_to_sync == 0:
         logger.info("No users to sync")
@@ -72,4 +81,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    users_to_sync = ["percy.bsky.social"]
+    main(users_to_sync=users_to_sync)
