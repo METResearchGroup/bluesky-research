@@ -7,8 +7,6 @@
 #SBATCH -t 0:30:00
 #SBATCH --mem=10G
 #SBATCH --job-name=ml_inference_perspective_api_job_jya0297_%j
-#SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --output=/projects/p32375/bluesky-research/lib/log/ml_inference_perspective_api/jya0297-%j.log
 
 # load conda env

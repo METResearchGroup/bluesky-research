@@ -7,8 +7,6 @@
 #SBATCH -t 0:30:00
 #SBATCH --mem=10G
 #SBATCH --job-name=preprocess_raw_data_job_jya0297_%j
-#SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --output=/projects/p32375/bluesky-research/lib/log/preprocess_raw_data/jya0297-%j.log
 
 # NOTE: submit with `sbatch create_cron_job.sh`

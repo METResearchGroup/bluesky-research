@@ -8,8 +8,6 @@
 #SBATCH -t 0:30:00
 #SBATCH --mem=10G
 #SBATCH --job-name=generate_vector_embeddings_job_jya0297_%j
-#SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --output=/projects/p32375/bluesky-research/lib/log/generate_vector_embeddings/jya0297-%j.log
 
 # NOTE: submit with `sbatch create_cron_job.sh`
