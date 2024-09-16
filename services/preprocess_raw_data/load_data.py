@@ -190,6 +190,9 @@ def load_latest_most_liked_posts(
     jsonl_data: list[dict] = []
     for key in post_keys:
         if key.endswith(".json"):
+            raise ValueError(
+                "Should never end in .json. Should only end with .jsonl since we only load the most liked posts."
+            )  # noqa
             data = s3.read_json_from_s3(key)
         elif key.endswith(".jsonl"):
             data = s3.read_jsonl_from_s3(key)
