@@ -2505,6 +2505,60 @@ resource "aws_glue_catalog_table" "consolidated_enriched_post_records" {
   }
 }
 
+resource "aws_glue_catalog_table" "post_scores" {
+  name          = "post_scores"
+  database_name = var.default_glue_database_name
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "classification"      = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/post_scores/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "post_scores_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+
+    columns {
+      name = "text"
+      type = "string"
+    }
+
+    columns {
+      name = "engagement_score"
+      type = "double"
+    }
+
+    columns {
+      name = "treatment_score"
+      type = "double"
+    }
+
+    columns {
+      name = "source"
+      type = "string"
+    }
+
+    columns {
+      name = "scored_timestamp"
+      type = "string"
+    }
+  }
+}
+
+
 resource "aws_glue_catalog_table" "custom_feeds" {
   name          = "custom_feeds"
   database_name = var.default_glue_database_name
@@ -2532,8 +2586,28 @@ resource "aws_glue_catalog_table" "custom_feeds" {
     }
 
     columns {
+      name = "bluesky_handle"
+      type = "string"
+    }
+
+    columns {
+      name = "bluesky_user_did"
+      type = "string"
+    }
+
+    columns {
+      name = "condition"
+      type = "string"
+    }
+
+    columns {
+      name = "feed_statistics"
+      type = "string" # JSON-dumped feed statistics
+    }
+
+    columns {
       name = "feed"
-      type = "array<struct<item:string,score:float>>"
+      type = "array<struct<item:string,is_in_network:boolean>>"
     }
 
     columns {
@@ -2542,6 +2616,72 @@ resource "aws_glue_catalog_table" "custom_feeds" {
     }
   }
 }
+
+
+resource "aws_glue_catalog_table" "feed_generation_session_analytics" {
+  name          = "feed_generation_session_analytics"
+  database_name = var.default_glue_database_name
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "classification"      = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/feed_analytics/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "feed_generation_session_analytics_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "total_feeds"
+      type = "int"
+    }
+    columns {
+      name = "total_posts"
+      type = "int"
+    }
+    columns {
+      name = "total_in_network_posts"
+      type = "int"
+    }
+    columns {
+      name = "total_in_network_posts_prop"
+      type = "double"
+    }
+    columns {
+      name = "total_unique_engagement_uris"
+      type = "int"
+    }
+    columns {
+      name = "total_unique_treatment_uris"
+      type = "int"
+    }
+    columns {
+      name = "prop_overlap_treatment_uris_in_engagement_uris"
+      type = "double"
+    }
+    columns {
+      name = "prop_overlap_engagement_uris_in_treatment_uris"
+      type = "double"
+    }
+    columns {
+      name = "total_feeds_per_condition"
+      type = "string"
+    }
+    columns {
+      name = "session_timestamp"
+      type = "string"
+    }
+  }
+}
+
 
 resource "aws_glue_catalog_table" "daily_superposters" {
   name          = "daily_superposters"

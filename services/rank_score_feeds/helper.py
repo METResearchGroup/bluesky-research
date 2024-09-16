@@ -10,7 +10,7 @@ from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
-from lib.constants import current_datetime, timestamp_format
+from lib.constants import current_datetime, current_datetime_str, timestamp_format
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.serverless_cache import (
@@ -25,7 +25,11 @@ from services.consolidate_enrichment_integrations.models import (
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.preprocess_raw_data.classify_language.model import classify
-from services.rank_score_feeds.models import CustomFeedModel
+from services.rank_score_feeds.models import (
+    CustomFeedModel,
+    CustomFeedPost,
+    ScoredPostModel,
+)
 
 max_feed_length = 50
 default_lookback_days = 3
@@ -65,24 +69,22 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
 
     Exports to both S3 and the cache.
     """
-    for user, ranked_feed in user_to_ranked_feed_map.items():
+    outputs: list[CustomFeedModel] = []
+    for user, user_obj in user_to_ranked_feed_map.items():
         data = {
-            "user": user,
-            "feed": ranked_feed,
+            "user": user_obj["bluesky_user_did"],
+            "bluesky_handle": user_obj["bluesky_handle"],
+            "bluesky_user_did": user_obj["bluesky_user_did"],
+            "condition": user_obj["condition"],
+            "feed_statistics": user_obj["feed_statistics"],
+            "feed": user_obj["feed"],
             "feed_generation_timestamp": timestamp,
         }
         custom_feed_model = CustomFeedModel(**data)
-        s3.write_dict_json_to_s3(
-            data=custom_feed_model.dict(),
-            key=os.path.join(
-                feeds_root_s3_key,
-                f"user_did={user}",
-                f"{user}_{timestamp}.json",
-            ),
-        )
+        outputs.append(custom_feed_model.dict())
         # in the cache, all I need are the list of post URIs, so we will
         # export only that.
-        feed_uris = [post[0] for post in custom_feed_model.feed]
+        feed_uris = [post.item for post in custom_feed_model.feed]
         cache_key = f"user_did={user}"
         serverless_cache.set(
             cache_name=default_cache_name,
@@ -90,10 +92,13 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
             value=json.dumps(feed_uris),
             ttl=default_long_lived_ttl_seconds,
         )
+    s3.write_dicts_jsonl_to_s3(
+        data=outputs,
+        key=os.path.join(feeds_root_s3_key, f"custom_feeds_{timestamp}.jsonl"),
+    )
     logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3 and to cache.")
 
 
-# NOTE: probably just want the most recent X days possibly, no?
 # In practice, probably want to err on the side of more recent content.
 def load_latest_consolidated_enriched_posts(
     lookback_days: int = default_lookback_days,
@@ -140,6 +145,28 @@ def load_user_social_network() -> dict[str, list[str]]:
             res[study_user_did] = []
         res[study_user_did].append(connection_did)
     return res
+
+
+def export_post_scores(post_uri_to_post_score_map: dict[str, str]):
+    """Exports post scores to S3."""
+    output: list[ScoredPostModel] = []
+    for post_uri, post_obj in post_uri_to_post_score_map.items():
+        output.append(
+            ScoredPostModel(
+                uri=post_uri,
+                text=post_obj["post"].text,
+                engagement_score=post_obj["score"]["engagement_score"],
+                treatment_score=post_obj["score"]["treatment_score"],
+                scored_timestamp=current_datetime_str,
+                source=post_obj["post"].source,
+            )
+        )
+    # using native Pydantic JSON serialization instead of json.dumps()
+    # since that's more efficient for Pydantic models.
+    output_jsons = "\n".join([post.json() for post in output])
+    output_json_body_bytes = output_jsons.encode("utf-8")
+    key = os.path.join("post_scores", f"post_scores_{current_datetime_str}.jsonl")  # noqa
+    s3.write_to_s3(blob=output_json_body_bytes, key=key)
 
 
 def calculate_post_score(post: ConsolidatedEnrichedPostModel) -> float:
@@ -220,10 +247,11 @@ def create_ranked_candidate_feed(
     in_network_candidate_post_uris: list[str],
     post_pool: list[ConsolidatedEnrichedPostModel],
     max_feed_length: int = max_feed_length,
-) -> list[tuple[str, float]]:
+) -> list[CustomFeedPost]:
     """Create a ranked candidate feed.
 
-    Returns a list of tuples of post URIs and their scores.
+    Returns a list of dicts of post URIs, their scores, and whether or
+    not the post is in-network.
     """
     if post_pool is None:
         raise ValueError(
@@ -239,7 +267,10 @@ def create_ranked_candidate_feed(
     if len(post_pool) == 0:
         return []
     if len(in_network_candidate_post_uris) == 0:
-        return [(post.uri, 0.0) for post in post_pool]
+        return [
+            CustomFeedPost(item=post.uri, is_in_network=False)
+            for post in post_pool[:max_feed_length]
+        ]
     output_posts: list[ConsolidatedEnrichedPostModel] = []
     in_network_post_set = set(post.uri for post in in_network_posts)
 
@@ -268,10 +299,10 @@ def create_ranked_candidate_feed(
         res.append(uri_to_post_map[uri])
 
     # Ensure output_posts does not exceed max_feed_length
-    res = res[:max_feed_length]
-    # return a default score, just for backwards compatibility. We won't use
-    # this actual score.
-    return [(post.uri, 0.0) for post in res]
+    return [
+        CustomFeedPost(item=post.uri, is_in_network=post.uri in in_network_post_set)
+        for post in res[:max_feed_length]
+    ]
 
 
 def filter_post_is_english(post: ConsolidatedEnrichedPostModel) -> bool:
@@ -291,8 +322,126 @@ def filter_post_is_english(post: ConsolidatedEnrichedPostModel) -> bool:
     return classify(text=text)
 
 
-def do_rank_score_feeds():
-    """Do the rank score feeds."""
+def generate_feed_statistics(feed: list[CustomFeedPost]) -> str:
+    """Generates statistics about a given feed."""
+    feed_length = len(feed)
+    total_in_network = sum([post.is_in_network for post in feed])
+    prop_in_network = (
+        round(total_in_network / feed_length, 3) if feed_length > 0 else 0.0
+    )
+    res = {
+        "prop_in_network": prop_in_network,
+        "total_in_network": total_in_network,
+        "feed_length": feed_length,
+    }
+    return json.dumps(res)
+
+
+def calculate_feed_analytics(
+    user_to_ranked_feed_map: dict[str, dict],
+    timestamp: str,
+) -> dict:
+    """Calculates analytics for a given user to ranked feed map."""
+    session_analytics: dict = {}
+    session_analytics["total_feeds"] = len(user_to_ranked_feed_map)
+    session_analytics["total_posts"] = sum(
+        [len(feed["feed"]) for feed in user_to_ranked_feed_map.values()]
+    )  # noqa
+    session_analytics["total_in_network_posts"] = sum(
+        [
+            sum([post.is_in_network for post in feed["feed"]])
+            for feed in user_to_ranked_feed_map.values()
+        ]
+    )  # noqa
+    session_analytics["total_in_network_posts_prop"] = (
+        round(
+            session_analytics["total_in_network_posts"]
+            / session_analytics["total_posts"],
+            2,
+        )
+        if session_analytics["total_posts"] > 0
+        else 0.0
+    )
+    engagement_feed_uris: list[str] = [
+        post.item
+        for feed in user_to_ranked_feed_map.values()
+        if feed["condition"] == "engagement"
+        for post in feed["feed"]  # noqa
+    ]
+    treatment_feed_uris: list[str] = [
+        post.item
+        for feed in user_to_ranked_feed_map.values()
+        if feed["condition"] == "representative_diversification"
+        for post in feed["feed"]  # noqa
+    ]
+    overlap_engagement_uris_in_treatment_uris = set(engagement_feed_uris).intersection(
+        set(treatment_feed_uris)
+    )
+    overlap_treatment_uris_in_engagement_uris = set(treatment_feed_uris).intersection(
+        set(engagement_feed_uris)
+    )
+    total_unique_engagement_uris = len(set(engagement_feed_uris))
+    total_unique_treatment_uris = len(set(treatment_feed_uris))
+    prop_treatment_uris_in_engagement_uris = (
+        round(
+            len(overlap_treatment_uris_in_engagement_uris)
+            / total_unique_treatment_uris,
+            3,
+        )
+        if total_unique_treatment_uris > 0
+        else 0.0
+    )
+    prop_engagement_uris_in_treatment_uris = (
+        round(
+            len(overlap_engagement_uris_in_treatment_uris)
+            / total_unique_engagement_uris,
+            3,
+        )
+        if total_unique_treatment_uris > 0
+        else 0.0
+    )
+    session_analytics["total_unique_engagement_uris"] = total_unique_engagement_uris
+    session_analytics["total_unique_treatment_uris"] = total_unique_treatment_uris
+    session_analytics["prop_overlap_treatment_uris_in_engagement_uris"] = (
+        prop_treatment_uris_in_engagement_uris
+    )
+    session_analytics["prop_overlap_engagement_uris_in_treatment_uris"] = (
+        prop_engagement_uris_in_treatment_uris
+    )
+    session_analytics["total_feeds_per_condition"] = {}
+    for condition in [
+        "representative_diversification",
+        "engagement",
+        "reverse_chronological",
+    ]:
+        session_analytics["total_feeds_per_condition"][condition] = sum(
+            [
+                feed["condition"] == condition
+                for feed in user_to_ranked_feed_map.values()
+            ]
+        )
+    session_analytics["session_timestamp"] = timestamp
+    return session_analytics
+
+
+def export_feed_analytics(analytics: dict) -> None:
+    """Exports feed analytics to S3."""
+    key = os.path.join("feed_analytics", f"feed_analytics_{current_datetime}.json")  # noqa
+    s3.write_dict_json_to_s3(data=analytics, key=key)
+    logger.info("Exported session feed analytics to S3.")
+
+
+def do_rank_score_feeds(
+    users_to_create_feeds_for: list[str] = None,
+    skip_export_post_scores: bool = False,
+):
+    """Do the rank score feeds.
+
+    Also takes as optional input a list of Bluesky users (by handle) to create
+    feeds for. If None, will create feeds for all users.
+
+    Also takes as optional input a flag to skip exporting post scores to S3.
+    """
     logger.info("Starting rank score feeds.")
     # load data
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
@@ -337,6 +486,11 @@ def do_rank_score_feeds():
         for post, score in zip(consolidated_enriched_posts, post_scores)
     }
     logger.info(f"Calculated {len(post_uri_to_post_score_map)} post scores.")
+
+    # export scores to S3.
+    if not skip_export_post_scores:
+        logger.info(f"Exporting {len(post_uri_to_post_score_map)} post scores to S3.")  # noqa
+        export_post_scores(post_uri_to_post_score_map=post_uri_to_post_score_map)
 
     # list of all in-network user posts, across all study users. Needs to be
     # filtered for the in-network posts relevant for a given study user.
@@ -399,12 +553,23 @@ def do_rank_score_feeds():
         post_score_dict["post"] for post_score_dict in treatment_post_pool
     ]
 
+    if users_to_create_feeds_for:
+        logger.info(
+            f"Creating custom feeds for {len(users_to_create_feeds_for)} users provided in the input."
+        )  # noqa
+        study_users: list[UserToBlueskyProfileModel] = [
+            user
+            for user in study_users
+            if user.bluesky_handle in users_to_create_feeds_for
+        ]
+
     # then, pass in these to create_ranked_candidate_feed to create the
     # feed. We already pre-sort the posts so we don't have to do
     # this step multiple times.
     # create feeds for each user. Map feeds to users.
-    user_to_ranked_feed_map: dict[str, list[str]] = {
-        user.bluesky_user_did: create_ranked_candidate_feed(
+    user_to_ranked_feed_map: dict[str, dict] = {}
+    for user in study_users:
+        feed: list[CustomFeedPost] = create_ranked_candidate_feed(
             in_network_candidate_post_uris=(
                 user_to_in_network_post_uris_map[user.bluesky_user_did]
             ),
@@ -419,20 +584,43 @@ def do_rank_score_feeds():
             ),
             max_feed_length=max_feed_length,
         )
-        for user in study_users
-    }
+        user_to_ranked_feed_map[user.bluesky_user_did] = {
+            "feed": feed,
+            "bluesky_handle": user.bluesky_handle,
+            "bluesky_user_did": user.bluesky_user_did,
+            "condition": user.condition,
+            "feed_statistics": generate_feed_statistics(feed=feed),
+        }
+        if len(feed) == 0:
+            logger.error(
+                f"No feed created for user {user.bluesky_user_did}. This shouldn't happen..."
+            )
 
     # insert default feed, for users that aren't logged in or for if a user
     # isn't in the study but opens the link.
-    default_feed = create_ranked_candidate_feed(
+    default_feed: list[CustomFeedPost] = create_ranked_candidate_feed(
         in_network_candidate_post_uris=[],
         post_pool=reverse_chronological_post_pool,
         max_feed_length=max_feed_length,
     )
-    user_to_ranked_feed_map["default"] = default_feed
+    user_to_ranked_feed_map["default"] = {
+        "feed": default_feed,
+        "bluesky_handle": "default",
+        "bluesky_user_did": "default",
+        "condition": "default",
+        "feed_statistics": generate_feed_statistics(feed=default_feed),
+    }
+
+    timestamp = generate_current_datetime_str()
+
+    # calculate analytics
+    analytics: dict = calculate_feed_analytics(
+        user_to_ranked_feed_map=user_to_ranked_feed_map,
+        timestamp=timestamp,
+    )  # noqa
+    export_feed_analytics(analytics=analytics)
 
     # write feeds to s3
-    timestamp = generate_current_datetime_str()
     export_results(user_to_ranked_feed_map=user_to_ranked_feed_map, timestamp=timestamp)
     feed_generation_session = {
         "feed_generation_timestamp": timestamp,
