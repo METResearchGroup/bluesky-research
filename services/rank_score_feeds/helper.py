@@ -28,7 +28,7 @@ from services.preprocess_raw_data.classify_language.model import classify
 from services.rank_score_feeds.models import CustomFeedModel
 
 max_feed_length = 50
-default_lookback_days = 5
+default_lookback_days = 3
 consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"
 feeds_root_s3_key = "custom_feeds"
@@ -197,7 +197,10 @@ def calculate_in_network_posts_for_user(
     that post was written by someone in that user's social network.
     """
     # get the followee/follower DIDs for the user's social network.
-    in_network_social_network_dids = user_to_social_network_map[user_did]
+    # This should only be empty if the user doesn't follow anyone (which is
+    # possible and has been observed) or if their social network hasn't been
+    # synced yet.
+    in_network_social_network_dids = user_to_social_network_map.get(user_did, [])  # noqa
     # filter the candidate in-network user activity posts to only include the
     # ones that are in the user's social network.
     in_network_post_uris: list[str] = [

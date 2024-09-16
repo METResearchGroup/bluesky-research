@@ -1,15 +1,15 @@
 """Streamlit app for adding users to the study."""
+
 import streamlit as st
 
-from lib.db.sql.participant_data_database import insert_bsky_user_to_study
-from services.participant_data.helper import get_all_users
+from services.participant_data.helper import get_all_users, manage_bsky_study_user
 from services.participant_data.models import UserToBlueskyProfileModel
 from transform.bluesky_helper import get_author_did_from_handle
 
 map_label_to_condition = {
     "Reverse Chronological": "reverse_chronological",
     "Engagement": "engagement",
-    "Representative Diversification": "representative_diversification"
+    "Representative Diversification": "representative_diversification",
 }
 
 st.set_page_config(layout="wide")
@@ -38,7 +38,9 @@ def display_users_by_condition():
     columns = st.columns(3)  # Create three columns
 
     with columns[0]:  # Display in the first column
-        st.markdown(f"**Reverse Chronological: {len(reverse_chronological_users)} users**")  # noqa
+        st.markdown(
+            f"**Reverse Chronological: {len(reverse_chronological_users)} users**"
+        )  # noqa
         for user in reverse_chronological_users:
             st.write(user.bluesky_handle)
         st.write("-" * 10)
@@ -50,7 +52,9 @@ def display_users_by_condition():
         st.write("-" * 10)
 
     with columns[2]:  # Display in the first column
-        st.markdown(f"**Representative Diversification: {len(representative_diversification_users)} users**")
+        st.markdown(
+            f"**Representative Diversification: {len(representative_diversification_users)} users**"
+        )
         for user in representative_diversification_users:
             st.write(user.bluesky_handle)
         st.write("-" * 10)
@@ -58,14 +62,11 @@ def display_users_by_condition():
 
 def add_new_user_to_study():
     # then, add condition as dropdown menu
-    condition_label = st.selectbox(
-        "Condition:", list(map_label_to_condition.keys())
-    )  # noqa
+    condition_label = st.selectbox("Condition:", list(map_label_to_condition.keys()))  # noqa
 
     # first, add bluesky handle
     bluesky_handle = st.text_input("Bluesky Handle (or profile link):")
     add_user = st.button("Add user to study.")
-    add_user = False
 
     if add_user:
         st.write(f"Adding user with handle {bluesky_handle} to the study...")
@@ -85,16 +86,14 @@ def add_new_user_to_study():
                 st.stop()
 
             condition = map_label_to_condition[condition_label]
-
-            breakpoint()
-
-            # is_valid_new_user = validate_new_user()
-
-            insert_bsky_user_to_study(
-                bluesky_handle=bluesky_handle,
-                condition=condition,
-                bluesky_user_did=bsky_author_did
-            )
+            payload = {
+                "operation": "POST",
+                "bluesky_user_did": bsky_author_did,
+                "bluesky_handle": bluesky_handle,
+                "is_study_user": True,
+                "condition": condition,
+            }
+            manage_bsky_study_user(payload=payload)
             st.write("User added to study.")
         except Exception as e:
             st.error(f"Error adding user to study: {e}")
