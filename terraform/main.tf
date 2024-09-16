@@ -2586,8 +2586,28 @@ resource "aws_glue_catalog_table" "custom_feeds" {
     }
 
     columns {
+      name = "bluesky_handle"
+      type = "string"
+    }
+
+    columns {
+      name = "bluesky_user_did"
+      type = "string"
+    }
+
+    columns {
+      name = "condition"
+      type = "string"
+    }
+
+    columns {
+      name = "feed_statistics"
+      type = "string" # JSON-dumped feed statistics
+    }
+
+    columns {
       name = "feed"
-      type = "array<struct<item:string,score:float>>"
+      type = "array<struct<item:string,is_in_network:boolean>>"
     }
 
     columns {

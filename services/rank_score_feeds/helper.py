@@ -25,7 +25,11 @@ from services.consolidate_enrichment_integrations.models import (
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.preprocess_raw_data.classify_language.model import classify
-from services.rank_score_feeds.models import CustomFeedModel, ScoredPostModel
+from services.rank_score_feeds.models import (
+    CustomFeedModel,
+    CustomFeedPost,
+    ScoredPostModel,
+)
 
 max_feed_length = 50
 default_lookback_days = 3
@@ -65,21 +69,19 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
 
     Exports to both S3 and the cache.
     """
-    for user, ranked_feed in user_to_ranked_feed_map.items():
+    outputs: list[CustomFeedModel] = []
+    for user, user_obj in user_to_ranked_feed_map.items():
         data = {
-            "user": user,
-            "feed": ranked_feed,
+            "user": user_obj["bluesky_user_did"],
+            "bluesky_handle": user_obj["bluesky_handle"],
+            "bluesky_user_did": user_obj["bluesky_user_did"],
+            "condition": user_obj["condition"],
+            "feed_statistics": user_obj["feed_statistics"],
+            "feed": user_obj["feed"],
             "feed_generation_timestamp": timestamp,
         }
         custom_feed_model = CustomFeedModel(**data)
-        s3.write_dict_json_to_s3(
-            data=custom_feed_model.dict(),
-            key=os.path.join(
-                feeds_root_s3_key,
-                f"user_did={user}",
-                f"{user}_{timestamp}.json",
-            ),
-        )
+        outputs.append(custom_feed_model.dict())
         # in the cache, all I need are the list of post URIs, so we will
         # export only that.
         feed_uris = [post[0] for post in custom_feed_model.feed]
@@ -90,6 +92,10 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
             value=json.dumps(feed_uris),
             ttl=default_long_lived_ttl_seconds,
         )
+    s3.write_dicts_jsonl_to_s3(
+        dicts=outputs,
+        key=os.path.join(feeds_root_s3_key, f"custom_feeds_{timestamp}.jsonl"),
+    )
     logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3 and to cache.")
 
 
@@ -160,7 +166,7 @@ def export_post_scores(post_uri_to_post_score_map: dict[str, str]):
     # since that's more efficient for Pydantic models.
     output_jsons = "\n".join([post.json() for post in output])
     output_json_body_bytes = output_jsons.encode("utf-8")
-    key = os.path.join("feed_scores", f"post_scores_{current_datetime_str}.jsonl")  # noqa
+    key = os.path.join("post_scores", f"post_scores_{current_datetime_str}.jsonl")  # noqa
     s3.write_to_s3(blob=output_json_body_bytes, key=key)
 
 
@@ -242,7 +248,7 @@ def create_ranked_candidate_feed(
     in_network_candidate_post_uris: list[str],
     post_pool: list[ConsolidatedEnrichedPostModel],
     max_feed_length: int = max_feed_length,
-) -> list[dict]:
+) -> list[CustomFeedPost]:
     """Create a ranked candidate feed.
 
     Returns a list of dicts of post URIs, their scores, and whether or
@@ -262,7 +268,9 @@ def create_ranked_candidate_feed(
     if len(post_pool) == 0:
         return []
     if len(in_network_candidate_post_uris) == 0:
-        return [(post.uri, 0.0, False) for post in post_pool]
+        return [
+            CustomFeedPost(item=post.uri, is_in_network=False) for post in post_pool
+        ]
     output_posts: list[ConsolidatedEnrichedPostModel] = []
     in_network_post_set = set(post.uri for post in in_network_posts)
 
@@ -292,15 +300,8 @@ def create_ranked_candidate_feed(
 
     # Ensure output_posts does not exceed max_feed_length
     res = res[:max_feed_length]
-    # return a default score, just for backwards compatibility. We won't use
-    # this actual score.
-    # TODO: add the actual scores...
     return [
-        {
-            "uri": post.uri,
-            "score": 0.0,
-            "in_network": post.uri in in_network_post_set,
-        }
+        CustomFeedPost(item=post.uri, is_in_network=post.uri in in_network_post_set)
         for post in res
     ]
 
@@ -320,6 +321,21 @@ def filter_post_is_english(post: ConsolidatedEnrichedPostModel) -> bool:
         return False
     text = text.replace("\n", " ").strip()
     return classify(text=text)
+
+
+def generate_feed_statistics(feed: list[CustomFeedPost]) -> str:
+    """Generates statistics about a given feed."""
+    feed_length = len(feed)
+    total_in_network = sum([post.is_in_network for post in feed])
+    prop_in_network = (
+        round(total_in_network / feed_length, 3) if feed_length > 0 else 0.0
+    )
+    res = {
+        "prop_in_network": prop_in_network,
+        "total_in_network": total_in_network,
+        "feed_length": feed_length,
+    }
+    return json.dumps(res)
 
 
 def do_rank_score_feeds(
@@ -444,7 +460,7 @@ def do_rank_score_feeds(
         post_score_dict["post"] for post_score_dict in treatment_post_pool
     ]
 
-    if users_to_create_feeds_for is not None:
+    if users_to_create_feeds_for:
         logger.info(
             f"Creating custom feeds for {len(users_to_create_feeds_for)} users provided in the input."
         )  # noqa
@@ -458,29 +474,30 @@ def do_rank_score_feeds(
     # feed. We already pre-sort the posts so we don't have to do
     # this step multiple times.
     # create feeds for each user. Map feeds to users.
-    user_to_ranked_feed_map: dict[str, list[str]] = {
-        user.bluesky_user_did: {
-            "feed": (
-                create_ranked_candidate_feed(
-                    in_network_candidate_post_uris=(
-                        user_to_in_network_post_uris_map[user.bluesky_user_did]
-                    ),
-                    post_pool=(
-                        reverse_chronological_post_pool
-                        if user.condition == "reverse_chronological"
-                        else engagement_post_pool
-                        if user.condition == "engagement"
-                        else treatment_post_pool
-                        if user.condition == "representative_diversification"
-                        else None
-                    ),
-                    max_feed_length=max_feed_length,
-                )
+    user_to_ranked_feed_map: dict[str, dict] = {}
+    for user in study_users:
+        feed: list[CustomFeedPost] = create_ranked_candidate_feed(
+            in_network_candidate_post_uris=(
+                user_to_in_network_post_uris_map[user.bluesky_user_did]
             ),
-            "user": user,
+            post_pool=(
+                reverse_chronological_post_pool
+                if user.condition == "reverse_chronological"
+                else engagement_post_pool
+                if user.condition == "engagement"
+                else treatment_post_pool
+                if user.condition == "representative_diversification"
+                else None
+            ),
+            max_feed_length=max_feed_length,
+        )
+        user_to_ranked_feed_map[user.bluesky_user_did] = {
+            "feed": feed,
+            "bluesky_handle": user.bluesky_handle,
+            "bluesky_user_did": user.bluesky_user_did,
+            "condition": user.condition,
+            "feed_statistics": generate_feed_statistics(feed=feed),
         }
-        for user in study_users
-    }
 
     # insert default feed, for users that aren't logged in or for if a user
     # isn't in the study but opens the link.
@@ -489,7 +506,15 @@ def do_rank_score_feeds(
         post_pool=reverse_chronological_post_pool,
         max_feed_length=max_feed_length,
     )
-    user_to_ranked_feed_map["default"] = default_feed
+    user_to_ranked_feed_map["default"] = {
+        "feed": default_feed,
+        "bluesky_handle": "default",
+        "bluesky_user_did": "default",
+        "condition": "default",
+        "feed_statistics": generate_feed_statistics(feed=default_feed),
+    }
+
+    breakpoint()
 
     # write feeds to s3
     timestamp = generate_current_datetime_str()
