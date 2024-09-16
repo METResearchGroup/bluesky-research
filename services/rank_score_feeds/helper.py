@@ -497,6 +497,10 @@ def do_rank_score_feeds(
             "condition": user.condition,
             "feed_statistics": generate_feed_statistics(feed=feed),
         }
+        if len(feed) == 0:
+            logger.error(
+                f"No feed created for user {user.bluesky_user_did}. This shouldn't happen..."
+            )
 
     # insert default feed, for users that aren't logged in or for if a user
     # isn't in the study but opens the link.
