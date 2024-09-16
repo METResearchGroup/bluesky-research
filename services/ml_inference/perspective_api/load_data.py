@@ -1,4 +1,5 @@
 """Loads data for Perspective API classification."""
+
 import json
 import os
 from typing import Literal, Optional
@@ -6,17 +7,13 @@ from typing import Literal, Optional
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import root_local_data_directory
-from lib.db.manage_local_data import (
-    find_files_after_timestamp, load_jsonl_data
-)
 from lib.helper import track_performance
 from services.ml_inference.models import PerspectiveApiLabelsModel
 from services.ml_inference.perspective_api.constants import (
-    perspective_api_root_s3_key, previously_classified_post_uris_filename,
-    root_cache_path
+    perspective_api_root_s3_key,
+    previously_classified_post_uris_filename,
+    root_cache_path,
 )
-from services.preprocess_raw_data.export_data import s3_export_key_map
-from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 s3 = S3()
 
@@ -49,11 +46,11 @@ def load_previously_classified_post_uris(source: Literal["local", "s3"]) -> set[
         perspective_api_root_s3_key, previously_classified_post_uris_filename
     )
     if source == "s3":
-        previously_classified_uris: Optional[list[str]] = s3.read_json_from_s3(key=full_key)  # noqa
+        previously_classified_uris: Optional[list[str]] = s3.read_json_from_s3(
+            key=full_key
+        )  # noqa
     elif source == "local":
-        full_import_filepath = os.path.join(
-            root_local_data_directory, full_key
-        )
+        full_import_filepath = os.path.join(root_local_data_directory, full_key)
         with open(full_import_filepath, "r") as f:
             previously_classified_uris: Optional[list[str]] = json.load(f)
     if not previously_classified_uris:
@@ -73,11 +70,15 @@ def load_cached_post_uris() -> dict:
     """
     firehose_dir = os.path.join(root_cache_path, "firehose")
     if not os.path.exists(firehose_dir):
-        print(f"Cached directory for firehose posts doesn't exist. Creating it at {firehose_dir}")  # noqa
+        print(
+            f"Cached directory for firehose posts doesn't exist. Creating it at {firehose_dir}"
+        )  # noqa
         os.makedirs(firehose_dir)
     most_liked_dir = os.path.join(root_cache_path, "most_liked")
     if not os.path.exists(most_liked_dir):
-        print(f"Cached directory for most liked posts doesn't exist. Creating it at {most_liked_dir}")
+        print(
+            f"Cached directory for most liked posts doesn't exist. Creating it at {most_liked_dir}"
+        )
 
     firehose_valid_uris = set()
     firehose_invalid_uris = set()
@@ -90,7 +91,9 @@ def load_cached_post_uris() -> dict:
         for feed_dir in [firehose_dir, most_liked_dir]:
             full_dir = os.path.join(feed_dir, validity)
             if not os.path.exists(full_dir):
-                print(f"Cached directory for {validity} {feed_dir} posts doesn't exist. Creating it at {full_dir}")  # nqoa
+                print(
+                    f"Cached directory for {validity} {feed_dir} posts doesn't exist. Creating it at {full_dir}"
+                )  # nqoa
                 os.makedirs(full_dir)
             else:
                 # loop through each file.
@@ -119,8 +122,8 @@ def load_cached_post_uris() -> dict:
         },
         "most_liked": {
             "valid": most_liked_valid_uris,
-            "invalid": most_liked_invalid_uris
-        }
+            "invalid": most_liked_invalid_uris,
+        },
     }
 
 
@@ -144,8 +147,10 @@ def load_classified_posts_from_cache() -> dict:
     most_liked_invalid_posts: list[PerspectiveApiLabelsModel] = []
 
     for path in [
-        firehose_valid_path, firehose_invalid_path,
-        most_liked_valid_path, most_liked_invalid_path
+        firehose_valid_path,
+        firehose_invalid_path,
+        most_liked_valid_path,
+        most_liked_invalid_path,
     ]:
         for filename in os.listdir(path):
             full_path = os.path.join(path, filename)
@@ -156,80 +161,21 @@ def load_classified_posts_from_cache() -> dict:
                     # subset of "invalid" (all strings with "invalid"
                     # also have "valid" in them, but not vice versa)
                     if "invalid" in full_path:
-                        firehose_invalid_posts.append(
-                            PerspectiveApiLabelsModel(**post)
-                        )
+                        firehose_invalid_posts.append(PerspectiveApiLabelsModel(**post))
                     elif "valid" in full_path:
-                        firehose_valid_posts.append(
-                            PerspectiveApiLabelsModel(**post)
-                        )
+                        firehose_valid_posts.append(PerspectiveApiLabelsModel(**post))
                 elif "most_liked" in full_path:
                     if "invalid" in full_path:
                         most_liked_invalid_posts.append(
                             PerspectiveApiLabelsModel(**post)
                         )
                     elif "valid" in full_path:
-                        most_liked_valid_posts.append(
-                            PerspectiveApiLabelsModel(**post)
-                        )
+                        most_liked_valid_posts.append(PerspectiveApiLabelsModel(**post))
 
     return {
-        "firehose": {
-            "valid": firehose_valid_posts,
-            "invalid": firehose_invalid_posts
-        },
+        "firehose": {"valid": firehose_valid_posts, "invalid": firehose_invalid_posts},
         "most_liked": {
             "valid": most_liked_valid_posts,
-            "invalid": most_liked_invalid_posts
-        }
+            "invalid": most_liked_invalid_posts,
+        },
     }
-
-
-@track_performance
-def load_posts_to_classify(
-    source: Literal["local", "s3"],
-    source_feed: Literal["firehose", "most_liked"],
-    previous_timestamp: str
-) -> list[FilteredPreprocessedPostModel]:
-    """Loads posts for Perspective API classification. Loads posts which
-    were added after the most recent batch of classified posts.
-
-    Loads the timestamp of the latest preprocessed batch that was classified,
-    so that any posts preprocessed after that batch can be classified.
-    """
-    latest_partition_timestamp = (
-        S3.create_partition_key_based_on_timestamp(previous_timestamp)
-    )
-    prefix = os.path.join(s3_export_key_map["post"], source_feed)
-    if source == "s3":
-        keys = s3.list_keys_given_prefix(prefix=prefix)
-        keys = [
-            key for key in keys
-            if key > os.path.join(prefix, latest_partition_timestamp)
-        ]
-        jsonl_data: list[dict] = []
-        for key in keys:
-            data = s3.read_jsonl_from_s3(key)
-            jsonl_data.extend(data)
-        transformed_jsonl_data: list[FilteredPreprocessedPostModel] = [
-            FilteredPreprocessedPostModel(**post) for post in jsonl_data
-        ]
-    elif source == "local":
-        full_import_filedir = os.path.join(root_local_data_directory, prefix)
-        files_to_load: list[str] = find_files_after_timestamp(
-            base_path=full_import_filedir,
-            target_timestamp_path=latest_partition_timestamp
-        )
-        jsonl_data: list[dict] = []
-        for filepath in files_to_load:
-            data = load_jsonl_data(filepath)
-            jsonl_data.extend(data)
-        transformed_jsonl_data: list[FilteredPreprocessedPostModel] = [
-            FilteredPreprocessedPostModel(**post) for post in jsonl_data
-        ]
-
-    sorted_posts = sorted(
-        transformed_jsonl_data, key=lambda x: x.synctimestamp, reverse=False
-    )
-    print(f"Number of posts loaded for classification using Perspective API: {len(sorted_posts)}")  # noqa
-    return sorted_posts
