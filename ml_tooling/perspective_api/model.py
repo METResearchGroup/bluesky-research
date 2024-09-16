@@ -285,9 +285,11 @@ async def batch_classify_posts(
     request_payload_batches: list[list[dict]] = create_batches(
         batch_list=iterated_post_payloads, batch_size=batch_size
     )
-    for post_request_batch in request_payload_batches:
+    total_batches = len(request_payload_batches)
+    for i, post_request_batch in enumerate(request_payload_batches):
         # split [(post, request)] tuples into separate lists of posts
         # and of requests
+        logger.info(f"Processing batch {i}/{total_batches}")
         post_batch, request_batch = zip(*post_request_batch)
         responses = await process_perspective_batch(request_batch)
         await asyncio.sleep(seconds_delay_per_batch)
