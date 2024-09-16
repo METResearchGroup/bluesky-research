@@ -6,10 +6,12 @@
 #SBATCH --ntasks-per-node=2
 #SBATCH -t 0:30:00
 #SBATCH --mem=10G
-#SBATCH --job-name=compact_dedupe_data_job_jya0297_%j
+#SBATCH --job-name=preprocess_raw_data_job_jya0297_%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
-#SBATCH --output=/projects/p32375/bluesky-research/lib/log/compact_dedupe_data/jya0297-%j.log
+#SBATCH --output=/projects/p32375/bluesky-research/lib/log/preprocess_raw_data/jya0297-%j.log
+
+# NOTE: submit with `sbatch create_cron_job.sh`
 
 # load conda env
 CONDA_PATH="/hpc/software/mamba/23.1.0/etc/profile.d/conda.sh"
