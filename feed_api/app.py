@@ -7,7 +7,6 @@ Based on specs in the following docs:
 
 import asyncio
 import json
-import os
 import threading
 from typing import Optional, Annotated
 
@@ -33,8 +32,6 @@ from lib.aws.s3 import S3
 from lib.aws.secretsmanager import get_secret
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
-from services.participant_data.helper import get_all_users, manage_bsky_study_user
-from services.participant_data.models import UserOperation
 
 
 app = FastAPI()
@@ -136,91 +133,6 @@ def get_did_document():  # should this be async def?
             }
         ],
     }
-
-
-@app.get("/test-get-s3")
-async def fetch_test_file_from_s3():
-    """Testing fetching a file from S3."""
-    bucket = "bluesky-research"
-    key = os.path.join(
-        "ml_inference_perspective_api", "previously_classified_post_uris.json"
-    )
-    res: dict = s3.read_json_from_s3(bucket=bucket, key=key)
-    return {
-        "message": "Successfully fetched test file.",
-        "data": json.dumps(res),
-    }
-
-
-@app.post("/manage_user", dependencies=[Security(get_api_key)])
-async def manage_user(user_operation: UserOperation):
-    """Manage user operations.
-
-    Add, modify, or delete a user in the study.
-
-    Auth required with API key. Managed by API gateway.
-    """
-    logger.info(f"User operation: {user_operation}")
-    operation = user_operation.operation.lower()
-    valid_operations = ["add", "modify", "delete"]
-    if operation not in valid_operations:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid operation: {operation} (only {valid_operations} allowed)",  # noqa
-        )
-
-    profile_link = user_operation.bluesky_user_profile_link
-
-    if not profile_link.startswith("https://bsky.app/profile/"):
-        raise HTTPException(status_code=400, detail="Invalid profile link")
-
-    if operation != "delete" and user_operation.condition is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Study condition required for add or modify operation",
-        )
-
-    # get profile info from Bsky.
-    bluesky_handle = profile_link.split("/")[-1]
-
-    # first, check if handle is in the study already.
-    # should be OK to reload this each time. Plus this is a small table
-    # and we're not doing this operation frequently.
-    study_users = get_all_users()
-    existing_study_user_bsky_handles = [user.bluesky_handle for user in study_users]
-    handle_to_did_map = {
-        user.bluesky_handle: user.bluesky_user_did for user in study_users
-    }
-    if operation == "add" and bluesky_handle in existing_study_user_bsky_handles:
-        raise HTTPException(status_code=400, detail="User already exists in study")
-    elif (
-        operation == "delete" or operation == "modify"
-    ) and bluesky_handle not in existing_study_user_bsky_handles:
-        raise HTTPException(status_code=400, detail="User does not exist in study")
-
-    # then, get info from Bluesky.
-    try:
-        bsky_author_did = handle_to_did_map[bluesky_handle]
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"User doesn't exist in the study: {e}"
-        )
-
-    if operation in ["add", "modify"]:
-        res = manage_bsky_study_user(
-            payload={
-                "operation": "POST",
-                "bluesky_handle": bluesky_handle,
-                "condition": user_operation.condition,
-                "bluesky_user_did": bsky_author_did,
-                "is_study_user": user_operation.is_study_user,
-            }
-        )
-    elif operation in ["delete"]:
-        res = manage_bsky_study_user(
-            payload={"operation": "DELETE", "bluesky_user_did": bsky_author_did}
-        )
-    return res
 
 
 @app.get("/xrpc/app.bsky.feed.describeFeedGenerator")
@@ -379,12 +291,6 @@ async def get_default_feed_skeleton(
     # periodically flushed and inserted into S3.
     log_queue.put(user_session_log)
     return output
-
-
-@app.get("/test/")
-async def test_endpoint():
-    """Health check endpoint to verify the application is running."""
-    return {"status": "healthy"}
 
 
 # https://stackoverflow.com/questions/76844538/the-adapter-was-unable-to-infer-a-handler-to-use-for-the-event-this-is-likely-r
