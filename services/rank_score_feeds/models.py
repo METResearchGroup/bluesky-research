@@ -13,6 +13,9 @@ class ScoredPostModel(BaseModel):
     treatment_score: Optional[float] = Field(
         default=None, description="Treatment score of the post."
     )
+    source: str = Field(
+        ..., description="The source of the post (e.g. 'firehose', 'most_liked')."
+    )
     scored_timestamp: str = Field(
         ..., description="Timestamp when the post was scored."
     )  # noqa

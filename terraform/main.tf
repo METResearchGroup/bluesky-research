@@ -2547,6 +2547,11 @@ resource "aws_glue_catalog_table" "post_scores" {
     }
 
     columns {
+      name = "source"
+      type = "string"
+    }
+
+    columns {
       name = "scored_timestamp"
       type = "string"
     }

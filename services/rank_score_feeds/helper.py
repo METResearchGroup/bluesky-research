@@ -153,6 +153,7 @@ def export_post_scores(post_uri_to_post_score_map: dict[str, str]):
                 engagement_score=post_obj["score"]["engagement_score"],
                 treatment_score=post_obj["score"]["treatment_score"],
                 scored_timestamp=current_datetime_str,
+                source=post_obj["post"].source,
             )
         )
     # using native Pydantic JSON serialization instead of json.dumps()
