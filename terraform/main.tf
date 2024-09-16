@@ -604,6 +604,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_compact_dedupe_data
 resource "aws_cloudwatch_event_rule" "perspective_api_event_rule" {
   name                = "perspective_api_event_rule"
   schedule_expression = "cron(0 0/4 * * ? *)"  # Triggers every 4 hours
+  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "perspective_api_event_target" {
@@ -623,6 +624,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_perspective_api" {
 resource "aws_cloudwatch_event_rule" "sociopolitical_event_rule" {
   name                = "sociopolitical_event_rule"
   schedule_expression = "cron(0 0/4 * * ? *)"  # Triggers every 4 hours
+  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "sociopolitical_event_target" {
@@ -645,6 +647,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sociopolitical" {
 resource "aws_cloudwatch_event_rule" "consolidate_enrichment_integrations_event_rule" {
   name                = "consolidate_enrichment_integrations_event_rule"
   schedule_expression = "cron(20 0/4 * * ? *)"  # Triggers every 4 hours, starting at 20 minutes past the hour
+  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "consolidate_enrichment_integrations_event_target" {
@@ -665,6 +668,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consolidate_enrichm
 resource "aws_cloudwatch_event_rule" "rank_score_feeds_event_rule" {
   name                = "rank_score_feeds_event_rule"
   schedule_expression = "cron(45 0/8 * * ? *)"  # Triggers every 8 hours, 45 minutes past the hour
+  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "rank_score_feeds_event_target" {
