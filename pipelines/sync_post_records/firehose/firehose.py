@@ -8,6 +8,8 @@ logger = Logger(__name__)
 def get_posts() -> None:
     logger.info("Getting posts from the firehose.")
     try:
+        # NOTE: should I restart this cursor? It's always being
+        # recorded, never being used. Will have to consider.
         start_app(restart_cursor=True)
         logger.info("Successfully fetched posts from the firehose.")
     except Exception as e:
