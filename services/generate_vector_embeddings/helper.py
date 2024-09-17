@@ -237,6 +237,7 @@ def generate_vector_embeddings_and_calculate_similarity_scores(
         "most_liked_embeddings": most_liked_embeddings,
         "most_liked_average_embedding": most_liked_average_embedding,
         "post_cosine_similarity_scores": post_cosine_similarity_scores,
+        "previous_embedding_key": latest_key,
     }
 
 
@@ -331,6 +332,9 @@ def do_vector_embeddings():
         s3.write_dict_parquet_to_s3(
             average_most_liked_feed_embeddings, average_most_liked_feed_embeddings_key
         )
+    else:
+        most_liked_post_embedding_key = "<No most-liked posts>"
+        average_most_liked_feed_embeddings_key = res["previous_embedding_key"]
 
     similarity_scores_results: list[dict] = [
         PostSimilarityScoreModel(
