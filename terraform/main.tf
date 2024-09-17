@@ -1066,7 +1066,31 @@ resource "aws_iam_policy" "lambda_access_policy" {
         ],
         Effect   = "Allow",
         Resource = "*"
-      }
+      },
+      # get SSM permissions: https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-setting-up-messageAPIs.html
+      {
+        Action = [
+          "ssm:*",
+        ],
+        Effect   = "Allow",
+        Resource = "*"
+      },
+      # get SSM messages permissions
+      {
+          "Effect": "Allow",
+          "Action": [
+              "ssmmessages:*",
+          ],
+          "Resource": "*"
+      },
+      # get EC2 messages permissions
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2messages:*",
+            ],
+            "Resource": "*"
+        }
     ]
   })
 }
