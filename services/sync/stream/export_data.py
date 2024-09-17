@@ -380,10 +380,6 @@ def export_study_user_follow_s3(base_path: str) -> list[dict]:
                 # )
                 # follows.append(data)
                 scraped_user_social_network.append(user_social_network_data)
-                # reload the list of study follows/followers.
-                study_user_manager.in_network_user_dids_set = (
-                    study_user_manager._load_in_network_user_dids(is_refresh=True)  # noqa
-                )
             total_records += 1
 
     # logger.info(
@@ -582,6 +578,15 @@ def export_study_user_activity_local_data():
             data=all_follows,
             key=os.path.join("scraped-user-social-network", f"{timestamp}.jsonl"),
         )
+        # if there are any new followed accounts, then we want to reload the list
+        # of followed accounts.
+        if any(
+            [follow["relationship_to_study_user"] == "follow" for follow in all_follows]
+        ):
+            # reload the list of study follows/followers.
+            study_user_manager.in_network_user_dids_set = (
+                study_user_manager._load_in_network_user_dids(is_refresh=True)  # noqa
+            )
     # else:
     #     logger.info("No study user follow records to export.")
     if len(all_likes_on_user_posts) > 0:

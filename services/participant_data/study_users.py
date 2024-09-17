@@ -96,11 +96,7 @@ class StudyUserManager:
                 """
             )
         query = """
-        SELECT 
-            CASE 
-                WHEN relationship_to_study_user = 'follow' THEN follow_did
-                WHEN relationship_to_study_user = 'follower' THEN follower_did
-            END AS did
+        SELECT follow_did AS did
         FROM user_social_networks
         WHERE relationship_to_study_user IN ('follow')
         """
