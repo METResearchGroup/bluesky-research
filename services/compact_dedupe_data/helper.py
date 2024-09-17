@@ -201,7 +201,7 @@ def compact_dedupe_preprocessed_data(
     # glue.start_crawler(crawler_name="preprocessed_posts_crawler")
     logger.info("Successfully compacted dedupe preprocessed data")
     compaction_session = {
-        "compaction_timestamp": timestamp,
+        "compaction_timestamp": generate_current_datetime_str(),
         "total_posts_after_compaction": len(df_dict_models),
     }
     insert_compaction_session(compaction_session=compaction_session)
