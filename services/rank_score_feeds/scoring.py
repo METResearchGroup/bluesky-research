@@ -11,10 +11,8 @@ from services.consolidate_enrichment_integrations.models import (
 )  # noqa
 from services.rank_score_feeds.constants import default_lookback_days
 
-# TODO: I should check this empirically.
-default_similarity_score = 0.75
-# TODO: I should check this empirically.
-average_popular_post_like_count = 250
+default_similarity_score = 0.8
+average_popular_post_like_count = 1250
 coef_toxicity = 0.965
 coef_constructiveness = 1.02
 superposter_coef = 0.95
@@ -94,8 +92,18 @@ def score_post_likeability(post: ConsolidatedEnrichedPostModel) -> float:
     """Score a post's likeability. We either use the actual like count or we
     use an estimation of the like count, based on how similar that post is to
     posts that are normally liked.
+
+    Using default values for the expected post like count and similarity to most
+    liked posts puts the firehose in the same distribution as the most liked
+    posts, which is obviously not true (the posts with the most likes get the
+    most likes for a reason), but doing it this way allows the firehose posts, which
+    don't have any like counts, to be scored on a scale closer to that of the most
+    liked posts. Without this, the most liked posts dominate the feed. This also
+    has the secondary implication that we treat posts by followed account as being
+    equally as likeable/giving as much utility to the user as if they saw the average
+    popular feed, which is an OK implication. After all, the user chose to follow
+    those accounts, so seeing those posts is still valuable to them.
     """
-    like_score = None
     if post.like_count:
         like_score = np.log(post.like_count + 1)
     elif post.similarity_score:
