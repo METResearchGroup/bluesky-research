@@ -33,7 +33,8 @@ LLM_MODEL_NAME = "GPT-4o mini"
 DEFAULT_BATCH_SIZE = 100
 DEFAULT_MINIBATCH_SIZE = 10
 # NOTE: will need to change as we make the sociopolitical lambda more efficient.
-max_num_posts = 1000  # given our batching, we can handle ~500 posts/minute.
+# max_num_posts = 1000  # given our batching, we can handle ~500 posts/minute.
+max_num_posts = 5000  # given our batching, we can handle ~500 posts/minute.
 
 
 def generate_prompt(posts: list[FilteredPreprocessedPostModel]) -> str:
