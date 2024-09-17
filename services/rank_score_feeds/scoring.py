@@ -79,9 +79,11 @@ def score_post_freshness(
     if score_func == "linear":
         freshness_score: float = max_freshness_score - (post_age_hours * decay_ratio)
     elif score_func == "exponential":
-        freshness_score: float = max_freshness_score * (
-            1 - np.exp(-post_age_hours / default_lookback_hours)
-        )
+        a = max_freshness_score
+        decay_factor = 1 - decay_ratio
+        lambda_factor = 0.95
+        freshness_score = (a * decay_factor * lambda_factor) ** post_age_hours
+
         # Ensure exp_score is capped to (0, max_score)
         freshness_score = min(max(freshness_score, 0), max_freshness_score)
 
