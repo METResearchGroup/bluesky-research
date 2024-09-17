@@ -3,8 +3,8 @@
 # Get the current directory
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 4 hours, starting at the 20 minute mark
-CRON_EXPRESSION="20 */4 * * *"
+# Every 30 minutes, starting at the 20 minute mark
+CRON_EXPRESSION="20,50 * * * *"
 
 # Define the cron job command
 SBATCH_CRON_JOB="$CRON_EXPRESSION cd $DIR && sbatch submit_job.sh"
@@ -12,4 +12,4 @@ SBATCH_CRON_JOB="$CRON_EXPRESSION cd $DIR && sbatch submit_job.sh"
 # Add the cron job to the current user's crontab
 (crontab -l 2>/dev/null; echo "$SBATCH_CRON_JOB") | crontab -
 
-echo "Cron job created to run sbatch submit_job.sh every 4 hours, starting at the 20 minute mark."
+echo "Cron job created to run sbatch submit_job.sh every 30 minutes, starting at the 20 minute mark."
