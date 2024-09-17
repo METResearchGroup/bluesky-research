@@ -2,6 +2,8 @@
 
 import os
 
+import numpy as np
+import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 import torch
 from transformers import AutoTokenizer, AutoModel
@@ -87,7 +89,9 @@ def get_posts_to_embed() -> list[FilteredPreprocessedPostModel]:
         logger.info("No latest embedding session found. Embedding all posts...")
         latest_embedding_timestamp = None
     else:
-        latest_embedding_timestamp = latest_embedding_session["embedding_timestamp"]["S"]
+        latest_embedding_timestamp = latest_embedding_session["embedding_timestamp"][
+            "S"
+        ]
 
     logger.info("Getting posts to embed.")
     posts = athena.get_latest_preprocessed_posts(timestamp=latest_embedding_timestamp)
@@ -193,18 +197,31 @@ def generate_vector_embeddings_and_calculate_similarity_scores(
     if len(in_network_user_activity_posts) == 0:
         logger.info("No in-network user activity posts to embed.")
         return {}
-    if len(most_liked_posts) == 0:
-        logger.info("No most liked posts to embed.")
-        return {}
     in_network_user_activity_embeddings: torch.Tensor = get_embeddings(
         [post.text for post in in_network_user_activity_posts]
     )  # [batch, 1, 768]
-    most_liked_embeddings: torch.Tensor = get_embeddings(
-        [post.text for post in most_liked_posts]
-    )  # [batch, 1, 768]
-    most_liked_average_embedding: torch.Tensor = get_average_embedding(
-        most_liked_embeddings
-    ).reshape(1, -1)  # [1, 768]
+    if most_liked_posts:
+        most_liked_embeddings: torch.Tensor = get_embeddings(
+            [post.text for post in most_liked_posts]
+        )  # [batch, 1, 768]
+        most_liked_average_embedding: torch.Tensor = get_average_embedding(
+            most_liked_embeddings
+        ).reshape(1, -1)  # [1, 768]
+    else:
+        logger.info(
+            "No most liked posts to embed. Loading latest averaged embedding from S3."
+        )
+        prefix = os.path.join("vector_embeddings", "average_most_liked_feed_embeddings")
+        keys: list[str] = s3.list_keys_given_prefix(prefix)
+        latest_key: str = max(keys)
+        embedding_df: pd.DataFrame = s3.read_parquet_from_s3(latest_key)
+        embedding_arr: np.ndarray = np.array(embedding_df["embedding"][0][0])
+        most_liked_average_embedding: torch.Tensor = torch.tensor(
+            embedding_arr
+        )  # [768]
+        most_liked_average_embedding = most_liked_average_embedding.unsqueeze(
+            0
+        )  # [1, 768]
 
     post_cosine_similarity_scores: list[float] = [
         # [1, 768] -> [768] for post_embedding, to match most_liked_average_embedding

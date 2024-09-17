@@ -102,6 +102,27 @@ class S3:
         self.write_to_s3(blob=parquet_buffer.getvalue(), bucket=bucket, key=key)
 
     @retry_on_aws_rate_limit
+    def read_parquet_from_s3(
+        self, key: str, bucket: str = ROOT_BUCKET
+    ) -> Optional[pd.DataFrame]:
+        """Reads Parquet file from S3 and returns it as a pandas DataFrame."""
+        if not key.endswith(".parquet"):
+            key = f"{key}.parquet"
+
+        blob = self.read_from_s3(bucket=bucket, key=key)
+        if not blob:
+            logger.info(f"No Parquet file found at key: {key}")
+            return None
+
+        try:
+            parquet_buffer = io.BytesIO(blob)
+            df = pd.read_parquet(parquet_buffer)
+            return df
+        except Exception as e:
+            logger.error(f"Error reading Parquet file from S3: {e}")
+            return None
+
+    @retry_on_aws_rate_limit
     def write_dicts_parquet_to_s3(
         self, data: list[dict], key: str, bucket: str = ROOT_BUCKET
     ) -> None:
