@@ -1,8 +1,15 @@
+"""Scoring logic for feed generation."""
+
+from datetime import datetime, timezone
+from typing import Literal
+
 import numpy as np
 
+from lib.constants import timestamp_format
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
+from services.rank_score_feeds.constants import default_lookback_days
 
 # TODO: I should check this empirically.
 default_similarity_score = 0.75
@@ -10,11 +17,20 @@ default_similarity_score = 0.75
 average_popular_post_like_count = 250
 coef_toxicity = 0.965
 coef_constructiveness = 1.02
+superposter_coef = 0.95
+default_max_freshness_score = 1
+default_lookback_hours = default_lookback_days * 24
+freshness_decay_ratio: float = default_max_freshness_score / default_lookback_hours  # noqa
 
 
 # TODO: add superposter information.
-def score_treatment_algorithm(post: ConsolidatedEnrichedPostModel) -> dict:
-    """Score a post's text attributes."""
+def score_treatment_algorithm(
+    post: ConsolidatedEnrichedPostModel, superposter_dids: set[str]
+) -> dict:
+    """Score posts based on our treatment algorithm."""
+    treatment_coef = 1.0
+
+    # update post based on toxicity/constructiveness attributes.
     if (
         post.sociopolitical_was_successfully_labeled
         and post.is_sociopolitical
@@ -30,24 +46,46 @@ def score_treatment_algorithm(post: ConsolidatedEnrichedPostModel) -> dict:
             post.prob_toxic * coef_toxicity
             + post.prob_constructive * coef_constructiveness
         ) / (post.prob_toxic + post.prob_constructive)
-        return treatment_coef
-    else:
-        return 1.0
+
+    # penalize post for being written by a superposter.
+    if post.author_did in superposter_dids:
+        treatment_coef *= superposter_coef
+
+    return treatment_coef
 
 
-# TODO: get a cap on how much I want this to affect scores
-# e.g., if I want this to be limited to [0, 0.75], then I can
-# set those as the limits and then create an appropriate
-# exponential decay function
-# NOTE: this should also relate to the max # of days
-# that I want to consider for posts in the feed.
-def score_post_freshness(post: ConsolidatedEnrichedPostModel) -> float:
-    """Score a post's freshness.
+def calculate_post_age(post: ConsolidatedEnrichedPostModel) -> int:
+    """Calculate a post's age, in hours."""
+    post_dt_object: datetime = datetime.strptime(
+        post.synctimestamp, timestamp_format
+    ).replace(tzinfo=timezone.utc)
+    current_dt_object: datetime = datetime.now(timezone.utc)
+    time_difference = current_dt_object - post_dt_object
+    seconds_difference: float = time_difference.total_seconds()
+    post_age_hours: float = round(seconds_difference / 3600, 2)
+    if post_age_hours > default_lookback_hours:
+        post_age_hours = default_lookback_hours
+    return post_age_hours
 
-    Implemented as an exponential decay function, where the older the post,
-    the lower the score.
-    """
-    pass
+
+def score_post_freshness(
+    post: ConsolidatedEnrichedPostModel,
+    max_freshness_score: float = default_max_freshness_score,
+    decay_ratio: float = freshness_decay_ratio,
+    score_func: Literal["linear", "exponential"] = "exponential",
+) -> float:
+    """Score a post's freshness. The older the post, the lower the score."""
+    post_age_hours: float = calculate_post_age(post=post)
+    if score_func == "linear":
+        freshness_score: float = max_freshness_score - (post_age_hours * decay_ratio)
+    elif score_func == "exponential":
+        freshness_score: float = max_freshness_score * (
+            1 - np.exp(-post_age_hours / default_lookback_hours)
+        )
+        # Ensure exp_score is capped to (0, max_score)
+        freshness_score = min(max(freshness_score, 0), max_freshness_score)
+
+    return freshness_score
 
 
 def score_post_likeability(post: ConsolidatedEnrichedPostModel) -> float:
@@ -67,7 +105,9 @@ def score_post_likeability(post: ConsolidatedEnrichedPostModel) -> float:
     return like_score
 
 
-def calculate_post_score(post: ConsolidatedEnrichedPostModel) -> float:
+def calculate_post_score(
+    post: ConsolidatedEnrichedPostModel, superposter_dids: set[str]
+) -> float:
     """Calculate a post's score.
 
     Calculates what a score's post would be, depending on whether or not it's
@@ -76,14 +116,20 @@ def calculate_post_score(post: ConsolidatedEnrichedPostModel) -> float:
     engagement_score = 0
     treatment_score = 0
     engagement_coef = 1.0
-    treatment_coef: float = score_treatment_algorithm(post=post)
+    treatment_coef: float = score_treatment_algorithm(
+        post=post,
+        superposter_dids=superposter_dids,
+    )
 
     # set the base score to be based on the likeability of the post
     # adn the freshness of the post.
-    engagement_score += score_post_likeability(post=post)
-    engagement_score += score_post_freshness(post=post)
-    treatment_score += score_post_likeability(post=post)
-    treatment_score += score_post_freshness(post=post)
+    post_likeability_score = score_post_likeability(post=post)
+    post_freshness_score = score_post_freshness(post=post)
+
+    engagement_score += post_likeability_score
+    engagement_score += post_freshness_score
+    treatment_score += post_likeability_score
+    treatment_score += post_freshness_score
 
     # multiply scores by the engagement/treatment coefs.
     engagement_score *= engagement_coef
@@ -92,6 +138,12 @@ def calculate_post_score(post: ConsolidatedEnrichedPostModel) -> float:
     return {"engagement_score": engagement_score, "treatment_score": treatment_score}
 
 
-def calculate_post_scores(posts: list[ConsolidatedEnrichedPostModel]) -> list[dict]:  # noqa
+def calculate_post_scores(
+    posts: list[ConsolidatedEnrichedPostModel],
+    superposter_dids: set[str],
+) -> list[dict]:  # noqa
     """Calculate scores for a list of posts."""
-    return [calculate_post_score(post) for post in posts]
+    return [
+        calculate_post_score(post=post, superposter_dids=superposter_dids)
+        for post in posts
+    ]

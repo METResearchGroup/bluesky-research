@@ -23,6 +23,7 @@ from services.consolidate_enrichment_integrations.models import (
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.preprocess_raw_data.classify_language.model import classify
+from services.rank_score_feeds.constants import default_lookback_days, max_feed_length
 from services.rank_score_feeds.models import (
     CustomFeedModel,
     CustomFeedPost,
@@ -30,8 +31,6 @@ from services.rank_score_feeds.models import (
 )
 from services.rank_score_feeds.scoring import calculate_post_scores
 
-max_feed_length = 50
-default_lookback_days = 3
 consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"
 feeds_root_s3_key = "custom_feeds"
@@ -431,7 +430,10 @@ def do_rank_score_feeds(
     logger.info(f"Loaded {len(superposter_dids)} superposters.")  # noqa
 
     # calculate scores for all the posts
-    post_scores: list[dict] = calculate_post_scores(consolidated_enriched_posts)  # noqa
+    post_scores: list[dict] = calculate_post_scores(
+        posts=consolidated_enriched_posts,
+        superposter_dids=superposter_dids,
+    )  # noqa
     post_uri_to_post_score_map: dict[str, dict] = {
         post.uri: {"post": post, "score": score}
         for post, score in zip(consolidated_enriched_posts, post_scores)
