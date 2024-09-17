@@ -222,6 +222,9 @@ def generate_vector_embeddings_and_calculate_similarity_scores(
         most_liked_average_embedding = most_liked_average_embedding.unsqueeze(
             0
         )  # [1, 768]
+        most_liked_embeddings = torch.empty(
+            (0, 768), dtype=torch.float32
+        )  # Create an empty tensor for most liked embeddings
 
     post_cosine_similarity_scores: list[float] = [
         # [1, 768] -> [768] for post_embedding, to match most_liked_average_embedding
@@ -274,16 +277,6 @@ def do_vector_embeddings():
         "in_network_post_embeddings",
         f"{timestamp}.parquet",
     )
-    most_liked_post_embedding_key = os.path.join(
-        vector_embeddings_root_s3_key,
-        "most_liked_post_embeddings",
-        f"{timestamp}.parquet",
-    )
-    average_most_liked_feed_embeddings_key = os.path.join(
-        vector_embeddings_root_s3_key,
-        "average_most_liked_feed_embeddings",
-        f"{timestamp}.parquet",
-    )
     similarity_scores_key = os.path.join(
         vector_embeddings_root_s3_key,
         "similarity_scores",
@@ -301,21 +294,44 @@ def do_vector_embeddings():
             in_network_user_activity_posts, in_network_user_activity_embeddings
         )
     ]
-    most_liked_post_embedding_results: list[dict] = [
-        {
-            "uri": post.uri,
-            "embedding": post_embedding.cpu().tolist(),  # convert tensor to list. Necessary?
+
+    # only write out data about the most-liked posts if there are any.
+    if len(most_liked_posts) > 0:
+        # export the most liked post embeddings.
+        most_liked_post_embedding_key = os.path.join(
+            vector_embeddings_root_s3_key,
+            "most_liked_post_embeddings",
+            f"{timestamp}.parquet",
+        )
+        most_liked_post_embedding_results: list[dict] = [
+            {
+                "uri": post.uri,
+                "embedding": post_embedding.cpu().tolist(),  # convert tensor to list. Necessary?
+                "embedding_model": DEFAULT_EMBEDDING_MODEL_NAME,
+                "insert_timestamp": timestamp,
+            }
+            for (post, post_embedding) in zip(most_liked_posts, most_liked_embeddings)
+        ]
+        s3.write_dicts_parquet_to_s3(
+            most_liked_post_embedding_results, most_liked_post_embedding_key
+        )
+
+        # export the averaged embeddings, since it will be new.
+        average_most_liked_feed_embeddings_key = os.path.join(
+            vector_embeddings_root_s3_key,
+            "average_most_liked_feed_embeddings",
+            f"{timestamp}.parquet",
+        )
+        average_most_liked_feed_embeddings: dict = {
+            "uris": [post.uri for post in most_liked_posts],
+            "embedding": most_liked_average_embedding.cpu().tolist(),
             "embedding_model": DEFAULT_EMBEDDING_MODEL_NAME,
             "insert_timestamp": timestamp,
         }
-        for (post, post_embedding) in zip(most_liked_posts, most_liked_embeddings)
-    ]
-    average_most_liked_feed_embeddings: dict = {
-        "uris": [post.uri for post in most_liked_posts],
-        "embedding": most_liked_average_embedding.cpu().tolist(),
-        "embedding_model": DEFAULT_EMBEDDING_MODEL_NAME,
-        "insert_timestamp": timestamp,
-    }
+        s3.write_dict_parquet_to_s3(
+            average_most_liked_feed_embeddings, average_most_liked_feed_embeddings_key
+        )
+
     similarity_scores_results: list[dict] = [
         PostSimilarityScoreModel(
             uri=post.uri,
@@ -330,12 +346,6 @@ def do_vector_embeddings():
 
     s3.write_dicts_parquet_to_s3(
         in_network_post_embedding_results, in_network_post_embedding_key
-    )
-    s3.write_dicts_parquet_to_s3(
-        most_liked_post_embedding_results, most_liked_post_embedding_key
-    )
-    s3.write_dict_parquet_to_s3(
-        average_most_liked_feed_embeddings, average_most_liked_feed_embeddings_key
     )
     s3.write_dicts_parquet_to_s3(similarity_scores_results, similarity_scores_key)
 
