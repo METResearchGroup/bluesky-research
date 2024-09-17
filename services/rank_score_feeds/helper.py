@@ -183,6 +183,11 @@ def calculate_post_score(post: ConsolidatedEnrichedPostModel) -> float:
         and post.is_sociopolitical
         and post.perspective_was_successfully_labeled
     ):
+        if post.prob_constructive is None:
+            # backwards-compatbility bug where prob_constructive wasn't
+            # set, but the endpoints for prob_reasoning and prob_constructive
+            # are actually the same.
+            post.prob_constructive = post.prob_reasoning
         # if sociopolitical, uprank/downrank based on toxicity/constructiveness.
         treatment_coef = (
             post.prob_toxic * coef_toxicity
