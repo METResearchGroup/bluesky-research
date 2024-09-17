@@ -126,6 +126,8 @@ def _run(
         state: Optional[FirehoseSubscriptionStateCursorModel] = load_cursor_state_s3(
             service_name=name
         )
+        if state:
+            logger.info(f"Restarting cursor state with cursor={state.cursor}...")
     else:
         state = None
 
