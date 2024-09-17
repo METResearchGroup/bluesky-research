@@ -2,16 +2,12 @@
 
 import json
 import os
-from typing import Literal, Optional
 
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
-from lib.constants import root_local_data_directory
 from lib.helper import track_performance
 from services.ml_inference.models import PerspectiveApiLabelsModel
 from services.ml_inference.perspective_api.constants import (
-    perspective_api_root_s3_key,
-    previously_classified_post_uris_filename,
     root_cache_path,
 )
 
@@ -30,33 +26,6 @@ def load_previous_session_metadata() -> dict:
         return None
     latest_item = max(items, key=lambda x: x["current_classification_timestamp"])  # noqa
     return latest_item
-
-
-def load_previously_classified_post_uris(source: Literal["local", "s3"]) -> set[str]:  # noqa
-    """Loads previously classified post data.
-
-    Sets are not JSON-serializable, so we actually store the data as a list.
-
-    The URIs are in their original form
-    (i.e., at://{author_did}/app.bsky.feed.post/{post_id}) even though at
-    certain points, we extract the author DID and post ID to create a unique
-    key for the post.
-    """
-    full_key = os.path.join(
-        perspective_api_root_s3_key, previously_classified_post_uris_filename
-    )
-    if source == "s3":
-        previously_classified_uris: Optional[list[str]] = s3.read_json_from_s3(
-            key=full_key
-        )  # noqa
-    elif source == "local":
-        full_import_filepath = os.path.join(root_local_data_directory, full_key)
-        with open(full_import_filepath, "r") as f:
-            previously_classified_uris: Optional[list[str]] = json.load(f)
-    if not previously_classified_uris:
-        print("No previously classified post URIs found.")
-        return set()
-    return set(previously_classified_uris)
 
 
 def load_cached_post_uris() -> dict:
