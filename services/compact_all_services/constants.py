@@ -51,7 +51,7 @@ MAP_SERVICE_TO_METADATA = {
         "s3_prefix": os.path.join("in_network_user_activity", "create", "post"),
         "glue_table_name": "in_network_firehose_sync_posts",
         "primary_key": "uri",
-        "timestamp_field": "synctimestamp",
+        "timestamp_field": "created_at",
         "skip_deduping": False,
     },
     # each row is a unique relationship, so no deduping required.

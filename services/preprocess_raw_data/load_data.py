@@ -6,6 +6,7 @@ from typing import Literal, Optional
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
+from lib.constants import convert_pipeline_to_bsky_dt_format
 from lib.db.bluesky_models.embed import (
     ProcessedExternalEmbed,
     ProcessedRecordEmbed,
@@ -40,14 +41,18 @@ def load_previous_session_metadata():
 def load_latest_firehose_posts(
     timestamp: str, limit: Optional[int] = None
 ) -> list[ConsolidatedPostRecordModel]:
-    """Queries the firehose table for the latest posts."""
+    """Queries the firehose table for the latest posts.
+    Uses native Bluesky "created_at" field to get the most
+    accurate timestamp.
+    """
+    timestamp = convert_pipeline_to_bsky_dt_format(timestamp)
     query = f"""
     SELECT * FROM in_network_firehose_sync_posts
-    WHERE synctimestamp >= '{timestamp}'
+    WHERE created_at >= '{timestamp}'
     UNION ALL
     SELECT * FROM study_user_firehose_sync_posts
-    WHERE synctimestamp >= '{timestamp}'
-    ORDER BY synctimestamp DESC
+    WHERE created_at >= '{timestamp}'
+    ORDER BY created_at DESC
     {f"LIMIT {limit}" if limit else ""}
     """
     df = athena.query_results_as_df(query=query)

@@ -8,7 +8,12 @@ from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
-from lib.constants import current_datetime, current_datetime_str, timestamp_format
+from lib.constants import (
+    convert_pipeline_to_bsky_dt_format,
+    current_datetime,
+    current_datetime_str,
+    timestamp_format,
+)
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.serverless_cache import (
@@ -99,10 +104,11 @@ def load_latest_consolidated_enriched_posts(
     """Load the latest consolidated enriched posts."""
     lookback_datetime = current_datetime - timedelta(days=lookback_days)
     lookback_datetime_str = lookback_datetime.strftime(timestamp_format)
+    lookback_datetime_str = convert_pipeline_to_bsky_dt_format(lookback_datetime_str)
     query = f"""
     SELECT *
     FROM {consolidated_enriched_posts_table_name} 
-    WHERE synctimestamp > '{lookback_datetime_str}'
+    WHERE created_at > '{lookback_datetime_str}'
     """
     df = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
