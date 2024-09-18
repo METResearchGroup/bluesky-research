@@ -145,11 +145,7 @@ def consolidate_enrichment_integrations(
     similarity_dict = {score.uri: score for score in similarity_scores}
 
     # Get all unique URIs
-    all_uris = (
-        set(preprocessed_dict.keys())
-        & set(perspective_dict.keys())
-        & set(sociopolitical_dict.keys())
-    )
+    all_uris = set(preprocessed_dict.keys()) & set(perspective_dict.keys())
 
     # remove those that have been previously processed.
     all_uris = all_uris - load_previously_consolidated_enriched_post_uris()
@@ -196,12 +192,20 @@ def consolidate_enrichment_integrations(
             filtered_by_func=preprocessed.filtered_by_func,
             preprocessing_timestamp=preprocessed.preprocessing_timestamp,
             # Fields from SociopoliticalLabelsModel
-            llm_model_name=sociopolitical.llm_model_name,
-            sociopolitical_was_successfully_labeled=sociopolitical.was_successfully_labeled,
-            sociopolitical_reason=sociopolitical.reason,
-            sociopolitical_label_timestamp=sociopolitical.label_timestamp,
-            is_sociopolitical=sociopolitical.is_sociopolitical,
-            political_ideology_label=sociopolitical.political_ideology_label,
+            llm_model_name=(sociopolitical.llm_model_name if sociopolitical else None),
+            sociopolitical_was_successfully_labeled=(
+                sociopolitical.was_successfully_labeled if sociopolitical else False
+            ),
+            sociopolitical_reason=(sociopolitical.reason if sociopolitical else None),
+            sociopolitical_label_timestamp=(
+                sociopolitical.label_timestamp if sociopolitical else None
+            ),
+            is_sociopolitical=(
+                sociopolitical.is_sociopolitical if sociopolitical else False
+            ),
+            political_ideology_label=(
+                sociopolitical.political_ideology_label if sociopolitical else None
+            ),
             # Fields from PerspectiveApiLabelsModel
             perspective_was_successfully_labeled=perspective.was_successfully_labeled,
             perspective_reason=perspective.reason,

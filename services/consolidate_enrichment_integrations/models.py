@@ -99,7 +99,7 @@ class ConsolidatedEnrichedPostModel(BaseModel):
         default=None,
         description="Reason for why the post was not labeled successfully by the LLM.",
     )
-    sociopolitical_label_timestamp: str = Field(
+    sociopolitical_label_timestamp: Optional[str] = Field(
         ...,
         description="Timestamp when the post was labeled by the LLM (or, if labeling failed, when it was attempted).",
     )
