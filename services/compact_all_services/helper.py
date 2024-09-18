@@ -3,19 +3,36 @@ set of files.
 """
 
 import os
+from typing import Optional
 
 from lib.aws.athena import Athena
 from lib.aws.s3 import ROOT_BUCKET, S3
 from lib.log.logger import get_logger
 from lib.helper import generate_current_datetime_str, track_performance
-from services.compact_all_services.constants import (
-    MAP_SERVICE_TO_S3_PREFIX,
-    MAP_SERVICE_TO_SQL_QUERY,
-)
+from services.compact_all_services.constants import MAP_SERVICE_TO_METADATA
 
 athena = Athena()
 s3 = S3()
 logger = get_logger(__name__)
+
+
+def generate_service_sql_query(service: str, timestamp: Optional[str] = None) -> str:
+    """Creates a SQL query to get the rows for a particular service."""
+    glue_table_name = MAP_SERVICE_TO_METADATA[service]["glue_table_name"]
+    primary_key = MAP_SERVICE_TO_METADATA[service]["primary_key"]
+    timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
+    timestamp_filter = f"AND {timestamp_field} >= '{timestamp}'" if timestamp else ""
+    query = f"""
+    SELECT *
+    FROM (
+        SELECT *,
+        ROW_NUMBER() OVER (PARTITION BY {primary_key} ORDER BY {timestamp_field} DESC) AS row_num
+        FROM {glue_table_name}
+    ) ranked
+    WHERE row_num = 1
+    {timestamp_filter}
+    """
+    return query
 
 
 # TODO: write compacted data to a "compacted" filepath and then
@@ -52,7 +69,7 @@ def get_existing_keys(service: str, fetch_all_keys: bool = False) -> list[str]:
     "compacted" in the key.
     """
     existing_keys: list[str] = s3.list_keys_given_prefix(
-        MAP_SERVICE_TO_S3_PREFIX[service]
+        MAP_SERVICE_TO_METADATA[service]["s3_prefix"]
     )
     if not fetch_all_keys:
         existing_keys = [key for key in existing_keys if "compact" not in key]
@@ -84,7 +101,7 @@ def compact_single_service(service: str) -> None:
     latest_service_compaction_session: dict = get_service_compaction_session(service)
     timestamp = latest_service_compaction_session["compaction_timestamp"]
     print(f"Compacting data from {service} after {timestamp}")
-    query = MAP_SERVICE_TO_SQL_QUERY[service]
+    query = generate_service_sql_query(service, timestamp)
     existing_keys: list[str] = get_existing_keys(service)
     df = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
