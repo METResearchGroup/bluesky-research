@@ -207,6 +207,7 @@ def generate_vector_embeddings_and_calculate_similarity_scores(
         most_liked_average_embedding: torch.Tensor = get_average_embedding(
             most_liked_embeddings
         ).reshape(1, -1)  # [1, 768]
+        latest_key = None
     else:
         logger.info(
             "No most liked posts to embed. Loading latest averaged embedding from S3."
