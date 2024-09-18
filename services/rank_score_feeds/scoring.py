@@ -16,7 +16,7 @@ average_popular_post_like_count = 1250
 coef_toxicity = 0.965
 coef_constructiveness = 1.02
 superposter_coef = 0.95
-default_max_freshness_score = 1
+default_max_freshness_score = 3
 default_lookback_hours = default_lookback_days * 24
 freshness_decay_ratio: float = default_max_freshness_score / default_lookback_hours  # noqa
 
@@ -77,13 +77,13 @@ def score_post_freshness(
     if score_func == "linear":
         freshness_score: float = max_freshness_score - (post_age_hours * decay_ratio)
     elif score_func == "exponential":
-        a = max_freshness_score
+        a = 1
         decay_factor = 1 - decay_ratio
         lambda_factor = 0.95
-        freshness_score = (a * decay_factor * lambda_factor) ** post_age_hours
+        # gives a score between 0 and 1
+        freshness_coef = (a * decay_factor * lambda_factor) ** post_age_hours
 
-        # Ensure exp_score is capped to (0, max_score)
-        freshness_score = min(max(freshness_score, 0), max_freshness_score)
+        freshness_score = freshness_coef * max_freshness_score
 
     return freshness_score
 
