@@ -182,7 +182,7 @@ def preprocess_latest_raw_data(
     """Preprocesses the latest raw data."""
     logger.info(f"Preprocessing the latest raw data at {current_datetime_str}.")
     if backfill_duration is not None and backfill_period in ["days", "hours"]:
-        current_time = datetime.now()
+        current_time = datetime.now(timezone.utc)
         if backfill_period == "days":
             backfill_time = current_time - timedelta(days=backfill_duration)
             logger.info(f"Backfilling {backfill_duration} days of data.")
