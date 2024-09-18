@@ -2793,7 +2793,7 @@ resource "aws_glue_catalog_table" "user_session_logs" {
     }
     columns {
       name = "feed"
-      type = "array<struct<post:string>>"
+      type = "string"
     }
     columns {
       name = "timestamp"
