@@ -159,7 +159,7 @@ def consolidate_enrichment_integrations(
     for uri in all_uris:
         preprocessed = preprocessed_dict[uri]
         perspective = perspective_dict[uri]
-        sociopolitical = sociopolitical_dict[uri]
+        sociopolitical = sociopolitical_dict.get(uri, None)
         similarity = similarity_dict.get(uri, None)
 
         consolidated_post = ConsolidatedEnrichedPostModel(
