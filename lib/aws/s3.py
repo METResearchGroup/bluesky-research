@@ -186,11 +186,32 @@ class S3:
 
     @retry_on_aws_rate_limit
     def list_keys_given_prefix(self, prefix: str):
-        """Lists keys given a prefix in S3."""
-        response = self.client.list_objects_v2(Bucket=ROOT_BUCKET, Prefix=prefix)  # noqa
-        if "Contents" not in response:
-            return []
-        return [obj["Key"] for obj in response["Contents"]]
+        """Lists keys given a prefix in S3.
+
+        Truncates at 1,000 results, so we need to account for the case where
+        there's >1,000 results and introduce appropriate pagination.
+        """
+        keys = []
+        continuation_token = None
+
+        while True:
+            params = {"Bucket": ROOT_BUCKET, "Prefix": prefix}
+            if continuation_token:
+                params["ContinuationToken"] = continuation_token
+            response = self.client.list_objects_v2(**params)
+
+            if "Contents" in response:
+                keys.extend([obj["Key"] for obj in response["Contents"]])
+
+            # Check if there are more results and if so, paginate.
+            if not response.get("IsTruncated"):  # No more pages
+                break
+            continuation_token = response.get("NextContinuationToken")
+
+            if not continuation_token:
+                break
+
+        return keys
 
     @retry_on_aws_rate_limit
     def check_if_prefix_exists(self, prefix: str) -> bool:
