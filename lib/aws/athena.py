@@ -79,6 +79,7 @@ class Athena:
         output_location: str = DEFAULT_OUTPUT_LOCATION,
         max_waiting_tries: int = DEFAULT_MAX_WAITING_TRIES,
         workgroup: str = DEFAULT_WORKGROUP,
+        dtypes_map: Optional[dict] = None,
     ):
         _, result_key = self.run_query(
             query=query,
@@ -93,7 +94,7 @@ class Athena:
         if result_data is None:
             raise Exception("Failed to read query results from S3")
 
-        df = pd.read_csv(io.StringIO(result_data.decode("utf-8")))
+        df = pd.read_csv(io.StringIO(result_data.decode("utf-8")), dtype=dtypes_map)  # noqa
 
         return df
 
