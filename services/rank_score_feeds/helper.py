@@ -35,6 +35,7 @@ from services.rank_score_feeds.models import (
     ScoredPostModel,
 )
 from services.rank_score_feeds.scoring import calculate_post_scores
+from services.compact_all_services.constants import MAP_SERVICE_TO_METADATA
 
 consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"
@@ -110,7 +111,11 @@ def load_latest_consolidated_enriched_posts(
     FROM {consolidated_enriched_posts_table_name} 
     WHERE created_at > '{lookback_datetime_str}'
     """
-    df = athena.query_results_as_df(query)
+    # make sure that we load in the data correctly.
+    dtype_map = MAP_SERVICE_TO_METADATA["consolidated_enriched_post_records"][
+        "dtypes_map"
+    ]
+    df = athena.query_results_as_df(query, dtypes_map=dtype_map)
     df_dicts = df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     return [ConsolidatedEnrichedPostModel(**post) for post in df_dicts]
