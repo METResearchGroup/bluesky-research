@@ -27,11 +27,22 @@ MAP_SERVICE_TO_METADATA = {
         "skip_deduping": False,
     },
     "consolidated_enriched_post_records": {
-        "s3_prefix": "consolidated_enriched_post_records",
-        "glue_table_name": "consolidated_enriched_post_records",
+        "s3_prefix": "consolidated_enriched_post_records/test",
+        # TODO: revert back.
+        "glue_table_name": "consolidated_enriched_post_records_tmp",
         "primary_key": "uri",
         "timestamp_field": "consolidation_timestamp",
         "skip_deduping": False,
+        # https://pandas.pydata.org/pandas-docs/stable/user_guide/basics.html#basics-dtypes
+        # https://stackoverflow.com/questions/60377531/pandas-valueerror-integer-column-has-na-values-in-column-2
+        "dtypes_map": {
+            "labels": "object",
+            "like_count": "Int64",
+            "reply_count": "Int64",
+            "repost_count": "Int64",
+            "filtered_by_func": "object",
+            "sociopolitical_reason": "object",
+        },
     },
     "ml_inference_perspective_api": {
         "s3_prefix": "ml_inference_perspective_api",

@@ -94,7 +94,12 @@ class Athena:
         if result_data is None:
             raise Exception("Failed to read query results from S3")
 
-        df = pd.read_csv(io.StringIO(result_data.decode("utf-8")), dtype=dtypes_map)  # noqa
+        df = pd.read_csv(
+            io.StringIO(result_data.decode("utf-8")),
+            dtype=dtypes_map,
+            na_values=["", "NULL", "null", "NaN", "nan", "None", "none"],
+            keep_default_na=True,
+        )  # noqa
 
         return df
 

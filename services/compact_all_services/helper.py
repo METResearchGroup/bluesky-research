@@ -144,7 +144,8 @@ def compact_single_service(service: str) -> None:
             f"No files to compact for {service}. Only files, if any, are already compacted"
         )  # noqa
         return
-    df = athena.query_results_as_df(query)
+    dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", None)
+    df = athena.query_results_as_df(query, dtypes_map=dtypes_map)
     df_dicts = df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     logger.info(f"Successfully compacted data for {service}")
