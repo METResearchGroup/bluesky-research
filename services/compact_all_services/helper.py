@@ -205,16 +205,18 @@ def compact_migrate_s3_data_to_local_storage(
     This uses `export_data_to_local_storage` and just provides the related df
     to export.
     """
+    logger.info(f"Migrating service={service} from S3 to local storage")
     latest_service_compaction_session: dict = get_service_compaction_session(service)
     timestamp = latest_service_compaction_session.get("compaction_timestamp", None)
     if timestamp:
         print(f"Compacting data from {service} after {timestamp}")
     query = generate_service_sql_query(service, timestamp)
     dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", None)
-    df = athena.query_results_as_df(query, dtypes_map=dtypes_map)
+    df: pd.DataFrame = athena.query_results_as_df(query, dtypes_map=dtypes_map)
     export_data_to_local_storage(
         service=service, df=df, export_format=export_format, lookback_days=lookback_days
     )
+    logger.info(f"Successfully migrated service={service} from S3 to local storage")
 
 
 @track_performance
@@ -243,10 +245,20 @@ def compact_local_service(
 
 
 def compact_all_local_services():
-    services = []
+    services = [
+        "user_session_logs",
+        # "feed_analytics",
+        # "post_scores",
+        # "consolidated_enriched_post_records",
+        # "ml_inference_perspective_api",
+        # "ml_inference_sociopolitical",
+        # "in_network_user_activity",
+        # "scraped_user_social_network",
+    ]
     for service in services:
-        compact_local_service(service)
+        # compact_local_service(service)
+        compact_migrate_s3_data_to_local_storage(service=service)
 
 
 if __name__ == "__main__":
-    do_compact_services()
+    compact_all_local_services()

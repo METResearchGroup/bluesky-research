@@ -1,5 +1,6 @@
 """Generic helpers for loading local data."""
 
+from datetime import timedelta
 import gzip
 import json
 import os
@@ -7,6 +8,7 @@ from typing import Literal, Optional
 
 import pandas as pd
 
+from lib.constants import current_datetime, timestamp_format, default_lookback_days
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
@@ -178,10 +180,26 @@ def load_local_data() -> pd.DataFrame:
 
 
 def data_is_older_than_lookback(
-    start_timestamp: str, end_timestamp: str, lookback_days: int
+    end_timestamp: str, lookback_days: int = default_lookback_days
 ) -> bool:
-    """Returns True if the data is older than the lookback days."""
-    return True
+    """Returns True if the data is older than the lookback days.
+
+    Looks only at the start_timestamp and checks to see if the data is strictly
+    older than the lookback days.
+
+    For example, if we have some data from >=2024-05-01, at any point in
+    2024-05-01, if our lookback_date is 2024-05-01, then that data is not
+    strictly older than the lookback date.
+
+    We err on the conservative side; all data has to be older than the lookback
+    for it to be considered old. Since we chunk and group data by day, this should
+    lead to a maximum staleness < 24 hours past the threshold. We can make
+    this more strict if needed.
+    """
+    lookback_date = (current_datetime - timedelta(days=lookback_days)).strftime(
+        "%Y-%m-%d"
+    )
+    return end_timestamp < lookback_date
 
 
 def partition_data_by_date(df: pd.DataFrame, timestamp_field: str) -> list[dict]:
@@ -193,8 +211,29 @@ def partition_data_by_date(df: pd.DataFrame, timestamp_field: str) -> list[dict]
         "end_timestamp": str,
         "data": pd.DataFrame
     }
+
+    Transforms the timestamp field to a datetime field and then partitions the
+    data by date. Each day's data is stored in a separate dataframe.
     """
-    return []
+    df[timestamp_field] = pd.to_datetime(df[timestamp_field], format=timestamp_format)
+    df["partition_date"] = df[timestamp_field].dt.date
+
+    date_groups = df.groupby("partition_date")
+
+    output: list[dict] = []
+
+    for _, group in date_groups:
+        start_timestamp = group[timestamp_field].min().strftime(timestamp_format)
+        end_timestamp = group[timestamp_field].max().strftime(timestamp_format)
+        output.append(
+            {
+                "start_timestamp": start_timestamp,
+                "end_timestamp": end_timestamp,
+                "data": group,
+            }
+        )
+
+    return output
 
 
 def export_data_to_local_storage(
@@ -223,12 +262,17 @@ def export_data_to_local_storage(
         end_timestamp = chunk["end_timestamp"]
         file_created_timestamp = generate_current_datetime_str()
         filename = f"startTimestamp={start_timestamp}_endTimestamp={end_timestamp}_fileCreatedTimestamp={file_created_timestamp}.{export_format}"
-        if data_is_older_than_lookback(start_timestamp, end_timestamp, lookback_days):
+        if data_is_older_than_lookback(
+            end_timestamp=end_timestamp, lookback_days=lookback_days
+        ):
             subfolder = "cache"
         else:
             subfolder = "active"
         # /{root path}/{service-specific path}/{cache / active}/{filename}
-        local_export_fp = os.path.join(local_prefix, subfolder, filename)
+        folder_path = os.path.join(local_prefix, subfolder)
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        local_export_fp = os.path.join(folder_path, filename)
         if export_format == "jsonl":
             df.to_json(local_export_fp, orient="records", lines=True)
         elif export_format == "parquet":
