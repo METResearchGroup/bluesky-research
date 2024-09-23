@@ -8,6 +8,7 @@ from typing import Literal, Optional
 import pandas as pd
 
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 
@@ -199,7 +200,7 @@ def partition_data_by_date(df: pd.DataFrame, timestamp_field: str) -> list[dict]
 def export_data_to_local_storage(
     service: str,
     df: pd.DataFrame,
-    export_format: Literal["json", "parquet"],
+    export_format: Literal["jsonl", "parquet"],
     lookback_days: int,
 ) -> None:
     """Exports data to local storage.
@@ -217,17 +218,18 @@ def export_data_to_local_storage(
         df=df, timestamp_field=timestamp_field
     )
     for chunk in chunked_dfs:
-        base_local_export_fp = MAP_SERVICE_TO_METADATA[service]["local_export_fp"]
+        local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
         start_timestamp = chunk["start_timestamp"]
         end_timestamp = chunk["end_timestamp"]
-        filename = f"startTimestamp={start_timestamp}_endTimestamp={end_timestamp}.{export_format}"
+        file_created_timestamp = generate_current_datetime_str()
+        filename = f"startTimestamp={start_timestamp}_endTimestamp={end_timestamp}_fileCreatedTimestamp={file_created_timestamp}.{export_format}"
         if data_is_older_than_lookback(start_timestamp, end_timestamp, lookback_days):
             subfolder = "cache"
         else:
             subfolder = "active"
         # /{root path}/{service-specific path}/{cache / active}/{filename}
-        local_export_fp = os.path.join(base_local_export_fp, subfolder, filename)
-        if export_format == "json":
+        local_export_fp = os.path.join(local_prefix, subfolder, filename)
+        if export_format == "jsonl":
             df.to_json(local_export_fp, orient="records", lines=True)
         elif export_format == "parquet":
             partition_cols = MAP_SERVICE_TO_METADATA[service].get(
@@ -239,5 +241,44 @@ def export_data_to_local_storage(
         )  # noqa
 
 
-def load_data_from_local_storage(service: str) -> pd.DataFrame:
-    pass
+def list_filenames(
+    service: str, directories: Literal["cache", "active"] = ["active"]
+) -> list[str]:
+    """List files in local storage for a given service."""
+    local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
+    res = []
+    for directory in directories:
+        # TODO: check this implementation.
+        fp = os.path.join(local_prefix, directory)
+        for root, _, files in os.walk(fp):
+            for file in files:
+                res.append(os.path.join(root, file))
+    return res
+
+
+def delete_files(filepaths: list[str]) -> None:
+    """Delete files from local storage."""
+    logger.info(f"Deleting {len(filepaths)} files from local storage...\n\t{filepaths}")
+    for filepath in filepaths:
+        os.remove(filepath)
+    logger.info(f"Successfully deleted {len(filepaths)} files from local storage.")
+
+
+def load_service_cols(service: str) -> list[str]:
+    """Load the columns for a given service."""
+    return []
+
+
+def load_data_from_local_storage(
+    service: str,
+    directory: Literal["cache", "active"] = "active",
+    export_format: Literal["jsonl", "parquet"] = "parquet",
+) -> pd.DataFrame:
+    """Load data from local storage."""
+    filepaths = list_filenames(service=service, directories=[directory])
+    if export_format == "jsonl":
+        df = pd.read_json(filepaths, orient="records", lines=True)
+    elif export_format == "parquet":
+        columns: list[str] = load_service_cols(service)
+        df = pd.read_parquet(filepaths, columns=columns)
+    return df

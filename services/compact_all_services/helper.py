@@ -12,7 +12,9 @@ from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import ROOT_BUCKET, S3
 from lib.constants import default_lookback_days
 from lib.db.manage_local_data import (
+    delete_files,
     export_data_to_local_storage,
+    list_filenames,
     load_data_from_local_storage,
 )
 from lib.log.logger import get_logger
@@ -220,12 +222,24 @@ def compact_local_service(
     service: str,
     export_format: Literal["json", "parquet"] = default_export_format,
     lookback_days: int = default_lookback_days,
+    delete_old_files: bool = True,
 ):
-    """Compacts the local data for a service."""
+    """Compacts the local data for a service.
+
+    Loads the data from local storage and exports it to local storage. Then
+    optionally (default=True) deletes old files from previous compaction
+    sessions.
+    """
     df: pd.DataFrame = load_data_from_local_storage(service)
+    filenames: list[str] = list_filenames(service)
     export_data_to_local_storage(
         service=service, df=df, export_format=export_format, lookback_days=lookback_days
     )
+    if delete_old_files:
+        logger.info(
+            f"Deleting {len(filenames)} files from local storage for service={service}"
+        )
+        delete_files(filenames)
 
 
 def compact_all_local_services():
