@@ -3,11 +3,18 @@ set of files.
 """
 
 import os
-from typing import Optional
+from typing import Literal, Optional
+
+import pandas as pd
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import ROOT_BUCKET, S3
+from lib.constants import default_lookback_days
+from lib.db.manage_local_data import (
+    export_data_to_local_storage,
+    load_data_from_local_storage,
+)
 from lib.log.logger import get_logger
 from lib.helper import generate_current_datetime_str, track_performance
 from services.compact_all_services.constants import MAP_SERVICE_TO_METADATA
@@ -20,6 +27,8 @@ logger = get_logger(__name__)
 # I can use the existing compaction sessions DynamoDB table, since it's still
 # technically a compaction session.
 dynamodb_table_name = "compaction_sessions"
+
+default_export_format = "parquet"
 
 
 def generate_service_sql_query(service: str, timestamp: Optional[str] = None) -> str:
@@ -174,6 +183,55 @@ def do_compact_services() -> None:
     ]
     for service in services:
         compact_single_service(service)
+
+
+def compact_migrate_s3_data_to_local_storage(
+    service: str,
+    timestamp: Optional[str] = None,
+    export_format: Literal["json", "parquet"] = default_export_format,
+    lookback_days: int = default_lookback_days,
+):
+    """Migrates data from S3 to local storage and compacts it by date.
+
+    Steps:
+    1. Load data from S3 (via Athena) as a pandas dataframe.
+    2. Divide the dataframe into chunks, by day.
+    2. Write data to local storage. Each day's data is its own file. Determines
+    if the data is older than "lookback_days" and writes it to the "/cache"
+    path or the "/active" path.
+
+    This uses `export_data_to_local_storage` and just provides the related df
+    to export.
+    """
+    latest_service_compaction_session: dict = get_service_compaction_session(service)
+    timestamp = latest_service_compaction_session.get("compaction_timestamp", None)
+    if timestamp:
+        print(f"Compacting data from {service} after {timestamp}")
+    query = generate_service_sql_query(service, timestamp)
+    dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", None)
+    df = athena.query_results_as_df(query, dtypes_map=dtypes_map)
+    export_data_to_local_storage(
+        service=service, df=df, export_format=export_format, lookback_days=lookback_days
+    )
+
+
+@track_performance
+def compact_local_service(
+    service: str,
+    export_format: Literal["json", "parquet"] = default_export_format,
+    lookback_days: int = default_lookback_days,
+):
+    """Compacts the local data for a service."""
+    df: pd.DataFrame = load_data_from_local_storage(service)
+    export_data_to_local_storage(
+        service=service, df=df, export_format=export_format, lookback_days=lookback_days
+    )
+
+
+def compact_all_local_services():
+    services = []
+    for service in services:
+        compact_local_service(service)
 
 
 if __name__ == "__main__":

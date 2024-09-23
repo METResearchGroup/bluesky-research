@@ -12,6 +12,7 @@ from lib.constants import (
     convert_pipeline_to_bsky_dt_format,
     current_datetime,
     current_datetime_str,
+    default_lookback_days,
     timestamp_format,
 )
 from lib.helper import generate_current_datetime_str
@@ -28,7 +29,7 @@ from services.consolidate_enrichment_integrations.models import (
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.preprocess_raw_data.classify_language.model import classify
-from services.rank_score_feeds.constants import default_lookback_days, max_feed_length
+from services.rank_score_feeds.constants import max_feed_length
 from services.rank_score_feeds.models import (
     CustomFeedModel,
     CustomFeedPost,

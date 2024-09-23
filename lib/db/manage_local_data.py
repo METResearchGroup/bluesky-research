@@ -1,17 +1,26 @@
 """Generic helpers for loading local data."""
+
 import gzip
 import json
 import os
-from typing import Optional
+from typing import Literal, Optional
+
+import pandas as pd
+
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from lib.log.logger import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def load_jsonl_data(filepath: str) -> list[dict]:
     """Load JSONL data from a file, supporting gzipped files."""
-    if filepath.endswith('.gz'):
-        with gzip.open(filepath, 'rt', encoding='utf-8') as f:
+    if filepath.endswith(".gz"):
+        with gzip.open(filepath, "rt", encoding="utf-8") as f:
             data = [json.loads(line) for line in f]
     else:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             data = [json.loads(line) for line in f]
     return data
 
@@ -20,7 +29,7 @@ def write_jsons_to_local_store(
     source_directory: Optional[str] = None,
     records: Optional[list[dict]] = None,
     export_filepath: str = None,
-    compressed: bool = True
+    compressed: bool = True,
 ):
     """Writes local JSONs to local store. Writes as a .jsonl file.
 
@@ -38,7 +47,7 @@ def write_jsons_to_local_store(
     elif source_directory:
         for file in os.listdir(source_directory):
             if file.endswith(".json"):
-                with open(os.path.join(source_directory, file), 'r') as f:
+                with open(os.path.join(source_directory, file), "r") as f:
                     res.append(json.load(f))
     elif not source_directory and not records:
         raise ValueError("No source data provided.")
@@ -49,11 +58,11 @@ def write_jsons_to_local_store(
 
     # Write the JSON lines to a file
     if not compressed:
-        with open(export_filepath, 'w') as f:
+        with open(export_filepath, "w") as f:
             for item in res:
                 f.write(json.dumps(item) + "\n")
     else:
-        with gzip.open(intermediate_filepath, 'wt') as f:
+        with gzip.open(intermediate_filepath, "wt") as f:
             for item in res:
                 f.write(json.dumps(item) + "\n")
 
@@ -86,9 +95,7 @@ def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> li
                                 files_list.append(os.path.join(root, file))
                     elif month_dir == month:
                         # if same month, check days
-                        days = os.listdir(
-                            os.path.join(base_path, year_dir, month_dir)
-                        )
+                        days = os.listdir(os.path.join(base_path, year_dir, month_dir))
                         for day_dir in days:
                             # if same year + same month + more recent day,
                             # crawl all files.
@@ -104,7 +111,9 @@ def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> li
                             elif day_dir == day:
                                 # if same day, check hours
                                 hours = os.listdir(
-                                    os.path.join(base_path, year_dir, month_dir, day_dir)  # noqa
+                                    os.path.join(
+                                        base_path, year_dir, month_dir, day_dir
+                                    )  # noqa
                                 )
                                 for hour_dir in hours:
                                     # if same year + same month + same day +
@@ -114,16 +123,26 @@ def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> li
                                         # subdirectories, and add to list
                                         # of files
                                         hour_dir_path = os.path.join(
-                                            base_path, year_dir, month_dir, day_dir, hour_dir  # noqa
+                                            base_path,
+                                            year_dir,
+                                            month_dir,
+                                            day_dir,
+                                            hour_dir,  # noqa
                                         )
                                         for root, _, files in os.walk(hour_dir_path):  # noqa
                                             for file in files:
-                                                files_list.append(os.path.join(root, file))  # noqa
+                                                files_list.append(
+                                                    os.path.join(root, file)
+                                                )  # noqa
                                     elif hour_dir == hour:
                                         # if same hour, check minutes
                                         minutes = os.listdir(
                                             os.path.join(
-                                                base_path, year_dir, month_dir, day_dir, hour_dir  # noqa
+                                                base_path,
+                                                year_dir,
+                                                month_dir,
+                                                day_dir,
+                                                hour_dir,  # noqa
                                             )
                                         )
                                         for minute_dir in minutes:
@@ -135,10 +154,90 @@ def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> li
                                                 # subdirectories, and add to
                                                 # list of files
                                                 minute_dir_path = os.path.join(
-                                                    base_path, year_dir, month_dir, day_dir, hour_dir, minute_dir  # noqa
+                                                    base_path,
+                                                    year_dir,
+                                                    month_dir,
+                                                    day_dir,
+                                                    hour_dir,
+                                                    minute_dir,  # noqa
                                                 )
-                                                for root, _, files in os.walk(minute_dir_path):  # noqa
+                                                for root, _, files in os.walk(
+                                                    minute_dir_path
+                                                ):  # noqa
                                                     for file in files:
-                                                        files_list.append(os.path.join(root, file))  # noqa
+                                                        files_list.append(
+                                                            os.path.join(root, file)
+                                                        )  # noqa
 
     return files_list
+
+
+def load_local_data() -> pd.DataFrame:
+    pass
+
+
+def data_is_older_than_lookback(
+    start_timestamp: str, end_timestamp: str, lookback_days: int
+) -> bool:
+    """Returns True if the data is older than the lookback days."""
+    return True
+
+
+def partition_data_by_date(df: pd.DataFrame, timestamp_field: str) -> list[dict]:
+    """Partitions data by date.
+
+    Returns a list of dicts of the following format:
+    {
+        "start_timestamp": str,
+        "end_timestamp": str,
+        "data": pd.DataFrame
+    }
+    """
+    return []
+
+
+def export_data_to_local_storage(
+    service: str,
+    df: pd.DataFrame,
+    export_format: Literal["json", "parquet"],
+    lookback_days: int,
+) -> None:
+    """Exports data to local storage.
+
+    Any data older than "lookback_days" will be stored in the "/cache"
+    path while any data more recent than "lookback_days" will be stored in
+    the "/active" path.
+
+    Receives a generic dataframe and exports it to local storage.
+    """
+    # metadata needs to include timestamp field so that we can figure out what
+    # data is old vs. new
+    timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
+    chunked_dfs: list[dict] = partition_data_by_date(
+        df=df, timestamp_field=timestamp_field
+    )
+    for chunk in chunked_dfs:
+        base_local_export_fp = MAP_SERVICE_TO_METADATA[service]["local_export_fp"]
+        start_timestamp = chunk["start_timestamp"]
+        end_timestamp = chunk["end_timestamp"]
+        filename = f"startTimestamp={start_timestamp}_endTimestamp={end_timestamp}.{export_format}"
+        if data_is_older_than_lookback(start_timestamp, end_timestamp, lookback_days):
+            subfolder = "cache"
+        else:
+            subfolder = "active"
+        # /{root path}/{service-specific path}/{cache / active}/{filename}
+        local_export_fp = os.path.join(base_local_export_fp, subfolder, filename)
+        if export_format == "json":
+            df.to_json(local_export_fp, orient="records", lines=True)
+        elif export_format == "parquet":
+            partition_cols = MAP_SERVICE_TO_METADATA[service].get(
+                "partition_cols", None
+            )  # noqa
+            df.to_parquet(local_export_fp, index=False, partition_cols=partition_cols)
+        logger.info(
+            f"Successfully exported {service} data from S3 to local store ({local_export_fp}) as {export_format}"
+        )  # noqa
+
+
+def load_data_from_local_storage(service: str) -> pd.DataFrame:
+    pass
