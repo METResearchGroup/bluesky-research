@@ -224,7 +224,7 @@ def compact_local_service(
     service: str,
     export_format: Literal["json", "parquet"] = default_export_format,
     lookback_days: int = default_lookback_days,
-    delete_old_files: bool = True,
+    delete_old_files: bool = False,
 ):
     """Compacts the local data for a service.
 
@@ -256,8 +256,11 @@ def compact_all_local_services():
         # "scraped_user_social_network",
     ]
     for service in services:
-        # compact_local_service(service)
-        compact_migrate_s3_data_to_local_storage(service=service)
+        # compact_local_service(service, delete_old_files=True)
+        # compact_migrate_s3_data_to_local_storage(service=service)
+        # df = load_data_from_local_storage(service=service)
+        # breakpoint()
+        pass
 
 
 if __name__ == "__main__":

@@ -175,10 +175,6 @@ def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> li
     return files_list
 
 
-def load_local_data() -> pd.DataFrame:
-    pass
-
-
 def data_is_older_than_lookback(
     end_timestamp: str, lookback_days: int = default_lookback_days
 ) -> bool:
@@ -215,16 +211,26 @@ def partition_data_by_date(df: pd.DataFrame, timestamp_field: str) -> list[dict]
     Transforms the timestamp field to a datetime field and then partitions the
     data by date. Each day's data is stored in a separate dataframe.
     """
-    df[timestamp_field] = pd.to_datetime(df[timestamp_field], format=timestamp_format)
-    df["partition_date"] = df[timestamp_field].dt.date
+    df[f"{timestamp_field}_datetime"] = pd.to_datetime(
+        df[timestamp_field], format=timestamp_format
+    )
+    df["partition_date"] = df[f"{timestamp_field}_datetime"].dt.date
 
     date_groups = df.groupby("partition_date")
 
     output: list[dict] = []
 
     for _, group in date_groups:
-        start_timestamp = group[timestamp_field].min().strftime(timestamp_format)
-        end_timestamp = group[timestamp_field].max().strftime(timestamp_format)
+        start_timestamp = (
+            group[f"{timestamp_field}_datetime"].min().strftime(timestamp_format)
+        )
+        end_timestamp = (
+            group[f"{timestamp_field}_datetime"].max().strftime(timestamp_format)
+        )
+
+        # drop additional grouping columns
+        group = group.drop(columns=["partition_date", f"{timestamp_field}_datetime"])
+
         output.append(
             {
                 "start_timestamp": start_timestamp,
@@ -258,8 +264,9 @@ def export_data_to_local_storage(
     )
     for chunk in chunked_dfs:
         local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
-        start_timestamp = chunk["start_timestamp"]
-        end_timestamp = chunk["end_timestamp"]
+        start_timestamp: str = chunk["start_timestamp"]
+        end_timestamp: str = chunk["end_timestamp"]
+        chunk_df: pd.DataFrame = chunk["data"]
         file_created_timestamp = generate_current_datetime_str()
         filename = f"startTimestamp={start_timestamp}_endTimestamp={end_timestamp}_fileCreatedTimestamp={file_created_timestamp}.{export_format}"
         if data_is_older_than_lookback(
@@ -274,12 +281,14 @@ def export_data_to_local_storage(
             os.makedirs(folder_path)
         local_export_fp = os.path.join(folder_path, filename)
         if export_format == "jsonl":
-            df.to_json(local_export_fp, orient="records", lines=True)
+            chunk_df.to_json(local_export_fp, orient="records", lines=True)
         elif export_format == "parquet":
             partition_cols = MAP_SERVICE_TO_METADATA[service].get(
                 "partition_cols", None
             )  # noqa
-            df.to_parquet(local_export_fp, index=False, partition_cols=partition_cols)
+            chunk_df.to_parquet(
+                local_export_fp, index=False, partition_cols=partition_cols
+            )
         logger.info(
             f"Successfully exported {service} data from S3 to local store ({local_export_fp}) as {export_format}"
         )  # noqa
@@ -324,5 +333,8 @@ def load_data_from_local_storage(
         df = pd.read_json(filepaths, orient="records", lines=True)
     elif export_format == "parquet":
         columns: list[str] = load_service_cols(service)
-        df = pd.read_parquet(filepaths, columns=columns)
+        if columns:
+            df = pd.read_parquet(filepaths, columns=columns)
+        else:
+            df = pd.read_parquet(filepaths)
     return df
