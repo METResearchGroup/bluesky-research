@@ -3,8 +3,8 @@
 # Get the current directory
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Every 2 hours
-CRON_EXPRESSION="0 */2 * * *"
+# Run once per day at 2am Central Time (7am UTC)
+CRON_EXPRESSION="0 7 * * *"
 
 # Define the cron job command
 SBATCH_CRON_JOB="$CRON_EXPRESSION cd $DIR && sbatch submit_job.sh"
@@ -12,4 +12,4 @@ SBATCH_CRON_JOB="$CRON_EXPRESSION cd $DIR && sbatch submit_job.sh"
 # Add the cron job to the current user's crontab
 (crontab -l 2>/dev/null; echo "$SBATCH_CRON_JOB") | crontab -
 
-echo "Cron job created to run sbatch submit_job.sh every 2 hours."
+echo "Cron job created to run sbatch submit_job.sh once per day at 2am Central Time (7am UTC)."
