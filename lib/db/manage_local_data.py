@@ -335,6 +335,34 @@ def delete_files(filepaths: list[str]) -> None:
     logger.info(f"Successfully deleted {len(filepaths)} files from local storage.")
 
 
+def load_latest_session_timestamp(service: str) -> str:
+    pass
+
+
+def load_latest_sync_posts() -> pd.DataFrame:
+    pass
+
+
+def load_latest_most_liked_posts() -> pd.DataFrame:
+    pass
+
+
+def load_latest_preprocessed_posts() -> pd.DataFrame:
+    pass
+
+
+def load_latest_integration_posts(integration: str) -> pd.DataFrame:
+    pass
+
+
+def load_latest_integrations(integrations: list[str]) -> dict[str, pd.DataFrame]:
+    pass
+
+
+def load_latest_consolidated_posts() -> pd.DataFrame:
+    pass
+
+
 def load_service_cols(service: str) -> list[str]:
     """Load the columns for a given service."""
     return []
@@ -344,6 +372,7 @@ def load_data_from_local_storage(
     service: str,
     directory: Literal["cache", "active"] = "active",
     export_format: Literal["jsonl", "parquet"] = "parquet",
+    latest_timestamp: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load data from local storage."""
     filepaths = list_filenames(service=service, directories=[directory])
@@ -355,4 +384,54 @@ def load_data_from_local_storage(
             df = pd.read_parquet(filepaths, columns=columns)
         else:
             df = pd.read_parquet(filepaths)
+    if latest_timestamp:
+        logger.info(f"Fetching data after timestamp={latest_timestamp}")
+        timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
+        df = df[df[timestamp_field] >= latest_timestamp]
+    return df
+
+
+def _validate_service(service: str) -> bool:
+    pass
+
+
+def load_latest_data(service: str, max_per_source: Optional[int] = None):
+    """Loads the latest data for a service."""
+    latest_timestamp = load_latest_session_timestamp(service=service)
+    if not _validate_service(service=service):
+        raise ValueError(f"Invalid service: {service}")
+    if service == "preprocess_raw_posts":
+        latest_sync_posts_df: pd.DataFrame = load_data_from_local_storage(
+            service="sync_firehose", latest_timestamp=latest_timestamp
+        )
+        latest_most_liked_posts_df: pd.DataFrame = load_data_from_local_storage(
+            service="sync_most_liked", latest_timestamp=latest_timestamp
+        )
+        # TODO: check if this UNION ALL/Concat syntax is correct.
+        df = pd.concat([latest_sync_posts_df, latest_most_liked_posts_df])
+    elif service == "consolidate_enrichment_integrations":
+        # append the results for each integration
+        dfs = []
+        integration_services = [
+            "generate_vector_embeddings",
+            "calculate_superposters",  # TODO: check the name. Also implement compaction.
+            "ml_inference_perspective_api",
+            "ml_inference_sociopolitical",
+        ]
+        for integration_service in integration_services:
+            integration_df = load_data_from_local_storage(
+                service=integration_service, latest_timestamp=latest_timestamp
+            )
+            dfs.append(integration_df)
+        df = pd.concat(dfs)
+    elif service == "rank_score_feeds":
+        df = load_data_from_local_storage(
+            service="consolidate_enrichment_integrations",
+            latest_timestamp=latest_timestamp,
+        )
+    else:
+        # most services just need the latest preprocessed raw data.
+        df = load_data_from_local_storage(
+            service="preprocess_raw_data", latest_timestamp=latest_timestamp
+        )
     return df
