@@ -4,7 +4,7 @@ from datetime import timedelta
 import gzip
 import json
 import os
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 import pandas as pd
 
@@ -399,7 +399,7 @@ def load_latest_data(
     service: str,
     latest_timestamp: Optional[str] = None,
     max_per_source: Optional[int] = None,
-):
+) -> Union[pd.DataFrame, dict[str, pd.DataFrame]]:
     """Loads the latest data for a service."""
     if not latest_timestamp:
         latest_timestamp = load_latest_session_timestamp(service=service)
@@ -415,25 +415,34 @@ def load_latest_data(
         # TODO: check if this UNION ALL/Concat syntax is correct.
         df = pd.concat([latest_sync_posts_df, latest_most_liked_posts_df])
     elif service == "consolidate_enrichment_integrations":
-        # append the results for each integration
-        dfs = []
-        integration_services = [
+        # return a map of each integration to each corresponding df.
+        service_to_df_map = {}
+        services_lst = [
+            "preprocess_raw_data",
             "generate_vector_embeddings",
             "calculate_superposters",  # TODO: check the name. Also implement compaction.
             "ml_inference_perspective_api",
             "ml_inference_sociopolitical",
         ]
-        for integration_service in integration_services:
+        for integration_service in services_lst:
             integration_df = load_data_from_local_storage(
                 service=integration_service, latest_timestamp=latest_timestamp
             )
-            dfs.append(integration_df)
-        df = pd.concat(dfs)
+            service_to_df_map[integration_service] = integration_df
+        return service_to_df_map
     elif service == "rank_score_feeds":
-        df = load_data_from_local_storage(
-            service="consolidate_enrichment_integrations",
-            latest_timestamp=latest_timestamp,
-        )
+        # fetch both the latest consolidated posts as well as the latest social networks
+        service_to_df_map = {}
+        services_lst = [
+            "consolidate_enrichment_integrations",
+            "scraped_user_social_network",
+        ]
+        for integration_service in services_lst:
+            integration_df = load_data_from_local_storage(
+                service=integration_service, latest_timestamp=latest_timestamp
+            )
+            service_to_df_map[integration_service] = integration_df
+        return service_to_df_map
     else:
         # most services just need the latest preprocessed raw data.
         df = load_data_from_local_storage(
