@@ -202,6 +202,11 @@ def data_is_older_than_lookback(
     return end_timestamp < lookback_date
 
 
+def truncate_string(s: str) -> str:
+    """Truncates the string after the first '.' or '+'."""
+    return s.split(".")[0] if "." in s else s.split("+")[0] if "+" in s else s
+
+
 def partition_data_by_date(
     df: pd.DataFrame, timestamp_field: str, timestamp_format: Optional[str] = None
 ) -> list[dict]:
@@ -219,6 +224,10 @@ def partition_data_by_date(
     """
     if not timestamp_format:
         timestamp_format = DEFAULT_TIMESTAMP_FORMAT
+
+    # clean timestamp field if relevant.
+    df[timestamp_field] = df[timestamp_field].apply(truncate_string)
+
     df[f"{timestamp_field}_datetime"] = pd.to_datetime(
         df[timestamp_field], format=timestamp_format
     )
