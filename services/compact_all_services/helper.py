@@ -246,13 +246,13 @@ def compact_local_service(
 
 def compact_all_local_services():
     services = [
-        "user_session_logs",
-        "feed_analytics",
-        "post_scores",
+        # "user_session_logs",
+        # "feed_analytics",
+        # "post_scores",
         # "daily_superposters", # TODO: come back to this.
-        "consolidated_enriched_post_records",
-        "ml_inference_perspective_api",
-        "ml_inference_sociopolitical",
+        # "consolidated_enriched_post_records",
+        # "ml_inference_perspective_api",
+        # "ml_inference_sociopolitical",
         "in_network_user_activity",
         "scraped_user_social_network",
     ]
