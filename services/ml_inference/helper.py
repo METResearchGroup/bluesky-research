@@ -2,9 +2,11 @@
 
 from typing import Literal, Optional
 
+import pandas as pd
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
+from lib.db.manage_local_data import load_latest_data
 from lib.log.logger import get_logger
 
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
@@ -66,7 +68,6 @@ def insert_labeling_session(labeling_session: dict):
 def get_posts_to_classify(
     inference_type: Literal["llm", "perspective_api"],
     timestamp: Optional[str] = None,
-    sort_descending: Optional[bool] = True,
     max_per_source: Optional[int] = None,
 ) -> list[FilteredPreprocessedPostModel]:
     """Get posts to classify.
@@ -98,9 +99,16 @@ def get_posts_to_classify(
         timestamp = latest_inference_timestamp
     logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")
-    posts = athena.get_latest_preprocessed_posts(
-        timestamp=timestamp,
-        sort_descending=sort_descending,
+    posts_df: pd.DataFrame = load_latest_data(
+        service=(
+            "ml_inference_perspective_api"
+            if inference_type == "perspective_api"
+            else "ml_inference_sociopolitical"
+        ),
+        latest_timestamp=latest_inference_timestamp,
         max_per_source=max_per_source,
     )
+    df_dicts = posts_df.to_dict(orient="records")
+    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    posts = [FilteredPreprocessedPostModel(**post_dict) for post_dict in df_dicts]  # noqa
     return posts

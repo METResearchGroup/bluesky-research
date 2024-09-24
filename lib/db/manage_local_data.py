@@ -395,9 +395,14 @@ def _validate_service(service: str) -> bool:
     pass
 
 
-def load_latest_data(service: str, max_per_source: Optional[int] = None):
+def load_latest_data(
+    service: str,
+    latest_timestamp: Optional[str] = None,
+    max_per_source: Optional[int] = None,
+):
     """Loads the latest data for a service."""
-    latest_timestamp = load_latest_session_timestamp(service=service)
+    if not latest_timestamp:
+        latest_timestamp = load_latest_session_timestamp(service=service)
     if not _validate_service(service=service):
         raise ValueError(f"Invalid service: {service}")
     if service == "preprocess_raw_posts":
@@ -434,4 +439,6 @@ def load_latest_data(service: str, max_per_source: Optional[int] = None):
         df = load_data_from_local_storage(
             service="preprocess_raw_data", latest_timestamp=latest_timestamp
         )
+    if max_per_source:
+        df = df.head(max_per_source)
     return df

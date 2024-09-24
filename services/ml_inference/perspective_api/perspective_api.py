@@ -38,9 +38,7 @@ def classify_latest_posts(
     else:
         timestamp = None
     posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
-        inference_type="perspective_api",
-        timestamp=timestamp,
-        sort_descending=True,
+        inference_type="perspective_api", timestamp=timestamp
     )
     logger.info(
         f"Classifying {len(posts_to_classify)} posts with the Perspective API..."

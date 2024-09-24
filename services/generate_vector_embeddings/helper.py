@@ -11,6 +11,7 @@ from transformers import AutoTokenizer, AutoModel
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
+from lib.db.manage_local_data import load_latest_data
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from services.generate_vector_embeddings.models import PostSimilarityScoreModel
@@ -94,8 +95,13 @@ def get_posts_to_embed() -> list[FilteredPreprocessedPostModel]:
         ]
 
     logger.info("Getting posts to embed.")
-    posts = athena.get_latest_preprocessed_posts(timestamp=latest_embedding_timestamp)
-    return posts
+    posts_df: pd.DataFrame = load_latest_data(
+        service="generate_vector_embeddings",
+        latest_timestamp=latest_embedding_timestamp,
+    )
+    df_dicts = posts_df.to_dict(orient="records")
+    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    return [FilteredPreprocessedPostModel(**post_dict) for post_dict in df_dicts]  # noqa
 
 
 def get_embeddings(
