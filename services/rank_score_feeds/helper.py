@@ -15,6 +15,7 @@ from lib.constants import (
     default_lookback_days,
     timestamp_format,
 )
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.serverless_cache import (
@@ -36,7 +37,6 @@ from services.rank_score_feeds.models import (
     ScoredPostModel,
 )
 from services.rank_score_feeds.scoring import calculate_post_scores
-from services.compact_all_services.constants import MAP_SERVICE_TO_METADATA
 
 consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"

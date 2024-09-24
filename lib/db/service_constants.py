@@ -25,6 +25,17 @@ MAP_SERVICE_TO_METADATA = {
         "skip_deduping": True,
         "pydantic_model": "",
     },
+    # TODO: update this.
+    # TODO: there will also be a complex dtype.
+    # "daily_superposters": {
+    #     "local_prefix": os.path.join(root_local_data_directory, "daily_superposters"),
+    #     "s3_prefix": "daily_superposters",
+    #     "glue_table_name": "daily_superposters",
+    #     "primary_key": "",
+    #     "timestamp_field": "session_timestamp",
+    #     "skip_deduping": True,
+    #     "pydantic_model": "",
+    # },
     "post_scores": {
         "local_prefix": os.path.join(root_local_data_directory, "post_scores"),
         "s3_prefix": "post_scores",
@@ -38,9 +49,8 @@ MAP_SERVICE_TO_METADATA = {
         "local_prefix": os.path.join(
             root_local_data_directory, "consolidated_enriched_post_records"
         ),
-        "s3_prefix": "consolidated_enriched_post_records/test",
-        # TODO: revert back.
-        "glue_table_name": "consolidated_enriched_post_records_tmp",
+        "s3_prefix": "consolidated_enriched_post_records",
+        "glue_table_name": "consolidated_enriched_post_records",
         "primary_key": "uri",
         "timestamp_field": "consolidation_timestamp",
         "skip_deduping": False,

@@ -17,9 +17,9 @@ from lib.db.manage_local_data import (
     list_filenames,
     load_data_from_local_storage,
 )
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
 from lib.helper import generate_current_datetime_str, track_performance
-from services.compact_all_services.constants import MAP_SERVICE_TO_METADATA
 
 athena = Athena()
 s3 = S3()
@@ -246,9 +246,10 @@ def compact_local_service(
 
 def compact_all_local_services():
     services = [
-        "user_session_logs",
+        # "user_session_logs",
         # "feed_analytics",
         # "post_scores",
+        # "daily_superposters", # TODO: come back to this.
         # "consolidated_enriched_post_records",
         # "ml_inference_perspective_api",
         # "ml_inference_sociopolitical",
@@ -257,9 +258,11 @@ def compact_all_local_services():
     ]
     for service in services:
         # compact_local_service(service, delete_old_files=True)
-        # compact_migrate_s3_data_to_local_storage(service=service)
-        # df = load_data_from_local_storage(service=service)
-        # breakpoint()
+        compact_migrate_s3_data_to_local_storage(service=service)
+        df = load_data_from_local_storage(service=service)
+        print(df.head())
+        print(df.shape)
+        breakpoint()
         pass
 
 
