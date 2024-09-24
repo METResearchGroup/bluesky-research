@@ -8,7 +8,7 @@ BLOCKED_AUTHORS = []
 # we only want recent posts (Bluesky docs recommend 3 days, see )
 NUM_DAYS_POST_RECENCY = 3
 timestamp_format = "%Y-%m-%d-%H:%M:%S"
-bsky_timestamp_format = "%Y-%m-%dT%H:%M:%S.%fZ"
+bsky_timestamp_format = "%Y-%m-%dT%H:%M:%S"
 current_datetime = datetime.now(timezone.utc)
 current_datetime_str = current_datetime.strftime(timestamp_format)
 
