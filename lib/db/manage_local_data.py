@@ -8,7 +8,11 @@ from typing import Literal, Optional
 
 import pandas as pd
 
-from lib.constants import current_datetime, timestamp_format, default_lookback_days
+from lib.constants import (
+    current_datetime,
+    timestamp_format as DEFAULT_TIMESTAMP_FORMAT,
+    default_lookback_days,
+)
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
@@ -198,7 +202,9 @@ def data_is_older_than_lookback(
     return end_timestamp < lookback_date
 
 
-def partition_data_by_date(df: pd.DataFrame, timestamp_field: str) -> list[dict]:
+def partition_data_by_date(
+    df: pd.DataFrame, timestamp_field: str, timestamp_format: Optional[str] = None
+) -> list[dict]:
     """Partitions data by date.
 
     Returns a list of dicts of the following format:
@@ -211,6 +217,8 @@ def partition_data_by_date(df: pd.DataFrame, timestamp_field: str) -> list[dict]
     Transforms the timestamp field to a datetime field and then partitions the
     data by date. Each day's data is stored in a separate dataframe.
     """
+    if not timestamp_format:
+        timestamp_format = DEFAULT_TIMESTAMP_FORMAT
     df[f"{timestamp_field}_datetime"] = pd.to_datetime(
         df[timestamp_field], format=timestamp_format
     )
@@ -259,8 +267,9 @@ def export_data_to_local_storage(
     # metadata needs to include timestamp field so that we can figure out what
     # data is old vs. new
     timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
+    timestamp_format = MAP_SERVICE_TO_METADATA[service].get("timestamp_format", None)
     chunked_dfs: list[dict] = partition_data_by_date(
-        df=df, timestamp_field=timestamp_field
+        df=df, timestamp_field=timestamp_field, timestamp_format=timestamp_format
     )
     for chunk in chunked_dfs:
         local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
