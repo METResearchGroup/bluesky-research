@@ -259,9 +259,10 @@ def compact_all_local_services():
     for service in services:
         # compact_local_service(service, delete_old_files=True)
         compact_migrate_s3_data_to_local_storage(service=service)
-        # df = load_data_from_local_storage(service=service)
-        # print(df.head())
-        # print(df.shape)
+        # TODO: remove "cache" after testing.
+        df = load_data_from_local_storage(service=service, directory="cache")
+        print(df.head())
+        print(df.shape)
         # breakpoint()
         # pass
 

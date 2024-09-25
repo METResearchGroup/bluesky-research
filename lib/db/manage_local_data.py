@@ -7,6 +7,7 @@ import os
 from typing import Literal, Optional, Union
 
 import pandas as pd
+import pyarrow as pa
 
 from lib.constants import (
     current_datetime,
@@ -303,6 +304,9 @@ def export_data_to_local_storage(
             subfolder = "cache"
         else:
             subfolder = "active"
+        # drop extra old column from group by
+        if "row_num" in chunk_df.columns:
+            chunk_df = chunk_df.drop(columns=["row_num"])
         # /{root path}/{service-specific path}/{cache / active}/{filename}
         folder_path = os.path.join(local_prefix, subfolder)
         if not os.path.exists(folder_path):
@@ -376,6 +380,29 @@ def load_latest_consolidated_posts() -> pd.DataFrame:
 def load_service_cols(service: str) -> list[str]:
     """Load the columns for a given service."""
     return []
+
+
+def pd_type_to_pa_type(pd_type):
+    """Convert pandas dtype to PyArrow type."""
+    if pd_type == "Int64":
+        return pa.int64()
+    elif pd_type == "float64":
+        return pa.float64()
+    elif pd_type == "bool":
+        return pa.bool_()
+    elif pd_type == "datetime64[ns]":
+        return pa.timestamp("ns")
+    else:
+        return pa.string()
+
+
+def get_service_pa_schema(service: str) -> Optional[pa.Schema]:
+    dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map")
+    if dtypes_map:
+        pa_schema = pa.schema(
+            [(col, pd_type_to_pa_type(dtype)) for col, dtype in dtypes_map.items()]
+        )
+    return pa_schema
 
 
 def load_data_from_local_storage(
