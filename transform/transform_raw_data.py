@@ -2,38 +2,51 @@
 
 Based on https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.defs.json
 """  # noqa
+
 from typing import Optional, Union
 
 from atproto_client.models.app.bsky.actor.defs import ProfileViewBasic
-from atproto_client.models.app.bsky.embed.external import External, Main as ExternalEmbed  # noqa
+from atproto_client.models.app.bsky.embed.external import (
+    External,
+    Main as ExternalEmbed,
+)  # noqa
 from atproto_client.models.app.bsky.embed.images import Image, Main as ImageEmbed  # noqa
 from atproto_client.models.app.bsky.embed.record import Main as RecordEmbed
-from atproto_client.models.app.bsky.embed.record_with_media import Main as RecordWithMediaEmbed  # noqa
+from atproto_client.models.app.bsky.embed.record_with_media import (
+    Main as RecordWithMediaEmbed,
+)  # noqa
 from atproto_client.models.app.bsky.feed.post import Entity, Record, ReplyRef
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost, PostView
-from atproto_client.models.app.bsky.richtext.facet import Link, Main as Facet, Mention, Tag  # noqa
+from atproto_client.models.app.bsky.richtext.facet import (
+    Link,
+    Main as Facet,
+    Mention,
+    Tag,
+)  # noqa
 from atproto_client.models.com.atproto.label.defs import SelfLabel, SelfLabels
 from atproto_client.models.com.atproto.repo.strong_ref import Main as StrongRef
 from atproto_client.models.dot_dict import DotDict
 
-from lib.constants import current_datetime_str
+from lib.helper import generate_current_datetime_str
 from lib.db.bluesky_models.transformations import (
     PostMetadataModel,
     TransformedFeedViewPostModel,
     TransformedProfileViewBasicModel,
     TransformedRecordWithAuthorModel,
-    TransformedRecordModel
+    TransformedRecordModel,
 )
 from lib.db.bluesky_models.embed import (
-    ProcessedEmbed, ProcessedExternalEmbed, ProcessedRecordEmbed,
-    ProcessedRecordWithMediaEmbed
+    ProcessedEmbed,
+    ProcessedExternalEmbed,
+    ProcessedRecordEmbed,
+    ProcessedRecordWithMediaEmbed,
 )
 
 
 # we use a semicolon since it's unlikely for text to use semicolons.
-LIST_SEPARATOR_CHAR = ';'
+LIST_SEPARATOR_CHAR = ";"
 # some old data might use commas, so this is here for backwards compatibility.
-LEGACY_CHAR_SEPARATORS = [';', ',']
+LEGACY_CHAR_SEPARATORS = [";", ","]
 
 
 def get_object_type_str(obj: object) -> str:
@@ -144,7 +157,7 @@ def process_facet(facet: Facet) -> str:
             reply=None,
             tags=None,
             py_type='app.bsky.feed.post'
-        ), 
+        ),
         'uri': 'at://did:plc:wxx27pahlilipwya5pnfdtvm/app.bsky.feed.post/3kktaiztebx2b',
         'cid': 'bafyreifralpf5msynbyix2r2beenubmcz5lzktejzvviq4bwx2ehqt6pzi',
         'author': 'did:plc:wxx27pahlilipwya5pnfdtvm'
@@ -327,7 +340,9 @@ def process_images(image_embed: ImageEmbed) -> str:
     For now, we just return the alt texts of the images, separated by ;
     (since , is likely used in the text itself).
     """
-    return LIST_SEPARATOR_CHAR.join([process_image(image) for image in image_embed.images])  # noqa
+    return LIST_SEPARATOR_CHAR.join(
+        [process_image(image) for image in image_embed.images]
+    )  # noqa
 
 
 def process_strong_ref(strong_ref: StrongRef) -> dict:
@@ -366,13 +381,13 @@ def process_external_embed(external_embed: ExternalEmbed) -> ProcessedExternalEm
     res = {
         "description": external.description,
         "title": external.title,
-        "uri": external.uri
+        "uri": external.uri,
     }
     return ProcessedExternalEmbed(**res)
 
 
 def process_record_with_media_embed(
-    record_with_media_embed: RecordWithMediaEmbed
+    record_with_media_embed: RecordWithMediaEmbed,
 ) -> ProcessedRecordWithMediaEmbed:
     """Processes a record with media embed, which is when a post both
     references another record as well as has media (i.e., image) attached.
@@ -402,7 +417,7 @@ def process_record_with_media_embed(
 
 
 def process_embed(
-    embed: Union[ExternalEmbed, ImageEmbed, RecordEmbed, RecordWithMediaEmbed]
+    embed: Union[ExternalEmbed, ImageEmbed, RecordEmbed, RecordWithMediaEmbed],
 ) -> ProcessedEmbed:
     """Processes embeds.
 
@@ -421,26 +436,17 @@ def process_embed(
     if embed is None:
         return ProcessedEmbed(**res)
 
-    if (
-        isinstance(embed, ImageEmbed)
-        or embed.py_type == "app.bsky.embed.images"
-    ):
+    if isinstance(embed, ImageEmbed) or embed.py_type == "app.bsky.embed.images":
         res["has_image"] = True
         image_alt_text: str = process_images(embed)
         res["image_alt_text"] = image_alt_text
 
-    if (
-        isinstance(embed, RecordEmbed)
-        or embed.py_type == "app.bsky.embed.record"
-    ):
+    if isinstance(embed, RecordEmbed) or embed.py_type == "app.bsky.embed.record":
         res["has_embedded_record"] = True
         embedded_record: ProcessedRecordEmbed = process_record_embed(embed)
         res["embedded_record"] = embedded_record
 
-    if (
-        isinstance(embed, ExternalEmbed)
-        or embed.py_type == "app.bsky.embed.external"
-    ):
+    if isinstance(embed, ExternalEmbed) or embed.py_type == "app.bsky.embed.external":
         res["has_external"] = True
         external_embed: ProcessedExternalEmbed = process_external_embed(embed)
         res["external"] = external_embed
@@ -451,7 +457,9 @@ def process_embed(
     ):
         res["has_image"] = True
         res["has_embedded_record"] = True
-        processed_embed: ProcessedRecordWithMediaEmbed = process_record_with_media_embed(embed)  # noqa
+        processed_embed: ProcessedRecordWithMediaEmbed = (
+            process_record_with_media_embed(embed)
+        )  # noqa
         image_alt_text: str = processed_embed.image_alt_text
         embedded_record: ProcessedRecordEmbed = processed_embed.embedded_record
         res["image_alt_text"] = image_alt_text
@@ -522,7 +530,7 @@ def process_firehose_post(post: dict) -> Optional[TransformedRecordWithAuthorMod
     metadata_dict = {
         "url": "",
         "source_feed": "firehose",
-        "synctimestamp": current_datetime_str
+        "synctimestamp": generate_current_datetime_str(),
     }
     metadata: PostMetadataModel = PostMetadataModel(**metadata_dict)
     try:
@@ -531,7 +539,7 @@ def process_firehose_post(post: dict) -> Optional[TransformedRecordWithAuthorMod
             "cid": post["cid"],
             "author": post["author"],
             "metadata": metadata,
-            "record": transformed_record
+            "record": transformed_record,
         }
         return TransformedRecordWithAuthorModel(**flattened_firehose_dict)
     except Exception as e:
@@ -548,7 +556,7 @@ def get_feedviewpost_metadata(
     metadata["url"] = f"https://bsky.app/profile/{handle}/post/{uri}"
     metadata["source_feed"] = enrichment_data["source_feed"]
     metadata["feed_url"] = enrichment_data["feed_url"]
-    metadata["synctimestamp"] = current_datetime_str
+    metadata["synctimestamp"] = generate_current_datetime_str()
     return metadata
 
 
@@ -566,18 +574,20 @@ def transform_post_record(record: Record) -> TransformedRecordModel:
         "reply_parent": processed_replies["reply_parent"],
         "reply_root": processed_replies["reply_root"],
         "tags": process_tags(record.tags),
-        "py_type": record.py_type
+        "py_type": record.py_type,
     }
     return TransformedRecordModel(**res)
 
 
-def transform_author_profile(author: ProfileViewBasic) -> TransformedProfileViewBasicModel:  # noqa
+def transform_author_profile(
+    author: ProfileViewBasic,
+) -> TransformedProfileViewBasicModel:  # noqa
     res = {
         "did": author.did,
         "handle": author.handle,
         "avatar": author.avatar,
         "display_name": author.display_name,
-        "py_type": author.py_type
+        "py_type": author.py_type,
     }
     return TransformedProfileViewBasicModel(**res)
 
@@ -590,11 +600,11 @@ def transform_feedview_post(
         post=post, enrichment_data=enrichment_data
     )
     raw_author: ProfileViewBasic = post.post.author
-    transformed_author: TransformedProfileViewBasicModel = (
-        transform_author_profile(author=raw_author)
+    transformed_author: TransformedProfileViewBasicModel = transform_author_profile(
+        author=raw_author
     )
-    transformed_record: TransformedRecordModel = (
-        transform_post_record(record=post.post.record)
+    transformed_record: TransformedRecordModel = transform_post_record(
+        record=post.post.record
     )
     res = {
         "metadata": metadata,
