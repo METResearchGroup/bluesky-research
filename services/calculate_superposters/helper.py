@@ -71,7 +71,7 @@ def calculate_latest_superposters(
         )
         SELECT author_did, count
         FROM ranked_users
-        WHERE created_at >= '{lookback_datetime_str}'
+        WHERE synctimestamp >= '{lookback_datetime_str}'
         AND row_num <= total_count * {top_n_percent}
         ORDER BY count DESC
         """  # noqa
@@ -79,7 +79,7 @@ def calculate_latest_superposters(
         query = f"""
         SELECT author_did, COUNT(*) as count
         FROM preprocessed_posts
-        WHERE created_at >= '{lookback_datetime_str}'
+        WHERE synctimestamp >= '{lookback_datetime_str}'
         GROUP BY author_did
         HAVING COUNT(*) >= {threshold}
         ORDER BY count DESC

@@ -41,18 +41,15 @@ def load_previous_session_metadata():
 def load_latest_firehose_posts(
     timestamp: str, limit: Optional[int] = None
 ) -> list[ConsolidatedPostRecordModel]:
-    """Queries the firehose table for the latest posts.
-    Uses native Bluesky "created_at" field to get the most
-    accurate timestamp.
-    """
+    """Queries the firehose table for the latest posts."""
     timestamp = convert_pipeline_to_bsky_dt_format(timestamp)
     query = f"""
     SELECT * FROM in_network_firehose_sync_posts
-    WHERE created_at >= '{timestamp}'
+    WHERE synctimestamp >= '{timestamp}'
     UNION ALL
     SELECT * FROM study_user_firehose_sync_posts
-    WHERE created_at >= '{timestamp}'
-    ORDER BY created_at DESC
+    WHERE synctimestamp >= '{timestamp}'
+    ORDER BY synctimestamp DESC
     {f"LIMIT {limit}" if limit else ""}
     """
     df = athena.query_results_as_df(query=query)

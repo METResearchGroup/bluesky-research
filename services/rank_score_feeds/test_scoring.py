@@ -22,7 +22,7 @@ def _load_latest_consolidated_enriched_posts(
     query = f"""
     SELECT *
     FROM consolidated_enriched_post_records 
-    WHERE created_at > '{lookback_datetime_str}'
+    WHERE synctimestamp > '{lookback_datetime_str}'
     """
     df = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")

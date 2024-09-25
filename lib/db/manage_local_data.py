@@ -203,8 +203,11 @@ def data_is_older_than_lookback(
 
 
 def truncate_string(s: str) -> str:
-    """Truncates the string after the first '.' or '+'."""
-    return s.split(".")[0] if "." in s else s.split("+")[0] if "+" in s else s
+    """Truncates the string after the first '.' or '+' or 'Z' (whichever comes first)."""
+    for delimiter in [".", "+", "Z"]:
+        if delimiter in s:
+            return s.split(delimiter)[0]
+    return s
 
 
 def partition_data_by_date(
@@ -228,9 +231,6 @@ def partition_data_by_date(
     # clean timestamp field if relevant.
     df[timestamp_field] = df[timestamp_field].apply(truncate_string)
 
-    df[f"{timestamp_field}_datetime"] = pd.to_datetime(
-        df[timestamp_field], format=timestamp_format
-    )
     df["partition_date"] = df[f"{timestamp_field}_datetime"].dt.date
 
     date_groups = df.groupby("partition_date")
@@ -238,11 +238,16 @@ def partition_data_by_date(
     output: list[dict] = []
 
     for _, group in date_groups:
+        # timestamps need to be transformed into the default format.
         start_timestamp = (
-            group[f"{timestamp_field}_datetime"].min().strftime(timestamp_format)
+            group[f"{timestamp_field}_datetime"]
+            .min()
+            .strftime(DEFAULT_TIMESTAMP_FORMAT)  # noqa
         )
         end_timestamp = (
-            group[f"{timestamp_field}_datetime"].max().strftime(timestamp_format)
+            group[f"{timestamp_field}_datetime"]
+            .max()
+            .strftime(DEFAULT_TIMESTAMP_FORMAT)
         )
 
         # drop additional grouping columns

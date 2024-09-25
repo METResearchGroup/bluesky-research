@@ -1,6 +1,6 @@
 """Constants for service."""
 
-from lib.constants import bsky_timestamp_format, root_local_data_directory
+from lib.constants import root_local_data_directory
 
 import os
 
@@ -95,8 +95,7 @@ MAP_SERVICE_TO_METADATA = {
         "s3_prefix": os.path.join("in_network_user_activity", "create", "post"),
         "glue_table_name": "in_network_firehose_sync_posts",
         "primary_key": "uri",
-        "timestamp_field": "created_at",
-        "timestamp_format": bsky_timestamp_format,
+        "timestamp_field": "synctimestamp",
         "skip_deduping": False,
         "pydantic_model": "",
     },

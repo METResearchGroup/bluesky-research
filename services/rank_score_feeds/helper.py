@@ -495,7 +495,7 @@ def do_rank_score_feeds(
 
     # reverse chronological: sort by most recent posts descending
     reverse_chronological_post_pool = sorted(
-        all_posts, key=lambda x: x["post"].created_at, reverse=True
+        all_posts, key=lambda x: x["post"].synctimestamp, reverse=True
     )
     reverse_chronological_post_pool: list[ConsolidatedEnrichedPostModel] = [
         post_score_dict["post"]
