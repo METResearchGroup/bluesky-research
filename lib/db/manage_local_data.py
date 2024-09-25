@@ -257,7 +257,7 @@ def partition_data_by_date(
         )
 
         # drop additional grouping columns
-        group = group.drop(columns=["partition_date", f"{timestamp_field}_datetime"])
+        group = group.drop(columns=[f"{timestamp_field}_datetime"])
 
         output.append(
             {
@@ -315,8 +315,10 @@ def export_data_to_local_storage(
         if export_format == "jsonl":
             chunk_df.to_json(local_export_fp, orient="records", lines=True)
         elif export_format == "parquet":
+            # by default, we partition on the timestamp field. This will
+            # allow us to use predicates when doing reads.
             partition_cols = MAP_SERVICE_TO_METADATA[service].get(
-                "partition_cols", None
+                "partition_cols", "partition_date"
             )  # noqa
             chunk_df.to_parquet(
                 local_export_fp, index=False, partition_cols=partition_cols
@@ -416,11 +418,21 @@ def load_data_from_local_storage(
     if export_format == "jsonl":
         df = pd.read_json(filepaths, orient="records", lines=True)
     elif export_format == "parquet":
+        if latest_timestamp:
+            # filter at least on the date field.
+            # We can't partition data on the timestamp since that's too fine-grained, but we can at least partition on date.
+            # This will give at least the subset of data on the correct date.
+            latest_timestamp_date = (
+                pd.to_datetime(latest_timestamp).date().strftime("%Y-%m-%d")
+            )
+            filters = [("partition_date", ">=", latest_timestamp_date)]
+        else:
+            filters = []
         columns: list[str] = load_service_cols(service)
         if columns:
-            df = pd.read_parquet(filepaths, columns=columns)
+            df = pd.read_parquet(filepaths, columns=columns, filters=filters)
         else:
-            df = pd.read_parquet(filepaths)
+            df = pd.read_parquet(filepaths, filters=filters)
     if latest_timestamp:
         logger.info(f"Fetching data after timestamp={latest_timestamp}")
         timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
