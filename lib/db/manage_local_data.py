@@ -259,6 +259,16 @@ def partition_data_by_date(
         # drop additional grouping columns
         group = group.drop(columns=[f"{timestamp_field}_datetime"])
 
+        # transform 'partition_date' to "YYYY-MM-DD" format.
+        group["partition_date"] = (
+            group["partition_date"]
+            .apply(lambda x: x.strftime("%Y-%m-%d"))
+            .astype("string")
+        )
+
+        # convert timestamp back to string type.
+        group[timestamp_field] = group[timestamp_field].astype("string")
+
         output.append(
             {
                 "start_timestamp": start_timestamp,
@@ -304,9 +314,10 @@ def export_data_to_local_storage(
             subfolder = "cache"
         else:
             subfolder = "active"
-        # drop extra old column from group by
-        if "row_num" in chunk_df.columns:
-            chunk_df = chunk_df.drop(columns=["row_num"])
+        # drop extra old column from compactions
+        for col in ["row_num", "startTimestamp"]:
+            if col in chunk_df.columns:
+                chunk_df = chunk_df.drop(columns=[col])
         # /{root path}/{service-specific path}/{cache / active}/{filename}
         folder_path = os.path.join(local_prefix, subfolder)
         if not os.path.exists(folder_path):
@@ -385,10 +396,13 @@ def load_service_cols(service: str) -> list[str]:
 
 
 def pd_type_to_pa_type(pd_type):
-    """Convert pandas dtype to PyArrow type."""
+    """Convert pandas dtype to PyArrow type.
+
+    Docs: https://arrow.apache.org/docs/python/api/datatypes.html
+    """
     if pd_type == "Int64":
         return pa.int64()
-    elif pd_type == "float64":
+    elif pd_type == "Float64":
         return pa.float64()
     elif pd_type == "bool":
         return pa.bool_()
@@ -399,11 +413,13 @@ def pd_type_to_pa_type(pd_type):
 
 
 def get_service_pa_schema(service: str) -> Optional[pa.Schema]:
-    dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map")
+    dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", None)
     if dtypes_map:
         pa_schema = pa.schema(
             [(col, pd_type_to_pa_type(dtype)) for col, dtype in dtypes_map.items()]
         )
+    else:
+        pa_schema = None
     return pa_schema
 
 
@@ -428,15 +444,40 @@ def load_data_from_local_storage(
             filters = [("partition_date", ">=", latest_timestamp_date)]
         else:
             filters = []
+        kwargs = {"path": filepaths}
         columns: list[str] = load_service_cols(service)
+        schema: Optional[pa.Schema] = get_service_pa_schema(service)
         if columns:
-            df = pd.read_parquet(filepaths, columns=columns, filters=filters)
-        else:
-            df = pd.read_parquet(filepaths, filters=filters)
+            kwargs["columns"] = columns
+        if schema:
+            kwargs["schema"] = schema
+        if filters:
+            kwargs["filters"] = filters
+        df = pd.read_parquet(**kwargs)
+        if schema:
+            # attempt to convert dtypes after the fact. Parquet doesn't preserve the exact same dtypes as pandas so I need to
+            # re-convert these after the fact.
+            dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", {})
+            for col, dtype in dtypes_map.items():
+                if dtype == "Int64":
+                    df[col] = df[col].astype("Int64")
+                elif dtype == "Float64":
+                    df[col] = df[col].astype("Float64")
+                elif dtype == "bool":
+                    df[col] = df[col].astype("bool")
+                elif dtype == "object":
+                    df[col] = df[col].astype("object")
+                elif dtype == "string":
+                    df[col] = df[col].astype("string")
     if latest_timestamp:
         logger.info(f"Fetching data after timestamp={latest_timestamp}")
         timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
         df = df[df[timestamp_field] >= latest_timestamp]
+    # drop extra columns that are added in during compaction steps.
+    # (these will be added back in during compaction anyways)
+    for col in ["row_num", "partition_date", "startTimestamp"]:
+        if col in df.columns:
+            df = df.drop(columns=[col])
     return df
 
 

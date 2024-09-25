@@ -32,6 +32,11 @@ dynamodb_table_name = "compaction_sessions"
 
 default_export_format = "parquet"
 
+pd.set_option("display.max_rows", None)
+pd.set_option("display.max_columns", None)
+pd.set_option("display.width", None)
+pd.set_option("display.max_colwidth", None)
+
 
 def generate_service_sql_query(service: str, timestamp: Optional[str] = None) -> str:
     """Creates a SQL query to get the rows for a particular service.
@@ -246,13 +251,13 @@ def compact_local_service(
 
 def compact_all_local_services():
     services = [
-        # "user_session_logs",
-        # "feed_analytics",
-        # "post_scores",
+        "user_session_logs",  # verified
+        "feed_analytics",  # verified
+        "post_scores",  # verified
         # "daily_superposters", # TODO: come back to this.
-        # "consolidated_enriched_post_records",
-        # "ml_inference_perspective_api",
-        # "ml_inference_sociopolitical",
+        "consolidated_enriched_post_records",  # TODO: do this plus the ones above it.
+        "ml_inference_perspective_api",
+        "ml_inference_sociopolitical",
         "in_network_user_activity",
         "scraped_user_social_network",
     ]
@@ -261,8 +266,12 @@ def compact_all_local_services():
         compact_migrate_s3_data_to_local_storage(service=service)
         # TODO: remove "cache" after testing.
         df = load_data_from_local_storage(service=service, directory="cache")
-        print(df.head())
+        # print(df.head())
+        print("-" * 20)
+        print(f"service={service}")
+        print(df.dtypes)
         print(df.shape)
+        print("-" * 20)
         # breakpoint()
         # pass
 
