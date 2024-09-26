@@ -5,6 +5,35 @@ from lib.constants import root_local_data_directory
 import os
 
 MAP_SERVICE_TO_METADATA = {
+    "study_user_activity": {
+        "local_prefix": os.path.join(root_local_data_directory, "study_user_activity"),
+        "s3_prefix": "study_user_activity",
+        "glue_table_name": "study_user_activity",
+        "primary_key": "",
+        "timestamp_field": "synctimestamp",
+        "skip_deduping": True,
+        "pydantic_model": "",
+        "subpaths": {
+            "like": os.path.join(
+                root_local_data_directory, "study_user_activity", "create", "like"
+            ),
+            "post": os.path.join(
+                root_local_data_directory, "study_user_activity", "create", "post"
+            ),
+            "like_on_user_post": os.path.join(
+                root_local_data_directory,
+                "study_user_activity",
+                "create",
+                "like_on_user_post",
+            ),
+            "reply_to_user_post": os.path.join(
+                root_local_data_directory,
+                "study_user_activity",
+                "create",
+                "reply_to_user_post",
+            ),
+        },
+    },
     "sync_most_liked_posts": {
         "local_prefix": os.path.join(root_local_data_directory, "sync", "most_liked"),
         "s3_prefix": "",

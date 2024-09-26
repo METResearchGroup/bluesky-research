@@ -51,13 +51,19 @@ import shutil
 from typing import Literal, Optional
 import uuid
 
+import pandas as pd
+
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
 from lib.aws.sqs import SQS
 from lib.constants import root_local_data_directory
 from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
-from lib.db.manage_local_data import write_jsons_to_local_store
+from lib.db.manage_local_data import (
+    write_jsons_to_local_store,
+    export_data_to_local_storage,
+)
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.participant_data.study_users import get_study_user_manager
@@ -272,7 +278,7 @@ def export_general_firehose_sync(
                 )
 
 
-def export_study_user_post_s3(base_path: str) -> list[dict]:
+def export_study_user_post_local(base_path: str) -> list[dict]:
     """Exports the post data of study users to external S3 store.
 
     The key will be structured as follows:
@@ -306,7 +312,7 @@ def export_study_user_post_s3(base_path: str) -> list[dict]:
     return jsons
 
 
-def export_study_user_follow_s3(base_path: str) -> list[dict]:
+def export_study_user_follow_local(base_path: str) -> list[dict]:
     """Exports the follow data of study users to external S3 store."""
     key_root: list[str] = base_path.split("/")[-2:]  # ['study_user_activity', 'create']
     key_root.append("follow")
@@ -388,7 +394,7 @@ def export_study_user_follow_s3(base_path: str) -> list[dict]:
     return scraped_user_social_network
 
 
-def export_study_user_like_s3(base_path: str) -> list[dict]:
+def export_study_user_like_local(base_path: str) -> list[dict]:
     """Exports the like data of study users to external S3 store.
 
     The key will be structured as follows:
@@ -426,7 +432,7 @@ def export_study_user_like_s3(base_path: str) -> list[dict]:
     return likes
 
 
-def export_like_on_study_user_post_s3(base_path: str) -> list[dict]:
+def export_like_on_study_user_post_local(base_path: str) -> list[dict]:
     """Exports a like on a post by a user in the study.
 
     The key will be structured as follows:
@@ -458,7 +464,7 @@ def export_like_on_study_user_post_s3(base_path: str) -> list[dict]:
     return likes_on_user_posts
 
 
-def export_reply_to_study_user_post_s3(base_path: str) -> list[dict]:
+def export_reply_to_study_user_post_local(base_path: str) -> list[dict]:
     """Exports a reply to a study user's post.
 
     The key will be structured as follows:
@@ -523,26 +529,30 @@ def export_study_user_activity_local_data():
             record_types = os.listdir(create_path)
             for record_type in record_types:
                 if record_type == "post":
-                    posts: list[dict] = export_study_user_post_s3(base_path=create_path)
+                    posts: list[dict] = export_study_user_post_local(
+                        base_path=create_path
+                    )
                     all_posts.extend(posts)
                 elif record_type == "like":
-                    likes: list[dict] = export_study_user_like_s3(base_path=create_path)
+                    likes: list[dict] = export_study_user_like_local(
+                        base_path=create_path
+                    )
                     all_likes.extend(likes)
                 elif record_type == "follow":
                     # NOTE: we export this to "scraped-user-social-network" to update
                     # the user's social network.
                     scraped_user_social_network: list[dict] = (
-                        export_study_user_follow_s3(base_path=create_path)
+                        export_study_user_follow_local(base_path=create_path)
                     )
                     all_follows.extend(scraped_user_social_network)
                 elif record_type == "like_on_user_post":
-                    likes_on_user_posts: list[dict] = export_like_on_study_user_post_s3(
-                        base_path=create_path
+                    likes_on_user_posts: list[dict] = (
+                        export_like_on_study_user_post_local(base_path=create_path)
                     )  # noqa
                     all_likes_on_user_posts.extend(likes_on_user_posts)
                 elif record_type == "reply_to_user_post":
                     replies_to_user_posts: list[dict] = (
-                        export_reply_to_study_user_post_s3(base_path=create_path)
+                        export_reply_to_study_user_post_local(base_path=create_path)
                     )  # noqa
                     all_replies_to_user_posts.extend(replies_to_user_posts)
         elif operation == "delete":
@@ -550,33 +560,30 @@ def export_study_user_activity_local_data():
             # it at some point but it's much lower priority.
             pass
 
-    # write all the data to S3.
-    timestamp = generate_current_datetime_str()
+    # export data
     if len(all_posts) > 0:
-        logger.info(f"Exporting {len(all_posts)} study user post records to S3.")
-        s3.write_dicts_jsonl_to_s3(
-            data=all_posts,
-            key=os.path.join(
-                "study_user_activity", "create", "post", f"{timestamp}.jsonl"
-            ),
+        logger.info(f"Exporting {len(all_posts)} study user post records.")
+        df = pd.DataFrame(all_posts)
+        custom_args = {"record_type": "post"}
+        export_data_to_local_storage(
+            df=df, service="study_user_activity", custom_args=custom_args
         )
-    # else:
-    #     logger.info("No study user post records to export.")
     if len(all_likes) > 0:
-        logger.info(f"Exporting {len(all_likes)} study user like records to S3.")
-        s3.write_dicts_jsonl_to_s3(
-            data=all_likes,
-            key=os.path.join(
-                "study_user_activity", "create", "like", f"{timestamp}.jsonl"
-            ),
+        logger.info(f"Exporting {len(all_likes)} study user like records    .")
+        df = pd.DataFrame(all_likes)
+        custom_args = {"record_type": "like"}
+        export_data_to_local_storage(
+            df=df, service="study_user_activity", custom_args=custom_args
         )
-    # else:
-    #     logger.info("No study user like records to export.")
     if len(all_follows) > 0:
-        logger.info(f"Exporting {len(all_follows)} study user follow records to S3.")
-        s3.write_dicts_jsonl_to_s3(
-            data=all_follows,
-            key=os.path.join("scraped-user-social-network", f"{timestamp}.jsonl"),
+        logger.info(f"Exporting {len(all_follows)} study user follow records.")
+        dtypes_map = MAP_SERVICE_TO_METADATA["scraped_user_social_network"][
+            "dtypes_map"
+        ]
+        df = pd.DataFrame(all_follows)
+        df = df.astype(dtypes_map)
+        export_data_to_local_storage(
+            df=df, service="scraped_user_social_network", custom_args=custom_args
         )
         # if there are any new followed accounts, then we want to reload the list
         # of followed accounts.
@@ -587,38 +594,24 @@ def export_study_user_activity_local_data():
             study_user_manager.in_network_user_dids_set = (
                 study_user_manager._load_in_network_user_dids(is_refresh=True)  # noqa
             )
-    # else:
-    #     logger.info("No study user follow records to export.")
     if len(all_likes_on_user_posts) > 0:
         logger.info(
-            f"Exporting {len(all_likes_on_user_posts)} study user like on user post records to S3."
+            f"Exporting {len(all_likes_on_user_posts)} study user like on user post records."
         )
-        s3.write_dicts_jsonl_to_s3(
-            data=all_likes_on_user_posts,
-            key=os.path.join(
-                "study_user_activity",
-                "create",
-                "like_on_user_post",
-                f"{timestamp}.jsonl",
-            ),
+        df = pd.DataFrame(all_likes_on_user_posts)
+        custom_args = {"record_type": "like_on_user_post"}
+        export_data_to_local_storage(
+            df=df, service="study_user_activity", custom_args=custom_args
         )
-    # else:
-    #     logger.info("No study user like on user post records to export.")
     if len(all_replies_to_user_posts) > 0:
         logger.info(
-            f"Exporting {len(all_replies_to_user_posts)} study user reply to user post records to S3."
+            f"Exporting {len(all_replies_to_user_posts)} study user reply to user post records."
         )
-        s3.write_dicts_jsonl_to_s3(
-            data=all_replies_to_user_posts,
-            key=os.path.join(
-                "study_user_activity",
-                "create",
-                "reply_to_user_post",
-                f"{timestamp}.jsonl",
-            ),
+        df = pd.DataFrame(all_replies_to_user_posts)
+        custom_args = {"record_type": "reply_to_user_post"}
+        export_data_to_local_storage(
+            df=df, service="study_user_activity", custom_args=custom_args
         )
-    # else:
-    #     logger.info("No study user reply to user post records to export.")
 
 
 def export_in_network_user_activity_local_data():

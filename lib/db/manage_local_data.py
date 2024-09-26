@@ -299,6 +299,7 @@ def export_data_to_local_storage(
     df: pd.DataFrame,
     export_format: Literal["jsonl", "parquet"],
     lookback_days: int = default_lookback_days,
+    custom_args: Optional[dict] = None,
 ) -> None:
     """Exports data to local storage.
 
@@ -316,7 +317,13 @@ def export_data_to_local_storage(
         df=df, timestamp_field=timestamp_field, timestamp_format=timestamp_format
     )
     for chunk in chunked_dfs:
-        local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
+        # processing specific for firehose
+        if service == "study_user_activity":
+            record_type = custom_args["record_type"]
+            local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
+        else:
+            # generic processing
+            local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
         start_timestamp: str = chunk["start_timestamp"]
         end_timestamp: str = chunk["end_timestamp"]
         chunk_df: pd.DataFrame = chunk["data"]
