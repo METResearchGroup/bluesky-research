@@ -1,5 +1,6 @@
 """Export preprocessing data."""
 
+import json
 import os
 
 import pandas as pd
@@ -56,6 +57,9 @@ def export_latest_preprocessed_posts(
         df["partition_date"] = pd.to_datetime(
             df["preprocessing_timestamp"], format=timestamp_format
         ).dt.date
+        df["embed"] = df["embed"].apply(
+            lambda x: json.dumps(x) if isinstance(x, dict) else x
+        )
         df = df.astype(dtype_map)
         export_data_to_local_storage(
             service="preprocessed_posts", df=df, custom_args={"source": feed_type}

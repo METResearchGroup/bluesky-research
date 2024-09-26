@@ -376,17 +376,25 @@ def list_filenames(
     service: str, directories: Literal["cache", "active"] = ["active"]
 ) -> list[str]:
     """List files in local storage for a given service."""
-    local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
-    if service == "study_user_activity":
-        record_type = "post"  # we only fetch the posts from study users.
-        local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
+    if service == "preprocessed_posts":
+        local_prefixes = []
+        subpaths = MAP_SERVICE_TO_METADATA[service]["subpaths"]
+        for _, subpath in subpaths.items():
+            local_prefixes.append(subpath)
+    else:
+        local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
+        if service == "study_user_activity":
+            record_type = "post"  # we only fetch the posts from study users.
+            local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
+        local_prefixes = [local_prefix]
     res = []
-    for directory in directories:
-        # TODO: check this implementation.
-        fp = os.path.join(local_prefix, directory)
-        for root, _, files in os.walk(fp):
-            for file in files:
-                res.append(os.path.join(root, file))
+    for local_prefix in local_prefixes:
+        for directory in directories:
+            # TODO: check this implementation.
+            fp = os.path.join(local_prefix, directory)
+            for root, _, files in os.walk(fp):
+                for file in files:
+                    res.append(os.path.join(root, file))
     return res
 
 
@@ -471,7 +479,7 @@ def load_data_from_local_storage(
     directory: Literal["cache", "active"] = "active",
     export_format: Literal["jsonl", "parquet"] = "parquet",
     latest_timestamp: Optional[str] = None,
-    use_all_data: bool = True,
+    use_all_data: bool = False,
 ) -> pd.DataFrame:
     """Load data from local storage."""
     directories = [directory]
@@ -543,16 +551,7 @@ def load_latest_data(
         latest_timestamp = load_latest_session_timestamp(service=service)
     if not _validate_service(service=service):
         raise ValueError(f"Invalid service: {service}")
-    if service == "preprocess_raw_posts":
-        latest_sync_posts_df: pd.DataFrame = load_data_from_local_storage(
-            service="sync_firehose", latest_timestamp=latest_timestamp
-        )
-        latest_most_liked_posts_df: pd.DataFrame = load_data_from_local_storage(
-            service="sync_most_liked", latest_timestamp=latest_timestamp
-        )
-        # TODO: check if this UNION ALL/Concat syntax is correct.
-        df = pd.concat([latest_sync_posts_df, latest_most_liked_posts_df])
-    elif service == "consolidate_enrichment_integrations":
+    if service == "consolidate_enrichment_integrations":
         # return a map of each integration to each corresponding df.
         service_to_df_map = {}
         services_lst = [
@@ -584,7 +583,7 @@ def load_latest_data(
     else:
         # most services just need the latest preprocessed raw data.
         df = load_data_from_local_storage(
-            service="preprocess_raw_data", latest_timestamp=latest_timestamp
+            service="preprocessed_posts", latest_timestamp=latest_timestamp
         )
     if max_per_source:
         df = df.head(max_per_source)
