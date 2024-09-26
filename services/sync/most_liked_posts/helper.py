@@ -5,16 +5,18 @@ import os
 from typing import Union
 
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost
+import pandas as pd
 
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3, SYNC_KEY_ROOT
 from lib.aws.sqs import SQS
-from lib.constants import current_datetime_str, root_local_data_directory
+from lib.constants import current_datetime_str
 from lib.db.bluesky_models.transformations import (
     TransformedFeedViewPostModel,
     TransformedRecordModel,
 )
-from lib.db.manage_local_data import write_jsons_to_local_store
+from lib.db.manage_local_data import export_data_to_local_storage
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
 from services.consolidate_post_records.helper import consolidate_feedview_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
@@ -115,16 +117,13 @@ def export_posts(
     consolidated_post_dicts = [post.dict() for post in posts]
     filename = "posts.jsonl"
     if store_local:
-        full_export_filepath = os.path.join(
-            root_local_data_directory, root_most_liked_s3_key, timestamp_key, filename
+        dtypes_map = MAP_SERVICE_TO_METADATA["sync_most_liked_posts"]["dtypes_map"]
+        df = pd.DataFrame(data=consolidated_post_dicts)
+        df = df.astype(dtypes_map)  # oddly, doing dtype=dtypes_map doesn't work
+        export_data_to_local_storage(
+            service="sync_most_liked_posts", df=df, export_format="parquet"
         )
-        print(f"Exporting most liked posts to local store at {full_export_filepath}")  # noqa
-        write_jsons_to_local_store(
-            records=consolidated_post_dicts,
-            export_filepath=full_export_filepath,
-            compressed=True,
-        )
-        print(f"Exported {len(posts)} posts to local store at {full_export_filepath}")  # noqa
+        logger.info(f"Exported {len(posts)} posts to local storage")
     if store_remote:
         full_key = os.path.join(root_most_liked_s3_key, timestamp_key, filename)
         print(f"Exporting most liked posts to S3 at {full_key}")

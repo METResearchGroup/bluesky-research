@@ -5,6 +5,40 @@ from lib.constants import root_local_data_directory
 import os
 
 MAP_SERVICE_TO_METADATA = {
+    "sync_most_liked_posts": {
+        "local_prefix": os.path.join(root_local_data_directory, "sync", "most_liked"),
+        "s3_prefix": "",
+        "glue_table_name": "",
+        "primary_key": "uri",
+        "timestamp_field": "synctimestamp",
+        "skip_deduping": True,
+        "pydantic_model": "",
+        "dtypes_map": {
+            "uri": "string",
+            "cid": "string",
+            "indexed_at": "string",
+            "author_did": "string",
+            "author_handle": "string",
+            "author_avatar": "string",
+            "author_display_name": "string",
+            "created_at": "string",
+            "text": "string",
+            "embed": "object",
+            "entities": "object",
+            "facets": "object",
+            "labels": "object",
+            "langs": "string",
+            "reply_parent": "string",
+            "reply_root": "string",
+            "tags": "string",
+            "synctimestamp": "string",
+            "url": "string",
+            "source": "string",
+            "like_count": "Int64",
+            "reply_count": "Int64",
+            "repost_count": "Int64",
+        },
+    },
     # user_session_logs shouldn't be deduped, each row already is
     # unique. Just need to compress.
     "user_session_logs": {
