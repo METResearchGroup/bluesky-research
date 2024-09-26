@@ -1,7 +1,6 @@
 """Helper functions for the consolidate_enrichment_integrations service."""
 
 from datetime import datetime, timedelta, timezone
-import os
 from typing import Optional
 
 import pandas as pd
@@ -10,6 +9,11 @@ from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import timestamp_format
+from lib.db.manage_local_data import (
+    export_data_to_local_storage,
+    load_data_from_local_storage,
+)
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from services.consolidate_enrichment_integrations.models import (
@@ -71,27 +75,28 @@ def insert_enrichment_consolidation_session(enrichment_consolidation_session: di
 def load_latest_preprocessed_posts(
     timestamp: str,
 ) -> list[FilteredPreprocessedPostModel]:
-    return athena.get_latest_preprocessed_posts(timestamp=timestamp)
+    df: pd.DataFrame = load_data_from_local_storage(
+        service="preprocessed_posts", latest_timestamp=timestamp
+    )
+    df_dicts = df.to_dict(orient="records")
+    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts_cleaned = [post for post in df_dicts if post["text"] is not None]
+    return [FilteredPreprocessedPostModel(**post) for post in df_dicts_cleaned]
 
 
 def load_previously_consolidated_enriched_post_uris() -> set[str]:
-    query = f"""
-    SELECT uri FROM {athena_table_name}
-    """
-    df = athena.query_results_as_df(query)
+    df = load_data_from_local_storage(
+        service="consolidated_enriched_post_records", latest_timestamp=None
+    )
     return set(df["uri"].tolist())
 
 
 def load_latest_perspective_api_labels(
     timestamp: str,
 ) -> list[PerspectiveApiLabelsModel]:
-    where_filter = f"label_timestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
-    query = f"""
-    SELECT * FROM ml_inference_perspective_api
-    WHERE {where_filter}
-    """
-
-    df: pd.DataFrame = athena.query_results_as_df(query)
+    df = load_data_from_local_storage(
+        service="ml_inference_perspective_api", latest_timestamp=timestamp
+    )
     df_dicts = df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     return [PerspectiveApiLabelsModel(**label) for label in df_dicts]
@@ -100,17 +105,16 @@ def load_latest_perspective_api_labels(
 def load_latest_sociopolitical_labels(
     timestamp: str,
 ) -> list[SociopoliticalLabelsModel]:
-    where_filter = f"label_timestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
-    query = f"""
-    SELECT * FROM ml_inference_sociopolitical
-    WHERE {where_filter}
-    """
-    df: pd.DataFrame = athena.query_results_as_df(query)
+    df = load_data_from_local_storage(
+        service="ml_inference_sociopolitical", latest_timestamp=timestamp
+    )
     df_dicts = df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     return [SociopoliticalLabelsModel(**label) for label in df_dicts]
 
 
+# NOTE: might have to be migrated at some point TBH.
+# Will revisit.
 def load_latest_similarity_scores(timestamp: str) -> list[PostSimilarityScoreModel]:
     where_filter = f"insert_timestamp > '{timestamp}'" if timestamp else "1=1"  # noqa
     query = f"""
@@ -145,7 +149,7 @@ def consolidate_enrichment_integrations(
     similarity_dict = {score.uri: score for score in similarity_scores}
 
     # Get all unique URIs
-    all_uris = set(preprocessed_dict.keys()) & set(perspective_dict.keys())
+    all_uris = set(preprocessed_dict.keys())
 
     # remove those that have been previously processed.
     all_uris = all_uris - load_previously_consolidated_enriched_post_uris()
@@ -158,7 +162,7 @@ def consolidate_enrichment_integrations(
 
     for uri in all_uris:
         preprocessed = preprocessed_dict[uri]
-        perspective = perspective_dict[uri]
+        perspective = perspective_dict.get(uri, None)
         sociopolitical = sociopolitical_dict.get(uri, None)
         similarity = similarity_dict.get(uri, None)
 
@@ -207,31 +211,39 @@ def consolidate_enrichment_integrations(
                 sociopolitical.political_ideology_label if sociopolitical else None
             ),
             # Fields from PerspectiveApiLabelsModel
-            perspective_was_successfully_labeled=perspective.was_successfully_labeled,
-            perspective_reason=perspective.reason,
-            perspective_label_timestamp=perspective.label_timestamp,
-            prob_toxic=perspective.prob_toxic,
-            prob_severe_toxic=perspective.prob_severe_toxic,
-            prob_identity_attack=perspective.prob_identity_attack,
-            prob_insult=perspective.prob_insult,
-            prob_profanity=perspective.prob_profanity,
-            prob_threat=perspective.prob_threat,
-            prob_affinity=perspective.prob_affinity,
-            prob_compassion=perspective.prob_compassion,
-            prob_constructive=perspective.prob_constructive,
-            prob_curiosity=perspective.prob_curiosity,
-            prob_nuance=perspective.prob_nuance,
+            perspective_was_successfully_labeled=(
+                perspective.was_successfully_labeled if perspective else False
+            ),
+            perspective_reason=(perspective.reason if perspective else None),
+            perspective_label_timestamp=(
+                perspective.label_timestamp if perspective else None
+            ),
+            prob_toxic=(perspective.prob_toxic if perspective else 0),
+            prob_severe_toxic=(perspective.prob_severe_toxic if perspective else 0),
+            prob_identity_attack=(
+                perspective.prob_identity_attack if perspective else 0
+            ),
+            prob_insult=(perspective.prob_insult if perspective else 0),
+            prob_profanity=(perspective.prob_profanity if perspective else 0),
+            prob_threat=(perspective.prob_threat if perspective else 0),
+            prob_affinity=(perspective.prob_affinity if perspective else 0),
+            prob_compassion=(perspective.prob_compassion if perspective else 0),
+            prob_constructive=(perspective.prob_constructive if perspective else 0),
+            prob_curiosity=(perspective.prob_curiosity if perspective else 0),
+            prob_nuance=(perspective.prob_nuance if perspective else 0),
             prob_personal_story=perspective.prob_personal_story,
-            prob_reasoning=perspective.prob_reasoning,
-            prob_respect=perspective.prob_respect,
-            prob_alienation=perspective.prob_alienation,
-            prob_fearmongering=perspective.prob_fearmongering,
-            prob_generalization=perspective.prob_generalization,
-            prob_moral_outrage=perspective.prob_moral_outrage,
-            prob_scapegoating=perspective.prob_scapegoating,
-            prob_sexually_explicit=perspective.prob_sexually_explicit,
-            prob_flirtation=perspective.prob_flirtation,
-            prob_spam=perspective.prob_spam,
+            prob_reasoning=(perspective.prob_reasoning if perspective else 0),
+            prob_respect=(perspective.prob_respect if perspective else 0),
+            prob_alienation=(perspective.prob_alienation if perspective else 0),
+            prob_fearmongering=(perspective.prob_fearmongering if perspective else 0),
+            prob_generalization=(perspective.prob_generalization if perspective else 0),
+            prob_moral_outrage=(perspective.prob_moral_outrage if perspective else 0),
+            prob_scapegoating=(perspective.prob_scapegoating if perspective else 0),
+            prob_sexually_explicit=(
+                perspective.prob_sexually_explicit if perspective else 0
+            ),
+            prob_flirtation=(perspective.prob_flirtation if perspective else 0),
+            prob_spam=(perspective.prob_spam if perspective else 0),
             # Fields from similarity_scores_results
             # (only the in-network posts will have similarity scores. The most-liked
             # posts will not have similarity scores.)
@@ -251,12 +263,20 @@ def consolidate_enrichment_integrations(
 
 def export_posts(posts: list[ConsolidatedEnrichedPostModel]):
     """Exports the posts to S3."""
+    if len(posts) == 0:
+        logger.info("No posts to export.")
+        return
     post_dicts = [post.dict() for post in posts]
-    s3.write_dicts_jsonl_to_s3(
-        data=post_dicts,
-        key=os.path.join(root_s3_key, f"{generate_current_datetime_str()}.jsonl"),  # noqa
-    )
-    logger.info(f"Exported {len(post_dicts)} posts to S3.")
+    dtype_map = MAP_SERVICE_TO_METADATA["consolidated_enriched_post_records"][
+        "dtypes_map"
+    ]  # noqa
+    df = pd.DataFrame(post_dicts)
+    df["partition_date"] = pd.to_datetime(
+        df["consolidation_timestamp"], format=timestamp_format
+    ).dt.date
+    df = df.astype(dtype_map)
+    export_data_to_local_storage(service="consolidated_enriched_post_records", df=df)
+    logger.info(f"Exported {len(post_dicts)} consolidated enriched posts.")
 
 
 @track_performance

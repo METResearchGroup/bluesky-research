@@ -14,8 +14,8 @@ def lambda_handler(event, context):
         logger.info("Starting to get most liked posts.")
         args = {
             "use_latest_local": False,
-            "store_local": False,
-            "store_remote": True,
+            "store_local": True,
+            "store_remote": False,
             "feeds": ["today"],
         }
         get_most_liked_posts(**args)

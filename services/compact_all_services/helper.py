@@ -3,14 +3,23 @@ set of files.
 """
 
 import os
-from typing import Optional
+from typing import Literal, Optional
+
+import pandas as pd
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import ROOT_BUCKET, S3
+from lib.constants import default_lookback_days
+from lib.db.manage_local_data import (
+    delete_files,
+    export_data_to_local_storage,
+    list_filenames,
+    load_data_from_local_storage,
+)
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
 from lib.helper import generate_current_datetime_str, track_performance
-from services.compact_all_services.constants import MAP_SERVICE_TO_METADATA
 
 athena = Athena()
 s3 = S3()
@@ -20,6 +29,13 @@ logger = get_logger(__name__)
 # I can use the existing compaction sessions DynamoDB table, since it's still
 # technically a compaction session.
 dynamodb_table_name = "compaction_sessions"
+
+default_export_format = "parquet"
+
+pd.set_option("display.max_rows", None)
+pd.set_option("display.max_columns", None)
+pd.set_option("display.width", None)
+pd.set_option("display.max_colwidth", None)
 
 
 def generate_service_sql_query(service: str, timestamp: Optional[str] = None) -> str:
@@ -176,5 +192,114 @@ def do_compact_services() -> None:
         compact_single_service(service)
 
 
+def compact_migrate_s3_data_to_local_storage(
+    service: str,
+    timestamp: Optional[str] = None,
+    export_format: Literal["json", "parquet"] = default_export_format,
+    lookback_days: int = default_lookback_days,
+):
+    """Migrates data from S3 to local storage and compacts it by date.
+
+    Steps:
+    1. Load data from S3 (via Athena) as a pandas dataframe.
+    2. Divide the dataframe into chunks, by day.
+    2. Write data to local storage. Each day's data is its own file. Determines
+    if the data is older than "lookback_days" and writes it to the "/cache"
+    path or the "/active" path.
+
+    This uses `export_data_to_local_storage` and just provides the related df
+    to export.
+    """
+    logger.info(f"Migrating service={service} from S3 to local storage")
+    latest_service_compaction_session: dict = get_service_compaction_session(service)
+    timestamp = latest_service_compaction_session.get("compaction_timestamp", None)
+    if timestamp:
+        print(f"Compacting data from {service} after {timestamp}")
+    query = generate_service_sql_query(service, timestamp)
+    dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", None)
+    df: pd.DataFrame = athena.query_results_as_df(query, dtypes_map=dtypes_map)
+    export_data_to_local_storage(
+        service=service, df=df, export_format=export_format, lookback_days=lookback_days
+    )
+    logger.info(f"Successfully migrated service={service} from S3 to local storage")
+
+
+@track_performance
+def compact_local_service(
+    service: str,
+    export_format: Literal["json", "parquet"] = default_export_format,
+    lookback_days: int = default_lookback_days,
+    delete_old_files: bool = True,
+):
+    """Compacts the local data for a service.
+
+    Loads the data from local storage and exports it to local storage. Then
+    optionally (default=True) deletes old files from previous compaction
+    sessions.
+    """
+    df: pd.DataFrame = load_data_from_local_storage(service)
+    filenames: list[str] = list_filenames(service)
+
+    if service in [
+        "preprocessed_posts",
+        "ml_inference_perspective_api",
+        "ml_inference_sociopolitical",
+    ]:
+        grouped = df.groupby("source")
+        firehose_df = grouped.get_group("firehose")
+        most_liked_df = grouped.get_group("most_liked")
+        export_data_to_local_storage(
+            service=service, df=firehose_df, custom_args={"source": "firehose"}
+        )
+        export_data_to_local_storage(
+            service=service, df=most_liked_df, custom_args={"source": "most_liked"}
+        )
+    elif service == "study_user_activity":
+        export_data_to_local_storage(
+            service=service, df=df, custom_args={"record_type": "post"}
+        )
+    else:
+        export_data_to_local_storage(
+            service=service,
+            df=df,
+            export_format=export_format,
+            lookback_days=lookback_days,
+        )
+    if delete_old_files:
+        logger.info(
+            f"Deleting {len(filenames)} files from local storage for service={service}"
+        )
+        delete_files(filenames)
+
+
+def compact_all_local_services():
+    services = [
+        "preprocessed_posts",  # NOTE: verified.
+        "in_network_user_activity",
+        "scraped_user_social_network",
+        "study_user_activity",
+        "sync_most_liked_posts",
+        "daily_superposters",
+        "user_session_logs",
+        "feed_analytics",
+        "post_scores",
+        "consolidated_enriched_post_records",
+        "ml_inference_sociopolitical",
+        "ml_inference_perspective_api",
+    ]
+    for service in services:
+        compact_local_service(service, delete_old_files=True)
+        # compact_migrate_s3_data_to_local_storage(service=service)
+        df = load_data_from_local_storage(service=service)
+        # print(df.head())
+        # print("-" * 20)
+        print(f"service={service}")
+        print(df.dtypes)
+        print(df.shape)
+        # print("-" * 20)
+        # breakpoint()
+        # pass
+
+
 if __name__ == "__main__":
-    do_compact_services()
+    compact_all_local_services()

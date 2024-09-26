@@ -3,6 +3,9 @@
 from datetime import timedelta
 import json
 import os
+from typing import Union
+
+import pandas as pd
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
@@ -12,8 +15,10 @@ from lib.constants import (
     convert_pipeline_to_bsky_dt_format,
     current_datetime,
     current_datetime_str,
+    default_lookback_days,
     timestamp_format,
 )
+from lib.db.manage_local_data import load_data_from_local_storage
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.serverless_cache import (
@@ -21,21 +26,19 @@ from lib.serverless_cache import (
     default_long_lived_ttl_seconds,
     ServerlessCache,
 )
-from services.calculate_superposters.helper import load_latest_superposters
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.preprocess_raw_data.classify_language.model import classify
-from services.rank_score_feeds.constants import default_lookback_days, max_feed_length
+from services.rank_score_feeds.constants import max_feed_length
 from services.rank_score_feeds.models import (
     CustomFeedModel,
     CustomFeedPost,
     ScoredPostModel,
 )
 from services.rank_score_feeds.scoring import calculate_post_scores
-from services.compact_all_services.constants import MAP_SERVICE_TO_METADATA
 
 consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"
@@ -98,44 +101,36 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
     logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3 and to cache.")
 
 
-# In practice, probably want to err on the side of more recent content.
-def load_latest_consolidated_enriched_posts(
+def load_latest_processed_data(
     lookback_days: int = default_lookback_days,
-) -> list[ConsolidatedEnrichedPostModel]:
-    """Load the latest consolidated enriched posts."""
+) -> dict[str, Union[dict, list[ConsolidatedEnrichedPostModel]]]:  # noqa
+    """Loads the latest consolidated enriched posts as well as the latest
+    user social network."""
     lookback_datetime = current_datetime - timedelta(days=lookback_days)
     lookback_datetime_str = lookback_datetime.strftime(timestamp_format)
     lookback_datetime_str = convert_pipeline_to_bsky_dt_format(lookback_datetime_str)
-    query = f"""
-    SELECT *
-    FROM {consolidated_enriched_posts_table_name} 
-    WHERE created_at > '{lookback_datetime_str}'
-    """
-    # make sure that we load in the data correctly.
-    dtype_map = MAP_SERVICE_TO_METADATA["consolidated_enriched_post_records"][
-        "dtypes_map"
-    ]
-    df = athena.query_results_as_df(query, dtypes_map=dtype_map)
-    df_dicts = df.to_dict(orient="records")
+
+    output = {}
+
+    # get posts
+    posts_df: pd.DataFrame = load_data_from_local_storage(
+        service="consolidated_enriched_post_records",
+        latest_timestamp=lookback_datetime_str,
+    )
+    df_dicts = posts_df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
-    return [ConsolidatedEnrichedPostModel(**post) for post in df_dicts]
+    df_models = [ConsolidatedEnrichedPostModel(**post) for post in df_dicts]
+    output["consolidate_enrichment_integrations"] = df_models
 
-
-def load_user_social_network() -> dict[str, list[str]]:
-    """Loads a user's social network (followees/followers).
-
-    Returns a list of users mapped to a list of their followees/followers
-    (list of DIDs).
-    """
-    query = f"""
-    SELECT * FROM {user_to_social_network_map_table_name}
-    """
-    df = athena.query_results_as_df(query)
-    df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    # get user social network
+    user_social_network_df: pd.DataFrame = load_data_from_local_storage(
+        service="scraped_user_social_network", latest_timestamp=lookback_datetime_str
+    )
+    social_dicts = user_social_network_df.to_dict(orient="records")
+    social_dicts = athena.parse_converted_pandas_dicts(social_dicts)
 
     res = {}
-    for row in df_dicts:
+    for row in social_dicts:
         if row["relationship_to_study_user"] == "follower":
             study_user_did = row["follow_did"]
             connection_did = row["follower_did"]
@@ -148,7 +143,17 @@ def load_user_social_network() -> dict[str, list[str]]:
         if study_user_did not in res:
             res[study_user_did] = []
         res[study_user_did].append(connection_did)
-    return res
+
+    output["scraped_user_social_network"] = res
+
+    # load latest superposters
+    superposters_df: pd.DataFrame = load_data_from_local_storage(
+        service="daily_superposters", latest_timestamp=lookback_datetime_str
+    )
+    superposters_lst: list[dict] = json.loads(superposters_df["superposters"].iloc[0])
+    output["superposters"] = set([res["author_did"] for res in superposters_lst])
+
+    return output
 
 
 def export_post_scores(post_uri_to_post_score_map: dict[str, str]):
@@ -406,9 +411,13 @@ def do_rank_score_feeds(
     logger.info("Starting rank score feeds.")
     # load data
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
-    consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = (
-        load_latest_consolidated_enriched_posts()
-    )
+    latest_data: dict = load_latest_processed_data()
+    consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = latest_data[
+        "consolidate_enrichment_integrations"
+    ]
+    user_to_social_network_map: dict = latest_data["scraped_user_social_network"]
+    superposter_dids: set[str] = latest_data["superposters"]
+    logger.info(f"Loaded {len(superposter_dids)} superposters.")  # noqa
 
     # immplement filtering (e.g., English-language filtering)
     # looks like Bluesky's language filter is broken, so I'll do my own manual
@@ -421,6 +430,7 @@ def do_rank_score_feeds(
     ]
     logger.info(f"Number of posts after filtering: {len(consolidated_enriched_posts)}")
 
+    # deduplication
     unique_uris = set()
     deduplicated_consolidated_enriched_posts = []
 
@@ -435,11 +445,8 @@ def do_rank_score_feeds(
         logger.info(
             f"Deduplicated posts from {len(consolidated_enriched_posts)} to {len(deduplicated_consolidated_enriched_posts)}."
         )
-    consolidated_enriched_posts = deduplicated_consolidated_enriched_posts
-    user_to_social_network_map: dict = load_user_social_network()
-    superposter_dids: set[str] = load_latest_superposters()
-    logger.info(f"Loaded {len(superposter_dids)} superposters.")  # noqa
 
+    consolidated_enriched_posts = deduplicated_consolidated_enriched_posts
     # calculate scores for all the posts
     post_scores: list[dict] = calculate_post_scores(
         posts=consolidated_enriched_posts,
@@ -493,7 +500,7 @@ def do_rank_score_feeds(
 
     # reverse chronological: sort by most recent posts descending
     reverse_chronological_post_pool = sorted(
-        all_posts, key=lambda x: x["post"].created_at, reverse=True
+        all_posts, key=lambda x: x["post"].synctimestamp, reverse=True
     )
     reverse_chronological_post_pool: list[ConsolidatedEnrichedPostModel] = [
         post_score_dict["post"]

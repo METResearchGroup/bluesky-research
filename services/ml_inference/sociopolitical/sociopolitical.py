@@ -222,10 +222,7 @@ def classify_latest_posts(
     else:
         timestamp = None
     posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
-        inference_type="llm",
-        timestamp=timestamp,
-        max_per_source=max_num_posts,
-        sort_descending=True,
+        inference_type="llm", timestamp=timestamp, max_per_source=max_num_posts
     )
     logger.info(f"Classifying {len(posts_to_classify)} posts with an LLM...")  # noqa
     if len(posts_to_classify) == 0:
@@ -254,7 +251,7 @@ def classify_latest_posts(
 
     # export cached results to S3 store.
     timestamp = generate_current_datetime_str()
-    results = export_results(current_timestamp=timestamp, external_stores=["s3"])
+    results = export_results()
     labeling_session = {
         "inference_type": "llm",
         "inference_timestamp": timestamp,
