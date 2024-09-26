@@ -18,7 +18,7 @@ from lib.constants import (
     default_lookback_days,
     timestamp_format,
 )
-from lib.db.manage_local_data import load_latest_data
+from lib.db.manage_local_data import load_data_from_local_storage
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.serverless_cache import (
@@ -109,21 +109,23 @@ def load_latest_processed_data(
     lookback_datetime = current_datetime - timedelta(days=lookback_days)
     lookback_datetime_str = lookback_datetime.strftime(timestamp_format)
     lookback_datetime_str = convert_pipeline_to_bsky_dt_format(lookback_datetime_str)
-    service_to_df_map: pd.DataFrame = load_latest_data(
-        service="rank_score_feeds",
-        latest_timestamp=lookback_datetime_str,
-    )
 
     output = {}
 
     # get posts
-    posts_df = service_to_df_map["consolidate_enrichment_integrations"]
+    posts_df: pd.DataFrame = load_data_from_local_storage(
+        service="consolidated_enriched_post_records",
+        latest_timestamp=lookback_datetime_str,
+    )
     df_dicts = posts_df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
-    output["consolidate_enrichment_integrations"] = df_dicts
+    df_models = [ConsolidatedEnrichedPostModel(**post) for post in df_dicts]
+    output["consolidate_enrichment_integrations"] = df_models
 
     # get user social network
-    user_social_network_df = service_to_df_map["scraped_user_social_network"]
+    user_social_network_df: pd.DataFrame = load_data_from_local_storage(
+        service="scraped_user_social_network", latest_timestamp=lookback_datetime_str
+    )
     social_dicts = user_social_network_df.to_dict(orient="records")
     social_dicts = athena.parse_converted_pandas_dicts(social_dicts)
 
@@ -144,9 +146,12 @@ def load_latest_processed_data(
 
     output["scraped_user_social_network"] = res
 
-    # TODO: load latest superposters
-    superposters: set[str] = set()
-    output["superposters"] = superposters
+    # load latest superposters
+    superposters_df: pd.DataFrame = load_data_from_local_storage(
+        service="daily_superposters", latest_timestamp=lookback_datetime_str
+    )
+    superposters_lst: list[dict] = json.loads(superposters_df["superposters"].iloc[0])
+    output["superposters"] = set([res["author_did"] for res in superposters_lst])
 
     return output
 

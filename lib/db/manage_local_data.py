@@ -4,7 +4,7 @@ from datetime import timedelta
 import gzip
 import json
 import os
-from typing import Literal, Optional, Union
+from typing import Literal, Optional
 
 import pandas as pd
 import pyarrow as pa
@@ -532,28 +532,14 @@ def load_latest_data(
     service: str,
     latest_timestamp: Optional[str] = None,
     max_per_source: Optional[int] = None,
-) -> Union[pd.DataFrame, dict[str, pd.DataFrame]]:
-    """Loads the latest data for a service."""
+) -> pd.DataFrame:
+    """Loads the latest preprocessed posts."""
     if not _validate_service(service=service):
         raise ValueError(f"Invalid service: {service}")
-    if service == "rank_score_feeds":
-        # fetch both the latest consolidated posts as well as the latest social networks
-        service_to_df_map = {}
-        services_lst = [
-            "consolidate_enrichment_integrations",
-            "scraped_user_social_network",
-        ]
-        for integration_service in services_lst:
-            integration_df = load_data_from_local_storage(
-                service=integration_service, latest_timestamp=latest_timestamp
-            )
-            service_to_df_map[integration_service] = integration_df
-        return service_to_df_map
-    else:
-        # most services just need the latest preprocessed raw data.
-        df = load_data_from_local_storage(
-            service="preprocessed_posts", latest_timestamp=latest_timestamp
-        )
+    # most services just need the latest preprocessed raw data.
+    df = load_data_from_local_storage(
+        service="preprocessed_posts", latest_timestamp=latest_timestamp
+    )
     if max_per_source:
         # Split the DataFrame by 'source'
         grouped = df.groupby("source")

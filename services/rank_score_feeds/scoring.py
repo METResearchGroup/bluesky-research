@@ -9,7 +9,7 @@ from lib.constants import timestamp_format
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
-from services.rank_score_feeds.constants import default_lookback_days
+from lib.constants import default_lookback_days
 
 default_similarity_score = 0.8
 average_popular_post_like_count = 1250
