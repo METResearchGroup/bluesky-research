@@ -120,7 +120,7 @@ class ConsolidatedEnrichedPostModel(BaseModel):
         default=None,
         description="Reason for why the post was not labeled successfully by the Perspective API.",
     )
-    perspective_label_timestamp: str = Field(
+    perspective_label_timestamp: Optional[str] = Field(
         ...,
         description="Timestamp when the post was labeled by the Perspective API (or, if labeling failed, when it was attempted).",
     )
