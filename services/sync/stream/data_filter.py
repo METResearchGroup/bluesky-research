@@ -21,7 +21,7 @@ from services.participant_data.study_users import get_study_user_manager
 from transform.transform_raw_data import process_firehose_post
 
 
-study_user_manager = get_study_user_manager()
+study_user_manager = get_study_user_manager(load_from_aws=False)
 
 logger = get_logger(__name__)
 

@@ -147,7 +147,7 @@ sqs = SQS("firehoseSyncsToBeProcessedQueue")
 
 SUBSCRIPTION_STATE_TABLE_NAME = "firehoseSubscriptionState"
 
-study_user_manager = get_study_user_manager()
+study_user_manager = get_study_user_manager(load_from_aws=False)
 
 
 def rebuild_cache_paths():
