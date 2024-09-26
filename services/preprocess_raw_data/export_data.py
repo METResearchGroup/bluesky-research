@@ -12,6 +12,7 @@ from lib.aws.s3 import S3
 from lib.constants import timestamp_format
 from lib.db.manage_local_data import export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from lib.log.logger import get_logger
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 dynamodb_table_name = "preprocessingPipelineMetadata"
@@ -28,6 +29,8 @@ s3_export_key_map = {
     "like": os.path.join(preprocessing_root_s3_key, "like"),
     "follow": os.path.join(preprocessing_root_s3_key, "follow"),
 }
+
+logger = get_logger(__name__)
 
 
 def export_session_metadata(session_metadata: dict) -> None:
@@ -53,17 +56,23 @@ def export_latest_preprocessed_posts(
     ]  # noqa
     dtype_map = MAP_SERVICE_TO_METADATA["preprocessed_posts"]["dtypes_map"]
     for feed_type, posts in feed_type_to_posts_tuples:
-        df = pd.DataFrame(posts)
-        df["partition_date"] = pd.to_datetime(
-            df["preprocessing_timestamp"], format=timestamp_format
-        ).dt.date
-        df["embed"] = df["embed"].apply(
-            lambda x: json.dumps(x) if isinstance(x, dict) else x
-        )
-        df = df.astype(dtype_map)
-        export_data_to_local_storage(
-            service="preprocessed_posts", df=df, custom_args={"source": feed_type}
-        )
+        if len(posts) == 0:
+            logger.info(f"No {feed_type} posts to export.")
+            continue
+        try:
+            df = pd.DataFrame(posts)
+            df["partition_date"] = pd.to_datetime(
+                df["preprocessing_timestamp"], format=timestamp_format
+            ).dt.date
+            df["embed"] = df["embed"].apply(
+                lambda x: json.dumps(x) if isinstance(x, dict) else x
+            )
+            df = df.astype(dtype_map)
+            export_data_to_local_storage(
+                service="preprocessed_posts", df=df, custom_args={"source": feed_type}
+            )
+        except Exception as e:
+            print(f"Error exporting {feed_type} posts: {e}")
 
 
 def export_latest_likes(latest_likes):
