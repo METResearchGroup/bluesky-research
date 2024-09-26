@@ -115,31 +115,56 @@ def load_classified_posts_from_cache() -> dict:
     most_liked_valid_posts: list[PerspectiveApiLabelsModel] = []
     most_liked_invalid_posts: list[PerspectiveApiLabelsModel] = []
 
+    existing_firehose_valid_post_uris = set()
+    existing_firehose_invalid_post_uris = set()
+    existing_most_liked_valid_post_uris = set()
+    existing_most_liked_invalid_post_uris = set()
+
     for path in [
         firehose_valid_path,
         firehose_invalid_path,
         most_liked_valid_path,
         most_liked_invalid_path,
     ]:
-        for filename in os.listdir(path):
+        all_paths = os.listdir(path)
+        total_num_paths = len(all_paths)
+        for idx, filename in enumerate(all_paths):
+            if idx % 1000 == 0:
+                print(f"Loaded {idx}/{total_num_paths} posts from {path}")
             full_path = os.path.join(path, filename)
-            with open(full_path, "r") as f:
-                post = json.load(f)
-                if "firehose" in full_path:
-                    # need to have invalid before valid since "valid" is a
-                    # subset of "invalid" (all strings with "invalid"
-                    # also have "valid" in them, but not vice versa)
-                    if "invalid" in full_path:
-                        firehose_invalid_posts.append(PerspectiveApiLabelsModel(**post))
-                    elif "valid" in full_path:
-                        firehose_valid_posts.append(PerspectiveApiLabelsModel(**post))
-                elif "most_liked" in full_path:
-                    if "invalid" in full_path:
-                        most_liked_invalid_posts.append(
-                            PerspectiveApiLabelsModel(**post)
-                        )
-                    elif "valid" in full_path:
-                        most_liked_valid_posts.append(PerspectiveApiLabelsModel(**post))
+            try:
+                with open(full_path, "r") as f:
+                    post = json.load(f)
+                    if "firehose" in full_path:
+                        # need to have invalid before valid since "valid" is a
+                        # subset of "invalid" (all strings with "invalid"
+                        # also have "valid" in them, but not vice versa)
+                        if "invalid" in full_path:
+                            post_model = PerspectiveApiLabelsModel(**post)
+                            if post_model.uri not in existing_firehose_invalid_post_uris:
+                                firehose_invalid_posts.append(post_model)
+                                existing_firehose_invalid_post_uris.add(post_model.uri)
+                        elif "valid" in full_path:
+                            post_model = PerspectiveApiLabelsModel(**post)
+                            if post_model.uri not in existing_firehose_valid_post_uris:
+                                firehose_valid_posts.append(post_model)
+                                existing_firehose_valid_post_uris.add(post_model.uri)
+                    elif "most_liked" in full_path:
+                        if "invalid" in full_path:
+                            post_model = PerspectiveApiLabelsModel(**post)
+                            if post_model.uri not in existing_most_liked_invalid_post_uris:
+                                most_liked_invalid_posts.append(post_model)
+                                existing_most_liked_invalid_post_uris.add(post_model.uri)
+                        elif "valid" in full_path:
+                            post_model = PerspectiveApiLabelsModel(**post)
+                            if post_model.uri not in existing_most_liked_valid_post_uris:
+                                most_liked_valid_posts.append(post_model)
+                                existing_most_liked_valid_post_uris.add(post_model.uri)
+            except Exception as e:
+                # assumes that errors aren't systematic, which is what
+                # I've seen so far from experiments.
+                print(f"Error loading {full_path}: {e}. Skipping...")
+                continue
 
     return {
         "firehose": {"valid": firehose_valid_posts, "invalid": firehose_invalid_posts},

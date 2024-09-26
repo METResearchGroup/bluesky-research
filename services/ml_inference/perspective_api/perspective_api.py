@@ -19,7 +19,9 @@ logger = get_logger(__name__)
 
 @track_performance
 def classify_latest_posts(
-    backfill_period: Optional[str] = None, backfill_duration: Optional[int] = None
+    backfill_period: Optional[str] = None,
+    backfill_duration: Optional[int] = None,
+    run_classification: bool = True
 ):
     """Classifies the latest preprocessed posts using the Perspective API."""
     if backfill_duration is not None and backfill_period in ["days", "hours"]:
@@ -55,13 +57,18 @@ def classify_latest_posts(
         ("firehose", firehose_posts),
         ("most_liked", most_liked_posts),
     ]  # noqa
-    for source, posts in source_to_posts_tuples:
-        # labels stored in local storage, and then loaded
-        # later. This format is done to make it more
-        # robust to errors and to the script failing (though
-        # tbh I could probably just return the posts directly
-        # and then write to S3).
-        run_batch_classification(posts=posts, source_feed=source)
+    if run_classification:
+        for source, posts in source_to_posts_tuples:
+            # labels stored in local storage, and then loaded
+            # later. This format is done to make it more
+            # robust to errors and to the script failing (though
+            # tbh I could probably just return the posts directly
+            # and then write to S3).
+            posts = posts[:500]
+            logger.info("Doing only a subset of the posts (max n=500) for testing reasons...")  # noqa
+            run_batch_classification(posts=posts, source_feed=source)
+    else:
+        logger.info("Skipping classification and exporting cached results...")
     timestamp = generate_current_datetime_str()
     results = export_results()
     labeling_session = {
