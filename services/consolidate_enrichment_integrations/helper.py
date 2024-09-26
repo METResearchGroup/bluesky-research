@@ -149,7 +149,7 @@ def consolidate_enrichment_integrations(
     similarity_dict = {score.uri: score for score in similarity_scores}
 
     # Get all unique URIs
-    all_uris = set(preprocessed_dict.keys()) & set(perspective_dict.keys())
+    all_uris = set(preprocessed_dict.keys())
 
     # remove those that have been previously processed.
     all_uris = all_uris - load_previously_consolidated_enriched_post_uris()
@@ -162,7 +162,7 @@ def consolidate_enrichment_integrations(
 
     for uri in all_uris:
         preprocessed = preprocessed_dict[uri]
-        perspective = perspective_dict[uri]
+        perspective = perspective_dict.get(uri, None)
         sociopolitical = sociopolitical_dict.get(uri, None)
         similarity = similarity_dict.get(uri, None)
 
@@ -211,31 +211,39 @@ def consolidate_enrichment_integrations(
                 sociopolitical.political_ideology_label if sociopolitical else None
             ),
             # Fields from PerspectiveApiLabelsModel
-            perspective_was_successfully_labeled=perspective.was_successfully_labeled,
-            perspective_reason=perspective.reason,
-            perspective_label_timestamp=perspective.label_timestamp,
-            prob_toxic=perspective.prob_toxic,
-            prob_severe_toxic=perspective.prob_severe_toxic,
-            prob_identity_attack=perspective.prob_identity_attack,
-            prob_insult=perspective.prob_insult,
-            prob_profanity=perspective.prob_profanity,
-            prob_threat=perspective.prob_threat,
-            prob_affinity=perspective.prob_affinity,
-            prob_compassion=perspective.prob_compassion,
-            prob_constructive=perspective.prob_constructive,
-            prob_curiosity=perspective.prob_curiosity,
-            prob_nuance=perspective.prob_nuance,
+            perspective_was_successfully_labeled=(
+                perspective.was_successfully_labeled if perspective else False
+            ),
+            perspective_reason=(perspective.reason if perspective else None),
+            perspective_label_timestamp=(
+                perspective.label_timestamp if perspective else None
+            ),
+            prob_toxic=(perspective.prob_toxic if perspective else 0),
+            prob_severe_toxic=(perspective.prob_severe_toxic if perspective else 0),
+            prob_identity_attack=(
+                perspective.prob_identity_attack if perspective else 0
+            ),
+            prob_insult=(perspective.prob_insult if perspective else 0),
+            prob_profanity=(perspective.prob_profanity if perspective else 0),
+            prob_threat=(perspective.prob_threat if perspective else 0),
+            prob_affinity=(perspective.prob_affinity if perspective else 0),
+            prob_compassion=(perspective.prob_compassion if perspective else 0),
+            prob_constructive=(perspective.prob_constructive if perspective else 0),
+            prob_curiosity=(perspective.prob_curiosity if perspective else 0),
+            prob_nuance=(perspective.prob_nuance if perspective else 0),
             prob_personal_story=perspective.prob_personal_story,
-            prob_reasoning=perspective.prob_reasoning,
-            prob_respect=perspective.prob_respect,
-            prob_alienation=perspective.prob_alienation,
-            prob_fearmongering=perspective.prob_fearmongering,
-            prob_generalization=perspective.prob_generalization,
-            prob_moral_outrage=perspective.prob_moral_outrage,
-            prob_scapegoating=perspective.prob_scapegoating,
-            prob_sexually_explicit=perspective.prob_sexually_explicit,
-            prob_flirtation=perspective.prob_flirtation,
-            prob_spam=perspective.prob_spam,
+            prob_reasoning=(perspective.prob_reasoning if perspective else 0),
+            prob_respect=(perspective.prob_respect if perspective else 0),
+            prob_alienation=(perspective.prob_alienation if perspective else 0),
+            prob_fearmongering=(perspective.prob_fearmongering if perspective else 0),
+            prob_generalization=(perspective.prob_generalization if perspective else 0),
+            prob_moral_outrage=(perspective.prob_moral_outrage if perspective else 0),
+            prob_scapegoating=(perspective.prob_scapegoating if perspective else 0),
+            prob_sexually_explicit=(
+                perspective.prob_sexually_explicit if perspective else 0
+            ),
+            prob_flirtation=(perspective.prob_flirtation if perspective else 0),
+            prob_spam=(perspective.prob_spam if perspective else 0),
             # Fields from similarity_scores_results
             # (only the in-network posts will have similarity scores. The most-liked
             # posts will not have similarity scores.)
