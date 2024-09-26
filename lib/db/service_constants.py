@@ -37,6 +37,7 @@ MAP_SERVICE_TO_METADATA = {
             "like_count": "Int64",
             "reply_count": "Int64",
             "repost_count": "Int64",
+            "partition_date": "string",
         },
         "subpaths": {
             "like": os.path.join(
@@ -331,6 +332,7 @@ MAP_SERVICE_TO_METADATA = {
             "like_count": "Int64",
             "reply_count": "Int64",
             "repost_count": "Int64",
+            "partition_date": "string",
         },
     },
     # each row is a unique relationship, so no deduping required.
@@ -355,6 +357,7 @@ MAP_SERVICE_TO_METADATA = {
             "follower_did": "string",
             "insert_timestamp": "string",
             "relationship_to_study_user": "string",
+            "partition_date": "string",
         },
     },
     "preprocessed_posts": {
@@ -393,6 +396,15 @@ MAP_SERVICE_TO_METADATA = {
             "filtered_at": "string",
             "filtered_by_func": "string",
             "preprocessing_timestamp": "string",
+            "partition_date": "string",
+        },
+        "subpaths": {
+            "firehose": os.path.join(
+                root_local_data_directory, "preprocessed_posts", "firehose"
+            ),
+            "most_liked": os.path.join(
+                root_local_data_directory, "preprocessed_posts", "most_liked"
+            ),
         },
     },
 }

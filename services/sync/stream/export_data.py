@@ -57,7 +57,7 @@ from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
 from lib.aws.sqs import SQS
-from lib.constants import root_local_data_directory
+from lib.constants import root_local_data_directory, timestamp_format
 from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.db.manage_local_data import (
     write_jsons_to_local_store,
@@ -565,8 +565,11 @@ def export_study_user_activity_local_data():
         logger.info(f"Exporting {len(all_posts)} study user post records.")
         dtypes_map = MAP_SERVICE_TO_METADATA["study_user_activity"]["dtypes_map"]
         df = pd.DataFrame(all_posts)
-        df = df.astype(dtypes_map)
         df["synctimestamp"] = generate_current_datetime_str()
+        df["partition_date"] = pd.to_datetime(
+            df["synctimestamp"], format=timestamp_format
+        ).dt.date
+        df = df.astype(dtypes_map)
         custom_args = {"record_type": "post"}
         export_data_to_local_storage(
             df=df, service="study_user_activity", custom_args=custom_args
@@ -575,6 +578,9 @@ def export_study_user_activity_local_data():
         logger.info(f"Exporting {len(all_likes)} study user like records    .")
         df = pd.DataFrame(all_likes)
         df["synctimestamp"] = generate_current_datetime_str()
+        df["partition_date"] = pd.to_datetime(
+            df["synctimestamp"], format=timestamp_format
+        ).dt.date
         custom_args = {"record_type": "like"}
         export_data_to_local_storage(
             df=df, service="study_user_activity", custom_args=custom_args
@@ -585,8 +591,11 @@ def export_study_user_activity_local_data():
             "dtypes_map"
         ]
         df = pd.DataFrame(all_follows)
-        df = df.astype(dtypes_map)
         df["synctimestamp"] = generate_current_datetime_str()
+        df["partition_date"] = pd.to_datetime(
+            df["synctimestamp"], format=timestamp_format
+        ).dt.date
+        df = df.astype(dtypes_map)
         export_data_to_local_storage(df=df, service="scraped_user_social_network")
         # if there are any new followed accounts, then we want to reload the list
         # of followed accounts.
@@ -603,6 +612,9 @@ def export_study_user_activity_local_data():
         )
         df = pd.DataFrame(all_likes_on_user_posts)
         df["synctimestamp"] = generate_current_datetime_str()
+        df["partition_date"] = pd.to_datetime(
+            df["synctimestamp"], format=timestamp_format
+        ).dt.date
         custom_args = {"record_type": "like_on_user_post"}
         export_data_to_local_storage(
             df=df, service="study_user_activity", custom_args=custom_args
@@ -613,6 +625,9 @@ def export_study_user_activity_local_data():
         )
         df = pd.DataFrame(all_replies_to_user_posts)
         df["synctimestamp"] = generate_current_datetime_str()
+        df["partition_date"] = pd.to_datetime(
+            df["synctimestamp"], format=timestamp_format
+        ).dt.date
         custom_args = {"record_type": "reply_to_user_post"}
         export_data_to_local_storage(
             df=df, service="study_user_activity", custom_args=custom_args
@@ -642,8 +657,11 @@ def export_in_network_user_activity_local_data():
         # s3.write_dicts_jsonl_to_s3(data=jsons, key=full_s3_path)
         dtype_map = MAP_SERVICE_TO_METADATA["in_network_user_activity"]["dtypes_map"]
         df = pd.DataFrame(jsons)
-        df = df.astype(dtype_map)
         df["synctimestamp"] = generate_current_datetime_str()
+        df["partition_date"] = pd.to_datetime(
+            df["synctimestamp"], format=timestamp_format
+        ).dt.date
+        df = df.astype(dtype_map)
         export_data_to_local_storage(df=df, service="in_network_user_activity")
         logger.info(f"Exported {len(jsons)} in-network user post records.")
 

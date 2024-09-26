@@ -3,6 +3,7 @@
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_filter.py
 """  # noqa
 
+import json
 from typing import Literal, Optional
 
 from atproto_client.models.app.bsky.graph.follow import Record as FollowRecord
@@ -263,6 +264,8 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
             firehose_post
         )  # noqa
         consolidated_post_dict = consolidated_post.dict()
+        # JSON-dump the embed to avoid complex dtype problems in the future.
+        consolidated_post_dict["embed"] = json.dumps(consolidated_post_dict["embed"])
         author_did = consolidated_post_dict["author_did"]
         # e.g., full URI = at://did:plc:iphiwbyfi2qhid2mbxmvl3st/app.bsky.feed.post/3kwd3wuubke2i # noqa
         # so we only want a small portion.

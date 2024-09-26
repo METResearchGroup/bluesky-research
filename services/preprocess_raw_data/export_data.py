@@ -1,14 +1,16 @@
 """Export preprocessing data."""
 
 import os
-from typing import Literal
+
+import pandas as pd
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
-from lib.constants import root_local_data_directory
-from lib.db.manage_local_data import write_jsons_to_local_store
+from lib.constants import timestamp_format
+from lib.db.manage_local_data import export_data_to_local_storage
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 dynamodb_table_name = "preprocessingPipelineMetadata"
@@ -36,47 +38,28 @@ def export_session_metadata(session_metadata: dict) -> None:
 
 def export_latest_preprocessed_posts(
     latest_posts: list[FilteredPreprocessedPostModel],
-    session_metadata: dict,
-    external_stores: list[Literal["local", "s3"]] = ["local", "s3"],
 ) -> None:  # noqa
     """Exports latest preprocessed posts."""
-    current_timestamp = session_metadata["current_preprocessing_timestamp"]
-    partition_key = S3.create_partition_key_based_on_timestamp(
-        timestamp_str=current_timestamp
-    )
-    filename = "preprocessed_posts.jsonl"
     firehose_posts: list[dict] = [
         post.dict() for post in latest_posts if post.source == "firehose"
     ]  # noqa
     most_liked_posts: list[dict] = [
         post.dict() for post in latest_posts if post.source == "most_liked"
     ]  # noqa
-
     feed_type_to_posts_tuples = [
-        ("preprocessed_firehose_posts", firehose_posts),
-        ("preprocessed_most_liked_posts", most_liked_posts),
+        ("firehose", firehose_posts),
+        ("most_liked", most_liked_posts),
     ]  # noqa
-
+    dtype_map = MAP_SERVICE_TO_METADATA["preprocessed_posts"]["dtypes_map"]
     for feed_type, posts in feed_type_to_posts_tuples:
-        full_key = os.path.join(
-            s3_export_key_map["post"],
-            f"preprocessing_source={feed_type}",
-            partition_key,
-            filename,
-        )  # noqa
-        for external_store in external_stores:
-            if external_store == "s3":
-                s3.write_dicts_jsonl_to_s3(data=posts, key=full_key)
-                # trigger Glue crawler to recognize the new data.
-                # athena.run_query("MSCK REPAIR TABLE preprocessed_posts")
-                # glue.start_crawler(crawler_name="preprocessed_posts_crawler")
-            elif external_store == "local":
-                full_export_filepath = os.path.join(root_local_data_directory, full_key)
-                write_jsons_to_local_store(
-                    records=posts, export_filepath=full_export_filepath
-                )
-            else:
-                raise ValueError("Invalid export store.")
+        df = pd.DataFrame(posts)
+        df["partition_date"] = pd.to_datetime(
+            df["preprocessing_timestamp"], format=timestamp_format
+        ).dt.date
+        df = df.astype(dtype_map)
+        export_data_to_local_storage(
+            service="preprocessed_posts", df=df, custom_args={"source": feed_type}
+        )
 
 
 def export_latest_likes(latest_likes):

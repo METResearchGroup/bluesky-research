@@ -326,6 +326,9 @@ def export_data_to_local_storage(
         if service == "study_user_activity":
             record_type = custom_args["record_type"]
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
+        elif service == "preprocessed_posts":
+            source = custom_args["source"]
+            local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
         else:
             # generic processing
             local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
@@ -374,6 +377,9 @@ def list_filenames(
 ) -> list[str]:
     """List files in local storage for a given service."""
     local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
+    if service == "study_user_activity":
+        record_type = "post"  # we only fetch the posts from study users.
+        local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
     res = []
     for directory in directories:
         # TODO: check this implementation.
@@ -438,12 +444,19 @@ def pd_type_to_pa_type(pd_type):
         return pa.bool_()
     elif pd_type == "datetime64[ns]":
         return pa.timestamp("ns")
+    elif pd_type == "object":
+        return pa.string()  # Treat object as string
     else:
         return pa.string()
 
 
 def get_service_pa_schema(service: str) -> Optional[pa.Schema]:
     dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", None)
+    # we add this here since when we transform the initial loaded dicts to
+    # df (prior to writes), we don't have partition_date yet. However, we
+    # want this to exist on read.
+    if "partition_date" not in dtypes_map:
+        dtypes_map["partition_date"] = "string"
     if dtypes_map:
         pa_schema = pa.schema(
             [(col, pd_type_to_pa_type(dtype)) for col, dtype in dtypes_map.items()]
@@ -461,7 +474,6 @@ def load_data_from_local_storage(
     use_all_data: bool = True,
 ) -> pd.DataFrame:
     """Load data from local storage."""
-    # TODO: only for testing purposes, use cache.
     directories = [directory]
     if use_all_data:
         directories = ["cache", "active"]

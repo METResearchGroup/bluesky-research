@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 import json
 import re
-from typing import Literal, Optional
+from typing import Optional
 
 from lib.aws.athena import Athena
 from lib.aws.sqs import SQS
@@ -142,39 +142,6 @@ def load_latest_sqs_messages_from_athena(
     return messages
 
 
-def load_latest_sqs_sync_messages(
-    sources: list[str] = Literal["most_liked"],
-    latest_processed_insert_timestamp: Optional[str] = None,
-) -> list[dict]:
-    """Load the latest SQS sync messages.
-
-    Output dictionary follows the same tree structure as in S3.
-    """
-    res = {
-        "most_liked": [],
-    }
-    if "most_liked" in sources:
-        latest_most_liked_sqs_sync_messages: list[dict] = (
-            load_latest_sqs_messages_from_athena(
-                source="most_liked",
-                limit=None,
-                latest_processed_insert_timestamp=latest_processed_insert_timestamp,
-            )
-        )  # noqa
-        res["most_liked"].extend(latest_most_liked_sqs_sync_messages)
-    return res
-
-
-def get_latest_post_filenames_from_sqs(sqs_sync_messages: dict) -> dict[str, list[str]]:  # noqa
-    """Process SQS messages to get the filenames to load."""
-    res = {"most_liked": []}
-    most_liked_post_sqs_messages = sqs_sync_messages["most_liked"]
-    for message in most_liked_post_sqs_messages:
-        keys = message["data"]["sync"]["s3_keys"]
-        res["most_liked"].extend(keys)
-    return res
-
-
 @track_performance
 def preprocess_latest_raw_data(
     backfill_period: Optional[str] = None, backfill_duration: Optional[int] = None
@@ -216,23 +183,6 @@ def preprocess_latest_raw_data(
     else:
         timestamp = latest_processed_insert_timestamp
 
-    # can do this in lieu of the logic below to load latest_posts, latest_likes, and latest_follows.
-    sqs_sync_messages: dict = load_latest_sqs_sync_messages(
-        sources=["most_liked"],
-        latest_processed_insert_timestamp=timestamp,
-    )  # noqa
-
-    # get latest filenames to load.
-    latest_post_file_keys: dict = get_latest_post_filenames_from_sqs(
-        sqs_sync_messages=sqs_sync_messages
-    )  # noqa
-    latest_most_liked_post_file_keys: list[str] = latest_post_file_keys["most_liked"]
-    latest_likes_file_keys: list[str] = []
-    latest_follows_file_keys: list[str] = []
-    logger.info(
-        f"Processing {len(latest_likes_file_keys)} like files and {len(latest_follows_file_keys)} follow files..."
-    )  # noqa
-
     # load latest posts
     latest_firehose_posts: list[ConsolidatedPostRecordModel] = (
         load_latest_firehose_posts(
@@ -240,27 +190,20 @@ def preprocess_latest_raw_data(
         )
     )
     latest_most_liked_posts: list[ConsolidatedPostRecordModel] = (
-        load_latest_most_liked_posts(post_keys=latest_most_liked_post_file_keys)
+        load_latest_most_liked_posts(timestamp=timestamp, limit=None)
     )  # noqa
     latest_posts: list[ConsolidatedPostRecordModel] = (
         latest_firehose_posts + latest_most_liked_posts
     )  # noqa
     logger.info(f"Loaded {len(latest_posts)} posts for preprocessing.")
-    # latest_likes = []
-    # latest_follows = []
 
     # we export only the posts that have passed preprocessing
     if len(latest_posts) > 0:
         passed_posts, posts_metadata = preprocess_latest_posts(
             latest_posts=latest_posts
         )  # noqa
-        # preprocessed_likes, likes_metadata = preprocess_latest_likes(
-        #     latest_likes=latest_likes
-        # )  # noqa
-        # preprocessed_follows, follows_metadata = preprocess_latest_follows(
-        #     latest_follows=latest_follows
-        # )  # noqa
-        # get the latest timestamp of the posts that have been processed.
+
+        # get the max insert timestamp for the firehose posts
         firehose_insert_timestamps = [
             res.synctimestamp for res in latest_firehose_posts
         ]
@@ -268,14 +211,17 @@ def preprocess_latest_raw_data(
             max_firehose_insert_timestamp = max(firehose_insert_timestamps)
         else:
             max_firehose_insert_timestamp = None
-        most_liked_posts = sqs_sync_messages["most_liked"]
+
+        # get the max insert timestamp for the most liked posts
         most_liked_insert_timestamps = [
-            res["insert_timestamp"] for res in most_liked_posts
+            res.synctimestamp for res in latest_most_liked_posts
         ]
         if most_liked_insert_timestamps:
             max_most_liked_insert_timestamp = max(most_liked_insert_timestamps)
         else:
             max_most_liked_insert_timestamp = None
+
+        # get the max insert timestamp for the posts
         max_processed_insert_timestamp = (
             max_firehose_insert_timestamp
             if max_most_liked_insert_timestamp is None
@@ -284,23 +230,17 @@ def preprocess_latest_raw_data(
             else max(max_firehose_insert_timestamp, max_most_liked_insert_timestamp)
         )
 
+        # update session metadata
         session_metadata["num_raw_records"]["posts"] = posts_metadata["num_posts"]
         session_metadata["num_records_after_filtering"]["posts"] = posts_metadata[
             "num_records_after_filtering"
         ]["posts"]  # noqa
-        # session_metadata["num_raw_records"]["likes"] = likes_metadata["num_likes"]
-        # session_metadata["num_raw_records"]["follows"] = follows_metadata["num_follows"]
         session_metadata["latest_processed_insert_timestamp"] = (
             max_processed_insert_timestamp
         )
 
-        export_latest_preprocessed_posts(
-            latest_posts=passed_posts,
-            session_metadata=session_metadata,
-            external_stores=["s3"],
-        )
-    # export_latest_likes(preprocessed_likes)
-    # export_latest_follows(preprocessed_follows)
+        # export the posts
+        export_latest_preprocessed_posts(latest_posts=passed_posts)
     else:
         logger.info("No posts to process.")
     export_session_metadata(session_metadata)

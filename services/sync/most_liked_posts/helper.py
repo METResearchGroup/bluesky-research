@@ -94,10 +94,10 @@ def get_and_transform_latest_most_liked_posts(
 
 
 def export_posts(
-    new_posts: Union[list[ConsolidatedPostRecordModel], list[dict]],
-    store_local: bool = False,
-    store_remote: bool = True,
-    send_sqs_message: bool = True,
+    posts: Union[list[ConsolidatedPostRecordModel], list[dict]],
+    store_local: bool = True,
+    store_remote: bool = False,
+    send_sqs_message: bool = False,
 ) -> None:
     """Export the posts to a file, either locally as a JSON or remote in S3.
 
@@ -107,15 +107,10 @@ def export_posts(
     timestamp_key = S3.create_partition_key_based_on_timestamp(
         timestamp_str=current_datetime_str
     )
-    # transform the dicts to ConsolidatedPostRecordModels
-    # (not strictly necessary but done in case dicts are passed in, to ensure
-    # that the types are correct)
-    if isinstance(new_posts[0], dict):
-        posts = [ConsolidatedPostRecordModel(**post) for post in new_posts]
+    if isinstance(posts[0], ConsolidatedPostRecordModel):
+        consolidated_post_dicts = [post.dict() for post in posts]
     else:
-        posts: list[ConsolidatedPostRecordModel] = new_posts
-    consolidated_post_dicts = [post.dict() for post in posts]
-    filename = "posts.jsonl"
+        consolidated_post_dicts = posts
     if store_local:
         dtypes_map = MAP_SERVICE_TO_METADATA["sync_most_liked_posts"]["dtypes_map"]
         df = pd.DataFrame(data=consolidated_post_dicts)
@@ -125,6 +120,7 @@ def export_posts(
         )
         logger.info(f"Exported {len(posts)} posts to local storage")
     if store_remote:
+        filename = "posts.jsonl"
         full_key = os.path.join(root_most_liked_s3_key, timestamp_key, filename)
         print(f"Exporting most liked posts to S3 at {full_key}")
         s3.write_dicts_jsonl_to_s3(data=consolidated_post_dicts, key=full_key)
@@ -191,12 +187,13 @@ def main(
             consolidate_feedview_post(post) for post in filtered_posts
         ]
         post_dicts = [post.dict() for post in consolidated_posts]
+        post_dicts = [
+            {**post, "embed": json.dumps(post["embed"])} for post in post_dicts
+        ]
         print(f"Exporting {len(post_dicts)} total posts...")
     # NOTE: the type of the new_posts is dict but it's actually
     # the ConsolidatedPostRecordModel as a dict.
-    export_posts(
-        new_posts=post_dicts, store_local=store_local, store_remote=store_remote
-    )
+    export_posts(posts=post_dicts, store_local=store_local, store_remote=store_remote)
 
 
 if __name__ == "__main__":
