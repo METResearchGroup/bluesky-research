@@ -18,7 +18,11 @@ from lib.constants import (
     default_lookback_days,
     timestamp_format,
 )
-from lib.db.manage_local_data import load_data_from_local_storage
+from lib.db.manage_local_data import (
+    export_data_to_local_storage,
+    load_data_from_local_storage,
+)
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.serverless_cache import (
@@ -157,7 +161,7 @@ def load_latest_processed_data(
 
 
 def export_post_scores(post_uri_to_post_score_map: dict[str, str]):
-    """Exports post scores to S3."""
+    """Exports post scores to local storage."""
     output: list[ScoredPostModel] = []
     for post_uri, post_obj in post_uri_to_post_score_map.items():
         output.append(
@@ -170,12 +174,11 @@ def export_post_scores(post_uri_to_post_score_map: dict[str, str]):
                 source=post_obj["post"].source,
             )
         )
-    # using native Pydantic JSON serialization instead of json.dumps()
-    # since that's more efficient for Pydantic models.
-    output_jsons = "\n".join([post.json() for post in output])
-    output_json_body_bytes = output_jsons.encode("utf-8")
-    key = os.path.join("post_scores", f"post_scores_{current_datetime_str}.jsonl")  # noqa
-    s3.write_to_s3(blob=output_json_body_bytes, key=key)
+    output_jsons = [post.dict() for post in output]
+    dtypes_map = MAP_SERVICE_TO_METADATA["post_scores"]["dtypes_map"]
+    df = pd.DataFrame(output_jsons)
+    df = df.astype(dtypes_map)
+    export_data_to_local_storage(df=df, service="post_scores")
 
 
 def calculate_in_network_posts_for_user(
@@ -201,6 +204,7 @@ def calculate_in_network_posts_for_user(
         for post in candidate_in_network_user_activity_posts
         if post.author_did in in_network_social_network_dids
     ]
+    breakpoint()
     return in_network_post_uris
 
 
@@ -411,6 +415,12 @@ def do_rank_score_feeds(
     logger.info("Starting rank score feeds.")
     # load data
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
+
+    # TODO: remove
+    study_users = [
+        user for user in study_users if user.bluesky_handle == "markptorres.bsky.social"
+    ]
+
     latest_data: dict = load_latest_processed_data()
     consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = latest_data[
         "consolidate_enrichment_integrations"
@@ -460,7 +470,7 @@ def do_rank_score_feeds(
 
     # export scores to S3.
     if not skip_export_post_scores:
-        logger.info(f"Exporting {len(post_uri_to_post_score_map)} post scores to S3.")  # noqa
+        logger.info(f"Exporting {len(post_uri_to_post_score_map)} post scores.")  # noqa
         export_post_scores(post_uri_to_post_score_map=post_uri_to_post_score_map)
 
     # list of all in-network user posts, across all study users. Needs to be

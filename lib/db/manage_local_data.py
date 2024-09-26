@@ -39,6 +39,8 @@ services_list = [
     "scraped_user_social_network",
     "consolidate_enrichment_integrations",
     "rank_score_feeds",
+    "post_scores",
+    "study_user_activity",
 ]
 
 
