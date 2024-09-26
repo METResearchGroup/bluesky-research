@@ -4,11 +4,17 @@ import os
 import shutil
 from typing import Literal
 
+import pandas as pd
+
 from lib.aws.athena import Athena
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
-from lib.constants import root_local_data_directory
-from lib.db.manage_local_data import write_jsons_to_local_store
+from lib.constants import root_local_data_directory, timestamp_format
+from lib.db.manage_local_data import (
+    write_jsons_to_local_store,
+    export_data_to_local_storage,
+)
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from services.ml_inference.models import PerspectiveApiLabelsModel
 from services.ml_inference.perspective_api.constants import (
     perspective_api_root_s3_key,
@@ -55,18 +61,11 @@ def write_post_to_cache(
         f.write(classified_post.json())
 
 
-def export_classified_posts(
-    current_timestamp: str,
-    external_stores: list[Literal["local", "s3"]] = ["local", "s3"],
-) -> dict:
+def export_classified_posts() -> dict:
     """Export classified posts.
 
     Loads latest posts from cache and exports them to an external store.
     """
-    partition_key = S3.create_partition_key_based_on_timestamp(
-        timestamp_str=current_timestamp
-    )
-    filename = "classified_posts.jsonl"
     posts_from_cache_dict: dict = load_classified_posts_from_cache()
     firehose_posts: list[PerspectiveApiLabelsModel] = posts_from_cache_dict["firehose"][
         "valid"
@@ -78,25 +77,21 @@ def export_classified_posts(
         ("firehose", firehose_posts),
         ("most_liked", most_liked_posts),
     ]  # noqa
-
+    dtype_map = MAP_SERVICE_TO_METADATA["ml_inference_perspective_api"]["dtypes_map"]
     for source, posts in source_to_posts_tuples:
+        if len(posts) == 0:
+            continue
         classified_post_dicts = [post.dict() for post in posts]
-        for external_store in external_stores:
-            full_key = os.path.join(
-                perspective_api_root_s3_key, f"source={source}", partition_key, filename
-            )
-            if external_store == "s3":
-                s3.write_dicts_jsonl_to_s3(data=classified_post_dicts, key=full_key)  # noqa
-            elif external_store == "local":
-                full_export_filepath = os.path.join(root_local_data_directory, full_key)
-                write_jsons_to_local_store(
-                    records=classified_post_dicts, export_filepath=full_export_filepath
-                )
-            else:
-                raise ValueError("Invalid external store.")
-    # trigger Glue crawler to recognize new data and partitions
-    # athena.run_query("MSCK REPAIR TABLE ml_inference_perspective_api")
-    # glue.start_crawler("perspective_api_labels_glue_crawler")
+        df = pd.DataFrame(classified_post_dicts)
+        df["partition_date"] = pd.to_datetime(
+            df["label_timestamp"], format=timestamp_format
+        ).dt.date
+        df = df.astype(dtype_map)
+        export_data_to_local_storage(
+            service="ml_inference_perspective_api",
+            df=df,
+            custom_args={"source": source},
+        )
     return {
         "total_classified_posts": len(firehose_posts) + len(most_liked_posts),
         "total_classified_posts_by_source": {
@@ -140,16 +135,11 @@ def rebuild_cache_paths():
             os.makedirs(path)
 
 
-def export_results(
-    current_timestamp: str,
-    external_stores: list[Literal["local", "s3"]] = ["local", "s3"],
-) -> dict:
+def export_results() -> dict:
     """Exports the results of classifying posts to external store, then empties
     out the cache.
     """
-    results = export_classified_posts(
-        current_timestamp=current_timestamp, external_stores=external_stores
-    )
+    results = export_classified_posts()
     delete_cache_paths()
     rebuild_cache_paths()
     return results

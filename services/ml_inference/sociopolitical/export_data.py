@@ -4,13 +4,17 @@ import os
 import shutil
 from typing import Literal
 
+import pandas as pd
+
 from lib.aws.athena import Athena
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
+from lib.constants import timestamp_format
+from lib.db.manage_local_data import export_data_to_local_storage
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from services.ml_inference.models import SociopoliticalLabelsModel
 from services.ml_inference.sociopolitical.constants import (
     root_cache_path,
-    sociopolitical_root_s3_key,
 )
 from services.ml_inference.sociopolitical.load_data import (
     load_classified_posts_from_cache,
@@ -51,14 +55,8 @@ def rebuild_cache_paths():
             os.makedirs(path)
 
 
-def export_results(
-    current_timestamp: str, external_stores: list[Literal["s3", "local"]]
-):
-    """Exports the results of classifying posts to an external store."""
-    partition_key = S3.create_partition_key_based_on_timestamp(
-        timestamp_str=current_timestamp
-    )
-    filename = "classified_posts.jsonl"
+def export_classified_posts() -> dict:
+    """Exports classified posts."""
     posts_from_cache_dict: dict = load_classified_posts_from_cache()
     firehose_posts: list[SociopoliticalLabelsModel] = posts_from_cache_dict["firehose"]  # noqa
     most_liked_posts: list[SociopoliticalLabelsModel] = posts_from_cache_dict[
@@ -68,23 +66,19 @@ def export_results(
         ("firehose", firehose_posts),
         ("most_liked", most_liked_posts),
     ]  # noqa
-
+    dtype_map = MAP_SERVICE_TO_METADATA["ml_inference_sociopolitical"]["dtypes_map"]
     for source, posts in source_to_posts_tuples:
+        if len(posts) == 0:
+            continue
         classified_post_dicts = [post.dict() for post in posts]
-        for external_store in external_stores:
-            full_key = os.path.join(
-                sociopolitical_root_s3_key, f"source={source}", partition_key, filename
-            )
-            if external_store == "s3":
-                s3.write_dicts_jsonl_to_s3(data=classified_post_dicts, key=full_key)  # noqa
-
-    # trigger Glue crawler to recognize the new data.
-    # athena.run_query("MSCK REPAIR TABLE ml_inference_sociopolitical")
-    # glue.start_crawler(crawler_name="llm_sociopolitical_labels_glue_crawler")
-
-    delete_cache_paths()
-    rebuild_cache_paths()
-
+        df = pd.DataFrame(classified_post_dicts)
+        df["partition_date"] = pd.to_datetime(
+            df["label_timestamp"], format=timestamp_format
+        ).dt.date
+        df = df.astype(dtype_map)
+        export_data_to_local_storage(
+            service="ml_inference_sociopolitical", df=df, custom_args={"source": source}
+        )
     return {
         "total_classified_posts": len(firehose_posts) + len(most_liked_posts),
         "total_classified_posts_by_source": {
@@ -92,6 +86,14 @@ def export_results(
             "most_liked": len(most_liked_posts),
         },
     }
+
+
+def export_results() -> dict:
+    """Exports the results of classifying posts to an external store."""
+    results = export_classified_posts()
+    delete_cache_paths()
+    rebuild_cache_paths()
+    return results
 
 
 # in case we need to rebuild the cache paths before running the script.

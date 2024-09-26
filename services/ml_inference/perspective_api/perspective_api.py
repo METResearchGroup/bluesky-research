@@ -63,7 +63,7 @@ def classify_latest_posts(
         # and then write to S3).
         run_batch_classification(posts=posts, source_feed=source)
     timestamp = generate_current_datetime_str()
-    results = export_results(current_timestamp=timestamp, external_stores=["s3"])
+    results = export_results()
     labeling_session = {
         "inference_type": "perspective_api",
         "inference_timestamp": timestamp,

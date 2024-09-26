@@ -105,7 +105,7 @@ def get_posts_to_classify(
             if inference_type == "perspective_api"
             else "ml_inference_sociopolitical"
         ),
-        latest_timestamp=latest_inference_timestamp,
+        latest_timestamp=timestamp,
         max_per_source=max_per_source,
     )
     df_dicts = posts_df.to_dict(orient="records")

@@ -251,7 +251,7 @@ def classify_latest_posts(
 
     # export cached results to S3 store.
     timestamp = generate_current_datetime_str()
-    results = export_results(current_timestamp=timestamp, external_stores=["s3"])
+    results = export_results()
     labeling_session = {
         "inference_type": "llm",
         "inference_timestamp": timestamp,

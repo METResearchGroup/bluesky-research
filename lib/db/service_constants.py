@@ -281,6 +281,15 @@ MAP_SERVICE_TO_METADATA = {
             "prob_sexually_explicit": "Float64",
             "prob_flirtation": "Float64",
             "prob_spam": "Float64",
+            "partition_date": "string",
+        },
+        "subpaths": {
+            "firehose": os.path.join(
+                root_local_data_directory, "ml_inference_perspective_api", "firehose"
+            ),
+            "most_liked": os.path.join(
+                root_local_data_directory, "ml_inference_perspective_api", "most_liked"
+            ),
         },
     },
     "ml_inference_sociopolitical": {
@@ -302,6 +311,15 @@ MAP_SERVICE_TO_METADATA = {
             "label_timestamp": "string",
             "is_sociopolitical": "bool",
             "political_ideology_label": "string",
+            "partition_date": "string",
+        },
+        "subpaths": {
+            "firehose": os.path.join(
+                root_local_data_directory, "ml_inference_sociopolitical", "firehose"
+            ),
+            "most_liked": os.path.join(
+                root_local_data_directory, "ml_inference_sociopolitical", "most_liked"
+            ),
         },
     },
     "in_network_user_activity": {

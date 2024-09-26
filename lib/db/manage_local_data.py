@@ -330,6 +330,12 @@ def export_data_to_local_storage(
         elif service == "preprocessed_posts":
             source = custom_args["source"]
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
+        elif service == "ml_inference_perspective_api":
+            source = custom_args["source"]
+            local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
+        elif service == "ml_inference_sociopolitical":
+            source = custom_args["source"]
+            local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
         else:
             # generic processing
             local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
@@ -558,7 +564,7 @@ def load_latest_data(
         services_lst = [
             "preprocess_raw_data",
             "generate_vector_embeddings",
-            "calculate_superposters",  # TODO: check the name. Also implement compaction.
+            "daily_superposters",
             "ml_inference_perspective_api",
             "ml_inference_sociopolitical",
         ]
@@ -587,5 +593,8 @@ def load_latest_data(
             service="preprocessed_posts", latest_timestamp=latest_timestamp
         )
     if max_per_source:
-        df = df.head(max_per_source)
+        # Split the DataFrame by 'source'
+        grouped = df.groupby("source")
+        # Take the max_per_source for each group and concatenate them
+        df = pd.concat([group.head(max_per_source) for _, group in grouped])
     return df
