@@ -282,6 +282,7 @@ MAP_SERVICE_TO_METADATA = {
             "prob_sexually_explicit": "Float64",
             "prob_flirtation": "Float64",
             "prob_spam": "Float64",
+            "source": "string",
             "partition_date": "string",
         },
         "subpaths": {
@@ -312,6 +313,7 @@ MAP_SERVICE_TO_METADATA = {
             "label_timestamp": "string",
             "is_sociopolitical": "bool",
             "political_ideology_label": "string",
+            "source": "string",
             "partition_date": "string",
         },
         "subpaths": {

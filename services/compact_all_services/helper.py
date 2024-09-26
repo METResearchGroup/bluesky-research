@@ -229,7 +229,7 @@ def compact_local_service(
     service: str,
     export_format: Literal["json", "parquet"] = default_export_format,
     lookback_days: int = default_lookback_days,
-    delete_old_files: bool = False,
+    delete_old_files: bool = True,
 ):
     """Compacts the local data for a service.
 
@@ -239,9 +239,32 @@ def compact_local_service(
     """
     df: pd.DataFrame = load_data_from_local_storage(service)
     filenames: list[str] = list_filenames(service)
-    export_data_to_local_storage(
-        service=service, df=df, export_format=export_format, lookback_days=lookback_days
-    )
+
+    if service in [
+        "preprocessed_posts",
+        "ml_inference_perspective_api",
+        "ml_inference_sociopolitical",
+    ]:
+        grouped = df.groupby("source")
+        firehose_df = grouped.get_group("firehose")
+        most_liked_df = grouped.get_group("most_liked")
+        export_data_to_local_storage(
+            service=service, df=firehose_df, custom_args={"source": "firehose"}
+        )
+        export_data_to_local_storage(
+            service=service, df=most_liked_df, custom_args={"source": "most_liked"}
+        )
+    elif service == "study_user_activity":
+        export_data_to_local_storage(
+            service=service, df=df, custom_args={"record_type": "post"}
+        )
+    else:
+        export_data_to_local_storage(
+            service=service,
+            df=df,
+            export_format=export_format,
+            lookback_days=lookback_days,
+        )
     if delete_old_files:
         logger.info(
             f"Deleting {len(filenames)} files from local storage for service={service}"
@@ -251,28 +274,29 @@ def compact_local_service(
 
 def compact_all_local_services():
     services = [
-        "preprocessed_posts",
-        # "daily_superposters", # NOTE: no need to migrate, will just regenerate
+        # "preprocessed_posts", # NOTE: verified.
+        # "in_network_user_activity",
+        # "scraped_user_social_network",
+        # "study_user_activity",
+        # "sync_most_liked_posts",
+        # "daily_superposters",
         # "user_session_logs",
         # "feed_analytics",
         # "post_scores",
         # "consolidated_enriched_post_records",
-        # "ml_inference_perspective_api",
-        # "ml_inference_sociopolitical",
-        # "in_network_user_activity",
-        # "scraped_user_social_network",
+        "ml_inference_perspective_api",
+        "ml_inference_sociopolitical",
     ]
     for service in services:
-        # compact_local_service(service, delete_old_files=True)
-        compact_migrate_s3_data_to_local_storage(service=service)
-        # TODO: remove "cache" after testing.
-        df = load_data_from_local_storage(service=service, directory="cache")
+        compact_local_service(service, delete_old_files=True)
+        # compact_migrate_s3_data_to_local_storage(service=service)
+        df = load_data_from_local_storage(service=service)
         # print(df.head())
-        print("-" * 20)
+        # print("-" * 20)
         print(f"service={service}")
         print(df.dtypes)
         print(df.shape)
-        print("-" * 20)
+        # print("-" * 20)
         # breakpoint()
         # pass
 

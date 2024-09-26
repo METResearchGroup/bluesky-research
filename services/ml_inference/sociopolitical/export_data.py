@@ -75,6 +75,7 @@ def export_classified_posts() -> dict:
         df["partition_date"] = pd.to_datetime(
             df["label_timestamp"], format=timestamp_format
         ).dt.date
+        df["source"] = source
         df = df.astype(dtype_map)
         export_data_to_local_storage(
             service="ml_inference_sociopolitical", df=df, custom_args={"source": source}
