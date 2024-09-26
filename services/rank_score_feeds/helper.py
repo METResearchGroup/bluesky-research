@@ -48,6 +48,7 @@ consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"
 feeds_root_s3_key = "custom_feeds"
 dynamodb_table_name = "rank_score_feed_sessions"
+max_num_times_user_can_appear_in_feed = 3
 
 athena = Athena()
 s3 = S3()
@@ -204,7 +205,6 @@ def calculate_in_network_posts_for_user(
         for post in candidate_in_network_user_activity_posts
         if post.author_did in in_network_social_network_dids
     ]
-    breakpoint()
     return in_network_post_uris
 
 
@@ -222,14 +222,56 @@ def create_ranked_candidate_feed(
 
     Returns a list of dicts of post URIs, their scores, and whether or
     not the post is in-network.
+
+    Priorities for posts:
+    1. In-network posts
+    2. Out-of-network most-liked posts
     """
-    if post_pool is None:
+    if post_pool is None or len(post_pool) == 0:
         raise ValueError(
             "post_pool cannot be None. This means that a user condition is unexpected/invalid"
         )  # noqa
     in_network_posts: list[ConsolidatedEnrichedPostModel] = [
         post for post in post_pool if post.uri in in_network_candidate_post_uris
     ]
+    out_of_network_posts: list[ConsolidatedEnrichedPostModel] = [
+        post
+        for post in post_pool
+        if post.uri not in in_network_candidate_post_uris
+        and post.source == "most_liked"
+    ]
+
+    # make sure that no single user appears more than X times.
+    in_network_author_to_count_map = {}
+    out_of_network_author_to_count_map = {}
+    in_network_res = []
+    out_of_network_res = []
+
+    for post in in_network_posts:
+        author_id = post.author_did
+        if (
+            in_network_author_to_count_map.get(author_id, 0)
+            < max_num_times_user_can_appear_in_feed
+        ):
+            in_network_res.append(post)
+            in_network_author_to_count_map[author_id] = (
+                in_network_author_to_count_map.get(author_id, 0) + 1
+            )
+
+    for post in out_of_network_posts:
+        author_id = post.author_did
+        if (
+            out_of_network_author_to_count_map.get(author_id, 0)
+            < max_num_times_user_can_appear_in_feed
+        ):
+            out_of_network_res.append(post)
+            out_of_network_author_to_count_map[author_id] = (
+                out_of_network_author_to_count_map.get(author_id, 0) + 1
+            )
+
+    in_network_posts = in_network_res
+    out_of_network_posts = out_of_network_res
+
     total_in_network_posts = len(in_network_posts)
     max_in_network_posts = max_feed_length // 2
     max_allowed_in_network_posts = min(total_in_network_posts, max_in_network_posts)
@@ -245,33 +287,34 @@ def create_ranked_candidate_feed(
     in_network_post_set = set(post.uri for post in in_network_posts)
 
     # First, add all in-network posts to the output_posts while maintaining order
-    for post in post_pool:
+    for post in in_network_posts:
         if post.uri in in_network_post_set:
             output_posts.append(post)
 
     # Then, fill the remaining spots in output_posts with other posts from post_pool
-    for post in post_pool:
+    for post in out_of_network_posts:
         if post.uri not in in_network_post_set and len(output_posts) < max_feed_length:
             output_posts.append(post)
 
-    # Now, sort the output posts based on the order that they were in in the
-    # original post pool. If post A was before post B, I want that to be true
-    # in the output posts. This implementation just ensures that we have a
-    # requisite amount of in-network posts in our feeds.
-    uri_to_post_map: dict[str, ConsolidatedEnrichedPostModel] = {
-        post.uri: post for post in output_posts
-    }
-    post_pool_uris = [
-        post.uri for post in post_pool if post.uri in uri_to_post_map.keys()
-    ]
-    res: list[ConsolidatedEnrichedPostModel] = []
-    for uri in post_pool_uris:
-        res.append(uri_to_post_map[uri])
+    # # Now, sort the output posts based on the order that they were in in the
+    # # original post pool. If post A was before post B, I want that to be true
+    # # in the output posts. This implementation just ensures that we have a
+    # # requisite amount of in-network posts in our feeds.
+    # uri_to_post_map: dict[str, ConsolidatedEnrichedPostModel] = {
+    #     post.uri: post for post in output_posts
+    # }
+    # post_pool_uris = [
+    #     post.uri for post in post_pool if post.uri in uri_to_post_map.keys()
+    # ]
+    # res: list[ConsolidatedEnrichedPostModel] = []
+    # for uri in post_pool_uris:
+    #     res.append(uri_to_post_map[uri])
 
     # Ensure output_posts does not exceed max_feed_length
+
     return [
         CustomFeedPost(item=post.uri, is_in_network=post.uri in in_network_post_set)
-        for post in res[:max_feed_length]
+        for post in output_posts[:max_feed_length]
     ]
 
 
@@ -355,7 +398,7 @@ def calculate_feed_analytics(
     prop_treatment_uris_in_engagement_uris = (
         round(
             len(overlap_treatment_uris_in_engagement_uris)
-            / total_unique_treatment_uris,
+            / (total_unique_treatment_uris + 1),  # to avoid division by zero
             3,
         )
         if total_unique_treatment_uris > 0
@@ -364,7 +407,7 @@ def calculate_feed_analytics(
     prop_engagement_uris_in_treatment_uris = (
         round(
             len(overlap_engagement_uris_in_treatment_uris)
-            / total_unique_engagement_uris,
+            / (total_unique_engagement_uris + 1),  # to avoid division by zero
             3,
         )
         if total_unique_treatment_uris > 0
