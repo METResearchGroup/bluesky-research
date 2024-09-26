@@ -47,15 +47,15 @@ MAP_SERVICE_TO_METADATA = {
     },
     # TODO: update this.
     # TODO: there will also be a complex dtype.
-    # "daily_superposters": {
-    #     "local_prefix": os.path.join(root_local_data_directory, "daily_superposters"),
-    #     "s3_prefix": "daily_superposters",
-    #     "glue_table_name": "daily_superposters",
-    #     "primary_key": "",
-    #     "timestamp_field": "session_timestamp",
-    #     "skip_deduping": True,
-    #     "pydantic_model": "",
-    # },
+    "daily_superposters": {
+        "local_prefix": os.path.join(root_local_data_directory, "daily_superposters"),
+        "s3_prefix": "daily_superposters",
+        "glue_table_name": "daily_superposters",
+        "primary_key": "",
+        "timestamp_field": "insert_date_timestamp",
+        "skip_deduping": True,
+        "pydantic_model": "",
+    },
     "post_scores": {
         "local_prefix": os.path.join(root_local_data_directory, "post_scores"),
         "s3_prefix": "post_scores",

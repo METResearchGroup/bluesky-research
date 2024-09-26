@@ -251,15 +251,16 @@ def compact_local_service(
 
 def compact_all_local_services():
     services = [
-        "user_session_logs",  # verified
-        "feed_analytics",  # verified
-        "post_scores",  # verified
-        # "daily_superposters", # TODO: come back to this.
-        "consolidated_enriched_post_records",  # TODO: do this plus the ones above it.
-        "ml_inference_perspective_api",
-        "ml_inference_sociopolitical",
-        "in_network_user_activity",
-        "scraped_user_social_network",
+        "preprocessed_posts",
+        # "daily_superposters", # NOTE: no need to migrate, will just regenerate
+        # "user_session_logs",
+        # "feed_analytics",
+        # "post_scores",
+        # "consolidated_enriched_post_records",
+        # "ml_inference_perspective_api",
+        # "ml_inference_sociopolitical",
+        # "in_network_user_activity",
+        # "scraped_user_social_network",
     ]
     for service in services:
         # compact_local_service(service, delete_old_files=True)
