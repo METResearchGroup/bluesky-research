@@ -134,8 +134,6 @@ MAP_SERVICE_TO_METADATA = {
             "session_timestamp": "string",
         },
     },
-    # TODO: update this.
-    # TODO: there will also be a complex dtype.
     "daily_superposters": {
         "local_prefix": os.path.join(root_local_data_directory, "daily_superposters"),
         "s3_prefix": "daily_superposters",
@@ -144,6 +142,14 @@ MAP_SERVICE_TO_METADATA = {
         "timestamp_field": "insert_date_timestamp",
         "skip_deduping": True,
         "pydantic_model": "",
+        "dtypes_map": {
+            "insert_date": "string",
+            "insert_date_timestamp": "string",
+            "superposters": "string",
+            "method": "string",
+            "top_n_percent": "Float64",
+            "threshold": "Int64",
+        },
     },
     "post_scores": {
         "local_prefix": os.path.join(root_local_data_directory, "post_scores"),

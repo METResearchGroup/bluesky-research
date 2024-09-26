@@ -32,6 +32,7 @@ services_list = [
     "preprocessed_posts",
     "generate_vector_embeddings",
     "calculate_superposters",
+    "daily_superposters",
     "ml_inference_perspective_api",
     "ml_inference_sociopolitical",
     "in_network_user_activity",
