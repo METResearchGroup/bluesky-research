@@ -461,11 +461,6 @@ def do_rank_score_feeds(
     # load data
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
 
-    # TODO: remove
-    study_users = [
-        user for user in study_users if user.bluesky_handle == "markptorres.bsky.social"
-    ]
-
     latest_data: dict = load_latest_processed_data()
     consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = latest_data[
         "consolidate_enrichment_integrations"
