@@ -21,6 +21,11 @@ from lib.log.logger import get_logger
 
 logger = get_logger(__name__)
 
+pd.set_option("display.max_rows", None)
+pd.set_option("display.max_columns", None)
+pd.set_option("display.width", None)
+pd.set_option("display.max_colwidth", None)
+
 services_list = [
     "sync_firehose",
     "sync_most_liked_posts",
@@ -297,7 +302,7 @@ def partition_data_by_date(
 def export_data_to_local_storage(
     service: str,
     df: pd.DataFrame,
-    export_format: Literal["jsonl", "parquet"],
+    export_format: Literal["jsonl", "parquet"] = "parquet",
     lookback_days: int = default_lookback_days,
     custom_args: Optional[dict] = None,
 ) -> None:
@@ -453,11 +458,13 @@ def load_data_from_local_storage(
     directory: Literal["cache", "active"] = "active",
     export_format: Literal["jsonl", "parquet"] = "parquet",
     latest_timestamp: Optional[str] = None,
+    use_all_data: bool = True,
 ) -> pd.DataFrame:
     """Load data from local storage."""
     # TODO: only for testing purposes, use cache.
     directories = [directory]
-    # directories = ["cache", "active"]
+    if use_all_data:
+        directories = ["cache", "active"]
 
     filepaths = list_filenames(service=service, directories=directories)
     if export_format == "jsonl":

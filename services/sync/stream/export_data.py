@@ -563,7 +563,10 @@ def export_study_user_activity_local_data():
     # export data
     if len(all_posts) > 0:
         logger.info(f"Exporting {len(all_posts)} study user post records.")
+        dtypes_map = MAP_SERVICE_TO_METADATA["study_user_activity"]["dtypes_map"]
         df = pd.DataFrame(all_posts)
+        df = df.astype(dtypes_map)
+        df["synctimestamp"] = generate_current_datetime_str()
         custom_args = {"record_type": "post"}
         export_data_to_local_storage(
             df=df, service="study_user_activity", custom_args=custom_args
@@ -571,6 +574,7 @@ def export_study_user_activity_local_data():
     if len(all_likes) > 0:
         logger.info(f"Exporting {len(all_likes)} study user like records    .")
         df = pd.DataFrame(all_likes)
+        df["synctimestamp"] = generate_current_datetime_str()
         custom_args = {"record_type": "like"}
         export_data_to_local_storage(
             df=df, service="study_user_activity", custom_args=custom_args
@@ -582,9 +586,8 @@ def export_study_user_activity_local_data():
         ]
         df = pd.DataFrame(all_follows)
         df = df.astype(dtypes_map)
-        export_data_to_local_storage(
-            df=df, service="scraped_user_social_network", custom_args=custom_args
-        )
+        df["synctimestamp"] = generate_current_datetime_str()
+        export_data_to_local_storage(df=df, service="scraped_user_social_network")
         # if there are any new followed accounts, then we want to reload the list
         # of followed accounts.
         if any(
@@ -599,6 +602,7 @@ def export_study_user_activity_local_data():
             f"Exporting {len(all_likes_on_user_posts)} study user like on user post records."
         )
         df = pd.DataFrame(all_likes_on_user_posts)
+        df["synctimestamp"] = generate_current_datetime_str()
         custom_args = {"record_type": "like_on_user_post"}
         export_data_to_local_storage(
             df=df, service="study_user_activity", custom_args=custom_args
@@ -608,6 +612,7 @@ def export_study_user_activity_local_data():
             f"Exporting {len(all_replies_to_user_posts)} study user reply to user post records."
         )
         df = pd.DataFrame(all_replies_to_user_posts)
+        df["synctimestamp"] = generate_current_datetime_str()
         custom_args = {"record_type": "reply_to_user_post"}
         export_data_to_local_storage(
             df=df, service="study_user_activity", custom_args=custom_args
@@ -631,11 +636,16 @@ def export_in_network_user_activity_local_data():
                 data = json.load(f)
                 jsons.append(data)
     if len(jsons) > 0:
-        timestamp = generate_current_datetime_str()
-        filename = f"{timestamp}.jsonl"
-        full_s3_path = os.path.join(key_root, filename)
-        s3.write_dicts_jsonl_to_s3(data=jsons, key=full_s3_path)
-        logger.info(f"Exported {len(jsons)} in-network user post records to S3.")  # noqa
+        # timestamp = generate_current_datetime_str()
+        # filename = f"{timestamp}.jsonl"
+        # full_s3_path = os.path.join(key_root, filename)
+        # s3.write_dicts_jsonl_to_s3(data=jsons, key=full_s3_path)
+        dtype_map = MAP_SERVICE_TO_METADATA["in_network_user_activity"]["dtypes_map"]
+        df = pd.DataFrame(jsons)
+        df = df.astype(dtype_map)
+        df["synctimestamp"] = generate_current_datetime_str()
+        export_data_to_local_storage(df=df, service="in_network_user_activity")
+        logger.info(f"Exported {len(jsons)} in-network user post records.")
 
 
 def export_batch(

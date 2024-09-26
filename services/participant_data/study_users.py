@@ -13,6 +13,7 @@ from typing import Optional
 import boto3
 
 from lib.aws.athena import Athena
+from lib.db.manage_local_data import load_data_from_local_storage
 from services.participant_data.helper import get_all_users
 
 athena = Athena()
@@ -33,7 +34,7 @@ class StudyUserManager:
             StudyUserManager._instance = StudyUserManager(**kwargs)
         return StudyUserManager._instance
 
-    def __init__(self, load_from_aws: bool = True, use_new_hashmap: bool = False):
+    def __init__(self, load_from_aws: bool = False, use_new_hashmap: bool = False):
         if StudyUserManager._instance is not None:
             raise Exception(
                 "StudyUserManager class is intended to be a singleton instance."
@@ -54,12 +55,17 @@ class StudyUserManager:
                     use_new_hashmap=use_new_hashmap
                 )
             )
-            self.in_network_user_dids_set: set = self._load_in_network_user_dids()  # noqa
+            self.in_network_user_dids_set: set = self._load_in_network_user_dids(
+                is_local=False
+            )  # noqa
         else:
+            # TODO: implement local version of StudyUserManager class.
             print("Using local version of StudyUserManager class.")
-            self.study_users_dids_set = set()
+            self.study_users_dids_set = self._load_study_user_dids()
             self.post_uri_to_study_user_did_map = {}
-            self.in_network_user_dids_set = set()
+            self.in_network_user_dids_set = self._load_in_network_user_dids(
+                is_local=True
+            )
 
     def _load_study_user_dids(self) -> set[str]:
         """Load the study_users_dids_set from DynamoDB."""
@@ -78,7 +84,9 @@ class StudyUserManager:
         study_users = get_all_users()
         return set([user.bluesky_user_did for user in study_users])
 
-    def _load_in_network_user_dids(self, is_refresh: bool = False) -> set[str]:
+    def _load_in_network_user_dids(
+        self, is_refresh: bool = False, is_local: bool = True
+    ) -> set[str]:
         """Load the in_network_user_dids_set from DynamoDB."""
         if is_refresh:
             print("Refreshing the list of in-network user DIDs.")
@@ -95,14 +103,25 @@ class StudyUserManager:
                 only be loaded once at the beginning of the streaming process.
                 """
             )
-        query = """
-        SELECT follow_did AS did
-        FROM user_social_networks
-        WHERE relationship_to_study_user IN ('follow')
-        """
-        df = athena.query_results_as_df(query)
-        user_dids = set(df["did"].tolist())
-        print(f"Loaded {len(user_dids)} in-network user DIDs from Athena.")
+        if is_local:
+            social_network_df = load_data_from_local_storage(
+                service="scraped_user_social_network",
+                directory="active",
+                use_all_data=True,
+            )
+            user_dids = set()
+            for _, row in social_network_df.iterrows():
+                if row["relationship_to_study_user"] == "follow":
+                    user_dids.add(row["follow_did"])
+        else:
+            query = """
+                SELECT follow_did AS did
+                FROM user_social_networks
+                WHERE relationship_to_study_user IN ('follow')
+            """
+            df = athena.query_results_as_df(query)
+            user_dids = set(df["did"].tolist())
+            print(f"Loaded {len(user_dids)} in-network user DIDs from Athena.")
         return user_dids
 
     def _load_post_uri_to_study_user_did_map_from_s3(
