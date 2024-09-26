@@ -274,16 +274,16 @@ def compact_local_service(
 
 def compact_all_local_services():
     services = [
-        # "preprocessed_posts", # NOTE: verified.
-        # "in_network_user_activity",
-        # "scraped_user_social_network",
-        # "study_user_activity",
-        # "sync_most_liked_posts",
-        # "daily_superposters",
-        # "user_session_logs",
-        # "feed_analytics",
-        # "post_scores",
-        # "consolidated_enriched_post_records",
+        "preprocessed_posts",  # NOTE: verified.
+        "in_network_user_activity",
+        "scraped_user_social_network",
+        "study_user_activity",
+        "sync_most_liked_posts",
+        "daily_superposters",
+        "user_session_logs",
+        "feed_analytics",
+        "post_scores",
+        "consolidated_enriched_post_records",
         "ml_inference_perspective_api",
         "ml_inference_sociopolitical",
     ]
