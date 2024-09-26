@@ -121,7 +121,7 @@ class StudyUserManager:
             """
             df = athena.query_results_as_df(query)
             user_dids = set(df["did"].tolist())
-            print(f"Loaded {len(user_dids)} in-network user DIDs from Athena.")
+        print(f"Loaded {len(user_dids)} in-network user DIDs from Athena.")
         return user_dids
 
     def _load_post_uri_to_study_user_did_map_from_s3(
