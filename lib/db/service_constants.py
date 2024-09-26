@@ -241,6 +241,7 @@ MAP_SERVICE_TO_METADATA = {
             "similarity_score": "Float64",
             "most_liked_average_embedding_key": "string",
             "consolidation_timestamp": "string",
+            "partition_date": "string",
         },
     },
     "ml_inference_perspective_api": {

@@ -388,6 +388,14 @@ def list_filenames(
         subpaths = MAP_SERVICE_TO_METADATA[service]["subpaths"]
         for _, subpath in subpaths.items():
             local_prefixes.append(subpath)
+    elif (
+        service == "ml_inference_perspective_api"
+        or service == "ml_inference_sociopolitical"
+    ):
+        local_prefixes = []
+        subpaths = MAP_SERVICE_TO_METADATA[service]["subpaths"]
+        for _, subpath in subpaths.items():
+            local_prefixes.append(subpath)
     else:
         local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
         if service == "study_user_activity":
@@ -411,34 +419,6 @@ def delete_files(filepaths: list[str]) -> None:
     for filepath in filepaths:
         os.remove(filepath)
     logger.info(f"Successfully deleted {len(filepaths)} files from local storage.")
-
-
-def load_latest_session_timestamp(service: str) -> str:
-    pass
-
-
-def load_latest_sync_posts() -> pd.DataFrame:
-    pass
-
-
-def load_latest_most_liked_posts() -> pd.DataFrame:
-    pass
-
-
-def load_latest_preprocessed_posts() -> pd.DataFrame:
-    pass
-
-
-def load_latest_integration_posts(integration: str) -> pd.DataFrame:
-    pass
-
-
-def load_latest_integrations(integrations: list[str]) -> dict[str, pd.DataFrame]:
-    pass
-
-
-def load_latest_consolidated_posts() -> pd.DataFrame:
-    pass
 
 
 def load_service_cols(service: str) -> list[str]:
@@ -554,27 +534,9 @@ def load_latest_data(
     max_per_source: Optional[int] = None,
 ) -> Union[pd.DataFrame, dict[str, pd.DataFrame]]:
     """Loads the latest data for a service."""
-    if not latest_timestamp:
-        latest_timestamp = load_latest_session_timestamp(service=service)
     if not _validate_service(service=service):
         raise ValueError(f"Invalid service: {service}")
-    if service == "consolidate_enrichment_integrations":
-        # return a map of each integration to each corresponding df.
-        service_to_df_map = {}
-        services_lst = [
-            "preprocess_raw_data",
-            "generate_vector_embeddings",
-            "daily_superposters",
-            "ml_inference_perspective_api",
-            "ml_inference_sociopolitical",
-        ]
-        for integration_service in services_lst:
-            integration_df = load_data_from_local_storage(
-                service=integration_service, latest_timestamp=latest_timestamp
-            )
-            service_to_df_map[integration_service] = integration_df
-        return service_to_df_map
-    elif service == "rank_score_feeds":
+    if service == "rank_score_feeds":
         # fetch both the latest consolidated posts as well as the latest social networks
         service_to_df_map = {}
         services_lst = [
