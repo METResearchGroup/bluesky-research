@@ -662,7 +662,6 @@ def export_in_network_user_activity_local_data():
             df["synctimestamp"], format=timestamp_format
         ).dt.date
         df = df.astype(dtype_map)
-        breakpoint()
         export_data_to_local_storage(df=df, service="in_network_user_activity")
         logger.info(f"Exported {len(jsons)} in-network user post records.")
 
