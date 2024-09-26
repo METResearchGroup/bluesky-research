@@ -23,8 +23,8 @@ logger = get_logger(__name__)
 
 services_list = [
     "sync_firehose",
-    "sync_most_liked",
-    "preprocess_raw_data",
+    "sync_most_liked_posts",
+    "preprocessed_posts",
     "generate_vector_embeddings",
     "calculate_superposters",
     "ml_inference_perspective_api",
