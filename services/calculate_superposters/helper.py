@@ -70,8 +70,6 @@ def calculate_latest_superposters(
         latest_timestamp=lookback_datetime_str,
     )
 
-    threshold = 1
-
     if top_n_percent is not None:
         query = f"""
         WITH ranked_users AS (
