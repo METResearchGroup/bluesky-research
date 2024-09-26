@@ -439,9 +439,11 @@ def calculate_feed_analytics(
 
 def export_feed_analytics(analytics: dict) -> None:
     """Exports feed analytics to S3."""
-    key = os.path.join("feed_analytics", f"feed_analytics_{current_datetime}.json")  # noqa
-    s3.write_dict_json_to_s3(data=analytics, key=key)
-    logger.info("Exported session feed analytics to S3.")
+    dtype_map = MAP_SERVICE_TO_METADATA["feed_analytics"]["dtypes_map"]
+    df = pd.DataFrame([analytics])
+    df = df.astype(dtype_map)
+    export_data_to_local_storage(df=df, service="feed_analytics")
+    logger.info("Exported session feed analytics.")
 
 
 def do_rank_score_feeds(
