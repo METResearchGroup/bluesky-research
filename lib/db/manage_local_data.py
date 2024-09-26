@@ -21,6 +21,20 @@ from lib.log.logger import get_logger
 
 logger = get_logger(__name__)
 
+services_list = [
+    "sync_firehose",
+    "sync_most_liked",
+    "preprocess_raw_data",
+    "generate_vector_embeddings",
+    "calculate_superposters",
+    "ml_inference_perspective_api",
+    "ml_inference_sociopolitical",
+    "in_network_user_activity",
+    "scraped_user_social_network",
+    "consolidate_enrichment_integrations",
+    "rank_score_feeds",
+]
+
 
 def load_jsonl_data(filepath: str) -> list[dict]:
     """Load JSONL data from a file, supporting gzipped files."""
@@ -284,7 +298,7 @@ def export_data_to_local_storage(
     service: str,
     df: pd.DataFrame,
     export_format: Literal["jsonl", "parquet"],
-    lookback_days: int,
+    lookback_days: int = default_lookback_days,
 ) -> None:
     """Exports data to local storage.
 
@@ -331,6 +345,10 @@ def export_data_to_local_storage(
             partition_cols = MAP_SERVICE_TO_METADATA[service].get(
                 "partition_cols", "partition_date"
             )  # noqa
+            if "partition_date" not in chunk_df.columns:
+                chunk_df["partition_date"] = pd.to_datetime(
+                    chunk_df[timestamp_field]
+                ).dt.date
             chunk_df.to_parquet(
                 local_export_fp, index=False, partition_cols=partition_cols
             )
@@ -430,7 +448,11 @@ def load_data_from_local_storage(
     latest_timestamp: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load data from local storage."""
-    filepaths = list_filenames(service=service, directories=[directory])
+    # TODO: only for testing purposes, use cache.
+    directories = [directory]
+    # directories = ["cache", "active"]
+
+    filepaths = list_filenames(service=service, directories=directories)
     if export_format == "jsonl":
         df = pd.read_json(filepaths, orient="records", lines=True)
     elif export_format == "parquet":
@@ -482,7 +504,7 @@ def load_data_from_local_storage(
 
 
 def _validate_service(service: str) -> bool:
-    pass
+    return service in services_list
 
 
 def load_latest_data(
