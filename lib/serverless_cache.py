@@ -61,7 +61,9 @@ class ServerlessCache:
         list_caches_response = self.client.list_caches()
         if isinstance(list_caches_response, ListCaches.Success):
             success = list_caches_response
-            for cache_info in success.caches:
+            caches = success.caches
+            print(f"{len(caches)=} caches found")
+            for cache_info in caches:
                 logger.info(f"- {cache_info.name!r}")
         elif isinstance(list_caches_response, ListCaches.Error):
             error = list_caches_response
