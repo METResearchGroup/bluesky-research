@@ -284,8 +284,8 @@ def compact_all_local_services():
         "feed_analytics",
         "post_scores",
         "consolidated_enriched_post_records",
-        "ml_inference_perspective_api",
         "ml_inference_sociopolitical",
+        "ml_inference_perspective_api",
     ]
     for service in services:
         compact_local_service(service, delete_old_files=True)
