@@ -503,6 +503,7 @@ resource "aws_cloudwatch_log_group" "rank_score_feeds_lambda_log_group" {
 resource "aws_cloudwatch_event_rule" "sync_most_liked_feed_rule" {
   name                = "sync_most_liked_feed_rule"
   schedule_expression = "cron(0 0 * * ? *)"  # Triggers at 00:00 UTC every day
+  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "sync_most_liked_feed_target" {
