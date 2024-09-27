@@ -231,7 +231,7 @@ def consolidate_enrichment_integrations(
             prob_constructive=(perspective.prob_constructive if perspective else 0),
             prob_curiosity=(perspective.prob_curiosity if perspective else 0),
             prob_nuance=(perspective.prob_nuance if perspective else 0),
-            prob_personal_story=perspective.prob_personal_story,
+            prob_personal_story=(perspective.prob_personal_story if perspective else 0),
             prob_reasoning=(perspective.prob_reasoning if perspective else 0),
             prob_respect=(perspective.prob_respect if perspective else 0),
             prob_alienation=(perspective.prob_alienation if perspective else 0),
