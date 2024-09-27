@@ -4,7 +4,7 @@
 #SBATCH -p short
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=2
-#SBATCH -t 0:30:00
+#SBATCH -t 0:50:00
 #SBATCH --mem=10G
 #SBATCH --job-name=rank_score_feeds_job_jya0297_%j
 #SBATCH --output=/projects/p32375/bluesky-research/lib/log/rank_score_feeds/jya0297-%j.log
