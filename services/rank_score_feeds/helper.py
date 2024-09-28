@@ -289,7 +289,6 @@ def create_ranked_candidate_feed(
             CustomFeedPost(item=post.uri, is_in_network=False)
             for post in out_of_network_posts[:max_feed_length]
         ]
-        breakpoint()
         return feed
     output_posts: list[ConsolidatedEnrichedPostModel] = []
     in_network_post_set = set(post.uri for post in in_network_posts)
@@ -655,8 +654,6 @@ def do_rank_score_feeds(
         "condition": "default",
         "feed_statistics": generate_feed_statistics(feed=default_feed),
     }
-
-    breakpoint()
 
     timestamp = generate_current_datetime_str()
 
