@@ -214,6 +214,7 @@ def calculate_in_network_posts_for_user(
 # TODO: add 50/50 balancing (or some similar sort of balancing) between
 # in-network and out-of-network posts.
 def create_ranked_candidate_feed(
+    condition: str,
     in_network_candidate_post_uris: list[str],
     post_pool: list[ConsolidatedEnrichedPostModel],
     max_feed_length: int = max_feed_length,
@@ -238,7 +239,11 @@ def create_ranked_candidate_feed(
         post
         for post in post_pool
         if post.uri not in in_network_candidate_post_uris
-        and post.source == "most_liked"
+        and (
+            post.source == "most_liked"
+            if condition in ["engagement", "representative_diversification"]
+            else post.source == "firehose"
+        )
     ]
 
     # make sure that no single user appears more than X times.
@@ -279,10 +284,13 @@ def create_ranked_candidate_feed(
     if len(post_pool) == 0:
         return []
     if len(in_network_candidate_post_uris) == 0:
-        return [
+        # if no in-network posts, return the out-of-network posts.
+        feed = [
             CustomFeedPost(item=post.uri, is_in_network=False)
-            for post in post_pool[:max_feed_length]
+            for post in out_of_network_posts[:max_feed_length]
         ]
+        breakpoint()
+        return feed
     output_posts: list[ConsolidatedEnrichedPostModel] = []
     in_network_post_set = set(post.uri for post in in_network_posts)
 
@@ -312,10 +320,12 @@ def create_ranked_candidate_feed(
 
     # Ensure output_posts does not exceed max_feed_length
 
-    return [
+    feed = [
         CustomFeedPost(item=post.uri, is_in_network=post.uri in in_network_post_set)
         for post in output_posts[:max_feed_length]
     ]
+
+    return feed
 
 
 def filter_post_is_english(post: ConsolidatedEnrichedPostModel) -> bool:
@@ -461,6 +471,18 @@ def do_rank_score_feeds(
     # load data
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
 
+    test_mode = False
+    if test_mode:
+        # TODO: just do the test users
+        test_user_handles = [
+            "testblueskyaccount.bsky.social",
+            "testblueskyuserv2.bsky.social",
+            "markptorres.bsky.social",
+        ]
+        study_users = [
+            user for user in study_users if user.bluesky_handle in test_user_handles
+        ]
+
     latest_data: dict = load_latest_processed_data()
     consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = latest_data[
         "consolidate_enrichment_integrations"
@@ -591,6 +613,7 @@ def do_rank_score_feeds(
     user_to_ranked_feed_map: dict[str, dict] = {}
     for user in study_users:
         feed: list[CustomFeedPost] = create_ranked_candidate_feed(
+            condition=user.condition,
             in_network_candidate_post_uris=(
                 user_to_in_network_post_uris_map[user.bluesky_user_did]
             ),
@@ -620,6 +643,7 @@ def do_rank_score_feeds(
     # insert default feed, for users that aren't logged in or for if a user
     # isn't in the study but opens the link.
     default_feed: list[CustomFeedPost] = create_ranked_candidate_feed(
+        condition="reverse_chronological",
         in_network_candidate_post_uris=[],
         post_pool=reverse_chronological_post_pool,
         max_feed_length=max_feed_length,
@@ -631,6 +655,8 @@ def do_rank_score_feeds(
         "condition": "default",
         "feed_statistics": generate_feed_statistics(feed=default_feed),
     }
+
+    breakpoint()
 
     timestamp = generate_current_datetime_str()
 
