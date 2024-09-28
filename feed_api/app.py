@@ -198,9 +198,7 @@ async def get_feed_skeleton(
         logger.info(
             f"Test user handle={handle} accessed the feed. Fetch latest feed from external cache + S3."
         )
-        feed_dicts: list[dict] = load_latest_user_feed(
-            user_did=requester_did, cursor=cursor, limit=limit
-        )
+        feed_dicts: list[dict] = load_latest_user_feed(user_did=requester_did)
     else:
         cached_request = get_cached_request(user_did=requester_did, cursor=cursor)
         if cached_request:
@@ -221,9 +219,7 @@ async def get_feed_skeleton(
             logger.warning(
                 f"Feed for {requester_did} not in local cache (should be). Loading from external cache + S3..."
             )  # noqa
-            feed_dicts: list[dict] = load_latest_user_feed(
-                user_did=requester_did, cursor=cursor, limit=limit
-            )
+            feed_dicts: list[dict] = load_latest_user_feed(user_did=requester_did)
             logger.info(
                 f"Loaded feed for {requester_did} from S3 + cache. Added to local store"
             )  # noqa
