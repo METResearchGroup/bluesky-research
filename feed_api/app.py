@@ -26,6 +26,8 @@ from feed_api.helper import (
     create_feed_and_cursor,
     load_latest_user_feed,
     valid_dids,
+    study_user_did_to_handle_map,
+    test_user_dids,
 )
 from feed_api.user_session_queue import background_s3_writer, log_queue
 from lib.aws.s3 import S3
@@ -191,31 +193,41 @@ async def get_feed_skeleton(
         logger.info(f"User DID not in the study: {requester_did}. Using default feed.")
         requester_did = "default"
     logger.info(f"Validated request for DID={requester_did}...")
-    cached_request = get_cached_request(user_did=requester_did, cursor=cursor)
-    if cached_request:
-        # we cache requests with a short-lived TTL because Bluesky sends
-        # duplicate requests (e.g., if they need 2 requests to get the actual
-        # feed, they send 4-6 for some reason). In this implementation, we
-        # see if they've requested a feed recently and then just return.
-        # We do it like this so that we can avoid duplicate requests,
-        # saving on S3 reads, cache hits, and, possibly most importantly,
-        # we don't log those requests multiple times.
-        logger.info(f"Found cached request for user={requester_did}...")
-        return cached_request
-    request_cursor = cursor
-    if requester_did in user_did_to_cached_feed:
-        feed_dicts: list[dict] = user_did_to_cached_feed[requester_did]
-    else:
-        logger.warning(
-            f"Feed for {requester_did} not in local cache (should be). Loading from external cache + S3..."
-        )  # noqa
+    if requester_did in test_user_dids:
+        handle = study_user_did_to_handle_map[requester_did]
+        logger.info(
+            f"Test user handle={handle} accessed the feed. Fetch latest feed from external cache + S3."
+        )
         feed_dicts: list[dict] = load_latest_user_feed(
             user_did=requester_did, cursor=cursor, limit=limit
         )
-        logger.info(
-            f"Loaded feed for {requester_did} from S3 + cache. Added to local store"
-        )  # noqa
-        user_did_to_cached_feed[requester_did] = feed_dicts
+    else:
+        cached_request = get_cached_request(user_did=requester_did, cursor=cursor)
+        if cached_request:
+            # we cache requests with a short-lived TTL because Bluesky sends
+            # duplicate requests (e.g., if they need 2 requests to get the actual
+            # feed, they send 4-6 for some reason). In this implementation, we
+            # see if they've requested a feed recently and then just return.
+            # We do it like this so that we can avoid duplicate requests,
+            # saving on S3 reads, cache hits, and, possibly most importantly,
+            # we don't log those requests multiple times.
+            logger.info(f"Found cached request for user={requester_did}...")
+            return cached_request
+        request_cursor = cursor
+        if requester_did in user_did_to_cached_feed:
+            # if requester_did's feed is in the in-memory cache, use that one.
+            feed_dicts: list[dict] = user_did_to_cached_feed[requester_did]
+        else:
+            logger.warning(
+                f"Feed for {requester_did} not in local cache (should be). Loading from external cache + S3..."
+            )  # noqa
+            feed_dicts: list[dict] = load_latest_user_feed(
+                user_did=requester_did, cursor=cursor, limit=limit
+            )
+            logger.info(
+                f"Loaded feed for {requester_did} from S3 + cache. Added to local store"
+            )  # noqa
+            user_did_to_cached_feed[requester_did] = feed_dicts
     feed, next_cursor = create_feed_and_cursor(
         feed_dicts=feed_dicts,
         user_did=requester_did,

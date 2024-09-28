@@ -35,6 +35,15 @@ study_user_did_to_handle_map = {
 }
 valid_dids = {user.bluesky_user_did for user in study_users}
 
+test_user_handles = [
+    "testblueskyaccount.bsky.social",
+    "testblueskyuserv2.bsky.social",
+    "markptorres.bsky.social",
+]
+test_user_dids = {
+    did for did in valid_dids if study_user_did_to_handle_map[did] in test_user_handles
+}
+
 
 def parse_feed_string(feed_string: str) -> list[dict]:
     """Parses the feed string.
