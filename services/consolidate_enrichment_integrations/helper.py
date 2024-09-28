@@ -257,6 +257,9 @@ def consolidate_enrichment_integrations(
 
         consolidated_posts.append(consolidated_post)
 
+    total = len([post for post in consolidated_posts if post.source == "most_liked"])
+    print(f"Total most-liked posts: {total}")
+
     logger.info(f"Number of consolidated posts: {len(consolidated_posts)}")
     return consolidated_posts
 
