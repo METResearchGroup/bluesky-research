@@ -193,6 +193,7 @@ async def get_feed_skeleton(
         logger.info(f"User DID not in the study: {requester_did}. Using default feed.")
         requester_did = "default"
     logger.info(f"Validated request for DID={requester_did}...")
+    request_cursor = cursor
     if requester_did in test_user_dids:
         handle = study_user_did_to_handle_map[requester_did]
         logger.info(
@@ -211,7 +212,6 @@ async def get_feed_skeleton(
             # we don't log those requests multiple times.
             logger.info(f"Found cached request for user={requester_did}...")
             return cached_request
-        request_cursor = cursor
         if requester_did in user_did_to_cached_feed:
             # if requester_did's feed is in the in-memory cache, use that one.
             feed_dicts: list[dict] = user_did_to_cached_feed[requester_did]
