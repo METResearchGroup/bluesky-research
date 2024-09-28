@@ -63,11 +63,16 @@ def main(users_to_sync: list[str] = None):
         if i % 10 == 0:
             logger.info(f"Syncing user {i} of {total_users_to_sync}")
         logger.info(f"{user.bluesky_handle} - {user.bluesky_user_did}")
-        follows: list[dict] = fetch_follows_for_user(
-            user_handle=user.bluesky_handle,
-            user_did=user.bluesky_user_did,
-            max_requests=max_requests,
-        )
+        try:
+            follows: list[dict] = fetch_follows_for_user(
+                user_handle=user.bluesky_handle,
+                user_did=user.bluesky_user_did,
+                max_requests=max_requests,
+            )
+        except Exception as e:
+            logger.error(f"Failed to fetch follows for {user.bluesky_handle}: {e}")
+            follows = []
+            continue
         # NOTE: we don't care about existing followers. We just care about
         # new ones. User feeds are not affected by the presence or lack of
         # follower accounts; they're only affected by who the user follows.
@@ -81,5 +86,7 @@ def main(users_to_sync: list[str] = None):
 
 
 if __name__ == "__main__":
-    users_to_sync = ["percy.bsky.social"]
-    main(users_to_sync=users_to_sync)
+    # users_to_sync = ["percy.bsky.social"]
+    # main(users_to_sync=users_to_sync)
+    users_to_sync = []
+    main(users_to_sync)
