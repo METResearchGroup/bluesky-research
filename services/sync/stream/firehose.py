@@ -3,6 +3,7 @@
 Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/data_stream.py
 """  # noqa
 
+import time
 from typing import Optional
 
 from atproto import (
@@ -185,4 +186,11 @@ def _run(
             # if counter.get_value() > stream_limit:
             #     sys.exit(0)
 
-    firehose_client.start(on_message_handler)
+    try:
+        firehose_client.start(on_message_handler)
+    except Exception as e:
+        logger.error(f"Error in firehose client: {e}")
+        logger.info("Sleeping for 20 seconds before retrying...")
+        time.sleep(20)
+        logger.info("Retrying firehose client...")
+        firehose_client.start(on_message_handler)
