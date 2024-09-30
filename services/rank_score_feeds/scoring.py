@@ -1,15 +1,17 @@
 """Scoring logic for feed generation."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 import numpy as np
+import pandas as pd
 
-from lib.constants import timestamp_format
+from lib.constants import current_datetime, timestamp_format, default_lookback_days
+from lib.db.manage_local_data import load_data_from_local_storage
+from lib.log.logger import get_logger
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
-from lib.constants import default_lookback_days
 
 default_similarity_score = 0.8
 average_popular_post_like_count = 1250
@@ -19,7 +21,9 @@ superposter_coef = 0.95
 default_max_freshness_score = 3
 default_lookback_hours = default_lookback_days * 24
 freshness_decay_ratio: float = default_max_freshness_score / default_lookback_hours  # noqa
+default_scoring_lookback_days = 1
 
+logger = get_logger(__name__)
 
 # TODO: add superposter information.
 def score_treatment_algorithm(
@@ -104,12 +108,17 @@ def score_post_likeability(post: ConsolidatedEnrichedPostModel) -> float:
     popular feed, which is an OK implication. After all, the user chose to follow
     those accounts, so seeing those posts is still valuable to them.
     """
-    if post.like_count:
-        like_score = np.log(post.like_count + 1)
-    elif post.similarity_score:
-        expected_like_count = average_popular_post_like_count * post.similarity_score
-        like_score = np.log(expected_like_count + 1)
-    else:
+    try:
+        if post.like_count:
+            like_score = np.log(post.like_count + 1)
+        elif post.similarity_score:
+            expected_like_count = average_popular_post_like_count * post.similarity_score
+            like_score = np.log(expected_like_count + 1)
+        else:
+            expected_like_count = average_popular_post_like_count * default_similarity_score
+            like_score = np.log(expected_like_count + 1)
+    except Exception as e:
+        logger.error(f"Error calculating like score for post {post.uri}: {e}")
         expected_like_count = average_popular_post_like_count * default_similarity_score
         like_score = np.log(expected_like_count + 1)
     return like_score
@@ -148,12 +157,79 @@ def calculate_post_score(
     return {"engagement_score": engagement_score, "treatment_score": treatment_score}
 
 
+def load_previous_post_scores(lookback_days: int = default_scoring_lookback_days) -> dict:
+    """Load previous post scores from storage, for a given lookback period.
+
+    Returns a dict with the post uri as the key and the scores dict as the
+    value. The scores dict contains the engagement and treatment scores for the
+    post.
+    """
+    lookback_timestamp = (current_datetime - timedelta(days=lookback_days)).strftime(
+        "%Y-%m-%d"
+    )
+    logger.info(f"Loading previous post scores from {lookback_timestamp}.")
+    df = load_data_from_local_storage(
+        service="post_scores",
+        directory="active",
+        latest_timestamp=lookback_timestamp,
+    )
+    df = df.sort_values(by="scored_timestamp", ascending=False).drop_duplicates(subset="uri", keep="first")
+    previous_scores = {
+        row["uri"]: {
+            "engagement_score": row["engagement_score"],
+            "treatment_score": row["treatment_score"]
+        }
+        for _, row in df.iterrows()
+        if not pd.isna(row["engagement_score"]) and not pd.isna(row["treatment_score"])
+    }
+    del df
+    logger.info("Finished loading previous post scores.")
+    return previous_scores
+
+
 def calculate_post_scores(
     posts: list[ConsolidatedEnrichedPostModel],
     superposter_dids: set[str],
-) -> list[dict]:  # noqa
+    load_previous_scores: bool = True
+) -> tuple[list[dict], list[str]]:  # noqa
     """Calculate scores for a list of posts."""
-    return [
-        calculate_post_score(post=post, superposter_dids=superposter_dids)
-        for post in posts
-    ]
+    scores = []
+    new_post_uris = []
+
+    if not load_previous_scores:
+        return [
+            calculate_post_score(post=post, superposter_dids=superposter_dids)
+            for post in posts
+        ]
+    else:
+        # total_posts = len(posts)
+        # total_new_scores = 0
+        # previous_post_scores: dict = load_previous_post_scores()
+        # for post in posts:
+        #     if post.uri in previous_post_scores:
+        #         scores.append(previous_post_scores[post.uri])
+        #     else:
+        #         scores.append(
+        #             calculate_post_score(post=post, superposter_dids=superposter_dids)
+        #         )
+        #         total_new_scores += 1
+        #         new_post_uris.append(post.uri)
+        # logger.info(f"Calculated {total_new_scores}/{total_posts} new post scores.")
+        total_posts = len(posts)
+        previous_post_scores: dict = load_previous_post_scores()
+
+        for post in posts:
+            if post.uri in previous_post_scores:
+                scores.append(previous_post_scores[post.uri])
+            else:
+                scores.append(
+                    calculate_post_score(post=post, superposter_dids=superposter_dids)
+                )
+                new_post_uris.append(post.uri)
+
+        new_post_uris = [uri for uri in new_post_uris if uri is not None]
+
+        total_new_scores = len(new_post_uris)
+        logger.info(f"Calculated {total_new_scores}/{total_posts} new post scores.")
+
+    return list(scores), new_post_uris

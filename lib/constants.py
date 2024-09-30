@@ -19,7 +19,7 @@ root_directory = os.path.abspath(os.path.join(current_file_directory, "../.."))
 root_data_dirname = "bluesky_research_data"
 root_local_data_directory = os.path.join(root_directory, root_data_dirname)
 
-default_lookback_days = 3
+default_lookback_days = 2
 
 
 def convert_pipeline_to_bsky_dt_format(pipeline_dt: str) -> str:

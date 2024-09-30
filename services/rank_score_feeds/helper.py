@@ -178,6 +178,8 @@ def export_post_scores(post_uri_to_post_score_map: dict[str, str]):
     output_jsons = [post.dict() for post in output]
     dtypes_map = MAP_SERVICE_TO_METADATA["post_scores"]["dtypes_map"]
     df = pd.DataFrame(output_jsons)
+    if "partition_date" not in df.columns:
+        df["partition_date"] = pd.to_datetime(df["scored_timestamp"]).dt.date
     df = df.astype(dtypes_map)
     export_data_to_local_storage(df=df, service="post_scores")
 
@@ -518,21 +520,27 @@ def do_rank_score_feeds(
         )
 
     consolidated_enriched_posts = deduplicated_consolidated_enriched_posts
-    # calculate scores for all the posts
-    post_scores: list[dict] = calculate_post_scores(
+    # calculate scores for all the posts. Load any pre-existing scores and then
+    # calculate scores for new posts. Export scores for new posts.
+    post_scores, new_post_uris = calculate_post_scores(
         posts=consolidated_enriched_posts,
         superposter_dids=superposter_dids,
+        load_previous_scores=True
     )  # noqa
     post_uri_to_post_score_map: dict[str, dict] = {
         post.uri: {"post": post, "score": score}
         for post, score in zip(consolidated_enriched_posts, post_scores)
     }
     logger.info(f"Calculated {len(post_uri_to_post_score_map)} post scores.")
+    scores_to_export = {
+        uri: score for uri, score in post_uri_to_post_score_map.items()
+        if uri in new_post_uris
+    }
 
-    # export scores to S3.
+    # export scores to storage.
     if not skip_export_post_scores:
-        logger.info(f"Exporting {len(post_uri_to_post_score_map)} post scores.")  # noqa
-        export_post_scores(post_uri_to_post_score_map=post_uri_to_post_score_map)
+        logger.info(f"Exporting {len(scores_to_export)} post scores.")  # noqa
+        export_post_scores(post_uri_to_post_score_map=scores_to_export)
 
     # list of all in-network user posts, across all study users. Needs to be
     # filtered for the in-network posts relevant for a given study user.
