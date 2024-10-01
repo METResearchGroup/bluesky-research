@@ -9,9 +9,6 @@ import pandas as pd
 from lib.constants import current_datetime, timestamp_format, default_lookback_days
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
-from services.consolidate_enrichment_integrations.models import (
-    ConsolidatedEnrichedPostModel,
-)  # noqa
 
 default_similarity_score = 0.8
 average_popular_post_like_count = 1250
@@ -25,41 +22,40 @@ default_scoring_lookback_days = 1
 
 logger = get_logger(__name__)
 
+
 # TODO: add superposter information.
-def score_treatment_algorithm(
-    post: ConsolidatedEnrichedPostModel, superposter_dids: set[str]
-) -> dict:
+def score_treatment_algorithm(post: pd.Series, superposter_dids: set[str]) -> dict:
     """Score posts based on our treatment algorithm."""
     treatment_coef = 1.0
 
     # update post based on toxicity/constructiveness attributes.
     if (
-        post.sociopolitical_was_successfully_labeled
-        and post.is_sociopolitical
-        and post.perspective_was_successfully_labeled
+        post["sociopolitical_was_successfully_labeled"]
+        and post["is_sociopolitical"]
+        and post["perspective_was_successfully_labeled"]
     ):
-        if post.prob_constructive is None:
+        if post["prob_constructive"] is None:
             # backwards-compatbility bug where prob_constructive wasn't
             # set, but the endpoints for prob_reasoning and prob_constructive
             # are actually the same.
-            post.prob_constructive = post.prob_reasoning
+            post["prob_constructive"] = post["prob_reasoning"]
         # if sociopolitical, uprank/downrank based on toxicity/constructiveness.
         treatment_coef = (
-            post.prob_toxic * coef_toxicity
-            + post.prob_constructive * coef_constructiveness
-        ) / (post.prob_toxic + post.prob_constructive)
+            post["prob_toxic"] * coef_toxicity
+            + post["prob_constructive"] * coef_constructiveness
+        ) / (post["prob_toxic"] + post["prob_constructive"])
 
     # penalize post for being written by a superposter.
-    if post.author_did in superposter_dids:
+    if post["author_did"] in superposter_dids:
         treatment_coef *= superposter_coef
 
     return treatment_coef
 
 
-def calculate_post_age(post: ConsolidatedEnrichedPostModel) -> int:
+def calculate_post_age(post: pd.Series) -> int:
     """Calculate a post's age, in hours."""
     post_dt_object: datetime = datetime.strptime(
-        post.synctimestamp, timestamp_format
+        post["synctimestamp"], timestamp_format
     ).replace(tzinfo=timezone.utc)
     current_dt_object: datetime = datetime.now(timezone.utc)
     time_difference = current_dt_object - post_dt_object
@@ -71,7 +67,7 @@ def calculate_post_age(post: ConsolidatedEnrichedPostModel) -> int:
 
 
 def score_post_freshness(
-    post: ConsolidatedEnrichedPostModel,
+    post: pd.Series,
     max_freshness_score: float = default_max_freshness_score,
     decay_ratio: float = freshness_decay_ratio,
     score_func: Literal["linear", "exponential"] = "exponential",
@@ -92,7 +88,7 @@ def score_post_freshness(
     return freshness_score
 
 
-def score_post_likeability(post: ConsolidatedEnrichedPostModel) -> float:
+def score_post_likeability(post: pd.Series) -> float:
     """Score a post's likeability. We either use the actual like count or we
     use an estimation of the like count, based on how similar that post is to
     posts that are normally liked.
@@ -109,24 +105,26 @@ def score_post_likeability(post: ConsolidatedEnrichedPostModel) -> float:
     those accounts, so seeing those posts is still valuable to them.
     """
     try:
-        if post.like_count:
-            like_score = np.log(post.like_count + 1)
-        elif post.similarity_score:
-            expected_like_count = average_popular_post_like_count * post.similarity_score
+        if post["like_count"]:
+            like_score = np.log(post["like_count"] + 1)
+        elif post["similarity_score"]:
+            expected_like_count = (
+                average_popular_post_like_count * post["similarity_score"]
+            )
             like_score = np.log(expected_like_count + 1)
         else:
-            expected_like_count = average_popular_post_like_count * default_similarity_score
+            expected_like_count = (
+                average_popular_post_like_count * default_similarity_score
+            )
             like_score = np.log(expected_like_count + 1)
     except Exception as e:
-        logger.error(f"Error calculating like score for post {post.uri}: {e}")
+        logger.error(f"Error calculating like score for post {post['uri']}: {e}")
         expected_like_count = average_popular_post_like_count * default_similarity_score
         like_score = np.log(expected_like_count + 1)
     return like_score
 
 
-def calculate_post_score(
-    post: ConsolidatedEnrichedPostModel, superposter_dids: set[str]
-) -> float:
+def calculate_post_score(post: pd.Series, superposter_dids: set[str]) -> float:
     """Calculate a post's score.
 
     Calculates what a score's post would be, depending on whether or not it's
@@ -157,7 +155,9 @@ def calculate_post_score(
     return {"engagement_score": engagement_score, "treatment_score": treatment_score}
 
 
-def load_previous_post_scores(lookback_days: int = default_scoring_lookback_days) -> dict:
+def load_previous_post_scores(
+    lookback_days: int = default_scoring_lookback_days,
+) -> dict:
     """Load previous post scores from storage, for a given lookback period.
 
     Returns a dict with the post uri as the key and the scores dict as the
@@ -173,11 +173,13 @@ def load_previous_post_scores(lookback_days: int = default_scoring_lookback_days
         directory="active",
         latest_timestamp=lookback_timestamp,
     )
-    df = df.sort_values(by="scored_timestamp", ascending=False).drop_duplicates(subset="uri", keep="first")
+    df = df.sort_values(by="scored_timestamp", ascending=False).drop_duplicates(
+        subset="uri", keep="first"
+    )
     previous_scores = {
         row["uri"]: {
             "engagement_score": row["engagement_score"],
-            "treatment_score": row["treatment_score"]
+            "treatment_score": row["treatment_score"],
         }
         for _, row in df.iterrows()
         if not pd.isna(row["engagement_score"]) and not pd.isna(row["treatment_score"])
@@ -188,45 +190,36 @@ def load_previous_post_scores(lookback_days: int = default_scoring_lookback_days
 
 
 def calculate_post_scores(
-    posts: list[ConsolidatedEnrichedPostModel],
-    superposter_dids: set[str],
-    load_previous_scores: bool = True
+    posts: pd.DataFrame, superposter_dids: set[str], load_previous_scores: bool = True
 ) -> tuple[list[dict], list[str]]:  # noqa
     """Calculate scores for a list of posts."""
     scores = []
     new_post_uris = []
 
     if not load_previous_scores:
-        return [
-            calculate_post_score(post=post, superposter_dids=superposter_dids)
-            for post in posts
-        ]
+        # NOTE: haven't tested this, since we always load previous scores for now.
+        return posts.apply(
+            lambda post: calculate_post_score(
+                post=post, superposter_dids=superposter_dids
+            ),
+            axis=1,
+        ).tolist()
     else:
-        # total_posts = len(posts)
-        # total_new_scores = 0
-        # previous_post_scores: dict = load_previous_post_scores()
-        # for post in posts:
-        #     if post.uri in previous_post_scores:
-        #         scores.append(previous_post_scores[post.uri])
-        #     else:
-        #         scores.append(
-        #             calculate_post_score(post=post, superposter_dids=superposter_dids)
-        #         )
-        #         total_new_scores += 1
-        #         new_post_uris.append(post.uri)
-        # logger.info(f"Calculated {total_new_scores}/{total_posts} new post scores.")
         total_posts = len(posts)
         previous_post_scores: dict = load_previous_post_scores()
 
-        for post in posts:
-            if post.uri in previous_post_scores:
-                scores.append(previous_post_scores[post.uri])
+        def process_post(post: pd.Series):
+            if post["uri"] in previous_post_scores:
+                return previous_post_scores[post["uri"]], None
             else:
-                scores.append(
-                    calculate_post_score(post=post, superposter_dids=superposter_dids)
+                score = calculate_post_score(
+                    post=post, superposter_dids=superposter_dids
                 )
-                new_post_uris.append(post.uri)
+                return score, post["uri"]
 
+        results = posts.apply(process_post, axis=1)
+        scores, new_post_uris = zip(*results)
+        scores = list(scores)
         new_post_uris = [uri for uri in new_post_uris if uri is not None]
 
         total_new_scores = len(new_post_uris)

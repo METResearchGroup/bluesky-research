@@ -107,27 +107,45 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
     logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3 and to cache.")
 
 
-def manually_filter_posts(posts: list[ConsolidatedEnrichedPostModel]) -> list[ConsolidatedEnrichedPostModel]:  # noqa
-    """Manually filter posts.
+def preprocess_data(consolidated_enriched_posts_df: pd.DataFrame) -> pd.DataFrame:
+    """Preprocesses the data."""
+    # immplement filtering (e.g., English-language filtering)
+    # looks like Bluesky's language filter is broken, so I'll do my own manual
+    # filtering here (could've done it upstream too tbh, this is just the quickest
+    # fix). My implementation is also imperfect, but it gets more correct.
+    # It uses fasttext. Some still make it through, but it's pretty good.
+    logger.info(
+        f"Number of posts before filtering: {len(consolidated_enriched_posts_df)}"
+    )
+    consolidated_enriched_posts_df = consolidated_enriched_posts_df[
+        consolidated_enriched_posts_df["text"].apply(filter_post_is_english)
+    ]
+    logger.info(
+        f"Number of posts after filtering: {len(consolidated_enriched_posts_df)}"
+    )
 
-    Posts should be filtered upstream, this is just a catch-all stopgap solution
-    for filters that we 100% want to make sure make it into production feeds.
+    # Deduplication based on unique URIs, keeping the most recent consolidation_timestamp
+    len_before = consolidated_enriched_posts_df.shape[0]
+    consolidated_enriched_posts_df = consolidated_enriched_posts_df.sort_values(
+        by="consolidation_timestamp", ascending=False
+    ).drop_duplicates(subset="uri", keep="first")
+    len_after = consolidated_enriched_posts_df.shape[0]
 
-    Intentionally generic for now to provide a placeholder for future filters.
-    """
-    res = []
+    if len_before != len_after:
+        logger.info(f"Deduplicated posts from {len_before} to {len_after}.")
+
+    # manually filter post authors
     excludes = load_users_to_exclude()
     bsky_handles_to_exclude = excludes["bsky_handles_to_exclude"]
     bsky_dids_to_exclude = excludes["bsky_dids_to_exclude"]
-    for post in posts:
-        if (
-            post.author_did in bsky_dids_to_exclude
-            or post.author_handle in bsky_handles_to_exclude
-        ):
-            continue
-        else:
-            res.append(post)
-    return res
+    consolidated_enriched_posts_df = consolidated_enriched_posts_df[
+        consolidated_enriched_posts_df.apply(
+            lambda x: x["author_did"] not in bsky_dids_to_exclude
+            and x["author_handle"] not in bsky_handles_to_exclude,
+            axis=1,
+        )
+    ]
+    return consolidated_enriched_posts_df
 
 
 def load_latest_processed_data(
@@ -185,18 +203,18 @@ def load_latest_processed_data(
     return output
 
 
-def export_post_scores(post_uri_to_post_score_map: dict[str, str]):
+def export_post_scores(scores_to_export: list[dict]):
     """Exports post scores to local storage."""
     output: list[ScoredPostModel] = []
-    for post_uri, post_obj in post_uri_to_post_score_map.items():
+    for score in scores_to_export:
         output.append(
             ScoredPostModel(
-                uri=post_uri,
-                text=post_obj["post"].text,
-                engagement_score=post_obj["score"]["engagement_score"],
-                treatment_score=post_obj["score"]["treatment_score"],
+                uri=score["uri"],
+                text=score["text"],
+                engagement_score=score["engagement_score"],
+                treatment_score=score["treatment_score"],
                 scored_timestamp=current_datetime_str,
-                source=post_obj["post"].source,
+                source=score["source"],
             )
         )
     output_jsons = [post.dict() for post in output]
@@ -211,7 +229,7 @@ def export_post_scores(post_uri_to_post_score_map: dict[str, str]):
 def calculate_in_network_posts_for_user(
     user_did: str,
     user_to_social_network_map: dict,
-    candidate_in_network_user_activity_posts: list[ConsolidatedEnrichedPostModel],  # noqa
+    candidate_in_network_user_activity_posts_df: pd.DataFrame,  # noqa
 ) -> list[str]:
     """Calculates the possible in-network and out-of-network posts.
 
@@ -226,12 +244,20 @@ def calculate_in_network_posts_for_user(
     in_network_social_network_dids = user_to_social_network_map.get(user_did, [])  # noqa
     # filter the candidate in-network user activity posts to only include the
     # ones that are in the user's social network.
-    in_network_post_uris: list[str] = [
-        post.uri
-        for post in candidate_in_network_user_activity_posts
-        if post.author_did in in_network_social_network_dids
-    ]
+    in_network_post_uris: list[str] = candidate_in_network_user_activity_posts_df[
+        candidate_in_network_user_activity_posts_df["author_did"].isin(
+            in_network_social_network_dids
+        )
+    ]["uri"].tolist()
     return in_network_post_uris
+
+
+# make sure that no single user appears more than X times.
+def filter_posts_by_author_count(
+    posts_df: pd.DataFrame, max_count: int = max_num_times_user_can_appear_in_feed
+) -> pd.DataFrame:
+    """Returns the first X rows of each author, filtering out the rest."""
+    return posts_df.groupby("author_did").head(max_count)
 
 
 # TODO: should implement 50:50 balancing at some point tbh.
@@ -242,7 +268,7 @@ def calculate_in_network_posts_for_user(
 def create_ranked_candidate_feed(
     condition: str,
     in_network_candidate_post_uris: list[str],
-    post_pool: list[ConsolidatedEnrichedPostModel],
+    post_pool: pd.DataFrame,
     max_feed_length: int = max_feed_length,
 ) -> list[CustomFeedPost]:
     """Create a ranked candidate feed.
@@ -258,102 +284,63 @@ def create_ranked_candidate_feed(
         raise ValueError(
             "post_pool cannot be None. This means that a user condition is unexpected/invalid"
         )  # noqa
-    in_network_posts: list[ConsolidatedEnrichedPostModel] = [
-        post for post in post_pool if post.uri in in_network_candidate_post_uris
+    in_network_posts_df = post_pool[
+        post_pool["uri"].isin(in_network_candidate_post_uris)
     ]
-    out_of_network_posts: list[ConsolidatedEnrichedPostModel] = [
-        post
-        for post in post_pool
-        if post.uri not in in_network_candidate_post_uris
-        and (
-            post.source == "most_liked"
-            if condition in ["engagement", "representative_diversification"]
-            else post.source == "firehose"
-        )
+    out_of_network_source = (
+        "most_liked"
+        if condition in ["engagement", "representative_diversification"]
+        else "firehose"
+    )
+    out_of_network_posts_df = post_pool[
+        (~post_pool["uri"].isin(in_network_candidate_post_uris))
+        & (post_pool["source"] == out_of_network_source)
     ]
 
-    # make sure that no single user appears more than X times.
-    in_network_author_to_count_map = {}
-    out_of_network_author_to_count_map = {}
-    in_network_res = []
-    out_of_network_res = []
+    # filter out posts by author count, so that only first X posts from
+    # each author are included.
+    in_network_posts_df: pd.DataFrame = filter_posts_by_author_count(
+        in_network_posts_df, max_num_times_user_can_appear_in_feed
+    )
+    out_of_network_posts_df: pd.DataFrame = filter_posts_by_author_count(
+        out_of_network_posts_df, max_num_times_user_can_appear_in_feed
+    )
 
-    for post in in_network_posts:
-        author_id = post.author_did
-        if (
-            in_network_author_to_count_map.get(author_id, 0)
-            < max_num_times_user_can_appear_in_feed
-        ):
-            in_network_res.append(post)
-            in_network_author_to_count_map[author_id] = (
-                in_network_author_to_count_map.get(author_id, 0) + 1
-            )
-
-    for post in out_of_network_posts:
-        author_id = post.author_did
-        if (
-            out_of_network_author_to_count_map.get(author_id, 0)
-            < max_num_times_user_can_appear_in_feed
-        ):
-            out_of_network_res.append(post)
-            out_of_network_author_to_count_map[author_id] = (
-                out_of_network_author_to_count_map.get(author_id, 0) + 1
-            )
-
-    in_network_posts = in_network_res
-    out_of_network_posts = out_of_network_res
-
-    total_in_network_posts = len(in_network_posts)
+    # get the number of in-network posts to include.
+    total_in_network_posts = len(in_network_posts_df)
     max_in_network_posts = max_feed_length // 2
     max_allowed_in_network_posts = min(total_in_network_posts, max_in_network_posts)
-    in_network_posts = in_network_posts[:max_allowed_in_network_posts]
+    in_network_posts_df = in_network_posts_df.iloc[:max_allowed_in_network_posts]
+
+    # do edge-casing
     if len(post_pool) == 0:
         return []
     if len(in_network_candidate_post_uris) == 0:
         # if no in-network posts, return the out-of-network posts.
         feed = [
-            CustomFeedPost(item=post.uri, is_in_network=False)
-            for post in out_of_network_posts[:max_feed_length]
+            CustomFeedPost(item=post["uri"], is_in_network=False)
+            for _, post in out_of_network_posts_df[:max_feed_length].iterrows()
         ]
         return feed
-    output_posts: list[ConsolidatedEnrichedPostModel] = []
-    in_network_post_set = set(post.uri for post in in_network_posts)
+    in_network_post_set = set(in_network_posts_df["uri"].tolist())
 
-    # First, add all in-network posts to the output_posts while maintaining order
-    for post in in_network_posts:
-        if post.uri in in_network_post_set:
-            output_posts.append(post)
+    # Combine in-network and out-of-network posts while maintaining order
+    output_posts_df = pd.concat([in_network_posts_df, out_of_network_posts_df])
 
-    # Then, fill the remaining spots in output_posts with other posts from post_pool
-    for post in out_of_network_posts:
-        if post.uri not in in_network_post_set and len(output_posts) < max_feed_length:
-            output_posts.append(post)
+    # Filter out posts that exceed the max_feed_length
+    output_posts_df = output_posts_df.head(max_feed_length)
 
-    # # Now, sort the output posts based on the order that they were in in the
-    # # original post pool. If post A was before post B, I want that to be true
-    # # in the output posts. This implementation just ensures that we have a
-    # # requisite amount of in-network posts in our feeds.
-    # uri_to_post_map: dict[str, ConsolidatedEnrichedPostModel] = {
-    #     post.uri: post for post in output_posts
-    # }
-    # post_pool_uris = [
-    #     post.uri for post in post_pool if post.uri in uri_to_post_map.keys()
-    # ]
-    # res: list[ConsolidatedEnrichedPostModel] = []
-    # for uri in post_pool_uris:
-    #     res.append(uri_to_post_map[uri])
-
-    # Ensure output_posts does not exceed max_feed_length
-
-    feed = [
-        CustomFeedPost(item=post.uri, is_in_network=post.uri in in_network_post_set)
-        for post in output_posts[:max_feed_length]
+    feed: list[CustomFeedPost] = [
+        CustomFeedPost(
+            item=post["uri"], is_in_network=post["uri"] in in_network_post_set
+        )
+        for _, post in output_posts_df.iterrows()
     ]
 
     return feed
 
 
-def filter_post_is_english(post: ConsolidatedEnrichedPostModel) -> bool:
+def filter_post_is_english(text: str) -> bool:
     """Filters for if a post is English.
 
     Returns True if the post has text and that text is in English. Returns False
@@ -363,7 +350,6 @@ def filter_post_is_english(post: ConsolidatedEnrichedPostModel) -> bool:
     in English, so they're passing our filters since we assume Bluesky's language
     filter is correct. Given that that isn't the case, we do it manually here.
     """
-    text = post.text
     if not text:
         return False
     text = text.replace("\n", " ").strip()
@@ -512,129 +498,84 @@ def do_rank_score_feeds(
     consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = latest_data[
         "consolidate_enrichment_integrations"
     ]
+    consolidated_enriched_posts_df = pd.DataFrame(
+        [post.dict() for post in consolidated_enriched_posts]
+    )
     user_to_social_network_map: dict = latest_data["scraped_user_social_network"]
     superposter_dids: set[str] = latest_data["superposters"]
     logger.info(f"Loaded {len(superposter_dids)} superposters.")  # noqa
 
-    # immplement filtering (e.g., English-language filtering)
-    # looks like Bluesky's language filter is broken, so I'll do my own manual
-    # filtering here (could've done it upstream too tbh, this is just the quickest
-    # fix). My implementation is also imperfect, but it gets more correct.
-    # It uses fasttext. Some still make it through, but it's pretty good.
-    logger.info(f"Number of posts before filtering: {len(consolidated_enriched_posts)}")
-    consolidated_enriched_posts = [
-        post for post in consolidated_enriched_posts if filter_post_is_english(post)
-    ]
-    logger.info(f"Number of posts after filtering: {len(consolidated_enriched_posts)}")
-
-    # deduplication
-    unique_uris = set()
-    deduplicated_consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = []
-
-    for post in consolidated_enriched_posts:
-        if post.uri not in unique_uris:
-            unique_uris.add(post.uri)
-            deduplicated_consolidated_enriched_posts.append(post)
-
-    if len(consolidated_enriched_posts) != len(
-        deduplicated_consolidated_enriched_posts
-    ):
-        logger.info(
-            f"Deduplicated posts from {len(consolidated_enriched_posts)} to {len(deduplicated_consolidated_enriched_posts)}."
-        )
-
-    consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = (
-        deduplicated_consolidated_enriched_posts
-    )
-
-    consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = (
-        manually_filter_posts(consolidated_enriched_posts)
-    )
+    # preprocess the data
+    consolidated_enriched_posts_df = preprocess_data(consolidated_enriched_posts_df)
 
     # calculate scores for all the posts. Load any pre-existing scores and then
     # calculate scores for new posts. Export scores for new posts.
     post_scores, new_post_uris = calculate_post_scores(
-        posts=consolidated_enriched_posts,
+        posts=consolidated_enriched_posts_df,
         superposter_dids=superposter_dids,
-        load_previous_scores=True
+        load_previous_scores=True,
     )  # noqa
-    post_uri_to_post_score_map: dict[str, dict] = {
-        post.uri: {"post": post, "score": score}
-        for post, score in zip(consolidated_enriched_posts, post_scores)
-    }
-    logger.info(f"Calculated {len(post_uri_to_post_score_map)} post scores.")
-    scores_to_export = {
-        uri: score for uri, score in post_uri_to_post_score_map.items()
-        if uri in new_post_uris
-    }
+
+    engagement_scores = [score["engagement_score"] for score in post_scores]
+    treatment_scores = [score["treatment_score"] for score in post_scores]
+    consolidated_enriched_posts_df["engagement_score"] = engagement_scores
+    consolidated_enriched_posts_df["treatment_score"] = treatment_scores
+
+    logger.info(f"Calculated {len(consolidated_enriched_posts_df)} post scores.")
+    scores_to_export: list[dict] = consolidated_enriched_posts_df[
+        consolidated_enriched_posts_df["uri"].isin(new_post_uris)
+    ][["uri", "text", "source", "engagement_score", "treatment_score"]].to_dict(
+        "records"
+    )
 
     # export scores to storage.
     if not skip_export_post_scores:
         logger.info(f"Exporting {len(scores_to_export)} post scores.")  # noqa
-        export_post_scores(post_uri_to_post_score_map=scores_to_export)
+        export_post_scores(scores_to_export=scores_to_export)
 
     # list of all in-network user posts, across all study users. Needs to be
     # filtered for the in-network posts relevant for a given study user.
-    candidate_in_network_user_activity_posts: list[ConsolidatedEnrichedPostModel] = [  # noqa
-        post for post in consolidated_enriched_posts if post.source == "firehose"
+    candidate_in_network_user_activity_posts_df = consolidated_enriched_posts_df[
+        consolidated_enriched_posts_df["source"] == "firehose"
     ]
     # yes, popular posts can also be in-network. For now we'll treat them as
     # out-of-network (and perhaps revisit treating them as in-network as well.)
     # TODO: revisit this.
-    out_of_network_user_activity_posts: list[ConsolidatedEnrichedPostModel] = [
-        post for post in consolidated_enriched_posts if post.source == "most_liked"
-    ]
-    out_of_network_post_uris: list[str] = [
-        post.uri for post in out_of_network_user_activity_posts
+    out_of_network_user_activity_posts_df = consolidated_enriched_posts_df[
+        consolidated_enriched_posts_df["source"] == "most_liked"
     ]
     logger.info(
-        f"Loaded {len(candidate_in_network_user_activity_posts)} in-network posts."
+        f"Loaded {len(candidate_in_network_user_activity_posts_df)} in-network posts."
     )  # noqa
-    logger.info(f"Loaded {len(out_of_network_post_uris)} out-of-network posts.")  # noqa
+    logger.info(
+        f"Loaded {len(out_of_network_user_activity_posts_df)} out-of-network posts."
+    )  # noqa
     # get lists of in-network and out-of-network posts
     user_to_in_network_post_uris_map: dict[str, list[str]] = {
         user.bluesky_user_did: calculate_in_network_posts_for_user(
             user_did=user.bluesky_user_did,
             user_to_social_network_map=user_to_social_network_map,
-            candidate_in_network_user_activity_posts=(
-                candidate_in_network_user_activity_posts
+            candidate_in_network_user_activity_posts_df=(
+                candidate_in_network_user_activity_posts_df
             ),
         )
         for user in study_users
     }
 
-    # sort posts per condition.
-    all_posts: list[dict] = [
-        post_score_dict for post_score_dict in post_uri_to_post_score_map.values()
-    ]
-
-    # pass posts through manual filtering
-
     # reverse chronological: sort by most recent posts descending
-    reverse_chronological_post_pool = sorted(
-        all_posts, key=lambda x: x["post"].synctimestamp, reverse=True
-    )
-    reverse_chronological_post_pool: list[ConsolidatedEnrichedPostModel] = [
-        post_score_dict["post"]
-        for post_score_dict in reverse_chronological_post_pool
-        if post_score_dict["post"].source == "firehose"
-    ]
+    reverse_chronological_post_pool_df: pd.DataFrame = consolidated_enriched_posts_df[
+        consolidated_enriched_posts_df["source"] == "firehose"
+    ].sort_values(by="synctimestamp", ascending=False)
 
     # engagement posts: sort by engagement score descending
-    engagement_post_pool: list[dict] = sorted(
-        all_posts, key=lambda x: x["score"]["engagement_score"], reverse=True
+    engagement_post_pool_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
+        by="engagement_score", ascending=False
     )
-    engagement_post_pool: list[ConsolidatedEnrichedPostModel] = [
-        post_score_dict["post"] for post_score_dict in engagement_post_pool
-    ]
 
-    # treatment posts: sort by treatment score descending.
-    treatment_post_pool: list[dict] = sorted(
-        all_posts, key=lambda x: x["score"]["treatment_score"], reverse=True
+    # treatment posts: sort by treatment score descending
+    treatment_post_pool_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
+        by="treatment_score", ascending=False
     )
-    treatment_post_pool: list[ConsolidatedEnrichedPostModel] = [
-        post_score_dict["post"] for post_score_dict in treatment_post_pool
-    ]
 
     if users_to_create_feeds_for:
         logger.info(
@@ -651,18 +592,21 @@ def do_rank_score_feeds(
     # this step multiple times.
     # create feeds for each user. Map feeds to users.
     user_to_ranked_feed_map: dict[str, dict] = {}
-    for user in study_users:
+    total_users = len(study_users)
+    for i, user in enumerate(study_users):
+        if i % 10 == 0:
+            logger.info(f"Creating feed for user {i}/{total_users}")
         feed: list[CustomFeedPost] = create_ranked_candidate_feed(
             condition=user.condition,
             in_network_candidate_post_uris=(
                 user_to_in_network_post_uris_map[user.bluesky_user_did]
             ),
             post_pool=(
-                reverse_chronological_post_pool
+                reverse_chronological_post_pool_df
                 if user.condition == "reverse_chronological"
-                else engagement_post_pool
+                else engagement_post_pool_df
                 if user.condition == "engagement"
-                else treatment_post_pool
+                else treatment_post_pool_df
                 if user.condition == "representative_diversification"
                 else None
             ),
@@ -685,7 +629,7 @@ def do_rank_score_feeds(
     default_feed: list[CustomFeedPost] = create_ranked_candidate_feed(
         condition="reverse_chronological",
         in_network_candidate_post_uris=[],
-        post_pool=reverse_chronological_post_pool,
+        post_pool=reverse_chronological_post_pool_df,
         max_feed_length=max_feed_length,
     )
     user_to_ranked_feed_map["default"] = {
