@@ -3,7 +3,9 @@ import pandas as pd
 
 from transform.bluesky_helper import get_author_did_from_handle
 
-BSKY_HANDLES_TO_EXCLUDE = ["clarkrogers.bsky.social"]
+BSKY_HANDLES_TO_EXCLUDE = [
+    "clarkrogers.bsky.social", "aleriiav.bsky.social",
+]
 
 
 def get_dids_to_exclude() -> list[str]:
