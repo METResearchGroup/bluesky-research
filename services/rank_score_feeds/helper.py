@@ -107,27 +107,45 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
     logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3 and to cache.")
 
 
-def manually_filter_posts(posts: list[ConsolidatedEnrichedPostModel]) -> list[ConsolidatedEnrichedPostModel]:  # noqa
-    """Manually filter posts.
+def preprocess_data(consolidated_enriched_posts_df: pd.DataFrame) -> pd.DataFrame:
+    """Preprocesses the data."""
+    # immplement filtering (e.g., English-language filtering)
+    # looks like Bluesky's language filter is broken, so I'll do my own manual
+    # filtering here (could've done it upstream too tbh, this is just the quickest
+    # fix). My implementation is also imperfect, but it gets more correct.
+    # It uses fasttext. Some still make it through, but it's pretty good.
+    logger.info(
+        f"Number of posts before filtering: {len(consolidated_enriched_posts_df)}"
+    )
+    consolidated_enriched_posts_df = consolidated_enriched_posts_df[
+        consolidated_enriched_posts_df["text"].apply(filter_post_is_english)
+    ]
+    logger.info(
+        f"Number of posts after filtering: {len(consolidated_enriched_posts_df)}"
+    )
 
-    Posts should be filtered upstream, this is just a catch-all stopgap solution
-    for filters that we 100% want to make sure make it into production feeds.
+    # Deduplication based on unique URIs, keeping the most recent consolidation_timestamp
+    len_before = consolidated_enriched_posts_df.shape[0]
+    consolidated_enriched_posts_df = consolidated_enriched_posts_df.sort_values(
+        by="consolidation_timestamp", ascending=False
+    ).drop_duplicates(subset="uri", keep="first")
+    len_after = consolidated_enriched_posts_df.shape[0]
 
-    Intentionally generic for now to provide a placeholder for future filters.
-    """
-    res = []
+    if len_before != len_after:
+        logger.info(f"Deduplicated posts from {len_before} to {len_after}.")
+
+    # manually filter post authors
     excludes = load_users_to_exclude()
     bsky_handles_to_exclude = excludes["bsky_handles_to_exclude"]
     bsky_dids_to_exclude = excludes["bsky_dids_to_exclude"]
-    for post in posts:
-        if (
-            post.author_did in bsky_dids_to_exclude
-            or post.author_handle in bsky_handles_to_exclude
-        ):
-            continue
-        else:
-            res.append(post)
-    return res
+    consolidated_enriched_posts_df = consolidated_enriched_posts_df[
+        consolidated_enriched_posts_df.apply(
+            lambda x: x["author_did"] not in bsky_dids_to_exclude
+            and x["author_handle"] not in bsky_handles_to_exclude,
+            axis=1,
+        )
+    ]
+    return consolidated_enriched_posts_df
 
 
 def load_latest_processed_data(
@@ -353,7 +371,7 @@ def create_ranked_candidate_feed(
     return feed
 
 
-def filter_post_is_english(post: ConsolidatedEnrichedPostModel) -> bool:
+def filter_post_is_english(text: str) -> bool:
     """Filters for if a post is English.
 
     Returns True if the post has text and that text is in English. Returns False
@@ -363,7 +381,6 @@ def filter_post_is_english(post: ConsolidatedEnrichedPostModel) -> bool:
     in English, so they're passing our filters since we assume Bluesky's language
     filter is correct. Given that that isn't the case, we do it manually here.
     """
-    text = post.text
     if not text:
         return False
     text = text.replace("\n", " ").strip()
@@ -512,51 +529,22 @@ def do_rank_score_feeds(
     consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = latest_data[
         "consolidate_enrichment_integrations"
     ]
+    consolidated_enriched_posts_df = pd.DataFrame(
+        [post.dict() for post in consolidated_enriched_posts]
+    )
     user_to_social_network_map: dict = latest_data["scraped_user_social_network"]
     superposter_dids: set[str] = latest_data["superposters"]
     logger.info(f"Loaded {len(superposter_dids)} superposters.")  # noqa
 
-    # immplement filtering (e.g., English-language filtering)
-    # looks like Bluesky's language filter is broken, so I'll do my own manual
-    # filtering here (could've done it upstream too tbh, this is just the quickest
-    # fix). My implementation is also imperfect, but it gets more correct.
-    # It uses fasttext. Some still make it through, but it's pretty good.
-    logger.info(f"Number of posts before filtering: {len(consolidated_enriched_posts)}")
-    consolidated_enriched_posts = [
-        post for post in consolidated_enriched_posts if filter_post_is_english(post)
-    ]
-    logger.info(f"Number of posts after filtering: {len(consolidated_enriched_posts)}")
-
-    # deduplication
-    unique_uris = set()
-    deduplicated_consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = []
-
-    for post in consolidated_enriched_posts:
-        if post.uri not in unique_uris:
-            unique_uris.add(post.uri)
-            deduplicated_consolidated_enriched_posts.append(post)
-
-    if len(consolidated_enriched_posts) != len(
-        deduplicated_consolidated_enriched_posts
-    ):
-        logger.info(
-            f"Deduplicated posts from {len(consolidated_enriched_posts)} to {len(deduplicated_consolidated_enriched_posts)}."
-        )
-
-    consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = (
-        deduplicated_consolidated_enriched_posts
-    )
-
-    consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = (
-        manually_filter_posts(consolidated_enriched_posts)
-    )
+    # preprocess the data
+    consolidated_enriched_posts_df = preprocess_data(consolidated_enriched_posts_df)
 
     # calculate scores for all the posts. Load any pre-existing scores and then
     # calculate scores for new posts. Export scores for new posts.
     post_scores, new_post_uris = calculate_post_scores(
         posts=consolidated_enriched_posts,
         superposter_dids=superposter_dids,
-        load_previous_scores=True
+        load_previous_scores=True,
     )  # noqa
     post_uri_to_post_score_map: dict[str, dict] = {
         post.uri: {"post": post, "score": score}
@@ -564,7 +552,8 @@ def do_rank_score_feeds(
     }
     logger.info(f"Calculated {len(post_uri_to_post_score_map)} post scores.")
     scores_to_export = {
-        uri: score for uri, score in post_uri_to_post_score_map.items()
+        uri: score
+        for uri, score in post_uri_to_post_score_map.items()
         if uri in new_post_uris
     }
 
