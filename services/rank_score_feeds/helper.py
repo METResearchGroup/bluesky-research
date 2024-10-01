@@ -37,6 +37,7 @@ from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.preprocess_raw_data.classify_language.model import classify
 from services.rank_score_feeds.constants import max_feed_length
+from services.rank_score_feeds.manual_excludelist import load_users_to_exclude
 from services.rank_score_feeds.models import (
     CustomFeedModel,
     CustomFeedPost,
@@ -116,8 +117,9 @@ def manually_filter_posts(posts: list[ConsolidatedEnrichedPostModel]) -> list[Co
     """
     res = []
     users_to_exclude: pd.DataFrame = pd.read_csv("dids_to_exclude.csv")
-    bsky_handles_to_exclude = set(users_to_exclude["handle"].tolist())
-    bsky_dids_to_exclude = set(users_to_exclude["did"].tolist())
+    excludes = load_users_to_exclude()
+    bsky_handles_to_exclude = excludes["bsky_handles_to_exclude"]
+    bsky_dids_to_exclude = excludes["bsky_dids_to_exclude"]
     for post in posts:
         if (
             post.author_did in bsky_dids_to_exclude

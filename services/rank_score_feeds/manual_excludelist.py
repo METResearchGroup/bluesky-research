@@ -1,4 +1,6 @@
 """Manual excludelist of users."""
+import os
+
 import pandas as pd
 
 from transform.bluesky_helper import get_author_did_from_handle
@@ -22,9 +24,17 @@ def export_csv(handles: list[str], dids_to_exclude: list[str]):
     df.to_csv("dids_to_exclude.csv", index=False)
 
 
-def load_users_to_exclude() -> list[str]:
-    df = pd.read_csv("dids_to_exclude.csv")
-    return df["did"].tolist()
+def load_users_to_exclude() -> dict[str, set]:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    users_to_exclude: pd.DataFrame = pd.read_csv(
+        os.path.join(current_dir, "dids_to_exclude.csv")
+    )
+    bsky_handles_to_exclude = set(users_to_exclude["handle"].tolist())
+    bsky_dids_to_exclude = set(users_to_exclude["did"].tolist())
+    return {
+        "bsky_handles_to_exclude": bsky_handles_to_exclude,
+        "bsky_dids_to_exclude": bsky_dids_to_exclude
+    }
 
 
 if __name__ == "__main__":
