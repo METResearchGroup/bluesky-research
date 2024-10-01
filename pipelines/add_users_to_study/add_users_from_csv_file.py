@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from services.participant_data.helper import manage_bsky_study_user
+from services.participant_data.helper import get_all_users, manage_bsky_study_user
 from transform.bluesky_helper import get_author_did_from_handle
 
 number_to_condition_map = {
@@ -10,6 +10,9 @@ number_to_condition_map = {
     2: "engagement",
     3: "representative_diversification",
 }
+
+existing_users = get_all_users()
+existing_bsky_handles = set([user.bluesky_handle for user in existing_users])
 
 
 def add_users_from_csv_file(csv_file_path: str):
@@ -23,10 +26,12 @@ def add_users_from_csv_file(csv_file_path: str):
     conditions = df["condition"].tolist()
     conditions = conditions[: len(handles)]
     handle_to_condition_tuples = [
-        (handle, number_to_condition_map[condition])
+        (handle, number_to_condition_map[int(condition)])
         for handle, condition in zip(handles, conditions)
+        if handle not in existing_bsky_handles and condition in ["1", "2", "3", 1, 2, 3]
     ]
     total_users_to_add = len(handle_to_condition_tuples)
+    print(f"Adding {total_users_to_add} users...")
     users_added = 0
     for idx, (bluesky_handle, condition) in enumerate(handle_to_condition_tuples):
         try:
@@ -76,7 +81,11 @@ def delete_users_from_csv_file(csv_file_path: str):
 
 
 if __name__ == "__main__":
-    csv_files_of_users_to_add = ["users_1.csv"]
+    csv_files_of_users_to_add = [
+        # "users_1.csv",
+        # "users_2.csv"
+        "users_3.csv"
+    ]
     csv_files_of_users_to_delete = ["spam_users_1.csv"]
 
     # TODO: for deletes, logic should check if they're in the study. I've
@@ -86,6 +95,6 @@ if __name__ == "__main__":
     for csv_file_path in csv_files_of_users_to_add:
         add_users_from_csv_file(csv_file_path)
 
-    print(f"Deleting users from {csv_files_of_users_to_delete}")
-    for csv_file_path in csv_files_of_users_to_delete:
-        delete_users_from_csv_file(csv_file_path)
+    # print(f"Deleting users from {csv_files_of_users_to_delete}")
+    # for csv_file_path in csv_files_of_users_to_delete:
+    #     delete_users_from_csv_file(csv_file_path)
