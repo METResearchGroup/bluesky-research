@@ -209,7 +209,7 @@ def export_post_scores(scores_to_export: list[dict]):
     for score in scores_to_export:
         output.append(
             ScoredPostModel(
-                uri=score["post_uri"],
+                uri=score["uri"],
                 text=score["text"],
                 engagement_score=score["engagement_score"],
                 treatment_score=score["treatment_score"],
@@ -523,8 +523,8 @@ def do_rank_score_feeds(
 
     logger.info(f"Calculated {len(consolidated_enriched_posts_df)} post scores.")
     scores_to_export: list[dict] = consolidated_enriched_posts_df[
-        consolidated_enriched_posts_df["post_uri"].isin(new_post_uris)
-    ][["post_uri", "text", "source", "engagement_score", "treatment_score"]].to_dict(
+        consolidated_enriched_posts_df["uri"].isin(new_post_uris)
+    ][["uri", "text", "source", "engagement_score", "treatment_score"]].to_dict(
         "records"
     )
 
@@ -555,29 +555,27 @@ def do_rank_score_feeds(
         user.bluesky_user_did: calculate_in_network_posts_for_user(
             user_did=user.bluesky_user_did,
             user_to_social_network_map=user_to_social_network_map,
-            candidate_in_network_user_activity_posts=(
+            candidate_in_network_user_activity_posts_df=(
                 candidate_in_network_user_activity_posts_df
             ),
         )
         for user in study_users
     }
 
-    # pass posts through manual filtering
-
     # reverse chronological: sort by most recent posts descending
-    reverse_chronological_post_pool_df = consolidated_enriched_posts_df[
+    reverse_chronological_post_pool_df: pd.DataFrame = consolidated_enriched_posts_df[
         consolidated_enriched_posts_df["source"] == "firehose"
     ].sort_values(by="synctimestamp", ascending=False)
 
     # engagement posts: sort by engagement score descending
-    engagement_post_pool_df = consolidated_enriched_posts_df[
-        consolidated_enriched_posts_df["source"] == "firehose"
-    ].sort_values(by="engagement_score", ascending=False)
+    engagement_post_pool_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
+        by="engagement_score", ascending=False
+    )
 
     # treatment posts: sort by treatment score descending
-    treatment_post_pool_df = consolidated_enriched_posts_df[
-        consolidated_enriched_posts_df["source"] == "firehose"
-    ].sort_values(by="treatment_score", descending=False)
+    treatment_post_pool_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
+        by="treatment_score", ascending=False
+    )
 
     if users_to_create_feeds_for:
         logger.info(
@@ -594,7 +592,10 @@ def do_rank_score_feeds(
     # this step multiple times.
     # create feeds for each user. Map feeds to users.
     user_to_ranked_feed_map: dict[str, dict] = {}
-    for user in study_users:
+    total_users = len(study_users)
+    for i, user in enumerate(study_users):
+        if i % 10 == 0:
+            logger.info(f"Creating feed for user {i}/{total_users}")
         feed: list[CustomFeedPost] = create_ranked_candidate_feed(
             condition=user.condition,
             in_network_candidate_post_uris=(
