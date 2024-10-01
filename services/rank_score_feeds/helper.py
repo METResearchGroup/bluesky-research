@@ -116,7 +116,6 @@ def manually_filter_posts(posts: list[ConsolidatedEnrichedPostModel]) -> list[Co
     Intentionally generic for now to provide a placeholder for future filters.
     """
     res = []
-    users_to_exclude: pd.DataFrame = pd.read_csv("dids_to_exclude.csv")
     excludes = load_users_to_exclude()
     bsky_handles_to_exclude = excludes["bsky_handles_to_exclude"]
     bsky_dids_to_exclude = excludes["bsky_dids_to_exclude"]
