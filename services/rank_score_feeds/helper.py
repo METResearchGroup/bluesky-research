@@ -106,6 +106,29 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
     logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3 and to cache.")
 
 
+def manually_filter_posts(posts: list[ConsolidatedEnrichedPostModel]) -> list[ConsolidatedEnrichedPostModel]:  # noqa
+    """Manually filter posts.
+
+    Posts should be filtered upstream, this is just a catch-all stopgap solution
+    for filters that we 100% want to make sure make it into production feeds.
+
+    Intentionally generic for now to provide a placeholder for future filters.
+    """
+    res = []
+    users_to_exclude: pd.DataFrame = pd.read_csv("dids_to_exclude.csv")
+    bsky_handles_to_exclude = set(users_to_exclude["handle"].tolist())
+    bsky_dids_to_exclude = set(users_to_exclude["did"].tolist())
+    for post in posts:
+        if (
+            post.author_did in bsky_dids_to_exclude
+            or post.author_handle in bsky_handles_to_exclude
+        ):
+            continue
+        else:
+            res.append(post)
+    return res
+
+
 def load_latest_processed_data(
     lookback_days: int = default_lookback_days,
 ) -> dict[str, Union[dict, list[ConsolidatedEnrichedPostModel]]]:  # noqa
@@ -505,7 +528,7 @@ def do_rank_score_feeds(
 
     # deduplication
     unique_uris = set()
-    deduplicated_consolidated_enriched_posts = []
+    deduplicated_consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = []
 
     for post in consolidated_enriched_posts:
         if post.uri not in unique_uris:
@@ -519,7 +542,14 @@ def do_rank_score_feeds(
             f"Deduplicated posts from {len(consolidated_enriched_posts)} to {len(deduplicated_consolidated_enriched_posts)}."
         )
 
-    consolidated_enriched_posts = deduplicated_consolidated_enriched_posts
+    consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = (
+        deduplicated_consolidated_enriched_posts
+    )
+
+    consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = (
+        manually_filter_posts(consolidated_enriched_posts)
+    )
+
     # calculate scores for all the posts. Load any pre-existing scores and then
     # calculate scores for new posts. Export scores for new posts.
     post_scores, new_post_uris = calculate_post_scores(
@@ -576,6 +606,8 @@ def do_rank_score_feeds(
     all_posts: list[dict] = [
         post_score_dict for post_score_dict in post_uri_to_post_score_map.values()
     ]
+
+    # pass posts through manual filtering
 
     # reverse chronological: sort by most recent posts descending
     reverse_chronological_post_pool = sorted(
