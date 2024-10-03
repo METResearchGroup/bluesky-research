@@ -1,5 +1,6 @@
 """Helper functions for getting most liked Bluesky posts in the past day/week."""  # noqa
 
+from datetime import timedelta
 import json
 import os
 from typing import Union
@@ -10,7 +11,7 @@ import pandas as pd
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3, SYNC_KEY_ROOT
 from lib.aws.sqs import SQS
-from lib.constants import current_datetime_str
+from lib.constants import current_datetime_str, current_datetime
 from lib.db.bluesky_models.transformations import (
     TransformedFeedViewPostModel,
     TransformedRecordModel,
@@ -40,6 +41,24 @@ feed_to_info_map = {
         "description": "Most popular posts from the last 7 days",
         "url": "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/catch-up-weekly",  # noqa
     },
+    "verified_news": {
+        "description": "Headlines from verified news organisations. Maintained by @aendra.com.",  # noqa
+        # "url": "https://bsky.app/profile/aendra.com/feed/verified-news",  # noqa
+        "url": "https://bsky.app/profile/did:plc:kkf4naxqmweop7dv4l2iqqf5/feed/verified-news",  # noqa (ran `get_author_did_from_handle` from handle)
+        "limit": 200,
+    },
+    "what's reposted": {
+        "description": "Frequently reposted posts from the whole network",
+        # "url": "https://bsky.app/profile/skyfeed.xyz/feed/whats-reposted",  # noqa
+        "url": "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/whats-reposted",  # noqa
+        "limit": 200,
+    },
+    "US Politics": {
+        "description": "US Politics",
+        # "url": "https://bsky.app/profile/itsonelouder.com/feed/aaadhh6hwvaca",
+        "url": "https://bsky.app/profile/did:plc:7mtqkeetxgxqfyhyi2dnyga2/feed/aaadhh6hwvaca",
+        "limit": 200,
+    },
 }
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
@@ -50,6 +69,8 @@ if not os.path.exists(full_sync_dir) and not os.path.exists("/app"):
     os.makedirs(full_sync_dir)
 sync_fp = os.path.join(full_sync_dir, f"most_liked_posts_{current_datetime_str}.jsonl")
 urls_fp = os.path.join(full_sync_dir, f"urls_{current_datetime_str}.csv")
+
+max_days_age_of_post = 2
 
 # task_name = "get_most_liked_posts"
 # mongo_collection_name, mongo_collection = (
@@ -80,16 +101,31 @@ def get_and_transform_latest_most_liked_posts(
     res: list[TransformedFeedViewPostModel] = []
     for feed in feeds:
         feed_url = feed_to_info_map[feed]["url"]
+        limit = feed_to_info_map[feed].get("limit", None)
         enrichment_data = {"source_feed": feed, "feed_url": feed_url}
-        print(f"Getting most liked posts from {feed} feed with URL={feed_url}")
+        print(
+            f"Getting most liked posts from {feed} feed with URL={feed_url}, limit={limit}"
+        )
         posts: list[FeedViewPost] = get_posts_from_custom_feed_url(
-            feed_url=feed_url, limit=None
+            feed_url=feed_url, limit=limit
         )
         transformed_posts: list[TransformedFeedViewPostModel] = (
             transform_feedview_posts(posts=posts, enrichment_data=enrichment_data)
         )
         res.extend(transformed_posts)
         print(f"Finished processing {len(posts)} posts from {feed} feed")
+
+    # Deduplicate the results based on the "uri" field
+    unique_posts = {post.uri: post for post in res}
+    res: list[TransformedFeedViewPostModel] = list(unique_posts.values())
+
+    # get only posts that are more recent.
+    min_date = (current_datetime - timedelta(days=max_days_age_of_post)).strftime(
+        "%Y-%m-%d"
+    )
+    res: list[TransformedFeedViewPostModel] = [
+        post for post in res if post.record.created_at >= min_date
+    ]
     return res
 
 

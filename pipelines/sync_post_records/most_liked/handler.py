@@ -16,7 +16,12 @@ def lambda_handler(event, context):
             "use_latest_local": False,
             "store_local": True,
             "store_remote": False,
-            "feeds": ["today"],
+            "feeds": [
+                "today",
+                "verified_news",
+                "what's reposted",
+                "US Politics",
+            ],
         }
         get_most_liked_posts(**args)
         logger.info("Successfully got most liked posts.")
