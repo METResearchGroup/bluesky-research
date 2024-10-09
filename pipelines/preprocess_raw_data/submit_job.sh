@@ -27,4 +27,5 @@ echo "Python script exited with code $exit_code"
 if [ $exit_code -ne 0 ]; then
     echo "Job failed with exit code $exit_code"
     exit $exit_code
+fi
 echo "Completed slurm job."
