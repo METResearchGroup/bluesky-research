@@ -1,10 +1,7 @@
 """Creates wrapper logger class."""
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 from typing import Any, Dict
-
-from lib.constants import current_datetime_str
 
 # if running in lambda, log to /tmp. Otherwise, log to the current directory.
 if os.path.exists('/app'):
