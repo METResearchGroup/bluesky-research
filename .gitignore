@@ -183,3 +183,12 @@ cython_debug/
 
 # webscraper
 *chrome*
+
+# log files
+*.log
+*logfile_*
+*.out
+
+# data (can be force-pushed if necessary)
+*.csv
+*.jsonl
