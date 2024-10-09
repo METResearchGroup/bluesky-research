@@ -93,10 +93,11 @@ valid_dids.add("default")
 
 
 def refresh_user_did_to_cached_feed():
-    for did in valid_dids:
+    for idx, did in enumerate(valid_dids):
+        if idx % 25 == 0:
+            # to get around throughput limits of Moment free tier cache (lol)
+            time.sleep(0.5)
         user_did_to_cached_feed[did] = load_latest_user_feed(user_did=did)
-        # to get around throughput limits of Moment free tier cache (lol)
-        time.sleep(0.02)
     logger.info("Initialized user DID to cache feed mapping.")
 
 
