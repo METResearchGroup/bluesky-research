@@ -373,9 +373,10 @@ def export_data_to_local_storage(
                 chunk_df["partition_date"] = pd.to_datetime(
                     chunk_df[timestamp_field]
                 ).dt.date
-            chunk_df.to_parquet(
-                local_export_fp, index=False, partition_cols=partition_cols
-            )
+            # NOTE: we don't use local_export_fp here because we want to
+            # partition on the date field, and Parquet will include the partition
+            # field name in the file path.
+            chunk_df.to_parquet(folder_path, index=False, partition_cols=partition_cols)
         logger.info(
             f"Successfully exported {service} data from S3 to local store ({local_export_fp}) as {export_format}"
         )  # noqa

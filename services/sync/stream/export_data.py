@@ -62,10 +62,12 @@ from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.db.manage_local_data import (
     write_jsons_to_local_store,
     export_data_to_local_storage,
+    get_local_prefixes_for_service,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
+from services.compact_all_services.helper import delete_empty_folders
 from services.participant_data.study_users import get_study_user_manager
 
 logger = get_logger(__name__)
@@ -726,6 +728,12 @@ def export_batch(
         )
         for filepath in all_filepaths:
             os.remove(filepath)
+        services = ["study_user_activity", "in_network_user_activity"]
+        local_prefixes = []
+        for service in services:
+            local_prefixes.extend(get_local_prefixes_for_service(service))
+        for prefix in local_prefixes:
+            delete_empty_folders(prefix)
     else:
         # clears cache for next batch.
         if clear_cache:
