@@ -91,11 +91,11 @@ def filter_posts(posts: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
     # count up the # of posts that failed each filter.
     filter_to_count_map = {
-        "author_is_bot": sum(posts[~posts["author_is_bot"]]),
-        "post_is_nsfw": sum(posts[~posts["post_is_nsfw"]]),
-        "author_is_nsfw": sum(posts[~posts["author_is_nsfw"]]),
-        "is_spam": sum(posts[~posts["is_spam"]]),
-        "is_hate_speech": sum(posts[~posts["is_hate_speech"]]),
+        "author_is_bot": sum(posts["author_is_bot"]),
+        "post_is_nsfw": sum(posts["post_is_nsfw"]),
+        "author_is_nsfw": sum(posts["author_is_nsfw"]),
+        "is_spam": sum(posts["is_spam"]),
+        "is_hate_speech": sum(posts["is_hate_speech"]),
     }
     for filter_col, count in filter_to_count_map.items():
         logger.info(f"Number of posts failed `{filter_col}`: {count}")

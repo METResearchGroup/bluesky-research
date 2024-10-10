@@ -64,6 +64,6 @@ spam_words = set(
 def filter_posts_have_spam(texts: pd.Series) -> pd.Series:
     """Filters posts that have spam."""
     shortened_urls_check = texts.isin(url_shorteners)
-    too_many_hashtags_check = texts.str.count("#") > HASHTAG_MAX_LIMIT
+    too_many_hashtags_check = texts.str.count("#") >= HASHTAG_MAX_LIMIT
     spam_words_check = texts.isin(spam_words)
     return shortened_urls_check | too_many_hashtags_check | spam_words_check
