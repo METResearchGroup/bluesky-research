@@ -14,13 +14,7 @@ def get_file_creation_time(filepath):
     return ts
 
 
-def delete_files_from_lookback_period(service: str, lookback_days: int):
-    """Delete files from the last `lookback_days` days."""
-    metadata = MAP_SERVICE_TO_METADATA[service]
-    local_prefix = os.path.join(metadata["local_prefix"], "active")
-    lookback_date = (
-        datetime.now(timezone.utc) - timedelta(days=lookback_days)
-    ).strftime("%Y-%m-%d")
+def get_files_given_prefix(local_prefix: str):
     files_list = []
     for root, _, files in os.walk(local_prefix):
         for file in files:
@@ -28,16 +22,41 @@ def delete_files_from_lookback_period(service: str, lookback_days: int):
             files_list.append(
                 {"filepath": full_path, "timestamp": get_file_creation_time(full_path)}
             )
-    total_files = len(files_list)
-    files_to_delete = [file for file in files_list if file["timestamp"] > lookback_date]
-    num_files_to_delete = len(files_to_delete)
-    print(
-        f"Found {num_files_to_delete} files to delete out of {total_files} total files."
-    )
-    for file in files_to_delete:
-        os.remove(file["filepath"])
-    delete_empty_folders(local_prefix)
-    print(f"Deleted {num_files_to_delete} files.")
+    return files_list
+
+
+def delete_files_from_lookback_period(service: str, lookback_days: int):
+    """Delete files from the last `lookback_days` days."""
+    metadata = MAP_SERVICE_TO_METADATA[service]
+    local_prefixes = []
+    if service in ["study_user_activity", "in_network_user_activity"]:
+        local_prefixes.append(metadata["subpaths"]["post"])
+    elif service in [
+        "preprocessed_posts",
+        "ml_inference_perspective_api",
+        "ml_inference_sociopolitical",
+    ]:
+        local_prefixes.append(metadata["subpaths"]["firehose"])
+        local_prefixes.append(metadata["subpaths"]["most_liked"])
+    else:
+        local_prefixes.append(os.path.join(metadata["local_prefix"], "active"))
+    for local_prefix in local_prefixes:
+        lookback_date = (
+            datetime.now(timezone.utc) - timedelta(days=lookback_days)
+        ).strftime("%Y-%m-%d")
+        files_list = get_files_given_prefix(local_prefix)
+        total_files = len(files_list)
+        files_to_delete = [
+            file for file in files_list if file["timestamp"] > lookback_date
+        ]
+        num_files_to_delete = len(files_to_delete)
+        print(
+            f"Found {num_files_to_delete} files to delete out of {total_files} total files."
+        )
+        for file in files_to_delete:
+            os.remove(file["filepath"])
+        delete_empty_folders(local_prefix)
+        print(f"Deleted {num_files_to_delete} files.")
 
 
 def main():
