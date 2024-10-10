@@ -50,7 +50,6 @@ def export_session_metadata(session_metadata: dict) -> None:
     """Exports the session data to DynamoDB."""
     # flatten dict, to avoid nested serialization problems
     flattened_dict = flatten_dict(session_metadata)
-    breakpoint()
     dynamodb.insert_item_into_table(item=flattened_dict, table_name=dynamodb_table_name)
     print("Session data exported to DynamoDB.")
     return
