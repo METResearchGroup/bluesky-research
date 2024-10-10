@@ -14,6 +14,7 @@ from lib.constants import default_lookback_days
 from lib.db.manage_local_data import (
     delete_files,
     export_data_to_local_storage,
+    get_local_prefixes_for_service,
     list_filenames,
     load_data_from_local_storage,
 )
@@ -148,6 +149,12 @@ def delete_empty_folders(local_prefix: str):
     logger.info(
         f"Deleted {total_folders_deleted} empty folders out of {total_folders} total folders"
     )
+
+
+def delete_empty_folders_for_service(service: str):
+    local_prefixes = get_local_prefixes_for_service(service)
+    for local_prefix in local_prefixes:
+        delete_empty_folders(local_prefix)
 
 
 @track_performance
@@ -286,6 +293,7 @@ def compact_local_service(
             f"Deleting {len(filenames)} files from local storage for service={service}"
         )
         delete_files(filenames)
+        delete_empty_folders_for_service(service)
 
 
 def compact_all_local_services():
