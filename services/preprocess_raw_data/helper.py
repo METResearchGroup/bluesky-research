@@ -5,6 +5,8 @@ import json
 import re
 from typing import Optional
 
+import pandas as pd
+
 from lib.aws.athena import Athena
 from lib.aws.sqs import SQS
 from lib.constants import current_datetime_str, timestamp_format
@@ -171,8 +173,6 @@ def preprocess_latest_raw_data(
     if not previous_timestamp:
         previous_timestamp = default_latest_timestamp
 
-    # used to process posts that were inserted to the SQS queue after the
-    # last preprocessing session.
     latest_processed_insert_timestamp = previous_session_metadata.get(
         "latest_processed_insert_timestamp", None
     )
@@ -184,39 +184,52 @@ def preprocess_latest_raw_data(
         timestamp = latest_processed_insert_timestamp
 
     # load latest posts
-    latest_firehose_posts: list[ConsolidatedPostRecordModel] = (
+    latest_firehose_posts_df: list[ConsolidatedPostRecordModel] = (
         load_latest_firehose_posts(
             timestamp=timestamp, limit=max_firehose_posts_to_load
         )
     )
-    latest_most_liked_posts: list[ConsolidatedPostRecordModel] = (
+    logger.info(f"Loaded {len(latest_firehose_posts_df)} firehose posts.")
+    latest_most_liked_posts_df: list[ConsolidatedPostRecordModel] = (
         load_latest_most_liked_posts(timestamp=timestamp, limit=None)
-    )  # noqa
-    latest_posts: list[ConsolidatedPostRecordModel] = (
-        latest_firehose_posts + latest_most_liked_posts
-    )  # noqa
-    logger.info(f"Loaded {len(latest_posts)} posts for preprocessing.")
+    )
+    logger.info(f"Loaded {len(latest_most_liked_posts_df)} most liked posts.")
+    latest_posts_df: pd.DataFrame = pd.concat(
+        [latest_firehose_posts_df, latest_most_liked_posts_df]
+    )
+    logger.info(f"Loaded {len(latest_posts_df)} posts for preprocessing.")
 
     # we export only the posts that have passed preprocessing
-    if len(latest_posts) > 0:
-        passed_posts, posts_metadata = preprocess_latest_posts(
-            latest_posts=latest_posts
+    if len(latest_posts_df) > 0:
+        print(f"Preprocessing {len(latest_posts_df)} posts.")
+        filtered_posts_df, posts_metadata = preprocess_latest_posts(
+            latest_posts=latest_posts_df
         )  # noqa
+        print(f"Preprocessed {len(latest_posts_df)} posts.")
+        passed_posts_df = filtered_posts_df[filtered_posts_df["passed_filters"]]
+        failed_posts_df = filtered_posts_df[~filtered_posts_df["passed_filters"]]
+        logger.info(
+            f"Number of posts that passed preprocessing: {len(passed_posts_df)}"
+        )
+        logger.info(
+            f"Number of posts that failed preprocessing: {len(failed_posts_df)}"
+        )
 
         # get the max insert timestamp for the firehose posts
-        firehose_insert_timestamps = [
-            res.synctimestamp for res in latest_firehose_posts
-        ]
-        if firehose_insert_timestamps:
+        firehose_insert_timestamps: pd.Series = passed_posts_df[
+            passed_posts_df["source"] == "firehose"
+        ]["synctimestamp"]
+        if not firehose_insert_timestamps.empty:
             max_firehose_insert_timestamp = max(firehose_insert_timestamps)
         else:
             max_firehose_insert_timestamp = None
 
         # get the max insert timestamp for the most liked posts
-        most_liked_insert_timestamps = [
-            res.synctimestamp for res in latest_most_liked_posts
-        ]
-        if most_liked_insert_timestamps:
+        most_liked_insert_timestamps: pd.Series = passed_posts_df[
+            passed_posts_df["source"] == "most_liked"
+        ]["synctimestamp"]
+
+        if not most_liked_insert_timestamps.empty:
             max_most_liked_insert_timestamp = max(most_liked_insert_timestamps)
         else:
             max_most_liked_insert_timestamp = None
@@ -240,7 +253,7 @@ def preprocess_latest_raw_data(
         )
 
         # export the posts
-        export_latest_preprocessed_posts(latest_posts=passed_posts)
+        export_latest_preprocessed_posts(latest_posts=passed_posts_df)
     else:
         logger.info("No posts to process.")
     export_session_metadata(session_metadata)

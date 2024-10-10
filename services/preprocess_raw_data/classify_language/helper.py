@@ -1,14 +1,16 @@
 """Classifies the language of a post."""
+
+from multiprocessing import Pool, cpu_count
+from typing import Literal
+
+import pandas as pd
+
+from lib.helper import track_performance
 from lib.db.bluesky_models.transformations import TransformedRecordModel
-from ml_tooling.inference_helpers import classify_posts
-from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.preprocess_raw_data.classify_language.model import classify
 
-# our model is fast enough to handle all posts at once without special batching
-DEFAULT_BATCH_SIZE = None
 
-
-def classify_single_post(post: ConsolidatedPostRecordModel) -> dict:
+def classify_single_post(post) -> dict:
     """Classifies the language of a single post.
 
     If we have metadata for the language of the post via the Bluesky firehose,
@@ -41,12 +43,42 @@ def record_is_english(record: TransformedRecordModel) -> bool:
     return text_is_english(record.text)
 
 
-def classify_language_of_posts(
-    posts: list[ConsolidatedPostRecordModel],
-    batch_size: int = DEFAULT_BATCH_SIZE
-) -> list[dict]:
-    """Classifies the language of multiple posts."""
-    return classify_posts(
-        posts=posts, clf_func=classify_single_post,
-        batch_size=batch_size, rate_limit_per_minute=None
-    )
+@track_performance
+def filter_text_is_english_parallel(texts: pd.Series) -> pd.Series:
+    """Experiments with parallelizing the language classification.
+
+    It does greatly reduce runtime, depending on number of cores, but it also
+    takes more memory (presumably having to duplicate the data and/or model?
+    Unsure, but something worth considering.
+    """
+    num_cores = cpu_count()
+
+    print(f"Filtering {len(texts)} texts with {num_cores} cores")
+
+    with Pool(num_cores) as pool:
+        results = pool.map(classify, texts)
+
+    return pd.Series(results, index=texts.index)
+
+
+@track_performance
+def filter_text_is_english_serial(texts: pd.Series) -> pd.Series:
+    return texts.apply(classify)
+
+
+@track_performance
+def filter_text_is_english(
+    texts: pd.Series, mode: Literal["serial", "parallel"] = "serial"
+) -> pd.Series:
+    """Default function for filtering text is english.
+
+    Can also be used to run the serial or parallel version.
+    """
+    if mode == "serial":
+        return filter_text_is_english_serial(texts)
+    elif mode == "parallel":
+        return filter_text_is_english_parallel(texts)
+    else:
+        raise ValueError(
+            f"Invalid mode: {mode}. Please specify 'serial' or 'parallel'."
+        )

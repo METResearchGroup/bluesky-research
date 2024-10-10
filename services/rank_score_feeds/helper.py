@@ -37,7 +37,9 @@ from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.preprocess_raw_data.classify_language.model import classify
 from services.rank_score_feeds.constants import max_feed_length
-from services.rank_score_feeds.manual_excludelist import load_users_to_exclude
+from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
+    load_users_to_exclude,
+)
 from services.rank_score_feeds.models import (
     CustomFeedModel,
     CustomFeedPost,

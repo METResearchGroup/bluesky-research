@@ -3,6 +3,7 @@
 import json
 import os
 
+import numpy as np
 import pandas as pd
 
 from lib.aws.athena import Athena
@@ -13,7 +14,6 @@ from lib.constants import timestamp_format
 from lib.db.manage_local_data import export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
-from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 dynamodb_table_name = "preprocessingPipelineMetadata"
 dynamodb = DynamoDB()
@@ -33,23 +33,37 @@ s3_export_key_map = {
 logger = get_logger(__name__)
 
 
+def flatten_dict(d, parent_key='', sep='_'):
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            # Convert numpy.int64 to regular Python int
+            if isinstance(v, np.int64):
+                v = int(v)
+            items.append((new_key, v))
+    return dict(items)
+
 def export_session_metadata(session_metadata: dict) -> None:
     """Exports the session data to DynamoDB."""
-    dynamodb_table.put_item(Item=session_metadata)
+    # flatten dict, to avoid nested serialization problems
+    flattened_dict = flatten_dict(session_metadata)
+    dynamodb.insert_item_into_table(item=flattened_dict, table_name=dynamodb_table_name)
     print("Session data exported to DynamoDB.")
     return
 
 
 def export_latest_preprocessed_posts(
-    latest_posts: list[FilteredPreprocessedPostModel],
+    latest_posts: pd.DataFrame,
 ) -> None:  # noqa
     """Exports latest preprocessed posts."""
-    firehose_posts: list[dict] = [
-        post.dict() for post in latest_posts if post.source == "firehose"
-    ]  # noqa
-    most_liked_posts: list[dict] = [
-        post.dict() for post in latest_posts if post.source == "most_liked"
-    ]  # noqa
+    firehose_df = latest_posts[latest_posts["source"] == "firehose"]
+    most_liked_df = latest_posts[latest_posts["source"] == "most_liked"]
+    firehose_posts: list[dict] = firehose_df.to_dict(orient="records")
+    most_liked_posts: list[dict] = most_liked_df.to_dict(orient="records")
+
     feed_type_to_posts_tuples = [
         ("firehose", firehose_posts),
         ("most_liked", most_liked_posts),

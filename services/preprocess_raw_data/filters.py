@@ -1,234 +1,133 @@
 """Performs filtering steps."""
-from lib.constants import current_datetime_str
-from lib.helper import track_performance
+
+import pandas as pd
+
+from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import Logger
-from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
-from services.preprocess_raw_data.classify_bots.main import filter_posts_not_written_by_bot  # noqa
-from services.preprocess_raw_data.classify_hate_speech.main import filter_posts_have_no_hate_speech  # noqa
-from services.preprocess_raw_data.classify_language.main import filter_text_is_english  # noqa
-from services.preprocess_raw_data.classify_nsfw_content.main import filter_posts_have_no_nsfw_content  # noqa
-from services.preprocess_raw_data.classify_spam.main import filter_posts_have_no_spam  # noqa
-from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
+from services.preprocess_raw_data.classify_bots.helper import (
+    filter_posts_written_by_bot_accounts,
+)  # noqa
+from services.preprocess_raw_data.classify_hate_speech.helper import (
+    filter_posts_have_hate_speech,
+)  # noqa
+from services.preprocess_raw_data.classify_language.helper import filter_text_is_english  # noqa
+from services.preprocess_raw_data.classify_nsfw_content.helper import (
+    filter_post_content_nsfw,
+    filter_post_author_nsfw,
+)  # noqa
+from services.preprocess_raw_data.classify_spam.helper import filter_posts_have_spam  # noqa
 
 logger = Logger(__name__)
 
 
 @track_performance
-def filter_posts_with_filter_func(
-    posts: list[ConsolidatedPostRecordModel],
-    filter_func: callable,
-    label: str
-) -> dict[str, set]:
-    """Filters posts with a specific filtering function.
-
-    Returns a dictionary of the following format:
-    :passed_filters: set[str]: the URIs of the posts that passed the filter.
-    :failed_filters: set[str]: the URIs of the posts that failed the filter.
-
-    Example:
-    >>  filter_posts_with_filter_func(posts=post, filter_func=classify_spam, label="has_spam")
-    """  # noqa
-    passed_filters_uris: set[str] = set()
-    failed_filters_uris: set[str] = set()
-
-    # batch classify posts and let each service manage batching accordingly.
-    results: list[dict] = filter_func(posts)
-    label_results = [res[label] for res in results]
-
-    for (label, res) in zip(label_results, results):
-        if label:
-            passed_filters_uris.add(res["uri"])
-        else:
-            failed_filters_uris.add(res["uri"])
-
-    return {
-        "passed_filters": passed_filters_uris,
-        "failed_filters": failed_filters_uris
-    }
-
-
-@track_performance
-def filter_posts(
-    posts: list[ConsolidatedPostRecordModel]
-) -> tuple[list[FilteredPreprocessedPostModel], dict]:
-    """Applies the filtering steps and returns the posts along with their
-    status.
-
-    Returns the following fields per dictionary:
-    :uri: str: The URI of the post.
-    :passed_filters: bool: Whether the post passed the filters or not.
-    :filtered_at: datetime: The timestamp of when the post was filtered.
-    :filtered_by_func: if filtered out, which function filtered it out.
-
-    Each filtering function returns the following for a given post:
-    :uri: str: The URI of the post.
-    :<filter_name>: bool: Whether the post passed the filter or not.
-
-    Example:
-        - {"uri": post["uri"], "has_spam": has_spam}
-
-    For posts, we run the filtering function and return two sets of URIs:
-    :passed_filters: set[str]: the URIs of the posts that passed the filter.
-    :failed_filters: set[str]: the URIs of the posts that failed the filter.
-
-    We add the URIs of those that failed that filter to the output. We then
-    pass to the next filter only the URIs that passed the previous filter.
-
-    After all the filters are done, we add the remaining URIs to the output
-    as the URIs of the posts that have passed all the filters.
-    """  # noqa
+def filter_posts(posts: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Applies the filtering steps."""  # noqa
     logger.info(f"Total posts for filtering: {len(posts)}")
+
+    # remove posts without text
+    num_posts_without_text = len(posts[posts["text"].isna()])
+    logger.info(f"Number of posts without text: {num_posts_without_text}")
+    posts = posts[posts["text"].notna()]
+
+    # add language filter. This is the most important filter and likely
+    # filters out the most posts.
+    posts["is_english"] = filter_text_is_english(texts=posts["text"])
+
+    num_english_posts = len(posts[posts["is_english"]])
+    logger.info(
+        f"After English filtering, number of posts that passed filter: {num_english_posts}"
+    )  # noqa
+    logger.info(
+        f"After English filtering, number of posts that failed filter: {len(posts) - num_english_posts}"
+    )  # noqas
+
+    posts = posts[posts["is_english"]]
+
+    # add other filters:
+
+    # 1. not from possible bot account
+    posts["author_is_bot"] = filter_posts_written_by_bot_accounts(
+        author_dids=posts["author_did"], author_handles=posts["author_handle"]
+    )
+
+    # 2. no nsfw content
+    posts["post_is_nsfw"] = filter_post_content_nsfw(
+        texts=posts["text"], labels=posts["labels"]
+    )
+    posts["author_is_nsfw"] = filter_post_author_nsfw(
+        author_dids=posts["author_did"], author_handles=posts["author_handle"]
+    )
+
+    # 3. no spam
+    posts["is_spam"] = filter_posts_have_spam(posts["text"])
+
+    # 4. no hate speech
+    posts["is_hate_speech"] = filter_posts_have_hate_speech(posts["text"])
+
+    # Add a column 'passed_filters' to the posts dataframe
+    posts["passed_filters"] = ~(
+        posts["post_is_nsfw"]
+        | posts["author_is_nsfw"]
+        | posts["is_spam"]
+        | posts["is_hate_speech"]
+    )
+
+    posts["filtered_by_func"] = None
+    filter_columns = [
+        "author_is_bot",
+        "post_is_nsfw",
+        "author_is_nsfw",
+        "is_spam",
+        "is_hate_speech",
+    ]
+    for col in filter_columns:
+        posts.loc[posts[col], "filtered_by_func"] = col
+
+    ts =  generate_current_datetime_str()
+    posts["preprocessing_timestamp"] = ts
+    posts["filtered_at"] = ts
+
+    # count up the # of posts that failed each filter.
+    filter_to_count_map = {
+        "author_is_bot": sum(posts["author_is_bot"]),
+        "post_is_nsfw": sum(posts["post_is_nsfw"]),
+        "author_is_nsfw": sum(posts["author_is_nsfw"]),
+        "is_spam": sum(posts["is_spam"]),
+        "is_hate_speech": sum(posts["is_hate_speech"]),
+    }
+    for filter_col, count in filter_to_count_map.items():
+        logger.info(f"Number of posts failed `{filter_col}`: {count}")
+
+    print(posts["filtered_by_func"].value_counts())
+
     updated_posts_metadata = {
         "num_posts": len(posts),
         "num_records_after_filtering": {
             "posts": {
-                "passed": 0,
-                "failed_total": 0,
+                "passed": len(posts[posts["passed_filters"]]),
+                "failed_total": len(posts[~posts["passed_filters"]]),
                 "failed_breakdown": {
-                    "is_english": 0,
-                    "is_not_from_possible_bot_account": 0,
-                    "has_no_nsfw_content": 0,
-                    "has_no_spam": 0,
-                    "has_no_hate_speech": 0
-                }
+                    "is_english": num_english_posts,
+                    "author_is_bot": filter_to_count_map["author_is_bot"],
+                    "post_is_nsfw": filter_to_count_map["post_is_nsfw"],
+                    "author_is_nsfw": filter_to_count_map["author_is_nsfw"],
+                    "is_spam": filter_to_count_map["is_spam"],
+                    "is_hate_speech": filter_to_count_map["is_hate_speech"],
+                },
             }
-        }
+        },
     }
 
-    # we need to run the language filter first since this will filter the
-    # majority of posts (60% - 80% of posts per batch).
-    results_after_english_filter: dict = filter_posts_with_filter_func(
-        posts=posts, filter_func=filter_text_is_english, label="is_english"
-    )
-    english_post_uris: set = results_after_english_filter["passed_filters"]
-    logger.info(f"After English filtering, number of posts that passed filter: {len(english_post_uris)}")  # noqa
-    logger.info(f"After English filtering, number of posts that failed filter: {len(results_after_english_filter['failed_filters'])}")  # noqa
-
-    # for the posts that have been filtered out, let's add them to our
-    # output.
-    res = [
-        {
-            "uri": uri,
-            "passed_filters": False,
-            "filtered_at": current_datetime_str,
-            "filtered_by_func": filter_text_is_english.__name__
-        }
-        for uri in results_after_english_filter["failed_filters"]
+    cols_to_drop = [
+        "author_is_bot",
+        "post_is_nsfw",
+        "author_is_nsfw",
+        "is_spam",
+        "is_hate_speech",
     ]
-    updated_posts_metadata["num_records_after_filtering"]["posts"]["failed_breakdown"]["is_english"] = (  # noqa
-        len(results_after_english_filter["failed_filters"])
-    )
-
-    # we apply downstream filters only on English posts.
-    posts_to_filter = [
-        post for post in posts if post.uri in english_post_uris
-    ]
-
-    # for each filter, we apply the filter and add the results to the output.
-    # the order of these filters doesn't particularly matter, unless we have
-    # a specific reason to prefer one ordering over another.
-    filter_funcs_with_labels: list[tuple] = [
-        (filter_posts_not_written_by_bot, "is_not_from_possible_bot_account"),
-        (filter_posts_have_no_nsfw_content, "has_no_nsfw_content"),
-        (filter_posts_have_no_spam, "has_no_spam"),
-        (filter_posts_have_no_hate_speech, "has_no_hate_speech")
-    ]
-
-    for (filter_func, label) in filter_funcs_with_labels:
-        results: dict = filter_posts_with_filter_func(
-            posts=posts_to_filter, filter_func=filter_func, label=label
-        )
-        res.extend([
-            {
-                "uri": uri,
-                "passed_filters": False,
-                "filtered_at": current_datetime_str,
-                "filtered_by_func": filter_func.__name__
-            }
-            for uri in results["failed_filters"]
-        ])
-        # update the posts to filter if it has passed all the filters so far.
-        posts_to_filter = [
-            post
-            for post in posts_to_filter
-            if post.uri in results["passed_filters"]
-        ]
-        func_name = filter_func.__name__
-        logger.info(f"Finished filtering with function: {func_name}")
-        logger.info(f"Posts passing filter: {len(results['passed_filters'])}. Posts failing filter: {len(results['failed_filters'])}.")  # noqa
-        logger.info(f"Posts remaining after filtering with {func_name}: {len(posts_to_filter)}")  # noqa
-
-        # update the metadata.
-        updated_posts_metadata["num_records_after_filtering"]["posts"]["failed_breakdown"][label] = (  # noqa
-            len(results["failed_filters"])
-        )
-
-    # whatever posts are left, are the ones that have passed all filters.
-    res.extend([
-        {
-            "uri": post.uri,
-            "passed_filters": True,
-            "filtered_at": current_datetime_str,
-            "filtered_by_func": None
-        }
-        for post in posts_to_filter
-    ])
-
-    updated_posts_metadata["num_records_after_filtering"]["posts"]["passed"] = len(posts_to_filter)  # noqa
-    updated_posts_metadata["num_records_after_filtering"]["posts"]["failed_total"] = (  # noqa
-        len(posts) - len(posts_to_filter)
-    )
-
-    # we now create a hash map of the results, with URI as the key.
-    uri_to_results_map = {result["uri"]: result for result in res}
-
-    # we then work through the original list of posts and create the resulting
-    # objects accordingly.
-    filtered_posts: list[FilteredPreprocessedPostModel] = []
-    for post in posts:
-        uri = post.uri
-        filtering_results = uri_to_results_map[uri]
-        filtered_post_result = {
-            "uri": uri,
-            "cid": post.cid,
-            "indexed_at": post.indexed_at,
-            "author_did": post.author_did,
-            "author_handle": post.author_handle,
-            "author_avatar": post.author_avatar,
-            "author_display_name": post.author_display_name,
-            "created_at": post.created_at,
-            "text": post.text,
-            "embed": post.embed,
-            "entities": post.entities,
-            "facets": post.facets,
-            "labels": post.labels,
-            "langs": post.langs,
-            "reply_parent": post.reply_parent,
-            "reply_root": post.reply_root,
-            "tags": post.tags,
-            "synctimestamp": post.synctimestamp,
-            "url": post.url,
-            "source": post.source,
-            "like_count": post.like_count,
-            "reply_count": post.reply_count,
-            "repost_count": post.repost_count,
-            "passed_filters": filtering_results["passed_filters"],
-            "filtered_at": filtering_results["filtered_at"],
-            "filtered_by_func": filtering_results["filtered_by_func"],
-            "preprocessing_timestamp": current_datetime_str
-        }
-        filtered_post = FilteredPreprocessedPostModel(**filtered_post_result)
-        filtered_posts.append(filtered_post)
+    posts = posts.drop(columns=cols_to_drop)
 
     logger.info("Completed post filtering in preprocessing pipeline.")
 
-    # I keep going back and forth between keeping all posts vs. keeping only
-    # the ones that passed the filters. For now, I'll keep only the
-    # ones that pass filtering, though I could easily keep all of them.
-    # I just don't see a current reason to keep all of the posts, and
-    # removing posts also helps us cut down on storage.
-    passed_posts = [
-        post for post in filtered_posts if post.passed_filters
-    ]
-
-    return (passed_posts, updated_posts_metadata)
+    return (posts, updated_posts_metadata)

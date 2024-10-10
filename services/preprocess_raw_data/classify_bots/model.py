@@ -2,13 +2,13 @@
 
 Bot classification is in-progress but not yet on the Bluesky roadmap (as of 2024-04-08)
 - https://github.com/bluesky-social/atproto/issues/2167 suggests that it'll likely be implemented as a label.
-- 
+-
 """  # noqa
+
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
-from services.preprocess_raw_data.classify_bots.update_bot_accounts import load_bot_accounts  # noqa
 
-
-bot_user_dids: set = load_bot_accounts()
+bot_user_dids: set = {}
+bot_user_handles: set = {}
 
 
 def classify(post: ConsolidatedPostRecordModel) -> bool:
