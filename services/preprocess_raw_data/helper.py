@@ -5,6 +5,8 @@ import json
 import re
 from typing import Optional
 
+import pandas as pd
+
 from lib.aws.athena import Athena
 from lib.aws.sqs import SQS
 from lib.constants import current_datetime_str, timestamp_format
@@ -197,25 +199,63 @@ def preprocess_latest_raw_data(
     )  # noqa
     logger.info(f"Loaded {len(latest_posts)} posts for preprocessing.")
 
-    # we export only the posts that have passed preprocessing
-    if len(latest_posts) > 0:
-        passed_posts, posts_metadata = preprocess_latest_posts(
-            latest_posts=latest_posts
-        )  # noqa
+    # artificially increase the number of posts to 10000x
+    new_latest_posts = []
+    latest_posts = latest_posts[:800]
+    multiplier = 10000  # total of 800 * 10000 = 8mil posts
+    for post in latest_posts:
+        for idx in range(multiplier):
+            new_post = ConsolidatedPostRecordModel(
+                uri=f"{post.uri}_{idx}",
+                cid=post.cid,
+                indexed_at=post.indexed_at,
+                author_did=post.author_did,
+                author_handle=post.author_handle,
+                author_avatar=post.author_avatar,
+                author_display_name=post.author_display_name,
+                created_at=post.created_at,
+                text=post.text,
+                embed=post.embed,
+                entities=post.entities,
+                facets=post.facets,
+                labels=post.labels,
+                langs=post.langs,
+                reply_parent=post.reply_parent,
+                reply_root=post.reply_root,
+                tags=post.tags,
+                synctimestamp=post.synctimestamp,
+                url=post.url,
+                source=post.source,
+                like_count=post.like_count,
+                reply_count=post.reply_count,
+                repost_count=post.repost_count,
+            )
+            new_latest_posts.append(new_post)
+    latest_posts = new_latest_posts
 
+    latest_posts_df = pd.DataFrame([post.dict() for post in latest_posts])
+
+    # we export only the posts that have passed preprocessing
+    if len(latest_posts_df) > 0:
+        print(f"Preprocessing {len(latest_posts_df)} posts.")
+        passed_posts, posts_metadata = preprocess_latest_posts(
+            latest_posts=latest_posts_df
+        )  # noqa
+        print(f"Preprocessed {len(passed_posts)} posts.")
         # get the max insert timestamp for the firehose posts
-        firehose_insert_timestamps = [
-            res.synctimestamp for res in latest_firehose_posts
-        ]
+        firehose_insert_timestamps = latest_posts_df[
+            latest_posts_df["source"] == "firehose"
+        ]["synctimestamp"].max()
         if firehose_insert_timestamps:
             max_firehose_insert_timestamp = max(firehose_insert_timestamps)
         else:
             max_firehose_insert_timestamp = None
 
         # get the max insert timestamp for the most liked posts
-        most_liked_insert_timestamps = [
-            res.synctimestamp for res in latest_most_liked_posts
-        ]
+        most_liked_insert_timestamps = latest_posts_df[
+            latest_posts_df["source"] == "most_liked"
+        ]["synctimestamp"].max()
+
         if most_liked_insert_timestamps:
             max_most_liked_insert_timestamp = max(most_liked_insert_timestamps)
         else:
@@ -238,6 +278,8 @@ def preprocess_latest_raw_data(
         session_metadata["latest_processed_insert_timestamp"] = (
             max_processed_insert_timestamp
         )
+
+        breakpoint()
 
         # export the posts
         export_latest_preprocessed_posts(latest_posts=passed_posts)

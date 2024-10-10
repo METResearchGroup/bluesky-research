@@ -1,4 +1,7 @@
 """Classifies the language of a post."""
+
+import pandas as pd
+
 from lib.db.bluesky_models.transformations import TransformedRecordModel
 from ml_tooling.inference_helpers import classify_posts
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
@@ -42,11 +45,16 @@ def record_is_english(record: TransformedRecordModel) -> bool:
 
 
 def classify_language_of_posts(
-    posts: list[ConsolidatedPostRecordModel],
-    batch_size: int = DEFAULT_BATCH_SIZE
+    posts: list[ConsolidatedPostRecordModel], batch_size: int = DEFAULT_BATCH_SIZE
 ) -> list[dict]:
     """Classifies the language of multiple posts."""
     return classify_posts(
-        posts=posts, clf_func=classify_single_post,
-        batch_size=batch_size, rate_limit_per_minute=None
+        posts=posts,
+        clf_func=classify_single_post,
+        batch_size=batch_size,
+        rate_limit_per_minute=None,
     )
+
+
+def filter_text_is_english(texts: pd.Series) -> pd.Series:
+    return texts.apply(classify)

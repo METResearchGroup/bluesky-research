@@ -1,28 +1,18 @@
 """Classifies posts as written by a possible bot."""
-from typing import Optional
 
-from ml_tooling.inference_helpers import classify_posts
-from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
-from services.preprocess_raw_data.classify_bots.model import classify
+import pandas as pd
 
-DEFAULT_BATCH_SIZE = None  # we can do inference without batching
-
-
-def classify_single_post(post: ConsolidatedPostRecordModel) -> dict:
-    """Classifies a single post as written by a possible bot."""
-    is_from_possible_bot_account: bool = classify(post=post)
-    return {
-        "uri": post.uri,
-        "is_not_from_possible_bot_account": not is_from_possible_bot_account
-    }
+from services.preprocess_raw_data.classify_bots.model import (
+    bot_user_dids,
+    bot_user_handles,
+)
 
 
-def classify_if_posts_not_from_bot_accounts(
-    posts: list[ConsolidatedPostRecordModel],
-    batch_size: Optional[int] = DEFAULT_BATCH_SIZE
-) -> list[dict]:
+def filter_posts_written_by_bot_accounts(
+    author_dids: pd.Series,
+    author_handles: pd.Series,
+) -> pd.Series:
     """Classifies if posts come from bots."""
-    return classify_posts(
-        posts=posts, clf_func=classify_single_post,
-        batch_size=batch_size, rate_limit_per_minute=None
-    )
+    is_bot_did = author_dids.isin(bot_user_dids)
+    is_bot_handle = author_handles.isin(bot_user_handles)
+    return is_bot_did | is_bot_handle

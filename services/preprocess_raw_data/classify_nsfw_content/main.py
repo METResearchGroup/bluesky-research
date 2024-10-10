@@ -1,15 +1,17 @@
 """Classify if a post has any NSFW content."""
-from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
-from services.preprocess_raw_data.classify_nsfw_content.helper import (
-    classify_if_posts_have_no_nsfw_content
-)
+
+import pandas as pd
 
 
-def filter_posts_have_no_nsfw_content(
-    posts: list[ConsolidatedPostRecordModel]
-) -> list[dict]:
-    return classify_if_posts_have_no_nsfw_content(posts=posts)
+def filter_post_content_nsfw(texts: pd.Series, labels: pd.Series) -> pd.Series:
+    pass
+
+
+def filter_post_author_nsfw(
+    author_dids: pd.Series, author_handles: pd.Series
+) -> pd.Series:
+    pass
 
 
 if __name__ == "__main__":
-    filter_posts_have_no_nsfw_content()
+    pass
