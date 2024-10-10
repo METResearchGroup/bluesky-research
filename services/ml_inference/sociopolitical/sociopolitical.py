@@ -233,6 +233,8 @@ def classify_latest_posts(
         post for post in posts_to_classify if post.source == "most_liked"
     ]
 
+    skip_inference = True
+
     if not skip_inference:
         source_to_posts_tuples = [
             ("firehose", firehose_posts),

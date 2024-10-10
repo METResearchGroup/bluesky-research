@@ -11,7 +11,7 @@ from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
 
 default_similarity_score = 0.8
-average_popular_post_like_count = 1250
+average_popular_post_like_count = 250
 coef_toxicity = 0.965
 coef_constructiveness = 1.02
 superposter_coef = 0.95
@@ -189,6 +189,7 @@ def load_previous_post_scores(
     return previous_scores
 
 
+# NOTE: should consider setting default likes at the batch level.
 def calculate_post_scores(
     posts: pd.DataFrame, superposter_dids: set[str], load_previous_scores: bool = True
 ) -> tuple[list[dict], list[str]]:  # noqa
@@ -197,13 +198,12 @@ def calculate_post_scores(
     new_post_uris = []
 
     if not load_previous_scores:
-        # NOTE: haven't tested this, since we always load previous scores for now.
         return posts.apply(
             lambda post: calculate_post_score(
                 post=post, superposter_dids=superposter_dids
             ),
             axis=1,
-        ).tolist()
+        ).tolist(), posts["uri"].tolist()
     else:
         total_posts = len(posts)
         previous_post_scores: dict = load_previous_post_scores()

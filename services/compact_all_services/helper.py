@@ -321,7 +321,6 @@ def compact_all_local_services():
         print(df.dtypes)
         print(df.shape)
         # print("-" * 20)
-        # breakpoint()
         # pass
 
 

@@ -10,6 +10,15 @@ FURRIES_HANDLES = [
     "ruffusbleu.bsky.social",
     "fujiyamasamoyed.bsky.social",
     "peppermintdrake.bsky.social",
+    "jackalcakes.bsky.social",
+    "gunnerrott.bsky.social",
+    "intenselycasual.bsky.social",
+    "gnastystuff.bsky.social",
+    "rai-brid.bsky.social",
+    "xpray.bsky.social",
+    "saphiros.hyper.wang",
+    "tfiddlerart.bsky.social",
+    "deriaz.bsky.social"
 ]
 
 BSKY_HANDLES_TO_EXCLUDE = [

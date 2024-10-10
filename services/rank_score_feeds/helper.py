@@ -598,20 +598,25 @@ def do_rank_score_feeds(
     for i, user in enumerate(study_users):
         if i % 10 == 0:
             logger.info(f"Creating feed for user {i}/{total_users}")
+        post_pool: pd.DataFrame = (
+            reverse_chronological_post_pool_df
+            if user.condition == "reverse_chronological"
+            else engagement_post_pool_df
+            if user.condition == "engagement"
+            else treatment_post_pool_df
+            if user.condition == "representative_diversification"
+            else None
+        )
+        if post_pool is None or len(post_pool) == 0:
+            raise ValueError(
+                "post_pool cannot be None. This means that a user condition is unexpected/invalid"
+            )  # noqa
         feed: list[CustomFeedPost] = create_ranked_candidate_feed(
             condition=user.condition,
             in_network_candidate_post_uris=(
                 user_to_in_network_post_uris_map[user.bluesky_user_did]
             ),
-            post_pool=(
-                reverse_chronological_post_pool_df
-                if user.condition == "reverse_chronological"
-                else engagement_post_pool_df
-                if user.condition == "engagement"
-                else treatment_post_pool_df
-                if user.condition == "representative_diversification"
-                else None
-            ),
+            post_pool=post_pool,
             max_feed_length=max_feed_length,
         )
         user_to_ranked_feed_map[user.bluesky_user_did] = {

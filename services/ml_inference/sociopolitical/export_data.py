@@ -12,6 +12,7 @@ from lib.aws.s3 import S3
 from lib.constants import timestamp_format
 from lib.db.manage_local_data import export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from lib.log.logger import get_logger
 from services.ml_inference.models import SociopoliticalLabelsModel
 from services.ml_inference.sociopolitical.constants import (
     root_cache_path,
@@ -23,6 +24,8 @@ from services.ml_inference.sociopolitical.load_data import (
 athena = Athena()
 glue = Glue()
 s3 = S3()
+
+logger = get_logger(__name__)
 
 
 def write_post_to_cache(
@@ -67,6 +70,7 @@ def export_classified_posts() -> dict:
         ("most_liked", most_liked_posts),
     ]  # noqa
     dtype_map = MAP_SERVICE_TO_METADATA["ml_inference_sociopolitical"]["dtypes_map"]
+    breakpoint()
     for source, posts in source_to_posts_tuples:
         if len(posts) == 0:
             continue
@@ -77,6 +81,8 @@ def export_classified_posts() -> dict:
         ).dt.date
         df["source"] = source
         df = df.astype(dtype_map)
+        logger.info(f"Exporting {len(df)} posts from {source} to local storage.")
+        breakpoint()
         export_data_to_local_storage(
             service="ml_inference_sociopolitical", df=df, custom_args={"source": source}
         )
