@@ -72,7 +72,7 @@ def main():
         "scraped_user_social_network",
         "preprocessed_posts",
     ]
-    lookback_days = 1
+    lookback_days = 2
     for service in services:
         print(f"Deleting files for service: {service}")
         delete_files_from_lookback_period(service, lookback_days)
