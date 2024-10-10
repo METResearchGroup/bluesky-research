@@ -16,15 +16,10 @@ from atproto import (
 )
 from atproto.exceptions import FirehoseError
 
-from lib.constants import current_datetime_str
 from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.log.logger import get_logger
 from lib.helper import ThreadSafeCounter
-from services.sync.stream.export_data import (
-    load_cursor_state_s3,
-    update_cursor_state_s3,
-    export_batch,
-)
+from services.sync.stream.export_data import load_cursor_state_s3
 
 # number of events to stream before exiting
 # (should be ~10,000 posts, a 1:5 ratio of posts:events)
@@ -169,22 +164,6 @@ def _run(
             counter_value = counter.get_value()
             if counter_value % cursor_update_frequency == 0:
                 logger.info(f"Counter: {counter_value}")
-                logger.info(
-                    "Writing cached records to local storage and resetting cache..."
-                )
-                export_batch(external_store=["local"])
-                logger.info(f"Updating cursor state with cursor={counter_value}...")  # noqa
-                cursor_state = {
-                    "service": name,
-                    "cursor": commit.seq,
-                    "timestamp": current_datetime_str,
-                }
-                cursor_state_model = FirehoseSubscriptionStateCursorModel(
-                    **cursor_state
-                )
-                update_cursor_state_s3(cursor_state_model)
-            # if counter.get_value() > stream_limit:
-            #     sys.exit(0)
 
     try:
         firehose_client.start(on_message_handler)
