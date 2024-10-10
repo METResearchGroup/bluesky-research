@@ -26,9 +26,6 @@ def filter_posts(posts: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     logger.info(f"Total posts for filtering: {len(posts)}")
 
     # remove posts without text
-    # TODO: I checked in the interpreter and there should be none that
-    # are NaNs
-    breakpoint()
     num_posts_without_text = len(posts[posts["text"].isna()])
     logger.info(f"Number of posts without text: {num_posts_without_text}")
     posts = posts[posts["text"].notna()]
@@ -87,7 +84,9 @@ def filter_posts(posts: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     for col in filter_columns:
         posts.loc[posts[col], "filtered_by_func"] = col
 
-    posts["preprocessing_timestamp"] = generate_current_datetime_str()
+    ts =  generate_current_datetime_str()
+    posts["preprocessing_timestamp"] = ts
+    posts["filtered_at"] = ts
 
     # count up the # of posts that failed each filter.
     filter_to_count_map = {
@@ -101,8 +100,6 @@ def filter_posts(posts: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         logger.info(f"Number of posts failed `{filter_col}`: {count}")
 
     print(posts["filtered_by_func"].value_counts())
-
-    breakpoint()
 
     updated_posts_metadata = {
         "num_posts": len(posts),

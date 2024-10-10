@@ -3,6 +3,7 @@
 import json
 import os
 
+import numpy as np
 import pandas as pd
 
 from lib.aws.athena import Athena
@@ -32,9 +33,25 @@ s3_export_key_map = {
 logger = get_logger(__name__)
 
 
+def flatten_dict(d, parent_key='', sep='_'):
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            # Convert numpy.int64 to regular Python int
+            if isinstance(v, np.int64):
+                v = int(v)
+            items.append((new_key, v))
+    return dict(items)
+
 def export_session_metadata(session_metadata: dict) -> None:
     """Exports the session data to DynamoDB."""
-    dynamodb_table.put_item(Item=session_metadata)
+    # flatten dict, to avoid nested serialization problems
+    flattened_dict = flatten_dict(session_metadata)
+    breakpoint()
+    dynamodb.insert_item_into_table(item=flattened_dict, table_name=dynamodb_table_name)
     print("Session data exported to DynamoDB.")
     return
 

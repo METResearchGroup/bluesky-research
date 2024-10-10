@@ -173,8 +173,6 @@ def preprocess_latest_raw_data(
     if not previous_timestamp:
         previous_timestamp = default_latest_timestamp
 
-    # used to process posts that were inserted to the SQS queue after the
-    # last preprocessing session.
     latest_processed_insert_timestamp = previous_session_metadata.get(
         "latest_processed_insert_timestamp", None
     )
@@ -191,9 +189,11 @@ def preprocess_latest_raw_data(
             timestamp=timestamp, limit=max_firehose_posts_to_load
         )
     )
+    logger.info(f"Loaded {len(latest_firehose_posts_df)} firehose posts.")
     latest_most_liked_posts_df: list[ConsolidatedPostRecordModel] = (
         load_latest_most_liked_posts(timestamp=timestamp, limit=None)
     )
+    logger.info(f"Loaded {len(latest_most_liked_posts_df)} most liked posts.")
     latest_posts_df: pd.DataFrame = pd.concat(
         [latest_firehose_posts_df, latest_most_liked_posts_df]
     )
@@ -214,22 +214,23 @@ def preprocess_latest_raw_data(
         logger.info(
             f"Number of posts that failed preprocessing: {len(failed_posts_df)}"
         )
+
         # get the max insert timestamp for the firehose posts
-        firehose_insert_timestamps = passed_posts_df[
-            latest_posts_df["source"] == "firehose"
+        firehose_insert_timestamps: pd.Series = passed_posts_df[
+            passed_posts_df["source"] == "firehose"
         ]["synctimestamp"]
-        if firehose_insert_timestamps:
+        if not firehose_insert_timestamps.empty:
             max_firehose_insert_timestamp = max(firehose_insert_timestamps)
         else:
             max_firehose_insert_timestamp = None
 
         # get the max insert timestamp for the most liked posts
-        most_liked_insert_timestamps = passed_posts_df[
-            latest_posts_df["source"] == "most_liked"
+        most_liked_insert_timestamps: pd.Series = passed_posts_df[
+            passed_posts_df["source"] == "most_liked"
         ]["synctimestamp"]
 
-        if most_liked_insert_timestamps:
-            max_firehose_insert_timestamp = max(most_liked_insert_timestamps)
+        if not most_liked_insert_timestamps.empty:
+            max_most_liked_insert_timestamp = max(most_liked_insert_timestamps)
         else:
             max_most_liked_insert_timestamp = None
 
