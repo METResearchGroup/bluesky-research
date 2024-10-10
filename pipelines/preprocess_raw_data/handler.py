@@ -11,8 +11,8 @@ def lambda_handler(event: dict, context: dict):
     try:
         if not event:
             event = {
-                "backfill_period": None,  # either "days" or "hours"
-                "backfill_duration": None,
+                "backfill_period": "days",  # either "days" or "hours"
+                "backfill_duration": 5,
             }
         logger.info("Starting preprocessing pipeline in Lambda.")
         backfill_period = event.get("backfill_period", None)

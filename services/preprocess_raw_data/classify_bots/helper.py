@@ -1,5 +1,7 @@
 """Classifies posts as written by a possible bot."""
 
+from lib.helper import track_performance
+
 import pandas as pd
 
 from services.preprocess_raw_data.classify_bots.model import (
@@ -8,6 +10,7 @@ from services.preprocess_raw_data.classify_bots.model import (
 )
 
 
+@track_performance
 def filter_posts_written_by_bot_accounts(
     author_dids: pd.Series,
     author_handles: pd.Series,

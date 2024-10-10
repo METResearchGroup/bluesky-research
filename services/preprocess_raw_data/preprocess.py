@@ -14,8 +14,8 @@ def prepare_posts_for_preprocessing(latest_posts: pd.DataFrame) -> pd.DataFrame:
 def preprocess_latest_posts(latest_posts: pd.DataFrame) -> tuple[pd.DataFrame, dict]:  # noqa
     """Preprocesses and filters posts."""
     df: pd.DataFrame = prepare_posts_for_preprocessing(latest_posts=latest_posts)
-    passed_posts, updated_posts_metadata = filter_posts(df)
-    return passed_posts, updated_posts_metadata
+    filtered_posts_df, posts_metadata = filter_posts(df)
+    return filtered_posts_df, posts_metadata
 
 
 def preprocess_latest_likes(latest_likes):

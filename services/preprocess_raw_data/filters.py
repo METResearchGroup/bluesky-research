@@ -25,6 +25,14 @@ def filter_posts(posts: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     """Applies the filtering steps."""  # noqa
     logger.info(f"Total posts for filtering: {len(posts)}")
 
+    # remove posts without text
+    # TODO: I checked in the interpreter and there should be none that
+    # are NaNs
+    breakpoint()
+    num_posts_without_text = len(posts[posts["text"].isna()])
+    logger.info(f"Number of posts without text: {num_posts_without_text}")
+    posts = posts[posts["text"].notna()]
+
     # add language filter. This is the most important filter and likely
     # filters out the most posts.
     posts["is_english"] = filter_text_is_english(texts=posts["text"])
@@ -55,7 +63,7 @@ def filter_posts(posts: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     )
 
     # 3. no spam
-    posts["is_spam"] = filter_posts_have_spam(posts["texts"])
+    posts["is_spam"] = filter_posts_have_spam(posts["text"])
 
     # 4. no hate speech
     posts["is_hate_speech"] = filter_posts_have_hate_speech(posts["text"])
@@ -83,14 +91,18 @@ def filter_posts(posts: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
     # count up the # of posts that failed each filter.
     filter_to_count_map = {
-        "author_is_bot": len(posts[~posts["author_is_bot"]]),
-        "post_is_nsfw": len(posts[~posts["post_is_nsfw"]]),
-        "author_is_nsfw": len(posts[~posts["author_is_nsfw"]]),
-        "is_spam": len(posts[~posts["is_spam"]]),
-        "is_hate_speech": len(posts[~posts["is_hate_speech"]]),
+        "author_is_bot": sum(posts[~posts["author_is_bot"]]),
+        "post_is_nsfw": sum(posts[~posts["post_is_nsfw"]]),
+        "author_is_nsfw": sum(posts[~posts["author_is_nsfw"]]),
+        "is_spam": sum(posts[~posts["is_spam"]]),
+        "is_hate_speech": sum(posts[~posts["is_hate_speech"]]),
     }
     for filter_col, count in filter_to_count_map.items():
         logger.info(f"Number of posts failed `{filter_col}`: {count}")
+
+    print(posts["filtered_by_func"].value_counts())
+
+    breakpoint()
 
     updated_posts_metadata = {
         "num_posts": len(posts),
@@ -109,6 +121,15 @@ def filter_posts(posts: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
             }
         },
     }
+
+    cols_to_drop = [
+        "author_is_bot",
+        "post_is_nsfw",
+        "author_is_nsfw",
+        "is_spam",
+        "is_hate_speech",
+    ]
+    posts = posts.drop(columns=cols_to_drop)
 
     logger.info("Completed post filtering in preprocessing pipeline.")
 

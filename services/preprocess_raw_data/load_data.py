@@ -83,16 +83,20 @@ def load_latest_firehose_posts(
     df = pd.concat([in_network_user_posts_df, study_user_posts_df], ignore_index=True)
     if limit:
         df = df.head(limit)
-    return transform_latest_posts(df)
+    df = df[df["text"].notna()]
+    df["embed"] = df["embed"].apply(lambda x: json.loads(x) if pd.notna(x) else x)
+    return df
 
 
 @track_performance
 def load_latest_most_liked_posts(
     timestamp: str, limit: Optional[int] = None
 ) -> list[ConsolidatedPostRecordModel]:  # noqa
-    most_liked_posts_df: pd.DataFrame = load_data_from_local_storage(
+    df: pd.DataFrame = load_data_from_local_storage(
         service="sync_most_liked_posts", latest_timestamp=timestamp, directory="active"
     )
     if limit:
-        most_liked_posts_df = most_liked_posts_df.head(limit)
-    return transform_latest_posts(most_liked_posts_df)
+        df = df.head(limit)
+    df = df[df["text"].notna()]
+    df["embed"] = df["embed"].apply(lambda x: json.loads(x) if pd.notna(x) else x)
+    return df

@@ -186,78 +186,50 @@ def preprocess_latest_raw_data(
         timestamp = latest_processed_insert_timestamp
 
     # load latest posts
-    latest_firehose_posts: list[ConsolidatedPostRecordModel] = (
+    latest_firehose_posts_df: list[ConsolidatedPostRecordModel] = (
         load_latest_firehose_posts(
             timestamp=timestamp, limit=max_firehose_posts_to_load
         )
     )
-    latest_most_liked_posts: list[ConsolidatedPostRecordModel] = (
+    latest_most_liked_posts_df: list[ConsolidatedPostRecordModel] = (
         load_latest_most_liked_posts(timestamp=timestamp, limit=None)
-    )  # noqa
-    latest_posts: list[ConsolidatedPostRecordModel] = (
-        latest_firehose_posts + latest_most_liked_posts
-    )  # noqa
-    logger.info(f"Loaded {len(latest_posts)} posts for preprocessing.")
-
-    # artificially increase the number of posts to 10000x
-    new_latest_posts = []
-    latest_posts = latest_posts[:800]
-    multiplier = 10000  # total of 800 * 10000 = 8mil posts
-    for post in latest_posts:
-        for idx in range(multiplier):
-            new_post = ConsolidatedPostRecordModel(
-                uri=f"{post.uri}_{idx}",
-                cid=post.cid,
-                indexed_at=post.indexed_at,
-                author_did=post.author_did,
-                author_handle=post.author_handle,
-                author_avatar=post.author_avatar,
-                author_display_name=post.author_display_name,
-                created_at=post.created_at,
-                text=post.text,
-                embed=post.embed,
-                entities=post.entities,
-                facets=post.facets,
-                labels=post.labels,
-                langs=post.langs,
-                reply_parent=post.reply_parent,
-                reply_root=post.reply_root,
-                tags=post.tags,
-                synctimestamp=post.synctimestamp,
-                url=post.url,
-                source=post.source,
-                like_count=post.like_count,
-                reply_count=post.reply_count,
-                repost_count=post.repost_count,
-            )
-            new_latest_posts.append(new_post)
-    latest_posts = new_latest_posts
-
-    latest_posts_df = pd.DataFrame([post.dict() for post in latest_posts])
+    )
+    latest_posts_df: pd.DataFrame = pd.concat(
+        [latest_firehose_posts_df, latest_most_liked_posts_df]
+    )
+    logger.info(f"Loaded {len(latest_posts_df)} posts for preprocessing.")
 
     # we export only the posts that have passed preprocessing
     if len(latest_posts_df) > 0:
         print(f"Preprocessing {len(latest_posts_df)} posts.")
-        passed_posts, posts_metadata = preprocess_latest_posts(
+        filtered_posts_df, posts_metadata = preprocess_latest_posts(
             latest_posts=latest_posts_df
         )  # noqa
-        print(f"Preprocessed {len(passed_posts)} posts.")
+        print(f"Preprocessed {len(latest_posts_df)} posts.")
+        passed_posts_df = filtered_posts_df[filtered_posts_df["passed_filters"]]
+        failed_posts_df = filtered_posts_df[~filtered_posts_df["passed_filters"]]
+        logger.info(
+            f"Number of posts that passed preprocessing: {len(passed_posts_df)}"
+        )
+        logger.info(
+            f"Number of posts that failed preprocessing: {len(failed_posts_df)}"
+        )
         # get the max insert timestamp for the firehose posts
-        firehose_insert_timestamps = latest_posts_df[
+        firehose_insert_timestamps = passed_posts_df[
             latest_posts_df["source"] == "firehose"
-        ]["synctimestamp"].max()
+        ]["synctimestamp"]
         if firehose_insert_timestamps:
             max_firehose_insert_timestamp = max(firehose_insert_timestamps)
         else:
             max_firehose_insert_timestamp = None
 
         # get the max insert timestamp for the most liked posts
-        most_liked_insert_timestamps = latest_posts_df[
+        most_liked_insert_timestamps = passed_posts_df[
             latest_posts_df["source"] == "most_liked"
-        ]["synctimestamp"].max()
+        ]["synctimestamp"]
 
         if most_liked_insert_timestamps:
-            max_most_liked_insert_timestamp = max(most_liked_insert_timestamps)
+            max_firehose_insert_timestamp = max(most_liked_insert_timestamps)
         else:
             max_most_liked_insert_timestamp = None
 
@@ -279,10 +251,8 @@ def preprocess_latest_raw_data(
             max_processed_insert_timestamp
         )
 
-        breakpoint()
-
         # export the posts
-        export_latest_preprocessed_posts(latest_posts=passed_posts)
+        export_latest_preprocessed_posts(latest_posts=passed_posts_df)
     else:
         logger.info("No posts to process.")
     export_session_metadata(session_metadata)

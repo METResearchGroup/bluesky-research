@@ -2,16 +2,12 @@
 
 import pandas as pd
 
+from lib.helper import track_performance
 from lib.db.bluesky_models.transformations import TransformedRecordModel
-from ml_tooling.inference_helpers import classify_posts
-from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.preprocess_raw_data.classify_language.model import classify
 
-# our model is fast enough to handle all posts at once without special batching
-DEFAULT_BATCH_SIZE = None
 
-
-def classify_single_post(post: ConsolidatedPostRecordModel) -> dict:
+def classify_single_post(post) -> dict:
     """Classifies the language of a single post.
 
     If we have metadata for the language of the post via the Bluesky firehose,
@@ -44,17 +40,6 @@ def record_is_english(record: TransformedRecordModel) -> bool:
     return text_is_english(record.text)
 
 
-def classify_language_of_posts(
-    posts: list[ConsolidatedPostRecordModel], batch_size: int = DEFAULT_BATCH_SIZE
-) -> list[dict]:
-    """Classifies the language of multiple posts."""
-    return classify_posts(
-        posts=posts,
-        clf_func=classify_single_post,
-        batch_size=batch_size,
-        rate_limit_per_minute=None,
-    )
-
-
+@track_performance
 def filter_text_is_english(texts: pd.Series) -> pd.Series:
     return texts.apply(classify)
