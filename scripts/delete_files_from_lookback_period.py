@@ -30,14 +30,16 @@ def delete_files_from_lookback_period(service: str, lookback_days: int):
     metadata = MAP_SERVICE_TO_METADATA[service]
     local_prefixes = []
     if service in ["study_user_activity", "in_network_user_activity"]:
-        local_prefixes.append(metadata["subpaths"]["post"])
+        local_prefixes.append(os.path.join(metadata["subpaths"]["post"], "active"))
     elif service in [
         "preprocessed_posts",
         "ml_inference_perspective_api",
         "ml_inference_sociopolitical",
     ]:
-        local_prefixes.append(metadata["subpaths"]["firehose"])
-        local_prefixes.append(metadata["subpaths"]["most_liked"])
+        local_prefixes.append(os.path.join(metadata["subpaths"]["firehose"], "active"))
+        local_prefixes.append(
+            os.path.join(metadata["subpaths"]["most_liked"], "active")
+        )
     else:
         local_prefixes.append(os.path.join(metadata["local_prefix"], "active"))
     for local_prefix in local_prefixes:
