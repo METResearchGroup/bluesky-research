@@ -714,9 +714,12 @@ def export_batch(
         export_general_firehose_sync(
             compressed=compressed, external_store=external_store
         )
+    logger.info("Exporting study user activity data.")
     study_user_activity_filepaths = export_study_user_activity_local_data()
+    logger.info("Finished exporting study user activity data.")
+    logger.info("Exporting in-network user activity data.")
     in_network_user_activity_filepaths = export_in_network_user_activity_local_data()
-
+    logger.info("Finished exporting in-network user activity data.")
     all_filepaths = study_user_activity_filepaths + in_network_user_activity_filepaths
 
     if clear_filepaths:

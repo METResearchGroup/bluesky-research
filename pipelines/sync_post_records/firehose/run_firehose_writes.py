@@ -14,6 +14,7 @@ logger = get_logger(__name__)
 def run_firehose_writes():
     logger.info("Running firehose writes.")
     export_batch(external_store=["local"], clear_filepaths=True)
+    logger.info("Finished firehose writes.")
 
 
 def main():
