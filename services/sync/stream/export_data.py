@@ -708,6 +708,7 @@ def export_batch(
     Exports both the general firehose sync data and the study user activity data.
     that has been tracked in this batch.
     """  # noqa
+    logger.info("Exporting batch.")
     write_all_data_to_s3 = False
     if write_all_data_to_s3:
         export_general_firehose_sync(
@@ -719,11 +720,11 @@ def export_batch(
     all_filepaths = study_user_activity_filepaths + in_network_user_activity_filepaths
 
     if clear_filepaths:
-        print(f"Clearing {len(all_filepaths)} filepaths.")
-        print(
+        logger.info(f"Clearing {len(all_filepaths)} filepaths.")
+        logger.info(
             f"# of study user activity filepaths: {len(study_user_activity_filepaths)}"
         )
-        print(
+        logger.info(
             f"# of in-network user activity filepaths: {len(in_network_user_activity_filepaths)}"
         )
         for filepath in all_filepaths:
@@ -734,6 +735,7 @@ def export_batch(
             local_prefixes.extend(get_local_prefixes_for_service(service))
         for prefix in local_prefixes:
             delete_empty_folders(prefix)
+        logger.info("Cleared all empty folders and deleted old files..")
     else:
         # clears cache for next batch.
         if clear_cache:
