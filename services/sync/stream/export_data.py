@@ -62,10 +62,12 @@ from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.db.manage_local_data import (
     write_jsons_to_local_store,
     export_data_to_local_storage,
+    get_local_prefixes_for_service,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
+from services.compact_all_services.helper import delete_empty_folders
 from services.participant_data.study_users import get_study_user_manager
 
 logger = get_logger(__name__)
@@ -278,7 +280,7 @@ def export_general_firehose_sync(
                 )
 
 
-def export_study_user_post_local(base_path: str) -> list[dict]:
+def export_study_user_post_local(base_path: str) -> tuple[list[dict], list[str]]:
     """Exports the post data of study users to external S3 store.
 
     The key will be structured as follows:
@@ -289,6 +291,7 @@ def export_study_user_post_local(base_path: str) -> list[dict]:
     # base_key = "/".join(key_root)
 
     jsons: list[dict] = []
+    filepaths: list[str] = []
 
     # loop through all the files in the post directory and write them to S3.
     posts_filenames: list[str] = os.listdir(os.path.join(base_path, "post"))
@@ -300,6 +303,7 @@ def export_study_user_post_local(base_path: str) -> list[dict]:
             data = json.load(f)
             # s3.write_dict_json_to_s3(data=data, key=full_key)
             jsons.append(data)
+            filepaths.append(full_path)
             # TODO: migrate superposter daily posts implementation off
             # this approach and query the firehose Athena table directly.
             # Write post to superposter daily posts.
@@ -309,15 +313,16 @@ def export_study_user_post_local(base_path: str) -> list[dict]:
     # logger.info(
     #     f"Exported {len(posts_filenames)} post records to S3 for study user DID {key_root[1]}."
     # )  # noqa
-    return jsons
+    return jsons, filepaths
 
 
-def export_study_user_follow_local(base_path: str) -> list[dict]:
+def export_study_user_follow_local(base_path: str) -> tuple[list[dict], list[str]]:
     """Exports the follow data of study users to external S3 store."""
     key_root: list[str] = base_path.split("/")[-2:]  # ['study_user_activity', 'create']
     key_root.append("follow")
     base_key = "/".join(key_root)
     scraped_user_social_network: list[dict] = []
+    filepaths: list[str] = []
     # loop through follow/follower subdirectories and export follow data to S3.
     total_records = 0
     follows_path = os.path.join(base_path, "follow")
@@ -339,6 +344,7 @@ def export_study_user_follow_local(base_path: str) -> list[dict]:
             # )
             with open(full_path, "r") as f:
                 data = json.load(f)
+                filepaths.append(full_path)
                 # Write 1: write to study_user_activity
                 # s3.write_dict_json_to_s3(data=data, key=full_key)
                 # logger.info(f"Wrote a new follow record to S3 at {full_key}")
@@ -391,10 +397,10 @@ def export_study_user_follow_local(base_path: str) -> list[dict]:
     # logger.info(
     #     f"Exported {total_records} follow records to S3 for study user DID {key_root[1]}."
     # )  # noqa
-    return scraped_user_social_network
+    return scraped_user_social_network, filepaths
 
 
-def export_study_user_like_local(base_path: str) -> list[dict]:
+def export_study_user_like_local(base_path: str) -> tuple[list[dict], list[str]]:
     """Exports the like data of study users to external S3 store.
 
     The key will be structured as follows:
@@ -414,6 +420,7 @@ def export_study_user_like_local(base_path: str) -> list[dict]:
     # loop through all the files in the like directory and write them to S3.
     # total_records = 0
     likes: list[dict] = []
+    filepaths: list[str] = []
     liked_posts_path = os.path.join(base_path, "like")
     for post_uri in os.listdir(liked_posts_path):
         post_path = os.path.join(base_path, "like", post_uri)
@@ -423,16 +430,19 @@ def export_study_user_like_local(base_path: str) -> list[dict]:
             with open(full_path, "r") as f:
                 data = json.load(f)
                 likes.append(data)
+                filepaths.append(full_path)
                 # s3.write_dict_json_to_s3(data=data, key=full_key)
             # total_records += 1
 
     # logger.info(
     #     f"Exported {total_records} like records to S3 for study user DID {key_root[1]}."
     # )  # noqa
-    return likes
+    return likes, filepaths
 
 
-def export_like_on_study_user_post_local(base_path: str) -> list[dict]:
+def export_like_on_study_user_post_local(
+    base_path: str,
+) -> tuple[list[dict], list[str]]:
     """Exports a like on a post by a user in the study.
 
     The key will be structured as follows:
@@ -447,6 +457,7 @@ def export_like_on_study_user_post_local(base_path: str) -> list[dict]:
     # loop through all the files in the like_on_user_post directory and write them to S3.
     # total_records = 0
     likes_on_user_posts: list[dict] = []
+    filepaths: list[str] = []
     liked_posts_path = os.path.join(base_path, "like_on_user_post")
     for post_uri in os.listdir(liked_posts_path):
         post_path = os.path.join(base_path, "like_on_user_post", post_uri)
@@ -457,14 +468,16 @@ def export_like_on_study_user_post_local(base_path: str) -> list[dict]:
                 data = json.load(f)
                 # s3.write_dict_json_to_s3(data=data, key=full_key)
                 likes_on_user_posts.append(data)
-
+                filepaths.append(full_path)
     # logger.info(
     #     f"Exported {total_records} like on user post records to S3 for study user DID {key_root[1]}."
     # )  # noqa
-    return likes_on_user_posts
+    return likes_on_user_posts, filepaths
 
 
-def export_reply_to_study_user_post_local(base_path: str) -> list[dict]:
+def export_reply_to_study_user_post_local(
+    base_path: str,
+) -> tuple[list[dict], list[str]]:
     """Exports a reply to a study user's post.
 
     The key will be structured as follows:
@@ -480,7 +493,7 @@ def export_reply_to_study_user_post_local(base_path: str) -> list[dict]:
     key_root.append("reply_to_user_post")
     # base_key = "/".join(key_root)
     replies_to_user_posts: list[dict] = []
-
+    filepaths: list[str] = []
     # loop through all the files in the reply_to_user_post directory and write them to S3.
     # total_records = 0
     reply_posts_path = os.path.join(base_path, "reply_to_user_post")
@@ -493,15 +506,16 @@ def export_reply_to_study_user_post_local(base_path: str) -> list[dict]:
                 data = json.load(f)
                 # s3.write_dict_json_to_s3(data=data, key=full_key)
                 replies_to_user_posts.append(data)
+                filepaths.append(full_path)
             # total_records += 1
 
     # logger.info(
     #     f"Exported {total_records} reply to user post records to S3 for study user DID {key_root[1]}."
     # )  # noqa
-    return replies_to_user_posts
+    return replies_to_user_posts, filepaths
 
 
-def export_study_user_activity_local_data():
+def export_study_user_activity_local_data() -> list[str]:
     """Exports the activity data of study users to external S3 store.
 
     Steps:
@@ -519,6 +533,8 @@ def export_study_user_activity_local_data():
     all_likes_on_user_posts: list[dict] = []
     all_replies_to_user_posts: list[dict] = []
 
+    all_filepaths: list[str] = []
+
     for operation in ["create", "delete"]:
         if operation == "create":
             create_path = os.path.join(study_user_activity_root_local_path, "create")
@@ -529,32 +545,37 @@ def export_study_user_activity_local_data():
             record_types = os.listdir(create_path)
             for record_type in record_types:
                 if record_type == "post":
-                    posts: list[dict] = export_study_user_post_local(
+                    posts, filepaths = export_study_user_post_local(
                         base_path=create_path
                     )
                     all_posts.extend(posts)
+                    all_filepaths.extend(filepaths)
                 elif record_type == "like":
-                    likes: list[dict] = export_study_user_like_local(
+                    likes, filepaths = export_study_user_like_local(
                         base_path=create_path
                     )
                     all_likes.extend(likes)
+                    all_filepaths.extend(filepaths)
                 elif record_type == "follow":
                     # NOTE: we export this to "scraped-user-social-network" to update
                     # the user's social network.
-                    scraped_user_social_network: list[dict] = (
+                    scraped_user_social_network, filepaths = (
                         export_study_user_follow_local(base_path=create_path)
                     )
                     all_follows.extend(scraped_user_social_network)
+                    all_filepaths.extend(filepaths)
                 elif record_type == "like_on_user_post":
-                    likes_on_user_posts: list[dict] = (
+                    likes_on_user_posts, filepaths = (
                         export_like_on_study_user_post_local(base_path=create_path)
                     )  # noqa
                     all_likes_on_user_posts.extend(likes_on_user_posts)
+                    all_filepaths.extend(filepaths)
                 elif record_type == "reply_to_user_post":
-                    replies_to_user_posts: list[dict] = (
+                    replies_to_user_posts, filepaths = (
                         export_reply_to_study_user_post_local(base_path=create_path)
                     )  # noqa
                     all_replies_to_user_posts.extend(replies_to_user_posts)
+                    all_filepaths.extend(filepaths)
         elif operation == "delete":
             # deletions are more of an edge case, might have to deal with
             # it at some point but it's much lower priority.
@@ -632,6 +653,7 @@ def export_study_user_activity_local_data():
         export_data_to_local_storage(
             df=df, service="study_user_activity", custom_args=custom_args
         )
+    return all_filepaths
 
 
 def export_in_network_user_activity_local_data():
@@ -640,6 +662,7 @@ def export_in_network_user_activity_local_data():
     author_dids: list[str] = os.listdir(os.path.join(root_write_path, key_root))  # noqa
     all_s3_keys: list[str] = []
     jsons: list[dict] = []
+    filepaths: list[str] = []
     for author_did in author_dids:
         post_filenames: list[str] = os.listdir(
             os.path.join(root_write_path, key_root, author_did)
@@ -647,9 +670,11 @@ def export_in_network_user_activity_local_data():
         for post_filename in post_filenames:
             full_key = os.path.join(key_root, author_did, post_filename)
             all_s3_keys.append(full_key)
-            with open(os.path.join(root_write_path, full_key), "r") as f:
+            filepath = os.path.join(root_write_path, full_key)
+            with open(filepath, "r") as f:
                 data = json.load(f)
                 jsons.append(data)
+                filepaths.append(filepath)
     if len(jsons) > 0:
         # timestamp = generate_current_datetime_str()
         # filename = f"{timestamp}.jsonl"
@@ -664,12 +689,14 @@ def export_in_network_user_activity_local_data():
         df = df.astype(dtype_map)
         export_data_to_local_storage(df=df, service="in_network_user_activity")
         logger.info(f"Exported {len(jsons)} in-network user post records.")
+    return filepaths
 
 
 def export_batch(
     compressed: bool = True,
     clear_cache: bool = True,
     external_store: list[Literal["local", "s3"]] = ["local", "s3"],
+    clear_filepaths: bool = False,
 ):
     """Writes the batched data to external stores (local store and/or S3 store).
 
@@ -681,18 +708,42 @@ def export_batch(
     Exports both the general firehose sync data and the study user activity data.
     that has been tracked in this batch.
     """  # noqa
+    logger.info("Exporting batch.")
     write_all_data_to_s3 = False
     if write_all_data_to_s3:
         export_general_firehose_sync(
             compressed=compressed, external_store=external_store
         )
-    export_study_user_activity_local_data()
-    export_in_network_user_activity_local_data()
+    logger.info("Exporting study user activity data.")
+    study_user_activity_filepaths = export_study_user_activity_local_data()
+    logger.info("Finished exporting study user activity data.")
+    logger.info("Exporting in-network user activity data.")
+    in_network_user_activity_filepaths = export_in_network_user_activity_local_data()
+    logger.info("Finished exporting in-network user activity data.")
+    all_filepaths = study_user_activity_filepaths + in_network_user_activity_filepaths
 
-    # clears cache for next batch.
-    if clear_cache:
-        delete_cache_paths()
-    rebuild_cache_paths()
+    if clear_filepaths:
+        logger.info(f"Clearing {len(all_filepaths)} filepaths.")
+        logger.info(
+            f"# of study user activity filepaths: {len(study_user_activity_filepaths)}"
+        )
+        logger.info(
+            f"# of in-network user activity filepaths: {len(in_network_user_activity_filepaths)}"
+        )
+        for filepath in all_filepaths:
+            os.remove(filepath)
+        services = ["study_user_activity", "in_network_user_activity"]
+        local_prefixes = []
+        for service in services:
+            local_prefixes.extend(get_local_prefixes_for_service(service))
+        for prefix in local_prefixes:
+            delete_empty_folders(prefix)
+        logger.info("Cleared all empty folders and deleted old files..")
+    else:
+        # clears cache for next batch.
+        if clear_cache:
+            delete_cache_paths()
+        rebuild_cache_paths()
 
 
 def update_cursor_state_dynamodb(

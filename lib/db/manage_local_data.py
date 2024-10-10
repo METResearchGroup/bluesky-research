@@ -373,18 +373,16 @@ def export_data_to_local_storage(
                 chunk_df["partition_date"] = pd.to_datetime(
                     chunk_df[timestamp_field]
                 ).dt.date
-            chunk_df.to_parquet(
-                local_export_fp, index=False, partition_cols=partition_cols
-            )
+            # NOTE: we don't use local_export_fp here because we want to
+            # partition on the date field, and Parquet will include the partition
+            # field name in the file path.
+            chunk_df.to_parquet(folder_path, index=False, partition_cols=partition_cols)
         logger.info(
             f"Successfully exported {service} data from S3 to local store ({local_export_fp}) as {export_format}"
         )  # noqa
 
 
-def list_filenames(
-    service: str, directories: Literal["cache", "active"] = ["active"]
-) -> list[str]:
-    """List files in local storage for a given service."""
+def get_local_prefixes_for_service(service: str) -> list[str]:
     if service == "preprocessed_posts":
         local_prefixes = []
         subpaths = MAP_SERVICE_TO_METADATA[service]["subpaths"]
@@ -404,10 +402,17 @@ def list_filenames(
             record_type = "post"  # we only fetch the posts from study users.
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
         local_prefixes = [local_prefix]
+    return local_prefixes
+
+
+def list_filenames(
+    service: str, directories: list[Literal["cache", "active"]] = ["active"]
+) -> list[str]:
+    """List files in local storage for a given service."""
+    local_prefixes = get_local_prefixes_for_service(service)
     res = []
     for local_prefix in local_prefixes:
         for directory in directories:
-            # TODO: check this implementation.
             fp = os.path.join(local_prefix, directory)
             for root, _, files in os.walk(fp):
                 for file in files:
