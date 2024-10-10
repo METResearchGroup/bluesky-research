@@ -29,7 +29,7 @@ def delete_files_from_lookback_period(service: str, lookback_days: int):
     """Delete files from the last `lookback_days` days."""
     metadata = MAP_SERVICE_TO_METADATA[service]
     local_prefixes = []
-    if service in ["study_user_activity", "in_network_user_activity"]:
+    if service in ["study_user_activity"]:
         local_prefixes.append(os.path.join(metadata["subpaths"]["post"], "active"))
     elif service in [
         "preprocessed_posts",
