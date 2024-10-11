@@ -173,7 +173,9 @@ def load_latest_processed_data(
 
     # get user social network
     user_social_network_df: pd.DataFrame = load_data_from_local_storage(
-        service="scraped_user_social_network", latest_timestamp=lookback_datetime_str
+        service="scraped_user_social_network",
+        latest_timestamp=lookback_datetime_str,
+        validate_pq_files=True,
     )
     social_dicts = user_social_network_df.to_dict(orient="records")
     social_dicts = athena.parse_converted_pandas_dicts(social_dicts)
