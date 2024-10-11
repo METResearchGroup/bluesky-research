@@ -345,3 +345,53 @@ class S3:
         )
         self.write_dict_json_to_s3(data=payload, key=full_key)
         logger.info(f"Wrote queue message for source={source} to S3 at key={full_key}")
+
+    @retry_on_aws_rate_limit
+    def sort_and_move_files_from_active_to_cache(
+        self, prefix: str, keep_count: int = 3, sort_field: str = "LastModified"
+    ):
+        """
+        Sorts files by creation date, keeps the most recent ones, and moves the rest to cache.
+
+        Args:
+        prefix (str): The root prefix to search for files (e.g., 'custom_feeds/').
+        This method will append "active" to it.
+        keep_count (int): Number of most recent files to keep (default: 3)
+        """
+        full_prefix = os.path.join(prefix, "active")
+        response = self.client.list_objects_v2(Bucket=self.bucket, Prefix=full_prefix)
+
+        if "Contents" not in response:
+            logger.info(f"No files found with prefix: {prefix}")
+            return
+
+        # sort objects
+        sorted_objects = sorted(
+            response["Contents"], key=lambda x: x[sort_field], reverse=True
+        )
+
+        # Keep the most recent files
+        files_to_keep = sorted_objects[:keep_count]
+        files_to_move = sorted_objects[keep_count:]
+
+        # Move older files to cache
+        for obj in files_to_move:
+            old_key = obj["Key"]
+            filename = old_key.split("/")[-1]
+            new_key = os.path.join(prefix, "cache", filename)
+
+            # copy to new location
+            self.client.copy_object(
+                Bucket=self.bucket,
+                CopySource={"Bucket": self.bucket, "Key": old_key},
+                Key=new_key,
+            )
+
+            # delete from old location
+            self.client.delete_object(Bucket=self.bucket, Key=old_key)
+
+            logger.info(f"Moved {old_key} to {new_key}")
+
+        logger.info(
+            f"Kept {len(files_to_keep)} most recent files, moved {len(files_to_move)} files to cache."
+        )
