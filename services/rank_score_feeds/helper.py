@@ -104,7 +104,9 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
         )
     s3.write_dicts_jsonl_to_s3(
         data=outputs,
-        key=os.path.join(feeds_root_s3_key, f"custom_feeds_{timestamp}.jsonl"),
+        key=os.path.join(
+            feeds_root_s3_key, "active", f"custom_feeds_{timestamp}.jsonl"
+        ),
     )
     logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3 and to cache.")
 

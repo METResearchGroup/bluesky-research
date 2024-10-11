@@ -2596,7 +2596,7 @@ resource "aws_glue_catalog_table" "custom_feeds" {
   }
 
   storage_descriptor {
-    location      = "s3://${var.s3_root_bucket_name}/custom_feeds/"
+    location      = "s3://${var.s3_root_bucket_name}/custom_feeds/active/"
     input_format  = "org.apache.hadoop.mapred.TextInputFormat"
     output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
 
