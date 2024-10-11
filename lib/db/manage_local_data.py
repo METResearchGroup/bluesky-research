@@ -8,6 +8,7 @@ from typing import Literal, Optional
 
 import pandas as pd
 import pyarrow as pa
+import pyarrow.parquet as pq
 
 from lib.constants import (
     current_datetime,
@@ -406,18 +407,56 @@ def get_local_prefixes_for_service(service: str) -> list[str]:
 
 
 def list_filenames(
-    service: str, directories: list[Literal["cache", "active"]] = ["active"]
+    service: str,
+    directories: list[Literal["cache", "active"]] = ["active"],
+    validate_pq_files: bool = False,
 ) -> list[str]:
     """List files in local storage for a given service."""
     local_prefixes = get_local_prefixes_for_service(service)
-    res = []
+    res: list[str] = []
     for local_prefix in local_prefixes:
         for directory in directories:
             fp = os.path.join(local_prefix, directory)
-            for root, _, files in os.walk(fp):
-                for file in files:
-                    res.append(os.path.join(root, file))
+            if validate_pq_files:
+                validated_filepaths: list[str] = validated_pq_files_within_directory(fp)
+                res.extend(validated_filepaths)
+            else:
+                for root, _, files in os.walk(fp):
+                    for file in files:
+                        res.append(os.path.join(root, file))
     return res
+
+
+def validate_pq_file(filepath: str) -> bool:
+    try:
+        pq.ParquetFile(filepath)
+        return True
+    except Exception:
+        return False
+
+
+def validated_pq_files_within_directory(directory: str) -> list[str]:
+    """Validate all Parquet files in a given directory."""
+    filepaths = []
+    invalidated_filepaths = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith(".parquet"):
+                fp = os.path.join(root, file)
+                try:
+                    pq.ParquetFile(fp)
+                    filepaths.append(fp)
+                except Exception as e:
+                    logger.error(f"Error validating {fp}: {e}")
+                    invalidated_filepaths.append(fp)
+    total_invalidated_filepaths = len(invalidated_filepaths)
+    if filepaths:
+        logger.info(f"Found {len(filepaths)} valid Parquet files in {directory}.")
+    if total_invalidated_filepaths > 0:
+        logger.error(
+            f"Found {total_invalidated_filepaths} invalid Parquet files in {directory}."
+        )
+    return filepaths
 
 
 def delete_files(filepaths: list[str]) -> None:
@@ -474,13 +513,16 @@ def load_data_from_local_storage(
     export_format: Literal["jsonl", "parquet"] = "parquet",
     latest_timestamp: Optional[str] = None,
     use_all_data: bool = False,
+    validate_pq_files: bool = False,
 ) -> pd.DataFrame:
     """Load data from local storage."""
     directories = [directory]
     if use_all_data:
         directories = ["cache", "active"]
 
-    filepaths = list_filenames(service=service, directories=directories)
+    filepaths = list_filenames(
+        service=service, directories=directories, validate_pq_files=validate_pq_files
+    )
     if export_format == "jsonl":
         df = pd.read_json(filepaths, orient="records", lines=True)
     elif export_format == "parquet":
