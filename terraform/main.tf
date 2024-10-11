@@ -2980,6 +2980,32 @@ resource "aws_glue_catalog_table" "user_session_logs" {
 #   })
 # }
 
+resource "aws_glue_crawler" "user_session_logs_glue_crawler" {
+  name        = "user_session_logs_glue_crawler"
+  role        = aws_iam_role.glue_crawler_role.arn
+  database_name = var.default_glue_database_name
+
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/user_session_logs/"
+  }
+
+  configuration = jsonencode({
+    "Version" = 1.0,
+    "CrawlerOutput" = {
+      Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
+      Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
+    }
+    Grouping = {
+      TableGroupingPolicy = "CombineCompatibleSchemas"
+    }
+  })
+
+  schema_change_policy {
+    delete_behavior = "LOG"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
+}
+
 resource "aws_cloudwatch_log_group" "glue_crawler_logs" {
   name              = "/aws-glue/crawlers"
   retention_in_days = 14  # Retain logs for 14 days
