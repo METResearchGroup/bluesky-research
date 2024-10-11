@@ -2802,10 +2802,10 @@ resource "aws_glue_catalog_table" "user_session_logs" {
     }
   }
 
-  # partition_keys {
-  #   name = "bluesky_user_handle"
-  #   type = "string"
-  # }
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
 }
 
 # resource "aws_glue_catalog_table" "sqs_messages" {
