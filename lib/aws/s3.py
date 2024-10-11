@@ -185,6 +185,22 @@ class S3:
         return [obj["Key"] for obj in response["Contents"]]
 
     @retry_on_aws_rate_limit
+    def list_immediate_subfolders(self, prefix: str) -> list[str]:
+        """Lists immediate subfolders given a prefix in S3."""
+        paginator = self.client.get_paginator("list_objects_v2")
+        subfolders = set()
+
+        for page in paginator.paginate(
+            Bucket=ROOT_BUCKET, Prefix=prefix, Delimiter="/"
+        ):
+            for prefix_dict in page.get("CommonPrefixes", []):
+                # example prefix: user_session_logs/partition_date=2024-10-09/
+                subfolder = prefix_dict["Prefix"].split("/")[-2]
+                subfolders.add(subfolder)
+
+        return list(subfolders)
+
+    @retry_on_aws_rate_limit
     def list_keys_given_prefix(self, prefix: str):
         """Lists keys given a prefix in S3.
 
@@ -395,3 +411,15 @@ class S3:
         logger.info(
             f"Kept {len(files_to_keep)} most recent files, moved {len(files_to_move)} files to cache."
         )
+
+    def load_keys_to_df(self, keys: list[str]) -> pd.DataFrame:
+        """Loads list of keys and returns a DataFrame.
+
+        Assumes .jsonl keys for now. Can be extended to other formats later.
+        """
+        jsonl_dicts: list[dict] = []
+        for key in keys:
+            res: list[dict] = self.read_jsonl_from_s3(key=key)
+            if res:
+                jsonl_dicts.extend(res)
+        return pd.DataFrame(jsonl_dicts)
