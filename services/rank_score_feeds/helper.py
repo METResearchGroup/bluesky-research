@@ -3,10 +3,12 @@
 from datetime import timedelta
 import json
 import os
+import random
 from typing import Union
 
 import pandas as pd
 
+from feed_api.helper import parse_feed_string
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
@@ -52,6 +54,7 @@ user_to_social_network_map_table_name = "user_social_networks"
 feeds_root_s3_key = "custom_feeds"
 dynamodb_table_name = "rank_score_feed_sessions"
 max_num_times_user_can_appear_in_feed = 3
+max_prop_old_posts = 0.8
 
 athena = Athena()
 s3 = S3()
@@ -203,7 +206,12 @@ def load_latest_processed_data(
     superposters_df: pd.DataFrame = load_data_from_local_storage(
         service="daily_superposters", latest_timestamp=lookback_datetime_str
     )
-    superposters_lst: list[dict] = json.loads(superposters_df["superposters"].iloc[0])
+    if len(superposters_df) == 0:
+        superposters_lst = []
+    else:
+        superposters_lst: list[dict] = json.loads(
+            superposters_df["superposters"].iloc[0]
+        )
     output["superposters"] = set([res["author_did"] for res in superposters_lst])
 
     return output
@@ -266,11 +274,55 @@ def filter_posts_by_author_count(
     return posts_df.groupby("author_did").head(max_count)
 
 
-# TODO: should implement 50:50 balancing at some point tbh.
-# TODO: should I also return the source feed (firehose/most_liked), to make
-# sure that I am balancing the in-network and out-of-network posts?
-# TODO: add 50/50 balancing (or some similar sort of balancing) between
-# in-network and out-of-network posts.
+def jitter_feed(
+    feed: list[CustomFeedPost], jitter_amount: int = 2
+) -> list[CustomFeedPost]:
+    """Jitters the feed by a random amount.
+
+    This lets us experiment with slight movements in feed order,
+    controlled by `jitter_amount`.
+    """
+    n = len(feed)
+    result = feed.copy()
+    for i in range(n):
+        shift = random.randint(-jitter_amount, jitter_amount)
+        new_pos = max(0, min(n - 1, i + shift))
+        if i != new_pos:
+            result.insert(new_pos, result.pop(i))
+    return result
+
+
+def load_latest_feeds() -> dict[str, set[str]]:
+    """Loads the latest feeds per user, from S3.
+
+    Returns a map of user to the set of URIs of posts in their latest feed.
+    """
+    query = """
+    SELECT *
+    FROM custom_feeds
+    WHERE (bluesky_handle, feed_generation_timestamp) IN (
+        SELECT bluesky_handle, MAX(feed_generation_timestamp)
+        FROM custom_feeds
+        GROUP BY bluesky_handle
+    )
+    """
+    df = athena.query_results_as_df(query=query)
+    df_dicts = df.to_dict(orient="records")
+    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    bluesky_user_handles = []
+    feed_dicts = []
+    for df_dict in df_dicts:
+        bluesky_user_handles.append(df_dict["bluesky_handle"])
+        feed_dicts.append(parse_feed_string(df_dict["feed"]))
+    res = {}
+    for handle, feed in zip(bluesky_user_handles, feed_dicts):
+        uris = set()
+        for post in feed:
+            uris.add(post["item"])
+        res[handle] = uris
+    return res
+
+
 def create_ranked_candidate_feed(
     condition: str,
     in_network_candidate_post_uris: list[str],
@@ -325,7 +377,7 @@ def create_ranked_candidate_feed(
         # if no in-network posts, return the out-of-network posts.
         feed = [
             CustomFeedPost(item=post["uri"], is_in_network=False)
-            for _, post in out_of_network_posts_df[:max_feed_length].iterrows()
+            for _, post in out_of_network_posts_df.iterrows()
         ]
         return feed
     in_network_post_set = set(in_network_posts_df["uri"].tolist())
@@ -333,15 +385,44 @@ def create_ranked_candidate_feed(
     # Combine in-network and out-of-network posts while maintaining order
     output_posts_df = pd.concat([in_network_posts_df, out_of_network_posts_df])
 
-    # Filter out posts that exceed the max_feed_length
-    output_posts_df = output_posts_df.head(max_feed_length)
-
     feed: list[CustomFeedPost] = [
         CustomFeedPost(
             item=post["uri"], is_in_network=post["uri"] in in_network_post_set
         )
         for _, post in output_posts_df.iterrows()
     ]
+
+    return feed
+
+
+def postprocess_feed(
+    feed: list[CustomFeedPost],
+    max_feed_length: int = max_feed_length,
+    max_prop_old_posts: float = max_prop_old_posts,
+    previous_post_uris: set[str] = None,
+) -> list[CustomFeedPost]:
+    """Postprocesses the feed."""
+
+    # ensure that there's a maximum % of old posts in the feed, so we
+    # always have some fresh content.
+    if previous_post_uris:
+        max_num_old_posts = int(max_feed_length * max_prop_old_posts)
+        old_post_count = 0
+        processed_feed = []
+        for post in feed:
+            if post.item in previous_post_uris:
+                if old_post_count < max_num_old_posts:
+                    old_post_count += 1
+                    processed_feed.append(post)
+            else:
+                processed_feed.append(post)
+        feed = processed_feed
+
+    # truncate feed
+    feed = feed[:max_feed_length]
+
+    # jitter feed to slightly shuffle ordering
+    feed = jitter_feed(feed=feed)
 
     return feed
 
@@ -501,6 +582,7 @@ def do_rank_score_feeds(
         ]
 
     latest_data: dict = load_latest_processed_data()
+    latest_feeds: dict = load_latest_feeds()
     consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = latest_data[
         "consolidate_enrichment_integrations"
     ]
@@ -615,13 +697,16 @@ def do_rank_score_feeds(
             raise ValueError(
                 "post_pool cannot be None. This means that a user condition is unexpected/invalid"
             )  # noqa
-        feed: list[CustomFeedPost] = create_ranked_candidate_feed(
+        candidate_feed: list[CustomFeedPost] = create_ranked_candidate_feed(
             condition=user.condition,
             in_network_candidate_post_uris=(
                 user_to_in_network_post_uris_map[user.bluesky_user_did]
             ),
             post_pool=post_pool,
             max_feed_length=max_feed_length,
+        )
+        feed: list[CustomFeedPost] = postprocess_feed(
+            feed=candidate_feed, previous_post_uris=latest_feeds[user.bluesky_handle]
         )
         user_to_ranked_feed_map[user.bluesky_user_did] = {
             "feed": feed,

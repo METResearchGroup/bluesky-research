@@ -1,6 +1,5 @@
 """Load data for sociopolitical LLM inference."""
 
-import json
 import os
 
 from services.ml_inference.models import SociopoliticalLabelsModel
@@ -40,8 +39,12 @@ def load_classified_posts_from_cache() -> dict:
         most_liked_df.to_dict(orient="records") if most_liked_df is not None else []
     )
 
-    firehose_posts = [SociopoliticalLabelsModel(**post_dict) for post_dict in firehose_dicts]
-    most_liked_posts = [SociopoliticalLabelsModel(**post_dict) for post_dict in most_liked_dicts]
+    firehose_posts = [
+        SociopoliticalLabelsModel(**post_dict) for post_dict in firehose_dicts
+    ]
+    most_liked_posts = [
+        SociopoliticalLabelsModel(**post_dict) for post_dict in most_liked_dicts
+    ]
 
     return {
         "firehose": firehose_posts,
