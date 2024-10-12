@@ -97,7 +97,6 @@ def export_classified_posts() -> dict:
         df["source"] = source
         df = df.astype(dtype_map)
         logger.info(f"Exporting {len(df)} posts from {source} to local storage.")
-        breakpoint()
         export_data_to_local_storage(
             service="ml_inference_sociopolitical", df=df, custom_args={"source": source}
         )
