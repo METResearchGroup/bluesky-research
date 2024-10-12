@@ -1,7 +1,6 @@
 """Loads data for Perspective API classification."""
 
 import json
-import jsonlines
 from multiprocessing import Pool, cpu_count
 import os
 from typing import Optional
@@ -118,9 +117,9 @@ def json_file_reader(file_paths):
 def process_file(file_path) -> list[dict]:
     """Loads the .jsonl files at a given path."""
     results = []
-    with jsonlines.open(file_path) as reader:
-        for obj in reader:
-            results.append(obj)
+    with open(file_path, 'r') as file:
+        for line in file:
+            results.append(json.loads(line))
     return results
 
 

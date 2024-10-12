@@ -20,7 +20,9 @@ def lambda_handler(event, context):
         if backfill_duration is not None:
             backfill_duration = int(backfill_duration)
         classify_latest_posts(
-            backfill_period=backfill_period, backfill_duration=backfill_duration
+            backfill_period=backfill_period,
+            backfill_duration=backfill_duration,
+            run_classification=True,
         )
         logger.info("Completed classification of latest posts.")
         return {

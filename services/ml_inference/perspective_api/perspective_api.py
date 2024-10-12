@@ -24,7 +24,6 @@ def classify_latest_posts(
     run_classification: bool = True
 ):
     """Classifies the latest preprocessed posts using the Perspective API."""
-    run_classification = False
     if run_classification:
         if backfill_duration is not None and backfill_period in ["days", "hours"]:
             current_time = datetime.now(timezone.utc)
@@ -41,16 +40,15 @@ def classify_latest_posts(
             timestamp = backfill_timestamp
         else:
             timestamp = None
-        # posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
-        #     inference_type="perspective_api", timestamp=timestamp
-        # )
-        posts_to_classify = []
+        posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
+            inference_type="perspective_api", timestamp=timestamp
+        )
         logger.info(
             f"Classifying {len(posts_to_classify)} posts with the Perspective API..."
         )  # noqa
-        # if len(posts_to_classify) == 0:
-        #     logger.warning("No posts to classify with Perspective API. Exiting...")
-        #     return
+        if len(posts_to_classify) == 0:
+            logger.warning("No posts to classify with Perspective API. Exiting...")
+            return
         firehose_posts = [post for post in posts_to_classify if post.source == "firehose"]
         most_liked_posts = [
             post for post in posts_to_classify if post.source == "most_liked"
@@ -61,13 +59,6 @@ def classify_latest_posts(
             ("most_liked", most_liked_posts),
         ]  # noqa
         for source, posts in source_to_posts_tuples:
-            # labels stored in local storage, and then loaded
-            # later. This format is done to make it more
-            # robust to errors and to the script failing (though
-            # tbh I could probably just return the posts directly
-            # and then write to S3).
-            posts = posts[:10000]  # TODO: remove later
-            logger.info("Doing only a subset of the posts (max n=500) for testing reasons...")  # noqa
             run_batch_classification(posts=posts, source_feed=source)
     else:
         logger.info("Skipping classification and exporting cached results...")
