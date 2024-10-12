@@ -31,7 +31,7 @@ from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 logger = get_logger(__name__)
 LLM_MODEL_NAME = "GPT-4o mini"
 DEFAULT_BATCH_SIZE = 100
-DEFAULT_MINIBATCH_SIZE = 20
+DEFAULT_MINIBATCH_SIZE = 10
 max_num_posts = 20_000  # given our batching, we can handle ~500 posts/minute.
 
 
