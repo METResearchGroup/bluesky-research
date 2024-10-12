@@ -154,13 +154,8 @@ def process_response(response_str: str) -> dict:
             classification_probs_and_labels[labels["label"]] = (
                 0 if prob_score < 0.5 else 1
             )  # noqa
-            # constructiveness == reasoning now, presumably, according to
-            # the Perspective API team.
-            if attribute == "REASONING_EXPERIMENTAL":
-                classification_probs_and_labels["prob_constructive"] = prob_score
-                classification_probs_and_labels["label_constructive"] = (
-                    0 if prob_score < 0.5 else 1
-                )
+    classification_probs_and_labels["prob_constructive"] = classification_probs_and_labels["prob_reasoning"]
+    classification_probs_and_labels["label_constructive"] = classification_probs_and_labels["label_reasoning"]
     return classification_probs_and_labels
 
 
@@ -212,6 +207,10 @@ async def process_perspective_batch(requests):
                         classification_probs_and_labels[labels["label"]] = (
                             0 if prob_score < 0.5 else 1
                         )  # noqa
+                # constructiveness == reasoning now, presumably, according to
+                # the Perspective API team.
+                classification_probs_and_labels["prob_constructive"] = classification_probs_and_labels["prob_reasoning"]
+                classification_probs_and_labels["label_constructive"] = classification_probs_and_labels["label_reasoning"]
                 responses.append(classification_probs_and_labels)
 
     for _, request in enumerate(requests):

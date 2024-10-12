@@ -15,6 +15,7 @@ from lib.db.manage_local_data import (
     export_data_to_local_storage,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from lib.helper import generate_current_datetime_str
 from services.ml_inference.models import PerspectiveApiLabelsModel
 from services.ml_inference.perspective_api.constants import (
     perspective_api_root_s3_key,
@@ -60,6 +61,17 @@ def write_post_to_cache(
     with open(full_key, "w") as f:
         f.write(classified_post.json())
 
+def write_posts_to_cache(
+    posts: list[PerspectiveApiLabelsModel],
+    source_feed: Literal["firehose", "most_liked"],
+    classification_type: Literal["valid", "invalid"],
+):
+    timestamp = generate_current_datetime_str()
+    filename = f"{source_feed}_{classification_type}_{timestamp}.jsonl"
+    full_key = os.path.join(root_cache_path, source_feed, classification_type, filename)
+    with open(full_key, "w") as f:
+        for post in posts:
+            f.write(post.json() + "\n")
 
 def export_classified_posts() -> dict:
     """Export classified posts.
