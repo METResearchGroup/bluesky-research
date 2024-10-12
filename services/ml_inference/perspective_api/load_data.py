@@ -1,7 +1,5 @@
 """Loads data for Perspective API classification."""
 
-import json
-from multiprocessing import Pool, cpu_count
 import os
 from typing import Optional
 
@@ -12,10 +10,10 @@ from lib.aws.s3 import S3
 from lib.log.logger import get_logger
 from lib.helper import track_performance
 from services.ml_inference.models import PerspectiveApiLabelsModel
-from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from services.ml_inference.perspective_api.constants import (
     root_cache_path,
 )
+from services.ml_inference.helper import load_cached_jsons_as_df
 
 logger = get_logger(__name__)
 s3 = S3()
@@ -23,11 +21,6 @@ s3 = S3()
 dynamodb_table_name = "perspectiveApiClassificationMetadata"
 dynamodb = DynamoDB()
 dynamodb_table = dynamodb.resource.Table(dynamodb_table_name)
-dtypes_map = MAP_SERVICE_TO_METADATA["ml_inference_perspective_api"]["dtypes_map"]
-
-# drop fields that are added on export.
-dtypes_map.pop("partition_date")
-dtypes_map.pop("source")
 
 
 def load_previous_session_metadata() -> dict:
@@ -106,37 +99,6 @@ def load_cached_post_uris() -> dict:
             "invalid": most_liked_invalid_uris,
         },
     }
-
-
-def json_file_reader(file_paths):
-    for path in file_paths:
-        with open(path, "r") as file:
-            yield json.loads(file.read())
-
-
-def process_file(file_path) -> list[dict]:
-    """Loads the .jsonl files at a given path."""
-    results = []
-    with open(file_path, 'r') as file:
-        for line in file:
-            results.append(json.loads(line))
-    return results
-
-
-@track_performance
-def load_cached_jsons_as_df(filepaths: list[str]) -> Optional[pd.DataFrame]:
-    """Loads a list of JSON filepaths into a pandas DataFrame."""
-    num_processes = cpu_count()
-    logger.info(f"Using {num_processes} processes to load data...")
-    with Pool(num_processes) as pool:
-        results = pool.map(process_file, filepaths)
-    flattened_results = [item for sublist in results for item in sublist]
-    if len(flattened_results) == 0:
-        return None
-    df = pd.DataFrame(flattened_results)
-    df = df.astype(dtypes_map)
-    df = df.drop_duplicates(subset="uri")
-    return df
 
 
 @track_performance

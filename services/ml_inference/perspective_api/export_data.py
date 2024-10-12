@@ -3,6 +3,7 @@
 import os
 import shutil
 from typing import Literal
+import uuid
 
 import pandas as pd
 
@@ -66,8 +67,9 @@ def write_posts_to_cache(
     source_feed: Literal["firehose", "most_liked"],
     classification_type: Literal["valid", "invalid"],
 ):
+    hashed_value = str(uuid.uuid4())
     timestamp = generate_current_datetime_str()
-    filename = f"{source_feed}_{classification_type}_{timestamp}.jsonl"
+    filename = f"{source_feed}_{classification_type}_{timestamp}_{hashed_value}.jsonl"
     full_key = os.path.join(root_cache_path, source_feed, classification_type, filename)
     with open(full_key, "w") as f:
         for post in posts:

@@ -1,5 +1,7 @@
 """Helper tooling for ML inference."""
 
+import json
+from multiprocessing import Pool, cpu_count
 from typing import Literal, Optional
 
 import pandas as pd
@@ -7,6 +9,8 @@ import pandas as pd
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.db.manage_local_data import load_latest_data
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from lib.helper import track_performance
 from lib.log.logger import get_logger
 
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
@@ -17,6 +21,12 @@ athena = Athena()
 logger = get_logger(__name__)
 dynamodb_table_name = "ml_inference_labeling_sessions"
 MIN_POST_TEXT_LENGTH = 5
+
+dtypes_map = MAP_SERVICE_TO_METADATA["ml_inference_perspective_api"]["dtypes_map"]
+
+# drop fields that are added on export.
+dtypes_map.pop("partition_date")
+dtypes_map.pop("source")
 
 
 def get_latest_labeling_session(
@@ -113,3 +123,34 @@ def get_posts_to_classify(
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     posts = [FilteredPreprocessedPostModel(**post_dict) for post_dict in df_dicts]  # noqa
     return posts
+
+
+def json_file_reader(file_paths):
+    for path in file_paths:
+        with open(path, "r") as file:
+            yield json.loads(file.read())
+
+
+def process_file(file_path) -> list[dict]:
+    """Loads the .jsonl files at a given path."""
+    results = []
+    with open(file_path, 'r') as file:
+        for line in file:
+            results.append(json.loads(line))
+    return results
+
+
+@track_performance
+def load_cached_jsons_as_df(filepaths: list[str]) -> Optional[pd.DataFrame]:
+    """Loads a list of JSON filepaths into a pandas DataFrame."""
+    num_processes = cpu_count()
+    logger.info(f"Using {num_processes} processes to load data...")
+    with Pool(num_processes) as pool:
+        results = pool.map(process_file, filepaths)
+    flattened_results = [item for sublist in results for item in sublist]
+    if len(flattened_results) == 0:
+        return None
+    df = pd.DataFrame(flattened_results)
+    df = df.astype(dtypes_map)
+    df = df.drop_duplicates(subset="uri")
+    return df

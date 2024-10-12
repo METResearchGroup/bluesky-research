@@ -3,6 +3,7 @@
 import os
 import shutil
 from typing import Literal
+import uuid
 
 import pandas as pd
 
@@ -12,6 +13,7 @@ from lib.aws.s3 import S3
 from lib.constants import timestamp_format
 from lib.db.manage_local_data import export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.ml_inference.models import SociopoliticalLabelsModel
 from services.ml_inference.sociopolitical.constants import (
@@ -39,6 +41,20 @@ def write_post_to_cache(
     full_key = os.path.join(root_cache_path, source_feed, f"{joint_pk}.json")
     with open(full_key, "w") as f:
         f.write(classified_post.json())
+
+
+def write_posts_to_cache(
+    posts: list[SociopoliticalLabelsModel],
+    source_feed: Literal["firehose", "most_liked"],
+    classification_type: Literal["valid", "invalid"],
+):
+    hashed_value = str(uuid.uuid4())
+    timestamp = generate_current_datetime_str()
+    filename = f"{source_feed}_{classification_type}_{timestamp}_{hashed_value}.jsonl"
+    full_key = os.path.join(root_cache_path, source_feed, classification_type, filename)
+    with open(full_key, "w") as f:
+        for post in posts:
+            f.write(post.json() + "\n")
 
 
 def delete_cache_paths():
@@ -70,7 +86,6 @@ def export_classified_posts() -> dict:
         ("most_liked", most_liked_posts),
     ]  # noqa
     dtype_map = MAP_SERVICE_TO_METADATA["ml_inference_sociopolitical"]["dtypes_map"]
-    breakpoint()
     for source, posts in source_to_posts_tuples:
         if len(posts) == 0:
             continue
