@@ -15,7 +15,7 @@ s3 = S3()
 # Create a thread-safe queue
 log_queue = queue.Queue()
 
-time_to_flush_minutes = 5
+time_to_flush_minutes = 20
 time_to_flush_seconds = time_to_flush_minutes * 60
 max_num_logs = 10_000  # max logs to keep in queue before flushing
 
