@@ -20,7 +20,9 @@ def lambda_handler(event, context):
             backfill_duration = int(backfill_duration)
         logger.info("Starting classification of latest sociopolitical posts.")
         classify_latest_posts(
-            backfill_period=backfill_period, backfill_duration=backfill_duration
+            backfill_period=backfill_period,
+            backfill_duration=backfill_duration,
+            run_classification=True
         )
         logger.info("Completed classification of latest sociopolitical posts.")
         return {

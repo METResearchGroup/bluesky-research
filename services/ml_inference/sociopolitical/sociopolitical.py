@@ -32,7 +32,7 @@ logger = get_logger(__name__)
 LLM_MODEL_NAME = "GPT-4o mini"
 DEFAULT_BATCH_SIZE = 100
 DEFAULT_MINIBATCH_SIZE = 10
-max_num_posts = 20_000  # given our batching, we can handle ~500 posts/minute.
+max_num_posts = 15_000  # given our batching, we can handle ~500 posts/minute.
 
 
 def generate_prompt(posts: list[FilteredPreprocessedPostModel]) -> str:
@@ -241,14 +241,8 @@ def classify_latest_posts(
         ]  # noqa
         for source, posts in source_to_posts_tuples:
             print(f"For source {source}, there are {len(posts)} posts.")
-            # posts = posts[:max_num_posts]  # Take the first X posts
-            posts = posts[:500] # just to see if it works.
+            posts = posts[:max_num_posts]
             print(f"Truncating to {len(posts)} posts.")
-            # labels stored in local storage, and then loaded
-            # later. This format is done to make it more
-            # robust to errors and to the script failing (though
-            # tbh I could probably just return the posts directly
-            # and then write to S3).
             run_batch_classification(posts=posts, source_feed=source)
     else:
         logger.info("Skipping classification and exporting cached results...")
