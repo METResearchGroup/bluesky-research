@@ -108,6 +108,7 @@ def get_posts_to_classify(
         latest_timestamp=timestamp,
         max_per_source=max_per_source,
     )
+    posts_df = posts_df.drop_duplicates(subset=["uri"])
     df_dicts = posts_df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     posts = [FilteredPreprocessedPostModel(**post_dict) for post_dict in df_dicts]  # noqa

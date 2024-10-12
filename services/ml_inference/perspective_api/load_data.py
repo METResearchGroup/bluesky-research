@@ -1,8 +1,10 @@
 """Loads data for Perspective API classification."""
 
 import json
+import jsonlines
 from multiprocessing import Pool, cpu_count
 import os
+from typing import Optional
 
 import pandas as pd
 
@@ -23,6 +25,10 @@ dynamodb_table_name = "perspectiveApiClassificationMetadata"
 dynamodb = DynamoDB()
 dynamodb_table = dynamodb.resource.Table(dynamodb_table_name)
 dtypes_map = MAP_SERVICE_TO_METADATA["ml_inference_perspective_api"]["dtypes_map"]
+
+# drop fields that are added on export.
+dtypes_map.pop("partition_date")
+dtypes_map.pop("source")
 
 
 def load_previous_session_metadata() -> dict:
@@ -109,18 +115,29 @@ def json_file_reader(file_paths):
             yield json.loads(file.read())
 
 
-def process_file(file_path):
-    with open(file_path, "r") as file:
-        return json.loads(file.read())
+def process_file(file_path) -> list[dict]:
+    """Loads the .jsonl files at a given path."""
+    results = []
+    with jsonlines.open(file_path) as reader:
+        for obj in reader:
+            results.append(obj)
+    return results
 
 
-def load_cached_jsons_as_df(filepaths: list[str]) -> pd.DataFrame:
+@track_performance
+def load_cached_jsons_as_df(filepaths: list[str]) -> Optional[pd.DataFrame]:
     """Loads a list of JSON filepaths into a pandas DataFrame."""
     num_processes = cpu_count()
     logger.info(f"Using {num_processes} processes to load data...")
     with Pool(num_processes) as pool:
         results = pool.map(process_file, filepaths)
-    return pd.DataFrame(results, dtype=dtypes_map)
+    flattened_results = [item for sublist in results for item in sublist]
+    if len(flattened_results) == 0:
+        return None
+    df = pd.DataFrame(flattened_results)
+    df = df.astype(dtypes_map)
+    df = df.drop_duplicates(subset="uri")
+    return df
 
 
 @track_performance
@@ -163,22 +180,35 @@ def load_classified_posts_from_cache() -> dict:
         elif path == most_liked_invalid_path:
             most_liked_invalid_paths.extend([os.path.join(path, p) for p in paths])
 
-    # df_firehose_valid = pd.DataFrame(json_file_reader(firehose_valid_paths))
-    # df_firehose_invalid = pd.DataFrame(json_file_reader(firehose_invalid_paths))
-    # df_most_liked_valid = pd.DataFrame(json_file_reader(most_liked_valid_paths))
-    # df_most_liked_invalid = pd.DataFrame(json_file_reader(most_liked_invalid_paths))
-    df_firehose_valid = load_cached_jsons_as_df(firehose_valid_paths)
-    df_firehose_invalid = load_cached_jsons_as_df(firehose_invalid_paths)
-    df_most_liked_valid = load_cached_jsons_as_df(most_liked_valid_paths)
-    df_most_liked_invalid = load_cached_jsons_as_df(most_liked_invalid_paths)
+    df_firehose_valid: Optional[pd.DataFrame] = load_cached_jsons_as_df(firehose_valid_paths)
+    df_firehose_invalid: Optional[pd.DataFrame] = load_cached_jsons_as_df(firehose_invalid_paths)
+    df_most_liked_valid: Optional[pd.DataFrame] = load_cached_jsons_as_df(most_liked_valid_paths)
+    df_most_liked_invalid: Optional[pd.DataFrame] = load_cached_jsons_as_df(most_liked_invalid_paths)
 
-    df_dicts_firehose_valid = df_firehose_valid.to_dict(orient="records")
-    df_dicts_firehose_invalid = df_firehose_invalid.to_dict(orient="records")
-    df_dicts_most_liked_valid = df_most_liked_valid.to_dict(orient="records")
-    df_dicts_most_liked_invalid = df_most_liked_invalid.to_dict(orient="records")
+    df_dicts_firehose_valid = (
+        df_firehose_valid.to_dict(orient="records")
+        if df_firehose_valid is not None
+        else []
+    )
+    df_dicts_firehose_invalid = (
+        df_firehose_invalid.to_dict(orient="records")
+        if df_firehose_invalid is not None
+        else []
+    )
+    df_dicts_most_liked_valid = (
+        df_most_liked_valid.to_dict(orient="records")
+        if df_most_liked_valid is not None
+        else []
+    )
+    df_dicts_most_liked_invalid = (
+        df_most_liked_invalid.to_dict(orient="records")
+        if df_most_liked_invalid is not None
+        else []
+    )
 
     firehose_valid_posts = [
-        PerspectiveApiLabelsModel(**post_dict) for post_dict in df_dicts_firehose_valid
+        PerspectiveApiLabelsModel(**post_dict)
+        for post_dict in df_dicts_firehose_valid
     ]
     firehose_invalid_posts = [
         PerspectiveApiLabelsModel(**post_dict)
@@ -194,7 +224,10 @@ def load_classified_posts_from_cache() -> dict:
     ]
 
     return {
-        "firehose": {"valid": firehose_valid_posts, "invalid": firehose_invalid_posts},
+        "firehose": {
+            "valid": firehose_valid_posts,
+            "invalid": firehose_invalid_posts,
+        },
         "most_liked": {
             "valid": most_liked_valid_posts,
             "invalid": most_liked_invalid_posts,
