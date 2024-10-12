@@ -111,6 +111,9 @@ def get_posts_to_classify(
         latest_timestamp=timestamp,
         max_per_source=max_per_source,
     )
+    if len(posts_df) == 0:
+        logger.info("No posts to classify.")
+        return []
     posts_df = posts_df.drop_duplicates(subset=["uri"])
     df_dicts = posts_df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
@@ -127,14 +130,16 @@ def json_file_reader(file_paths):
 def process_file(file_path) -> list[dict]:
     """Loads the .jsonl files at a given path."""
     results = []
-    with open(file_path, 'r') as file:
+    with open(file_path, "r") as file:
         for line in file:
             results.append(json.loads(line))
     return results
 
 
 @track_performance
-def load_cached_jsons_as_df(filepaths: list[str], dtypes_map: dict) -> Optional[pd.DataFrame]:
+def load_cached_jsons_as_df(
+    filepaths: list[str], dtypes_map: dict
+) -> Optional[pd.DataFrame]:
     """Loads a list of JSON filepaths into a pandas DataFrame."""
     num_processes = cpu_count()
     logger.info(f"Using {num_processes} processes to load data...")

@@ -593,5 +593,9 @@ def load_latest_data(
         # Split the DataFrame by 'source'
         grouped = df.groupby("source")
         # Take the max_per_source for each group and concatenate them
-        df = pd.concat([group.head(max_per_source) for _, group in grouped])
+        groups = [group.head(max_per_source) for _, group in grouped]
+        if groups:
+            df = pd.concat(groups)
+        else:
+            return pd.DataFrame()
     return df

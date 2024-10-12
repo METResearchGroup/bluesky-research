@@ -99,6 +99,9 @@ def get_posts_to_embed() -> list[FilteredPreprocessedPostModel]:
         service="generate_vector_embeddings",
         latest_timestamp=latest_embedding_timestamp,
     )
+    if len(posts_df) == 0:
+        logger.info("No posts to embed.")
+        return []
     df_dicts = posts_df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     return [FilteredPreprocessedPostModel(**post_dict) for post_dict in df_dicts]  # noqa

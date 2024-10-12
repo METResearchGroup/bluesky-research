@@ -69,7 +69,9 @@ def calculate_latest_superposters(
         service="daily_superposters",
         latest_timestamp=lookback_datetime_str,
     )
-
+    if len(posts_df) == 0:
+        logger.info("No posts to calculate superposters for.")
+        return
     if top_n_percent is not None:
         query = f"""
         WITH ranked_users AS (
