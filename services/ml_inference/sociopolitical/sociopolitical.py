@@ -24,7 +24,7 @@ from services.ml_inference.models import (
 )
 from services.ml_inference.sociopolitical.export_data import (
     export_results,
-    write_post_to_cache,
+    write_posts_to_cache,
 )
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
@@ -127,8 +127,11 @@ def export_validated_llm_output(
         )
         for post, result in zip(posts, results)
     ]
-    for output_model in output_models:
-        write_post_to_cache(output_model, source_feed=source_feed)
+    write_posts_to_cache(
+        posts=output_models,
+        source_feed=source_feed,
+        classification_type="valid",
+    )
     return output_models
 
 

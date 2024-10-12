@@ -24,48 +24,41 @@ def classify_latest_posts(
     run_classification: bool = True
 ):
     """Classifies the latest preprocessed posts using the Perspective API."""
-    if backfill_duration is not None and backfill_period in ["days", "hours"]:
-        current_time = datetime.now(timezone.utc)
-        if backfill_period == "days":
-            backfill_time = current_time - timedelta(days=backfill_duration)
-            logger.info(f"Backfilling {backfill_duration} days of data.")
-        elif backfill_period == "hours":
-            backfill_time = current_time - timedelta(hours=backfill_duration)
-            logger.info(f"Backfilling {backfill_duration} hours of data.")
-    else:
-        backfill_time = None
-    if backfill_time is not None:
-        backfill_timestamp = backfill_time.strftime(timestamp_format)
-        timestamp = backfill_timestamp
-    else:
-        timestamp = None
-    posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
-        inference_type="perspective_api", timestamp=timestamp
-    )
-    logger.info(
-        f"Classifying {len(posts_to_classify)} posts with the Perspective API..."
-    )  # noqa
-    if len(posts_to_classify) == 0:
-        logger.warning("No posts to classify with Perspective API. Exiting...")
-        return
-    firehose_posts = [post for post in posts_to_classify if post.source == "firehose"]
-    most_liked_posts = [
-        post for post in posts_to_classify if post.source == "most_liked"
-    ]
-
-    source_to_posts_tuples = [
-        ("firehose", firehose_posts),
-        ("most_liked", most_liked_posts),
-    ]  # noqa
     if run_classification:
+        if backfill_duration is not None and backfill_period in ["days", "hours"]:
+            current_time = datetime.now(timezone.utc)
+            if backfill_period == "days":
+                backfill_time = current_time - timedelta(days=backfill_duration)
+                logger.info(f"Backfilling {backfill_duration} days of data.")
+            elif backfill_period == "hours":
+                backfill_time = current_time - timedelta(hours=backfill_duration)
+                logger.info(f"Backfilling {backfill_duration} hours of data.")
+        else:
+            backfill_time = None
+        if backfill_time is not None:
+            backfill_timestamp = backfill_time.strftime(timestamp_format)
+            timestamp = backfill_timestamp
+        else:
+            timestamp = None
+        posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
+            inference_type="perspective_api", timestamp=timestamp
+        )
+        logger.info(
+            f"Classifying {len(posts_to_classify)} posts with the Perspective API..."
+        )  # noqa
+        if len(posts_to_classify) == 0:
+            logger.warning("No posts to classify with Perspective API. Exiting...")
+            return
+        firehose_posts = [post for post in posts_to_classify if post.source == "firehose"]
+        most_liked_posts = [
+            post for post in posts_to_classify if post.source == "most_liked"
+        ]
+
+        source_to_posts_tuples = [
+            ("firehose", firehose_posts),
+            ("most_liked", most_liked_posts),
+        ]  # noqa
         for source, posts in source_to_posts_tuples:
-            # labels stored in local storage, and then loaded
-            # later. This format is done to make it more
-            # robust to errors and to the script failing (though
-            # tbh I could probably just return the posts directly
-            # and then write to S3).
-            posts = posts[:500]
-            logger.info("Doing only a subset of the posts (max n=500) for testing reasons...")  # noqa
             run_batch_classification(posts=posts, source_feed=source)
     else:
         logger.info("Skipping classification and exporting cached results...")
