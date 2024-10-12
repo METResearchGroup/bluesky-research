@@ -51,7 +51,10 @@ def write_posts_to_cache(
     hashed_value = str(uuid.uuid4())
     timestamp = generate_current_datetime_str()
     filename = f"{source_feed}_{classification_type}_{timestamp}_{hashed_value}.jsonl"
-    full_key = os.path.join(root_cache_path, source_feed, classification_type, filename)
+    full_dir = os.path.join(root_cache_path, source_feed, classification_type)
+    if not os.path.exists(full_dir):
+        os.makedirs(full_dir)
+    full_key = os.path.join(full_dir, filename)
     with open(full_key, "w") as f:
         for post in posts:
             f.write(post.json() + "\n")
@@ -97,7 +100,6 @@ def export_classified_posts() -> dict:
         df["source"] = source
         df = df.astype(dtype_map)
         logger.info(f"Exporting {len(df)} posts from {source} to local storage.")
-        breakpoint()
         export_data_to_local_storage(
             service="ml_inference_sociopolitical", df=df, custom_args={"source": source}
         )

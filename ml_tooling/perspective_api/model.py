@@ -10,7 +10,7 @@ from googleapiclient.errors import HttpError
 
 from lib.helper import GOOGLE_API_KEY, create_batches, logger, track_performance  # noqa
 from services.ml_inference.models import PerspectiveApiLabelsModel
-from services.ml_inference.perspective_api.export_data import write_post_to_cache
+from services.ml_inference.perspective_api.export_data import write_posts_to_cache
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 DEFAULT_BATCH_SIZE = 50
@@ -297,12 +297,11 @@ async def batch_classify_posts(
         label_models: list[PerspectiveApiLabelsModel] = create_label_models(
             posts=post_batch, responses=responses
         )
-        for labeled_post in label_models:
-            write_post_to_cache(
-                classified_post=labeled_post,
-                source_feed=source_feed,
-                classification_type="valid",
-            )
+        write_posts_to_cache(
+            posts=label_models,
+            source_feed=source_feed,
+            classification_type="valid",
+        )
         del label_models
 
 

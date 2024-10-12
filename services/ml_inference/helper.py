@@ -9,7 +9,6 @@ import pandas as pd
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.db.manage_local_data import load_latest_data
-from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 
@@ -21,12 +20,6 @@ athena = Athena()
 logger = get_logger(__name__)
 dynamodb_table_name = "ml_inference_labeling_sessions"
 MIN_POST_TEXT_LENGTH = 5
-
-dtypes_map = MAP_SERVICE_TO_METADATA["ml_inference_perspective_api"]["dtypes_map"]
-
-# drop fields that are added on export.
-dtypes_map.pop("partition_date")
-dtypes_map.pop("source")
 
 
 def get_latest_labeling_session(
@@ -141,7 +134,7 @@ def process_file(file_path) -> list[dict]:
 
 
 @track_performance
-def load_cached_jsons_as_df(filepaths: list[str]) -> Optional[pd.DataFrame]:
+def load_cached_jsons_as_df(filepaths: list[str], dtypes_map: dict) -> Optional[pd.DataFrame]:
     """Loads a list of JSON filepaths into a pandas DataFrame."""
     num_processes = cpu_count()
     logger.info(f"Using {num_processes} processes to load data...")

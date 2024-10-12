@@ -7,6 +7,7 @@ import pandas as pd
 
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
 from lib.helper import track_performance
 from services.ml_inference.models import PerspectiveApiLabelsModel
@@ -21,6 +22,12 @@ s3 = S3()
 dynamodb_table_name = "perspectiveApiClassificationMetadata"
 dynamodb = DynamoDB()
 dynamodb_table = dynamodb.resource.Table(dynamodb_table_name)
+
+dtypes_map = MAP_SERVICE_TO_METADATA["ml_inference_perspective_api"]["dtypes_map"]
+
+# drop fields that are added on export.
+dtypes_map.pop("partition_date")
+dtypes_map.pop("source")
 
 
 def load_previous_session_metadata() -> dict:
@@ -141,10 +148,18 @@ def load_classified_posts_from_cache() -> dict:
         elif path == most_liked_invalid_path:
             most_liked_invalid_paths.extend([os.path.join(path, p) for p in paths])
 
-    df_firehose_valid: Optional[pd.DataFrame] = load_cached_jsons_as_df(firehose_valid_paths)
-    df_firehose_invalid: Optional[pd.DataFrame] = load_cached_jsons_as_df(firehose_invalid_paths)
-    df_most_liked_valid: Optional[pd.DataFrame] = load_cached_jsons_as_df(most_liked_valid_paths)
-    df_most_liked_invalid: Optional[pd.DataFrame] = load_cached_jsons_as_df(most_liked_invalid_paths)
+    df_firehose_valid: Optional[pd.DataFrame] = load_cached_jsons_as_df(
+        filepaths=firehose_valid_paths, dtypes_map=dtypes_map
+    )
+    df_firehose_invalid: Optional[pd.DataFrame] = load_cached_jsons_as_df(
+        filepaths=firehose_invalid_paths, dtypes_map=dtypes_map
+    )
+    df_most_liked_valid: Optional[pd.DataFrame] = load_cached_jsons_as_df(
+        filepaths=most_liked_valid_paths, dtypes_map=dtypes_map
+    )
+    df_most_liked_invalid: Optional[pd.DataFrame] = load_cached_jsons_as_df(
+        filepaths=most_liked_invalid_paths, dtypes_map=dtypes_map
+    )
 
     df_dicts_firehose_valid = (
         df_firehose_valid.to_dict(orient="records")
