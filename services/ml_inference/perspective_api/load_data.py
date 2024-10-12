@@ -1,21 +1,28 @@
 """Loads data for Perspective API classification."""
 
 import json
+from multiprocessing import Pool, cpu_count
 import os
+
+import pandas as pd
 
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
+from lib.log.logger import get_logger
 from lib.helper import track_performance
 from services.ml_inference.models import PerspectiveApiLabelsModel
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from services.ml_inference.perspective_api.constants import (
     root_cache_path,
 )
 
+logger = get_logger(__name__)
 s3 = S3()
 
 dynamodb_table_name = "perspectiveApiClassificationMetadata"
 dynamodb = DynamoDB()
 dynamodb_table = dynamodb.resource.Table(dynamodb_table_name)
+dtypes_map = MAP_SERVICE_TO_METADATA["ml_inference_perspective_api"]["dtypes_map"]
 
 
 def load_previous_session_metadata() -> dict:
@@ -96,6 +103,26 @@ def load_cached_post_uris() -> dict:
     }
 
 
+def json_file_reader(file_paths):
+    for path in file_paths:
+        with open(path, "r") as file:
+            yield json.loads(file.read())
+
+
+def process_file(file_path):
+    with open(file_path, "r") as file:
+        return json.loads(file.read())
+
+
+def load_cached_jsons_as_df(filepaths: list[str]) -> pd.DataFrame:
+    """Loads a list of JSON filepaths into a pandas DataFrame."""
+    num_processes = cpu_count()
+    logger.info(f"Using {num_processes} processes to load data...")
+    with Pool(num_processes) as pool:
+        results = pool.map(process_file, filepaths)
+    return pd.DataFrame(results, dtype=dtypes_map)
+
+
 @track_performance
 def load_classified_posts_from_cache() -> dict:
     """Loads all the classified posts from cache into memory.
@@ -115,10 +142,10 @@ def load_classified_posts_from_cache() -> dict:
     most_liked_valid_posts: list[PerspectiveApiLabelsModel] = []
     most_liked_invalid_posts: list[PerspectiveApiLabelsModel] = []
 
-    existing_firehose_valid_post_uris = set()
-    existing_firehose_invalid_post_uris = set()
-    existing_most_liked_valid_post_uris = set()
-    existing_most_liked_invalid_post_uris = set()
+    firehose_valid_paths = []
+    firehose_invalid_paths = []
+    most_liked_valid_paths = []
+    most_liked_invalid_paths = []
 
     for path in [
         firehose_valid_path,
@@ -126,45 +153,45 @@ def load_classified_posts_from_cache() -> dict:
         most_liked_valid_path,
         most_liked_invalid_path,
     ]:
-        all_paths = os.listdir(path)
-        total_num_paths = len(all_paths)
-        for idx, filename in enumerate(all_paths):
-            if idx % 1000 == 0:
-                print(f"Loaded {idx}/{total_num_paths} posts from {path}")
-            full_path = os.path.join(path, filename)
-            try:
-                with open(full_path, "r") as f:
-                    post = json.load(f)
-                    if "firehose" in full_path:
-                        # need to have invalid before valid since "valid" is a
-                        # subset of "invalid" (all strings with "invalid"
-                        # also have "valid" in them, but not vice versa)
-                        if "invalid" in full_path:
-                            post_model = PerspectiveApiLabelsModel(**post)
-                            if post_model.uri not in existing_firehose_invalid_post_uris:
-                                firehose_invalid_posts.append(post_model)
-                                existing_firehose_invalid_post_uris.add(post_model.uri)
-                        elif "valid" in full_path:
-                            post_model = PerspectiveApiLabelsModel(**post)
-                            if post_model.uri not in existing_firehose_valid_post_uris:
-                                firehose_valid_posts.append(post_model)
-                                existing_firehose_valid_post_uris.add(post_model.uri)
-                    elif "most_liked" in full_path:
-                        if "invalid" in full_path:
-                            post_model = PerspectiveApiLabelsModel(**post)
-                            if post_model.uri not in existing_most_liked_invalid_post_uris:
-                                most_liked_invalid_posts.append(post_model)
-                                existing_most_liked_invalid_post_uris.add(post_model.uri)
-                        elif "valid" in full_path:
-                            post_model = PerspectiveApiLabelsModel(**post)
-                            if post_model.uri not in existing_most_liked_valid_post_uris:
-                                most_liked_valid_posts.append(post_model)
-                                existing_most_liked_valid_post_uris.add(post_model.uri)
-            except Exception as e:
-                # assumes that errors aren't systematic, which is what
-                # I've seen so far from experiments.
-                print(f"Error loading {full_path}: {e}. Skipping...")
-                continue
+        paths = os.listdir(path)
+        if path == firehose_valid_path:
+            firehose_valid_paths.extend([os.path.join(path, p) for p in paths])
+        elif path == firehose_invalid_path:
+            firehose_invalid_paths.extend([os.path.join(path, p) for p in paths])
+        elif path == most_liked_valid_path:
+            most_liked_valid_paths.extend([os.path.join(path, p) for p in paths])
+        elif path == most_liked_invalid_path:
+            most_liked_invalid_paths.extend([os.path.join(path, p) for p in paths])
+
+    # df_firehose_valid = pd.DataFrame(json_file_reader(firehose_valid_paths))
+    # df_firehose_invalid = pd.DataFrame(json_file_reader(firehose_invalid_paths))
+    # df_most_liked_valid = pd.DataFrame(json_file_reader(most_liked_valid_paths))
+    # df_most_liked_invalid = pd.DataFrame(json_file_reader(most_liked_invalid_paths))
+    df_firehose_valid = load_cached_jsons_as_df(firehose_valid_paths)
+    df_firehose_invalid = load_cached_jsons_as_df(firehose_invalid_paths)
+    df_most_liked_valid = load_cached_jsons_as_df(most_liked_valid_paths)
+    df_most_liked_invalid = load_cached_jsons_as_df(most_liked_invalid_paths)
+
+    df_dicts_firehose_valid = df_firehose_valid.to_dict(orient="records")
+    df_dicts_firehose_invalid = df_firehose_invalid.to_dict(orient="records")
+    df_dicts_most_liked_valid = df_most_liked_valid.to_dict(orient="records")
+    df_dicts_most_liked_invalid = df_most_liked_invalid.to_dict(orient="records")
+
+    firehose_valid_posts = [
+        PerspectiveApiLabelsModel(**post_dict) for post_dict in df_dicts_firehose_valid
+    ]
+    firehose_invalid_posts = [
+        PerspectiveApiLabelsModel(**post_dict)
+        for post_dict in df_dicts_firehose_invalid
+    ]
+    most_liked_valid_posts = [
+        PerspectiveApiLabelsModel(**post_dict)
+        for post_dict in df_dicts_most_liked_valid
+    ]
+    most_liked_invalid_posts = [
+        PerspectiveApiLabelsModel(**post_dict)
+        for post_dict in df_dicts_most_liked_invalid
+    ]
 
     return {
         "firehose": {"valid": firehose_valid_posts, "invalid": firehose_invalid_posts},
