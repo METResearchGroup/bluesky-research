@@ -6,7 +6,7 @@ import pandas as pd
 
 from transform.bluesky_helper import get_author_did_from_handle
 
-FURRIES_HANDLES = [
+NSFW_HANDLES = [
     "ruffusbleu.bsky.social",
     "fujiyamasamoyed.bsky.social",
     "peppermintdrake.bsky.social",
@@ -18,7 +18,17 @@ FURRIES_HANDLES = [
     "xpray.bsky.social",
     "saphiros.hyper.wang",
     "tfiddlerart.bsky.social",
-    "deriaz.bsky.social"
+    "deriaz.bsky.social",
+    "indiego.bsky.social",
+    "soildweller.bsky.social",
+    "ventiskull.bsky.social",
+    "hortensjjja.bsky.social",
+    "bonfiredemon.bsky.social",
+    "mindofabear.bsky.social",
+    "kekeflipnote.bsky.social",
+    "simplespirits.bsky.social",
+    "taggzzz.bsky.social",
+    "purplebirdman.com"
 ]
 
 BSKY_HANDLES_TO_EXCLUDE = [
@@ -28,7 +38,7 @@ BSKY_HANDLES_TO_EXCLUDE = [
     "nanoless.bsky.social",
     "l4wless.bsky.social",
     "squeezable.bsky.social",
-] + FURRIES_HANDLES
+] + NSFW_HANDLES
 
 
 def get_dids_to_exclude() -> list[str]:
