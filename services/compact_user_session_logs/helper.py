@@ -24,6 +24,7 @@ glue_crawler_name = "user_session_logs_glue_crawler"
 
 
 def load_all_user_session_logs_to_df() -> pd.DataFrame:
+    _, _ = athena.run_query("MSCK REPAIR TABLE user_session_logs")
     query = "SELECT * FROM user_session_logs"
     df = athena.query_results_as_df(query=query)
     return df
@@ -62,6 +63,10 @@ def main():
                 full_prefix, f"compacted_{partition_date_prefix}_{uuid}.jsonl"
             )
             df_dicts = subset_df.to_dict(orient="records")
+            if len(df_dicts) == 0:
+                raise ValueError(
+                    f"No records found for partition date: {partition_date_prefix}. That shouldn't be the case if there were files found..."
+                )
             logger.info(
                 f"(Partition date: {partition_date_prefix}): Writing {len(df_dicts)} compacted records to {export_key}."
             )
