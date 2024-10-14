@@ -28,7 +28,34 @@ NSFW_HANDLES = [
     "kekeflipnote.bsky.social",
     "simplespirits.bsky.social",
     "taggzzz.bsky.social",
-    "purplebirdman.com"
+    "purplebirdman.com",
+    "effyneprin.bsky.social",
+    "bunnyhazedayz.bsky.social",
+    "nookdae.bsky.social",
+    "orforf.bsky.social",
+    "boosterpang.bsky.social",
+    "blanclauz.bsky.social",
+    "dksidediscovery.bsky.social",
+    "doodledox.bsky.social",
+    "thehelmetguy.bsky.social",
+    "melonart.bsky.social",
+    "dizdoodz.bsky.social",
+    "evezara.bsky.social",
+    "acgats.bsky.social",
+    "chunie.bsky.social",
+    "freeglassnsfw.bsky.social",
+    "bigreddraken.bsky.social",
+    "mahmapuu.bsky.social",
+    "monokhrome.bsky.social",
+    "dieselbrain.bsky.social",
+    "nullghostart.bsky.social",
+    "squigga.bsky.social",
+    "barksquared.bsky.social",
+    "jindw.bsky.social",
+    "snao.bsky.social",
+    "stow.bsky.social",
+    "erotibot.bsky.social",
+    "catsudon.art"
 ]
 
 BSKY_HANDLES_TO_EXCLUDE = [
@@ -41,14 +68,6 @@ BSKY_HANDLES_TO_EXCLUDE = [
 ] + NSFW_HANDLES
 
 
-def get_dids_to_exclude() -> list[str]:
-    dids_to_exclude = []
-    for handle in BSKY_HANDLES_TO_EXCLUDE:
-        did = get_author_did_from_handle(handle)
-        dids_to_exclude.append(did)
-    return dids_to_exclude
-
-
 def export_csv(handles: list[str], dids_to_exclude: list[str]):
     dids = [
         {"did": did, "handle": handle} for did, handle in zip(dids_to_exclude, handles)
@@ -57,11 +76,15 @@ def export_csv(handles: list[str], dids_to_exclude: list[str]):
     df.to_csv("dids_to_exclude.csv", index=False)
 
 
-def load_users_to_exclude() -> dict[str, set]:
+def load_users_from_csv() -> pd.DataFrame:
     current_dir = os.path.dirname(os.path.abspath(__file__))
     users_to_exclude: pd.DataFrame = pd.read_csv(
         os.path.join(current_dir, "dids_to_exclude.csv")
     )
+    return users_to_exclude
+
+def load_users_to_exclude() -> dict[str, set]:
+    users_to_exclude = load_users_from_csv()
     bsky_handles_to_exclude = set(users_to_exclude["handle"].tolist())
     bsky_dids_to_exclude = set(users_to_exclude["did"].tolist())
     return {
@@ -70,6 +93,26 @@ def load_users_to_exclude() -> dict[str, set]:
     }
 
 
+def get_dids_to_exclude(load_existing_exclusions: bool = False) -> list[str]:
+    if load_existing_exclusions:
+        users_to_exclude: pd.DataFrame = load_users_from_csv()
+    else:
+        users_to_exclude = pd.DataFrame()
+    if len(users_to_exclude) == 0:
+        handle_to_did = {}
+    else:
+        handle_to_did = {
+            row["handle"]: row["did"] for _, row in users_to_exclude.iterrows()
+        }
+    dids_to_exclude = []
+    for handle in BSKY_HANDLES_TO_EXCLUDE:
+        if handle in handle_to_did:
+            did = handle_to_did[handle]
+        else:
+            did = get_author_did_from_handle(handle)
+        dids_to_exclude.append(did)
+    return dids_to_exclude
+
 if __name__ == "__main__":
-    dids_to_exclude = get_dids_to_exclude()
+    dids_to_exclude = get_dids_to_exclude(load_existing_exclusions=True)
     export_csv(handles=BSKY_HANDLES_TO_EXCLUDE, dids_to_exclude=dids_to_exclude)
