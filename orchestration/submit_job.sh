@@ -4,8 +4,8 @@
 #SBATCH -p short
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=3
-#SBATCH -t 0:10:00
-#SBATCH --mem=1G
+#SBATCH -t 24:00:00
+#SBATCH --mem=10G
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --job-name=orchestration_job_jya0297_%j
@@ -19,7 +19,7 @@ PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 
 source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
 echo "Starting slurm job."
-python test_main.py
+python "/projects/p32375/bluesky-research/orchestration/main.py"
 exit_code=$?
 echo "Python script exited with code $exit_code"
 if [ $exit_code -ne 0 ]; then
@@ -27,3 +27,4 @@ if [ $exit_code -ne 0 ]; then
     exit $exit_code
 fi
 echo "Completed slurm job."
+exit 0

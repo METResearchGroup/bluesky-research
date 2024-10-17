@@ -1,14 +1,15 @@
 """Test file for experimenting with Prefect."""
 
 import os
+import time
 
 from prefect import task, flow
 import subprocess
 
-from lib.constants import root_directory
+from lib.constants import root_directory, repo_name
 
 current_directory = os.getcwd()
-pipelines_directory = os.path.join(root_directory, "pipelines")
+pipelines_directory = os.path.join(root_directory, repo_name, "pipelines")
 
 
 num_hours_kickoff = 3 # kick off pipeline every 3 hours
@@ -18,18 +19,39 @@ num_seconds_kickoff = num_minutes_kickoff * 60
 
 def run_slurm_job(script_path):
     try:
-        result = subprocess.run(["sbatch", script_path], capture_output=True, text=True)
-        print(result.stdout)
-        print(result.stderr)
-        if result.returncode != 0:
-            raise Exception(f"Error running SLURM job: {result.stderr}")
-        return result.stdout.split()[-1]
-    except Exception as e:
+        # Submit the job
+        result = subprocess.run(["sbatch", script_path], capture_output=True, text=True, check=True)
+        job_id = result.stdout.split()[-1]
+        print(f"Submitted batch job {job_id}")
+
+        # Wait for the job to complete
+        while True:
+            status = subprocess.run(["squeue", "-j", job_id, "-h"], capture_output=True, text=True)
+            if status.stdout.strip() == "":
+                # Job is no longer in the queue, assume it's completed
+                break
+            time.sleep(30)  # Check every 30 seconds
+
+        # Check the job's exit status.
+        sacct_result = subprocess.run(["sacct", "-j", job_id, "--format=State,ExitCode", "-n"], capture_output=True, text=True, check=True)
+        job_statuses = [line.strip().split() for line in sacct_result.stdout.splitlines() if line.strip()]
+
+        # Check if any job step failed
+        for status, exit_code in job_statuses:
+            if status != "COMPLETED" or exit_code.split(':')[0] != "0":
+                raise Exception(f"SLURM job failed. Job steps: {job_statuses}")
+
+        print(f"SLURM job completed successfully. Job ID: {job_id}")
+        return job_id
+    except subprocess.CalledProcessError as e:
         print(f"Error running SLURM job: {e}")
+        return None
+    except Exception as e:
+        print(f"Error checking SLURM job status: {e}")
         return None
 
 
-@task
+@task(log_prints=True)
 def preprocess_raw_data():
     """Preprocesses the latest raw data."""
     bash_script_path = os.path.join(
@@ -38,7 +60,7 @@ def preprocess_raw_data():
     return run_slurm_job(bash_script_path)
 
 
-@task
+@task(log_prints=True)
 def calculate_superposters():
     """Calculates superposters."""
     bash_script_path = os.path.join(
@@ -47,25 +69,25 @@ def calculate_superposters():
     return run_slurm_job(bash_script_path)
 
 
-@task
+@task(log_prints=True)
 def run_ml_inference_perspective_api():
     """Performs ML inference on the latest data using the Perspective API."""
     bash_script_path = os.path.join(
-        pipelines_directory, "classify", "perspective_api", "submit_job.sh"
+        pipelines_directory, "classify_records", "perspective_api", "submit_job.sh"
     )
     return run_slurm_job(bash_script_path)
 
 
-@task
+@task(log_prints=True)
 def run_ml_inference_sociopolitical():
     """Performs ML inference on the latest data using the Perspective API."""
     bash_script_path = os.path.join(
-        pipelines_directory, "classify", "sociopolitical", "submit_job.sh"
+        pipelines_directory, "classify_records", "sociopolitical", "submit_job.sh"
     )
     return run_slurm_job(bash_script_path)
 
 
-@task
+@task(log_prints=True)
 def consolidate_enrichment_integrations():
     """Consolidates enrichment integrations."""
     bash_script_path = os.path.join(
@@ -74,8 +96,8 @@ def consolidate_enrichment_integrations():
     return run_slurm_job(bash_script_path)
 
 
-@task
-def rank_score_feeds()
+@task(log_prints=True)
+def rank_score_feeds():
     """Scores posts, ranks them, and generates feeds."""
     bash_script_path = os.path.join(
         pipelines_directory, "rank_score_feeds", "submit_job.sh"
@@ -83,7 +105,7 @@ def rank_score_feeds()
     return run_slurm_job(bash_script_path)
 
 
-@flow(name="Production data pipeline")
+@flow(name="Production data pipeline", log_prints=True)
 def production_data_pipeline():
 
     # kick off preprocessing.
@@ -102,7 +124,7 @@ def production_data_pipeline():
             job_run_ml_inference_sociopolitical
         ]
     )
-    
+
     # run scoring, ranking, and feed generation after enrichment integrations are finished.
     rank_score_feeds.submit(wait_for=[job_consolidate_enrichment_integrations])
 
