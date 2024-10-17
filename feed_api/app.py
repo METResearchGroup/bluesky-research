@@ -98,8 +98,9 @@ valid_dids.add("default")
 
 def refresh_user_did_to_cached_feed():
     """Refreshes the local cached feeds from S3."""
-    global user_did_to_cached_feed
-    user_did_to_cached_feed = load_all_latest_user_feeds_from_s3()
+    latest_user_did_to_cached_feed = load_all_latest_user_feeds_from_s3()
+    for user_did, feed_dicts in latest_user_did_to_cached_feed.items():
+        user_did_to_cached_feed[user_did] = feed_dicts
     logger.info("Initialized user DID to cache feed mapping.")
 
 
