@@ -30,7 +30,10 @@ def load_classified_posts_from_cache() -> dict:
     most_liked_paths = []
 
     for path in [firehose_valid_path, most_liked_valid_path]:
-        paths = os.listdir(path)
+        if os.path.exists(path):
+            paths = os.listdir(path)
+        else:
+            paths = []
         if path == firehose_valid_path:
             firehose_paths.extend([os.path.join(path, p) for p in paths])
         elif path == most_liked_valid_path:

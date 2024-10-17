@@ -56,9 +56,10 @@ def write_post_to_cache(
     post_id = classified_post.uri.split("/")[-1]
     author_did = classified_post.uri.split("/")[-3]
     joint_pk = f"{author_did}_{post_id}"
-    full_key = os.path.join(
-        root_cache_path, source_feed, classification_type, f"{joint_pk}.json"
-    )
+    full_dir = os.path.join(root_cache_path, source_feed, classification_type)
+    if not os.path.exists(full_dir):
+        os.makedirs(full_dir)
+    full_key = os.path.join(full_dir, f"{joint_pk}.json")
     with open(full_key, "w") as f:
         f.write(classified_post.json())
 
