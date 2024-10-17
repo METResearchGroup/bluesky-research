@@ -24,7 +24,11 @@ glue_crawler_name = "user_session_logs_glue_crawler"
 
 
 def load_all_user_session_logs_to_df() -> pd.DataFrame:
-    _, _ = athena.run_query("MSCK REPAIR TABLE user_session_logs")
+    # _, _ = athena.run_query("MSCK REPAIR TABLE user_session_logs")
+    # glue.start_crawler(crawler_name=glue_crawler_name)
+    # glue.wait_for_crawler_completion(crawler_name=glue_crawler_name)
+    # NOTE: make sure that duplicate columns are dropped. Redeploying Terraform
+    # resolves this problem.
     query = "SELECT * FROM user_session_logs"
     df = athena.query_results_as_df(query=query)
     return df
@@ -92,6 +96,7 @@ def main():
         f"Triggering Glue crawler: {glue_crawler_name} to update the Glue catalog."
     )
     glue.start_crawler(crawler_name=glue_crawler_name)
+    glue.wait_for_crawler_completion(crawler_name=glue_crawler_name)
     logger.info(
         f"Triggered Glue crawler: {glue_crawler_name} to update the Glue catalog."
     )
