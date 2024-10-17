@@ -24,11 +24,8 @@ glue_crawler_name = "user_session_logs_glue_crawler"
 
 
 def load_all_user_session_logs_to_df() -> pd.DataFrame:
-    # _, _ = athena.run_query("MSCK REPAIR TABLE user_session_logs")
-    # glue.start_crawler(crawler_name=glue_crawler_name)
-    # glue.wait_for_crawler_completion(crawler_name=glue_crawler_name)
-    # NOTE: make sure that duplicate columns are dropped. Redeploying Terraform
-    # resolves this problem.
+    glue.start_crawler(crawler_name=glue_crawler_name)
+    glue.wait_for_crawler_completion(crawler_name=glue_crawler_name)
     query = "SELECT * FROM user_session_logs"
     df = athena.query_results_as_df(query=query)
     return df
@@ -58,10 +55,18 @@ def main():
                 f"Found {len(keys)} files for partition date prefix: {partition_date_prefix}"
             )
             partition_date = partition_date_prefix.split("=")[-1].rstrip("/")
-            subset_df = df[df["timestamp"].str[:10] == partition_date]
+            subset_df = df[df["partition_date"] == partition_date]
+            if len(subset_df) == 0:
+                raise ValueError(
+                    f"No records found for partition date: {partition_date_prefix}. That shouldn't be the case if there were files found..."
+                )
             subset_df = subset_df.drop_duplicates(
                 subset=["user_did", "timestamp", "cursor"]
             )
+            # drop extra partition_date column that persists from fetching
+            # partitioned data.
+            if "partition_date" in subset_df.columns:
+                subset_df = subset_df.drop(columns=["partition_date"])
             uuid = str(uuid4())[:8]
             export_key = os.path.join(
                 full_prefix, f"compacted_{partition_date_prefix}_{uuid}.jsonl"
