@@ -541,6 +541,7 @@ def export_feed_analytics(analytics: dict) -> None:
 def do_rank_score_feeds(
     users_to_create_feeds_for: list[str] = None,
     skip_export_post_scores: bool = False,
+    test_mode: bool = False,
 ):
     """Do the rank score feeds.
 
@@ -553,7 +554,6 @@ def do_rank_score_feeds(
     # load data
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
 
-    test_mode = True
     if test_mode:
         # TODO: just do the test users
         test_user_handles = [
@@ -736,19 +736,22 @@ def do_rank_score_feeds(
     export_results(user_to_ranked_feed_map=user_to_ranked_feed_map, timestamp=timestamp)
 
     # ttl old feeds
-    logger.info("TTLing old feeds from active to cache.")
-    keep_count = 3
-    s3.sort_and_move_files_from_active_to_cache(
-        prefix="custom_feeds", keep_count=keep_count, sort_field="Key"
-    )
-    logger.info(f"Done TTLing old feeds from active to cache (keeping {keep_count}).")
+    if not test_mode:
+        logger.info("TTLing old feeds from active to cache.")
+        keep_count = 3
+        s3.sort_and_move_files_from_active_to_cache(
+            prefix="custom_feeds", keep_count=keep_count, sort_field="Key"
+        )
+        logger.info(
+            f"Done TTLing old feeds from active to cache (keeping {keep_count})."
+        )
 
-    # inserting feed generation session metadata.
-    feed_generation_session = {
-        "feed_generation_timestamp": timestamp,
-        "number_of_new_feeds": len(user_to_ranked_feed_map),
-    }
-    insert_feed_generation_session(feed_generation_session)
+        # inserting feed generation session metadata.
+        feed_generation_session = {
+            "feed_generation_timestamp": timestamp,
+            "number_of_new_feeds": len(user_to_ranked_feed_map),
+        }
+        insert_feed_generation_session(feed_generation_session)
 
 
 if __name__ == "__main__":

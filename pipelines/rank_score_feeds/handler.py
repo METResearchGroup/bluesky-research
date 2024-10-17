@@ -15,6 +15,7 @@ def lambda_handler(event, context):
             # "users_to_create_feeds_for": ["markptorres.bsky.social"],
             "skip_export_post_scores": False,
             # "skip_export_post_scores": True,
+            "test_mode": False,
         }
         do_rank_score_feeds(**payload)
         logger.info("Completed rank score feeds.")
