@@ -6,6 +6,7 @@ Based on specs in the following docs:
 """  # noqa
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import json
 import threading
 from typing import Optional, Annotated
@@ -95,13 +96,21 @@ async def log_request(request: Request, call_next):
 # add "default" key to the valid DIDs set.
 valid_dids.add("default")
 
+thread_pool = ThreadPoolExecutor(max_workers=1)
 
-def refresh_user_did_to_cached_feed():
-    """Refreshes the local cached feeds from S3."""
+
+def _sync_refresh_user_did_to_cached_feed():
+    """Synchronous version of the refresh function."""
     latest_user_did_to_cached_feed = load_all_latest_user_feeds_from_s3()
     for user_did, feed_dicts in latest_user_did_to_cached_feed.items():
         user_did_to_cached_feed[user_did] = feed_dicts
     logger.info("Initialized user DID to cache feed mapping.")
+
+
+async def refresh_user_did_to_cached_feed():
+    """Refreshes the local cached feeds from S3 asynchronously."""
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(thread_pool, _sync_refresh_user_did_to_cached_feed)
 
 
 async def refresh_feeds_periodically():
@@ -109,7 +118,9 @@ async def refresh_feeds_periodically():
     while True:
         logger.info("Refreshing local cached feeds...")
         refresh_user_did_to_cached_feed()
-        logger.info("Refreshed local cached feeds. Waiting 1 hour for next refresh.")  # noqa
+        logger.info(
+            f"Refreshed local cached feeds. Waiting {feed_refresh_hours} hours for next refresh."
+        )  # noqa
         await asyncio.sleep(feed_refresh_seconds)
 
 
