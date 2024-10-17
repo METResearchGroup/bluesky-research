@@ -8,7 +8,7 @@
 #SBATCH --mem=10G
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
-#SBATCH --job-name=firehose_writes_job_jya0297_%j
+#SBATCH --job-name=write_firehose_job_jya0297_%j
 #SBATCH --output=/projects/p32375/bluesky-research/lib/log/sync/firehose_writes/jya0297-%j.log
 
 # load conda env
