@@ -211,16 +211,19 @@ def process_facet(facet: Facet) -> str:
         if (
             isinstance(feature, Tag)
             or get_object_type_str(feature).lower() == "app.bsky.richtext.facet#tag"
+            or get_object_type_str(feature).lower() == "app.bsky.richtext.facet.tag"
         ):
             features_list.append(process_hashtag(feature))
         elif (
             isinstance(feature, Link)
             or get_object_type_str(feature) == "app.bsky.richtext.facet#link"
+            or get_object_type_str(feature) == "app.bsky.richtext.facet.link"
         ):
             features_list.append(process_link(feature))
         elif (
             isinstance(feature, Mention)
             or get_object_type_str(feature) == "app.bsky.richtext.facet#mention"  # noqa
+            or get_object_type_str(feature) == "app.bsky.richtext.facet.mention"
         ):
             features_list.append(process_mention(feature))
         else:

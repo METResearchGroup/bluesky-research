@@ -70,8 +70,8 @@ class TransformedRecordWithAuthorModel(BaseModel):
 
     @validator('uri')
     def validate_uri(cls, v):
-        if not v.startswith("at://did:plc:"):
-            raise ValueError("URI must start with 'at://did:plc:'")
+        if not v.startswith("at://did:"):
+            raise ValueError("URI must start with 'at://did:'")
         return v
 
 
