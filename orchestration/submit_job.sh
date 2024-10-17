@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -A p32375
-#SBATCH -p short
+#SBATCH -p normal
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=3
 #SBATCH -t 24:00:00
