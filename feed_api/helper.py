@@ -71,6 +71,24 @@ def hash_feed_post(post: dict) -> str:
     return hashlib.sha256(post["item"].encode()).hexdigest()
 
 
+def load_all_latest_user_feeds_from_s3() -> dict[str, list[dict]]:
+    """Loads the latest feed for all users from S3."""
+    query = """
+    SELECT user, feed FROM "custom_feeds"
+    ORDER BY feed_generation_timestamp DESC
+    LIMIT 1
+    """
+    df = athena.query_results_as_df(query)
+    df_dicts = df.to_dict(orient="records")
+    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    feeds = [row["feed"] for row in df_dicts]
+    user_feed_dicts: list[list[dict]] = [parse_feed_string(feed) for feed in feeds]
+    user_dids = [row["user"] for row in df_dicts]
+    return {
+        user_did: feed_dicts for user_did, feed_dicts in zip(user_dids, user_feed_dicts)
+    }
+
+
 def load_latest_user_feed_from_s3(user_did: str) -> list[dict]:
     """Loads the latest feed for a user from S3.
 
@@ -229,4 +247,6 @@ def export_log_data(log: dict):
 
 if __name__ == "__main__":
     user_did = "did:plc:wvb6v45g6oxrfebnlzllhrpv"
-    load_latest_user_feed(user_did=user_did)
+    # load_latest_user_feed(user_did=user_did)
+    load_latest_user_feed_from_s3(user_did=user_did)
+    load_all_latest_user_feeds_from_s3()
