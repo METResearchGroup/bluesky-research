@@ -1,110 +1,115 @@
-"""Logic for orchestration module.
+"""Test file for experimenting with Prefect."""
 
-Ideally would use an internal API to trigger each, so that I don't have
-to include my entire codebase when building the orchestration image.
-"""
-from prefect import flow, task
+import os
 
+from prefect import task, flow
+import subprocess
 
-@task
-def trigger_latest_data_updates():
-    """Triggers consolidate of the latest data updates.
+from lib.constants import root_directory
 
-    Triggered after Globus job fetches the latest data from S3.
-    """
-    pass
+current_directory = os.getcwd()
+pipelines_directory = os.path.join(root_directory, "pipelines")
 
 
-@task
-def run_perspective_api_inference():
-    pass
+num_hours_kickoff = 3 # kick off pipeline every 3 hours
+num_minutes_kickoff = 60 * num_hours_kickoff
+num_seconds_kickoff = num_minutes_kickoff * 60
 
 
-@task
-def get_posts_for_llm_inference():
-    pass
-
-
-@task
-def run_llm_inference():
-    pass
-
-
-@task
-def trigger_ml_classification_orchestration():
-    """Orchestration to trigger individual ML classification tasks."""
-    run_perspective_api_inference()
-    llm_posts = get_posts_for_llm_inference()
-    run_llm_inference(upstream_tasks=[llm_posts])
+def run_slurm_job(script_path):
+    try:
+        result = subprocess.run(["sbatch", script_path], capture_output=True, text=True)
+        print(result.stdout)
+        print(result.stderr)
+        if result.returncode != 0:
+            raise Exception(f"Error running SLURM job: {result.stderr}")
+        return result.stdout.split()[-1]
+    except Exception as e:
+        print(f"Error running SLURM job: {e}")
+        return None
 
 
 @task
-def trigger_update_latest_user_engagement():
-    """Updates latest user new posts, comments, reshares, and likes."""
-    pass
+def preprocess_raw_data():
+    """Preprocesses the latest raw data."""
+    bash_script_path = os.path.join(
+        pipelines_directory, "preprocess_raw_data", "submit_job.sh"
+    )
+    return run_slurm_job(bash_script_path)
 
 
 @task
-def trigger_update_latest_connection_updates():
-    """Updates latest follows/followers per user."""
-    pass
+def calculate_superposters():
+    """Calculates superposters."""
+    bash_script_path = os.path.join(
+        pipelines_directory, "calculate_superposters", "submit_job.sh"
+    )
+    return run_slurm_job(bash_script_path)
 
 
 @task
-def trigger_user_activity_updates():
-    """Orchestration to trigger individual user engagement tasks."""
-    trigger_update_latest_user_engagement()
-    trigger_update_latest_connection_updates()
+def run_ml_inference_perspective_api():
+    """Performs ML inference on the latest data using the Perspective API."""
+    bash_script_path = os.path.join(
+        pipelines_directory, "classify", "perspective_api", "submit_job.sh"
+    )
+    return run_slurm_job(bash_script_path)
 
 
 @task
-def trigger_get_in_network_posts():
-    pass
+def run_ml_inference_sociopolitical():
+    """Performs ML inference on the latest data using the Perspective API."""
+    bash_script_path = os.path.join(
+        pipelines_directory, "classify", "sociopolitical", "submit_job.sh"
+    )
+    return run_slurm_job(bash_script_path)
 
 
 @task
-def trigger_update_superposters():
-    pass
+def consolidate_enrichment_integrations():
+    """Consolidates enrichment integrations."""
+    bash_script_path = os.path.join(
+        pipelines_directory, "consolidate_enrichment_integrations", "submit_job.sh"
+    )
+    return run_slurm_job(bash_script_path)
 
 
 @task
-def trigger_score_and_create_feeds():
-    pass
+def rank_score_feeds()
+    """Scores posts, ranks them, and generates feeds."""
+    bash_script_path = os.path.join(
+        pipelines_directory, "rank_score_feeds", "submit_job.sh"
+    )
+    return run_slurm_job(bash_script_path)
 
 
-@task
-def trigger_write_feeds_to_s3():
-    pass
+@flow(name="Production data pipeline")
+def production_data_pipeline():
 
+    # kick off preprocessing.
+    job_preprocess_raw_data = preprocess_raw_data.submit()
 
-@flow
-def run_pipeline():
-    # get upstream data
-    get_latest_data_updates = trigger_latest_data_updates()
+    # run integrations concurrently after preprocessing is finished.
+    job_calculate_superposters = calculate_superposters.submit(wait_for=[job_preprocess_raw_data])
+    job_run_ml_inference_perspective_api = run_ml_inference_perspective_api.submit(wait_for=[job_preprocess_raw_data])
+    job_run_ml_inference_sociopolitical = run_ml_inference_sociopolitical.submit(wait_for=[job_preprocess_raw_data])
 
-    # computation, ML, and enrichment
-    get_user_activity_updates = trigger_user_activity_updates(
-        upstream_tasks=[get_latest_data_updates])
-    ml_classification_updates = trigger_ml_classification_orchestration(
-        upstream_tasks=[get_latest_data_updates])
-    in_network_posts_updates = trigger_get_in_network_posts(
-        upstream_tasks=[get_user_activity_updates])
-    superposter_updates = trigger_update_superposters(
-        upstream_tasks=[get_user_activity_updates])
-
-    # score and create feeds
-    score_and_create_feeds = trigger_score_and_create_feeds(
-        upstream_tasks=[
-            get_latest_data_updates, get_user_activity_updates,
-            ml_classification_updates, in_network_posts_updates,
-            superposter_updates
+    # run enrichment integration consolidation after all integrations are finished.
+    job_consolidate_enrichment_integrations = consolidate_enrichment_integrations.submit(
+        wait_for=[
+            job_calculate_superposters,
+            job_run_ml_inference_perspective_api,
+            job_run_ml_inference_sociopolitical
         ]
     )
-
-    # write to S3
-    trigger_write_feeds_to_s3(
-        upstream_tasks=[score_and_create_feeds])
+    
+    # run scoring, ranking, and feed generation after enrichment integrations are finished.
+    rank_score_feeds.submit(wait_for=[job_consolidate_enrichment_integrations])
 
 
 if __name__ == "__main__":
-    run_pipeline.serve(name="Bluesky Research (on-prem) Orchestration.")
+    production_data_pipeline.serve(
+        name="Production data pipeline",
+        tags=["slurm", "prod"],
+        interval=num_seconds_kickoff,
+    )

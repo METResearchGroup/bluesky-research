@@ -11,8 +11,8 @@ current_directory = os.getcwd()
 def run_slurm_job(script_path):
     try:
         # use sbatch instead of bash when actually running the script on Quest.
-        # result = subprocess.run(["sbatch", script_path], capture_output=True, text=True)
-        result = subprocess.run(["bash", script_path], capture_output=True, text=True)
+        result = subprocess.run(["sbatch", script_path], capture_output=True, text=True)
+        # result = subprocess.run(["bash", script_path], capture_output=True, text=True)
         print(result.stdout)
         print(result.stderr)
         if result.returncode != 0:
