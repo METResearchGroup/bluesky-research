@@ -11,7 +11,7 @@ from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
 
 default_similarity_score = 0.8
-average_popular_post_like_count = 250
+average_popular_post_like_count = 100
 coef_toxicity = 0.965
 coef_constructiveness = 1.02
 superposter_coef = 0.95
