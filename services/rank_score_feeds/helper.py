@@ -734,6 +734,16 @@ def do_rank_score_feeds(
 
     # write feeds to s3
     export_results(user_to_ranked_feed_map=user_to_ranked_feed_map, timestamp=timestamp)
+
+    # ttl old feeds
+    logger.info("TTLing old feeds from active to cache.")
+    keep_count = 3
+    s3.sort_and_move_files_from_active_to_cache(
+        prefix="custom_feeds", keep_count=keep_count, sort_field="Key"
+    )
+    logger.info(f"Done TTLing old feeds from active to cache (keeping {keep_count}).")
+
+    # inserting feed generation session metadata.
     feed_generation_session = {
         "feed_generation_timestamp": timestamp,
         "number_of_new_feeds": len(user_to_ranked_feed_map),
