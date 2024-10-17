@@ -55,7 +55,17 @@ NSFW_HANDLES = [
     "snao.bsky.social",
     "stow.bsky.social",
     "erotibot.bsky.social",
-    "catsudon.art"
+    "catsudon.art",
+    "asumonokrom.bsky.social",
+    "hemuchang.bsky.social"
+]
+
+# art is nice, but users seem to prefer less art content
+ART_HANDLES = [
+    "oori.bsky.social",
+    "zetrystan.bsky.social",
+    "wolfskulljack.bsky.social",
+    "b0tster.bsky.social"
 ]
 
 BSKY_HANDLES_TO_EXCLUDE = [
@@ -65,7 +75,7 @@ BSKY_HANDLES_TO_EXCLUDE = [
     "nanoless.bsky.social",
     "l4wless.bsky.social",
     "squeezable.bsky.social",
-] + NSFW_HANDLES
+] + NSFW_HANDLES + ART_HANDLES
 
 
 def export_csv(handles: list[str], dids_to_exclude: list[str]):

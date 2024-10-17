@@ -569,7 +569,7 @@ def do_rank_score_feeds(
     # load data
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
 
-    test_mode = False
+    test_mode = True
     if test_mode:
         # TODO: just do the test users
         test_user_handles = [
@@ -728,12 +728,15 @@ def do_rank_score_feeds(
         post_pool=reverse_chronological_post_pool_df,
         max_feed_length=max_feed_length,
     )
+    postprocessed_default_feed = postprocess_feed(
+        feed=default_feed, previous_post_uris=latest_feeds["default"]
+    )
     user_to_ranked_feed_map["default"] = {
-        "feed": default_feed,
+        "feed": postprocessed_default_feed,
         "bluesky_handle": "default",
         "bluesky_user_did": "default",
         "condition": "default",
-        "feed_statistics": generate_feed_statistics(feed=default_feed),
+        "feed_statistics": generate_feed_statistics(feed=postprocessed_default_feed),
     }
 
     timestamp = generate_current_datetime_str()
