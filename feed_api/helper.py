@@ -118,7 +118,7 @@ def load_latest_user_feed(user_did: str) -> list[dict]:  # noqa
     use the cursor to determine which subset of the feed to return.
     """
     logger.info(
-        f"Cache miss for user={user_did}. Loading latest feed from S3 and then adding to cache."  # noqa
+        f"Local cache miss for user={user_did} (shouldn't be, ideally). Loading latest feed from S3 and then adding to local in-memory cache."  # noqa
     )  # noqa
     feed_dicts: list[dict] = load_latest_user_feed_from_s3(user_did=user_did)  # noqa
     return feed_dicts
