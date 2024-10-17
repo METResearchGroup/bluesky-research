@@ -108,11 +108,12 @@ def _sync_refresh_user_did_to_cached_feed():
     logger.info("Initialized user DID to cache feed mapping.")
 
 
-async def refresh_user_did_to_cached_feed():
+def refresh_user_did_to_cached_feed():
     """Refreshes the local cached feeds from S3 asynchronously."""
     logger.info("Fetching latest user feeds from S3...")
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(thread_pool, _sync_refresh_user_did_to_cached_feed)
+    _sync_refresh_user_did_to_cached_feed()
+    # loop = asyncio.get_running_loop()
+    # await loop.run_in_executor(thread_pool, _sync_refresh_user_did_to_cached_feed)
 
 
 async def refresh_feeds_periodically():
@@ -131,12 +132,6 @@ async def refresh_feeds_periodically():
 async def start_refresh_task():
     """Starts the background task to refresh the local cached feeds."""
     asyncio.create_task(refresh_feeds_periodically())
-
-
-# on start, force refresh the local cached feeds from S3. This can be done
-# in the main thread since we can't serve any requests without having first
-# loaded the latest feeds.
-_sync_refresh_user_did_to_cached_feed()
 
 
 # redirect to Billy's site: https://sites.google.com/u.northwestern.edu/mind-technology-lab
