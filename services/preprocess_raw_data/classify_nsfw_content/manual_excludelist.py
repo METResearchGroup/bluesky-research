@@ -68,7 +68,12 @@ ART_HANDLES = [
     "wolfskulljack.bsky.social",
     "b0tster.bsky.social",
     "kaatokunart.bsky.social",
-    "xel44lex.bsky.social"
+    "xel44lex.bsky.social",
+    "rosuuri.bsky.social",
+    "maxoke.bsky.social",
+    "some1else45.bsky.social",
+    "toorurii.bsky.social",
+    "cillia.bsky.social"
 ]
 
 BSKY_HANDLES_TO_EXCLUDE = [
