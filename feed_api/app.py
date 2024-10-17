@@ -27,6 +27,7 @@ from feed_api.helper import (
     load_all_latest_user_feeds_from_s3,
     load_latest_user_feed,
     valid_dids,
+    test_user_dids,
     study_user_did_to_handle_map,
 )
 from feed_api.user_session_queue import background_s3_writer, log_queue
@@ -215,7 +216,6 @@ async def get_feed_skeleton(
         requester_did = "default"
     logger.info(f"Validated request for DID={requester_did}...")
     request_cursor = cursor
-    test_user_dids = {}  # TODO: remove
     if requester_did in test_user_dids:
         handle = study_user_did_to_handle_map[requester_did]
         logger.info(
