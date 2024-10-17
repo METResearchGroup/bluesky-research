@@ -1,10 +1,10 @@
 """Test file for experimenting with Prefect."""
 
 import os
+import subprocess
 import time
 
 from prefect import task, flow
-import subprocess
 
 from lib.constants import root_directory, repo_name
 
@@ -44,11 +44,13 @@ def run_slurm_job(script_path):
         print(f"SLURM job completed successfully. Job ID: {job_id}")
         return job_id
     except subprocess.CalledProcessError as e:
-        print(f"Error running SLURM job: {e}")
-        return None
+        error_message = f"Error running SLURM job: {e}"
+        print(error_message)
+        raise Exception(error_message)
     except Exception as e:
-        print(f"Error checking SLURM job status: {e}")
-        return None
+        error_message = f"Error checking SLURM job status: {e}"
+        print(error_message)
+        raise Exception(error_message)
 
 
 @task(log_prints=True)
@@ -57,7 +59,10 @@ def preprocess_raw_data():
     bash_script_path = os.path.join(
         pipelines_directory, "preprocess_raw_data", "submit_job.sh"
     )
-    return run_slurm_job(bash_script_path)
+    result = run_slurm_job(bash_script_path)
+    if result is None:
+        raise Exception("SLURM job failed in preprocess_raw_data task")
+    return result
 
 
 @task(log_prints=True)
@@ -66,7 +71,10 @@ def calculate_superposters():
     bash_script_path = os.path.join(
         pipelines_directory, "calculate_superposters", "submit_job.sh"
     )
-    return run_slurm_job(bash_script_path)
+    result = run_slurm_job(bash_script_path)
+    if result is None:
+        raise Exception("SLURM job failed in calculate_superposters task")
+    return result
 
 
 @task(log_prints=True)
@@ -75,7 +83,10 @@ def run_ml_inference_perspective_api():
     bash_script_path = os.path.join(
         pipelines_directory, "classify_records", "perspective_api", "submit_job.sh"
     )
-    return run_slurm_job(bash_script_path)
+    result = run_slurm_job(bash_script_path)
+    if result is None:
+        raise Exception("SLURM job failed in run_ml_inference_perspective_api task")
+    return result
 
 
 @task(log_prints=True)
@@ -84,7 +95,10 @@ def run_ml_inference_sociopolitical():
     bash_script_path = os.path.join(
         pipelines_directory, "classify_records", "sociopolitical", "submit_job.sh"
     )
-    return run_slurm_job(bash_script_path)
+    result = run_slurm_job(bash_script_path)
+    if result is None:
+        raise Exception("SLURM job failed in run_ml_inference_sociopolitical task")
+    return result
 
 
 @task(log_prints=True)
@@ -93,7 +107,10 @@ def consolidate_enrichment_integrations():
     bash_script_path = os.path.join(
         pipelines_directory, "consolidate_enrichment_integrations", "submit_job.sh"
     )
-    return run_slurm_job(bash_script_path)
+    result = run_slurm_job(bash_script_path)
+    if result is None:
+        raise Exception("SLURM job failed in consolidate_enrichment_integrations task")
+    return result
 
 
 @task(log_prints=True)
@@ -102,7 +119,10 @@ def rank_score_feeds():
     bash_script_path = os.path.join(
         pipelines_directory, "rank_score_feeds", "submit_job.sh"
     )
-    return run_slurm_job(bash_script_path)
+    result = run_slurm_job(bash_script_path)
+    if result is None:
+        raise Exception("SLURM job failed in rank_score_feeds task")
+    return result
 
 
 @flow(name="Production data pipeline", log_prints=True)
