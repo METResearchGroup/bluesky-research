@@ -167,9 +167,12 @@ def _run(
 
     try:
         firehose_client.start(on_message_handler)
+    except FirehoseError as e:
+        logger.error(f"FirehoseError: {e}. Restarting...")
+        return _run(name, operations_callback, stream_stop_event, restart_cursor)
     except Exception as e:
-        logger.error(f"Error in firehose client: {e}")
+        logger.error(f"Error in firehose client: {e}. Restarting...")
         logger.info("Sleeping for 20 seconds before retrying...")
         time.sleep(20)
         logger.info("Retrying firehose client...")
-        firehose_client.start(on_message_handler)
+        return _run(name, operations_callback, stream_stop_event, restart_cursor)
