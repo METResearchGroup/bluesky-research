@@ -27,11 +27,6 @@ from lib.db.manage_local_data import (
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
-from lib.serverless_cache import (
-    default_cache_name,
-    default_long_lived_ttl_seconds,
-    ServerlessCache,
-)
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
@@ -61,7 +56,6 @@ s3 = S3()
 dynamodb = DynamoDB()
 glue = Glue()
 logger = get_logger(__name__)
-serverless_cache = ServerlessCache()
 
 
 def insert_feed_generation_session(feed_generation_session: dict):
@@ -95,16 +89,6 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
         }
         custom_feed_model = CustomFeedModel(**data)
         outputs.append(custom_feed_model.dict())
-        # in the cache, all I need are the list of post URIs, so we will
-        # export only that.
-        feed_uris = [post.item for post in custom_feed_model.feed]
-        cache_key = f"user_did={user}"
-        serverless_cache.set(
-            cache_name=default_cache_name,
-            key=cache_key,
-            value=json.dumps(feed_uris),
-            ttl=default_long_lived_ttl_seconds,
-        )
     s3.write_dicts_jsonl_to_s3(
         data=outputs,
         key=os.path.join(
