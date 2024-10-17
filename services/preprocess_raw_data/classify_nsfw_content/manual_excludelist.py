@@ -73,7 +73,13 @@ ART_HANDLES = [
     "maxoke.bsky.social",
     "some1else45.bsky.social",
     "toorurii.bsky.social",
-    "cillia.bsky.social"
+    "cillia.bsky.social",
+    "t1kosewad.bsky.social",
+    "sh0daigoji.bsky.social",
+    "dasdokter.bsky.social",
+    "nonoworks.bsky.social",
+    "picklez.bsky.social",
+    "hcnone.bsky.social"
 ]
 
 BSKY_HANDLES_TO_EXCLUDE = [
