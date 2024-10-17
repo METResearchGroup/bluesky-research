@@ -57,7 +57,8 @@ NSFW_HANDLES = [
     "erotibot.bsky.social",
     "catsudon.art",
     "asumonokrom.bsky.social",
-    "hemuchang.bsky.social"
+    "hemuchang.bsky.social",
+    "tlagomars.bsky.social",
 ]
 
 # art is nice, but users seem to prefer less art content
@@ -65,7 +66,9 @@ ART_HANDLES = [
     "oori.bsky.social",
     "zetrystan.bsky.social",
     "wolfskulljack.bsky.social",
-    "b0tster.bsky.social"
+    "b0tster.bsky.social",
+    "kaatokunart.bsky.social",
+    "xel44lex.bsky.social"
 ]
 
 BSKY_HANDLES_TO_EXCLUDE = [
