@@ -665,6 +665,8 @@ def do_rank_score_feeds(
     # create feeds for each user. Map feeds to users.
     user_to_ranked_feed_map: dict[str, dict] = {}
     total_users = len(study_users)
+    logger.info(f"Creating feeds for {total_users} users")
+
     for i, user in enumerate(study_users):
         if i % 10 == 0:
             logger.info(f"Creating feed for user {i}/{total_users}")
