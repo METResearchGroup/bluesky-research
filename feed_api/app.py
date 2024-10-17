@@ -6,9 +6,9 @@ Based on specs in the following docs:
 """  # noqa
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import json
 import threading
-import time
 from typing import Optional, Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Security
@@ -25,6 +25,7 @@ from feed_api.helper import (
     get_cached_request,
     is_valid_user_did,
     create_feed_and_cursor,
+    load_all_latest_user_feeds_from_s3,
     load_latest_user_feed,
     valid_dids,
     study_user_did_to_handle_map,
@@ -68,6 +69,10 @@ user_did_to_cached_feed: dict[str, list[dict]] = {}
 
 threading.Thread(target=background_s3_writer, daemon=True).start()
 
+feed_refresh_hours = 3
+feed_refresh_minutes = feed_refresh_hours * 60
+feed_refresh_seconds = feed_refresh_minutes * 60
+
 
 async def get_api_key(api_key_header: Optional[str] = Security(api_key_header)):
     if api_key_header == REQUIRED_API_KEY:
@@ -91,29 +96,38 @@ async def log_request(request: Request, call_next):
 # add "default" key to the valid DIDs set.
 valid_dids.add("default")
 
+thread_pool = ThreadPoolExecutor(max_workers=1)
 
-def refresh_user_did_to_cached_feed():
-    for idx, did in enumerate(valid_dids):
-        if idx % 25 == 0:
-            # to get around throughput limits of Moment free tier cache (lol)
-            time.sleep(0.5)
-        user_did_to_cached_feed[did] = load_latest_user_feed(user_did=did)
+
+def _sync_refresh_user_did_to_cached_feed():
+    """Synchronous version of the refresh function."""
+    latest_user_did_to_cached_feed = load_all_latest_user_feeds_from_s3()
+    for user_did, feed_dicts in latest_user_did_to_cached_feed.items():
+        user_did_to_cached_feed[user_did] = feed_dicts
     logger.info("Initialized user DID to cache feed mapping.")
+
+
+async def refresh_user_did_to_cached_feed():
+    """Refreshes the local cached feeds from S3 asynchronously."""
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(thread_pool, _sync_refresh_user_did_to_cached_feed)
 
 
 async def refresh_feeds_periodically():
     """Refreshes the local cached feeds every hour."""
-    refresh_seconds = 3600
     while True:
         logger.info("Refreshing local cached feeds...")
         refresh_user_did_to_cached_feed()
-        logger.info("Refreshed local cached feeds. Waiting 1 hour for next refresh.")  # noqa
-        await asyncio.sleep(refresh_seconds)
+        logger.info(
+            f"Refreshed local cached feeds. Waiting {feed_refresh_hours} hours for next refresh."
+        )  # noqa
+        await asyncio.sleep(feed_refresh_seconds)
 
 
 # Start the periodic refresh in a background task
 @app.on_event("startup")
 async def start_refresh_task():
+    """Starts the background task to refresh the local cached feeds."""
     asyncio.create_task(refresh_feeds_periodically())
 
 

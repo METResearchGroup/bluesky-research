@@ -27,11 +27,6 @@ from lib.db.manage_local_data import (
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
-from lib.serverless_cache import (
-    default_cache_name,
-    default_long_lived_ttl_seconds,
-    ServerlessCache,
-)
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
@@ -61,7 +56,6 @@ s3 = S3()
 dynamodb = DynamoDB()
 glue = Glue()
 logger = get_logger(__name__)
-serverless_cache = ServerlessCache()
 
 
 def insert_feed_generation_session(feed_generation_session: dict):
@@ -95,16 +89,6 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
         }
         custom_feed_model = CustomFeedModel(**data)
         outputs.append(custom_feed_model.dict())
-        # in the cache, all I need are the list of post URIs, so we will
-        # export only that.
-        feed_uris = [post.item for post in custom_feed_model.feed]
-        cache_key = f"user_did={user}"
-        serverless_cache.set(
-            cache_name=default_cache_name,
-            key=cache_key,
-            value=json.dumps(feed_uris),
-            ttl=default_long_lived_ttl_seconds,
-        )
     s3.write_dicts_jsonl_to_s3(
         data=outputs,
         key=os.path.join(
@@ -557,6 +541,7 @@ def export_feed_analytics(analytics: dict) -> None:
 def do_rank_score_feeds(
     users_to_create_feeds_for: list[str] = None,
     skip_export_post_scores: bool = False,
+    test_mode: bool = False,
 ):
     """Do the rank score feeds.
 
@@ -569,7 +554,6 @@ def do_rank_score_feeds(
     # load data
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
 
-    test_mode = True
     if test_mode:
         # TODO: just do the test users
         test_user_handles = [
@@ -750,11 +734,24 @@ def do_rank_score_feeds(
 
     # write feeds to s3
     export_results(user_to_ranked_feed_map=user_to_ranked_feed_map, timestamp=timestamp)
-    feed_generation_session = {
-        "feed_generation_timestamp": timestamp,
-        "number_of_new_feeds": len(user_to_ranked_feed_map),
-    }
-    insert_feed_generation_session(feed_generation_session)
+
+    # ttl old feeds
+    if not test_mode:
+        logger.info("TTLing old feeds from active to cache.")
+        keep_count = 3
+        s3.sort_and_move_files_from_active_to_cache(
+            prefix="custom_feeds", keep_count=keep_count, sort_field="Key"
+        )
+        logger.info(
+            f"Done TTLing old feeds from active to cache (keeping {keep_count})."
+        )
+
+        # inserting feed generation session metadata.
+        feed_generation_session = {
+            "feed_generation_timestamp": timestamp,
+            "number_of_new_feeds": len(user_to_ranked_feed_map),
+        }
+        insert_feed_generation_session(feed_generation_session)
 
 
 if __name__ == "__main__":

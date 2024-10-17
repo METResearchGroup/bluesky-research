@@ -14,7 +14,6 @@ from lib.helper import generate_current_datetime_str
 from lib.serverless_cache import (
     default_cache_name,
     default_ttl_seconds,
-    default_long_lived_ttl_seconds,
     ServerlessCache,
 )
 from services.participant_data.helper import get_all_users
@@ -71,6 +70,27 @@ def hash_feed_post(post: dict) -> str:
     return hashlib.sha256(post["item"].encode()).hexdigest()
 
 
+def load_all_latest_user_feeds_from_s3() -> dict[str, list[dict]]:
+    """Loads the latest feed for all users from S3."""
+    query = """
+    SELECT user, feed FROM "custom_feeds"
+    WHERE (user, feed_generation_timestamp) IN (
+        SELECT user, MAX(feed_generation_timestamp)
+        FROM "custom_feeds"
+        GROUP BY user
+    )
+    """
+    df = athena.query_results_as_df(query)
+    df_dicts = df.to_dict(orient="records")
+    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    feeds = [row["feed"] for row in df_dicts]
+    user_feed_dicts: list[list[dict]] = [parse_feed_string(feed) for feed in feeds]
+    user_dids = [row["user"] for row in df_dicts]
+    return {
+        user_did: feed_dicts for user_did, feed_dicts in zip(user_dids, user_feed_dicts)
+    }
+
+
 def load_latest_user_feed_from_s3(user_did: str) -> list[dict]:
     """Loads the latest feed for a user from S3.
 
@@ -91,41 +111,16 @@ def load_latest_user_feed_from_s3(user_did: str) -> list[dict]:
     return feed_dicts
 
 
-def load_latest_user_feed_from_cache(user_did: str) -> Optional[list[dict]]:
-    """Fetches the latest feed from cache. Returns a list of URIs if it exists,
-    else None."""
-    cache_key = f"user_did={user_did}"
-    cache_value = serverless_cache.get(cache_name=default_cache_name, key=cache_key)
-    if cache_value:
-        return json.loads(cache_value)
-    return None
-
-
 def load_latest_user_feed(user_did: str) -> list[dict]:  # noqa
     """Loads latest user feed.
 
     Both the cache and the S3 feeds return the full complete feed. We
     use the cursor to determine which subset of the feed to return.
     """
-    logger.info(f"Loading latest feed for user={user_did}...")
-    feed_uris: list[dict] = load_latest_user_feed_from_cache(user_did=user_did)  # noqa
-    if feed_uris:
-        feed_dicts = [{"item": feed_uri} for feed_uri in feed_uris]
-    else:
-        feed_dicts = None
-    if not feed_dicts:
-        logger.info(
-            f"Cache miss for user={user_did}. Loading latest feed from S3 and then adding to cache."  # noqa
-        )  # noqa
-        feed_dicts: list[dict] = load_latest_user_feed_from_s3(user_did=user_did)  # noqa
-        feed_uris = [feed_dict["item"] for feed_dict in feed_dicts]
-        cache_key = f"user_did={user_did}"
-        serverless_cache.set(
-            cache_name=default_cache_name,
-            key=cache_key,
-            value=json.dumps(feed_uris),
-            ttl=default_long_lived_ttl_seconds,
-        )
+    logger.info(
+        f"Cache miss for user={user_did}. Loading latest feed from S3 and then adding to cache."  # noqa
+    )  # noqa
+    feed_dicts: list[dict] = load_latest_user_feed_from_s3(user_did=user_did)  # noqa
     return feed_dicts
 
 
@@ -206,9 +201,6 @@ def get_cached_request(user_did: str, cursor: Optional[str]) -> Optional[dict]:
 def export_log_data(log: dict):
     """Export user session log data"""
     user_did = log["user_did"]
-    # partitioning on handle instead of DID since I'm having trouble getting
-    # Hive to recognize the partitions on DID, possibly due to ':' char?
-    # NOTE: this is a known bug: https://docs.aws.amazon.com/athena/latest/ug/msck-repair-table.html
     handle = study_user_did_to_handle_map[user_did]
     timestamp = log["timestamp"]
     key = os.path.join("user_session_logs", f"bluesky_user_handle={handle}", timestamp)
@@ -216,17 +208,13 @@ def export_log_data(log: dict):
         data=log,
         key=key,
     )
-    # glue.start_crawler(crawler_name="user_session_logs_glue_crawler")
-    # athena.run_query(
-    #     f"""
-    #     ALTER TABLE user_session_logs
-    #     ADD PARTITION (bluesky_user_handle='{handle}')
-    #     LOCATION 's3://bluesky-research/{key}'
-    #     """
-    # )
     logger.info(f"Exported user session logs to S3 (key={key}): {log}")
 
 
 if __name__ == "__main__":
     user_did = "did:plc:wvb6v45g6oxrfebnlzllhrpv"
-    load_latest_user_feed(user_did=user_did)
+    latest_feed = load_latest_user_feed(user_did=user_did)
+    s3_latest_feed = load_latest_user_feed_from_s3(user_did=user_did)
+    res = load_all_latest_user_feeds_from_s3()
+    assert latest_feed == s3_latest_feed
+    assert res[user_did] == s3_latest_feed
