@@ -1,1 +1,1 @@
-max_feed_length = 50
+max_feed_length = 100
