@@ -18,7 +18,9 @@ current_file_directory = os.path.dirname(os.path.abspath(__file__))
 root_directory = os.path.abspath(os.path.join(current_file_directory, "../.."))
 repo_name = "bluesky-research"
 root_data_dirname = "bluesky_research_data"
+backup_data_dirname = "backup_bluesky_research_data"
 root_local_data_directory = os.path.join(root_directory, root_data_dirname)
+root_local_backup_data_directory = os.path.join(root_directory, backup_data_dirname)
 
 default_lookback_days = 2
 
