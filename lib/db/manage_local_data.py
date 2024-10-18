@@ -514,6 +514,7 @@ def load_data_from_local_storage(
     latest_timestamp: Optional[str] = None,
     use_all_data: bool = False,
     validate_pq_files: bool = False,
+    infer_schema: bool = False,
 ) -> pd.DataFrame:
     """Load data from local storage."""
     directories = [directory]
@@ -538,7 +539,10 @@ def load_data_from_local_storage(
             filters = []
         kwargs = {"path": filepaths}
         columns: list[str] = load_service_cols(service)
-        schema: Optional[pa.Schema] = get_service_pa_schema(service)
+        if infer_schema:
+            schema = None
+        else:
+            schema: Optional[pa.Schema] = get_service_pa_schema(service)
         if columns:
             kwargs["columns"] = columns
         if schema:

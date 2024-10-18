@@ -44,6 +44,7 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
             }
         )
         like_model_dict = like_model.dict()
+        like_model_dict["record"] = json.dumps(like_model_dict["record"])
         like_author_did = like_model.author
         uri_suffix = like_model.uri.split("/")[-1]
         # we save this using both the DID and like URI so that then we can

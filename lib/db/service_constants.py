@@ -60,6 +60,26 @@ MAP_SERVICE_TO_METADATA = {
             ),
         },
     },
+    "study_user_likes": {
+        "local_prefix": os.path.join(
+            root_local_data_directory, "study_user_activity", "create", "like"
+        ),
+        "primary_key": "",  # TODO: check
+        "timestamp_field": "synctimestamp",
+        "skip_deduping": True,
+        "pydantic_model": "",
+        "infer_schema_on_read": True,  # TODO: should I add this or no?
+        "dtypes_map": {
+            "author": "string",
+            "cid": "string",
+            "record": "string",
+            "uri": "string",
+            "synctimestamp": "string",
+        },
+    },
+    "study_user_reposts": {},
+    "study_user_like_on_user_post": {},
+    "study_user_reply_to_user_post": {},
     "sync_most_liked_posts": {
         "local_prefix": os.path.join(root_local_data_directory, "sync", "most_liked"),
         "s3_prefix": "",
