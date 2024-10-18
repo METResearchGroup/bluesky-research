@@ -13,7 +13,7 @@ import pyarrow as pa
 
 from lib.db.manage_local_data import load_data_from_local_storage
 
-# filedir = "/projects/p32375/bluesky_research_data/study_user_activity/create/like/active"
+filedir = "/projects/p32375/bluesky_research_data/study_user_activity/create/like/active"
 # filedir = "/projects/p32375/bluesky_research_data/study_user_activity/create/like_on_user_post/active"
 # filedir = "/Users/mark/Documents/work/bluesky_research_data/study_user_activity/create/like/active"
 # filedir = "/Users/mark/Documents/work/bluesky_research_data/study_user_activity/create/like/cache"
