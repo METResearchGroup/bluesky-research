@@ -303,6 +303,8 @@ def compact_all_local_services():
         "scraped_user_social_network",
         "study_user_activity",
         "study_user_likes",
+        "study_user_like_on_user_post",
+        "study_user_reply_to_user_post",
         "sync_most_liked_posts",
         "daily_superposters",
         "user_session_logs",
