@@ -50,11 +50,11 @@ def sync_most_liked():
 @flow(name="Sync pipeline", log_prints=True)
 def sync_data_pipeline(run_most_liked=True):
     """Syncs the data pipeline."""
-    job_sync_firehose = sync_firehose.submit()
-    job_write_firehose_data = write_firehose_data.submit(wait_for=[job_sync_firehose])
+    sync_firehose.submit(wait_for=False)
+    write_firehose_data.submit(wait_for=False)
 
     if run_most_liked:
-        sync_most_liked.submit(wait_for=[job_write_firehose_data])
+        sync_most_liked.submit(wait_for=False)
 
 
 @flow(name="Most Liked Sync", log_prints=True)
