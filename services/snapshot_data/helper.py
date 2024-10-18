@@ -219,6 +219,15 @@ def snapshot_consolidated_posts() -> None:
     logger.info("-" * 10)
 
 
+def snapshot_user_social_network() -> None:
+    logger.info("-" * 10)
+    logger.info("Snapshotting user social network...")
+    relative_path = "scraped_user_social_network"
+    migrate_directory_snapshot(relative_path)
+    logger.info("Snapshotting user social network... done")
+    logger.info("-" * 10)
+
+
 def snapshot_data() -> None:
     """Takes a snapshot of the data in the backup data directory and stores it
     in the backup directory.
@@ -230,6 +239,7 @@ def snapshot_data() -> None:
     snapshot_preprocessed_posts()
     snapshot_integrations()
     snapshot_consolidated_posts()
+    snapshot_user_social_network()
 
 
 if __name__ == "__main__":
