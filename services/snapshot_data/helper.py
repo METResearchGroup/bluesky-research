@@ -38,64 +38,50 @@ def migrate_directory_snapshot(
         root_local_backup_data_directory, relative_base_path, "cache"
     )
 
-    if os.path.exists(current_active_directory):
-        if not os.path.exists(new_active_directory):
-            os.makedirs(new_active_directory)
-        partition_dirs = os.listdir(current_active_directory)
-        for partition_dir in partition_dirs:
-            if not partition_dir.startswith("partition_date="):
-                logger.info(
-                    f"Skipping partition directory (probably old and uncompacted): {partition_dir}"
-                )
-                continue
-            partition_dir_path = os.path.join(current_active_directory, partition_dir)
-            filenames = os.listdir(partition_dir_path)
-            new_partition_dir_path = os.path.join(new_active_directory, partition_dir)
-            if not os.path.exists(new_partition_dir_path):
-                os.makedirs(new_partition_dir_path)
-            for filename in filenames:
-                # NOTE: I'll revisit this later. Parquet can append
-                # to a file that already exists, so I think it's probably OK
-                # to allow overwrites, and I don't think repeated computations
-                # are too bad.
-                if allow_overwrite:
-                    shutil.copy2(
-                        src=os.path.join(partition_dir_path, filename),
-                        dst=new_partition_dir_path,
-                    )
-                else:
-                    dst_file = os.path.join(new_partition_dir_path, filename)
-                    if not os.path.exists(dst_file):
+    directory_pairs = [
+        (current_active_directory, new_active_directory),
+        (current_cache_directory, new_cache_directory),
+    ]
+
+    for (current_directory, new_directory) in directory_pairs:
+        if os.path.exists(current_directory):
+            if not os.path.exists(new_directory):
+                os.makedirs(new_directory)
+            partition_dirs = os.listdir(current_directory)
+            for partition_dir in partition_dirs:
+                if not partition_dir.startswith("partition_date="):
+                    # logger.info(
+                    #     f"Skipping partition directory (probably old and uncompacted): {partition_dir}"
+                    # )
+                    continue
+                partition_dir_path = os.path.join(current_directory, partition_dir)
+                filenames = os.listdir(partition_dir_path)
+                new_partition_dir_path = os.path.join(new_directory, partition_dir)
+                if not os.path.exists(new_partition_dir_path):
+                    os.makedirs(new_partition_dir_path)
+                for filename in filenames:
+                    # NOTE: I'll revisit this later. Parquet can append
+                    # to a file that already exists, so I think it's probably OK
+                    # to allow overwrites, and I don't think repeated computations
+                    # are too bad.
+                    if allow_overwrite:
                         shutil.copy2(
                             src=os.path.join(partition_dir_path, filename),
                             dst=new_partition_dir_path,
                         )
                     else:
-                        logger.info(f"Skipping existing file: {dst_file}")
-    else:
-        logger.info(
-            f"Current active directory does not exist: {current_active_directory}"
-        )
-
-    if os.path.exists(current_cache_directory):
-        if not os.path.exists(new_cache_directory):
-            os.makedirs(new_cache_directory)
-        partition_dirs = os.listdir(current_cache_directory)
-        for partition_dir in partition_dirs:
-            partition_dir_path = os.path.join(current_cache_directory, partition_dir)
-            filenames = os.listdir(partition_dir_path)
-            new_partition_dir_path = os.path.join(new_cache_directory, partition_dir)
-            if not os.path.exists(new_partition_dir_path):
-                os.makedirs(new_partition_dir_path)
-            for filename in filenames:
-                shutil.copy2(
-                    src=os.path.join(partition_dir_path, filename),
-                    dst=new_partition_dir_path,
-                )
-    else:
-        logger.info(
-            f"Current cache directory does not exist: {current_cache_directory}"
-        )
+                        dst_file = os.path.join(new_partition_dir_path, filename)
+                        if not os.path.exists(dst_file):
+                            shutil.copy2(
+                                src=os.path.join(partition_dir_path, filename),
+                                dst=new_partition_dir_path,
+                            )
+                        else:
+                            logger.info(f"Skipping existing file: {dst_file}")
+        else:
+            logger.info(
+                f"Current directory does not exist: {current_directory}"
+            )
 
 
 def snapshot_study_user_likes() -> None:
@@ -135,9 +121,9 @@ def snapshot_study_user_activity() -> None:
     logger.info("Snapshotting study user like on user post...")
     snapshot_study_user_like_on_user_post()
     logger.info("DONE: snapshotting study user like on user post")
-    logger.info("Snapshotting study user reply to user post...")
-    snapshot_study_user_reply_to_user_post()
-    logger.info("DONE: snapshotting study user reply to user post")
+    # logger.info("Snapshotting study user reply to user post...")
+    # snapshot_study_user_reply_to_user_post()
+    # logger.info("DONE: snapshotting study user reply to user post")
     logger.info("DONE: snapshotting study user activity")
     logger.info("-" * 10)
 
