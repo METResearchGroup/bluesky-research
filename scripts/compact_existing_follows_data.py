@@ -1,6 +1,5 @@
 """One-off script to compact and migrate existing follows data."""
 
-import json
 import os
 
 import pandas as pd
@@ -117,7 +116,6 @@ def main():
     print(
         "Now that migration is done, we need to load from local storage to verify that it works."
     )
-    breakpoint()
     df = load_data_from_local_storage(service="scraped_user_social_network")
     print(f"Number of records in the DF: {len(df)}")
     df["partition_date"] = pd.to_datetime(df["insert_timestamp"]).dt.date
