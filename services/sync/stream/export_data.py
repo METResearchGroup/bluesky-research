@@ -868,6 +868,7 @@ def export_study_user_like(
     """
     relative_path = study_user_activity_relative_path_map[operation]["like"]
     post_uri_suffix = record["record"]["subject"]["uri"].split("/")[-1]
+    record["record"] = json.dumps(record["record"])
     root_path = study_user_activity_root_local_path
     if not os.path.exists(root_path):
         os.makedirs(root_path)
@@ -898,6 +899,7 @@ def export_like_on_study_user_post(
         "like_on_user_post"
     ]  # noqa
     post_uri_suffix = record["record"]["subject"]["uri"].split("/")[-1]
+    record["record"] = json.dumps(record["record"])
     root_path = study_user_activity_root_local_path
     if not os.path.exists(root_path):
         os.makedirs(root_path)
