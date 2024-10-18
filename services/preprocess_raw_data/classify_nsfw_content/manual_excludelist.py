@@ -61,6 +61,7 @@ NSFW_HANDLES = [
     "tlagomars.bsky.social",
     "terribleanimal.com",
     "poch4n.bsky.social",
+    "waspsaladsfw.bsky.social",
 ]
 
 # art is nice, but users seem to prefer less art content
@@ -137,6 +138,9 @@ ART_HANDLES = [
     "zaphnart.bsky.social",
     "megalodonvt.bsky.social",
     "vyragami.bsky.social",
+    "thijikoy.bsky.social",
+    "ggelus.bsky.social",
+    "mittsumia.bsky.social",
 ]
 
 BSKY_HANDLES_TO_EXCLUDE = (
