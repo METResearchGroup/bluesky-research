@@ -7,7 +7,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CRON_EXPRESSION="0 8 */4 * *"
 
 # Define the cron job command
-SBATCH_CRON_JOB="$CRON_EXPRESSION cd $DIR && sbatch submit_job.sh"
+SBATCH_CRON_JOB="$CRON_EXPRESSION cd $DIR && sbatch submit_sync_pipeline_job.sh"
 
 # Add the cron job to the current user's crontab
 (crontab -l 2>/dev/null; echo "$SBATCH_CRON_JOB") | crontab -
