@@ -1,18 +1,22 @@
 """One-off script to compact existing like data.
 
 Useful template though for how to do it for similar data.
+
+Works for both the like and like_on_user_post data.
 """
 
 import json
 import os
 
 import pandas as pd
+import pyarrow as pa
 
 from lib.db.manage_local_data import load_data_from_local_storage
 
 # filedir = "/projects/p32375/bluesky_research_data/study_user_activity/create/like/active"
+# filedir = "/projects/p32375/bluesky_research_data/study_user_activity/create/like_on_user_post/active"
 # filedir = "/Users/mark/Documents/work/bluesky_research_data/study_user_activity/create/like/active"
-filedir = "/Users/mark/Documents/work/bluesky_research_data/study_user_activity/create/like/cache"
+# filedir = "/Users/mark/Documents/work/bluesky_research_data/study_user_activity/create/like/cache"
 # tmp_output_dir = "/projects/p32375/bluesky_research_data/study_user_activity/create/like/active"
 
 
@@ -99,7 +103,23 @@ def reformat_correctly_partitioned_files():
         print(f"Reformatting files in partition directory: {partition_directory}...")
         partition_dir = os.path.join(filedir, partition_directory)
         filenames = os.listdir(partition_dir)
-        df = pd.read_parquet(partition_dir)
+        try:
+            df = pd.read_parquet(partition_dir)
+        except pa.lib.ArrowNotImplementedError:
+            # try loading each file individually and then appending them,
+            # to get around casting errors.
+            filenames = os.listdir(partition_dir)
+            dfs = []
+            for filename in filenames:
+                filepath = os.path.join(partition_dir, filename)
+                try:
+                    df = pd.read_parquet(filepath)
+                    if not isinstance(df["record"].iloc[0], str):
+                        df["record"] = df["record"].apply(lambda x: json.dumps(x))
+                    dfs.append(df)
+                except Exception as e:
+                    print(f"Error reading file {filepath}: {e}")
+            df = pd.concat(dfs)
         if not isinstance(df["record"][0], str):
             df["record"] = df["record"].apply(lambda x: json.dumps(x))
         if "partition_date" not in df.columns:
@@ -107,6 +127,15 @@ def reformat_correctly_partitioned_files():
             df["partition_date"] = df["partition_date"].apply(
                 lambda x: x.strftime("%Y-%m-%d")
             )
+        dtypes_map = {
+            "author": "string",
+            "cid": "string",
+            "record": "string",
+            "uri": "string",
+            "synctimestamp": "string",
+        }
+        df = df.astype(dtypes_map)
+        df.reset_index(drop=True, inplace=True)
         date_groups = df.groupby("partition_date")
         print(f"Number of date groups: {len(date_groups)}")
         for _, group in date_groups:
@@ -121,8 +150,8 @@ def reformat_correctly_partitioned_files():
 
 
 def main():
-    print("Migrating incorrectly partitioned files...")
-    migrate_incorrectly_partitioned_files()
+    # print("Migrating incorrectly partitioned files...")
+    # migrate_incorrectly_partitioned_files()
     print("Reformatting correctly partitioned files...")
     reformat_correctly_partitioned_files()
     print(
