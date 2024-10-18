@@ -1,10 +1,8 @@
 """Sync pipeline."""
 
-from datetime import timedelta
 import os
 
 from prefect import task, flow
-from prefect.client.schemas.schedules import IntervalSchedule # https://docs.prefect.io/3.0/automate/add-schedules
 
 
 from orchestration.helper import pipelines_directory, run_slurm_job
@@ -66,7 +64,6 @@ def sync_most_liked_pipeline():
 
 
 if __name__ == "__main__":
-
     # kick off the data pipeline as soon as the script is run.
     sync_data_pipeline(run_most_liked=True)
 
