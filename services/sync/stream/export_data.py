@@ -603,6 +603,8 @@ def export_study_user_activity_local_data() -> list[str]:
             df["synctimestamp"], format=timestamp_format
         ).dt.date
         custom_args = {"record_type": "like"}
+        dtypes_map = MAP_SERVICE_TO_METADATA["study_user_likes"]["dtypes_map"]
+        df = df.astype(dtypes_map)
         export_data_to_local_storage(
             df=df, service="study_user_activity", custom_args=custom_args
         )
