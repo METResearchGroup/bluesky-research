@@ -64,11 +64,10 @@ MAP_SERVICE_TO_METADATA = {
         "local_prefix": os.path.join(
             root_local_data_directory, "study_user_activity", "create", "like"
         ),
-        "primary_key": "",  # TODO: check
+        "primary_key": "uri",
         "timestamp_field": "synctimestamp",
         "skip_deduping": True,
         "pydantic_model": "",
-        "infer_schema_on_read": True,  # TODO: should I add this or no?
         "dtypes_map": {
             "author": "string",
             "cid": "string",
