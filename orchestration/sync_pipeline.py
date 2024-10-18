@@ -12,7 +12,7 @@ from orchestration.helper import pipelines_directory, run_slurm_job
 
 @task(log_prints=True)
 def sync_firehose():
-    """Preprocesses the latest raw data."""
+    """Syncs the firehose data."""
     bash_script_path = os.path.join(
         pipelines_directory, "sync_post_records", "firehose", "submit_job.sh"
     )
