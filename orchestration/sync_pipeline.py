@@ -4,7 +4,6 @@ import os
 
 from prefect import task, flow
 
-
 from orchestration.helper import pipelines_directory, run_slurm_job
 
 
