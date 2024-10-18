@@ -302,6 +302,7 @@ def compact_all_local_services():
         "in_network_user_activity",
         "scraped_user_social_network",
         "study_user_activity",
+        "study_user_likes",
         "sync_most_liked_posts",
         "daily_superposters",
         "user_session_logs",
@@ -309,7 +310,7 @@ def compact_all_local_services():
         "post_scores",
         "consolidated_enriched_post_records",
         "ml_inference_sociopolitical",
-        # "ml_inference_perspective_api",
+        "ml_inference_perspective_api",
     ]
     for service in services:
         compact_local_service(service, delete_old_files=True)

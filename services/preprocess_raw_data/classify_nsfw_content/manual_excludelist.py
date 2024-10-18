@@ -114,6 +114,17 @@ ART_HANDLES = [
     "ezdrools.bsky.social",
     "vexoriathesuneater.bsky.social",
     "ninochuu.bsky.social",
+    "bootoober.bsky.social",
+    "puppyypawss.bsky.social",
+    "clickdraws.bsky.social",
+    "namikare4.bsky.social",
+    "paripariarts.bsky.social",
+    "websake.bsky.social",
+    "nycnouu.bsky.social",
+    "eu03.bsky.social",
+    "sherribon.bsky.social",
+    "arainydancer.bsky.social",
+    "theycallhimcake.bsky.social"
 ]
 
 BSKY_HANDLES_TO_EXCLUDE = (
