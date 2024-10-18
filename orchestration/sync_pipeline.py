@@ -4,7 +4,7 @@ from datetime import timedelta
 import os
 
 from prefect import task, flow
-from prefect.schedules import IntervalSchedule
+from prefect.client.schemas.schedules import IntervalSchedule # https://docs.prefect.io/3.0/automate/add-schedules
 
 
 from orchestration.helper import pipelines_directory, run_slurm_job
@@ -66,17 +66,15 @@ def sync_most_liked_pipeline():
 
 
 if __name__ == "__main__":
-    # Schedule for daily pipeline (including firehose)
-    daily_schedule = IntervalSchedule(interval=timedelta(days=1))
 
-    # Schedule for most liked posts (every 4 hours)
-    most_liked_schedule = IntervalSchedule(interval=timedelta(hours=4))
+    # kick off the data pipeline as soon as the script is run.
+    sync_data_pipeline(run_most_liked=True)
 
     # Deploy the main pipeline (runs daily, without most_liked)
     sync_data_pipeline.serve(
         name="Daily Sync Pipeline",
         tags=["slurm", "prod", "firehose"],
-        schedule=daily_schedule,
+        cron="0 8 * * *",
         parameters={"run_most_liked": False},
     )
 
@@ -84,8 +82,5 @@ if __name__ == "__main__":
     sync_most_liked_pipeline.serve(
         name="Most Liked Sync Pipeline",
         tags=["slurm", "prod", "most_liked"],
-        schedule=most_liked_schedule,
+        cron="0 */4 * * *",
     )
-
-    # kick off the data pipeline as soon as the script is run.
-    sync_data_pipeline(run_most_liked=True)
