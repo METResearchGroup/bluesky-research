@@ -59,6 +59,7 @@ NSFW_HANDLES = [
     "asumonokrom.bsky.social",
     "hemuchang.bsky.social",
     "tlagomars.bsky.social",
+    "terribleanimal.com",
 ]
 
 # art is nice, but users seem to prefer less art content
@@ -79,17 +80,54 @@ ART_HANDLES = [
     "dasdokter.bsky.social",
     "nonoworks.bsky.social",
     "picklez.bsky.social",
-    "hcnone.bsky.social"
+    "hcnone.bsky.social",
+    "touyarokii.bsky.social",
+    "toranagakiryu.bsky.social",
+    "namie.bsky.social",
+    "velinxi.bsky.social",
+    "kyutsii.bsky.social",
+    "e7lilyy.bsky.social",
+    "mayexplode.bsky.social",
+    "mogu-sq.bsky.social",
+    "wooperfuri.bsky.social",
+    "princesshinghoi.bsky.social",
+    "keiseeaaa.bsky.social",
+    "mint-tan.bsky.social",
+    "keiblegh.bsky.social",
+    "kianamai.bsky.social",
+    "maruccy.bsky.social",
+    "comfythighs.bsky.social",
+    "alchemaniac.bsky.social",
+    "distr.bsky.social",
+    "kurohshiro.bsky.social",
+    "me1mezu.bsky.social",
+    "missfaves.com",
+    "daaku.bsky.social",
+    "darkavey.bsky.social",
+    "poisonp1nk.bsky.social",
+    "octaviusdp.bsky.social",
+    "e7lilyy.bsky.social",
+    "roikopi.bsky.social",
+    "potassium.bsky.social",
+    "rinstinks.bsky.social",
+    "overmikii.bsky.social",
+    "ezdrools.bsky.social",
+    "vexoriathesuneater.bsky.social",
+    "ninochuu.bsky.social",
 ]
 
-BSKY_HANDLES_TO_EXCLUDE = [
-    "clarkrogers.bsky.social",
-    "aleriiav.bsky.social",
-    "momoru.bsky.social",
-    "nanoless.bsky.social",
-    "l4wless.bsky.social",
-    "squeezable.bsky.social",
-] + NSFW_HANDLES + ART_HANDLES
+BSKY_HANDLES_TO_EXCLUDE = (
+    [
+        "clarkrogers.bsky.social",
+        "aleriiav.bsky.social",
+        "momoru.bsky.social",
+        "nanoless.bsky.social",
+        "l4wless.bsky.social",
+        "squeezable.bsky.social",
+    ]
+    + NSFW_HANDLES
+    + ART_HANDLES
+)
 
 
 def export_csv(handles: list[str], dids_to_exclude: list[str]):
@@ -106,6 +144,7 @@ def load_users_from_csv() -> pd.DataFrame:
         os.path.join(current_dir, "dids_to_exclude.csv")
     )
     return users_to_exclude
+
 
 def load_users_to_exclude() -> dict[str, set]:
     users_to_exclude = load_users_from_csv()
@@ -136,6 +175,7 @@ def get_dids_to_exclude(load_existing_exclusions: bool = False) -> list[str]:
             did = get_author_did_from_handle(handle)
         dids_to_exclude.append(did)
     return dids_to_exclude
+
 
 if __name__ == "__main__":
     dids_to_exclude = get_dids_to_exclude(load_existing_exclusions=True)
