@@ -18,7 +18,9 @@ excluded_cache_paths = [
 ]
 
 
-def migrate_directory_snapshot(relative_base_path: str) -> None:
+def migrate_directory_snapshot(
+    relative_base_path: str, allow_overwrite: bool = True
+) -> None:
     """Given a directory with 'active' and 'cache' subdirectories,
     copies the contents of the 'active' subdirectory to the 'cache' subdirectory.
     """
@@ -52,10 +54,24 @@ def migrate_directory_snapshot(relative_base_path: str) -> None:
             if not os.path.exists(new_partition_dir_path):
                 os.makedirs(new_partition_dir_path)
             for filename in filenames:
-                shutil.copy2(
-                    src=os.path.join(partition_dir_path, filename),
-                    dst=new_partition_dir_path,
-                )
+                # NOTE: I'll revisit this later. Parquet can append
+                # to a file that already exists, so I think it's probably OK
+                # to allow overwrites, and I don't think repeated computations
+                # are too bad.
+                if allow_overwrite:
+                    shutil.copy2(
+                        src=os.path.join(partition_dir_path, filename),
+                        dst=new_partition_dir_path,
+                    )
+                else:
+                    dst_file = os.path.join(new_partition_dir_path, filename)
+                    if not os.path.exists(dst_file):
+                        shutil.copy2(
+                            src=os.path.join(partition_dir_path, filename),
+                            dst=new_partition_dir_path,
+                        )
+                    else:
+                        logger.info(f"Skipping existing file: {dst_file}")
     else:
         logger.info(
             f"Current active directory does not exist: {current_active_directory}"
