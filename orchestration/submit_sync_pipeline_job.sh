@@ -1,10 +1,10 @@
 #!/bin/bash
 
 #SBATCH -A p32375
-#SBATCH -p normal
+#SBATCH -p long
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=3
-#SBATCH -t 24:00:00
+#SBATCH -t 96:00:00
 #SBATCH --mem=10G
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
