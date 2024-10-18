@@ -39,8 +39,8 @@ def snapshot_data():
 @flow(name="Compaction pipeline", log_prints=True)
 def compaction_pipeline():
     """Compacts all services and then snapshots the data."""
-    compact_all_services.submit(wait_for=False)
-    snapshot_data.submit(wait_for=[compact_all_services])
+    job_compact_all_services = compact_all_services.submit(wait_for=False)
+    snapshot_data.submit(wait_for=[job_compact_all_services])
 
 
 if __name__ == "__main__":
