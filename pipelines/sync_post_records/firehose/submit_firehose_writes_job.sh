@@ -19,7 +19,7 @@ PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 
 source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
 echo "Starting slurm job."
-python run_firehose_writes.py
+python "/projects/p32375/bluesky-research/pipelines/sync_post_records/firehose/run_firehose_writes.py"
 exit_code=$?
 echo "Python script exited with code $exit_code"
 if [ $exit_code -ne 0 ]; then
