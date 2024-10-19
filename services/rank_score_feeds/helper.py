@@ -163,7 +163,8 @@ def load_latest_processed_data(
     # get user social network
     user_social_network_df: pd.DataFrame = load_data_from_local_storage(
         service="scraped_user_social_network",
-        latest_timestamp=lookback_datetime_str,
+        latest_timestamp=None,
+        use_all_data=True,
         validate_pq_files=True,
     )
     social_dicts = user_social_network_df.to_dict(orient="records")
@@ -386,6 +387,8 @@ def postprocess_feed(
     previous_post_uris: set[str] = None,
 ) -> list[CustomFeedPost]:
     """Postprocesses the feed."""
+    # do feed postprocessing on a subset of the feed to save time.
+    feed = feed[:(max_feed_length * 2)]
 
     # ensure that there's a maximum % of old posts in the feed, so we
     # always have some fresh content.
@@ -407,6 +410,10 @@ def postprocess_feed(
 
     # jitter feed to slightly shuffle ordering
     feed = jitter_feed(feed=feed)
+
+    # validate feed lengths:
+    if len(feed) != max_feed_length:
+        raise ValueError(f"Feed length is not equal to max_feed_length: {len(feed)} != {max_feed_length}")
 
     return feed
 
