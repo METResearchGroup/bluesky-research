@@ -49,7 +49,7 @@ user_to_social_network_map_table_name = "user_social_networks"
 feeds_root_s3_key = "custom_feeds"
 dynamodb_table_name = "rank_score_feed_sessions"
 max_num_times_user_can_appear_in_feed = 3
-max_prop_old_posts = 0.8
+max_prop_old_posts = 0.6
 
 athena = Athena()
 s3 = S3()
