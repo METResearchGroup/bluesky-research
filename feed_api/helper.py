@@ -56,8 +56,10 @@ def parse_feed_string(feed_string: str) -> list[dict]:
 
     # Step 2: Surround the
     # did:plc:<some string>/app.bsky.feed.post/<some string> with quotes
+    # at://did:<any string>/app.bsky.feed.post/<some string> with quotes
     feed_string = re.sub(
-        r"(at://did:plc:[\w]+/app\.bsky\.feed\.post/\w+)", r'"\1"', feed_string
+        # r"(at://did:plc:[\w]+/app\.bsky\.feed\.post/\w+)", r'"\1"', feed_string
+        r"(at://did:[^/]+/app\.bsky\.feed\.post/\w+)", r'"\1"', feed_string
     )
 
     # Step 3: Parse the string into a list of dicts
