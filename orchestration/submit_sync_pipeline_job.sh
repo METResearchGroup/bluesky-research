@@ -18,7 +18,7 @@ CONDA_PATH="/hpc/software/mamba/23.1.0/etc/profile.d/conda.sh"
 PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 
 source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
-echo "Starting slurm job."
+echo "Starting sync pipeline slurm job."
 python "/projects/p32375/bluesky-research/orchestration/sync_pipeline.py"
 exit_code=$?
 echo "Python script exited with code $exit_code"
@@ -26,5 +26,5 @@ if [ $exit_code -ne 0 ]; then
     echo "Job failed with exit code $exit_code"
     exit $exit_code
 fi
-echo "Completed slurm job."
+echo "Completed sync pipeline slurm job."
 exit 0

@@ -118,6 +118,8 @@ def production_data_pipeline():
 
 
 if __name__ == "__main__":
+    production_data_pipeline()
+
     production_data_pipeline.serve(
         name="Production data pipeline",
         tags=["slurm", "prod"],
