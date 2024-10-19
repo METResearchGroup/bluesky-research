@@ -62,6 +62,12 @@ NSFW_HANDLES = [
     "terribleanimal.com",
     "poch4n.bsky.social",
     "waspsaladsfw.bsky.social",
+    "aruurara.bsky.social",
+    "skyaboveme.bsky.social",
+    "onlineworms.bsky.social",
+    "bacun.bsky.social",
+    "zakimpo.bsky.social",
+    "sammytighe.bsky.social"
 ]
 
 # art is nice, but users seem to prefer less art content
@@ -141,6 +147,18 @@ ART_HANDLES = [
     "thijikoy.bsky.social",
     "ggelus.bsky.social",
     "mittsumia.bsky.social",
+    "cinderone.bsky.social",
+    "beneceadraws.bsky.social",
+    "meyoco.bsky.social",
+    "sydusarts.bsky.social",
+    "monstersovka.bsky.social",
+    "limart05.bsky.social",
+    "maddestmao.com",
+    "par0llel.bsky.social",
+    "kurisuwu.bsky.social",
+    "merryweatherey.bsky.social",
+    "stellizard.bsky.social",
+    "inimeitiel.bsky.social",
 ]
 
 BSKY_HANDLES_TO_EXCLUDE = (
