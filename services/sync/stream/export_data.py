@@ -515,6 +515,53 @@ def export_reply_to_study_user_post_local(
     return replies_to_user_posts, filepaths
 
 
+def export_all_study_user_posts_local(base_path: str) -> tuple[list[dict], list[str]]:
+    pass
+
+
+def export_all_study_user_likes_local(base_path: str) -> tuple[list[dict], list[str]]:
+    pass
+
+
+def export_all_study_user_follows_local(base_path: str) -> tuple[list[dict], list[str]]:
+    pass
+
+
+def export_all_study_user_likes_on_user_posts_local(
+    base_path: str,
+) -> tuple[list[dict], list[str]]:
+    pass
+
+
+def export_all_study_user_reply_to_user_posts_local(
+    base_path: str,
+) -> tuple[list[dict], list[str]]:
+    # NOTE: each service should manage their data up to export_data_to_local_storage
+    # NOTE: each service should use pooling.
+    pass
+
+
+def export_all_study_user_activity_local_data():
+    all_posts, all_post_filepaths = export_all_study_user_posts_local()
+    all_likes, all_like_filepaths = export_all_study_user_likes_local()
+    all_follows, all_follow_filepaths = export_all_study_user_follows_local()
+    all_likes_on_user_posts, all_likes_on_user_posts_filepaths = (
+        export_all_study_user_likes_on_user_posts_local()
+    )
+    all_replies_to_user_posts, all_replies_to_user_posts_filepaths = (
+        export_all_study_user_reply_to_user_posts_local()
+    )
+
+    all_filepaths = (
+        all_post_filepaths
+        + all_like_filepaths
+        + all_follow_filepaths
+        + all_likes_on_user_posts_filepaths
+        + all_replies_to_user_posts_filepaths
+    )
+    return all_filepaths
+
+
 def export_study_user_activity_local_data() -> list[str]:
     """Exports the activity data of study users to external S3 store.
 
