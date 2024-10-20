@@ -2,10 +2,13 @@
 in one large table."""
 
 from datetime import timedelta
+import os
 
 import pandas as pd
 
-from lib.constants import current_datetime
+from lib.constants import current_datetime, current_datetime_str
+from lib.db.manage_local_data import export_data_to_local_storage
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
 
 
@@ -23,29 +26,155 @@ def generate_partition_dates(lookback_days: int = default_lookback_days) -> list
     return partition_dates
 
 
+def get_valid_partition_date_directory(local_prefix: str, partition_date: str) -> str:
+    """Gets the valid partition date directory for the given partition date.
+
+    First, checks the 'active' directory to see if the expected partition date
+    is there, and if not, checks the 'cache' directory.
+    """
+
+    expected_active_directory = os.path.join(local_prefix, "active", partition_date)
+    expected_cache_directory = os.path.join(local_prefix, "cache", partition_date)
+
+    if os.path.exists(expected_active_directory):
+        valid_directory = expected_active_directory
+    elif os.path.exists(expected_cache_directory):
+        valid_directory = expected_cache_directory
+    else:
+        raise ValueError(
+            f"No valid partition date directory found for partition date: {partition_date}"
+        )
+
+    return valid_directory
+
+
 def aggregate_latest_user_likes(partition_date: str) -> pd.DataFrame:
     """Collects the latest user likes for the given partition date."""
-    pass
+
+    valid_directory = get_valid_partition_date_directory(
+        local_prefix=MAP_SERVICE_TO_METADATA["study_user_likes"]["local_prefix"],
+        partition_date=partition_date,
+    )
+
+    if not valid_directory:
+        raise ValueError(
+            f"No valid user likes directory found for partition date: {partition_date}"
+        )
+
+    df: pd.DataFrame = pd.read_parquet(valid_directory)
+    dtypes_map = MAP_SERVICE_TO_METADATA["study_user_likes"]["dtypes_map"]
+    df = df.astype(dtypes_map)
+
+    df["author_did"] = ""
+    df["author_handle"] = ""
+    df["data_type"] = "likes"
+    df["data"] = ""
+    df["activity_timestamp"] = ""
+    return df
 
 
 def aggregate_latest_user_follows(partition_date: str) -> pd.DataFrame:
     """Collects the latest user follows for the given partition date."""
-    pass
+    valid_directory = get_valid_partition_date_directory(
+        local_prefix=MAP_SERVICE_TO_METADATA["scraped_user_social_network"][
+            "local_prefix"
+        ],
+        partition_date=partition_date,
+    )
+
+    if not valid_directory:
+        raise ValueError(
+            f"No valid user follows directory found for partition date: {partition_date}"
+        )
+
+    df: pd.DataFrame = pd.read_parquet(valid_directory)
+    dtypes_map = MAP_SERVICE_TO_METADATA["scraped_user_social_network"]["dtypes_map"]
+    df = df.astype(dtypes_map)
+
+    df["author_did"] = ""
+    df["author_handle"] = ""
+    df["data_type"] = "follow"
+    df["data"] = ""
+    df["activity_timestamp"] = ""
+    return df
 
 
 def aggregate_latest_user_posts(partition_date: str) -> pd.DataFrame:
     """Collects the latest user posts for the given partition date."""
-    pass
+    valid_directory = get_valid_partition_date_directory(
+        local_prefix=MAP_SERVICE_TO_METADATA["study_user_activity"]["local_prefix"],
+        partition_date=partition_date,
+    )
+
+    if not valid_directory:
+        raise ValueError(
+            f"No valid user posts directory found for partition date: {partition_date}"
+        )
+
+    df: pd.DataFrame = pd.read_parquet(valid_directory)
+    dtypes_map = MAP_SERVICE_TO_METADATA["study_user_activity"]["dtypes_map"]
+    df = df.astype(dtypes_map)
+
+    df["author_did"] = ""
+    df["author_handle"] = ""
+    df["data_type"] = "post"
+    df["data"] = ""
+    df["activity_timestamp"] = ""
+    return df
 
 
 def aggregate_latest_user_likes_on_user_posts(partition_date: str) -> pd.DataFrame:
     """Collects the latest user likes on user posts for the given partition date."""
-    pass
+    valid_directory = get_valid_partition_date_directory(
+        local_prefix=MAP_SERVICE_TO_METADATA["study_user_like_on_user_post"][
+            "local_prefix"
+        ],
+        partition_date=partition_date,
+    )
+
+    if not valid_directory:
+        raise ValueError(
+            f"No valid likes on user posts directory found for partition date: {partition_date}"
+        )
+
+    df: pd.DataFrame = pd.read_parquet(valid_directory)
+    dtypes_map = MAP_SERVICE_TO_METADATA["study_user_like_on_user_post"]["dtypes_map"]
+    df = df.astype(dtypes_map)
+
+    df["author_did"] = ""
+    df["author_handle"] = ""
+    df["data_type"] = "like_on_user_post"
+    df["data"] = ""
+    df["activity_timestamp"] = ""
+    return df
 
 
+# TODO: these still need to be migrated and compacted I think, and then
+# also added to compaction and data snapshot logics.
 def aggregate_latest_user_reply_to_user_posts(partition_date: str) -> pd.DataFrame:
     """Collects the latest user replies to user posts for the given partition date."""
-    pass
+    valid_directory = get_valid_partition_date_directory(
+        local_prefix=MAP_SERVICE_TO_METADATA["study_user_reply_to_user_post"][
+            "local_prefix"
+        ],
+        partition_date=partition_date,
+    )
+
+    if not valid_directory:
+        raise ValueError(
+            f"No valid replies to user posts directory found for partition date: {partition_date}"
+        )
+
+    df: pd.DataFrame = pd.read_parquet(valid_directory)
+    dtypes_map = MAP_SERVICE_TO_METADATA["study_user_reply_to_user_post"]["dtypes_map"]
+    df = df.astype(dtypes_map)
+
+    df["author_did"] = ""
+    df["author_handle"] = ""
+    df["data_type"] = "reply_to_user_post"
+    df["data"] = ""
+    df["activity_timestamp"] = ""
+    return df
 
 
 def aggregate_latest_user_activities(partition_date: str) -> pd.DataFrame:
@@ -76,7 +205,17 @@ def export_latest_user_activities(
     partition_date: str,
 ) -> None:
     """Exports the latest user activities for the given partition date."""
-    pass
+    activities_df["insert_timestamp"] = current_datetime_str
+    activities_df["partition_date"] = partition_date
+    dtypes_map = MAP_SERVICE_TO_METADATA["aggregated_study_user_activities"][
+        "dtypes_map"
+    ]
+    activities_df = activities_df.astype(dtypes_map)
+    export_data_to_local_storage(
+        service="aggregated_study_user_activities",
+        df=activities_df,
+        export_format="parquet",
+    )
 
 
 def main():
