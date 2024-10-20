@@ -79,7 +79,10 @@ MAP_SERVICE_TO_METADATA = {
     "study_user_reposts": {},
     "study_user_like_on_user_post": {
         "local_prefix": os.path.join(
-            root_local_data_directory, "study_user_activity", "create", "like_on_user_post"
+            root_local_data_directory,
+            "study_user_activity",
+            "create",
+            "like_on_user_post",
         ),
         "primary_key": "uri",
         "timestamp_field": "synctimestamp",
@@ -95,7 +98,10 @@ MAP_SERVICE_TO_METADATA = {
     },
     "study_user_reply_to_user_post": {
         "local_prefix": os.path.join(
-            root_local_data_directory, "study_user_activity", "create", "reply_to_user_post"
+            root_local_data_directory,
+            "study_user_activity",
+            "create",
+            "reply_to_user_post",
         ),
         "s3_prefix": "",
         "glue_table_name": "",
@@ -502,6 +508,25 @@ MAP_SERVICE_TO_METADATA = {
             "most_liked": os.path.join(
                 root_local_data_directory, "preprocessed_posts", "most_liked"
             ),
+        },
+    },
+    "aggregated_study_user_activities": {
+        "local_prefix": os.path.join(
+            root_local_data_directory, "aggregated_study_user_activities"
+        ),
+        "s3_prefix": "",
+        "glue_table_name": "",
+        "primary_key": "",  # NOTE: make a compound key? Either pass in multiple cols or comma-join the fields?
+        "timestamp_field": "activity_timestamp",
+        "skip_deduping": True,
+        "pydantic_model": "",
+        "dtypes_map": {
+            "author_did": "string",
+            "author_handle": "string",
+            "data_type": "string",
+            "data": "string",
+            "activity_timestamp": "string",  # actual timestamp of the activity itself.
+            "insert_timestamp": "string",  # timestamp it was inserted into 'aggregated_study_user_activities'
         },
     },
 }
