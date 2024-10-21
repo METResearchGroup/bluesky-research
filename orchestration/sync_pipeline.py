@@ -3,6 +3,8 @@
 import os
 
 from prefect import task, flow
+from prefect.deployments import Deployment
+from prefect.server.schemas.schedules import CronSchedule
 
 from orchestration.helper import pipelines_directory, run_slurm_job
 
@@ -63,20 +65,27 @@ def sync_most_liked_pipeline():
 
 
 if __name__ == "__main__":
-    # kick off the data pipeline as soon as the script is run.
-    sync_data_pipeline(run_most_liked=True)
+    # Create deployments
+    # NOTE: shouldn't be triggered since "sync_data_pipeline(run_most_liked=True)"
+    # will be a long-running process.
+    # daily_sync_deployment = Deployment.build_from_flow(
+    #     flow=sync_data_pipeline,
+    #     name="Daily Sync Pipeline",
+    #     schedule=CronSchedule(cron="0 8 * * *"),
+    #     tags=["slurm", "prod", "firehose"],
+    #     parameters={"run_most_liked": False},
+    # )
 
-    # Deploy the main pipeline (runs daily, without most_liked)
-    sync_data_pipeline.serve(
-        name="Daily Sync Pipeline",
-        tags=["slurm", "prod", "firehose"],
-        cron="0 8 * * *",
-        parameters={"run_most_liked": False},
-    )
-
-    # Deploy the most liked pipeline (runs every 4 hours)
-    sync_most_liked_pipeline.serve(
+    most_liked_deployment = Deployment.build_from_flow(
+        flow=sync_most_liked_pipeline,
         name="Most Liked Sync Pipeline",
+        schedule=CronSchedule(cron="0 */4 * * *"),
         tags=["slurm", "prod", "most_liked"],
-        cron="0 */4 * * *",
     )
+
+    # Apply deployments
+    # daily_sync_deployment.apply()
+    most_liked_deployment.apply()
+
+    # Run the initial sync_data_pipeline
+    sync_data_pipeline(run_most_liked=True)
