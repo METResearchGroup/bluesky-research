@@ -53,6 +53,21 @@ feed_to_info_map = {
         "url": "https://bsky.app/profile/did:plc:tenurhgjptubkk5zf5qhi3og/feed/whats-reposted",  # noqa
         "limit": 200,
     },
+    "Top (1h)": {
+        "description": "The most popular posts in the last hour",
+        "url": "https://bsky.app/profile/q6gjnaw2blty4crticxkmujt/feed/top-1h",
+        "limit": 400
+    },
+    "Top (24h)": {
+        "description": "The most popular posts in the last day",
+        "url": "https://bsky.app/profile/q6gjnaw2blty4crticxkmujt/feed/top-24h",
+        "limit": 400
+    },
+    "What's Hot": {
+        "description": "A copy of the old What's Hot feed, maintained by jaz.bsky.social",
+        "url": "https://bsky.app/profile/q6gjnaw2blty4crticxkmujt/feed/whats-hot",
+        "limit": 400
+    },
     "US Politics": {
         "description": "US Politics",
         # "url": "https://bsky.app/profile/itsonelouder.com/feed/aaadhh6hwvaca",
