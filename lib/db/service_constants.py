@@ -527,6 +527,7 @@ MAP_SERVICE_TO_METADATA = {
             "data": "string",
             "activity_timestamp": "string",  # actual timestamp of the activity itself.
             "insert_timestamp": "string",  # timestamp it was inserted into 'aggregated_study_user_activities'
+            "partition_date": "string",
         },
     },
 }
