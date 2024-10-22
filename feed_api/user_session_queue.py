@@ -48,8 +48,12 @@ def background_s3_writer():
                 f"partition_date={partition_date}",
                 filename,
             )
+            backup_key = os.path.join(
+                "backup_user_session_logs", f"partition_date={partition_date}", filename
+            )
             s3.write_dicts_jsonl_to_s3(data=logs_to_write, key=key)
+            s3.write_dicts_jsonl_to_s3(data=logs_to_write, key=backup_key)
             logger.info(
-                f"Exported {len(logs_to_write)} user session logs to S3 to key={key}"
+                f"Exported {len(logs_to_write)} user session logs to S3 to key={key} and backup key {backup_key}"
             )  # noqa
         time.sleep(time_to_flush_seconds)
