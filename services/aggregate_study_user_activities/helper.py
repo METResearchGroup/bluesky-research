@@ -404,7 +404,6 @@ def main():
         lookback_days=lookback_days
     )
     logger.info(f"Aggregating all user activities from dates: {partition_dates}")
-    breakpoint()
     for partition_date in partition_dates:
         logger.info("*" * 10)
         logger.info(
