@@ -228,16 +228,16 @@ def aggregate_latest_user_activities(partition_date: str) -> pd.DataFrame:
     latest_user_likes_on_user_posts = aggregate_latest_user_likes_on_user_posts(
         partition_date
     )
-    latest_user_reply_to_user_posts = aggregate_latest_user_reply_to_user_posts(
-        partition_date
-    )
+    # latest_user_reply_to_user_posts = aggregate_latest_user_reply_to_user_posts(
+    #     partition_date
+    # )
     latest_activities = pd.concat(
         [
             latest_user_likes,
             latest_user_follows,
             latest_user_posts,
             latest_user_likes_on_user_posts,
-            latest_user_reply_to_user_posts,
+            # latest_user_reply_to_user_posts,
         ]
     )
     return latest_activities
