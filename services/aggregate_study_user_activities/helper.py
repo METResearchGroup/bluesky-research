@@ -56,9 +56,10 @@ def get_valid_partition_date_directory(local_prefix: str, partition_date: str) -
     elif os.path.exists(expected_cache_directory):
         valid_directory = expected_cache_directory
     else:
-        raise ValueError(
-            f"No valid partition date directory found for partition date: {partition_date}"
-        )
+        # raise ValueError(
+        #     f"No valid partition date directory found for partition date: {partition_date}"
+        # )
+        return None
 
     return valid_directory
 
@@ -75,8 +76,16 @@ def aggregate_latest_user_likes(partition_date: str) -> pd.DataFrame:
         logger.warning(
             f"No valid user likes directory found for partition date: {partition_date}"
         )
+        df = pd.DataFrame(columns=cols_to_keep)
+        return df
 
     df: pd.DataFrame = pd.read_parquet(valid_directory)
+    if len(df) == 0:
+        logger.warning(
+            f"No likes found for partition date: {partition_date}"
+        )
+        df = pd.DataFrame(columns=cols_to_keep)
+
     dtypes_map = MAP_SERVICE_TO_METADATA["study_user_likes"]["dtypes_map"]
     if "partition_date" in dtypes_map:
         dtypes_map.pop("partition_date")
@@ -105,8 +114,15 @@ def aggregate_latest_user_follows(partition_date: str) -> pd.DataFrame:
         logger.warning(
             f"No valid user follows directory found for partition date: {partition_date}"
         )
+        df = pd.DataFrame(columns=cols_to_keep)
+        return df
 
     df: pd.DataFrame = pd.read_parquet(valid_directory)
+    if len(df) == 0:
+        logger.warning(
+            f"No user follows found for partition date: {partition_date}"
+        )
+        df = pd.DataFrame(columns=cols_to_keep)
 
     # making a note to convert the dtypes here to make sure that there's no
     # implicit string -> complex dtype conversion happening
@@ -166,13 +182,21 @@ def aggregate_latest_user_posts(partition_date: str) -> pd.DataFrame:
         logger.warning(
             f"No valid user posts directory found for partition date: {partition_date}"
         )
+        df = pd.DataFrame(columns=cols_to_keep)
+        return df
 
     df: pd.DataFrame = pd.read_parquet(valid_directory)
+    if len(df) == 0:
+        logger.warning(
+            f"No user posts found for partition date: {partition_date}"
+        )
+        df = pd.DataFrame(columns=cols_to_keep)
 
     # making a note to convert the dtypes here to make sure that there's no
     # implicit string -> complex dtype conversion happening
     dtypes_map = MAP_SERVICE_TO_METADATA["study_user_activity"]["dtypes_map"]
-    dtypes_map.pop("partition_date")
+    if "partition_date" in dtypes_map:
+        dtypes_map.pop("partition_date")
     df = df.astype(dtypes_map)
 
     df["author_did"] = df["author_did"]
@@ -225,8 +249,15 @@ def aggregate_latest_user_likes_on_user_posts(partition_date: str) -> pd.DataFra
         logger.warning(
             f"No valid likes on user posts directory found for partition date: {partition_date}"
         )
+        df = pd.DataFrame(columns=cols_to_keep)
+        return df
 
     df: pd.DataFrame = pd.read_parquet(valid_directory)
+    if len(df) == 0:
+        logger.warning(
+            f"No likes on user posts found for partition date: {partition_date}"
+        )
+        df = pd.DataFrame(columns=cols_to_keep)
     
     # making a note to convert the dtypes here to make sure that there's no
     # implicit string -> complex dtype conversion happening
@@ -257,11 +288,20 @@ def aggregate_latest_user_reply_to_user_posts(partition_date: str) -> pd.DataFra
     )
 
     if not valid_directory:
-        raise ValueError(
+        logger.warning(
             f"No valid replies to user posts directory found for partition date: {partition_date}"
         )
+        df = pd.DataFrame(columns=cols_to_keep)
+        return df
 
     df: pd.DataFrame = pd.read_parquet(valid_directory)
+
+    if len(df) == 0:
+        logger.warning(
+            f"No replies to user posts found for partition date: {partition_date}"
+        )
+        df = pd.DataFrame(columns=cols_to_keep)
+
     dtypes_map = MAP_SERVICE_TO_METADATA["study_user_reply_to_user_post"]["dtypes_map"]
     df = df.astype(dtypes_map)
 
@@ -279,6 +319,12 @@ def aggregate_latest_user_session_logs(partition_date: str) -> None:
     """Exports the latest user session logs for the given partition date."""
     query = f"SELECT * FROM user_session_logs WHERE partition_date = '{partition_date}'"
     df: pd.DataFrame = athena.query_results_as_df(query)
+
+    if len(df) == 0:
+        logger.warning(
+            f"No user session logs found for partition date: {partition_date}"
+        )
+        df = pd.DataFrame(columns=cols_to_keep)
 
     df["author_did"] = df["user_did"]
     df["author_handle"] = df["user_did"].map(map_author_did_to_author_handle)
@@ -345,7 +391,6 @@ def export_latest_user_activities(
     logger.info(
         f"Counts of each activity type: {activities_df['data_type'].value_counts()}"
     )
-    breakpoint()
     export_data_to_local_storage(
         service="aggregated_study_user_activities",
         df=activities_df,
@@ -354,10 +399,12 @@ def export_latest_user_activities(
 
 
 def main():
+    lookback_days = default_lookback_days
     partition_dates: list[str] = generate_partition_dates(
-        lookback_days=default_lookback_days
+        lookback_days=lookback_days
     )
-    partition_dates = ["2024-10-10"]  # TODO: remove.
+    logger.info(f"Aggregating all user activities from dates: {partition_dates}")
+    breakpoint()
     for partition_date in partition_dates:
         logger.info("*" * 10)
         logger.info(
