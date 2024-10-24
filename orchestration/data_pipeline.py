@@ -9,7 +9,7 @@ from orchestration.helper import pipelines_directory, run_slurm_job
 current_directory = os.getcwd()
 
 
-num_hours_kickoff = 3  # kick off pipeline every 3 hours
+num_hours_kickoff = 2  # kick off pipeline every 2 hours
 num_minutes_kickoff = 60 * num_hours_kickoff
 num_seconds_kickoff = num_minutes_kickoff * 60
 
@@ -112,9 +112,6 @@ def production_data_pipeline():
             ]
         )
     )
-
-    # run scoring, ranking, and feed generation after enrichment integrations are finished.
-    rank_score_feeds.submit(wait_for=[job_consolidate_enrichment_integrations])
 
 
 if __name__ == "__main__":
