@@ -32,7 +32,8 @@ logger = get_logger(__name__)
 LLM_MODEL_NAME = "GPT-4o mini"
 DEFAULT_BATCH_SIZE = 100
 DEFAULT_MINIBATCH_SIZE = 10
-max_num_posts = 15_000  # given our batching, we can handle ~500 posts/minute.
+# max_num_posts = 15_000  # given our batching, we can handle ~500 posts/minute.
+max_num_posts = 40_000  # should run in ~40 minutes with current runtime.
 
 
 def generate_prompt(posts: list[FilteredPreprocessedPostModel]) -> str:
