@@ -54,4 +54,4 @@ if __name__ == "__main__":
     # )
 
     # Run the initial sync_data_pipeline
-    sync_data_pipeline(run_most_liked=True)
+    sync_data_pipeline()
