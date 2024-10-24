@@ -2756,6 +2756,47 @@ resource "aws_glue_catalog_table" "daily_superposters" {
   }
 }
 
+resource "aws_glue_catalog_table" "exported_study_users" {
+  name          = "exported_study_users"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/exported_study_users/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "exported_study_users_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+    columns {
+      name = "bluesky_handle"
+      type = "string"
+    }
+    columns {
+      name = "bluesky_user_did"
+      type = "string"
+    }
+    columns {
+      name = "condition"
+      type = "string"
+    }
+    columns {
+      name = "created_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "is_study_user"
+      type = "boolean"
+    }
+    columns {
+      name = "study_user_id"
+      type = "string"
+    }
+  }
+}
+
 
 resource "aws_glue_catalog_table" "user_session_logs" {
   name          = "user_session_logs"
