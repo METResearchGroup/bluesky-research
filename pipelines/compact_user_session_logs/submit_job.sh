@@ -19,7 +19,7 @@ PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 
 source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
 echo "Starting slurm job."
-python handler.py
+python "/projects/p32375/bluesky-research/pipelines/compact_user_session_logs/handler.py"
 exit_code=$?
 echo "Python script exited with code $exit_code"
 if [ $exit_code -ne 0 ]; then
