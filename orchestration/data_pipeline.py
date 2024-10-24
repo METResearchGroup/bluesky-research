@@ -1,4 +1,4 @@
-"""Test file for experimenting with Prefect."""
+"""Data pipeline orchestration."""
 
 import os
 
@@ -9,7 +9,7 @@ from orchestration.helper import pipelines_directory, run_slurm_job
 current_directory = os.getcwd()
 
 
-num_hours_kickoff = 3  # kick off pipeline every 3 hours
+num_hours_kickoff = 2  # kick off pipeline every 2 hours
 num_minutes_kickoff = 60 * num_hours_kickoff
 num_seconds_kickoff = num_minutes_kickoff * 60
 
@@ -74,18 +74,6 @@ def consolidate_enrichment_integrations():
     return result
 
 
-@task(log_prints=True)
-def rank_score_feeds():
-    """Scores posts, ranks them, and generates feeds."""
-    bash_script_path = os.path.join(
-        pipelines_directory, "rank_score_feeds", "submit_job.sh"
-    )
-    result = run_slurm_job(bash_script_path)
-    if result is None:
-        raise Exception("SLURM job failed in rank_score_feeds task")
-    return result
-
-
 @flow(name="Production data pipeline", log_prints=True)
 def production_data_pipeline():
     # kick off preprocessing.
@@ -103,18 +91,13 @@ def production_data_pipeline():
     )
 
     # run enrichment integration consolidation after all integrations are finished.
-    job_consolidate_enrichment_integrations = (
-        consolidate_enrichment_integrations.submit(
-            wait_for=[
-                job_calculate_superposters,
-                job_run_ml_inference_perspective_api,
-                job_run_ml_inference_sociopolitical,
-            ]
-        )
+    consolidate_enrichment_integrations.submit(
+        wait_for=[
+            job_calculate_superposters,
+            job_run_ml_inference_perspective_api,
+            job_run_ml_inference_sociopolitical,
+        ]
     )
-
-    # run scoring, ranking, and feed generation after enrichment integrations are finished.
-    rank_score_feeds.submit(wait_for=[job_consolidate_enrichment_integrations])
 
 
 if __name__ == "__main__":
