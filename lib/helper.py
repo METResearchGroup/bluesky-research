@@ -45,6 +45,7 @@ NEWSAPI_API_KEY = os.getenv("NEWSAPI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 MONGODB_URI = os.getenv("MONGODB_URI")
 LANGTRACE_API_KEY = os.getenv("LANGTRACE_API_KEY")
+COMET_API_KEY = os.getenv("COMET_API_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

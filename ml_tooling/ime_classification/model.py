@@ -13,6 +13,8 @@ from torch.utils.data import Dataset, DataLoader
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 default_num_classes = 4
+default_batch_size = 512
+default_minibatch_size = 32
 
 
 def get_device():
@@ -94,7 +96,7 @@ class MultiLabelClassifier(nn.Module):
         pretrained_weights_path = model_name = model_to_asset_paths_map[model][
             "pretrained_weights_path"
         ]
-        state_dict = torch.load(pretrained_weights_path)
+        state_dict = torch.load(pretrained_weights_path, map_location=device)
         self.load_state_dict(state_dict)
 
     def forward(self, input_ids, attention_mask):
@@ -134,11 +136,18 @@ class TextDataset(Dataset):
     """
 
     def __init__(
-        self, tokenizer: AutoTokenizer, df: pd.DataFrame, mode: Literal["train", "test"]
+        self,
+        tokenizer: AutoTokenizer,
+        df: pd.DataFrame,
+        mode: Literal["train", "test"],
+        batch_size: int = default_minibatch_size,
     ):
         self.tokenizer = tokenizer
         self.texts = df["text"].tolist()
         self.mode = mode
+        self.df = df
+        self.texts = df["text"].tolist()
+        self.batch_size = batch_size
         if mode == "train":
             self.labels = df[["Emotion", "Intergroup", "Moral", "Other"]].values
         else:
@@ -147,36 +156,60 @@ class TextDataset(Dataset):
     def __len__(self):
         return len(self.texts)
 
-    def __getitem__(self, idx):
-        text = self.texts[idx]
-        if self.mode == "train":
-            labels = self.labels[idx]
-        else:
-            labels = None
-        inputs = self.tokenizer(
-            text,
-            add_special_tokens=True,  # Add '[CLS]' and '[SEP]'
-            return_tensors="pt",  # Return PyTorch tensors
-            padding="max_length",  # Pad to a length specified by the max_length argument
-            truncation=True,
-        )
-        input_ids = inputs["input_ids"].squeeze()
-        attention_mask = inputs["attention_mask"].squeeze()
-        if self.mode == "train":
-            return {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-                "labels": torch.tensor(labels, dtype=torch.float),
+    def __iter__(self):
+        """Iterate over the dataset in batches."""
+        for i in range(0, len(self.texts), self.batch_size):
+            batch_texts = self.texts[i : i + self.batch_size]
+
+            inputs = self.tokenizer(
+                batch_texts,
+                add_special_tokens=True,
+                return_tensors="pt",
+                padding="max_length",
+                truncation=True,
+            )
+
+            batch = {
+                "input_ids": inputs["input_ids"],
+                "attention_mask": inputs["attention_mask"],
             }
-        else:
-            return {"input_ids": input_ids, "attention_mask": attention_mask}
+
+            yield batch
+
+    # def __getitem__(self, idx):
+    #     text = self.texts[idx]
+    #     if self.mode == "train":
+    #         labels = self.labels[idx]
+    #     else:
+    #         labels = None
+    #     inputs = self.tokenizer(
+    #         text,
+    #         add_special_tokens=True,  # Add '[CLS]' and '[SEP]'
+    #         return_tensors="pt",  # Return PyTorch tensors
+    #         padding="max_length",  # Pad to a length specified by the max_length argument
+    #         truncation=True,
+    #     )
+    #     input_ids = inputs["input_ids"].squeeze()
+    #     attention_mask = inputs["attention_mask"].squeeze()
+    #     if self.mode == "train":
+    #         return {
+    #             "input_ids": input_ids,
+    #             "attention_mask": attention_mask,
+    #             "labels": torch.tensor(labels, dtype=torch.float),
+    #         }
+    #     else:
+    #         return {"input_ids": input_ids, "attention_mask": attention_mask}
 
 
 def default_to_other(preds):
     """
     defualt labeling 0,0,0,0 output to 0,0,0,1.
+    (the last class is "other")
     Inputs:
         preds: numpy array of shape (n_samples, 4)
+
+    Creates a boolean mask that is True for rows where the sum across all
+    columns is zero. For those rows, it sets the value of the last column to 1.
     """
     new_preds = preds.copy()
     new_preds[(new_preds.sum(axis=1) == 0), 3] = 1

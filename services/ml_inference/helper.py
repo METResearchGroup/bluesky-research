@@ -69,7 +69,7 @@ def insert_labeling_session(labeling_session: dict):
 
 
 def get_posts_to_classify(
-    inference_type: Literal["llm", "perspective_api"],
+    inference_type: Literal["llm", "perspective_api", "ime"],
     timestamp: Optional[str] = None,
     max_per_source: Optional[int] = None,
 ) -> list[FilteredPreprocessedPostModel]:
@@ -107,6 +107,10 @@ def get_posts_to_classify(
             "ml_inference_perspective_api"
             if inference_type == "perspective_api"
             else "ml_inference_sociopolitical"
+            if inference_type == "llm"
+            else "ml_inference_ime"
+            if inference_type == "ime"
+            else None
         ),
         latest_timestamp=timestamp,
         max_per_source=max_per_source,
