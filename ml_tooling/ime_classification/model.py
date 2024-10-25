@@ -137,7 +137,7 @@ class TextDataset(Dataset):
         self, tokenizer: AutoTokenizer, df: pd.DataFrame, mode: Literal["train", "test"]
     ):
         self.tokenizer = tokenizer
-        self.texts = df["Word"].tolist()
+        self.texts = df["text"].tolist()
         self.mode = mode
         if mode == "train":
             self.labels = df[["Emotion", "Intergroup", "Moral", "Other"]].values
