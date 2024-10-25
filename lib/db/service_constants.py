@@ -401,6 +401,38 @@ MAP_SERVICE_TO_METADATA = {
             ),
         },
     },
+    "ml_inference_ime": {
+        "local_prefix": os.path.join(root_local_data_directory, "ml_inference_ime"),
+        "s3_prefix": "ml_inference_ime",
+        "glue_table_name": "ml_inference_ime",
+        "primary_key": "uri",
+        "timestamp_field": "label_timestamp",
+        "skip_deduping": False,
+        "pydantic_model": "",
+        "dtypes_map": {
+            "uri": "string",
+            "text": "string",
+            "prob_emotion": "Float64",
+            "prob_intergroup": "Float64",
+            "prob_moral": "Float64",
+            "prob_other": "Float64",
+            "label_emotion": "Int64",
+            "label_intergroup": "Int64",
+            "label_moral": "Int64",
+            "label_other": "Int64",
+            "source": "string",
+            "label_timestamp": "string",
+            "partition_date": "string",
+        },
+        "subpaths": {
+            "firehose": os.path.join(
+                root_local_data_directory, "ml_inference_ime", "firehose"
+            ),
+            "most_liked": os.path.join(
+                root_local_data_directory, "ml_inference_ime", "most_liked"
+            ),
+        },
+    },
     "in_network_user_activity": {
         "local_prefix": os.path.join(
             root_local_data_directory, "in_network_user_activity"
