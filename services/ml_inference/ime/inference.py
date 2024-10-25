@@ -25,7 +25,7 @@ from services.ml_inference.helper import get_posts_to_classify, insert_labeling_
 from services.ml_inference.ime.export_data import export_results, write_posts_to_cache
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
-max_num_posts = 40_000
+max_num_posts = 200_000 # can run quite a few at a time due to GPU speedups.
 
 default_model = "distilbert"
 model, tokenizer = load_model_and_tokenizer(default_model)
@@ -243,6 +243,8 @@ def run_batch_classification(
 
     total_start_time = time.time()
 
+    dfs = []
+
     for i, batched_df in enumerate(batched_dfs):
         batch_start_time = time.time()
 
@@ -292,7 +294,9 @@ def run_batch_classification(
         batch_time = batch_end_time - batch_start_time
         batch_times.append(batch_time)
         logger.info(f"Batch {i}/{total_df_batches} finished in {batch_time} seconds.")
+        dfs.append(results_df)
 
+    export_df = pd.concat(dfs)
     total_end_time = time.time()
     total_time = total_end_time - total_start_time
     logger.info(f"Total batch run finished in {total_time} seconds.")
@@ -305,7 +309,7 @@ def run_batch_classification(
         }
     )
 
-    return df
+    return export_df
 
 
 def classify_latest_posts(

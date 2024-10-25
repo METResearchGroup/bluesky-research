@@ -72,6 +72,9 @@ def export_classified_posts() -> dict:
 
     dtypes_map = MAP_SERVICE_TO_METADATA["ml_inference_ime"]["dtypes_map"]
     for source, df in source_to_posts_tuples:
+        if df.empty:
+            logger.info(f"No posts to export for {source}.")
+            continue
         df = df.astype(dtypes_map)
         df["partition_date"] = pd.to_datetime(
             df["label_timestamp"], format=timestamp_format

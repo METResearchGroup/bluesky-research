@@ -27,7 +27,7 @@ def get_device():
     else:
         print("GPU not available, using CPU")
         device = torch.device("cpu")
-        raise ValueError("GPU not available, using CPU")
+        # raise ValueError("GPU not available, using CPU")
     return device
 
 
