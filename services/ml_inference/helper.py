@@ -23,7 +23,7 @@ MIN_POST_TEXT_LENGTH = 5
 
 
 def get_latest_labeling_session(
-    inference_type: Literal["llm", "perspective_api"],
+    inference_type: Literal["llm", "perspective_api", "ime"],
 ) -> dict:  # noqa
     """Get the latest labeling session for the inference type."""
     # Query the table to get items by inference_type

@@ -25,7 +25,8 @@ from services.ml_inference.helper import get_posts_to_classify, insert_labeling_
 from services.ml_inference.ime.export_data import export_results, write_posts_to_cache
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
-max_num_posts = 200_000 # can run quite a few at a time due to GPU speedups.
+max_num_posts = 40_000 # can run quite a few at a time due to GPU speedups.
+# max_num_posts = 200_000 # can run quite a few at a time due to GPU speedups.
 
 default_model = "distilbert"
 model, tokenizer = load_model_and_tokenizer(default_model)
