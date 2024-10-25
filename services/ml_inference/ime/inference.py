@@ -5,6 +5,7 @@ import time
 from typing import Literal, Optional
 
 from comet_ml import Experiment
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
@@ -34,7 +35,7 @@ logger = get_logger(__name__)
 
 project_name = "IME classification inference"
 workspace = "mtorres98"
-experiment_name = f"ime_classification_inference_{current_datetime_str}"
+# experiment_name = f"ime_classification_inference_{current_datetime_str}"
 
 
 def batch_classify_posts(
@@ -66,8 +67,8 @@ def batch_classify_posts(
             all_probabilities.extend(probs)
             all_preds.extend(preds)
 
-    all_probabilities = np.array(all_probabilities)
-    all_preds = np.array(all_preds)
+    probabilities = np.array(all_probabilities)
+    preds = np.array(all_preds)
 
     probs_emotion = probabilities[:, 0]
     probs_intergroup = probabilities[:, 1]
@@ -92,6 +93,109 @@ def batch_classify_posts(
     return df
 
 
+def plot_and_logs_probs(
+    probs_emotion: np.ndarray,
+    probs_intergroup: np.ndarray,
+    probs_moral: np.ndarray,
+    probs_other: np.ndarray,
+    batch_num: int,
+    experiment: Experiment,
+) -> None:
+    plt.figure(figsize=(10, 8))
+
+    plt.subplot(2, 2, 1)
+    plt.hist(probs_emotion, bins=50, alpha=0.75)
+    plt.title(f"Batch {batch_num} - Emotion Probabilities")
+    plt.xlabel("Probability")
+    plt.ylabel("Frequency")
+    plt.grid(True)
+
+    plt.subplot(2, 2, 2)
+    plt.hist(probs_intergroup, bins=50, alpha=0.75)
+    plt.title(f"Batch {batch_num} - Intergroup Probabilities")
+    plt.xlabel("Probability")
+    plt.ylabel("Frequency")
+    plt.grid(True)
+
+    plt.subplot(2, 2, 3)
+    plt.hist(probs_moral, bins=50, alpha=0.75)
+    plt.title(f"Batch {batch_num} - Moral Probabilities")
+    plt.xlabel("Probability")
+    plt.ylabel("Frequency")
+    plt.grid(True)
+
+    plt.subplot(2, 2, 4)
+    plt.hist(probs_other, bins=50, alpha=0.75)
+    plt.title(f"Batch {batch_num} - Other Probabilities")
+    plt.xlabel("Probability")
+    plt.ylabel("Frequency")
+    plt.grid(True)
+
+    plt.tight_layout()
+    fig = plt.gcf()
+    experiment.log_figure(figure_name=f"Batch {batch_num} - Probabilities", figure=fig)
+    plt.close(fig)
+
+
+def plot_and_log_labels(
+    labels_emotion: pd.Series,
+    labels_intergroup: pd.Series,
+    labels_moral: pd.Series,
+    labels_other: pd.Series,
+    batch_num: int,
+    experiment: Experiment,
+) -> None:
+    """
+    Plot and log bar charts of label frequencies.
+
+    Args:
+        labels_emotion (pd.Series): Series of emotion labels.
+        labels_intergroup (pd.Series): Series of intergroup labels.
+        labels_moral (pd.Series): Series of moral labels.
+        labels_other (pd.Series): Series of other labels.
+        batch_num (int): Batch number.
+        experiment (Experiment): Comet.ml experiment object for logging.
+    """
+    plt.figure(figsize=(10, 8))
+
+    plt.subplot(2, 2, 1)
+    plt.bar(labels_emotion.value_counts().index, labels_emotion.value_counts().values)
+    plt.title(f"Batch {batch_num} - Emotion Labels")
+    plt.xlabel("Label")
+    plt.ylabel("Frequency")
+    plt.grid(True)
+
+    plt.subplot(2, 2, 2)
+    plt.bar(
+        labels_intergroup.value_counts().index, labels_intergroup.value_counts().values
+    )
+    plt.title(f"Batch {batch_num} - Intergroup Labels")
+    plt.xlabel("Label")
+    plt.ylabel("Frequency")
+    plt.grid(True)
+
+    plt.subplot(2, 2, 3)
+    plt.bar(labels_moral.value_counts().index, labels_moral.value_counts().values)
+    plt.title(f"Batch {batch_num} - Moral Labels")
+    plt.xlabel("Label")
+    plt.ylabel("Frequency")
+    plt.grid(True)
+
+    plt.subplot(2, 2, 4)
+    plt.bar(labels_other.value_counts().index, labels_other.value_counts().values)
+    plt.title(f"Batch {batch_num} - Other Labels")
+    plt.xlabel("Label")
+    plt.ylabel("Frequency")
+    plt.grid(True)
+
+    plt.tight_layout()
+    fig = plt.gcf()
+    experiment.log_figure(
+        figure_name=f"Batch {batch_num} - Label Frequencies", figure=fig
+    )
+    plt.close(fig)
+
+
 def run_batch_classification(
     posts: pd.DataFrame,
     source_feed: Literal["firehose", "most_liked"],
@@ -108,13 +212,11 @@ def run_batch_classification(
         "batch_size": batch_size,
         "minibatch_size": minibatch_size,
         "timestamp": current_datetime_str,
+        "source_feed": source_feed,
     }
 
     experiment = Experiment(
-        api_key=COMET_API_KEY,
-        project_name=project_name,
-        workspace=workspace,
-        name=experiment_name,
+        api_key=COMET_API_KEY, project_name=project_name, workspace=workspace
     )
     experiment.log_parameters(hyperparams)
 
@@ -151,14 +253,22 @@ def run_batch_classification(
         labels_moral = results_df["label_moral"]
         labels_other = results_df["label_other"]
 
-        experiment.log_histogram_3d(probs_emotion, step=i)
-        experiment.log_histogram_3d(probs_intergroup, step=i)
-        experiment.log_histogram_3d(probs_moral, step=i)
-        experiment.log_histogram_3d(probs_other, step=i)
-        experiment.log_histogram_3d(labels_emotion, step=i)
-        experiment.log_histogram_3d(labels_intergroup, step=i)
-        experiment.log_histogram_3d(labels_moral, step=i)
-        experiment.log_histogram_3d(labels_other, step=i)
+        plot_and_logs_probs(
+            probs_emotion=probs_emotion,
+            probs_intergroup=probs_intergroup,
+            probs_moral=probs_moral,
+            probs_other=probs_other,
+            batch_num=i,
+            experiment=experiment,
+        )
+        plot_and_log_labels(
+            labels_emotion=labels_emotion,
+            labels_intergroup=labels_intergroup,
+            labels_moral=labels_moral,
+            labels_other=labels_other,
+            batch_num=i,
+            experiment=experiment,
+        )
 
         batch_end_time = time.time()
         batch_time = batch_end_time - batch_start_time
@@ -248,7 +358,6 @@ if __name__ == "__main__":
         {"text": "This is absolutely unacceptable!"},
         {"text": "How can they allow this to happen?"},
         {"text": "I'm so angry right now!"},
-    ] * 256
+    ] * 1024
     df = pd.DataFrame(texts)
-    probabilities, preds = run_batch_classification(df)
-    breakpoint()
+    results_df = run_batch_classification(df, source_feed="firehose")
