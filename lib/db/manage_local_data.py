@@ -36,6 +36,7 @@ services_list = [
     "daily_superposters",
     "ml_inference_perspective_api",
     "ml_inference_sociopolitical",
+    "ml_inference_ime",
     "in_network_user_activity",
     "scraped_user_social_network",
     "consolidate_enrichment_integrations",
