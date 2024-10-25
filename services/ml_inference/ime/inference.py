@@ -297,7 +297,11 @@ def run_batch_classification(
         logger.info(f"Batch {i}/{total_df_batches} finished in {batch_time} seconds.")
         dfs.append(results_df)
 
-    export_df = pd.concat(dfs)
+    if len(dfs) > 0:
+        export_df = pd.concat(dfs)
+    else:
+        export_df = pd.DataFrame(columns=columns_to_keep)
+        export_df["source"] = None
     total_end_time = time.time()
     total_time = total_end_time - total_start_time
     logger.info(f"Total batch run finished in {total_time} seconds.")
