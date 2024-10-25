@@ -37,6 +37,20 @@ project_name = "IME classification inference"
 workspace = "mtorres98"
 # experiment_name = f"ime_classification_inference_{current_datetime_str}"
 
+columns_to_keep = [
+    "uri",
+    "text",
+    "prob_emotion",
+    "prob_intergroup",
+    "prob_moral",
+    "prob_other",
+    "label_emotion",
+    "label_intergroup",
+    "label_moral",
+    "label_other",
+    "label_timestamp",
+]
+
 
 def batch_classify_posts(
     df: pd.DataFrame, minibatch_size: int = default_minibatch_size
@@ -89,6 +103,9 @@ def batch_classify_posts(
     df["label_intergroup"] = labels_intergroup
     df["label_moral"] = labels_moral
     df["label_other"] = labels_other
+    df["label_timestamp"] = current_datetime_str
+
+    df = df[columns_to_keep]
 
     return df
 
@@ -206,7 +223,6 @@ def run_batch_classification(
 
     Ingests all the posts and classifies them in batches.
     """
-
     hyperparams = {
         "model_name": default_model,
         "batch_size": batch_size,
@@ -234,6 +250,8 @@ def run_batch_classification(
         results_df: pd.DataFrame = batch_classify_posts(
             batched_df, minibatch_size=minibatch_size
         )
+
+        results_df["source"] = source_feed
 
         # export to local cache.
         write_posts_to_cache(
@@ -326,8 +344,8 @@ def classify_latest_posts(
         most_liked_posts = [
             post for post in posts_to_classify if post.source == "most_liked"
         ]
-        firehose_posts_df = pd.DataFrame(firehose_posts)
-        most_liked_posts_df = pd.DataFrame(most_liked_posts)
+        firehose_posts_df = pd.DataFrame([post.dict() for post in firehose_posts])
+        most_liked_posts_df = pd.DataFrame([post.dict() for post in most_liked_posts])
 
         source_to_posts_tuples = [
             ("firehose", firehose_posts_df),

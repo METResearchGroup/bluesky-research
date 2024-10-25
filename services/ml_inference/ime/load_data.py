@@ -10,7 +10,6 @@ dtypes_map = MAP_SERVICE_TO_METADATA["ml_inference_ime"]["dtypes_map"]
 
 # drop fields that are added on export.
 dtypes_map.pop("partition_date")
-dtypes_map.pop("source")
 
 
 def load_classified_posts_from_cache() -> dict:
