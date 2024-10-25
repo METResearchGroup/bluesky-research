@@ -63,6 +63,18 @@ def run_ml_inference_sociopolitical():
 
 
 @task(log_prints=True)
+def run_ml_inference_ime():
+    """Performs ML inference on the latest data using the IME model."""
+    bash_script_path = os.path.join(
+        pipelines_directory, "classify_records", "ime", "submit_job.sh"
+    )
+    result = run_slurm_job(bash_script_path)
+    if result is None:
+        raise Exception("SLURM job failed in run_ml_inference_ime task")
+    return result
+
+
+@task(log_prints=True)
 def consolidate_enrichment_integrations():
     """Consolidates enrichment integrations."""
     bash_script_path = os.path.join(
@@ -89,6 +101,7 @@ def production_data_pipeline():
     job_run_ml_inference_sociopolitical = run_ml_inference_sociopolitical.submit(
         wait_for=[job_preprocess_raw_data]
     )
+    run_ml_inference_ime.submit(wait_for=[job_preprocess_raw_data]) # no need for consolidation to wait for this.
 
     # run enrichment integration consolidation after all integrations are finished.
     consolidate_enrichment_integrations.submit(
