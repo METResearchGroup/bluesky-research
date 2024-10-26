@@ -21,6 +21,8 @@ def load_latest_study_user_activities(latest_timestamp: str) -> pd.DataFrame:
         service="aggregated_study_user_activities",
         latest_timestamp=latest_timestamp,
     )
+    # remove default user.
+    df = df[df["author_did"] != "default"]
     return df
 
 
@@ -68,7 +70,7 @@ def get_user_session_logs_with_feeds_shown(
         json.loads(data["feed"]) for data in user_session_log_data
     ]
 
-    user_session_logs["feeds_shown"] = feeds_shown
+    user_session_logs["feed_shown"] = feeds_shown
     user_session_logs["cursor"] = user_session_log_data.apply(lambda x: x["cursor"])
 
     uris_of_posts_shown_in_feeds: set[str] = set()
@@ -282,20 +284,39 @@ def consolidate_paginated_user_session_logs(session_logs_df: pd.DataFrame) -> pd
     if len(session_logs_df) == 1:
         return session_logs_df
     else:
-        # TODO: implement
-        breakpoint()
         start_timestamp = min(session_logs_df["activity_timestamp"])
+        insert_timestamp = min(session_logs_df["insert_timestamp"])
+        cursor = (
+            max(session_logs_df["cursor"])
+            if "eof" not in session_logs_df["cursor"].values
+            else "eof"
+        )
         full_feed = []
         seen_post_uris = set()
 
         # order session logs by activity timestamp ascending.
+        session_logs_df = session_logs_df.sort_values("activity_timestamp").reset_index(drop=True)
 
         # loop through each session log and add the posts from the feed
         # to the full feed if the posts aren't in the seen post uris
+        for feed in session_logs_df["feed_shown"]:
+            for post in feed:
+                if post["post"] not in seen_post_uris:
+                    full_feed.append(post)
+                    seen_post_uris.add(post["post"])
 
         # create a new dataframe that has the consolidated into
-        res = {}
-        consolidated_paginated_session_log_df = pd.DataFrame(res)
+        res = {
+            "author_did": max(session_logs_df["author_did"]), # should be 1 unique value anyways
+            "author_handle": max(session_logs_df["author_handle"]), # should be 1 unique value anyways
+            "data_type": "user_session_logs",
+            "data": json.dumps(full_feed),
+            "activity_timestamp": start_timestamp,
+            "insert_timestamp": insert_timestamp,
+            "feed_shown": full_feed,
+            "cursor": cursor
+        }
+        consolidated_paginated_session_log_df = pd.DataFrame([res])
         return consolidated_paginated_session_log_df
 
 
@@ -345,7 +366,6 @@ def consolidate_user_session_log_paginated_requests(
             output_session_logs.append(consolidated_session_logs_df)
     logger.info(f"After consolidating paginated user session logs, there are {len(output_session_logs)} user session logs (out of {len(user_session_logs_with_feeds)} originally).") # noqa
     return pd.concat(output_session_logs, ignore_index=True)
-    
 
 
 @track_performance
@@ -356,7 +376,7 @@ def enrich_feed_posts_with_attributes(
 ) -> list[list[dict]]:
     """Given the posts in the feeds, enrich them with their conversation traits
     and IM scores."""
-    feeds = user_session_logs_with_feeds["data"].tolist()
+    feeds = user_session_logs_with_feeds["feed_shown"].tolist()
     updated_feeds: list[list[dict]] = []
 
     post_ime_score_map: dict[str, dict] = {
@@ -402,7 +422,11 @@ def enrich_feed_posts_with_attributes(
     for feed in feeds:
         updated_feed: list[dict] = []
         for post in feed:
-            post_ime_score_dict = post_ime_score_map.get(post["post"], default_post_ime_score_dict)
+            try:
+                post_ime_score_dict = post_ime_score_map.get(post["post"], default_post_ime_score_dict)
+            except Exception as e:
+                print(f"Error: {e}")
+                breakpoint()
             if not post_ime_score_dict["uri"]:
                 total_posts_not_in_post_ime_scores += 1
             post_conversation_trait_dict = post_conversation_trait_map.get(post["post"], default_post_conversation_dict)
@@ -461,9 +485,12 @@ def map_comments_to_feeds(
     comments_by_author = comments.groupby("author_did")
 
     for author_did, posts_df in comments_by_author:
-        user_session_logs_for_user = user_session_logs_with_feeds[
-            user_session_logs_with_feeds["user_did"] == author_did
+        user_session_logs_for_user: pd.DataFrame = user_session_logs_with_feeds[
+            user_session_logs_with_feeds["author_did"] == author_did
         ]
+        if len(user_session_logs_for_user) == 0:
+            continue
+        breakpoint()
         # TODO: loop through each of the user sessions and check to see if the 
         # comment is linked to a post in that feed. Then check to see if the
         # timestamps match up. Take note then of the comment, the post from the 
@@ -472,8 +499,6 @@ def map_comments_to_feeds(
         # which is a boolean, and then a "comments_on_post_from_feed" column which
         # has the URIs of the posts that were commented on.
 
-        # TODO: requires that user_session_logs are consolidated (i.e., multiple
-        # requests for the same feed are collapsed together).
         pass
 
     breakpoint()
