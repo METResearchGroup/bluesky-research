@@ -503,7 +503,7 @@ def map_likes_to_feeds(
     user_session_logs_with_feeds: pd.DataFrame
 ) -> pd.DataFrame:
     """Maps likes to feeds."""
-    pass
+    return pd.DataFrame()
 
 
 def map_comments_to_feeds(
@@ -620,8 +620,6 @@ def map_comments_to_feeds(
                     applicable_user_session_logs["activity_timestamp"] < res["comment_timestamp"]
                 )
 
-                breakpoint()
-
                 # get the latest user session log that is before the comment
                 # was posted.
                 possible_applicable_user_session_logs = applicable_user_session_logs[
@@ -632,7 +630,7 @@ def map_comments_to_feeds(
                     logger.info(f"No user session log found that is before the comment was posted for comment {res['comment_uri']}.")
                     continue
 
-                applicable_user_session_logs = possible_applicable_user_session_logs.iloc[-1]
+                applicable_user_session_log = possible_applicable_user_session_logs.iloc[-1]
 
                 # Validate that the timestamp of the user session log is
                 # both before the comment was posted (meaning they opened the
@@ -663,7 +661,7 @@ def map_comments_to_feeds(
                     if applicable_user_session_log["comment_parent_post_is_post_in_feed"]
                     else res["reply_root"]
                 )
-            
+
             comment_dicts.append(res)
 
         all_comment_dicts.extend(comment_dicts)
@@ -704,7 +702,7 @@ def map_follows_to_feeds(
     NOTE: unsure how to check if a post was originally in-network or
     out-of-network.
     """
-    pass
+    return pd.DataFrame()
 
 
 @track_performance
@@ -713,23 +711,32 @@ def map_activities_to_feeds(
     user_session_logs_with_feeds: pd.DataFrame
 ) -> pd.DataFrame:
     """Maps activities (e.g., likes/posts/follows/shares) to feeds."""
-    mapped_df = pd.DataFrame()
-    # mapped_likes_df = map_likes_to_feeds(
-    #     likes=latest_study_user_activities[latest_study_user_activities["data_type"] == "like"],
-    #     user_session_logs_with_feeds=user_session_logs_with_feeds
-    # )
+    mapped_likes_df: pd.DataFrame = map_likes_to_feeds(
+        likes=latest_study_user_activities[latest_study_user_activities["data_type"] == "like"],
+        user_session_logs_with_feeds=user_session_logs_with_feeds
+    )
     mapped_comments_df: pd.DataFrame = map_comments_to_feeds(
         posts=latest_study_user_activities[latest_study_user_activities["data_type"] == "post"],
         user_session_logs_with_feeds=user_session_logs_with_feeds
     )
+    mapped_follows_df: pd.DataFrame = map_follows_to_feeds(
+        follows=latest_study_user_activities[latest_study_user_activities["data_type"] == "follow"],
+        user_session_logs_with_feeds=user_session_logs_with_feeds
+    )
 
-    breakpoint()
-    # mapped_follows_df = map_follows_to_feeds(
-    #     follows=latest_study_user_activities[latest_study_user_activities["data_type"] == "follow"],
-    #     user_session_logs_with_feeds=user_session_logs_with_feeds
-    # )
-    breakpoint()
-    return mapped_df
+    return {
+        "mapped_likes": mapped_likes_df,
+        "mapped_comments": mapped_comments_df,
+        "mapped_follows": mapped_follows_df,
+    }
+
+
+def export_mapped_activities(
+    mapped_likes_df: pd.DataFrame,
+    mapped_comments_df: pd.DataFrame,
+    mapped_follows_df: pd.DataFrame
+) -> None:
+    pass
 
 
 @track_performance
@@ -788,12 +795,16 @@ def link_activities_to_feeds(lookback_days: int = default_lookback_days):
 
     user_session_logs_with_feeds["enriched_feeds"] = enriched_feeds
 
-    mapped_df: pd.DataFrame = map_activities_to_feeds(
+    mapped_activities_to_feed_results: dict[str, pd.DataFrame] = map_activities_to_feeds(
         latest_study_user_activities=latest_study_user_activities,
         user_session_logs_with_feeds=user_session_logs_with_feeds
     )
 
-    breakpoint()
+    export_mapped_activities(
+        mapped_likes_df=mapped_activities_to_feed_results["mapped_likes"],
+        mapped_comments_df=mapped_activities_to_feed_results["mapped_comments"],
+        mapped_follows_df=mapped_activities_to_feed_results["mapped_follows"]
+    )
 
 
 if __name__ == "__main__":
