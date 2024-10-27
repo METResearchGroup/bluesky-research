@@ -3305,6 +3305,12 @@ resource "aws_dynamodb_table" "rank_score_feed_sessions" {
     type = "S"
   }
 
+  global_secondary_index {
+    name               = "feed_generation_timestamp-index"
+    hash_key           = "feed_generation_timestamp"
+    projection_type    = "ALL"
+  }
+
   tags = {
     Name = "rank_score_feed_sessions"
   }
