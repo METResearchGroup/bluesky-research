@@ -8,7 +8,7 @@ import pandas as pd
 from lib.aws.dynamodb import DynamoDB
 from lib.constants import timestamp_format
 from lib.db.manage_local_data import load_data_from_local_storage
-from lib.helper import track_performance
+from lib.helper import get_time_difference_in_minutes, track_performance
 from lib.log.logger import get_logger
 
 # how many days to try and fetch data from.
@@ -144,7 +144,7 @@ def load_post_ime_scores(post_uris: list[str], latest_timestamp: str) -> pd.Data
 def backfill_feed_generation_timestamp(
     user_session_logs_with_feeds: pd.DataFrame,
     lookback_days: int = default_lookback_days + 1 # to have some buffer.
-) -> pd.DataFrame:
+) -> list[str]:
     """Backfills the feed generation timestamp for user session logs.
     
     Fetches the latest feed generation timestamps from the metadata in DynamoDB
@@ -168,9 +168,9 @@ def backfill_feed_generation_timestamp(
     filtered_feed_generation_session_metadata.sort(key=lambda x: x["feed_generation_timestamp"]['S']) # noqa
 
     # sort user_session_logs_with_feeds by activity_timestamp
-    user_session_logs_with_feeds = user_session_logs_with_feeds.sort_values("activity_timestamp").reset_index(drop=True)
+    df = user_session_logs_with_feeds.sort_values("activity_timestamp").reset_index(drop=True)
 
-    user_session_logs_with_feeds["feed_generation_timestamp"] = None
+    df["feed_generation_timestamp"] = None
 
     # assign the feed generation timestamp to the user session log if the
     # activity timestamp is greater than or equal to the feed generation timestamp.
@@ -178,14 +178,12 @@ def backfill_feed_generation_timestamp(
     # this is the version of the feed that the users saw.
     for session_metadata in filtered_feed_generation_session_metadata:
         feed_generation_timestamp = session_metadata["feed_generation_timestamp"]['S']
-        user_session_logs_with_feeds.loc[
-            user_session_logs_with_feeds["activity_timestamp"] >= feed_generation_timestamp,
+        df.loc[
+            df["activity_timestamp"] >= feed_generation_timestamp,
             "feed_generation_timestamp"
         ] = feed_generation_timestamp
 
-    breakpoint()
-
-    return user_session_logs_with_feeds
+    return df["feed_generation_timestamp"].tolist()
 
 
 def assign_session_hash(timestamp: str, window_period_minutes: int) -> str:
@@ -519,11 +517,38 @@ def map_comments_to_feeds(
     part of a thread), and if so, checks to see if that parent/root post
     was in the original feed.
 
-    Returns a dataframe of the comments and feeds.
-    """
-    map_user_to_comment = {}
-    map_user_to_user_session_logs = {}
+    Returns a dataframe of the comments and feeds, with the following fields:
+    - author (of the comment)
+        - author_did
+        - author_handle
+    - comment_uri: URI of the comment post.
+    - comment_text: text of the comment post.
+    - comment_timestamp: timestamp when the comment was posted.
+    - reply_parent: URI of the parent post that the user made a
+    comment on.
+    - reply_root: URI of the post that the user made a comment on.
+    - thread_post_uri: URI of the post from the thread that the user made a
+    comment on.
+        - If both the parent and the root post from the thread were in the feed
+        that we showed them, we pick the root post in the thread (there's 
+        other ways to tie-break too).
+        - If the post is a comment but not to a post in the thread, that's OK,
+        we just don't have a thread_post_uri.
+    - feed_activity_timestamp: timestamp when the user logged on to the feed.
+        - If the post is a comment but not to a post in the thread, that's OK,
+        we just don't have a feed_activity_timestamp.
+    - feed_generation_timestamp: timestamp when the feed was generated.
+        - If the post is a comment but not to a post in the thread, that's OK,
+        we just don't have a feed_generation_timestamp.
 
+    Returns a dataframe of all comments that were made as well as, if applicable,
+    the feed with the post that the comment was made on. Also includes comments
+    that were not made on a post in the thread that was shown in their feed.
+
+    If a post showed up in multiple feeds, we map the activity to the feed instance
+    that is closest to the time that the comment was posted (but before the comment
+    was posted).
+    """
     posts["loaded_data"] = posts["data"].apply(json.loads)
 
     # a post is a comment if it has either a parent or a root post
@@ -538,9 +563,7 @@ def map_comments_to_feeds(
 
     comments_by_author = comments.groupby("author_did")
 
-    all_comment_author_dids = comments_by_author.groups.keys()
-
-    user_session_logs_list: list[pd.DataFrame] = []
+    all_comment_dicts: list[dict] = []
 
     for author_did, comments_df in comments_by_author:
         user_session_logs_for_user: pd.DataFrame = user_session_logs_with_feeds[
@@ -549,35 +572,122 @@ def map_comments_to_feeds(
         if len(user_session_logs_for_user) == 0:
             continue
     
-        # grab the URIs of the comments as well as the parent and root posts
-        comment_uris = comments_df["loaded_data"].apply(lambda x: x.get("uri"))
-        reply_parents = comments_df["loaded_data"].apply(lambda x: x.get("reply_parent"))
-        reply_roots = comments_df["loaded_data"].apply(lambda x: x.get("reply_root"))
+        comment_dicts: list[dict] = []
 
-        # check to see if any of the user session logs have posts whose uri
-        # match either of the reply parents or reply roots.
+        for _, comment in comments_df.iterrows():
+            res = {
+                "comment_uri": comment["loaded_data"]["uri"],
+                "comment_timestamp": comment["activity_timestamp"],
+                "comment_text": comment["loaded_data"]["text"],
+                "author_did": comment["author_did"],
+                "author_handle": comment["author_handle"],
+                "reply_parent": comment["loaded_data"]["reply_parent"],
+                "reply_root": comment["loaded_data"]["reply_root"],
+                "comment_time_minute_difference_between_comment_and_feed_open": None,
+                "thread_post_uri": None,
+                "feed_activity_timestamp": None,
+                "feed_generation_timestamp": None,
+            }
+
+            # check to see if the comment's parent or root post (the post that
+            # it's responding to) is in the given feed.
+            user_session_logs_for_user["comment_parent_post_is_post_in_feed"] = (
+                user_session_logs_for_user["set_of_post_uris_in_feed"]
+                .apply(lambda x: res["reply_parent"] in x)
+            )
+            user_session_logs_for_user["comment_root_post_is_post_in_feed"] = (
+                user_session_logs_for_user["set_of_post_uris_in_feed"]
+                .apply(lambda x: res["reply_root"] in x)
+            )
+            user_session_logs_for_user["comment_is_of_post_in_feed"] = (
+                user_session_logs_for_user["comment_parent_post_is_post_in_feed"] |
+                user_session_logs_for_user["comment_root_post_is_post_in_feed"]
+            )
+
+            # if the comment is of a post in the feed, we need to find the
+            # user session log that most closely corresponds to the time that
+            # the comment was posted. This will correspond to the user session
+            # log whose "activity_timestamp" is closest to (but before) the
+            # comment's "comment_timestamp".
+            if any(user_session_logs_for_user["comment_is_of_post_in_feed"]):
+                applicable_user_session_logs: pd.DataFrame = user_session_logs_for_user[
+                    user_session_logs_for_user["comment_is_of_post_in_feed"]
+                ].sort_values("activity_timestamp", ascending=False)
+
+                # check to see which user session logs are before the comment
+                # was posted.
+                applicable_user_session_logs["user_session_log_is_before_comment"] = (
+                    applicable_user_session_logs["activity_timestamp"] < res["comment_timestamp"]
+                )
+
+                breakpoint()
+
+                # get the latest user session log that is before the comment
+                # was posted.
+                possible_applicable_user_session_logs = applicable_user_session_logs[
+                    applicable_user_session_logs["user_session_log_is_before_comment"]
+                ].iloc[-1]
+
+                if len(possible_applicable_user_session_logs) == 0:
+                    logger.info(f"No user session log found that is before the comment was posted for comment {res['comment_uri']}.")
+                    continue
+
+                applicable_user_session_logs = possible_applicable_user_session_logs.iloc[-1]
+
+                # Validate that the timestamp of the user session log is
+                # both before the comment was posted (meaning they opened the
+                # feed before it was posted) and it's within a certain time
+                # interval (e.g., it's unlikely for someone to post 45 minutes
+                # after they open a feed, for example, so if the comment was
+                # posted 45 minutes after the user opened the feed, we'll assume
+                # that the comment wasn't made in response to the feed). We can,
+                # for now, just track how long it was between when the comment
+                # was made and when the feed was first opened during that
+                # user login session.
+                time_difference_in_minutes = get_time_difference_in_minutes(
+                    timestamp_1=res["comment_timestamp"],
+                    timestamp_2=applicable_user_session_log["activity_timestamp"]
+                )
+                if time_difference_in_minutes > 45:
+                    logger.info(f"Comment was posted {time_difference_in_minutes} minutes after the user opened the feed.")
+
+                res["comment_time_minute_difference_between_comment_and_feed_open"] = time_difference_in_minutes
+
+                # map the comment to the feed that the user was on when they
+                # made the comment, as well as the URI of the post in the thread
+                # that the comment was made on.
+                res["feed_activity_timestamp"] = applicable_user_session_log["activity_timestamp"]
+                res["feed_generation_timestamp"] = applicable_user_session_log["feed_generation_timestamp"]
+                res["thread_post_uri"] = (
+                    res["reply_parent"]
+                    if applicable_user_session_log["comment_parent_post_is_post_in_feed"]
+                    else res["reply_root"]
+                )
+            
+            comment_dicts.append(res)
+
+        all_comment_dicts.extend(comment_dicts)
+
+    logger.info(f"Mapped {len(all_comment_dicts)} comments to feeds.")
+
+    return pd.DataFrame(all_comment_dicts)
 
 
-        breakpoint()
-        # TODO: loop through each of the user sessions and check to see if the 
-        # comment is linked to a post in that feed. Then check to see if the
-        # timestamps match up. Take note then of the comment, the post from the 
-        # feed that it responds to, and the feed itself. Can add a new column to
-        # the user_session_log with something like "user_commented_on_post_from_feed"
-        # which is a boolean, and then a "comments_on_post_from_feed" column which
-        # has the URIs of the posts that were commented on.
+def add_supplementary_fields_to_user_session_logs(
+    user_session_logs_with_feeds: pd.DataFrame
+) -> pd.DataFrame:
+    """Adds supplementary fields to user session logs."""
+    if "feed_generation_timestamp" not in user_session_logs_with_feeds.columns:
+        user_session_logs_with_feeds["feed_generation_timestamp"] = backfill_feed_generation_timestamp(
+            user_session_logs_with_feeds=user_session_logs_with_feeds
+        )
 
-        pass
+    if "set_of_post_uris_in_feed" not in user_session_logs_with_feeds.columns:
+        user_session_logs_with_feeds["set_of_post_uris_in_feed"] = user_session_logs_with_feeds["feed_shown"].apply(
+            lambda x: set(post["post"] for post in x)
+        )
 
-    # backfill the list with the rest of the user session logs
-    remaining_user_session_logs_df = user_session_logs_with_feeds[
-        ~user_session_logs_with_feeds["author_did"].isin(all_comment_author_dids)
-    ]
-    
-
-    breakpoint()
-
-
+    return user_session_logs_with_feeds
 
 def map_follows_to_feeds(
     follows: pd.DataFrame,
@@ -608,10 +718,12 @@ def map_activities_to_feeds(
     #     likes=latest_study_user_activities[latest_study_user_activities["data_type"] == "like"],
     #     user_session_logs_with_feeds=user_session_logs_with_feeds
     # )
-    mapped_comments_df = map_comments_to_feeds(
+    mapped_comments_df: pd.DataFrame = map_comments_to_feeds(
         posts=latest_study_user_activities[latest_study_user_activities["data_type"] == "post"],
         user_session_logs_with_feeds=user_session_logs_with_feeds
     )
+
+    breakpoint()
     # mapped_follows_df = map_follows_to_feeds(
     #     follows=latest_study_user_activities[latest_study_user_activities["data_type"] == "follow"],
     #     user_session_logs_with_feeds=user_session_logs_with_feeds
@@ -640,6 +752,7 @@ def link_activities_to_feeds(lookback_days: int = default_lookback_days):
     user_session_logs_with_feeds, uris_of_posts_shown_in_feeds = get_user_session_logs_with_feeds_shown(
         latest_study_user_activities=latest_study_user_activities
     )
+
     latest_study_user_activities = latest_study_user_activities[
         latest_study_user_activities["data_type"] != "user_session_log"
     ].reset_index(drop=True)
@@ -652,10 +765,9 @@ def link_activities_to_feeds(lookback_days: int = default_lookback_days):
         user_session_logs_with_feeds=user_session_logs_with_feeds
     )
 
-    if "feed_generation_timestamp" not in user_session_logs_with_feeds.columns:
-        user_session_logs_with_feeds["feed_generation_timestamp"] = backfill_feed_generation_timestamp(
-            user_session_logs_with_feeds=user_session_logs_with_feeds
-        )
+    user_session_logs_with_feeds: pd.DataFrame = add_supplementary_fields_to_user_session_logs(
+        user_session_logs_with_feeds=user_session_logs_with_feeds
+    )
 
     post_conversation_traits: pd.DataFrame = load_post_conversation_traits(
         post_uris=uris_of_posts_shown_in_feeds,
