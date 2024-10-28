@@ -60,6 +60,14 @@ def map_comments_to_feeds(
     that is closest to the time that the comment was posted (but before the comment
     was posted).
     """
+    if len(posts) == 0:
+        logger.info("No posts to map to feeds.")
+        return pd.DataFrame()
+
+    if len(user_session_logs_with_feeds) == 0:
+        logger.info("No user session logs to map posts to feeds.")
+        return pd.DataFrame()
+
     posts["loaded_data"] = posts["data"].apply(json.loads)
 
     # a post is a comment if it has either a parent or a root post
