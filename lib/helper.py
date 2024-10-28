@@ -192,3 +192,16 @@ def create_batches(batch_list, batch_size) -> list[list]:
 
 def generate_current_datetime_str() -> str:
     return datetime.now(timezone.utc).strftime(timestamp_format)
+
+
+def get_time_difference_in_minutes(
+    timestamp_1: str,
+    timestamp_2: str
+) -> int:
+    """Gets the time difference in minutes between two timestamps (assuming
+    that they use the same timestamp format).
+    """
+    return abs(
+        (datetime.strptime(timestamp_1, timestamp_format) - datetime.strptime(timestamp_2, timestamp_format))
+        .total_seconds() // 60
+    )
