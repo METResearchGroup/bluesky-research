@@ -109,7 +109,14 @@ FROM week_2_user_dids
 WHERE user_did IN (SELECT bluesky_user_did FROM week_2_onboarded_users);
 
 /* 92 total users from Week 2 onboarding logged on in Week 1??? Bro wut...
-OK whatever, I guess. I'll count them as having logged on in Week 1. */
+OK whatever, I guess. I'll count them as having logged on in Week 1. 
+
+EDIT: OK, I think these are likely users for whom I onboarded earlier, but
+I went back and changed their condition. But my way of changing conditions
+overwrites the initial record (an unintended oversight on my end).
+
+So these users were actually onboarded in Week 1, but I'll count them
+for ease of tracking and analysis, as part of the week 2 batch. */
 SELECT COUNT(DISTINCT(user_did))
 FROM week_2_user_dids
 WHERE user_did IN (SELECT user_did FROM week_1_user_dids)
