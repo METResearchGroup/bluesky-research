@@ -393,8 +393,9 @@ class S3:
         # Move older files to cache
         for obj in files_to_move:
             old_key = obj["Key"]
+            partition_date = old_key.split("/")[-2]
             filename = old_key.split("/")[-1]
-            new_key = os.path.join(prefix, "cache", filename)
+            new_key = os.path.join(prefix, "cache", partition_date, filename)
 
             # copy to new location
             self.client.copy_object(
