@@ -1,6 +1,6 @@
 """Helper functions for the rank_score_feeds service."""
 
-from datetime import timedelta
+from datetime import datetime, timezone, timedelta
 import json
 import os
 import random
@@ -77,7 +77,7 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
     Exports to both S3 and the cache.
     """
     outputs: list[CustomFeedModel] = []
-    for user, user_obj in user_to_ranked_feed_map.items():
+    for _, user_obj in user_to_ranked_feed_map.items():
         data = {
             "user": user_obj["bluesky_user_did"],
             "bluesky_handle": user_obj["bluesky_handle"],
@@ -89,10 +89,14 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
         }
         custom_feed_model = CustomFeedModel(**data)
         outputs.append(custom_feed_model.dict())
+    partition_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     s3.write_dicts_jsonl_to_s3(
         data=outputs,
         key=os.path.join(
-            feeds_root_s3_key, "active", f"custom_feeds_{timestamp}.jsonl"
+            feeds_root_s3_key,
+            "active",
+            partition_date,
+            f"custom_feeds_{timestamp}.jsonl",
         ),
     )
     logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3 and to cache.")
@@ -388,7 +392,7 @@ def postprocess_feed(
 ) -> list[CustomFeedPost]:
     """Postprocesses the feed."""
     # do feed postprocessing on a subset of the feed to save time.
-    feed = feed[:(max_feed_length * 2)]
+    feed = feed[: (max_feed_length * 2)]
 
     # ensure that there's a maximum % of old posts in the feed, so we
     # always have some fresh content.
@@ -413,7 +417,9 @@ def postprocess_feed(
 
     # validate feed lengths:
     if len(feed) != max_feed_length:
-        raise ValueError(f"Feed length is not equal to max_feed_length: {len(feed)} != {max_feed_length}")
+        raise ValueError(
+            f"Feed length is not equal to max_feed_length: {len(feed)} != {max_feed_length}"
+        )
 
     return feed
 
