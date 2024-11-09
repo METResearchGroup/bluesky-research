@@ -95,7 +95,7 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
         key=os.path.join(
             feeds_root_s3_key,
             "active",
-            partition_date,
+            f"partition_date={partition_date}",
             f"custom_feeds_{timestamp}.jsonl",
         ),
     )
