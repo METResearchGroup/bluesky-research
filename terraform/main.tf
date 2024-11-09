@@ -2642,6 +2642,69 @@ resource "aws_glue_catalog_table" "custom_feeds" {
   }
 }
 
+resource "aws_glue_catalog_table" "cached_custom_feeds" {
+  name          = "cached_custom_feeds"
+  database_name = var.default_glue_database_name
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "classification"      = "json"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/custom_feeds/cache/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "custom_feeds_json"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "user"
+      type = "string"
+    }
+
+    columns {
+      name = "bluesky_handle"
+      type = "string"
+    }
+
+    columns {
+      name = "bluesky_user_did"
+      type = "string"
+    }
+
+    columns {
+      name = "condition"
+      type = "string"
+    }
+
+    columns {
+      name = "feed_statistics"
+      type = "string" # JSON-dumped feed statistics
+    }
+
+    columns {
+      name = "feed"
+      type = "array<struct<item:string,is_in_network:boolean>>"
+    }
+
+    columns {
+      name = "feed_generation_timestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
 
 resource "aws_glue_catalog_table" "feed_generation_session_analytics" {
   name          = "feed_generation_session_analytics"
@@ -3046,6 +3109,33 @@ resource "aws_glue_crawler" "user_session_logs_glue_crawler" {
     update_behavior = "UPDATE_IN_DATABASE"
   }
 }
+
+resource "aws_glue_crawler" "cached_custom_feeds_crawler" {
+  name          = "cached_custom_feeds_crawler"
+  role          = aws_iam_role.glue_crawler_role.arn
+  database_name = var.default_glue_database_name
+
+  s3_target {
+    path = "s3://${var.s3_root_bucket_name}/custom_feeds/cache/"
+  }
+
+  configuration = jsonencode({
+    "Version" = 1.0,
+    "CrawlerOutput" = {
+      Partitions = { AddOrUpdateBehavior = "InheritFromTable" }
+      Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
+    }
+    Grouping = {
+      TableGroupingPolicy = "CombineCompatibleSchemas"
+    }
+  })
+
+  schema_change_policy {
+    delete_behavior = "LOG"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
+}
+
 
 resource "aws_cloudwatch_log_group" "glue_crawler_logs" {
   name              = "/aws-glue/crawlers"
