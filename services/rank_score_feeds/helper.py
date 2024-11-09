@@ -79,6 +79,7 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
     outputs: list[CustomFeedModel] = []
     for _, user_obj in user_to_ranked_feed_map.items():
         data = {
+            "feed_id": f"{user_obj['bluesky_user_did']}::{timestamp}",
             "user": user_obj["bluesky_user_did"],
             "bluesky_handle": user_obj["bluesky_handle"],
             "bluesky_user_did": user_obj["bluesky_user_did"],

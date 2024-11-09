@@ -2606,6 +2606,11 @@ resource "aws_glue_catalog_table" "custom_feeds" {
     }
 
     columns {
+      name = "feed_id"
+      type = "string"
+    }
+
+    columns {
       name = "user"
       type = "string"
     }
@@ -2661,6 +2666,11 @@ resource "aws_glue_catalog_table" "cached_custom_feeds" {
     ser_de_info {
       name                  = "custom_feeds_json"
       serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "feed_id"
+      type = "string"
     }
 
     columns {

@@ -34,6 +34,7 @@ class CustomFeedModel(BaseModel):
     """Model for representing a custom feed for a user."""
 
     # keeping 'user' field for backwards compatibility.
+    feed_id: str = Field(..., description="The feed identifier (DID::timestamp).")
     user: str = Field(..., description="The user identifier (DID).")
     bluesky_handle: str = Field(..., description="The Bluesky handle of the user.")  # noqa
     bluesky_user_did: str = Field(
