@@ -2606,6 +2606,11 @@ resource "aws_glue_catalog_table" "custom_feeds" {
     }
 
     columns {
+      name = "feed_id"
+      type = "string"
+    }
+
+    columns {
       name = "user"
       type = "string"
     }
@@ -2632,7 +2637,7 @@ resource "aws_glue_catalog_table" "custom_feeds" {
 
     columns {
       name = "feed"
-      type = "array<struct<item:string,is_in_network:boolean>>"
+      type = "string"
     }
 
     columns {
@@ -2651,16 +2656,22 @@ resource "aws_glue_catalog_table" "cached_custom_feeds" {
   parameters = {
     EXTERNAL              = "TRUE"
     "classification"      = "json"
+    "compressionType"     = "none" # for some reason the crawler is expecting this? But this isn't true for other tables? Unsure why, but it does work.
   }
 
   storage_descriptor {
-    location      = "s3://${var.s3_root_bucket_name}/custom_feeds/cache/"
+    location      = "s3://${var.s3_root_bucket_name}/custom_feeds/cached_custom_feeds/"
     input_format  = "org.apache.hadoop.mapred.TextInputFormat"
     output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
 
     ser_de_info {
       name                  = "custom_feeds_json"
       serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+
+    columns {
+      name = "feed_id"
+      type = "string"
     }
 
     columns {
@@ -2690,7 +2701,7 @@ resource "aws_glue_catalog_table" "cached_custom_feeds" {
 
     columns {
       name = "feed"
-      type = "array<struct<item:string,is_in_network:boolean>>"
+      type = "string"
     }
 
     columns {
@@ -3116,7 +3127,7 @@ resource "aws_glue_crawler" "cached_custom_feeds_crawler" {
   database_name = var.default_glue_database_name
 
   s3_target {
-    path = "s3://${var.s3_root_bucket_name}/custom_feeds/cache/"
+    path = "s3://${var.s3_root_bucket_name}/custom_feeds/cached_custom_feeds/"
   }
 
   configuration = jsonencode({
