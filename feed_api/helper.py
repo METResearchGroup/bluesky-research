@@ -118,7 +118,7 @@ def load_latest_user_feed_from_s3(user_did: str) -> tuple[list[dict], str]:
     return feed_dicts, feed_id
 
 
-def load_latest_user_feed(user_did: str) -> list[dict]:  # noqa
+def load_latest_user_feed(user_did: str) -> tuple[list[dict], str]:  # noqa
     """Loads latest user feed.
 
     Both the cache and the S3 feeds return the full complete feed. We
@@ -127,8 +127,8 @@ def load_latest_user_feed(user_did: str) -> list[dict]:  # noqa
     logger.info(
         f"Local cache miss for user={user_did} (shouldn't be, ideally). Loading latest feed from S3 and then adding to local in-memory cache."  # noqa
     )  # noqa
-    feed_dicts: list[dict] = load_latest_user_feed_from_s3(user_did=user_did)  # noqa
-    return feed_dicts
+    feed_dicts, feed_id = load_latest_user_feed_from_s3(user_did=user_did)  # noqa
+    return feed_dicts, feed_id
 
 
 def create_feed_and_cursor(
@@ -220,7 +220,7 @@ def export_log_data(log: dict):
 
 if __name__ == "__main__":
     user_did = "did:plc:wvb6v45g6oxrfebnlzllhrpv"
-    latest_feed = load_latest_user_feed(user_did=user_did)
+    latest_feed, feed_id = load_latest_user_feed(user_did=user_did)
     s3_latest_feed = load_latest_user_feed_from_s3(user_did=user_did)
     res = load_all_latest_user_feeds_from_s3()
     assert latest_feed == s3_latest_feed
