@@ -77,7 +77,7 @@ def hash_feed_post(post: dict) -> str:
 def load_all_latest_user_feeds_from_s3() -> dict[str, list[dict]]:
     """Loads the latest feed for all users from S3."""
     query = """
-    SELECT user, feed FROM "custom_feeds"
+    SELECT user, feed_id, feed FROM "custom_feeds"
     WHERE (user, feed_generation_timestamp) IN (
         SELECT user, MAX(feed_generation_timestamp)
         FROM "custom_feeds"
@@ -90,19 +90,21 @@ def load_all_latest_user_feeds_from_s3() -> dict[str, list[dict]]:
     feeds = [row["feed"] for row in df_dicts]
     user_feed_dicts: list[list[dict]] = [json.loads(feed) for feed in feeds]
     user_dids = [row["user"] for row in df_dicts]
+    feed_ids = [row["feed_id"] for row in df_dicts]
     return {
-        user_did: feed_dicts for user_did, feed_dicts in zip(user_dids, user_feed_dicts)
+        user_did: {"feed_id": feed_id, "feed_dicts": feed_dicts}
+        for user_did, feed_id, feed_dicts in zip(user_dids, feed_ids, user_feed_dicts)
     }
 
 
-def load_latest_user_feed_from_s3(user_did: str) -> list[dict]:
+def load_latest_user_feed_from_s3(user_did: str) -> tuple[list[dict], str]:
     """Loads the latest feed for a user from S3.
 
     Optionally ingests a cursor for pagination purposes.
     """
     logger.info(f"Loading latest feed for user={user_did}...")
     query = f"""
-    SELECT feed FROM "custom_feeds"
+    SELECT feed_id, feed FROM "custom_feeds"
     WHERE user = '{user_did}'
     ORDER BY feed_generation_timestamp DESC
     LIMIT 1
@@ -111,11 +113,12 @@ def load_latest_user_feed_from_s3(user_did: str) -> list[dict]:
     df_dicts = df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     feed: str = df_dicts[0]["feed"]
-    feed_dicts: list[dict] = parse_feed_string(feed)
-    return feed_dicts
+    feed_id: str = df_dicts[0]["feed_id"]
+    feed_dicts: list[dict] = json.loads(feed)
+    return feed_dicts, feed_id
 
 
-def load_latest_user_feed(user_did: str) -> list[dict]:  # noqa
+def load_latest_user_feed(user_did: str) -> tuple[list[dict], str]:  # noqa
     """Loads latest user feed.
 
     Both the cache and the S3 feeds return the full complete feed. We
@@ -124,8 +127,8 @@ def load_latest_user_feed(user_did: str) -> list[dict]:  # noqa
     logger.info(
         f"Local cache miss for user={user_did} (shouldn't be, ideally). Loading latest feed from S3 and then adding to local in-memory cache."  # noqa
     )  # noqa
-    feed_dicts: list[dict] = load_latest_user_feed_from_s3(user_did=user_did)  # noqa
-    return feed_dicts
+    feed_dicts, feed_id = load_latest_user_feed_from_s3(user_did=user_did)  # noqa
+    return feed_dicts, feed_id
 
 
 def create_feed_and_cursor(
@@ -217,8 +220,8 @@ def export_log_data(log: dict):
 
 if __name__ == "__main__":
     user_did = "did:plc:wvb6v45g6oxrfebnlzllhrpv"
-    latest_feed = load_latest_user_feed(user_did=user_did)
+    latest_feed, feed_id = load_latest_user_feed(user_did=user_did)
     s3_latest_feed = load_latest_user_feed_from_s3(user_did=user_did)
     res = load_all_latest_user_feeds_from_s3()
     assert latest_feed == s3_latest_feed
-    assert res[user_did] == s3_latest_feed
+    assert res[user_did]["feed_dicts"] == s3_latest_feed

@@ -2896,6 +2896,10 @@ resource "aws_glue_catalog_table" "user_session_logs" {
       type = "string"
     }
     columns {
+      name = "feed_id"
+      type = "string"
+    }
+    columns {
       name = "cursor"
       type = "string"
     }
