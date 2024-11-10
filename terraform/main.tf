@@ -2659,7 +2659,7 @@ resource "aws_glue_catalog_table" "cached_custom_feeds" {
   }
 
   storage_descriptor {
-    location      = "s3://${var.s3_root_bucket_name}/custom_feeds/cache/"
+    location      = "s3://${var.s3_root_bucket_name}/custom_feeds/cached_custom_feeds/"
     input_format  = "org.apache.hadoop.mapred.TextInputFormat"
     output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
 
@@ -3126,7 +3126,7 @@ resource "aws_glue_crawler" "cached_custom_feeds_crawler" {
   database_name = var.default_glue_database_name
 
   s3_target {
-    path = "s3://${var.s3_root_bucket_name}/custom_feeds/cache/"
+    path = "s3://${var.s3_root_bucket_name}/custom_feeds/cached_custom_feeds/"
   }
 
   configuration = jsonencode({
@@ -3137,6 +3137,7 @@ resource "aws_glue_crawler" "cached_custom_feeds_crawler" {
     }
     Grouping = {
       TableGroupingPolicy = "CombineCompatibleSchemas"
+      TableLevelConfiguration = 1
     }
   })
 

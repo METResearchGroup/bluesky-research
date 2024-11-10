@@ -395,7 +395,9 @@ class S3:
             old_key = obj["Key"]
             partition_date = old_key.split("/")[-2]
             filename = old_key.split("/")[-1]
-            new_key = os.path.join(prefix, "cache", partition_date, filename)
+            new_key = os.path.join(
+                prefix, "cached_custom_feeds", partition_date, filename
+            )
 
             # copy to new location
             self.client.copy_object(
