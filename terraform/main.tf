@@ -2637,7 +2637,7 @@ resource "aws_glue_catalog_table" "custom_feeds" {
 
     columns {
       name = "feed"
-      type = "array<struct<item:string,is_in_network:boolean>>"
+      type = "string"
     }
 
     columns {
@@ -2656,6 +2656,7 @@ resource "aws_glue_catalog_table" "cached_custom_feeds" {
   parameters = {
     EXTERNAL              = "TRUE"
     "classification"      = "json"
+    "compressionType"     = "none" # for some reason the crawler is expecting this? But this isn't true for other tables? Unsure why, but it does work.
   }
 
   storage_descriptor {
@@ -2700,7 +2701,7 @@ resource "aws_glue_catalog_table" "cached_custom_feeds" {
 
     columns {
       name = "feed"
-      type = "array<struct<item:string,is_in_network:boolean>>"
+      type = "string"
     }
 
     columns {
@@ -3137,7 +3138,6 @@ resource "aws_glue_crawler" "cached_custom_feeds_crawler" {
     }
     Grouping = {
       TableGroupingPolicy = "CombineCompatibleSchemas"
-      TableLevelConfiguration = 1
     }
   })
 

@@ -59,7 +59,9 @@ def parse_feed_string(feed_string: str) -> list[dict]:
     # at://did:<any string>/app.bsky.feed.post/<some string> with quotes
     feed_string = re.sub(
         # r"(at://did:plc:[\w]+/app\.bsky\.feed\.post/\w+)", r'"\1"', feed_string
-        r"(at://did:[^/]+/app\.bsky\.feed\.post/\w+)", r'"\1"', feed_string
+        r"(at://did:[^/]+/app\.bsky\.feed\.post/\w+)",
+        r'"\1"',
+        feed_string,
     )
 
     # Step 3: Parse the string into a list of dicts
@@ -86,7 +88,7 @@ def load_all_latest_user_feeds_from_s3() -> dict[str, list[dict]]:
     df_dicts = df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     feeds = [row["feed"] for row in df_dicts]
-    user_feed_dicts: list[list[dict]] = [parse_feed_string(feed) for feed in feeds]
+    user_feed_dicts: list[list[dict]] = [json.loads(feed) for feed in feeds]
     user_dids = [row["user"] for row in df_dicts]
     return {
         user_did: feed_dicts for user_did, feed_dicts in zip(user_dids, user_feed_dicts)
