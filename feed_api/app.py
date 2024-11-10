@@ -326,7 +326,7 @@ async def get_default_feed_skeleton(
     logger.info(f"Fetched {len(feed)} posts for user={requester_did}...")
     user_session_log = {
         "user_did": requester_did,
-        "feed_id": "",
+        "feed_id": feed_id,
         "cursor": next_cursor,
         "limit": limit,
         "feed_length": len(feed),
