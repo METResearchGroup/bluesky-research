@@ -102,8 +102,8 @@ def _sync_refresh_user_did_to_cached_feed():
     logger.info("Refreshing local cached feeds...")
     latest_user_did_to_cached_feed = load_all_latest_user_feeds_from_s3()
     global user_did_to_cached_feed
-    for user_did, feed_dicts in latest_user_did_to_cached_feed.items():
-        user_did_to_cached_feed[user_did] = feed_dicts
+    for user_did, feed_obj in latest_user_did_to_cached_feed.items():
+        user_did_to_cached_feed[user_did] = feed_obj
     logger.info(f"Number of total user feeds: {len(user_did_to_cached_feed)}")
     logger.info("Initialized user DID to cache feed mapping.")
 
@@ -239,16 +239,22 @@ async def get_feed_skeleton(
             logger.info(
                 f"Found in-memory local cached feed for user={requester_did}..."
             )
-            feed_dicts: list[dict] = user_did_to_cached_feed[requester_did]
+            feed_dicts: list[dict] = user_did_to_cached_feed[requester_did][
+                "feed_dicts"
+            ]
+            feed_id = user_did_to_cached_feed[requester_did]["feed_id"]
         else:
             logger.warning(
                 f"Feed for {requester_did} not in local cache (should be). Loading from external cache + S3..."
             )  # noqa
-            feed_dicts: list[dict] = load_latest_user_feed(user_did=requester_did)
+            feed_dicts, feed_id = load_latest_user_feed(user_did=requester_did)
             logger.info(
                 f"Loaded feed for {requester_did} from S3 + cache. Added to local store"
             )  # noqa
-            user_did_to_cached_feed[requester_did] = feed_dicts
+            user_did_to_cached_feed[requester_did] = {
+                "feed_dicts": feed_dicts,
+                "feed_id": feed_id,
+            }
     feed, next_cursor = create_feed_and_cursor(
         feed_dicts=feed_dicts,
         user_did=requester_did,
@@ -259,6 +265,7 @@ async def get_feed_skeleton(
     cache_request(user_did=requester_did, cursor=request_cursor, data=output)
     user_session_log = {
         "user_did": requester_did,
+        "feed_id": feed_id,
         "cursor": next_cursor,
         "limit": limit,
         "feed_length": len(feed),
@@ -314,6 +321,7 @@ async def get_default_feed_skeleton(
     logger.info(f"Fetched {len(feed)} posts for user={requester_did}...")
     user_session_log = {
         "user_did": requester_did,
+        "feed_id": "",
         "cursor": next_cursor,
         "limit": limit,
         "feed_length": len(feed),
