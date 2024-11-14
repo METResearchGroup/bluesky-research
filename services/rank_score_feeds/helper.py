@@ -303,7 +303,7 @@ def load_latest_feeds() -> dict[str, set[str]]:
     feed_dicts = []
     for df_dict in df_dicts:
         bluesky_user_handles.append(df_dict["bluesky_handle"])
-        feed_dicts.append(parse_feed_string(df_dict["feed"]))
+        feed_dicts.append(json.loads(df_dict["feed"]))
     res = {}
     for handle, feed in zip(bluesky_user_handles, feed_dicts):
         uris = set()
