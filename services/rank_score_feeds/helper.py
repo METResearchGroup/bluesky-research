@@ -48,7 +48,7 @@ consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"
 feeds_root_s3_key = "custom_feeds"
 dynamodb_table_name = "rank_score_feed_sessions"
-max_num_times_user_can_appear_in_feed = 3
+max_num_times_user_can_appear_in_feed = 5
 max_prop_old_posts = 0.6
 
 athena = Athena()
@@ -345,15 +345,6 @@ def create_ranked_candidate_feed(
         & (post_pool["source"] == out_of_network_source)
     ]
 
-    # filter out posts by author count, so that only first X posts from
-    # each author are included.
-    in_network_posts_df: pd.DataFrame = filter_posts_by_author_count(
-        in_network_posts_df, max_num_times_user_can_appear_in_feed
-    )
-    out_of_network_posts_df: pd.DataFrame = filter_posts_by_author_count(
-        out_of_network_posts_df, max_num_times_user_can_appear_in_feed
-    )
-
     # get the number of in-network posts to include.
     total_in_network_posts = len(in_network_posts_df)
     max_in_network_posts = max_feed_length // 2
@@ -565,11 +556,10 @@ def do_rank_score_feeds(
     Also takes as optional input a flag to skip exporting post scores to S3.
     """
     logger.info("Starting rank score feeds.")
-    # load data
+
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
 
     if test_mode:
-        # TODO: just do the test users
         test_user_handles = [
             "testblueskyaccount.bsky.social",
             "testblueskyuserv2.bsky.social",
@@ -636,6 +626,7 @@ def do_rank_score_feeds(
     logger.info(
         f"Loaded {len(out_of_network_user_activity_posts_df)} out-of-network posts."
     )  # noqa
+
     # get lists of in-network and out-of-network posts
     user_to_in_network_post_uris_map: dict[str, list[str]] = {
         user.bluesky_user_did: calculate_in_network_posts_for_user(
@@ -648,17 +639,15 @@ def do_rank_score_feeds(
         for user in study_users
     }
 
-    # reverse chronological: sort by most recent posts descending
+    # sort feeds (reverse-chronological: timestamp descending, others: score descending)
     reverse_chronological_post_pool_df: pd.DataFrame = consolidated_enriched_posts_df[
         consolidated_enriched_posts_df["source"] == "firehose"
     ].sort_values(by="synctimestamp", ascending=False)
 
-    # engagement posts: sort by engagement score descending
     engagement_post_pool_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
         by="engagement_score", ascending=False
     )
 
-    # treatment posts: sort by treatment score descending
     treatment_post_pool_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
         by="treatment_score", ascending=False
     )
@@ -673,10 +662,20 @@ def do_rank_score_feeds(
             if user.bluesky_handle in users_to_create_feeds_for
         ]
 
-    # then, pass in these to create_ranked_candidate_feed to create the
-    # feed. We already pre-sort the posts so we don't have to do
-    # this step multiple times.
-    # create feeds for each user. Map feeds to users.
+    # filter so that only first X posts from each author are included.
+    reverse_chronological_post_pool_df = filter_posts_by_author_count(
+        reverse_chronological_post_pool_df, max_num_times_user_can_appear_in_feed
+    )
+
+    engagement_post_pool_df = filter_posts_by_author_count(
+        engagement_post_pool_df, max_num_times_user_can_appear_in_feed
+    )
+
+    treatment_post_pool_df = filter_posts_by_author_count(
+        treatment_post_pool_df, max_num_times_user_can_appear_in_feed
+    )
+
+    # generate feeds for each user.
     user_to_ranked_feed_map: dict[str, dict] = {}
     total_users = len(study_users)
     logger.info(f"Creating feeds for {total_users} users")
@@ -745,7 +744,7 @@ def do_rank_score_feeds(
     analytics: dict = calculate_feed_analytics(
         user_to_ranked_feed_map=user_to_ranked_feed_map,
         timestamp=timestamp,
-    )  # noqa
+    )
     export_feed_analytics(analytics=analytics)
 
     # write feeds to s3
