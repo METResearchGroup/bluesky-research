@@ -27,6 +27,8 @@ setup_env()
 
 BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_PASSWORD")
+DEV_BLUESKY_HANDLE = os.getenv("DEV_BLUESKY_HANDLE")
+DEV_BLUESKY_PASSWORD = os.getenv("DEV_BLUESKY_PASSWORD")
 
 if not BLUESKY_HANDLE or not BLUESKY_APP_PASSWORD:
     print("Fetching secrets from AWS Secrets Manager instead of the env...")
@@ -72,7 +74,11 @@ class RateLimitedClient(Client):
 
 def get_client() -> RateLimitedClient:
     client = RateLimitedClient()
-    client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
+    try:
+        client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
+    except Exception as e:
+        print(f"Error logging in to Bluesky: {e}\nLogging in to dev account...")
+        client.login(DEV_BLUESKY_HANDLE, DEV_BLUESKY_PASSWORD)
     return client
 
 
