@@ -41,16 +41,35 @@ def get_partition_dates() -> list[str]:
     return partition_dates
 
 
-def load_cached_feeds_as_df(partition_date: str) -> pd.DataFrame:
-    query = f"""SELECT * FROM cached_custom_feeds WHERE partition_date = '{partition_date}'"""
+def load_cached_feeds_as_df(start_date: str, end_date: str) -> dict[str, pd.DataFrame]:
+    query = f"""
+        SELECT * 
+        FROM cached_custom_feeds 
+        WHERE partition_date >= '{start_date}'
+        AND partition_date <= '{end_date}'
+    """
     df = athena.query_results_as_df(query)
+    if df.empty:
+        print(f"No data found between {start_date} and {end_date}!")
+        return {}
+
     df_dicts = df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
     df = pd.DataFrame(df_dicts)
-    return df
+
+    # Group by partition_date and create dictionary of dataframes
+    grouped_dfs = {}
+    for partition_date, group_df in df.groupby("partition_date"):
+        grouped_dfs[partition_date] = group_df
+
+    return grouped_dfs
 
 
-def add_feed_id_col_to_df(df: pd.DataFrame) -> pd.DataFrame:
+def add_feed_id_col_to_df(df: pd.DataFrame, partition_date: str) -> pd.DataFrame:
+    if "feed_id" in df.columns and not df["feed_id"].isna().any():
+        print(f"Skipping {partition_date} since it already has feed_id...")
+        return df
+    print(f"Adding feed_id to {df.shape[0]} rows for {partition_date}...")
     df["feed_id"] = df.apply(
         lambda row: f"{row['user']}::{row['feed_generation_timestamp']}", axis=1
     )
@@ -70,15 +89,15 @@ def upsert_df_to_cached_feeds(df: pd.DataFrame, partition_date: str) -> None:
 
 
 def main():
-    partition_dates = get_partition_dates()
-    finished_dates = []
-    for partition_date in partition_dates:
-        if partition_date in finished_dates:
-            print(f"Skipping {partition_date} since it's already done.")
-            continue
+    start_date = "2024-10-24"
+    end_date = "2024-11-10"
+    dfs_map: dict[str, pd.DataFrame] = load_cached_feeds_as_df(start_date, end_date)
+    if not dfs_map:
+        print(f"Skipping {start_date} and {end_date} since they have no data.")
+        return
+    for partition_date, df in dfs_map.items():
         print(f"Processing {partition_date}...")
-        df = load_cached_feeds_as_df(partition_date)
-        df = add_feed_id_col_to_df(df)
+        df = add_feed_id_col_to_df(df, partition_date)
         upsert_df_to_cached_feeds(df=df, partition_date=partition_date)
         print(f"Done processing {partition_date}!")
     print("Done processing all dates.")
