@@ -3,6 +3,7 @@
 from datetime import timedelta
 import json
 import os
+import traceback
 from typing import Union
 
 from atproto_client.models.app.bsky.feed.defs import FeedViewPost
@@ -121,13 +122,18 @@ def get_and_transform_latest_most_liked_posts(
         print(
             f"Getting most liked posts from {feed} feed with URL={feed_url}, limit={limit}"
         )
-        posts: list[FeedViewPost] = get_posts_from_custom_feed_url(
-            feed_url=feed_url, limit=limit
-        )
-        transformed_posts: list[TransformedFeedViewPostModel] = (
-            transform_feedview_posts(posts=posts, enrichment_data=enrichment_data)
-        )
-        res.extend(transformed_posts)
+        try:
+            posts: list[FeedViewPost] = get_posts_from_custom_feed_url(
+                feed_url=feed_url, limit=limit
+            )
+            transformed_posts: list[TransformedFeedViewPostModel] = (
+                transform_feedview_posts(posts=posts, enrichment_data=enrichment_data)
+            )
+            res.extend(transformed_posts)
+        except Exception as e:
+            logger.error(f"Error getting posts from {feed} feed: {e}")
+            logger.error(traceback.format_exc())
+            continue
         print(f"Finished processing {len(posts)} posts from {feed} feed")
 
     # Deduplicate the results based on the "uri" field
