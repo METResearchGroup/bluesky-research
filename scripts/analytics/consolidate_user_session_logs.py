@@ -44,7 +44,7 @@ def serialize_feed(feed):
 
 def main():
     partition_dates = get_partition_dates(
-        start_date="2024-09-30", end_date="2024-12-01"
+        start_date="2024-09-29", end_date="2024-12-01"
     )
     dfs: list[pd.DataFrame] = []
     for partition_date in partition_dates:

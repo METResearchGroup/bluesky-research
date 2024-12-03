@@ -46,7 +46,7 @@ def main():
     print("Fetching all the feeds...")
     # partition_dates: list[str] = get_partition_dates(start_date="2024-09-30", end_date="2024-12-01")
     partition_dates: list[str] = get_partition_dates(
-        start_date="2024-11-22", end_date="2024-12-01"
+        start_date="2024-09-28", end_date="2024-12-01"
     )
     for partition_date in partition_dates:
         print(f"Fetching {partition_date}...")
