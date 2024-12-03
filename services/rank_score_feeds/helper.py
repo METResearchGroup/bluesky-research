@@ -7,8 +7,6 @@ import random
 from typing import Union
 
 import pandas as pd
-
-from feed_api.helper import parse_feed_string
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
