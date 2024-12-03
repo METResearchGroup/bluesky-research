@@ -411,6 +411,7 @@ def list_filenames(
     service: str,
     directories: list[Literal["cache", "active"]] = ["active"],
     validate_pq_files: bool = False,
+    partition_date: Optional[str] = None,
 ) -> list[str]:
     """List files in local storage for a given service."""
     local_prefixes = get_local_prefixes_for_service(service)
@@ -425,6 +426,9 @@ def list_filenames(
                 for root, _, files in os.walk(fp):
                     for file in files:
                         res.append(os.path.join(root, file))
+    if partition_date:
+        print(f"Filtering {len(res)} files in service={service}, for partition_date={partition_date}")
+        res = [fp for fp in res if f"partition_date={partition_date}" in fp]
     return res
 
 
@@ -512,6 +516,7 @@ def load_data_from_local_storage(
     service: str,
     directory: Literal["cache", "active"] = "active",
     export_format: Literal["jsonl", "parquet"] = "parquet",
+    partition_date: Optional[str] = None,
     latest_timestamp: Optional[str] = None,
     use_all_data: bool = False,
     validate_pq_files: bool = False,
@@ -522,7 +527,10 @@ def load_data_from_local_storage(
         directories = ["cache", "active"]
 
     filepaths = list_filenames(
-        service=service, directories=directories, validate_pq_files=validate_pq_files
+        service=service,
+        directories=directories,
+        validate_pq_files=validate_pq_files,
+        partition_date=partition_date,
     )
     if export_format == "jsonl":
         df = pd.read_json(filepaths, orient="records", lines=True)
