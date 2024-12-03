@@ -59,12 +59,9 @@ def create_duckdb_tables(posts_df: pd.DataFrame, logs_df: pd.DataFrame, db_path:
             "CREATE TABLE IF NOT EXISTS user_session_logs AS SELECT * FROM logs_df"
         )
 
-        # Create indexes for better query performance
+        # Create index for better query performance
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_posts_date ON posts(partition_date)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_logs_date ON user_session_logs(partition_date)"
         )
     finally:
         conn.close()
