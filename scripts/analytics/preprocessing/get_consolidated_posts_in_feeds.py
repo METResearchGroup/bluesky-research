@@ -11,15 +11,16 @@ from scripts.analytics.helper import get_partition_dates
 analytics_data_path = "/projects/p32375/bluesky_research_data/analytics"
 export_prefix = os.path.join(analytics_data_path, "consolidated_posts")
 num_days_to_lookahead = 7
-excluded_partition_dates = ["2024-10-09"] # server outage
+excluded_partition_dates = ["2024-10-09"]  # server outage
+
 
 def get_feed_posts_to_consider(
     partition_date: str,
     posts_in_feeds_per_day_dict: dict[str, set[str]],
-    lookahead_days: int = num_days_to_lookahead
+    lookahead_days: int = num_days_to_lookahead,
 ) -> set[str]:
     """Get the feeds that could have had posts from the given partition date.
-    
+
     Returns a set of feed IDs.
     """
     res: set[str] = set()
@@ -57,24 +58,30 @@ def main():
             directory="cache",
             partition_date=current_partition_date,
         )
-        print(f"Loaded {len(consolidated_enriched_posts_df)} consolidated enriched posts for partition date={current_partition_date}")
+        print(
+            f"Loaded {len(consolidated_enriched_posts_df)} consolidated enriched posts for partition date={current_partition_date}"
+        )
         feed_ids_to_consider: set[str] = get_feed_posts_to_consider(
             partition_date=current_partition_date,
             posts_in_feeds_per_day_dict=posts_in_feeds_per_day_dict,
         )
-        print(f"Number of feed IDs to consider (from feeds with lookahead days={num_days_to_lookahead}): {len(feed_ids_to_consider)}")
+        print(
+            f"Number of feed IDs to consider (from feeds with lookahead days={num_days_to_lookahead}): {len(feed_ids_to_consider)}"
+        )
         filtered_df = consolidated_enriched_posts_df[
             consolidated_enriched_posts_df["uri"].isin(feed_ids_to_consider)
         ]
-        print(f"Filtered {len(consolidated_enriched_posts_df)} posts down to {len(filtered_df)} posts that were actually used in feeds")
+        print(
+            f"Filtered {len(consolidated_enriched_posts_df)} posts down to {len(filtered_df)} posts that were actually used in feeds"
+        )
         if "partition_date" not in filtered_df.columns:
             filtered_df["partition_date"] = current_partition_date
         filtered_df.to_parquet(
-            export_prefix,
-            index=False,
-            partition_cols=["partition_date"]
+            export_prefix, index=False, partition_cols=["partition_date"]
         )
-        print(f"Exported partitioned parquet file to {os.path.join(export_prefix, f'partition_date={current_partition_date}.parquet')}")
+        print(
+            f"Exported partitioned parquet file to {os.path.join(export_prefix, f'partition_date={current_partition_date}.parquet')}"
+        )
         del consolidated_enriched_posts_df
         gc.collect()
         del filtered_df

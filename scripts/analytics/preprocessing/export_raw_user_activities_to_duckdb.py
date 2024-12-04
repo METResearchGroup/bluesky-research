@@ -37,28 +37,30 @@ social_network_data_path = (
     "/projects/p32375/bluesky_research_data/scraped_user_social_network/cache"
 )
 
+conn = duckdb.connect(db_path)  # if running on cluster
+# conn = duckdb.connect('../bluesky_data.db') # if running locally
 
-conn = duckdb.connect(db_path)
 
-
-def write_to_duckdb(df: pd.DataFrame, table_name: str):
+def write_to_duckdb(df: pd.DataFrame, table_name: str, drop_table: bool = False):
     try:
+        if drop_table:
+            conn.execute(f"DROP TABLE IF EXISTS {table_name}")
         conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} AS SELECT * FROM df")
         conn.execute(
-            f"CREATE INDEX IF NOT EXISTS idx_{table_name}_partition_date ON {table_name}(partition_date)"
+            f"CREATE INDEX IF NOT EXISTS idx_{table_name}_bluesky_user_did ON {table_name}(bluesky_user_did)"
         )
         print(f"Table {table_name} created successfully.")
     except Exception as e:
         print(f"Error creating table {table_name}: {e}")
 
 
-def export_study_users():
+def export_study_users(drop_table: bool = False):
     """Fetches study users from DynamoDB and then writes to DuckDB table."""
     table_name = "study_users"
     users: list[UserToBlueskyProfileModel] = get_all_users()
     user_dicts = [user.dict() for user in users]
     df = pd.DataFrame(user_dicts)
-    write_to_duckdb(df, table_name)
+    write_to_duckdb(df, table_name, drop_table=drop_table)
     print(f"Exported {len(users)} study users to DuckDB table '{table_name}'")
 
 
@@ -130,7 +132,7 @@ def export_social_network_data():
 
 
 def main():
-    export_study_users()
+    export_study_users(drop_table=True)
     export_likes()
     export_like_on_user_post()
     export_user_posts()
