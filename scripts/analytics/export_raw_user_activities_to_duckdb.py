@@ -52,7 +52,7 @@ def write_to_duckdb(df: pd.DataFrame, table_name: str):
         print(f"Error creating table {table_name}: {e}")
 
 
-def load_study_users():
+def export_study_users():
     """Fetches study users from DynamoDB and then writes to DuckDB table."""
     table_name = "study_users"
     users: list[UserToBlueskyProfileModel] = get_all_users()
@@ -130,6 +130,7 @@ def export_social_network_data():
 
 
 def main():
+    export_study_users()
     export_likes()
     export_like_on_user_post()
     export_user_posts()
