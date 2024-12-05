@@ -44,6 +44,10 @@ def export_posts_used_in_feeds(drop_table: bool = False):
     """Exports the posts used in the feeds to a DuckDB table."""
     table_name = "raw_posts_used_in_feeds"
     df = load_raw_parquet_data_as_df(posts_used_in_feeds_dir)
+    # Deduplicate posts by uri, keeping the most recent version
+    df = df.sort_values("consolidation_timestamp", ascending=False).drop_duplicates(
+        subset=["uri"], keep="first"
+    )
     write_df_to_duckdb(df=df, table_name=table_name, drop_table=drop_table)
     add_index_to_table(table_name=table_name, column="partition_date")
     print(
@@ -62,6 +66,7 @@ def export_user_session_logs(drop_table: bool = False):
 def main():
     export_posts_used_in_feeds(drop_table=True)
     export_user_session_logs(drop_table=True)
+    export_post_pool(drop_table=True)
 
 
 if __name__ == "__main__":

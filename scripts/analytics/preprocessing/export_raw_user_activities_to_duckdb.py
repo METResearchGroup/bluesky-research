@@ -51,6 +51,10 @@ def export_likes(drop_table: bool = False):
     """
     table_name = "raw_likes"
     df = load_raw_parquet_data_as_df(like_path)
+    # Deduplicate likes by uri, keeping the most recent version
+    df = df.sort_values("synctimestamp", ascending=False).drop_duplicates(
+        subset=["uri"], keep="first"
+    )
     write_df_to_duckdb(df=df, table_name=table_name, drop_table=drop_table)
     print(f"Exported {df.shape[0]:,} likes to DuckDB table '{table_name}'")
 
@@ -63,6 +67,10 @@ def export_like_on_user_post(drop_table: bool = False):
     """
     table_name = "raw_like_on_user_post"
     df = load_raw_parquet_data_as_df(like_on_user_post_path)
+    # Deduplicate likes by uri, keeping the most recent version
+    df = df.sort_values("synctimestamp", ascending=False).drop_duplicates(
+        subset=["uri"], keep="first"
+    )
     write_df_to_duckdb(df=df, table_name=table_name, drop_table=drop_table)
     print(
         f"Exported {df.shape[0]:,} likes on user posts to DuckDB table '{table_name}'"
@@ -77,6 +85,10 @@ def export_user_posts(drop_table: bool = False):
     """
     table_name = "raw_user_posts"
     df = load_raw_parquet_data_as_df(post_path)
+    # Deduplicate likes by uri, keeping the most recent version
+    df = df.sort_values("synctimestamp", ascending=False).drop_duplicates(
+        subset=["uri"], keep="first"
+    )
     write_df_to_duckdb(df=df, table_name=table_name, drop_table=drop_table)
     print(f"Exported {df.shape[0]:,} user posts to DuckDB table '{table_name}'")
 
