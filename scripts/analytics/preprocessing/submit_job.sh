@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=2
 #SBATCH -t 0:30:00
-#SBATCH --mem=15G
+#SBATCH --mem=20G
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --job-name=adhoc_analytics_job_jya0297_%j
@@ -21,7 +21,7 @@ PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 
 source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
 echo "Starting slurm job."
-python "/projects/p32375/bluesky-research/scripts/analytics/export_data_to_duckdb.py"
+python "/projects/p32375/bluesky-research/scripts/analytics/preprocessing/export_consolidated_posts_to_duckdb.py"
 exit_code=$?
 echo "Python script exited with code $exit_code"
 if [ $exit_code -ne 0 ]; then
