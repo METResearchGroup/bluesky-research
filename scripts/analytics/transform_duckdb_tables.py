@@ -1,5 +1,7 @@
 """Transforms raw DuckDB tables for downstream analysis."""
 
+import json
+
 import pandas as pd
 
 from scripts.analytics.duckdb_helper import (
@@ -31,8 +33,71 @@ def dedupe_study_user_activity_tables():
         )
 
 
+def clean_user_session_logs():
+    """Clean user session logs.
+
+    In particular, consolidate the different serialization schemes of the feeds,
+    some are JSON-strings and some are JSON strings of JSON strings (weird, yes).
+    """
+    query = "SELECT * FROM user_session_logs"
+    df = query_table_as_df(query)
+    feeds = df["feed"]
+
+    def clean_feed(feed: str) -> str:
+        cleaned_feed = json.loads(feed)
+        if isinstance(cleaned_feed, str):
+            cleaned_feed = json.loads(cleaned_feed)
+        return cleaned_feed
+
+    cleaned_feeds = feeds.apply(clean_feed)
+    df["feed"] = cleaned_feeds.tolist()
+    # extract the post URIs, since each post is currently a JSON in the feed.
+    df["feed_uris"] = [[post["post"] for post in feed] for feed in cleaned_feeds]
+    print(f"Creating cleaned_user_session_logs table with {df.shape[0]:,} rows")
+    conn.execute(
+        "CREATE OR REPLACE TABLE cleaned_user_session_logs AS SELECT * FROM df"
+    )
+
+
+# TODO: update this with the consolidated enriched posts
+# (which should be called "posts_used_in_feeds").
+def merge_user_session_logs_with_enriched_posts():
+    """Merge user session logs with enriched posts."""
+    query = """
+        WITH post_json AS (
+            SELECT 
+                uri,
+                json_object(
+                    'uri', uri,
+                    'author_did', author_did,
+                    'text', text,
+                    'synctimestamp', synctimestamp,
+                    'indexedAt', indexedAt,
+                    'createdAt', createdAt
+                ) as post_data
+            FROM deduped_raw_user_posts
+        )
+        SELECT 
+            s.*,
+            list(p.post_data) as enriched_feed
+        FROM cleaned_user_session_logs s,
+             post_json p
+        WHERE p.uri = ANY(s.feed_uris)
+        GROUP BY s.feed_uris, s.feed, s.session_id, s.user_id, s.timestamp
+    """
+    df = query_table_as_df(query)
+    print(
+        f"Creating merged_user_session_logs_with_enriched_posts table with {df.shape[0]:,} rows"
+    )
+    conn.execute(
+        "CREATE OR REPLACE TABLE merged_user_session_logs_with_enriched_posts AS SELECT * FROM df"
+    )
+
+
 def main():
-    dedupe_study_user_activity_tables()
+    # dedupe_study_user_activity_tables()
+    # clean_user_session_logs()
+    merge_user_session_logs_with_enriched_posts()
 
 
 if __name__ == "__main__":
