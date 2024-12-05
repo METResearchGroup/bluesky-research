@@ -71,9 +71,6 @@ def write_df_to_duckdb(df: pd.DataFrame, table_name: str, drop_table: bool = Fal
         if drop_table:
             conn.execute(f"DROP TABLE IF EXISTS {table_name}")
         conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} AS SELECT * FROM df")
-        conn.execute(
-            f"CREATE INDEX IF NOT EXISTS idx_{table_name}_bluesky_user_did ON {table_name}(bluesky_user_did)"
-        )
         print(f"Table {table_name} created successfully.")
     except Exception as e:
         print(f"Error creating table {table_name}: {e}")
