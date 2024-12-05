@@ -4,8 +4,11 @@ import duckdb
 import pandas as pd
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-db_path = os.path.join(current_dir, "bluesky_data.db")
-conn = duckdb.connect(db_path)
+
+cluster_db_path = "/projects/p32375/bluesky_research_data/analytics/bluesky_data.db"
+local_db_path = os.path.join(current_dir, "bluesky_data.db")
+
+conn = duckdb.connect(cluster_db_path)
 
 
 def get_table_counts(table: str) -> int:
@@ -60,3 +63,24 @@ def get_pilot_users_to_filter() -> pd.DataFrame:
         )
     """
     return query_table_as_df(query)
+
+
+def write_df_to_duckdb(df: pd.DataFrame, table_name: str, drop_table: bool = False):
+    try:
+        print(f"Writing {df.shape[0]:,} rows to DuckDB table '{table_name}'")
+        if drop_table:
+            conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+        conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} AS SELECT * FROM df")
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{table_name}_bluesky_user_did ON {table_name}(bluesky_user_did)"
+        )
+        print(f"Table {table_name} created successfully.")
+    except Exception as e:
+        print(f"Error creating table {table_name}: {e}")
+
+
+def add_index_to_table(table_name: str, column: str, index_name: str = None):
+    """Add an index to a table on a specific column."""
+    if index_name is None:
+        index_name = f"idx_{table_name}_{column}"
+    conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name}({column})")
