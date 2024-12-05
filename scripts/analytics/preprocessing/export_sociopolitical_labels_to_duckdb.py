@@ -52,7 +52,7 @@ def main():
         firehose_df = load_firehose_sociopolitical_labels(current_partition_date)
         most_liked_df = load_most_liked_labels(current_partition_date)
         df = pd.concat([firehose_df, most_liked_df], ignore_index=True)
-        insert_df_to_duckdb(conn, df, "sociopolitical_labels", upsert=True, primary_key="uri")
+        insert_df_to_duckdb(df, "sociopolitical_labels", conn=conn)
         total_count += len(df)
         del df
         gc.collect()

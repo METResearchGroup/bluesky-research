@@ -32,9 +32,7 @@ def main():
             consolidated_enriched_posts_df["partition_date"] = current_partition_date
         insert_df_to_duckdb(
             df=consolidated_enriched_posts_df,
-            table_name="consolidated_enriched_posts",
-            upsert=True,
-            primary_key="uri",
+            table_name="consolidated_enriched_posts"
         )
         total_count += len(consolidated_enriched_posts_df)
         del consolidated_enriched_posts_df
