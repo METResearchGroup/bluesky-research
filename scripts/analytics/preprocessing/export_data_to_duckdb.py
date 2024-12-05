@@ -66,7 +66,7 @@ def export_user_session_logs(drop_table: bool = False):
 def main():
     export_posts_used_in_feeds(drop_table=True)
     export_user_session_logs(drop_table=True)
-    export_post_pool(drop_table=True)
+    # export_post_pool(drop_table=True)
 
 
 if __name__ == "__main__":
