@@ -9,6 +9,7 @@ cluster_db_path = "/projects/p32375/bluesky_research_data/analytics/bluesky_data
 local_db_path = os.path.join(current_dir, "bluesky_data.db")
 
 conn = duckdb.connect(cluster_db_path)
+# conn = duckdb.connect(local_db_path)
 
 
 def get_table_counts(table: str) -> int:
@@ -65,26 +66,36 @@ def get_pilot_users_to_filter() -> pd.DataFrame:
     return query_table_as_df(query)
 
 
-def insert_df_to_duckdb(conn: duckdb.DuckDBPyConnection = conn, df: pd.DataFrame, table_name: str, upsert: bool = True, primary_key: str = "uri"):
+def insert_df_to_duckdb(
+    df: pd.DataFrame,
+    table_name: str,
+    upsert: bool = True,
+    primary_key: str = "uri",
+    conn: duckdb.DuckDBPyConnection = conn,
+):
     """Insert or upsert a DataFrame into a DuckDB table."""
     try:
         print(f"Inserting {df.shape[0]:,} rows into DuckDB table '{table_name}'")
 
         # Create table if it doesn't exist
-        conn.execute(f"CREATE TABLE IF NOT EXISTS {table_name} AS SELECT * FROM df WHERE 1=0")
-        
+        conn.execute(
+            f"CREATE TABLE IF NOT EXISTS {table_name} AS SELECT * FROM df WHERE 1=0"
+        )
+
         if upsert:
             # Drop temp table if it exists from previous failed attempt
             conn.execute("DROP TABLE IF EXISTS _temp_data")
-            
+
             # Create temp table for new data
             conn.execute("CREATE TEMP TABLE _temp_data AS SELECT * FROM df")
-            
+
             # Get column names for update statement
             columns = df.columns.tolist()
-            update_cols = [f"t.{col} = tmp.{col}" for col in columns if col != primary_key]
+            update_cols = [
+                f"t.{col} = tmp.{col}" for col in columns if col != primary_key
+            ]
             update_stmt = ", ".join(update_cols)
-            
+
             # Perform upsert using specified primary key
             conn.execute(f"""
                 INSERT INTO {table_name}
@@ -99,18 +110,17 @@ def insert_df_to_duckdb(conn: duckdb.DuckDBPyConnection = conn, df: pd.DataFrame
                 FROM _temp_data tmp
                 WHERE t.{primary_key} = tmp.{primary_key};
             """)
-            
+
             # Clean up temp table
             conn.execute("DROP TABLE IF EXISTS _temp_data")
         else:
             # Simple insert
             conn.execute(f"INSERT INTO {table_name} SELECT * FROM df")
-            
+
         print(f"Successfully inserted/upserted data into table {table_name}")
-        
+
     except Exception as e:
         print(f"Error inserting into table {table_name}: {e}")
-
 
 
 def write_df_to_duckdb(df: pd.DataFrame, table_name: str, drop_table: bool = False):
