@@ -36,7 +36,8 @@ def load_raw_parquet_data_as_df(base_path: str) -> pd.DataFrame:
     # Get all parquet files in the directory
     parquet_files = glob.glob(os.path.join(base_path, "**/*.parquet"), recursive=True)
     if not parquet_files:
-        raise ValueError(f"No parquet files found in {base_path}")
+        print(f"No parquet files found in {base_path}")
+        return None
 
     # Read and concatenate all parquet files
     dfs = []
@@ -50,5 +51,6 @@ def load_raw_parquet_data_as_df(base_path: str) -> pd.DataFrame:
         if "partition_date" not in df.columns:
             df["partition_date"] = partition_date
         dfs.append(df)
-
-    return pd.concat(dfs, ignore_index=True)
+    if dfs:
+        return pd.concat(dfs, ignore_index=True)
+    return None
