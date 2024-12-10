@@ -375,6 +375,50 @@ def manage_posts(posts: dict[str, list]) -> dict:
         manage_post(post=post, operation="delete")
 
 
+def manage_repost(repost: dict, operation: Literal["create", "delete"]) -> None:
+    pass
+
+
+def manage_reposts(reposts: dict[str, list]) -> dict:
+    for repost in reposts["created"]:
+        manage_repost(repost=repost, operation="create")
+    for repost in reposts["deleted"]:
+        manage_repost(repost=repost, operation="delete")
+
+
+def manage_list(list: dict, operation: Literal["create", "delete"]) -> None:
+    pass
+
+
+def manage_lists(lists: dict[str, list]) -> dict:
+    for list in lists["created"]:
+        manage_list(list=list, operation="create")
+    for list in lists["deleted"]:
+        manage_list(list=list, operation="delete")
+
+
+def manage_block(block: dict, operation: Literal["create", "delete"]) -> None:
+    pass
+
+
+def manage_blocks(blocks: dict[str, list]) -> dict:
+    for block in blocks["created"]:
+        manage_block(block=block, operation="create")
+    for block in blocks["deleted"]:
+        manage_block(block=block, operation="delete")
+
+
+def manage_profile(profile: dict, operation: Literal["create", "delete"]) -> None:
+    pass
+
+
+def manage_profiles(profiles: dict[str, list]) -> dict:
+    for profile in profiles["created"]:
+        manage_profile(profile=profile, operation="create")
+    for profile in profiles["deleted"]:
+        manage_profile(profile=profile, operation="delete")
+
+
 def operations_callback(operations_by_type: dict) -> bool:
     """Callback for managing posts during stream.
 
@@ -424,13 +468,20 @@ def operations_callback(operations_by_type: dict) -> bool:
         },
         'reposts': {'created': [],'deleted': []},
         'likes': {'created': [], 'deleted': []},
-        'follows': {'created': [], 'deleted': []}
+        'follows': {'created': [], 'deleted': []},
+        'lists': {'created': [], 'deleted': []},
+        'blocks': {'created': [], 'deleted': []},
+        'profiles': {'created': [], 'deleted': []},
     }
     """  # noqa
     try:
         manage_posts(posts=operations_by_type["posts"])
         manage_likes(likes=operations_by_type["likes"])
         manage_follows(follows=operations_by_type["follows"])
+        manage_reposts(reposts=operations_by_type["reposts"])
+        manage_lists(lists=operations_by_type["lists"])
+        manage_blocks(blocks=operations_by_type["blocks"])
+        manage_profiles(profiles=operations_by_type["profiles"])
         return True
     except Exception as e:
         logger.info(f"Error in exporting latest writes to cache: {e}")
