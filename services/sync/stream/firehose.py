@@ -36,16 +36,38 @@ from services.sync.stream.export_data import load_cursor_state_s3
 # cursor_update_frequency = 10000
 cursor_update_frequency = 20000
 
+_INTERESTED_RECORDS = {
+    models.AppBskyFeedLike: models.ids.AppBskyFeedLike,
+    models.AppBskyFeedPost: models.ids.AppBskyFeedPost,
+    models.AppBskyGraphFollow: models.ids.AppBskyGraphFollow,
+    models.AppBskyFeedRepost: models.ids.AppBskyFeedRepost,
+    models.AppBskyGraphListitem: models.ids.AppBskyGraphListitem,
+    models.AppBskyGraphBlock: models.ids.AppBskyGraphBlock,
+    models.AppBskyActorProfile: models.ids.AppBskyActorProfile,
+}
+
+map_nsid_to_record_type = {
+    "app.bsky.feed.post": "posts",
+    "app.bsky.feed.like": "likes",
+    "app.bsky.feed.repost": "reposts",
+    "app.bsky.graph.follow": "follows",
+    "app.bsky.graph.listitem": "lists",
+    "app.bsky.graph.block": "blocks",
+    "app.bsky.actor.profile": "profiles",
+}
+
 logger = get_logger(__name__)
 
 
 def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict:  # noqa
     operation_by_type = {
         "posts": {"created": [], "deleted": []},
-        # NOTE: is it possible to track reposts?
         "reposts": {"created": [], "deleted": []},
         "likes": {"created": [], "deleted": []},
         "follows": {"created": [], "deleted": []},
+        "lists": {"created": [], "deleted": []},
+        "blocks": {"created": [], "deleted": []},
+        "profiles": {"created": [], "deleted": []},
     }
 
     car = CAR.from_bytes(commit.blocks)
@@ -67,33 +89,20 @@ def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict
                 continue
 
             record = models.get_or_create(record_raw_data, strict=False)
-            if uri.collection == models.ids.AppBskyFeedLike and models.is_record_type(
-                record, models.AppBskyFeedLike
-            ):
-                operation_by_type["likes"]["created"].append(
-                    {"record": record, **create_info}
-                )
-            elif uri.collection == models.ids.AppBskyFeedPost and models.is_record_type(
-                record, models.AppBskyFeedPost
-            ):
-                operation_by_type["posts"]["created"].append(
-                    {"record": record, **create_info}
-                )
-            elif (
-                uri.collection == models.ids.AppBskyGraphFollow
-                and models.is_record_type(record, models.AppBskyGraphFollow)
-            ):
-                operation_by_type["follows"]["created"].append(
-                    {"record": record, **create_info}
-                )
+
+            for record_type, record_nsid in _INTERESTED_RECORDS.items():
+                if uri.collection == record_nsid and models.is_record_type(
+                    record, record_type
+                ):
+                    record_type_str = map_nsid_to_record_type[uri.collection]
+                    operation_by_type[record_type_str]["created"].append(
+                        {"record": record, **create_info}
+                    )
+                    break
 
         if op.action == "delete":
-            if uri.collection == models.ids.AppBskyFeedLike:
-                operation_by_type["likes"]["deleted"].append({"uri": str(uri)})
-            if uri.collection == models.ids.AppBskyFeedPost:
-                operation_by_type["posts"]["deleted"].append({"uri": str(uri)})
-            if uri.collection == models.ids.AppBskyGraphFollow:
-                operation_by_type["follows"]["deleted"].append({"uri": str(uri)})
+            record_type_str = map_nsid_to_record_type[uri.collection]
+            operation_by_type[record_type_str]["deleted"].append({"uri": str(uri)})
 
     return operation_by_type
 
