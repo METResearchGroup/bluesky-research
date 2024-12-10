@@ -1,4 +1,5 @@
 """This service takes the latest feeds for each user and writes them to S3."""
+
 import sys
 import traceback
 

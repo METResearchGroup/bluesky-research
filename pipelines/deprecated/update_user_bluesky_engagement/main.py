@@ -13,11 +13,14 @@ This pipeline is only for updating our database with the latest counts
 of these metrics for our study users, not doing any calculations or
 analysis on them.
 """
+
 import sys
 import traceback
 
 from lib.log.logger import Logger
-from services.update_user_bluesky_engagement.helper import update_latest_user_engagement_metrics  # noqa
+from services.update_user_bluesky_engagement.helper import (
+    update_latest_user_engagement_metrics,
+)  # noqa
 
 logger = Logger(__name__)
 
