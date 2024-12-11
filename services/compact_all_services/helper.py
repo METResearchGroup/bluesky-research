@@ -268,6 +268,9 @@ def compact_local_service(
         "ml_inference_perspective_api",
         "ml_inference_sociopolitical",
     ]:
+        if len(df) == 0:
+            logger.warning(f"No data found for service={service}")
+            return
         grouped = df.groupby("source")
         firehose_df = grouped.get_group("firehose")
         most_liked_df = grouped.get_group("most_liked")
