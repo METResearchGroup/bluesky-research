@@ -269,6 +269,8 @@ def compact_local_service(
         "ml_inference_sociopolitical",
     ]:
         if len(df) == 0:
+            # this is OK. We currently turned off LLM inference so there
+            # won't be new sociopolitical posts.
             logger.warning(f"No data found for service={service}")
             return
         grouped = df.groupby("source")
