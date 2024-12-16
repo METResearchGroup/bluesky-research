@@ -3,6 +3,12 @@ name = "bluesky-research"
 version = "0.1.0"
 description = "Bluesky Research"
 readme = "README.md"
+requires-python = ">=3.10"  # Match your ruff target-version
+authors = [
+    {name = "Mark Torres", email = "markptorres1@gmail.com"},
+]
+license = {text = "MIT"}
+
 
 [tool.flake8]
 exclude = ["*/experiments/*", "./demos/*"]
@@ -11,3 +17,32 @@ max-complexity = 10
 
 [tool.uv.workspace]
 members = ["pipelines/get_existing_user_social_network"]
+
+[tool.pytest.ini_options]
+# Directories to ignore
+norecursedirs = [
+    "experiments",
+    "feed_api",  # ignoring the feed_api tests
+    "*.egg",
+    ".*",
+    "build",
+    "dist"
+]
+
+# Test file patterns to look for
+python_files = ["test_*.py", "*_test.py"]
+
+# Additional test paths to include
+testpaths = [
+    "tests",
+    "integration_tests",
+    # Add other test directories here
+]
+
+# Add any other pytest flags you want to always use
+addopts = "-v --no-header"
+
+# Ignore specific test files or directories
+ignore = [
+    "services/preprocess_raw_data/classify_language/tests/test_language_filter.py",
+]
