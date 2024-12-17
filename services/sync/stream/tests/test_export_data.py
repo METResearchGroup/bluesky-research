@@ -55,6 +55,10 @@ class TestExportStudyUserActivityLocalData:
                     if idx != 1
                 ],
                 "deleted": []
+            },
+            "reposts": {
+                "created": [],
+                "deleted": []
             }
         }
         operations_callback(operations_by_type)
@@ -131,6 +135,10 @@ class TestExportBatch():
                     in enumerate(mock_follow_records_fixture)
                     if idx != 1
                 ],
+                "deleted": []
+            },
+            "reposts": {
+                "created": [],
                 "deleted": []
             }
         }

@@ -852,6 +852,8 @@ def export_study_user_follow(
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     full_path = os.path.join(folder_path, filename)
+    print(f"Writing follow record to {full_path}")
+    breakpoint()
     write_data_to_json(data=record, path=full_path)
 
 

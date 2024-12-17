@@ -1,10 +1,9 @@
 from datetime import timedelta
 
-from lib.constants import current_datetime, timestamp_format
+from lib.constants import current_datetime, default_lookback_days, timestamp_format
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
-from services.rank_score_feeds.constants import default_lookback_days
 from services.rank_score_feeds.metrics import plot_lines
 from services.rank_score_feeds.scoring import calculate_post_age, score_post_freshness
 
