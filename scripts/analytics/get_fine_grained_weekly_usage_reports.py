@@ -485,9 +485,26 @@ def main():
     # get the valid weeks for each user.
     valid_weeks_df = get_user_valid_weeks(qualtrics_df, user_session_logs_df)
 
+    # Get users who have at least 5 valid logins
+    valid_login_counts = (
+        valid_weeks_df[valid_weeks_df["valid_login"]].groupby("handle").size()
+    )
+    handles_with_5_plus = valid_login_counts[valid_login_counts >= 5].index
+
+    # Create df with only those users
+    valid_users = valid_weeks_df[valid_weeks_df["handle"].isin(handles_with_5_plus)]
+    valid_users = valid_users[["handle", "survey_week", "valid_login"]]
+
+    print(f"Found {len(handles_with_5_plus)} users with at least 5 valid logins")
+
     # export the valid weeks df to a csv.
     valid_weeks_df.to_csv(
         os.path.join(current_dir, "valid_weeks_per_bluesky_user.csv"), index=False
+    )
+
+    valid_users.to_csv(
+        os.path.join(current_dir, "users_with_minimum_valid_week_counts.csv"),
+        index=False,
     )
 
     print("Finished fetching valid weeks for each user.")
