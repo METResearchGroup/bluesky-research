@@ -367,6 +367,7 @@ def get_user_valid_weeks(
         columns=[
             "handle",
             "survey_week",
+            "valid_login",
             "filled_out_survey",
             "survey_timestamp",
             "survey_timestamp_utc",
@@ -374,7 +375,6 @@ def get_user_valid_weeks(
             "user_login_timestamp_before_survey",
             "user_logged_in_during_week",
             "user_login_timestamp_during_week",
-            "valid_login",
         ],
     )
 
