@@ -13,6 +13,11 @@ def backfill_posts(payload: dict):
     )
     context = {"total": len(posts_to_backfill)}
     logger.info(f"Loaded {len(posts_to_backfill)} posts to backfill.", context=context)
+
+    if len(posts_to_backfill) == 0:
+        logger.info("No posts to backfill. Exiting...")
+        return
+
     for integration, post_uris in posts_to_backfill.items():
         queue = Queue(queue_name=integration, create_new_queue=True)
         payloads = [{"uri": uri} for uri in post_uris]

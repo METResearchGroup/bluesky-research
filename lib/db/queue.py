@@ -78,14 +78,16 @@ class Queue:
         self.db_path = os.path.join(root_db_path, f"{queue_name}.db")
         if not os.path.exists(self.db_path):
             if create_new_queue:
-                print(f"Creating new SQLite DB for queue {queue_name}...")
+                logger.info(f"Creating new SQLite DB for queue {queue_name}...")
                 self._init_queue_db()
             else:
                 raise ValueError(
                     f"DB for queue {queue_name} doesn't exist. Need to pass in `create_new_queue` if creating a new queue is intended."
                 )  # noqa
         else:
-            print(f"Loading existing SQLite DB for queue {queue_name}...")
+            logger.info(f"Loading existing SQLite DB for queue {queue_name}...")
+            count = self.get_queue_length()
+            logger.info(f"Current queue size: {count} items")
 
     def __repr__(self):
         return f"Queue(name={self.queue_name}, db_path={self.db_path})"
@@ -103,6 +105,16 @@ class Queue:
                     status TEXT DEFAULT 'pending'
                 )
             """)
+
+    def get_queue_length(self) -> int:
+        """Get the total number of items in the queue.
+
+        Returns:
+            int: Total number of items in the queue
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM queue").fetchone()[0]
+            return count
 
     def add_item_to_queue(self, item: dict) -> QueueItem:
         """Add a new item to the queue.
@@ -160,7 +172,7 @@ class Queue:
                     )
                 )
 
-            count = conn.execute("SELECT COUNT(*) FROM queue").fetchone()[0]
+            count = self.get_queue_length()
             logger.info(f"Queue size after batch add: {count} items")
 
         return queue_items
@@ -188,7 +200,7 @@ class Queue:
 
             row = cursor.fetchone()
             if not row:
-                count = conn.execute("SELECT COUNT(*) FROM queue").fetchone()[0]
+                count = self.get_queue_length()
                 logger.info(f"Queue is empty. Total items in queue: {count}")
                 return None
 
@@ -196,7 +208,7 @@ class Queue:
                 id=row[0], payload=row[1], created_at=row[2], status="processing"
             )
 
-            count = conn.execute("SELECT COUNT(*) FROM queue").fetchone()[0]
+            count = self.get_queue_length()
             logger.info(f"Queue size after remove: {count} items")
             return item
 
@@ -239,7 +251,7 @@ class Queue:
                     )
                 )
 
-            count = conn.execute("SELECT COUNT(*) FROM queue").fetchone()[0]
+            count = self.get_queue_length()
             logger.info(f"Queue size after batch remove: {count} items")
 
         return items
