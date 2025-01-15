@@ -107,25 +107,16 @@ class Queue:
             """)
 
     def get_queue_length(self) -> int:
-        """Get the total number of items in the queue.
-
-        Returns:
-            int: Total number of items in the queue
-        """
+        """Get total number of items in queue."""
         with sqlite3.connect(self.db_path) as conn:
-            count = conn.execute("SELECT COUNT(*) FROM queue").fetchone()[0]
-            return count
+            cursor = conn.execute(f"SELECT COUNT(*) FROM {self.queue_table_name}")
+            return cursor.fetchone()[0]  # Ensure we return an integer, not None
 
-    def add_item_to_queue(self, item: dict) -> QueueItem:
-        """Add a new item to the queue.
-
-        Args:
-            item: Dictionary containing the item data to be queued
-
-        Returns:
-            QueueItem: The created queue item with its assigned ID
-        """
-        json_payload = json.dumps(item)
+    def add_item_to_queue(self, payload: dict) -> QueueItem:
+        """Add single item to queue."""
+        if not payload:  # Validate payload is not empty
+            raise ValueError("Payload cannot be empty")
+        json_payload = json.dumps(payload)
 
         queue_item = QueueItem(payload=json_payload)
 
@@ -139,42 +130,12 @@ class Queue:
         return queue_item
 
     def batch_add_item_to_queue(self, items: list[dict]) -> list[QueueItem]:
-        """Add multiple items to the queue in a single transaction.
-
-        Args:
-            items: List of dictionaries containing item data to be queued
-
-        Returns:
-            list[QueueItem]: List of created queue items with assigned IDs
-        """
+        """Add multiple items to queue."""
         queue_items = []
-
-        with sqlite3.connect(self.db_path) as conn:
-            values = [
-                (json.dumps(item), generate_current_datetime_str(), "pending")
-                for item in items
-            ]
-
-            cursor = conn.executemany(
-                "INSERT INTO queue (payload, created_at, status) VALUES (?, ?, ?)",
-                values,
-            )
-
-            first_id = cursor.lastrowid
-
-            for i, (item, (_, created_at, status)) in enumerate(zip(items, values)):
-                queue_items.append(
-                    QueueItem(
-                        id=first_id + i,
-                        payload=json.dumps(item),
-                        created_at=created_at,
-                        status=status,
-                    )
-                )
-
-            count = self.get_queue_length()
-            logger.info(f"Queue size after batch add: {count} items")
-
+        for item in items:
+            if not item:
+                raise ValueError("Payload cannot be empty")
+            queue_items.append(self.add_item_to_queue(item))
         return queue_items
 
     def remove_item_from_queue(self) -> Optional[QueueItem]:
@@ -212,46 +173,12 @@ class Queue:
             logger.info(f"Queue size after remove: {count} items")
             return item
 
-    def batch_remove_items_from_queue(self, limit: int = 1) -> list[QueueItem]:
-        """Remove and return multiple items from the queue in a single transaction.
-
-        Args:
-            limit: Maximum number of items to remove
-
-        Returns:
-            list[QueueItem]: List of removed items
-        """
+    def batch_remove_items_from_queue(self, limit: int) -> list[QueueItem]:
+        """Remove multiple items from queue."""
         items = []
-
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(
-                """
-                WITH next_items AS (
-                    SELECT id, payload, created_at, status
-                    FROM queue 
-                    WHERE status = 'pending'
-                    ORDER BY created_at ASC 
-                    LIMIT ?
-                )
-                UPDATE queue
-                SET status = 'processing'
-                WHERE id IN (SELECT id FROM next_items)
-                RETURNING id, payload, created_at, status
-            """,
-                (limit,),
-            )
-
-            for row in cursor.fetchall():
-                items.append(
-                    QueueItem(
-                        id=row[0],
-                        payload=row[1],
-                        created_at=row[2],
-                        status="processing",
-                    )
-                )
-
-            count = self.get_queue_length()
-            logger.info(f"Queue size after batch remove: {count} items")
-
+        for _ in range(limit):
+            item = self.remove_item_from_queue()
+            if item is None:
+                break
+            items.append(item)
         return items
