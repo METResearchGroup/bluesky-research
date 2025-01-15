@@ -6,6 +6,7 @@ import json
 import os
 from typing import Literal, Optional
 
+import duckdb
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -427,7 +428,9 @@ def list_filenames(
                     for file in files:
                         res.append(os.path.join(root, file))
     if partition_date:
-        print(f"Filtering {len(res)} files in service={service}, for partition_date={partition_date}")
+        print(
+            f"Filtering {len(res)} files in service={service}, for partition_date={partition_date}"
+        )
         res = [fp for fp in res if f"partition_date={partition_date}" in fp]
     return res
 
@@ -515,8 +518,9 @@ def get_service_pa_schema(service: str) -> Optional[pa.Schema]:
 def load_data_from_local_storage(
     service: str,
     directory: Literal["cache", "active"] = "active",
-    export_format: Literal["jsonl", "parquet"] = "parquet",
+    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
     partition_date: Optional[str] = None,
+    duckdb_query: Optional[str] = None,
     latest_timestamp: Optional[str] = None,
     use_all_data: bool = False,
     validate_pq_files: bool = False,
@@ -570,6 +574,14 @@ def load_data_from_local_storage(
                     df[col] = df[col].astype("object")
                 elif dtype == "string":
                     df[col] = df[col].astype("string")
+    elif export_format == "duckdb":
+        if not duckdb_query:
+            raise ValueError("Must provide a DuckDB query when exporting to DuckDB.")
+        with duckdb.connect(":memory:") as conn:
+            conn.execute(
+                f"CREATE VIEW data AS SELECT * FROM parquet_scan('{filepaths}')"
+            )
+            df: pd.DataFrame = conn.execute(duckdb_query).df()
     if latest_timestamp:
         logger.info(f"Fetching data after timestamp={latest_timestamp}")
         timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
