@@ -2,8 +2,8 @@
 
 #SBATCH -A p32375
 #SBATCH -p normal
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=3
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
 #SBATCH -t 48:00:00
 #SBATCH --mem=4G
 #SBATCH --mail-type=FAIL
