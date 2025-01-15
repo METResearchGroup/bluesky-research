@@ -4,7 +4,7 @@ from lib.db.queue import Queue
 from lib.log.logger import get_logger
 from services.backfill.posts.load_data import load_posts_to_backfill
 
-logger = get_logger(__name__)
+logger = get_logger(__file__)
 
 
 def backfill_posts(payload: dict):
@@ -17,3 +17,8 @@ def backfill_posts(payload: dict):
         queue = Queue(queue_name=integration, create_new_queue=True)
         payloads = [{"uri": uri} for uri in post_uris]
         queue.batch_add_item_to_queue(payloads)
+
+
+if __name__ == "__main__":
+    payload = {"integration": "ml_inference_perspective_api"}
+    backfill_posts(payload)

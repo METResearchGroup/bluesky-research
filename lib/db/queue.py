@@ -14,10 +14,16 @@ from typing import Optional
 from pydantic import BaseModel, Field, validator
 import typing_extensions as te
 
-from lib.helper import generate_current_datetime_str
+from lib.helper import BSKY_DATA_DIR, generate_current_datetime_str
+from lib.log.logger import get_logger
 
+logger = get_logger(__file__)
 
-root_db_path = ""
+root_db_path = os.path.join(BSKY_DATA_DIR, "queue")
+if not os.path.exists(root_db_path):
+    logger.info(f"Creating new directory for queue data at {root_db_path}...")
+    os.makedirs(root_db_path)
+
 existing_sqlite_dbs = [
     file for file in os.listdir(root_db_path) if file.endswith(".db")
 ]
@@ -155,7 +161,7 @@ class Queue:
                 )
 
             count = conn.execute("SELECT COUNT(*) FROM queue").fetchone()[0]
-            print(f"Queue size after batch add: {count} items")
+            logger.info(f"Queue size after batch add: {count} items")
 
         return queue_items
 
@@ -183,7 +189,7 @@ class Queue:
             row = cursor.fetchone()
             if not row:
                 count = conn.execute("SELECT COUNT(*) FROM queue").fetchone()[0]
-                print(f"Queue is empty. Total items in queue: {count}")
+                logger.info(f"Queue is empty. Total items in queue: {count}")
                 return None
 
             item = QueueItem(
@@ -191,7 +197,7 @@ class Queue:
             )
 
             count = conn.execute("SELECT COUNT(*) FROM queue").fetchone()[0]
-            print(f"Queue size after remove: {count} items")
+            logger.info(f"Queue size after remove: {count} items")
             return item
 
     def batch_remove_items_from_queue(self, limit: int = 1) -> list[QueueItem]:
@@ -234,6 +240,6 @@ class Queue:
                 )
 
             count = conn.execute("SELECT COUNT(*) FROM queue").fetchone()[0]
-            print(f"Queue size after batch remove: {count} items")
+            logger.info(f"Queue size after batch remove: {count} items")
 
         return items
