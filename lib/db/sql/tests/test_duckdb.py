@@ -73,7 +73,6 @@ def test_get_query_metadata_where():
 
     # Test with WHERE clause
     metadata = db.get_query_metadata("SELECT uri FROM posts WHERE author = 'test'")
-    breakpoint()
     assert metadata["tables"] == ["posts"]
     assert set(metadata["columns"]) == {"uri", "author"}
 
@@ -87,7 +86,6 @@ def test_get_query_metadata_complex():
         FROM posts p 
         JOIN users u ON p.author = u.id
     """)
-    breakpoint()
     assert set(metadata["tables"]) == {"posts", "users"}
     assert set(metadata["columns"]) == {"uri", "name", "author", "id"}
 
