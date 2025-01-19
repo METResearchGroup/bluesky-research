@@ -1,10 +1,13 @@
+"""Metrics collection and reporting."""
+
 from contextlib import contextmanager
 from dataclasses import dataclass
 import time
 import psutil
 import os
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 from datetime import datetime
+
 
 @dataclass
 class MetricsSnapshot:
@@ -13,17 +16,24 @@ class MetricsSnapshot:
     cpu_percent: float
     io_counters: Dict[str, int]
 
+
 class MetricsCollector:
     def __init__(self):
         self.process = psutil.Process(os.getpid())
-    
+
     def _get_snapshot(self) -> MetricsSnapshot:
         """Capture current system metrics"""
+        # Get IO counters if available, otherwise return empty dict
+        try:
+            io_counters = self.process.io_counters()._asdict()
+        except (AttributeError, NotImplementedError):
+            io_counters = {}
+
         return MetricsSnapshot(
             timestamp=datetime.utcnow().isoformat(),
             memory_mb=self.process.memory_info().rss / 1024 / 1024,
             cpu_percent=self.process.cpu_percent(),
-            io_counters=self.process.io_counters()._asdict()
+            io_counters=io_counters,
         )
 
     @contextmanager
@@ -38,31 +48,29 @@ class MetricsCollector:
         finally:
             end_snapshot = self._get_snapshot()
             end_time = time.time()
-            
+
             metrics = {
                 "operation": operation_name,
                 "tags": tags,
                 "timing": {
                     "start_time": start_snapshot.timestamp,
                     "end_time": end_snapshot.timestamp,
-                    "duration_seconds": end_time - start_time
+                    "duration_seconds": end_time - start_time,
                 },
                 "memory": {
                     "start_mb": start_snapshot.memory_mb,
                     "end_mb": end_snapshot.memory_mb,
-                    "delta_mb": end_snapshot.memory_mb - start_snapshot.memory_mb
+                    "delta_mb": end_snapshot.memory_mb - start_snapshot.memory_mb,
                 },
-                "cpu": {
-                    "percent": end_snapshot.cpu_percent
-                },
+                "cpu": {"percent": end_snapshot.cpu_percent},
                 "io": {
                     "start": start_snapshot.io_counters,
                     "end": end_snapshot.io_counters,
                     "delta": {
                         k: end_snapshot.io_counters[k] - start_snapshot.io_counters[k]
                         for k in start_snapshot.io_counters
-                    }
-                }
+                    },
+                },
             }
-            
+
             self.last_metrics = metrics

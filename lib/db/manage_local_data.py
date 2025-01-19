@@ -6,7 +6,6 @@ import json
 import os
 from typing import Literal, Optional
 
-import duckdb
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -17,11 +16,13 @@ from lib.constants import (
     default_lookback_days,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from lib.db.sql.duckdb import DuckDB
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 
 logger = get_logger(__name__)
+duckDB = DuckDB()
 
 pd.set_option("display.max_rows", None)
 pd.set_option("display.max_columns", None)
@@ -577,23 +578,13 @@ def load_data_from_local_storage(
     elif export_format == "duckdb":
         if not duckdb_query:
             raise ValueError("Must provide a DuckDB query when exporting to DuckDB.")
-        with duckdb.connect(":memory:") as conn:
-            # TODO: would be nice to get something like the amount of data
-            # scanned, how much memory was used, and how long it took to scan.
-            # breakpoint()
-            formatted_paths = ",".join([f"'{path}'" for path in filepaths]) if isinstance(filepaths, list) else f"'{filepaths}'"
-            # conn.execute(
-            #     f"CREATE VIEW data AS SELECT * FROM parquet_scan('{formatted_paths}');"
-            # )
-            # df: pd.DataFrame = conn.execute(duckdb_query).df()
-            import json
-            formatted_paths = json.dumps(filepaths)
-            query = f"SELECT * FROM read_parquet({formatted_paths});"
-            breakpoint()
-            df: pd.DataFrame = conn.execute(query).df()
-            breakpoint()
-            # TODO: add the telemetry that Claude suggests, and then refactor
-            # to create generic DuckDB tooling.
+
+        df: pd.DataFrame = duckDB.run_query_as_df(
+            query=duckdb_query, mode="parquet", filepaths=filepaths
+        )
+
+        breakpoint()
+
     if latest_timestamp:
         logger.info(f"Fetching data after timestamp={latest_timestamp}")
         timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
