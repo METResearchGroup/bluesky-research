@@ -1,5 +1,7 @@
 class IntegrationRequest:
-    pass
+    service: str
+    payload: dict
+    metadata: dict
 
 
 class IntegrationResponse:
