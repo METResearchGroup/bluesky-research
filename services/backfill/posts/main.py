@@ -20,8 +20,6 @@ def backfill_posts(payload: dict):
         logger.info("No posts to backfill. Exiting...")
         return
 
-    breakpoint()
-
     for integration, post_uris in posts_to_backfill.items():
         logger.info(
             f"Adding {len(post_uris)} posts for {integration} to backfill queue..."
