@@ -31,10 +31,29 @@ class DuckDB:
             Dictionary containing query metadata (tables and columns referenced)
         """
 
-        def extract_from_token(token: Token, tables: Set[str], columns: Set[str]):
+        def extract_from_token(
+            token: Token,
+            tables: Set[str],
+            columns: Set[str],
+            parent_token: Optional[Token] = None,
+        ):
             """Recursively extract table and column names from a token."""
             if isinstance(token, TokenList):
-                # First, check if this is a SELECT statement and extract columns
+                # Track the current context
+                is_where = any(
+                    t.ttype is Keyword and t.value.upper() == "WHERE"
+                    for t in token.tokens
+                )
+                is_join = any(
+                    t.ttype is Keyword and t.value.upper() == "JOIN"
+                    for t in token.tokens
+                )
+                is_on = any(
+                    t.ttype is Keyword and t.value.upper() == "ON" for t in token.tokens
+                )
+                print(f"is_where: {is_where}, is_join: {is_join}, is_on: {is_on}")
+
+                # Process SELECT columns
                 select_seen = False
                 for t in token.tokens:
                     if t.ttype is DML and t.value.upper() == "SELECT":
@@ -51,37 +70,63 @@ class DuckDB:
                         elif not t.is_whitespace:
                             if isinstance(t, IdentifierList):
                                 for identifier in t.get_identifiers():
-                                    columns.add(identifier.get_real_name())
+                                    if "." in identifier.value:
+                                        _, col = identifier.value.split(".")
+                                        columns.add(col.strip('`"'))
+                                    else:
+                                        columns.add(identifier.get_real_name())
                             elif isinstance(t, Identifier):
-                                columns.add(t.get_real_name())
+                                if "." in t.value:
+                                    _, col = t.value.split(".")
+                                    columns.add(col.strip('`"'))
+                                else:
+                                    columns.add(t.get_real_name())
                             elif t.ttype is Wildcard:
                                 columns.add("*")
                             select_seen = False
 
-                # Then look for table names in FROM clauses
-                if any(
-                    t.ttype is Keyword and t.value.upper() == "FROM"
-                    for t in token.tokens
-                ):
-                    for i, t in enumerate(token.tokens):
-                        if t.ttype is Keyword and t.value.upper() == "FROM":
-                            next_tokens = [
-                                tok
-                                for tok in token.tokens[i + 1 :]
-                                if not tok.is_whitespace
-                            ]
-                            if next_tokens:
-                                next_token = next_tokens[0]
-                                if isinstance(next_token, Identifier):
-                                    tables.add(next_token.get_real_name())
-                                elif isinstance(next_token, IdentifierList):
-                                    for identifier in next_token.get_identifiers():
-                                        tables.add(identifier.get_real_name())
+                # Process FROM/JOIN tables
+                from_seen = False
+                for t in token.tokens:
+                    if t.ttype is Keyword and t.value.upper() in ("FROM", "JOIN"):
+                        from_seen = True
+                        continue
+                    if from_seen and not t.is_whitespace:
+                        if isinstance(t, Identifier):
+                            # Handle table aliases (e.g., "posts p")
+                            real_name = t.get_real_name().split(" ")[0].strip('`"')
+                            tables.add(real_name)
+                        elif isinstance(t, IdentifierList):
+                            for identifier in t.get_identifiers():
+                                real_name = (
+                                    identifier.get_real_name().split(" ")[0].strip('`"')
+                                )
+                                tables.add(real_name)
+                        from_seen = False
+
+                # Process WHERE/JOIN conditions
+                for t in token.tokens:
+                    if isinstance(t, Identifier):
+                        if "." in t.value:
+                            _, col = t.value.split(".")
+                            columns.add(col.strip('`"'))
+                        elif is_where or is_on:
+                            columns.add(t.get_real_name().strip('`"'))
 
                 # Recursively process all tokens
                 for t in token.tokens:
-                    extract_from_token(t, tables, columns)
+                    extract_from_token(t, tables, columns, token)
 
+            elif isinstance(token, Identifier):
+                # Handle qualified column names (e.g., "p.author")
+                if "." in token.value:
+                    _, col = token.value.split(".")
+                    columns.add(col.strip('`"'))
+                elif parent_token and any(
+                    t.ttype is Keyword and t.value.upper() in ("WHERE", "ON")
+                    for t in parent_token.tokens
+                ):
+                    columns.add(token.get_real_name().strip('`"'))
             elif token.ttype is Wildcard:
                 columns.add("*")
 
@@ -94,12 +139,12 @@ class DuckDB:
         # Extract tables and columns
         extract_from_token(parsed, tables, columns)
 
-        # Remove any None values that might have been added
-        tables = {t for t in tables if t}
-        columns = {c for c in columns if c}
+        # Remove any None values and clean up
+        tables = {t.strip('`"') for t in tables if t}
+        columns = {c.strip('`"') for c in columns if c}
 
-        # Remove table names from columns set
-        columns = columns - tables
+        # Remove table names and aliases from columns
+        columns = {c for c in columns if c not in tables and " " not in c}
 
         # If we have a wildcard, we can't determine specific columns
         if "*" in columns:
@@ -174,7 +219,6 @@ class DuckDB:
         """Run a query and return the result as a pandas DataFrame."""
         # the decorator returns a tuple of the df and the metrics.
         df, metrics = self._run_query_as_df(query, mode, filepaths)
-        breakpoint()
         return df
 
 
