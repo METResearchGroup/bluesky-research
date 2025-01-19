@@ -83,12 +83,24 @@ class DuckDB:
         return df
 
     def run_query_as_df(
-        self, query: str, mode: str = "default", filepaths: Optional[list[str]] = None
+        self,
+        query: str,
+        mode: str = "default",
+        filepaths: Optional[list[str]] = None,
+        query_metadata: Optional[dict[str, Any]] = None,
     ) -> pd.DataFrame:
         """Run a query and return the result as a pandas DataFrame."""
         # the decorator returns a tuple of the df and the metrics.
-        df, metrics = self._run_query_as_df(query, mode, filepaths)
+        df, metrics = self._run_query_as_df(
+            query=query, mode=mode, filepaths=filepaths, query_metadata=query_metadata
+        )
+        self._export_query_metrics(metrics)
         return df
+
+    # TODO: Implement this in the future.
+    def _export_query_metrics(self, metrics: dict[str, Any]) -> None:
+        """Export query metrics to the metrics collector."""
+        pass
 
 
 def get_duckdb_instance(conn: Optional[DuckDBPyConnection] = None) -> DuckDB:

@@ -20,6 +20,7 @@ def load_service_post_uris(service: str, id_field: str = "uri") -> set[str]:
         service=service,
         export_format="duckdb",
         duckdb_query=query,
+        query_metadata={"tables": [{"name": service, "columns": [id_field]}]},
     )
     return set(df[id_field])
 
@@ -31,7 +32,6 @@ def load_posts_to_backfill(integration: Optional[str] = None) -> dict[str, set[s
     mapped by the integration to backfill them for.
     """
     total_post_uris = load_service_post_uris(service="preprocessed_posts")
-    breakpoint()
     integration_to_post_uris_map = {}
     for integration in INTEGRATIONS_LIST:
         integration_post_uris: set[str] = load_service_post_uris(integration)

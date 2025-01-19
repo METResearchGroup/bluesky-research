@@ -522,6 +522,7 @@ def load_data_from_local_storage(
     export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
     partition_date: Optional[str] = None,
     duckdb_query: Optional[str] = None,
+    query_metadata: Optional[dict] = None,
     latest_timestamp: Optional[str] = None,
     use_all_data: bool = False,
     validate_pq_files: bool = False,
@@ -576,14 +577,17 @@ def load_data_from_local_storage(
                 elif dtype == "string":
                     df[col] = df[col].astype("string")
     elif export_format == "duckdb":
-        if not duckdb_query:
-            raise ValueError("Must provide a DuckDB query when exporting to DuckDB.")
+        if not duckdb_query or not query_metadata:
+            raise ValueError(
+                "Must provide a DuckDB query and query metadata when exporting to DuckDB."
+            )
 
         df: pd.DataFrame = duckDB.run_query_as_df(
-            query=duckdb_query, mode="parquet", filepaths=filepaths
+            query=duckdb_query,
+            mode="parquet",
+            filepaths=filepaths,
+            query_metadata=query_metadata,
         )
-
-        breakpoint()
 
     if latest_timestamp:
         logger.info(f"Fetching data after timestamp={latest_timestamp}")
