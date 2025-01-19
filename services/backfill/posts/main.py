@@ -1,12 +1,14 @@
 """Service for backfilling posts."""
 
 from lib.db.queue import Queue
+from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.backfill.posts.load_data import load_posts_to_backfill
 
 logger = get_logger(__file__)
 
 
+@track_performance
 def backfill_posts(payload: dict):
     posts_to_backfill: dict[str, set[str]] = load_posts_to_backfill(
         payload.get("integration")
@@ -21,6 +23,9 @@ def backfill_posts(payload: dict):
     breakpoint()
 
     for integration, post_uris in posts_to_backfill.items():
+        logger.info(
+            f"Adding {len(post_uris)} posts for {integration} to backfill queue..."
+        )  # noqa
         queue = Queue(queue_name=integration, create_new_queue=True)
         payloads = [{"uri": uri} for uri in post_uris]
         queue.batch_add_item_to_queue(payloads)

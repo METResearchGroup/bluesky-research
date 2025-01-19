@@ -3,7 +3,7 @@
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
-from lib.helper import RUN_MODE
+from lib.helper import RUN_MODE, track_performance
 
 INTEGRATIONS_LIST = [
     "ml_inference_perspective_api",
@@ -24,6 +24,7 @@ def load_service_post_uris(service: str, id_field: str = "uri") -> set[str]:
     return set(df[id_field])
 
 
+@track_performance
 def load_posts_to_backfill(integrations: list[str]) -> dict[str, set[str]]:
     """Given an integration, return the URIs of the posts to be backfilled.
 
