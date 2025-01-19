@@ -1,17 +1,18 @@
 """Helper functions for DuckDB."""
 
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 
 import duckdb
 from duckdb.duckdb import DuckDBPyConnection
 import pandas as pd
-import sqlglot
 
 from lib.log.logger import get_logger
 from lib.telemetry.duckdb_metrics import DuckDBMetricsCollector
 
 logger = get_logger(__file__)
 metrics_collector = DuckDBMetricsCollector()
+
+DEFAULT_TABLE_NAME = "parquet_data"
 
 
 class DuckDB:
@@ -20,155 +21,17 @@ class DuckDB:
             logger.info("No connection provided, creating a new in-memory connection.")
         self.conn = conn or duckdb.connect(":memory:")
 
-    # def get_query_metadata(self, query: str) -> Dict[str, Any]:
-    #     """Extract metadata from a SQL query without executing it.
-
-    #     Args:
-    #         query: SQL query string
-    #     Returns:
-    #         Dictionary containing query metadata (tables and columns referenced)
-    #     """
-
-    #     def extract_from_token(
-    #         token: Token,
-    #         tables: Set[str],
-    #         columns: Set[str],
-    #         parent_token: Optional[Token] = None,
-    #     ):
-    #         """Recursively extract table and column names from a token."""
-    #         if isinstance(token, TokenList):
-    #             # Track the current context
-    #             is_where = any(
-    #                 t.ttype is Keyword and t.value.upper() == "WHERE"
-    #                 for t in token.tokens
-    #             )
-    #             is_join = any(
-    #                 t.ttype is Keyword and t.value.upper() == "JOIN"
-    #                 for t in token.tokens
-    #             )
-    #             is_on = any(
-    #                 t.ttype is Keyword and t.value.upper() == "ON" for t in token.tokens
-    #             )
-    #             print(f"is_where: {is_where}, is_join: {is_join}, is_on: {is_on}")
-
-    #             # Process SELECT columns
-    #             select_seen = False
-    #             for t in token.tokens:
-    #                 if t.ttype is DML and t.value.upper() == "SELECT":
-    #                     select_seen = True
-    #                     continue
-    #                 if select_seen:
-    #                     if t.ttype is Keyword and t.value.upper() in (
-    #                         "FROM",
-    #                         "WHERE",
-    #                         "GROUP",
-    #                         "ORDER",
-    #                     ):
-    #                         select_seen = False
-    #                     elif not t.is_whitespace:
-    #                         if isinstance(t, IdentifierList):
-    #                             for identifier in t.get_identifiers():
-    #                                 if "." in identifier.value:
-    #                                     _, col = identifier.value.split(".")
-    #                                     columns.add(col.strip('`"'))
-    #                                 else:
-    #                                     columns.add(identifier.get_real_name())
-    #                         elif isinstance(t, Identifier):
-    #                             if "." in t.value:
-    #                                 _, col = t.value.split(".")
-    #                                 columns.add(col.strip('`"'))
-    #                             else:
-    #                                 columns.add(t.get_real_name())
-    #                         elif t.ttype is Wildcard:
-    #                             columns.add("*")
-    #                         select_seen = False
-
-    #             # Process FROM/JOIN tables
-    #             from_seen = False
-    #             for t in token.tokens:
-    #                 if t.ttype is Keyword and t.value.upper() in ("FROM", "JOIN"):
-    #                     from_seen = True
-    #                     continue
-    #                 if from_seen and not t.is_whitespace:
-    #                     if isinstance(t, Identifier):
-    #                         # Handle table aliases (e.g., "posts p")
-    #                         real_name = t.get_real_name().split(" ")[0].strip('`"')
-    #                         tables.add(real_name)
-    #                     elif isinstance(t, IdentifierList):
-    #                         for identifier in t.get_identifiers():
-    #                             real_name = (
-    #                                 identifier.get_real_name().split(" ")[0].strip('`"')
-    #                             )
-    #                             tables.add(real_name)
-    #                     from_seen = False
-
-    #             breakpoint()
-
-    #             # Process WHERE clause columns
-    #             if is_where:
-    #                 for t in token.tokens:
-    #                     if isinstance(t, Identifier):
-    #                         if "." in t.value:
-    #                             _, col = t.value.split(".")
-    #                             columns.add(col.strip('`"'))
-    #                         else:
-    #                             columns.add(t.get_real_name().strip('`"'))
-
-    #             # Recursively process all tokens
-    #             for t in token.tokens:
-    #                 extract_from_token(t, tables, columns, token)
-
-    #         elif isinstance(token, Identifier):
-    #             # Handle qualified column names (e.g., "p.author")
-    #             if "." in token.value:
-    #                 _, col = token.value.split(".")
-    #                 columns.add(col.strip('`"'))
-    #             elif parent_token and any(
-    #                 t.ttype is Keyword and t.value.upper() in ("WHERE", "ON")
-    #                 for t in parent_token.tokens
-    #             ):
-    #                 columns.add(token.get_real_name().strip('`"'))
-    #         elif token.ttype is Wildcard:
-    #             columns.add("*")
-
-    #     tables = set()
-    #     columns = set()
-
-    #     # Parse the query
-    #     parsed = sqlparse.parse(query)[0]
-
-    #     # Extract tables and columns
-    #     extract_from_token(parsed, tables, columns)
-
-    #     # Remove any None values and clean up
-    #     tables = {t.strip('`"') for t in tables if t}
-    #     columns = {c.strip('`"') for c in columns if c}
-
-    #     # Remove table names and aliases from columns
-    #     columns = {c for c in columns if c not in tables and " " not in c}
-
-    #     # If we have a wildcard, we can't determine specific columns
-    #     if "*" in columns:
-    #         columns = {"*"}
-
-    #     return {
-    #         "tables": list(tables),
-    #         "columns": list(columns),
-    #         "estimated_row_count": None,
-    #         "estimated_size_bytes": None,
-    #     }
-
     @staticmethod
     def create_parquet_connection(
         filepaths: list[str],
-        columns: Optional[list[str]] = None,
-        table_name: str = "parquet_data",
+        tables: Optional[list[dict[str, Any]]] = None,
+        table_name: Optional[str] = DEFAULT_TABLE_NAME,
     ) -> DuckDBPyConnection:
         """Create a DuckDB connection for querying Parquet files.
 
         Args:
             filepaths: List of paths to Parquet files to query
-            columns: Optional list of columns to read. If None, reads all columns.
+            tables: Optional list of tables to read. If None, reads all tables.
         Returns:
             DuckDB connection configured for Parquet querying
         """
@@ -176,11 +39,14 @@ class DuckDB:
         files_str = ",".join([f"'{f}'" for f in filepaths])
 
         # If specific columns are requested, only read those
-        if columns:
-            cols_str = ", ".join(columns)
-            conn.execute(
-                f"CREATE VIEW {table_name} AS SELECT {cols_str} FROM read_parquet([{files_str}])"
-            )
+        if tables:
+            for table in tables:
+                name = table["name"]
+                columns = table["columns"]
+                cols_str = ", ".join(columns)
+                conn.execute(
+                    f"CREATE VIEW {name} AS SELECT {cols_str} FROM read_parquet([{files_str}])"
+                )
         else:
             conn.execute(
                 f"CREATE VIEW {table_name} AS SELECT * FROM read_parquet([{files_str}])"
@@ -190,7 +56,11 @@ class DuckDB:
 
     @metrics_collector.collect_query_metrics()
     def _run_query_as_df(
-        self, query: str, mode: str = "default", filepaths: Optional[list[str]] = None
+        self,
+        query: str,
+        mode: str = "default",
+        filepaths: Optional[list[str]] = None,
+        query_metadata: Optional[dict[str, Any]] = None,
     ) -> pd.DataFrame:
         """Run a query and return the result as a pandas DataFrame.
 
@@ -203,11 +73,9 @@ class DuckDB:
         if mode == "parquet":
             if not filepaths:
                 raise ValueError("filepaths must be provided when mode='parquet'")
-            query_metadata = self.get_query_metadata(query)
             parquet_conn = self.create_parquet_connection(
                 filepaths=filepaths,
-                columns=query_metadata["columns"],
-                table_name=query_metadata["tables"][0],
+                tables=query_metadata.get("tables", None),
             )
             df: pd.DataFrame = parquet_conn.execute(query).df()
         else:
@@ -221,31 +89,6 @@ class DuckDB:
         # the decorator returns a tuple of the df and the metrics.
         df, metrics = self._run_query_as_df(query, mode, filepaths)
         return df
-
-    def get_query_metadata(self, query: str) -> Dict[str, Any]:
-        """Extract metadata from a SQL query using SQLGlot parser.
-
-        Args:
-            query: SQL query string
-        Returns:
-            Dictionary containing query metadata (tables and columns referenced)
-        """
-        try:
-            parsed = sqlglot.parse_one(query)
-            columns = [col.sql() for col in parsed.find_all(sqlglot.expressions.Column)]
-            tables = [
-                table.sql() for table in parsed.find_all(sqlglot.expressions.Table)
-            ]
-            return {
-                "tables": list(tables),
-                "columns": list(columns),
-                "estimated_row_count": None,
-                "estimated_size_bytes": None,
-            }
-        except Exception as e:
-            logger.error(f"Error parsing query with SQLGlot: {e}")
-            # Fallback to original implementation
-            return self.get_query_metadata(query)
 
 
 def get_duckdb_instance(conn: Optional[DuckDBPyConnection] = None) -> DuckDB:

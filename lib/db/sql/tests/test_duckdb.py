@@ -1,18 +1,15 @@
 """Tests for DuckDB wrapper class.
 
 This test suite verifies the functionality of the DuckDB wrapper class, including:
-1. Basic connection handling and initialization
-2. Query metadata extraction (tables, columns)
-3. Parquet file handling and querying
-4. Query execution and DataFrame conversion
-5. Error handling and edge cases
+1. Basic connection handling and initialization 
+2. Parquet file handling and querying
+3. Query execution and DataFrame conversion
+4. Error handling and edge cases
 
 The tests use temporary files and in-memory databases to avoid side effects.
 Each test focuses on a specific aspect of the functionality to ensure:
-- Correct parsing of SQL queries
 - Proper handling of Parquet files
-- Accurate metadata extraction
-- Efficient query execution
+- Efficient query execution 
 - Proper error handling
 """
 
@@ -58,51 +55,13 @@ def test_initialization():
     db2 = DuckDB(conn=custom_conn)
     assert db2.conn == custom_conn
 
-def test_get_query_metadata_simple():
-    """Test metadata extraction from simple queries."""
-    db = get_duckdb_instance()
-    
-    # Test simple SELECT
-    metadata = db.get_query_metadata("SELECT uri, author FROM posts")
-    assert metadata["tables"] == ["posts"]
-    assert set(metadata["columns"]) == {"uri", "author"}
-
-def test_get_query_metadata_where():
-    """Test metadata extraction from queries with WHERE clause."""
-    db = get_duckdb_instance()
-
-    # Test with WHERE clause
-    metadata = db.get_query_metadata("SELECT uri FROM posts WHERE author = 'test'")
-    assert metadata["tables"] == ["posts"]
-    assert set(metadata["columns"]) == {"uri", "author"}
-
-def test_get_query_metadata_complex():
-    """Test metadata extraction from complex queries."""
-    db = get_duckdb_instance()
-    
-    # Test with multiple tables
-    metadata = db.get_query_metadata("""
-        SELECT p.uri, u.name 
-        FROM posts p 
-        JOIN users u ON p.author = u.id
-    """)
-    assert set(metadata["tables"]) == {"posts", "users"}
-    assert set(metadata["columns"]) == {"uri", "name", "author", "id"}
-
-def test_get_query_metadata_wildcard():
-    """Test metadata extraction with wildcards."""
-    db = get_duckdb_instance()
-    
-    metadata = db.get_query_metadata("SELECT * FROM posts")
-    assert metadata["tables"] == ["posts"]
-    assert metadata["columns"] == ["*"]
-
 def test_create_parquet_connection(sample_parquet_file):
     """Test Parquet connection creation and querying."""
-    # Create connection with specific columns
+    # Create connection with specific tables and columns
+    tables = [{"name": "parquet_data", "columns": ["uri", "author"]}]
     conn = DuckDB.create_parquet_connection(
         filepaths=[sample_parquet_file],
-        columns=["uri", "author"]
+        tables=tables
     )
     
     # Test query execution
@@ -131,10 +90,12 @@ def test_run_query_as_df_parquet_mode(sample_parquet_file):
     """Test query execution in parquet mode."""
     db = get_duckdb_instance()
     
-    result = db.run_query_as_df(
+    tables = [{"name": "parquet_data", "columns": ["uri", "author"]}]
+    result, _ = db._run_query_as_df(  # Note: _run_query_as_df returns (df, metrics) tuple
         "SELECT uri, author FROM parquet_data",
         mode="parquet",
-        filepaths=[sample_parquet_file]
+        filepaths=[sample_parquet_file],
+        query_metadata={"tables": tables}
     )
     
     assert isinstance(result, pd.DataFrame)
@@ -167,37 +128,13 @@ def test_multiple_parquet_files(tmp_path):
         files.append(str(file_path))
     
     db = get_duckdb_instance()
-    result = db.run_query_as_df(
+    tables = [{"name": "parquet_data", "columns": ["uri", "author"]}]
+    result, _ = db._run_query_as_df(  # Note: _run_query_as_df returns (df, metrics) tuple
         "SELECT * FROM parquet_data",
         mode="parquet",
-        filepaths=files
+        filepaths=files,
+        query_metadata={"tables": tables}
     )
     
     assert len(result) == 6  # 2 rows * 3 files
     assert set(result.columns) == {"uri", "author"}
-
-def test_query_metadata_performance():
-    """Test performance of metadata extraction with large queries."""
-    db = get_duckdb_instance()
-    
-    # Create a complex query
-    complex_query = """
-    SELECT 
-        p.uri,
-        p.author,
-        u.name,
-        c.content,
-        r.rating
-    FROM posts p
-    LEFT JOIN users u ON p.author = u.id
-    LEFT JOIN comments c ON p.uri = c.post_uri
-    LEFT JOIN ratings r ON p.uri = r.post_uri
-    WHERE p.created_at > '2024-01-01'
-    GROUP BY p.uri, p.author, u.name, c.content, r.rating
-    HAVING COUNT(*) > 1
-    ORDER BY p.created_at DESC
-    """
-    
-    metadata = db.get_query_metadata(complex_query)
-    assert len(metadata["tables"]) > 0
-    assert len(metadata["columns"]) > 0 
