@@ -18,6 +18,8 @@ def backfill_posts(payload: dict):
         logger.info("No posts to backfill. Exiting...")
         return
 
+    breakpoint()
+
     for integration, post_uris in posts_to_backfill.items():
         queue = Queue(queue_name=integration, create_new_queue=True)
         payloads = [{"uri": uri} for uri in post_uris]
