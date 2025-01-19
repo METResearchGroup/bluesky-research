@@ -100,7 +100,7 @@ class DuckDB:
     # TODO: Implement this in the future.
     def _export_query_metrics(self, metrics: dict[str, Any]) -> None:
         """Export query metrics to the metrics collector."""
-        pass
+        logger.info(f"Query metrics: {metrics}")
 
 
 def get_duckdb_instance(conn: Optional[DuckDBPyConnection] = None) -> DuckDB:
