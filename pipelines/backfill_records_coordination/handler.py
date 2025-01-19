@@ -32,4 +32,4 @@ def lambda_handler(event, context):
 
 
 if __name__ == "__main__":
-    lambda_handler({"payload": {}}, None)
+    lambda_handler({"payload": {"record_type": "posts"}}, None)

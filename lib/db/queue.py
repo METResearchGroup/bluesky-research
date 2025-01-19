@@ -139,6 +139,13 @@ class Queue:
             cursor = conn.execute(f"SELECT COUNT(*) FROM {self.queue_table_name}")
             return cursor.fetchone()[0]  # Ensure we return an integer, not None
 
+    def _optimize_connection(self, conn: sqlite3.Connection):
+        """Configure connection for optimal batch insert performance."""
+        conn.execute("PRAGMA journal_mode = WAL")  # Use Write-Ahead Logging
+        conn.execute("PRAGMA synchronous = NORMAL")  # Reduce fsync frequency
+        conn.execute("PRAGMA cache_size = -64000")  # 64MB cache
+        conn.execute("PRAGMA temp_store = MEMORY")  # Store temp tables in memory
+
     def add_item_to_queue(self, payload: dict) -> Optional[QueueItem]:
         """Add single item to queue, skipping if primary key already exists."""
         if not payload:
@@ -183,15 +190,87 @@ class Queue:
             return None
 
     def batch_add_item_to_queue(self, items: list[dict]) -> list[QueueItem]:
-        """Add multiple items to queue, skipping duplicates."""
-        queue_items = []
+        """Add multiple items to queue, processing in chunks for memory efficiency."""
+        CHUNK_SIZE = 1000
+        all_queue_items = []
+
+        # Process items in chunks
+        for i in range(0, len(items), CHUNK_SIZE):
+            chunk = items[i : i + CHUNK_SIZE]
+            chunk_items = self._batch_add_chunk(chunk)
+            all_queue_items.extend(chunk_items)
+
+        return all_queue_items
+
+    def _batch_add_chunk(self, items: list[dict]) -> list[QueueItem]:
+        """Add multiple items to queue efficiently using batch insert, skipping duplicates.
+
+        Uses SQLite's INSERT OR IGNORE for efficient batch operations while maintaining deduplication.
+        """
+        if not items:
+            return []
+
+        # First prepare the payload keys and data
+        insert_data = []
+        payload_map = {}  # Map payload_key to (payload, created_at, status)
+
         for item in items:
             if not item:
                 raise ValueError("Payload cannot be empty")
-            queue_item = self.add_item_to_queue(item)
-            if queue_item is not None:
-                queue_items.append(queue_item)
-        return queue_items
+
+            json_payload = json.dumps(item)
+            payload_key = self._extract_primary_key(item)
+            created_at = generate_current_datetime_str()
+            status = "pending"
+
+            insert_data.append((json_payload, payload_key, created_at, status))
+            payload_map[payload_key] = (json_payload, created_at, status)
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                self._optimize_connection(conn)
+
+                # First perform the batch insert
+                placeholders = ",".join(["(?, ?, ?, ?)"] * len(insert_data))
+                conn.execute(
+                    f"""
+                    INSERT OR IGNORE INTO {self.queue_table_name}
+                    (payload, payload_key, created_at, status)
+                    VALUES {placeholders}
+                    """,
+                    [val for tup in insert_data for val in tup],  # Flatten the data
+                )
+
+                # Then retrieve the IDs for successfully inserted items
+                payload_keys = list(payload_map.keys())
+                placeholders = ",".join(["?"] * len(payload_keys))
+                cursor = conn.execute(
+                    f"""
+                    SELECT id, payload_key, created_at 
+                    FROM {self.queue_table_name}
+                    WHERE payload_key IN ({placeholders})
+                    """,
+                    payload_keys,
+                )
+
+                # Create QueueItems only for successfully inserted items
+                queue_items = []
+                for row in cursor.fetchall():
+                    id_, payload_key, db_created_at = row
+                    payload, _, status = payload_map[payload_key]
+                    queue_item = QueueItem(
+                        id=id_,
+                        payload=payload,
+                        created_at=db_created_at,  # Use timestamp from DB
+                        status=status,
+                    )
+                    queue_items.append(queue_item)
+
+                return queue_items
+
+        except sqlite3.Error as e:
+            logger.error(f"Batch insert failed: {e}")
+            raise
 
     def remove_item_from_queue(self) -> Optional[QueueItem]:
         """Remove and return the next available item from the queue.
@@ -237,3 +316,13 @@ class Queue:
                 break
             items.append(item)
         return items
+
+    def _get_sqlite_version(self) -> tuple:
+        """Get the SQLite version as a tuple of integers."""
+        with sqlite3.connect(self.db_path):
+            version_str = sqlite3.sqlite_version
+        return tuple(map(int, version_str.split(".")))
+
+    def _supports_returning(self) -> bool:
+        """Check if SQLite version supports RETURNING clause."""
+        return self._get_sqlite_version() >= (3, 35, 0)

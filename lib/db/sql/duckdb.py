@@ -72,7 +72,18 @@ class DuckDB:
         """
         if mode == "parquet":
             if not filepaths:
-                raise ValueError("filepaths must be provided when mode='parquet'")
+                logger.warning(
+                    """
+                    filepaths must be provided when mode='parquet.
+                    There are scenarios where data is missing (e.g., in the "active"
+                    path, there might not be any up-to-date records). In these cases,
+                    it's assumed that the filepaths are not provided.
+                    """
+                )
+                expected_columns = []
+                for table in query_metadata.get("tables", []):
+                    expected_columns.extend(table["columns"])
+                return pd.DataFrame(columns=expected_columns)
             parquet_conn = self.create_parquet_connection(
                 filepaths=filepaths,
                 tables=query_metadata.get("tables", None),
