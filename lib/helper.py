@@ -29,6 +29,8 @@ BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_PASSWORD")
 DEV_BLUESKY_HANDLE = os.getenv("DEV_BLUESKY_HANDLE")
 DEV_BLUESKY_PASSWORD = os.getenv("DEV_BLUESKY_PASSWORD")
+RUN_MODE = os.getenv("RUN_MODE")
+BSKY_DATA_DIR = os.getenv("BSKY_DATA_DIR")
 
 if not BLUESKY_HANDLE or not BLUESKY_APP_PASSWORD:
     print("Fetching secrets from AWS Secrets Manager instead of the env...")
@@ -37,6 +39,13 @@ if not BLUESKY_HANDLE or not BLUESKY_APP_PASSWORD:
     BLUESKY_APP_PASSWORD = bsky_credentials["bluesky_password"]
 else:
     print("Fetching secrets from the local env...")
+
+if not RUN_MODE:
+    raise ValueError("RUN_MODE must be set to either 'local' or 'prod'")
+if not BSKY_DATA_DIR:
+    raise ValueError(
+        "BSKY_DATA_DIR must be set to the path to the Bluesky data directory"
+    )
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 NYTIMES_API_KEY = os.getenv("NYTIMES_KEY")
