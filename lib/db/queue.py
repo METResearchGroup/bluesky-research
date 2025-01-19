@@ -9,6 +9,7 @@ each queue independently.
 import json
 import os
 import sqlite3
+import time
 from typing import Optional
 
 from pydantic import BaseModel, Field, validator
@@ -104,14 +105,22 @@ class Queue:
         return f"Queue(name={self.queue_name}, db_path={self.db_path})"
 
     def _init_queue_db(self):
-        """Initialize queue database with unique constraint on primary_key from payload."""
-        with sqlite3.connect(self.db_path) as conn:
+        """Initialize queue database with WAL mode and optimized settings."""
+        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+            # Enable WAL mode before creating tables
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA busy_timeout=30000")  # 30 second timeout
+            conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
+            conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapped I/O
+            conn.execute("PRAGMA page_size=4096")
+
             # Create the main table with an additional column for the primary key
             conn.execute(f"""
                 CREATE TABLE {self.queue_table_name} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     payload TEXT,
-                    payload_key TEXT UNIQUE,  -- This will store the extracted primary key
+                    payload_key TEXT UNIQUE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     status TEXT DEFAULT 'pending'
                 )
@@ -121,6 +130,47 @@ class Queue:
                 CREATE UNIQUE INDEX idx_payload_key 
                 ON {self.queue_table_name}(payload_key)
             """)
+
+            # Ensure WAL mode is persisted
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.commit()
+
+    def _get_connection(self) -> sqlite3.Connection:
+        """Get an optimized SQLite connection with retry logic."""
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+
+        # Configure connection for optimal performance
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA busy_timeout=30000")
+        conn.execute("PRAGMA cache_size=-64000")
+        conn.execute("PRAGMA mmap_size=268435456")
+        conn.execute("PRAGMA temp_store=MEMORY")
+
+        return conn
+
+    def get_queue_length(self) -> int:
+        """Get total number of items in queue with retry logic."""
+        max_retries = 3
+        retry_delay = 1.0  # seconds
+
+        for attempt in range(max_retries):
+            try:
+                with self._get_connection() as conn:
+                    cursor = conn.execute(
+                        f"SELECT COUNT(*) FROM {self.queue_table_name}"
+                    )
+                    return cursor.fetchone()[0]
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e) and attempt < max_retries - 1:
+                    logger.warning(
+                        f"Database locked, retrying in {retry_delay} seconds... "
+                        f"(attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    continue
+                raise
 
     def _extract_primary_key(self, payload: dict) -> str:
         """Extract the primary key value from the payload."""
@@ -132,19 +182,6 @@ class Queue:
             raise ValueError(
                 f"Could not extract primary key '{self.primary_key}' from payload: {e}"
             )
-
-    def get_queue_length(self) -> int:
-        """Get total number of items in queue."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(f"SELECT COUNT(*) FROM {self.queue_table_name}")
-            return cursor.fetchone()[0]  # Ensure we return an integer, not None
-
-    def _optimize_connection(self, conn: sqlite3.Connection):
-        """Configure connection for optimal batch insert performance."""
-        conn.execute("PRAGMA journal_mode = WAL")  # Use Write-Ahead Logging
-        conn.execute("PRAGMA synchronous = NORMAL")  # Reduce fsync frequency
-        conn.execute("PRAGMA cache_size = -64000")  # 64MB cache
-        conn.execute("PRAGMA temp_store = MEMORY")  # Store temp tables in memory
 
     def add_item_to_queue(self, payload: dict) -> Optional[QueueItem]:
         """Add single item to queue, skipping if primary key already exists."""
@@ -193,9 +230,12 @@ class Queue:
         """Add multiple items to queue, processing in chunks for memory efficiency."""
         CHUNK_SIZE = 1000
         all_queue_items = []
+        total_chunks = len(items) // CHUNK_SIZE
 
         # Process items in chunks
         for i in range(0, len(items), CHUNK_SIZE):
+            if i % 50 == 0:
+                logger.info(f"Processing chunk {i // CHUNK_SIZE} of {total_chunks}")
             chunk = items[i : i + CHUNK_SIZE]
             chunk_items = self._batch_add_chunk(chunk)
             all_queue_items.extend(chunk_items)
@@ -203,16 +243,12 @@ class Queue:
         return all_queue_items
 
     def _batch_add_chunk(self, items: list[dict]) -> list[QueueItem]:
-        """Add multiple items to queue efficiently using batch insert, skipping duplicates.
-
-        Uses SQLite's INSERT OR IGNORE for efficient batch operations while maintaining deduplication.
-        """
+        """Add multiple items to queue with retry logic."""
         if not items:
             return []
 
-        # First prepare the payload keys and data
         insert_data = []
-        payload_map = {}  # Map payload_key to (payload, created_at, status)
+        payload_map = {}
 
         for item in items:
             if not item:
@@ -226,51 +262,60 @@ class Queue:
             insert_data.append((json_payload, payload_key, created_at, status))
             payload_map[payload_key] = (json_payload, created_at, status)
 
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                self._optimize_connection(conn)
+        max_retries = 3
+        retry_delay = 1.0
 
-                # First perform the batch insert
-                placeholders = ",".join(["(?, ?, ?, ?)"] * len(insert_data))
-                conn.execute(
-                    f"""
-                    INSERT OR IGNORE INTO {self.queue_table_name}
-                    (payload, payload_key, created_at, status)
-                    VALUES {placeholders}
-                    """,
-                    [val for tup in insert_data for val in tup],  # Flatten the data
-                )
-
-                # Then retrieve the IDs for successfully inserted items
-                payload_keys = list(payload_map.keys())
-                placeholders = ",".join(["?"] * len(payload_keys))
-                cursor = conn.execute(
-                    f"""
-                    SELECT id, payload_key, created_at 
-                    FROM {self.queue_table_name}
-                    WHERE payload_key IN ({placeholders})
-                    """,
-                    payload_keys,
-                )
-
-                # Create QueueItems only for successfully inserted items
-                queue_items = []
-                for row in cursor.fetchall():
-                    id_, payload_key, db_created_at = row
-                    payload, _, status = payload_map[payload_key]
-                    queue_item = QueueItem(
-                        id=id_,
-                        payload=payload,
-                        created_at=db_created_at,  # Use timestamp from DB
-                        status=status,
+        for attempt in range(max_retries):
+            try:
+                with self._get_connection() as conn:
+                    # First perform the batch insert
+                    placeholders = ",".join(["(?, ?, ?, ?)"] * len(insert_data))
+                    conn.execute(
+                        f"""
+                        INSERT OR IGNORE INTO {self.queue_table_name}
+                        (payload, payload_key, created_at, status)
+                        VALUES {placeholders}
+                        """,
+                        [val for tup in insert_data for val in tup],
                     )
-                    queue_items.append(queue_item)
 
-                return queue_items
+                    # Then retrieve the IDs for successfully inserted items
+                    payload_keys = list(payload_map.keys())
+                    placeholders = ",".join(["?"] * len(payload_keys))
+                    cursor = conn.execute(
+                        f"""
+                        SELECT id, payload_key, created_at 
+                        FROM {self.queue_table_name}
+                        WHERE payload_key IN ({placeholders})
+                        """,
+                        payload_keys,
+                    )
 
-        except sqlite3.Error as e:
-            logger.error(f"Batch insert failed: {e}")
-            raise
+                    # Create QueueItems only for successfully inserted items
+                    queue_items = []
+                    for row in cursor.fetchall():
+                        id_, payload_key, db_created_at = row
+                        payload, _, status = payload_map[payload_key]
+                        queue_item = QueueItem(
+                            id=id_,
+                            payload=payload,
+                            created_at=db_created_at,
+                            status=status,
+                        )
+                        queue_items.append(queue_item)
+
+                    return queue_items
+
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e) and attempt < max_retries - 1:
+                    logger.warning(
+                        f"Database locked, retrying in {retry_delay} seconds... "
+                        f"(attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+                raise
 
     def remove_item_from_queue(self) -> Optional[QueueItem]:
         """Remove and return the next available item from the queue.
