@@ -25,5 +25,6 @@ def backfill_posts(payload: dict):
 
 
 if __name__ == "__main__":
-    payload = {"integration": "ml_inference_perspective_api"}
+    # payload = {"integration": ["ml_inference_perspective_api"]}
+    payload = {"integration": None}
     backfill_posts(payload)

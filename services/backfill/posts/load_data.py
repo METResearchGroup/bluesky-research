@@ -1,7 +1,5 @@
 """Loading data for backfilling."""
 
-from typing import Optional
-
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
@@ -25,19 +23,18 @@ def load_service_post_uris(service: str, id_field: str = "uri") -> set[str]:
     return set(df[id_field])
 
 
-def load_posts_to_backfill(integration: Optional[str] = None) -> dict[str, set[str]]:
+def load_posts_to_backfill(integrations: list[str]) -> dict[str, set[str]]:
     """Given an integration, return the URIs of the posts to be backfilled.
 
     If no integration is provided, return the URIs of all posts to be backfilled,
     mapped by the integration to backfill them for.
     """
-    total_post_uris = load_service_post_uris(service="preprocessed_posts")
-    integration_to_post_uris_map = {}
-    for integration in INTEGRATIONS_LIST:
-        integration_post_uris: set[str] = load_service_post_uris(integration)
-        integration_to_post_uris_map[integration] = integration_post_uris
-    posts_to_backfill_by_integration = {
-        integration: total_post_uris - integration_post_uris
-        for integration in INTEGRATIONS_LIST
-    }
+    integrations_to_backfill = INTEGRATIONS_LIST if not integrations else integrations
+    total_post_uris: set[str] = load_service_post_uris(service="preprocessed_posts")
+    posts_to_backfill_by_integration: dict[str, set[str]] = {}
+    for integration in integrations_to_backfill:
+        integration_post_uris: set[str] = load_service_post_uris(service=integration)
+        posts_to_backfill_by_integration[integration] = (
+            total_post_uris - integration_post_uris
+        )
     return posts_to_backfill_by_integration
