@@ -29,7 +29,7 @@ existing_sqlite_dbs = [
     file for file in os.listdir(root_db_path) if file.endswith(".db")
 ]
 
-DEFAULT_PRIMARY_KEY = "uri"
+DEFAULT_BATCH_SIZE = 1000
 
 
 class QueueItem(BaseModel):
@@ -75,15 +75,9 @@ class QueueItem(BaseModel):
 
 
 class Queue:
-    def __init__(
-        self,
-        queue_name: str,
-        create_new_queue: bool = False,
-        primary_key: Optional[str] = DEFAULT_PRIMARY_KEY,
-    ):
+    def __init__(self, queue_name: str, create_new_queue: bool = False):
         self.queue_name = queue_name
         self.queue_table_name = "queue"
-        self.primary_key = primary_key
         self.db_path = os.path.join(root_db_path, f"{queue_name}.db")
         if not os.path.exists(self.db_path):
             if create_new_queue:
@@ -113,22 +107,25 @@ class Queue:
             conn.execute("PRAGMA busy_timeout=30000")  # 30 second timeout
             conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
             conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapped I/O
-            conn.execute("PRAGMA page_size=4096")
+            conn.execute("PRAGMA page_size=8192")  # Double the current size
+
+            # Add compression if you're using SQLite 3.38.0 or later
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA zip_compression=true")  # Enable compression
+            except sqlite3.OperationalError:
+                # Older SQLite version, compression not available
+                pass
 
             # Create the main table with an additional column for the primary key
             conn.execute(f"""
                 CREATE TABLE {self.queue_table_name} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     payload TEXT,
-                    payload_key TEXT UNIQUE,
+                    metadata TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     status TEXT DEFAULT 'pending'
                 )
-            """)
-            # Create an index on payload_key for better performance
-            conn.execute(f"""
-                CREATE UNIQUE INDEX idx_payload_key 
-                ON {self.queue_table_name}(payload_key)
             """)
 
             # Ensure WAL mode is persisted
@@ -172,150 +169,88 @@ class Queue:
                     continue
                 raise
 
-    def _extract_primary_key(self, payload: dict) -> str:
-        """Extract the primary key value from the payload."""
-        try:
-            if isinstance(payload, str):
-                payload = json.loads(payload)
-            return str(payload[self.primary_key])
-        except (KeyError, json.JSONDecodeError) as e:
-            raise ValueError(
-                f"Could not extract primary key '{self.primary_key}' from payload: {e}"
-            )
-
-    def add_item_to_queue(self, payload: dict) -> Optional[QueueItem]:
-        """Add single item to queue, skipping if primary key already exists."""
+    def add_item_to_queue(self, payload: dict, metadata: dict = None) -> None:
+        """Add single item to queue."""
         if not payload:
             raise ValueError("Payload cannot be empty")
+        if metadata is None:
+            metadata = {}
 
         json_payload = json.dumps(payload)
-        payload_key = self._extract_primary_key(payload)
-        queue_item = QueueItem(payload=json_payload)
+        metadata_dict = {**metadata, "batch_size": 1, "actual_batch_size": 1}
+        json_metadata = json.dumps(metadata_dict)
 
         try:
             with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute(
+                conn.execute(
                     f"""
                     INSERT INTO {self.queue_table_name} 
-                    (payload, payload_key, created_at, status) 
+                    (payload, metadata, created_at, status) 
                     VALUES (?, ?, ?, ?)
-                    ON CONFLICT(payload_key) DO NOTHING
                     RETURNING id
                     """,
                     (
-                        queue_item.payload,
-                        payload_key,
-                        queue_item.created_at,
-                        queue_item.status,
+                        json_payload,
+                        json_metadata,
+                        generate_current_datetime_str(),
+                        "pending",
                     ),
                 )
-                result = cursor.fetchone()
+        except Exception as e:
+            logger.error(f"Error adding item to queue: {e}")
+            raise e
 
-                if result is None:
-                    logger.debug(
-                        f"Skipped duplicate item with {self.primary_key}: {payload_key}"
-                    )
-                    return None
-
-                queue_item.id = result[0]
-                return queue_item
-
-        except sqlite3.IntegrityError:
-            logger.debug(
-                f"Skipped duplicate item with {self.primary_key}: {payload_key}"
-            )
-            return None
-
-    def batch_add_item_to_queue(self, items: list[dict]) -> list[QueueItem]:
-        """Add multiple items to queue, processing in chunks for memory efficiency."""
-        CHUNK_SIZE = 1000
-        all_queue_items = []
-        total_chunks = len(items) // CHUNK_SIZE
-
-        # Process items in chunks
-        for i in range(0, len(items), CHUNK_SIZE):
-            if i % 50 == 0:
-                logger.info(f"Processing chunk {i // CHUNK_SIZE} of {total_chunks}")
-            chunk = items[i : i + CHUNK_SIZE]
-            chunk_items = self._batch_add_chunk(chunk)
-            all_queue_items.extend(chunk_items)
-
-        return all_queue_items
-
-    def _batch_add_chunk(self, items: list[dict]) -> list[QueueItem]:
-        """Add multiple items to queue with retry logic."""
-        if not items:
-            return []
-
-        insert_data = []
-        payload_map = {}
-
-        for item in items:
-            if not item:
-                raise ValueError("Payload cannot be empty")
-
-            json_payload = json.dumps(item)
-            payload_key = self._extract_primary_key(item)
+    def _create_batched_chunks(
+        self,
+        chunks: list[list[dict]],
+        batch_size: int,
+        metadata: dict = None,
+    ) -> list[tuple[str, str, str, str]]:
+        """Out of the chunks, create a batch of chunks that will be written to the queue."""
+        batched_chunks: list[tuple[str, str, str, str]] = []
+        if metadata is None:
+            metadata = {}
+        for chunk in chunks:
+            payload = json.dumps(chunk)
             created_at = generate_current_datetime_str()
             status = "pending"
+            metadata_dict = {
+                **metadata,
+                "batch_size": batch_size,
+                "actual_batch_size": len(chunk),
+            }
+            json_metadata = json.dumps(metadata_dict)
+            batched_chunks.append((payload, json_metadata, created_at, status))
+        return batched_chunks
 
-            insert_data.append((json_payload, payload_key, created_at, status))
-            payload_map[payload_key] = (json_payload, created_at, status)
+    def batch_add_items_to_queue(
+        self,
+        items: list[dict],
+        metadata: dict = None,
+        batch_size: int = DEFAULT_BATCH_SIZE,
+    ) -> None:
+        """Add multiple items to queue, processing in chunks for memory
+        efficiency."""
+        if metadata is None:
+            metadata = {}
+        chunks: list[list[dict]] = [
+            items[i : i + batch_size] for i in range(0, len(items), batch_size)
+        ]
+        batched_chunks: list[tuple[str, str, str, str]] = self._create_batched_chunks(
+            chunks=chunks, batch_size=batch_size, metadata=metadata
+        )
 
-        max_retries = 3
-        retry_delay = 1.0
+        logger.info(f"Writing {len(batched_chunks)} items to DB...")
 
-        for attempt in range(max_retries):
-            try:
-                with self._get_connection() as conn:
-                    # First perform the batch insert
-                    placeholders = ",".join(["(?, ?, ?, ?)"] * len(insert_data))
-                    conn.execute(
-                        f"""
-                        INSERT OR IGNORE INTO {self.queue_table_name}
-                        (payload, payload_key, created_at, status)
-                        VALUES {placeholders}
-                        """,
-                        [val for tup in insert_data for val in tup],
-                    )
-
-                    # Then retrieve the IDs for successfully inserted items
-                    payload_keys = list(payload_map.keys())
-                    placeholders = ",".join(["?"] * len(payload_keys))
-                    cursor = conn.execute(
-                        f"""
-                        SELECT id, payload_key, created_at 
-                        FROM {self.queue_table_name}
-                        WHERE payload_key IN ({placeholders})
-                        """,
-                        payload_keys,
-                    )
-
-                    # Create QueueItems only for successfully inserted items
-                    queue_items = []
-                    for row in cursor.fetchall():
-                        id_, payload_key, db_created_at = row
-                        payload, _, status = payload_map[payload_key]
-                        queue_item = QueueItem(
-                            id=id_,
-                            payload=payload,
-                            created_at=db_created_at,
-                            status=status,
-                        )
-                        queue_items.append(queue_item)
-
-                    return queue_items
-
-            except sqlite3.OperationalError as e:
-                if "database is locked" in str(e) and attempt < max_retries - 1:
-                    logger.warning(
-                        f"Database locked, retrying in {retry_delay} seconds... "
-                        f"(attempt {attempt + 1}/{max_retries})"
-                    )
-                    time.sleep(retry_delay)
-                    retry_delay *= 2
-                    continue
-                raise
+        # write to DB
+        with sqlite3.connect(self.db_path) as conn:
+            conn.executemany(
+                f"""
+                INSERT INTO {self.queue_table_name} (payload, metadata, created_at, status)
+                VALUES (?, ?, ?, ?)
+                """,
+                batched_chunks,
+            )
 
     def remove_item_from_queue(self) -> Optional[QueueItem]:
         """Remove and return the next available item from the queue.
@@ -352,9 +287,13 @@ class Queue:
             logger.info(f"Queue size after remove: {count} items")
             return item
 
-    def batch_remove_items_from_queue(self, limit: int) -> list[QueueItem]:
+    def batch_remove_items_from_queue(
+        self, limit: Optional[int] = None
+    ) -> list[QueueItem]:
         """Remove multiple items from queue."""
         items = []
+        if limit is None:
+            limit = self.get_queue_length()
         for _ in range(limit):
             item = self.remove_item_from_queue()
             if item is None:
