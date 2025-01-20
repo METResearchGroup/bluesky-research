@@ -16,7 +16,10 @@ class IntegrationRequest(BaseModel):
 class IntegrationResponse(BaseModel):
     """Class for defining the expected outputs in an integration response."""
 
-    pass
+    service: str
+    timestamp: str
+    status_code: int
+    body: str
 
 
 class IntegrationPayload(BaseModel):
@@ -31,5 +34,9 @@ class RunExecutionMetadata(BaseModel):
     """Class for defining the run execution metadata once a service is run and
     the run metadata is written to DynamoDB."""
 
-    request: IntegrationRequest
-    execution_metadata: dict
+    service: str
+    timestamp: str
+    status_code: int
+    body: str
+    metadata_table_name: str
+    metadata: str
