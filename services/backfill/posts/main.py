@@ -26,7 +26,7 @@ def backfill_posts(payload: dict):
         )  # noqa
         queue = Queue(queue_name=integration, create_new_queue=True)
         payloads = [{"uri": uri} for uri in post_uris]
-        queue.batch_add_item_to_queue(payloads)
+        queue.batch_add_items_to_queue(payloads)
 
 
 if __name__ == "__main__":
