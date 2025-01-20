@@ -158,7 +158,7 @@ def test_batch_add_items_to_queue(queue: Queue) -> None:
         queue: Test queue fixture
     """
     test_items = [{"uri": f"test_{i}", "data": f"data_{i}"} for i in range(3)]
-    queue_items = queue.batch_add_item_to_queue(test_items)
+    queue_items = queue.batch_add_items_to_queue(test_items)
 
     assert len(queue_items) == 3
     assert queue.get_queue_length() == 3
@@ -188,7 +188,7 @@ def test_batch_add_items_with_duplicates(queue: Queue) -> None:
         {"uri": "test3", "data": "third"}
     ]
     
-    queue_items = queue.batch_add_item_to_queue(test_items)
+    queue_items = queue.batch_add_items_to_queue(test_items)
     assert len(queue_items) == 3  # Should only add unique items
     assert queue.get_queue_length() == 3
     
@@ -249,7 +249,7 @@ def test_batch_remove_items_from_queue(queue: Queue) -> None:
         queue: Test queue fixture
     """
     test_items = [{"uri": f"test_{i}", "data": f"data_{i}"} for i in range(3)]
-    queue.batch_add_item_to_queue(test_items)
+    queue.batch_add_items_to_queue(test_items)
 
     # Remove 2 items
     removed_items = queue.batch_remove_items_from_queue(limit=2)
