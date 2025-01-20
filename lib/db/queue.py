@@ -173,9 +173,12 @@ class Queue:
         """Add single item to queue."""
         if not payload:
             raise ValueError("Payload cannot be empty")
+        if metadata is None:
+            metadata = {}
 
         json_payload = json.dumps(payload)
-        metadata = {**metadata, "batch_size": 1, "actual_batch_size": 1}
+        metadata_dict = {**metadata, "batch_size": 1, "actual_batch_size": 1}
+        json_metadata = json.dumps(metadata_dict)
 
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -188,7 +191,7 @@ class Queue:
                     """,
                     (
                         json_payload,
-                        metadata,
+                        json_metadata,
                         generate_current_datetime_str(),
                         "pending",
                     ),
@@ -205,14 +208,19 @@ class Queue:
     ) -> list[tuple[str, str, str, str]]:
         """Out of the chunks, create a batch of chunks that will be written to the queue."""
         batched_chunks: list[tuple[str, str, str, str]] = []
+        if metadata is None:
+            metadata = {}
         for chunk in chunks:
             payload = json.dumps(chunk)
             created_at = generate_current_datetime_str()
             status = "pending"
-            metadata = json.dumps(
-                {**metadata, "batch_size": batch_size, "actual_batch_size": len(chunk)}
-            )
-            batched_chunks.append((payload, metadata, created_at, status))
+            metadata_dict = {
+                **metadata,
+                "batch_size": batch_size,
+                "actual_batch_size": len(chunk),
+            }
+            json_metadata = json.dumps(metadata_dict)
+            batched_chunks.append((payload, json_metadata, created_at, status))
         return batched_chunks
 
     def batch_add_items_to_queue(
@@ -223,6 +231,8 @@ class Queue:
     ) -> None:
         """Add multiple items to queue, processing in chunks for memory
         efficiency."""
+        if metadata is None:
+            metadata = {}
         chunks: list[list[dict]] = [
             items[i : i + batch_size] for i in range(0, len(items), batch_size)
         ]
