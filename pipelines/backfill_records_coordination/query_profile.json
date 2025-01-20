@@ -1,0 +1,97 @@
+{
+    "rows_returned": 1,
+    "latency": 0.030451557,
+    "result_set_size": 16,
+    "cumulative_rows_scanned": 0,
+    "cumulative_cardinality": 2,
+    "extra_info": {},
+    "cpu_time": 0.000032383,
+    "blocked_thread_time": 0.0,
+    "query_name": "\n                            SELECT \n                                sum(estimated_size)/1024/1024 as size_mb,\n                                count(*) as table_count\n                            FROM duckdb_tables()\n                        ",
+    "children": [
+        {
+            "result_set_size": 16,
+            "operator_timing": 0.000013654,
+            "operator_rows_scanned": 0,
+            "cumulative_rows_scanned": 0,
+            "operator_cardinality": 1,
+            "operator_type": "PROJECTION",
+            "cumulative_cardinality": 2,
+            "extra_info": {
+                "Projections": [
+                    "size_mb",
+                    "table_count"
+                ],
+                "Estimated Cardinality": "1"
+            },
+            "cpu_time": 0.000032383,
+            "children": [
+                {
+                    "result_set_size": 24,
+                    "operator_timing": 0.000011392,
+                    "operator_rows_scanned": 0,
+                    "cumulative_rows_scanned": 0,
+                    "operator_cardinality": 1,
+                    "operator_type": "UNGROUPED_AGGREGATE",
+                    "cumulative_cardinality": 1,
+                    "extra_info": {
+                        "Aggregates": [
+                            "sum(#0)",
+                            "count_star()"
+                        ]
+                    },
+                    "cpu_time": 0.000018729,
+                    "children": [
+                        {
+                            "result_set_size": 0,
+                            "operator_timing": 0.0,
+                            "operator_rows_scanned": 0,
+                            "cumulative_rows_scanned": 0,
+                            "operator_cardinality": 0,
+                            "operator_type": "PROJECTION",
+                            "cumulative_cardinality": 0,
+                            "extra_info": {
+                                "Projections": "estimated_size",
+                                "Estimated Cardinality": "1"
+                            },
+                            "cpu_time": 0.000007337,
+                            "children": [
+                                {
+                                    "result_set_size": 0,
+                                    "operator_timing": 0.0,
+                                    "operator_rows_scanned": 0,
+                                    "cumulative_rows_scanned": 0,
+                                    "operator_cardinality": 0,
+                                    "operator_type": "PROJECTION",
+                                    "cumulative_cardinality": 0,
+                                    "extra_info": {
+                                        "Projections": "#11",
+                                        "Estimated Cardinality": "1"
+                                    },
+                                    "cpu_time": 0.000007337,
+                                    "children": [
+                                        {
+                                            "result_set_size": 65536,
+                                            "operator_timing": 0.000007337,
+                                            "operator_rows_scanned": 0,
+                                            "cumulative_rows_scanned": 0,
+                                            "operator_cardinality": 0,
+                                            "operator_type": "TABLE_SCAN",
+                                            "cumulative_cardinality": 0,
+                                            "extra_info": {
+                                                "Function": "DUCKDB_TABLES",
+                                                "Estimated Cardinality": "1"
+                                            },
+                                            "cpu_time": 0.000007337,
+                                            "children": []
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -3,4 +3,5 @@ flake8==7.0.0
 Flake8-pyproject==1.2.3
 memory_profiler==0.61.0
 pre-commit==3.6.0
-pytest==8.0.0
+pytest==8.3.4
+pytest-asyncio==0.25.0

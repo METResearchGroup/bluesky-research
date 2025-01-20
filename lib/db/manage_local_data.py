@@ -16,11 +16,13 @@ from lib.constants import (
     default_lookback_days,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from lib.db.sql.duckdb import DuckDB
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 
 logger = get_logger(__name__)
+duckDB = DuckDB()
 
 pd.set_option("display.max_rows", None)
 pd.set_option("display.max_columns", None)
@@ -427,7 +429,9 @@ def list_filenames(
                     for file in files:
                         res.append(os.path.join(root, file))
     if partition_date:
-        print(f"Filtering {len(res)} files in service={service}, for partition_date={partition_date}")
+        print(
+            f"Filtering {len(res)} files in service={service}, for partition_date={partition_date}"
+        )
         res = [fp for fp in res if f"partition_date={partition_date}" in fp]
     return res
 
@@ -515,8 +519,10 @@ def get_service_pa_schema(service: str) -> Optional[pa.Schema]:
 def load_data_from_local_storage(
     service: str,
     directory: Literal["cache", "active"] = "active",
-    export_format: Literal["jsonl", "parquet"] = "parquet",
+    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
     partition_date: Optional[str] = None,
+    duckdb_query: Optional[str] = None,
+    query_metadata: Optional[dict] = None,
     latest_timestamp: Optional[str] = None,
     use_all_data: bool = False,
     validate_pq_files: bool = False,
@@ -570,6 +576,19 @@ def load_data_from_local_storage(
                     df[col] = df[col].astype("object")
                 elif dtype == "string":
                     df[col] = df[col].astype("string")
+    elif export_format == "duckdb":
+        if not duckdb_query or not query_metadata:
+            raise ValueError(
+                "Must provide a DuckDB query and query metadata when exporting to DuckDB."
+            )
+
+        df: pd.DataFrame = duckDB.run_query_as_df(
+            query=duckdb_query,
+            mode="parquet",
+            filepaths=filepaths,
+            query_metadata=query_metadata,
+        )
+
     if latest_timestamp:
         logger.info(f"Fetching data after timestamp={latest_timestamp}")
         timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]

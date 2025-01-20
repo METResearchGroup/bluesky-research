@@ -1,5 +1,6 @@
 """Helper utilities for pytest functions."""
 import copy
+import logging
 import os
 from typing import Optional
 from unittest.mock import Mock
@@ -23,6 +24,7 @@ class MockStudyUserManager:
     def __init__(self):
         self.study_users_dids_set = mock_user_dids
         self.post_uri_to_study_user_did_map = mock_post_uri_to_user_did_map
+        self.in_network_user_dids_set = {}
 
     def is_study_user(self, user_did: str) -> bool:
         """Mock function for checking if a user is a study user."""
@@ -31,6 +33,10 @@ class MockStudyUserManager:
     def is_study_user_post(self, post_uri: str) -> Optional[str]:
         """Mock function for checking if a post is from a study user."""
         return self.post_uri_to_study_user_did_map.get(post_uri, None)
+
+    def is_in_network_user(self, user_did: str) -> bool:
+        """Mock function for checking if a user is in the in-network user DIDs."""
+        return user_did in self.in_network_user_dids_set
 
 
 class MockS3():
@@ -45,14 +51,69 @@ class MockS3():
         )
 
 
+# class MockLogger():
+#     """Mock class of the `Logger` utility class."""
+
+#     def __init__(self, name: str = "test"):
+#         self.name = name
+#         self.log = Mock()
+#         self.info = Mock()
+#         self.error = Mock()
+
+class MockLogger:
+    """Mock class of the `Logger` utility class that captures logs for testing."""
+
+    def __init__(self, name: str = "test"):
+        self.name = name
+        self.records: list[logging.LogRecord] = []
+        
+    def info(self, message: str, **kwargs) -> None:
+        record = logging.LogRecord(
+            name=self.name,
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg=message,
+            args=(),
+            exc_info=None
+        )
+        self.records.append(record)
+        
+    def error(self, message: str, **kwargs) -> None:
+        record = logging.LogRecord(
+            name=self.name,
+            level=logging.ERROR,
+            pathname="",
+            lineno=0,
+            msg=message,
+            args=(),
+            exc_info=None
+        )
+        self.records.append(record)
+        
+    def log(self, message: str, **kwargs) -> None:
+        self.info(message, **kwargs)
+
+    def get_logs(self) -> list[str]:
+        """Helper method to get all logged messages."""
+        return [record.msg for record in self.records]
+
 mock_s3 = MockS3()
-
-
+mock_logger = MockLogger()
 mock_study_manager = MockStudyUserManager()
 
 
 def get_mock_study_manager():
     return mock_study_manager
+
+
+def get_mock_logger():
+    return mock_logger
+
+
+@pytest.fixture(autouse=True)
+def mock_logger_fixture(monkeypatch):
+    return MockLogger()
 
 
 @pytest.fixture(autouse=True)
