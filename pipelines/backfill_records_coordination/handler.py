@@ -32,4 +32,13 @@ def lambda_handler(event, context):
 
 
 if __name__ == "__main__":
-    lambda_handler({"payload": {"record_type": "posts"}}, None)
+    lambda_handler(
+        {
+            "payload": {
+                "record_type": "posts",
+                "add_posts_to_queue": True,
+                "run_integrations": True,
+            }
+        },
+        None,
+    )
