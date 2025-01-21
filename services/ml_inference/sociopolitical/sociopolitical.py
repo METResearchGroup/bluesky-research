@@ -202,7 +202,7 @@ def classify_latest_posts(
     backfill_period: Optional[str] = None,
     backfill_duration: Optional[int] = None,
     run_classification: bool = True,
-):
+) -> dict:
     """Classifies the latest posts using LLM inference.
 
     NOTE: for now we're just using an LLM. Would be nice to eventually use a
@@ -230,8 +230,18 @@ def classify_latest_posts(
         logger.info(f"Classifying {len(posts_to_classify)} posts with an LLM...")  # noqa
         if len(posts_to_classify) == 0:
             logger.warning("No posts to classify with LLM. Exiting...")
-            return
-        firehose_posts = [post for post in posts_to_classify if post.source == "firehose"]
+            return {
+                "inference_type": "llm",
+                "inference_timestamp": generate_current_datetime_str(),
+                "total_classified_posts": 0,
+                "total_classified_posts_by_source": {
+                    "firehose": 0,
+                    "most_liked": 0,
+                },
+            }
+        firehose_posts = [
+            post for post in posts_to_classify if post.source == "firehose"
+        ]
         most_liked_posts = [
             post for post in posts_to_classify if post.source == "most_liked"
         ]
@@ -255,7 +265,7 @@ def classify_latest_posts(
         "total_classified_posts": results["total_classified_posts"],
         "total_classified_posts_by_source": results["total_classified_posts_by_source"],  # noqa
     }
-    insert_labeling_session(labeling_session)
+    return labeling_session
 
 
 if __name__ == "__main__":
