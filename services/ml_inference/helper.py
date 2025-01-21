@@ -8,7 +8,7 @@ import pandas as pd
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
-from lib.db.manage_local_data import load_latest_data
+from lib.db.queue import Queue
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 
@@ -83,46 +83,69 @@ def get_posts_to_classify(
     - Use that as a filter for labeling.
     - Get the rows of data to label.
     """
+    queue_name = (
+        "ml_inference_perspective_api"
+        if inference_type == "perspective_api"
+        else "ml_inference_sociopolitical"
+        if inference_type == "llm"
+        else "ml_inference_ime"
+        if inference_type == "ime"
+        else None
+    )
+    if queue_name is None:
+        raise ValueError(f"Invalid inference type: {inference_type}")
+
+    queue = Queue(queue_name=queue_name)
+
     latest_labeling_session = get_latest_labeling_session(inference_type)
-    if latest_labeling_session is None:
-        logger.info(
-            "No latest labeling session found. By default, labeling all posts..."
+
+    latest_job_metadata: dict = latest_labeling_session.get("metadata", {})
+    if latest_job_metadata:
+        latest_id_classified = latest_job_metadata.get("latest_id_classified", None)  # noqa
+        latest_inference_timestamp = latest_job_metadata.get(
+            "inference_timestamp", None
         )  # noqa
-        latest_inference_timestamp = None
-    else:
-        latest_inference_timestamp: str = latest_labeling_session[
-            "inference_timestamp"
-        ]["S"]  # noqa
 
     if timestamp is not None:
         logger.info(
             f"Using backfill timestamp {timestamp} instead of latest inference timestamp: {latest_inference_timestamp}"
         )  # noqa
-    else:
-        timestamp = latest_inference_timestamp
+        latest_inference_timestamp = timestamp
+
+    latest_queue_items_json_str: str = queue.load_items_from_queue(
+        limit=None,
+        min_id=latest_id_classified,
+        min_timestamp=latest_inference_timestamp,
+        status="pending",
+    )
+
+    latest_queue_items: list[dict] = json.loads(latest_queue_items_json_str)
+    latest_payloads = [item["payload"] for item in latest_queue_items]
+
+    logger.info(f"Loaded {len(latest_payloads)} posts to classify.")
+
     logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")
-    posts_df: pd.DataFrame = load_latest_data(
-        service=(
-            "ml_inference_perspective_api"
-            if inference_type == "perspective_api"
-            else "ml_inference_sociopolitical"
-            if inference_type == "llm"
-            else "ml_inference_ime"
-            if inference_type == "ime"
-            else None
-        ),
-        latest_timestamp=timestamp,
-        max_per_source=max_per_source,
-    )
+    posts_df = pd.DataFrame(latest_payloads)
+
     if len(posts_df) == 0:
         logger.info("No posts to classify.")
         return []
+
+    if max_per_source:
+        logger.info(f"Limiting to {max_per_source} posts per source.")
+        grouped = posts_df.groupby("source")
+        groups = [group.head(max_per_source) for _, group in grouped]
+        if groups:
+            posts_df = pd.concat(groups)
+        else:
+            posts_df = pd.DataFrame()
+
     posts_df = posts_df.drop_duplicates(subset=["uri"])
-    df_dicts = posts_df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
-    posts = [FilteredPreprocessedPostModel(**post_dict) for post_dict in df_dicts]  # noqa
-    return posts
+
+    posts_df = posts_df[["uri", "text"]]
+
+    return posts_df
 
 
 def json_file_reader(file_paths):
