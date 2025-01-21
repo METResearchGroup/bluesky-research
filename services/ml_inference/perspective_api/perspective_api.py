@@ -9,7 +9,7 @@ from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from services.ml_inference.perspective_api.export_data import export_results
 from ml_tooling.perspective_api.model import run_batch_classification
-from services.ml_inference.helper import get_posts_to_classify, insert_labeling_session  # noqa
+from services.ml_inference.helper import get_posts_to_classify
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 
@@ -21,8 +21,8 @@ logger = get_logger(__name__)
 def classify_latest_posts(
     backfill_period: Optional[str] = None,
     backfill_duration: Optional[int] = None,
-    run_classification: bool = True
-):
+    run_classification: bool = True,
+) -> dict:
     """Classifies the latest preprocessed posts using the Perspective API."""
     if run_classification:
         if backfill_duration is not None and backfill_period in ["days", "hours"]:
@@ -48,8 +48,18 @@ def classify_latest_posts(
         )  # noqa
         if len(posts_to_classify) == 0:
             logger.warning("No posts to classify with Perspective API. Exiting...")
-            return
-        firehose_posts = [post for post in posts_to_classify if post.source == "firehose"]
+            return {
+                "inference_type": "perspective_api",
+                "inference_timestamp": generate_current_datetime_str(),
+                "total_classified_posts": 0,
+                "total_classified_posts_by_source": {
+                    "firehose": 0,
+                    "most_liked": 0,
+                },
+            }
+        firehose_posts = [
+            post for post in posts_to_classify if post.source == "firehose"
+        ]
         most_liked_posts = [
             post for post in posts_to_classify if post.source == "most_liked"
         ]
@@ -70,7 +80,7 @@ def classify_latest_posts(
         "total_classified_posts": results["total_classified_posts"],
         "total_classified_posts_by_source": results["total_classified_posts_by_source"],  # noqa
     }
-    insert_labeling_session(labeling_session)
+    return labeling_session
 
 
 if __name__ == "__main__":

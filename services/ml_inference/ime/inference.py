@@ -11,7 +11,7 @@ import pandas as pd
 import torch
 
 from lib.constants import current_datetime_str, timestamp_format
-from lib.helper import COMET_API_KEY, generate_current_datetime_str
+from lib.helper import COMET_API_KEY, generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from ml_tooling.ime_classification.model import (
     default_batch_size,
@@ -21,12 +21,12 @@ from ml_tooling.ime_classification.model import (
     load_model_and_tokenizer,
     TextDataset,
 )
-from services.ml_inference.helper import get_posts_to_classify, insert_labeling_session
+from services.ml_inference.helper import get_posts_to_classify
 from services.ml_inference.ime.export_data import export_results, write_posts_to_cache
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 # max_num_posts = 40_000 # can run quite a few at a time due to GPU speedups.
-max_num_posts = 200_000 # can run quite a few at a time due to GPU speedups.
+max_num_posts = 200_000  # can run quite a few at a time due to GPU speedups.
 
 default_model = "distilbert"
 model, tokenizer = load_model_and_tokenizer(default_model)
@@ -317,11 +317,13 @@ def run_batch_classification(
     return export_df
 
 
+@track_performance
 def classify_latest_posts(
     backfill_period: Optional[str] = None,
     backfill_duration: Optional[int] = None,
     run_classification: bool = True,
-):
+) -> dict:
+    """Classifies the latest preprocessed posts using the IME classifier."""
     if run_classification:
         if backfill_duration is not None and backfill_period in ["days", "hours"]:
             current_time = datetime.now(timezone.utc)
@@ -346,7 +348,15 @@ def classify_latest_posts(
         )
         if len(posts_to_classify) == 0:
             logger.info("No posts to classify. Exiting...")
-            return
+            return {
+                "inference_type": "ime",
+                "inference_timestamp": generate_current_datetime_str(),
+                "total_classified_posts": 0,
+                "total_classified_posts_by_source": {
+                    "firehose": 0,
+                    "most_liked": 0,
+                },
+            }
         firehose_posts = [
             post for post in posts_to_classify if post.source == "firehose"
         ]
@@ -376,7 +386,7 @@ def classify_latest_posts(
         "total_classified_posts": results["total_classified_posts"],
         "total_classified_posts_by_source": results["total_classified_posts_by_source"],  # noqa
     }
-    insert_labeling_session(labeling_session)
+    return labeling_session
 
 
 if __name__ == "__main__":

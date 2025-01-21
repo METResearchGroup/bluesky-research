@@ -1,7 +1,9 @@
 import json
 import traceback
 
+from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
+from services.ml_inference.helper import dynamodb_table_name
 from services.ml_inference.ime.inference import classify_latest_posts
 
 logger = get_logger(__name__)
@@ -19,16 +21,21 @@ def lambda_handler(event, context):
         backfill_duration = event.get("backfill_duration", None)
         if backfill_duration is not None:
             backfill_duration = int(backfill_duration)
-        classify_latest_posts(
+        session_metadata: dict = classify_latest_posts(
             backfill_period=backfill_period,
             backfill_duration=backfill_duration,
             run_classification=True,
         )
         logger.info("Completed classification of latest posts.")
-        return {
+        session_status_metadata = {
+            "service": "ml_inference_perspective_api",
+            "timestamp": session_metadata["inference_timestamp"],
             "statusCode": 200,
             "body": json.dumps("Classification of latest posts completed successfully"),
+            "metadata_table_name": dynamodb_table_name,
+            "metadata": json.dumps(session_metadata),
         }
+        return session_status_metadata
     except Exception as e:
         logger.error(f"Error in classification of latest posts: {e}")
         logger.error(traceback.format_exc())
@@ -42,7 +49,15 @@ def lambda_handler(event, context):
                 }
             )
         )
-        raise
+        session_status_metadata = {
+            "service": "ml_inference_perspective_api",
+            "timestamp": generate_current_datetime_str(),
+            "statusCode": 500,
+            "body": json.dumps(f"Error in classification of latest posts: {str(e)}"),
+            "metadata_table_name": dynamodb_table_name,
+            "metadata": json.dumps(traceback.format_exc()),
+        }
+        return session_status_metadata
 
 
 if __name__ == "__main__":
