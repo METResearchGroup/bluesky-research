@@ -24,6 +24,12 @@ existing_sqlite_dbs = [
 ]
 
 
+class CacheItem:
+    def __init__(self, key: str, value: str):
+        self.key = key
+        self.value = value
+
+
 class Cache:
     def __init__(self, cache_name: str):
         self.cache_name = cache_name

@@ -301,6 +301,63 @@ class Queue:
             items.append(item)
         return items
 
+    def load_items_from_queue(
+        self,
+        limit: Optional[int] = None,
+        status: Optional[str] = None,
+        min_id: Optional[int] = None,
+        min_timestamp: Optional[str] = None,
+    ) -> list[QueueItem]:
+        """Load multiple items from queue.
+
+        Supports a variety of filters:
+        - status: filter by status
+        - min_id: filter to grab all rows whose autoincremented id is greater
+        than the provided id
+        - min_timestamp: filter to grab all rows whose created_at is greater
+        than the provided timestamp
+
+        When "limit" is provided, it will return the first "limit" number of items
+        that match the filters.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            query = "SELECT id, payload, created_at, status FROM queue"
+            conditions = []
+            params = []
+
+            if status:
+                conditions.append("status = ?")
+                params.append(status)
+
+            if min_id:
+                conditions.append("id > ?")
+                params.append(min_id)
+
+            if min_timestamp:
+                conditions.append("created_at > ?")
+                params.append(min_timestamp)
+
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+
+            if limit:
+                query += " LIMIT ?"
+                params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+
+            items = []
+            for row in rows:
+                item = QueueItem(
+                    id=row[0], payload=row[1], created_at=row[2], status=row[3]
+                )
+                items.append(item)
+
+            return items
+
     def _get_sqlite_version(self) -> tuple:
         """Get the SQLite version as a tuple of integers."""
         with sqlite3.connect(self.db_path):

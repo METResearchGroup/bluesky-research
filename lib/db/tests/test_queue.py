@@ -381,3 +381,201 @@ def test_default_batch_size(queue: Queue) -> None:
         
         # Second chunk should have the remainder
         assert all_metadata[1]["actual_batch_size"] == 1
+
+
+def test_load_items_with_limit(queue: Queue) -> None:
+    """Test loading items with limit filter.
+    
+    Verifies:
+    - Correct number of items returned when limit specified
+    - Items returned in correct order
+    """
+    # Add test items
+    test_items = [{"key": f"value_{i}"} for i in range(5)]
+    queue.batch_add_items_to_queue(
+        items=test_items,
+        batch_size=1
+    )
+    
+    # Test with limit
+    items = queue.load_items_from_queue(limit=3)
+    assert len(items) == 3
+    for i, item in enumerate(items):
+        # payloads are lists of dicts (here, list of length 1)
+        # due to batching implementation.
+        assert json.loads(item.payload)[0]["key"] == f"value_{i}"
+
+
+def test_load_items_with_status(queue: Queue) -> None:
+    """Test loading items with status filter.
+    
+    Verifies:
+    - Only items with matching status are returned
+    """
+    # Add items with different statuses
+    test_items = [{"key": f"value_{i}"} for i in range(5)]
+    queue.batch_add_items_to_queue(
+        items=test_items,
+        batch_size=1
+    )
+    
+    # Mark some items as completed
+    with queue._get_connection() as conn:
+        conn.execute(
+            f"UPDATE {queue.queue_table_name} SET status = 'completed' WHERE id IN (1, 2)"
+        )
+    
+    # Test filtering by status
+    completed_items = queue.load_items_from_queue(status="completed")
+    assert len(completed_items) == 2
+    pending_items = queue.load_items_from_queue(status="pending")
+    assert len(pending_items) == 3
+
+
+def test_load_items_with_min_id(queue: Queue) -> None:
+    """Test loading items with min_id filter.
+    
+    Verifies:
+    - Only items with id > min_id are returned
+    """
+    test_items = [{"key": f"value_{i}"} for i in range(5)]
+    queue.batch_add_items_to_queue(
+        items=test_items,
+        batch_size=1
+    )
+    
+    items = queue.load_items_from_queue(min_id=2)
+    assert len(items) == 3  # Should return items with id 3,4,5
+    assert all(item.id > 2 for item in items)
+
+
+def test_load_items_with_min_timestamp(queue: Queue) -> None:
+    """Test loading items with min_timestamp filter.
+    
+    Verifies:
+    - Only items with timestamp > min_timestamp are returned
+    """
+    # Add items with different timestamps
+    test_items = [{"key": f"value_{i}"} for i in range(5)]
+
+    # add first 3 items
+    queue.batch_add_items_to_queue(
+        items=test_items,
+        batch_size=1
+    )
+
+    # wait 5 seconds, add next 2 items
+    time.sleep(5)
+    queue.batch_add_items_to_queue(
+        items=test_items[3:],
+        batch_size=1
+    )
+    
+    # Get middle timestamp
+    with queue._get_connection() as conn:
+        cursor = conn.execute(
+            f"SELECT created_at FROM {queue.queue_table_name} ORDER BY created_at LIMIT 1 OFFSET 2"
+        )
+        mid_timestamp = cursor.fetchone()[0]
+    
+    items = queue.load_items_from_queue(min_timestamp=mid_timestamp)
+    assert len(items) == 2  # Should return 2 newest items
+
+
+def test_load_items_combined_filters_1(queue: Queue) -> None:
+    """Test loading items with multiple filters combined.
+    
+    Case 1: status + limit
+    """
+    test_items = [{"key": f"value_{i}"} for i in range(5)]
+    queue.batch_add_items_to_queue(
+        items=test_items,
+        batch_size=1
+    )
+    
+    # Mark some items as completed
+    with queue._get_connection() as conn:
+        conn.execute(
+            f"UPDATE {queue.queue_table_name} SET status = 'completed' WHERE id IN (1, 2, 3)"
+        )
+    
+    items = queue.load_items_from_queue(status="completed", limit=2)
+    assert len(items) == 2
+    assert all(item.status == "completed" for item in items)
+
+
+def test_load_items_combined_filters_2(queue: Queue) -> None:
+    """Test loading items with multiple filters combined.
+    
+    Case 2: min_id + min_timestamp + limit
+    """
+    test_items = [{"key": f"value_{i}"} for i in range(5)]
+
+    # add first 3 items
+    queue.batch_add_items_to_queue(
+        items=test_items,
+        batch_size=1
+    )
+    
+    # wait 5 seconds, add next 2 items
+    time.sleep(5)
+    queue.batch_add_items_to_queue(
+        items=test_items[3:],
+        batch_size=1
+    )
+
+    # Get middle timestamp
+    with queue._get_connection() as conn:
+        cursor = conn.execute(
+            f"SELECT created_at FROM {queue.queue_table_name} ORDER BY created_at LIMIT 1 OFFSET 2"
+        )
+        mid_timestamp = cursor.fetchone()[0]
+    
+    items = queue.load_items_from_queue(
+        min_id=2,
+        min_timestamp=mid_timestamp,
+        limit=2
+    )
+    assert len(items) == 2
+    assert all(item.id > 2 for item in items)
+
+
+def test_load_items_combined_filters_3(queue: Queue) -> None:
+    """Test loading items with multiple filters combined.
+    
+    Case 3: all filters together
+    """
+    test_items = [{"key": f"value_{i}"} for i in range(10)]
+
+    # add first 3 items
+    queue.batch_add_items_to_queue(
+        items=test_items,
+        batch_size=1
+    )
+    
+    # wait 5 seconds, add next 7 items
+    time.sleep(5)
+    queue.batch_add_items_to_queue(
+        items=test_items[3:],
+        batch_size=1
+    )
+    
+    # Mark some items as completed
+    with queue._get_connection() as conn:
+        conn.execute(
+            f"UPDATE {queue.queue_table_name} SET status = 'completed' WHERE id > 5"
+        )
+        cursor = conn.execute(
+            f"SELECT created_at FROM {queue.queue_table_name} ORDER BY created_at LIMIT 1 OFFSET 4"
+        )
+        mid_timestamp = cursor.fetchone()[0]
+    
+    items = queue.load_items_from_queue(
+        status="completed",
+        min_id=6,
+        min_timestamp=mid_timestamp,
+        limit=2
+    )
+    assert len(items) == 2
+    assert all(item.status == "completed" for item in items)
+    assert all(item.id > 6 for item in items)
