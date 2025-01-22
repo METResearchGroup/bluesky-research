@@ -4,21 +4,7 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from lib.aws.s3 import S3
 from lib.db.manage_local_data import find_files_after_timestamp
-
-# Test cases for create_partition_key_based_on_timestamp
-
-
-@pytest.mark.parametrize("timestamp_str,expected", [
-    ("2024-07-06-20:39:30", "year=2024/month=07/day=06/hour=20/minute=39"),
-    ("2025-12-31-23:59:59", "year=2025/month=12/day=31/hour=23/minute=59"),
-])
-def test_create_partition_key_based_on_timestamp(timestamp_str, expected):
-    """Test create_partition_key_based_on_timestamp"""
-    assert (
-        S3.create_partition_key_based_on_timestamp(timestamp_str) == expected
-    )
 
 # Setup for find_files_after_timestamp tests
 
