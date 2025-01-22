@@ -50,23 +50,6 @@ def get_latest_labeling_session(
     return sorted_items[0]
 
 
-def insert_labeling_session(labeling_session: dict):
-    """Insert a labeling session."""
-    try:
-        # check that required fields are present
-        if "inference_type" not in labeling_session:
-            raise ValueError("inference_type is required")
-        if "inference_timestamp" not in labeling_session:
-            raise ValueError("inference_timestamp is required")
-        dynamodb.insert_item_into_table(
-            item=labeling_session, table_name=dynamodb_table_name
-        )
-        logger.info(f"Successfully inserted labeling session: {labeling_session}")
-    except Exception as e:
-        logger.error(f"Failed to insert labeling session: {e}")
-        raise
-
-
 def get_posts_to_classify(
     inference_type: Literal["llm", "perspective_api", "ime"],
     timestamp: Optional[str] = None,

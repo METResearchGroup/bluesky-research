@@ -318,14 +318,15 @@ async def batch_classify_posts(
                 f"Failed to label {len(failed_label_models)} posts. Re-inserting these into queue."
             )
             return_failed_labels_to_input_queue(
-                failed_label_models=failed_label_models, batch_size=batch_size
+                failed_label_models=failed_label_models,
+                source_feed=source_feed,
+                batch_size=batch_size,
             )
         else:
             logger.info(f"Successfully labeled {len(label_models)} posts.")
             write_posts_to_cache(
                 posts=label_models,
                 source_feed=source_feed,
-                classification_type="valid",
                 batch_size=batch_size,
             )
         del label_models
