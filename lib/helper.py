@@ -42,7 +42,7 @@ else:
 
 if not RUN_MODE:
     raise ValueError("RUN_MODE must be set to either 'local' or 'prod'")
-if not BSKY_DATA_DIR:
+if not BSKY_DATA_DIR and RUN_MODE == "prod":
     raise ValueError(
         "BSKY_DATA_DIR must be set to the path to the Bluesky data directory"
     )
