@@ -25,6 +25,7 @@ def lambda_handler(event, context) -> dict:
             backfill_period=backfill_period,
             backfill_duration=backfill_duration,
             run_classification=True,
+            event=event,
         )
         logger.info("Completed classification of latest posts.")
         session_status_metadata = {

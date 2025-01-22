@@ -22,6 +22,7 @@ def classify_latest_posts(
     backfill_duration: Optional[int] = None,
     run_classification: bool = True,
     previous_run_metadata: Optional[dict] = None,
+    event: Optional[dict] = None,
 ) -> dict:
     """Classifies posts using the Perspective API and exports the results.
 
@@ -38,6 +39,8 @@ def classify_latest_posts(
             If False, will only export cached results. Defaults to True.
         previous_run_metadata (Optional[dict]): Metadata from previous classification runs
             to avoid reprocessing posts.
+        event (Optional[dict]): The original event/payload passed to the handler function.
+            This is included in the returned session metadata for tracking purposes.
 
     Returns:
         dict: A labeling session summary containing:
@@ -47,6 +50,7 @@ def classify_latest_posts(
             - total_classified_posts_by_source (dict): Breakdown of classified posts by source:
                 - firehose (int): Number of posts from firehose source
                 - most_liked (int): Number of posts from most_liked source
+            - event (dict): The original event/payload passed to the function
 
     The function:
     1. Determines the time range for post selection based on backfill parameters
@@ -57,7 +61,6 @@ def classify_latest_posts(
 
     If no posts are found to classify, returns a summary with zero counts.
     """
-    breakpoint()
     if run_classification:
         if backfill_duration is not None and backfill_period in ["days", "hours"]:
             current_time = datetime.now(timezone.utc)
@@ -92,6 +95,7 @@ def classify_latest_posts(
                     "firehose": 0,
                     "most_liked": 0,
                 },
+                "event": event,
             }
         firehose_posts = [
             post for post in posts_to_classify if post.source == "firehose"
@@ -115,6 +119,7 @@ def classify_latest_posts(
         "inference_timestamp": timestamp,
         "total_classified_posts": results["total_classified_posts"],
         "total_classified_posts_by_source": results["total_classified_posts_by_source"],  # noqa
+        "event": event,
     }
     return labeling_session
 

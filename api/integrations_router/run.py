@@ -30,7 +30,6 @@ def run_integration_service(
         previous_run_metadata = {}
     service_handler: Callable = MAP_INTEGRATION_REQUEST_TO_SERVICE[service]
     execution_metadata = service_handler(event=payload, context=None)
-    breakpoint()
     transformed_execution_metadata = RunExecutionMetadata(**execution_metadata)
     return transformed_execution_metadata
 
