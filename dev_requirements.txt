@@ -14,6 +14,8 @@ cfgv==3.4.0
     # via pre-commit
 charset-normalizer==3.4.1
     # via requests
+click==8.1.7
+    # via -r dev_requirements.in
 distlib==0.3.8
     # via virtualenv
 duckdb==1.1.3
