@@ -21,13 +21,15 @@ from services.ml_inference.perspective_api.export_data import (
 DEFAULT_BATCH_SIZE = 90
 DEFAULT_DELAY_SECONDS = 1.05  # enough to avoid some overlapping.
 
-google_client = discovery.build(
-    "commentanalyzer",
-    "v1alpha1",
-    developerKey=GOOGLE_API_KEY,
-    discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",  # noqa
-    static_discovery=False,
-)
+
+def get_google_client():
+    return discovery.build(
+        "commentanalyzer",
+        "v1alpha1",
+        developerKey=GOOGLE_API_KEY,
+        discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",  # noqa
+        static_discovery=False,
+    )
 
 
 attribute_to_labels_map = {
@@ -122,6 +124,7 @@ def request_comment_analyzer(
         f"Sending request to commentanalyzer endpoint with request={analyze_request}...",  # noqa
     )
     try:
+        google_client = get_google_client()
         response = google_client.comments().analyze(body=analyze_request).execute()  # noqa
     except HttpError as e:
         logger.error(f"Error sending request to commentanalyzer: {e}")
@@ -190,6 +193,7 @@ async def process_perspective_batch(requests):
     See https://googleapis.github.io/google-api-python-client/docs/batch.html
     for more details
     """
+    google_client = get_google_client()
     batch = google_client.new_batch_http_request()
     responses = []
 
