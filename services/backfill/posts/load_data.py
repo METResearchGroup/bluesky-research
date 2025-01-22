@@ -14,12 +14,16 @@ INTEGRATIONS_LIST = [
 
 def load_service_post_uris(service: str, id_field: str = "uri") -> set[str]:
     """Load the post URIs of all posts for a service."""
-    query = f"SELECT {id_field} FROM {service};"
+    query = f"""
+        SELECT {id_field}, text FROM {service}
+        WHERE text IS NOT NULL
+        AND text != ''
+    """
     df: pd.DataFrame = load_data_from_local_storage(
         service=service,
         export_format="duckdb",
         duckdb_query=query,
-        query_metadata={"tables": [{"name": service, "columns": [id_field]}]},
+        query_metadata={"tables": [{"name": service, "columns": [id_field, "text"]}]},
     )
     return set(df[id_field])
 

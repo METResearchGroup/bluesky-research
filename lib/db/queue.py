@@ -15,6 +15,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, validator
 import typing_extensions as te
 
+from lib.db.queue_constants import NAME_TO_QUEUE_NAME_MAP
 from lib.helper import BSKY_DATA_DIR, generate_current_datetime_str
 from lib.log.logger import get_logger
 
@@ -76,9 +77,13 @@ class QueueItem(BaseModel):
 
 class Queue:
     def __init__(self, queue_name: str, create_new_queue: bool = False):
-        self.queue_name = queue_name
+        self.queue_name = NAME_TO_QUEUE_NAME_MAP[queue_name]
         self.queue_table_name = "queue"
         self.db_path = os.path.join(root_db_path, f"{queue_name}.db")
+        if os.path.exists(self.db_path) and create_new_queue:
+            logger.info(
+                f"DB for queue {queue_name} already exists. Not overwriting, using existing DB..."
+            )
         if not os.path.exists(self.db_path):
             if create_new_queue:
                 logger.info(f"Creating new SQLite DB for queue {queue_name}...")
@@ -226,8 +231,8 @@ class Queue:
     def batch_add_items_to_queue(
         self,
         items: list[dict],
-        metadata: dict = None,
-        batch_size: int = DEFAULT_BATCH_SIZE,
+        metadata: Optional[dict] = None,
+        batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
     ) -> None:
         """Add multiple items to queue, processing in chunks for memory
         efficiency."""
@@ -242,7 +247,6 @@ class Queue:
 
         logger.info(f"Writing {len(batched_chunks)} items to DB...")
 
-        # write to DB
         with sqlite3.connect(self.db_path) as conn:
             conn.executemany(
                 f"""

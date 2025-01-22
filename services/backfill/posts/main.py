@@ -32,9 +32,9 @@ def backfill_posts(payload: dict):
             logger.info(
                 f"Adding {len(post_uris)} posts for {integration} to backfill queue..."
             )  # noqa
-            queue = Queue(queue_name=integration, create_new_queue=True)
+            queue = Queue(queue_name=f"input_{integration}", create_new_queue=True)
             payloads = [{"uri": uri} for uri in post_uris]
-            queue.batch_add_items_to_queue(payloads)
+            queue.batch_add_items_to_queue(items=payloads, metadata=None)
         logger.info("Adding posts to queue complete.")
     else:
         logger.info("Skipping adding posts to queue...")

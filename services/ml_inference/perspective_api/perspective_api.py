@@ -10,11 +10,10 @@ from lib.log.logger import get_logger
 from services.ml_inference.perspective_api.export_data import export_results
 from ml_tooling.perspective_api.model import run_batch_classification
 from services.ml_inference.helper import get_posts_to_classify
-from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 
 s3 = S3()
-logger = get_logger(__name__)
+logger = get_logger(__file__)
 
 
 @track_performance
@@ -40,7 +39,7 @@ def classify_latest_posts(
             timestamp = backfill_timestamp
         else:
             timestamp = None
-        posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
+        posts_to_classify: list[dict] = get_posts_to_classify(  # noqa
             inference_type="perspective_api", timestamp=timestamp
         )
         logger.info(

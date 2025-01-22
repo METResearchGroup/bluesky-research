@@ -12,7 +12,6 @@ from lib.db.queue import Queue
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 
-from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 dynamodb = DynamoDB()
 athena = Athena()
@@ -72,7 +71,7 @@ def get_posts_to_classify(
     inference_type: Literal["llm", "perspective_api", "ime"],
     timestamp: Optional[str] = None,
     max_per_source: Optional[int] = None,
-) -> list[FilteredPreprocessedPostModel]:
+) -> list[dict]:
     """Get posts to classify.
 
     Steps:
@@ -143,9 +142,7 @@ def get_posts_to_classify(
 
     posts_df = posts_df.drop_duplicates(subset=["uri"])
 
-    posts_df = posts_df[["uri", "text"]]
-
-    return posts_df
+    return posts_df[["uri", "text"]].to_dict(orient="records")
 
 
 def json_file_reader(file_paths):

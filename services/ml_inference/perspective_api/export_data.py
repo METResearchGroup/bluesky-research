@@ -2,8 +2,7 @@
 
 import os
 import shutil
-from typing import Literal
-import uuid
+from typing import Literal, Optional
 
 import pandas as pd
 
@@ -16,6 +15,7 @@ from lib.db.manage_local_data import (
     export_data_to_local_storage,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from lib.db.queue import Queue
 from lib.helper import generate_current_datetime_str
 from services.ml_inference.models import PerspectiveApiLabelsModel
 from services.ml_inference.perspective_api.constants import (
@@ -31,53 +31,36 @@ athena = Athena()
 s3 = S3()
 glue = Glue()
 
+queue = Queue(queue_name="output_ml_inference_perspective_api")
 
-def write_post_to_cache(
-    classified_post: PerspectiveApiLabelsModel,
-    source_feed: Literal["firehose", "most_liked"],
-    classification_type: Literal["valid", "invalid"],
+
+def return_failed_labels_to_input_queue(
+    failed_label_models: list[PerspectiveApiLabelsModel],
+    batch_size: Optional[int] = None,
 ):
-    """Writes a post to local cache.
+    """Returns failed labels to the input queue."""
+    queue = Queue(queue_name="input_ml_inference_perspective_api")
+    queue.batch_add_items_to_queue(
+        items=failed_label_models,
+        batch_size=batch_size,
+        metadata={
+            "reason": "failed_label_perspective_api",
+            "label_timestamp": generate_current_datetime_str(),
+        },
+    )
 
-    The complete post URI is given as a combination of the
-    author's DID and a post ID. It comes in the form:
-    at://<author_did>/app.bsky.feed.post/<post_id>
-
-    We extract the author_did and post_id portion to create a unique key
-    for the post.
-
-    For example:
-    - at://did:plc:z37zxpcg22ookqjpvmgansn2/app.bsky.feed.post/3kwfp7deuxm2i
-        - We extract the "did:plc:z37zxpcg22ookqjpvmgansn2", and
-        "3kwfp7deuxm2i" portions.
-
-    We create a joint key of {author_did}_{post_id} to store the post.
-    """
-    post_id = classified_post.uri.split("/")[-1]
-    author_did = classified_post.uri.split("/")[-3]
-    joint_pk = f"{author_did}_{post_id}"
-    full_dir = os.path.join(root_cache_path, source_feed, classification_type)
-    if not os.path.exists(full_dir):
-        os.makedirs(full_dir)
-    full_key = os.path.join(full_dir, f"{joint_pk}.json")
-    with open(full_key, "w") as f:
-        f.write(classified_post.json())
 
 def write_posts_to_cache(
     posts: list[PerspectiveApiLabelsModel],
     source_feed: Literal["firehose", "most_liked"],
     classification_type: Literal["valid", "invalid"],
+    batch_size: Optional[int] = None,
 ):
-    hashed_value = str(uuid.uuid4())
-    timestamp = generate_current_datetime_str()
-    filename = f"{source_feed}_{classification_type}_{timestamp}_{hashed_value}.jsonl"
-    full_dir = os.path.join(root_cache_path, source_feed, classification_type)
-    if not os.path.exists(full_dir):
-        os.makedirs(full_dir)
-    full_key = os.path.join(full_dir, filename)
-    with open(full_key, "w") as f:
-        for post in posts:
-            f.write(post.json() + "\n")
+    """Writes posts to the queue storage."""
+
+    post_dicts = [post.dict() for post in posts]
+    queue.batch_add_items_to_queue(items=post_dicts, batch_size=batch_size)
+
 
 def export_classified_posts() -> dict:
     """Export classified posts.

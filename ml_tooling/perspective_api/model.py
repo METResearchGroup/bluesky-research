@@ -10,11 +10,16 @@ from googleapiclient.errors import HttpError
 
 from lib.helper import GOOGLE_API_KEY, create_batches, logger, track_performance  # noqa
 from services.ml_inference.models import PerspectiveApiLabelsModel
-from services.ml_inference.perspective_api.export_data import write_posts_to_cache
-from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
+from services.ml_inference.perspective_api.export_data import (
+    return_failed_labels_to_input_queue,
+    write_posts_to_cache,
+)
 
-DEFAULT_BATCH_SIZE = 50
-DEFAULT_DELAY_SECONDS = 1.0
+# current max of 100 QPS for the Perspective API. Also put a wait time of 1.05
+# seconds to make it more unlikely that more than 2 batches go off in 1 second
+# due to network latency.
+DEFAULT_BATCH_SIZE = 90
+DEFAULT_DELAY_SECONDS = 1.05  # enough to avoid some overlapping.
 
 google_client = discovery.build(
     "commentanalyzer",
@@ -154,8 +159,12 @@ def process_response(response_str: str) -> dict:
             classification_probs_and_labels[labels["label"]] = (
                 0 if prob_score < 0.5 else 1
             )  # noqa
-    classification_probs_and_labels["prob_constructive"] = classification_probs_and_labels["prob_reasoning"]
-    classification_probs_and_labels["label_constructive"] = classification_probs_and_labels["label_reasoning"]
+    classification_probs_and_labels["prob_constructive"] = (
+        classification_probs_and_labels["prob_reasoning"]
+    )
+    classification_probs_and_labels["label_constructive"] = (
+        classification_probs_and_labels["label_reasoning"]
+    )
     return classification_probs_and_labels
 
 
@@ -209,8 +218,12 @@ async def process_perspective_batch(requests):
                         )  # noqa
                 # constructiveness == reasoning now, presumably, according to
                 # the Perspective API team.
-                classification_probs_and_labels["prob_constructive"] = classification_probs_and_labels["prob_reasoning"]
-                classification_probs_and_labels["label_constructive"] = classification_probs_and_labels["label_reasoning"]
+                classification_probs_and_labels["prob_constructive"] = (
+                    classification_probs_and_labels["prob_reasoning"]
+                )
+                classification_probs_and_labels["label_constructive"] = (
+                    classification_probs_and_labels["label_reasoning"]
+                )
                 responses.append(classification_probs_and_labels)
 
     for _, request in enumerate(requests):
@@ -221,7 +234,7 @@ async def process_perspective_batch(requests):
 
 
 def create_label_models(
-    posts: list[FilteredPreprocessedPostModel], responses: list[dict]
+    posts: list[dict], responses: list[dict]
 ) -> list[PerspectiveApiLabelsModel]:
     res = []
     for post, response_obj in zip(posts, responses):
@@ -241,8 +254,8 @@ def create_label_models(
             )  # noqa
             res.append(
                 PerspectiveApiLabelsModel(
-                    uri=post.uri,
-                    text=post.text,
+                    uri=post["uri"],
+                    text=post["text"],
                     was_successfully_labeled=False,
                     reason=response_obj["error"],
                     label_timestamp=label_timestamp,
@@ -258,8 +271,8 @@ def create_label_models(
             }
             res.append(
                 PerspectiveApiLabelsModel(
-                    uri=post.uri,
-                    text=post.text,
+                    uri=post["uri"],
+                    text=post["text"],
                     was_successfully_labeled=True,
                     label_timestamp=label_timestamp,
                     **probs_response_obj,
@@ -270,15 +283,15 @@ def create_label_models(
 
 @track_performance
 async def batch_classify_posts(
-    posts: list[FilteredPreprocessedPostModel],
+    posts: list[dict],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float] = 1.0,
     source_feed: Literal["firehose", "most_liked"] = None,
 ) -> None:
-    if not source_feed:
-        raise ValueError("Source feed must be provided.")
+    if source_feed not in ["firehose", "most_liked"]:
+        raise ValueError("Valid source feed must be provided.")
     request_payloads: list[dict] = [
-        create_perspective_request(post.text) for post in posts
+        create_perspective_request(post["text"]) for post in posts
     ]
     iterated_post_payloads = list(zip(posts, request_payloads))
     request_payload_batches: list[list[dict]] = create_batches(
@@ -292,21 +305,34 @@ async def batch_classify_posts(
         post_batch, request_batch = zip(*post_request_batch)
         responses = await process_perspective_batch(request_batch)
         await asyncio.sleep(seconds_delay_per_batch)
-        # NOTE: can I do this write step and concurrently send the next
-        # batch of requests? Or will this step be necessarily a blocker?
         label_models: list[PerspectiveApiLabelsModel] = create_label_models(
             posts=post_batch, responses=responses
         )
-        write_posts_to_cache(
-            posts=label_models,
-            source_feed=source_feed,
-            classification_type="valid",
-        )
+        failed_label_models = [
+            label_model
+            for label_model in label_models
+            if not label_model.was_successfully_labeled
+        ]
+        if any(failed_label_models):
+            logger.error(
+                f"Failed to label {len(failed_label_models)} posts. Re-inserting these into queue."
+            )
+            return_failed_labels_to_input_queue(
+                failed_label_models=failed_label_models, batch_size=batch_size
+            )
+        else:
+            logger.info(f"Successfully labeled {len(label_models)} posts.")
+            write_posts_to_cache(
+                posts=label_models,
+                source_feed=source_feed,
+                classification_type="valid",
+                batch_size=batch_size,
+            )
         del label_models
 
 
 def run_batch_classification(
-    posts: list[FilteredPreprocessedPostModel],
+    posts: list[dict],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float] = DEFAULT_DELAY_SECONDS,
     source_feed: Literal["firehose", "most_liked"] = None,
