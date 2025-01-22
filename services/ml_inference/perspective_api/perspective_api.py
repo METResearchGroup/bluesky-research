@@ -24,6 +24,7 @@ def classify_latest_posts(
     previous_run_metadata: Optional[dict] = None,
 ) -> dict:
     """Classifies the latest preprocessed posts using the Perspective API."""
+    breakpoint()
     if run_classification:
         if backfill_duration is not None and backfill_period in ["days", "hours"]:
             current_time = datetime.now(timezone.utc)

@@ -14,6 +14,22 @@ logger = get_logger(__file__)
 
 @track_performance
 def backfill_posts(payload: dict):
+    """Backfills posts by adding them to integration queues and optionally running the integrations.
+
+    Args:
+        payload (dict): Configuration for the backfill process. Expected format:
+            {
+                "add_posts_to_queue" (bool): Whether to add posts to integration queues
+                "run_integrations" (bool): Whether to run the integrations after queueing
+                "integration" (Optional[list[str]]): List of specific integrations to backfill.
+                    If not provided, will backfill for all integrations.
+            }
+
+    The function performs two main steps:
+    1. If add_posts_to_queue=True, loads posts that haven't been processed by each integration
+       and adds them to the respective integration queues
+    2. If run_integrations=True, triggers the integration services to process the queued posts
+    """
     posts_to_backfill: dict[str, set[str]] = {}
     if payload.get("add_posts_to_queue"):
         posts_to_backfill: dict[str, set[str]] = load_posts_to_backfill(
