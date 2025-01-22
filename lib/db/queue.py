@@ -77,9 +77,21 @@ class QueueItem(BaseModel):
 
 class Queue:
     def __init__(self, queue_name: str, create_new_queue: bool = False):
-        self.queue_name = NAME_TO_QUEUE_NAME_MAP[queue_name]
+        """Initialize a Queue instance.
+
+        Args:
+            queue_name: Name of the queue
+            create_new_queue: If True, creates a new queue if it doesn't exist
+        """
+        # Special handling for test queues
+        if queue_name.startswith("test_"):
+            self.queue_name = queue_name
+        else:
+            self.queue_name = NAME_TO_QUEUE_NAME_MAP[queue_name]
+
         self.queue_table_name = "queue"
         self.db_path = os.path.join(root_db_path, f"{queue_name}.db")
+
         if os.path.exists(self.db_path) and create_new_queue:
             logger.info(
                 f"DB for queue {queue_name} already exists. Not overwriting, using existing DB..."

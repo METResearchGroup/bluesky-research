@@ -16,8 +16,11 @@ import json
 import time
 import pytest
 from typing import Generator
-from lib.db.queue import DEFAULT_BATCH_SIZE, Queue, QueueItem
 
+from lib.db.queue import DEFAULT_BATCH_SIZE, Queue, QueueItem
+from lib.log.logger import get_logger
+
+logger = get_logger(__file__)
 
 def get_test_queue_name() -> str:
     """Generate unique test queue name with timestamp.
@@ -42,8 +45,18 @@ def queue() -> Generator[Queue, None, None]:
     q = Queue(queue_name=queue_name, create_new_queue=True)
     yield q
     # Cleanup
-    if os.path.exists(q.db_path):
-        os.remove(q.db_path)
+    try:
+        if os.path.exists(q.db_path):
+            os.remove(q.db_path)
+        # Also remove WAL and SHM files if they exist
+        wal_file = f"{q.db_path}-wal"
+        shm_file = f"{q.db_path}-shm"
+        if os.path.exists(wal_file):
+            os.remove(wal_file)
+        if os.path.exists(shm_file):
+            os.remove(shm_file)
+    except Exception as e:
+        logger.warning(f"Error cleaning up test queue files: {e}")
 
 
 def test_queue_creation(queue: Queue) -> None:
