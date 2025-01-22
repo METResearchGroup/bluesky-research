@@ -40,7 +40,14 @@ class TestBackfillCoordinationCliApp(TestCase):
                 "payload": {
                     "record_type": "posts",
                     "add_posts_to_queue": True,
-                    "run_integrations": True
+                    "run_integrations": True,
+                    "integration_kwargs": {
+                        "ml_inference_perspective_api": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        }
+                    }
                 }
             },
             None
@@ -66,11 +73,85 @@ class TestBackfillCoordinationCliApp(TestCase):
                     "integration": [
                         "ml_inference_perspective_api",
                         "ml_inference_sociopolitical"
-                    ]
+                    ],
+                    "integration_kwargs": {
+                        "ml_inference_perspective_api": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        }
+                    }
                 }
             },
             None
         )
+        
+    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
+    def test_backfill_with_period_and_duration(self, mock_handler):
+        """Test backfill with period and duration parameters."""
+        mock_handler.return_value = {"statusCode": 200}
+        
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                '--record-type', 'posts',
+                '-i', 'p',
+                '--backfill-period', 'days',
+                '--backfill-duration', '2'
+            ]
+        )
+        
+        self.assertEqual(result.exit_code, 0)
+        mock_handler.assert_called_once_with(
+            {
+                "payload": {
+                    "record_type": "posts",
+                    "add_posts_to_queue": True,
+                    "run_integrations": True,
+                    "integration": ["ml_inference_perspective_api"],
+                    "integration_kwargs": {
+                        "ml_inference_perspective_api": {
+                            "backfill_period": "days",
+                            "backfill_duration": 2,
+                            "run_classification": True
+                        }
+                    }
+                }
+            },
+            None
+        )
+
+    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
+    def test_backfill_no_classification(self, mock_handler):
+        """Test backfill with classification disabled."""
+        mock_handler.return_value = {"statusCode": 200}
+        
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                '--record-type', 'posts',
+                '-i', 'p',
+                '--no-run-classification'
+            ]
+        )
+        
+        expected_args = {
+            "payload": {
+                "record_type": "posts",
+                "add_posts_to_queue": True,
+                "run_integrations": True,
+                "integration_kwargs": {
+                    "ml_inference_perspective_api": {
+                        "backfill_period": None,
+                        "backfill_duration": None,
+                        "run_classification": False
+                    }
+                },
+                "integration": ["ml_inference_perspective_api"]
+            }
+        }
+        self.assertEqual(result.exit_code, 0)
+        mock_handler.assert_called_once_with(expected_args, None)
         
     @patch('pipelines.backfill_records_coordination.app.lambda_handler')
     def test_queue_only_no_run(self, mock_handler):
@@ -88,7 +169,14 @@ class TestBackfillCoordinationCliApp(TestCase):
                 "payload": {
                     "record_type": "posts",
                     "add_posts_to_queue": True,
-                    "run_integrations": False
+                    "run_integrations": False,
+                    "integration_kwargs": {
+                        "ml_inference_perspective_api": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        }
+                    }
                 }
             },
             None
@@ -110,7 +198,14 @@ class TestBackfillCoordinationCliApp(TestCase):
                 "payload": {
                     "record_type": "posts",
                     "add_posts_to_queue": False,
-                    "run_integrations": True
+                    "run_integrations": True,
+                    "integration_kwargs": {
+                        "ml_inference_perspective_api": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        }
+                    }
                 }
             },
             None
@@ -123,4 +218,16 @@ class TestBackfillCoordinationCliApp(TestCase):
             ['--record-type', 'invalid']
         )
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Invalid value for '--record-type'", result.output) 
+        self.assertIn("Invalid value for '--record-type'", result.output)
+
+    def test_invalid_backfill_period(self):
+        """Test error handling for invalid backfill period."""
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                '--record-type', 'posts',
+                '--backfill-period', 'invalid'
+            ]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Invalid value for '--backfill-period'", result.output) 

@@ -81,6 +81,45 @@ def test_backfill_posts_run_integrations_only(mock_load_posts, mock_queue, mock_
 @patch("services.backfill.posts.main.route_and_run_integration_request")
 @patch("services.backfill.posts.main.Queue")
 @patch("services.backfill.posts.main.load_posts_to_backfill")
+def test_backfill_posts_with_integration_kwargs(mock_load_posts, mock_queue, mock_route, mock_posts_to_backfill):
+    """Test backfilling posts with integration-specific kwargs."""
+    mock_load_posts.return_value = {
+        "ml_inference_perspective_api": mock_posts_to_backfill["ml_inference_perspective_api"]
+    }
+    mock_queue_instance = MagicMock()
+    mock_queue.return_value = mock_queue_instance
+
+    payload = {
+        "add_posts_to_queue": True,
+        "run_integrations": True,
+        "integration": ["ml_inference_perspective_api"],
+        "integration_kwargs": {
+            "ml_inference_perspective_api": {
+                "backfill_period": "days",
+                "backfill_duration": 2,
+                "run_classification": True
+            }
+        }
+    }
+
+    backfill_posts(payload)
+
+    # Verify route_and_run_integration_request was called with kwargs
+    mock_route.assert_called_once_with({
+        "service": "ml_inference_perspective_api",
+        "payload": {
+            "run_type": "backfill",
+            "backfill_period": "days",
+            "backfill_duration": 2,
+            "run_classification": True
+        },
+        "metadata": {}
+    })
+
+
+@patch("services.backfill.posts.main.route_and_run_integration_request")
+@patch("services.backfill.posts.main.Queue")
+@patch("services.backfill.posts.main.load_posts_to_backfill")
 def test_backfill_posts_specific_integration(mock_load_posts, mock_queue, mock_route, mock_posts_to_backfill):
     """Test backfilling posts for specific integration."""
     mock_load_posts.return_value = {
@@ -105,12 +144,6 @@ def test_backfill_posts_specific_integration(mock_load_posts, mock_queue, mock_r
         queue_name="input_ml_inference_perspective_api",
         create_new_queue=True
     )
-
-    # Verify Queue was not created for other integrations
-    assert not mock_queue.call_args_list == [call(
-        queue_name="input_ml_inference_sociopolitical",
-        create_new_queue=True
-    )]
 
     # Verify route_and_run_integration_request was called only for specific integration
     mock_route.assert_called_once_with({

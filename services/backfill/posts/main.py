@@ -29,6 +29,41 @@ def backfill_posts(payload: dict):
     1. If add_posts_to_queue=True, loads posts that haven't been processed by each integration
        and adds them to the respective integration queues
     2. If run_integrations=True, triggers the integration services to process the queued posts
+
+    Examples:
+        # Example 1: Only add posts to queue for Perspective API integration
+        payload = {
+            "add_posts_to_queue": True,
+            "run_integrations": False,
+            "integration": ["ml_inference_perspective_api"]
+        }
+        # This will load unprocessed posts and add them to the Perspective API queue,
+        # but won't run the integration service.
+
+        # Example 2: Run all integrations on existing queued posts
+        payload = {
+            "add_posts_to_queue": False,
+            "run_integrations": True
+        }
+        # This will run all integration services on posts already in their queues,
+        # without adding new posts.
+
+        # Example 3: Full backfill for all integrations
+        payload = {
+            "add_posts_to_queue": True,
+            "run_integrations": True
+        }
+        # This will load unprocessed posts for all integrations, add them to their
+        # respective queues, and then run all integration services.
+
+        # Example 4: Targeted backfill for specific integrations
+        payload = {
+            "add_posts_to_queue": True,
+            "run_integrations": True,
+            "integration": ["ml_inference_perspective_api", "ml_inference_sociopolitical"]
+        }
+        # This will load and process posts only for the Perspective API and
+        # sociopolitical inference integrations.
     """
     posts_to_backfill: dict[str, set[str]] = {}
     if payload.get("add_posts_to_queue"):
@@ -64,10 +99,13 @@ def backfill_posts(payload: dict):
         else:
             integrations_to_backfill = INTEGRATIONS_LIST
         for integration in integrations_to_backfill:
+            integration_kwargs = payload.get("integration_kwargs", {}).get(
+                integration, {}
+            )
             _ = route_and_run_integration_request(
                 {
                     "service": integration,
-                    "payload": {"run_type": "backfill"},
+                    "payload": {"run_type": "backfill", **integration_kwargs},
                     "metadata": {},
                 }
             )

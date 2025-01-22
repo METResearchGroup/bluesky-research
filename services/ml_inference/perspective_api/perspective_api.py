@@ -23,7 +23,40 @@ def classify_latest_posts(
     run_classification: bool = True,
     previous_run_metadata: Optional[dict] = None,
 ) -> dict:
-    """Classifies the latest preprocessed posts using the Perspective API."""
+    """Classifies posts using the Perspective API and exports the results.
+
+    This function handles both real-time classification of new posts and historical backfilling.
+    It retrieves posts to classify, runs them through the Perspective API model, and exports
+    the results.
+
+    Args:
+        backfill_period (Optional[str]): The unit for backfilling - either "days" or "hours".
+            Must be provided together with backfill_duration.
+        backfill_duration (Optional[int]): The number of time units to backfill.
+            Must be provided together with backfill_period.
+        run_classification (bool): Whether to run the classification model on posts.
+            If False, will only export cached results. Defaults to True.
+        previous_run_metadata (Optional[dict]): Metadata from previous classification runs
+            to avoid reprocessing posts.
+
+    Returns:
+        dict: A labeling session summary containing:
+            - inference_type (str): Always "perspective_api"
+            - inference_timestamp (str): Timestamp of when inference was run
+            - total_classified_posts (int): Total number of posts classified
+            - total_classified_posts_by_source (dict): Breakdown of classified posts by source:
+                - firehose (int): Number of posts from firehose source
+                - most_liked (int): Number of posts from most_liked source
+
+    The function:
+    1. Determines the time range for post selection based on backfill parameters
+    2. Retrieves posts to classify using get_posts_to_classify()
+    3. Separates posts by source (firehose vs most_liked)
+    4. Runs batch classification on each source's posts if run_classification is True
+    5. Exports and returns the results
+
+    If no posts are found to classify, returns a summary with zero counts.
+    """
     breakpoint()
     if run_classification:
         if backfill_duration is not None and backfill_period in ["days", "hours"]:

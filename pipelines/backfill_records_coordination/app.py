@@ -17,6 +17,15 @@ def resolve_integration(integration: str) -> str:
     return integration
 
 
+DEFAULT_INTEGRATION_KWARGS = {
+    "ml_inference_perspective_api": {
+        "backfill_period": None,
+        "backfill_duration": None,
+        "run_classification": True,
+    }
+}
+
+
 @click.command()
 @click.option(
     "--record-type",
@@ -51,11 +60,33 @@ def resolve_integration(integration: str) -> str:
     multiple=True,
     help="Integration service(s) to run. Can be specified multiple times. If not provided, runs all integrations.",
 )
+@click.option(
+    "--backfill-period",
+    "-p",
+    type=click.Choice(["days", "hours"]),
+    default=None,
+    help="Period unit for backfilling (days or hours)",
+)
+@click.option(
+    "--backfill-duration",
+    "-d",
+    type=int,
+    default=None,
+    help="Duration of backfill period",
+)
+@click.option(
+    "--run-classification/--no-run-classification",
+    default=True,
+    help="Whether to run classification on posts",
+)
 def backfill_records(
     record_type: str,
     add_to_queue: bool,
     run_integrations: bool,
     integration: tuple[str, ...],
+    backfill_period: str | None,
+    backfill_duration: int | None,
+    run_classification: bool,
 ):
     """CLI app for triggering backfill of records.
 
@@ -68,6 +99,9 @@ def backfill_records(
 
         # Run existing queued posts for multiple integrations without adding new ones
         $ python -m pipelines.backfill_records_coordination.app -r posts -i p -i s --no-add-to-queue
+
+        # Backfill posts for last 2 days with classification
+        $ python -m pipelines.backfill_records_coordination.app -r posts -p days -d 2
     """
     # Convert integrations from abbreviations if needed
     resolved_integrations = (
@@ -79,7 +113,22 @@ def backfill_records(
         "record_type": record_type,
         "add_posts_to_queue": add_to_queue,
         "run_integrations": run_integrations,
+        "integration_kwargs": {},
     }
+
+    # Add integration kwargs based on CLI args or defaults
+    for integration_name in resolved_integrations or DEFAULT_INTEGRATION_KWARGS.keys():
+        if integration_name in DEFAULT_INTEGRATION_KWARGS:
+            integration_kwargs = DEFAULT_INTEGRATION_KWARGS[integration_name].copy()
+            integration_kwargs.update(
+                {
+                    "backfill_period": backfill_period,
+                    "backfill_duration": backfill_duration,
+                    "run_classification": run_classification,
+                }
+            )
+            payload["integration_kwargs"][integration_name] = integration_kwargs
+
     if resolved_integrations:
         payload["integration"] = resolved_integrations
 
