@@ -31,7 +31,6 @@ jobs:
     - name: Ruff linting
       run: |
         # stop the build if there are Python syntax errors or undefined names
-        pip install ruff
         ruff check .
     - name: Test with pytest
       run: |
