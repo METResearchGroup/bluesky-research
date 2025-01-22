@@ -21,39 +21,11 @@ dynamodb_table_name = "ml_inference_labeling_sessions"
 MIN_POST_TEXT_LENGTH = 5
 
 
-def get_latest_labeling_session(
-    inference_type: Literal["llm", "perspective_api", "ime"],
-) -> dict:  # noqa
-    """Get the latest labeling session for the inference type."""
-    # Query the table to get items by inference_type
-    filtered_items = dynamodb.query_items_by_inference_type(
-        table_name=dynamodb_table_name,
-        inference_type=inference_type,
-    )
-
-    if not filtered_items:
-        logger.info(
-            f"No previous labeling sessions found for inference type {inference_type}."
-        )  # noqa
-        return None
-
-    # Sort filtered items by inference_timestamp in descending order
-    sorted_items = sorted(
-        filtered_items,
-        key=lambda x: x.get("inference_timestamp", {}).get("S", ""),
-        reverse=True,
-    )  # noqa
-
-    logger.info(f"Latest labeling session: {sorted_items[0]}")
-
-    # Return the most recent item
-    return sorted_items[0]
-
-
 def get_posts_to_classify(
     inference_type: Literal["llm", "perspective_api", "ime"],
     timestamp: Optional[str] = None,
     max_per_source: Optional[int] = None,
+    previous_run_metadata: Optional[dict] = None,
 ) -> list[dict]:
     """Get posts to classify.
 
@@ -78,10 +50,9 @@ def get_posts_to_classify(
         raise ValueError(f"Invalid inference type: {inference_type}")
 
     queue = Queue(queue_name=queue_name)
-
-    latest_labeling_session = get_latest_labeling_session(inference_type)
-
-    latest_job_metadata: dict = latest_labeling_session.get("metadata", {})
+    if not previous_run_metadata:
+        previous_run_metadata = {}
+    latest_job_metadata: dict = json.loads(previous_run_metadata.get("metadata", ""))
     if latest_job_metadata:
         latest_id_classified = latest_job_metadata.get("latest_id_classified", None)  # noqa
         latest_inference_timestamp = latest_job_metadata.get(

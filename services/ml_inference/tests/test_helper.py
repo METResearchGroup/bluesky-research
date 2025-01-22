@@ -5,70 +5,10 @@ import pandas as pd
 import pytest
 
 from services.ml_inference.helper import (
-    get_latest_labeling_session,
     get_posts_to_classify,
     load_cached_jsons_as_df,
     process_file,
 )
-
-class TestGetLatestLabelingSession:
-    """Tests for get_latest_labeling_session function.
-    
-    This function queries DynamoDB for labeling sessions of a given inference type
-    and returns the most recent one based on timestamp.
-    """
-
-    @pytest.fixture
-    def mock_dynamodb(self):
-        """Mock DynamoDB client."""
-        with patch("services.ml_inference.helper.dynamodb") as mock:
-            yield mock
-
-    def test_get_latest_labeling_session_no_items(self, mock_dynamodb):
-        """Test when no labeling sessions exist.
-        
-        Expected behavior:
-        - When DynamoDB returns empty list, function should return None
-        """
-        mock_dynamodb.query_items_by_inference_type.return_value = []
-        result = get_latest_labeling_session("llm")
-        assert result is None
-        mock_dynamodb.query_items_by_inference_type.assert_called_once_with(
-            table_name="ml_inference_labeling_sessions",
-            inference_type="llm"
-        )
-
-    def test_get_latest_labeling_session_with_items(self, mock_dynamodb):
-        """Test when multiple labeling sessions exist.
-        
-        Expected behavior:
-        - Should return the session with the most recent timestamp
-        - Should properly parse DynamoDB format with nested 'S' keys
-        """
-        mock_items = [
-            {
-                "inference_timestamp": {"S": "2024-01-01"},
-                "inference_type": {"S": "llm"},
-                "metadata": {"M": {"data": {"S": "old"}}}
-            },
-            {
-                "inference_timestamp": {"S": "2024-02-01"},
-                "inference_type": {"S": "llm"},
-                "metadata": {"M": {"data": {"S": "newest"}}}
-            },
-            {
-                "inference_timestamp": {"S": "2024-01-15"},
-                "inference_type": {"S": "llm"},
-                "metadata": {"M": {"data": {"S": "middle"}}}
-            }
-        ]
-        mock_dynamodb.query_items_by_inference_type.return_value = mock_items
-        result = get_latest_labeling_session("llm")
-        assert result == mock_items[1]  # Should return the newest timestamp
-        mock_dynamodb.query_items_by_inference_type.assert_called_once_with(
-            table_name="ml_inference_labeling_sessions",
-            inference_type="llm"
-        )
 
 class TestGetPostsToClassify:
     """Tests for get_posts_to_classify function.
@@ -79,10 +19,9 @@ class TestGetPostsToClassify:
 
     @pytest.fixture
     def mock_dependencies(self):
-        """Mock Queue and get_latest_labeling_session dependencies."""
-        with patch("services.ml_inference.helper.Queue") as mock_queue, \
-             patch("services.ml_inference.helper.get_latest_labeling_session") as mock_session:
-            yield mock_queue.return_value, mock_session
+        """Mock Queue dependency."""
+        with patch("services.ml_inference.helper.Queue") as mock_queue:
+            yield mock_queue.return_value
 
     def test_get_posts_invalid_inference_type(self):
         """Test behavior with invalid inference type.
@@ -100,17 +39,23 @@ class TestGetPostsToClassify:
         - Should return empty list when queue has no items
         - Should properly handle empty JSON array string from queue
         """
-        mock_queue, mock_session = mock_dependencies
+        mock_queue = mock_dependencies
         mock_queue.load_items_from_queue.return_value = "[]"
-        mock_session.return_value = {
-            "metadata": {
-                "latest_id_classified": None,
+        previous_run_metadata = {
+            "metadata": json.dumps({
+                "latest_id_classified": "123",
                 "inference_timestamp": "2024-01-01"
-            }
+            })
         }
 
-        result = get_posts_to_classify("llm")
+        result = get_posts_to_classify("llm", previous_run_metadata=previous_run_metadata)
         assert result == []
+        mock_queue.load_items_from_queue.assert_called_once_with(
+            limit=None,
+            min_id="123",
+            min_timestamp="2024-01-01",
+            status="pending"
+        )
 
     def test_get_posts_with_max_per_source(self, mock_dependencies):
         """Test limiting posts per source.
@@ -120,25 +65,54 @@ class TestGetPostsToClassify:
         - Should maintain all required fields (uri, text) in output
         - Should properly handle JSON parsing of queue items
         """
-        mock_queue, mock_session = mock_dependencies
+        mock_queue = mock_dependencies
         queue_items = [
             {"payload": {"uri": "1", "text": "text1", "source": "src1"}},
             {"payload": {"uri": "2", "text": "text2", "source": "src1"}},
             {"payload": {"uri": "3", "text": "text3", "source": "src2"}},
         ]
         mock_queue.load_items_from_queue.return_value = json.dumps(queue_items)
-        mock_session.return_value = {
-            "metadata": {
-                "latest_id_classified": None,
+        previous_run_metadata = {
+            "metadata": json.dumps({
+                "latest_id_classified": "100",
                 "inference_timestamp": "2024-01-01"
-            }
+            })
         }
         
-        result = get_posts_to_classify("llm", max_per_source=1)
+        result = get_posts_to_classify("llm", max_per_source=1, previous_run_metadata=previous_run_metadata)
         assert len(result) == 2  # One from each source
         # Verify structure of returned items
         for item in result:
             assert set(item.keys()) == {"uri", "text"}
+
+    def test_get_posts_with_timestamp_override(self, mock_dependencies):
+        """Test when timestamp parameter overrides previous run metadata.
+        
+        Expected behavior:
+        - Should use provided timestamp instead of timestamp from previous run metadata
+        """
+        mock_queue = mock_dependencies
+        mock_queue.load_items_from_queue.return_value = "[]"
+        previous_run_metadata = {
+            "metadata": json.dumps({
+                "latest_id_classified": "100",
+                "inference_timestamp": "2024-01-01"
+            })
+        }
+        override_timestamp = "2023-12-31"
+
+        get_posts_to_classify(
+            "llm", 
+            timestamp=override_timestamp,
+            previous_run_metadata=previous_run_metadata
+        )
+        
+        mock_queue.load_items_from_queue.assert_called_once_with(
+            limit=None,
+            min_id="100",
+            min_timestamp=override_timestamp,
+            status="pending"
+        )
 
 class TestLoadCachedJsonsAsDf:
     """Tests for load_cached_jsons_as_df function.

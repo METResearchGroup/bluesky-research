@@ -21,6 +21,7 @@ def classify_latest_posts(
     backfill_period: Optional[str] = None,
     backfill_duration: Optional[int] = None,
     run_classification: bool = True,
+    previous_run_metadata: Optional[dict] = None,
 ) -> dict:
     """Classifies the latest preprocessed posts using the Perspective API."""
     if run_classification:
@@ -40,7 +41,9 @@ def classify_latest_posts(
         else:
             timestamp = None
         posts_to_classify: list[dict] = get_posts_to_classify(  # noqa
-            inference_type="perspective_api", timestamp=timestamp
+            inference_type="perspective_api",
+            timestamp=timestamp,
+            previous_run_metadata=previous_run_metadata,
         )
         logger.info(
             f"Classifying {len(posts_to_classify)} posts with the Perspective API..."
