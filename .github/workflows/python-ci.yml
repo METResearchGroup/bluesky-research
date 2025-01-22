@@ -24,9 +24,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        # pip install pytest 
         # pip install -r requirements.txt
-        # pip install -r dev_requirements.txt
+        pip install -r dev_requirements.txt
     - name: Add project directory to PYTHONPATH
       run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
     - name: Ruff linting
@@ -36,7 +35,12 @@ jobs:
         ruff check .
     - name: Test with pytest
       run: |
-        # pytest --ignore=experiments --no-header -v
+        pytest lib/db/tests --ignore=experiments --no-header -v
+        pytest lib/db/sql/tests --ignore=experiments --no-header -v
+        pytest lib/telemetry/tests --ignore=experiments --no-header -v
+        pytest services/backfill/posts/tests --ignore=experiments --no-header -v
+        pytest services/ml_inference/tests --ignore=experiments --no-header -v
+        pytest api/integrations_router/tests --ignore=experiments --no-header -v
     - name: Lint Dockerfiles with Hadolint
       run: |
         docker run --rm -i hadolint/hadolint < Dockerfiles/add_users_to_study.Dockerfile
