@@ -41,10 +41,12 @@ def backfill_posts(payload: dict):
 
     if payload.get("run_integrations"):
         logger.info("Running integrations...")
-        if not posts_to_backfill:
-            integrations_to_backfill = INTEGRATIONS_LIST
-        else:
+        # if we tried to load posts to backfill, but none were found, skip.
+        # Else, set as default to backfill all integrations.
+        if payload.get("add_posts_to_queue"):
             integrations_to_backfill = posts_to_backfill.keys()
+        else:
+            integrations_to_backfill = INTEGRATIONS_LIST
         for integration in integrations_to_backfill:
             _ = route_and_run_integration_request(
                 {
