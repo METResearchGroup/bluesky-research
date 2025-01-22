@@ -11,7 +11,7 @@ from typing import Literal, Optional
 import botocore
 import pandas as pd
 
-from lib.aws.helper import create_client, retry_on_aws_rate_limit
+from lib.aws.helper import retry_on_aws_rate_limit
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 
@@ -33,7 +33,7 @@ logger = get_logger(__name__)
 class S3:
     """Wrapper class for all S3-related access."""
 
-    def __init__(self):
+    def __init__(self, create_client: bool = True):
         self.client = create_client("s3")
         self.bucket = ROOT_BUCKET
 

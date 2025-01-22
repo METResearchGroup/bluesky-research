@@ -32,7 +32,7 @@ DEV_BLUESKY_PASSWORD = os.getenv("DEV_BLUESKY_PASSWORD")
 RUN_MODE = os.getenv("RUN_MODE")
 BSKY_DATA_DIR = os.getenv("BSKY_DATA_DIR")
 
-if not BLUESKY_HANDLE or not BLUESKY_APP_PASSWORD:
+if (not BLUESKY_HANDLE or not BLUESKY_APP_PASSWORD) and RUN_MODE == "prod":
     print("Fetching secrets from AWS Secrets Manager instead of the env...")
     bsky_credentials = json.loads(get_secret("bluesky_account_credentials"))
     BLUESKY_HANDLE = bsky_credentials["bluesky_handle"]
