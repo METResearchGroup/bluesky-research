@@ -1,5 +1,5 @@
 {
-    "latency": 0.010203,
+    "latency": 0.000185,
     "cumulative_rows_scanned": 0,
     "cumulative_cardinality": 2,
     "extra_info": {},
