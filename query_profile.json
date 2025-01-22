@@ -1,16 +1,16 @@
 {
-    "latency": 0.000155,
+    "latency": 0.010203,
     "cumulative_rows_scanned": 0,
     "cumulative_cardinality": 2,
     "extra_info": {},
-    "cpu_time": 0.000003,
+    "cpu_time": 0.0000049999999999999996,
     "blocked_thread_time": 0.0,
     "result_set_size": 16,
     "query_name": "\n                            SELECT \n                                sum(estimated_size)/1024/1024 as size_mb,\n                                count(*) as table_count\n                            FROM duckdb_tables()\n                        ",
     "rows_returned": 1,
     "children": [
         {
-            "operator_timing": 0.000001,
+            "operator_timing": 0.000002,
             "operator_rows_scanned": 0,
             "cumulative_rows_scanned": 0,
             "operator_cardinality": 1,
@@ -24,11 +24,11 @@
                 "Estimated Cardinality": "1"
             },
             "result_set_size": 16,
-            "cpu_time": 0.000003,
+            "cpu_time": 0.0000049999999999999996,
             "children": [
                 {
                     "result_set_size": 24,
-                    "cpu_time": 0.000002,
+                    "cpu_time": 0.000003,
                     "extra_info": {
                         "Aggregates": [
                             "sum(#0)",
@@ -40,7 +40,7 @@
                     "operator_cardinality": 1,
                     "cumulative_rows_scanned": 0,
                     "operator_rows_scanned": 0,
-                    "operator_timing": 0.000001,
+                    "operator_timing": 0.000002,
                     "children": [
                         {
                             "operator_timing": 0.0,

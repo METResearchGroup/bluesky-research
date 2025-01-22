@@ -70,6 +70,8 @@ class DuckDB:
             filepaths: List of Parquet file paths when mode='parquet'
             columns: Optional list of columns to read. If None, reads all columns.
         """
+        if not query_metadata:
+            query_metadata = {}
         if mode == "parquet":
             if not filepaths:
                 logger.warning(
