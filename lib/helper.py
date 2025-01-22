@@ -29,8 +29,17 @@ BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_PASSWORD")
 DEV_BLUESKY_HANDLE = os.getenv("DEV_BLUESKY_HANDLE")
 DEV_BLUESKY_PASSWORD = os.getenv("DEV_BLUESKY_PASSWORD")
-RUN_MODE = os.getenv("RUN_MODE", "local")
+RUN_MODE = os.getenv("RUN_MODE", "test")  # local (local dev), test (CI), or prod
 BSKY_DATA_DIR = os.getenv("BSKY_DATA_DIR")
+
+if RUN_MODE == "test":
+    BLUESKY_HANDLE = "test"
+    BLUESKY_APP_PASSWORD = "test"
+    DEV_BLUESKY_HANDLE = "test"
+    DEV_BLUESKY_PASSWORD = "test"
+    BSKY_DATA_DIR = "~/tmp/"
+    if not os.path.exists(BSKY_DATA_DIR):
+        os.makedirs(BSKY_DATA_DIR)
 
 if (not BLUESKY_HANDLE or not BLUESKY_APP_PASSWORD) and RUN_MODE == "prod":
     print("Fetching secrets from AWS Secrets Manager instead of the env...")
