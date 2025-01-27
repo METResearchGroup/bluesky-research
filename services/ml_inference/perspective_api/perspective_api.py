@@ -82,6 +82,7 @@ def classify_latest_posts(
             timestamp=timestamp,
             previous_run_metadata=previous_run_metadata,
         )
+        breakpoint()
         logger.info(
             f"Classifying {len(posts_to_classify)} posts with the Perspective API..."
         )  # noqa

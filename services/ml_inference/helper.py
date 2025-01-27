@@ -49,7 +49,7 @@ def get_posts_to_classify(
     if queue_name is None:
         raise ValueError(f"Invalid inference type: {inference_type}")
 
-    queue = Queue(queue_name=queue_name)
+    queue = Queue(queue_name=f"input_{queue_name}")
     if not previous_run_metadata:
         previous_run_metadata = {}
     latest_job_metadata: dict = json.loads(previous_run_metadata.get("metadata", ""))

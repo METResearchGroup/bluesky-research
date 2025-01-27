@@ -31,7 +31,7 @@ def lambda_handler(event, context) -> dict:
         session_status_metadata = {
             "service": "ml_inference_perspective_api",
             "timestamp": session_metadata["inference_timestamp"],
-            "statusCode": 200,
+            "status_code": 200,
             "body": json.dumps("Classification of latest posts completed successfully"),
             "metadata_table_name": dynamodb_table_name,
             "metadata": json.dumps(session_metadata),
@@ -43,7 +43,7 @@ def lambda_handler(event, context) -> dict:
         logger.error(
             json.dumps(
                 {
-                    "statusCode": 500,
+                    "status_code": 500,
                     "body": json.dumps(
                         f"Error in classification of latest posts: {str(e)}"
                     ),
@@ -53,7 +53,7 @@ def lambda_handler(event, context) -> dict:
         session_status_metadata = {
             "service": "ml_inference_perspective_api",
             "timestamp": generate_current_datetime_str(),
-            "statusCode": 500,
+            "status_code": 500,
             "body": json.dumps(f"Error in classification of latest posts: {str(e)}"),
             "metadata_table_name": dynamodb_table_name,
             "metadata": json.dumps(traceback.format_exc()),
