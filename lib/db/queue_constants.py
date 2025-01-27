@@ -7,4 +7,8 @@
 NAME_TO_QUEUE_NAME_MAP = {
     "input_ml_inference_perspective_api": "input_ml_inference_perspective_api",
     "output_ml_inference_perspective_api": "output_ml_inference_perspective_api",
+    "input_ml_inference_sociopolitical": "input_ml_inference_sociopolitical",
+    "output_ml_inference_sociopolitical": "output_ml_inference_sociopolitical",
+    "input_ml_inference_ime": "input_ml_inference_ime",
+    "output_ml_inference_ime": "output_ml_inference_ime",
 }
