@@ -57,34 +57,6 @@ class TestGetPostsToClassify:
             status="pending"
         )
 
-    def test_get_posts_with_max_per_source(self, mock_dependencies):
-        """Test limiting posts per source.
-        
-        Expected behavior:
-        - Should return at most max_per_source posts for each unique source
-        - Should maintain all required fields (uri, text) in output
-        - Should properly handle JSON parsing of queue items
-        """
-        mock_queue = mock_dependencies
-        queue_items = [
-            {"payload": {"uri": "1", "text": "text1", "source": "src1"}},
-            {"payload": {"uri": "2", "text": "text2", "source": "src1"}},
-            {"payload": {"uri": "3", "text": "text3", "source": "src2"}},
-        ]
-        mock_queue.load_items_from_queue.return_value = json.dumps(queue_items)
-        previous_run_metadata = {
-            "metadata": json.dumps({
-                "latest_id_classified": "100",
-                "inference_timestamp": "2024-01-01"
-            })
-        }
-        
-        result = get_posts_to_classify("llm", max_per_source=1, previous_run_metadata=previous_run_metadata)
-        assert len(result) == 2  # One from each source
-        # Verify structure of returned items
-        for item in result:
-            assert set(item.keys()) == {"uri", "text"}
-
     def test_get_posts_with_timestamp_override(self, mock_dependencies):
         """Test when timestamp parameter overrides previous run metadata.
         

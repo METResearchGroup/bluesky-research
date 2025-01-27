@@ -3,11 +3,7 @@
 from typing import Callable, Optional
 
 from api.integrations_router.map import MAP_INTEGRATION_REQUEST_TO_SERVICE
-from api.integrations_router.models import (
-    IntegrationRequest,
-    IntegrationResponse,
-    RunExecutionMetadata,
-)
+from api.integrations_router.models import IntegrationRequest, RunExecutionMetadata
 from lib.aws.dynamodb import DynamoDB
 from lib.helper import track_performance
 from lib.log.logger import get_logger
@@ -89,17 +85,13 @@ def write_run_metadata_to_db(run_metadata: RunExecutionMetadata) -> None:
 
 
 @track_performance
-def run_integration_request(request: IntegrationRequest) -> IntegrationResponse:
+def run_integration_request(request: IntegrationRequest) -> RunExecutionMetadata:
     """Runs an integration request."""
     previous_run_metadata: dict = load_latest_run_metadata(request.service)
     run_metadata: RunExecutionMetadata = run_integration_service(
         request=request,
         previous_run_metadata=previous_run_metadata,
     )
-    write_run_metadata_to_db(run_metadata=run_metadata)
-    return IntegrationResponse(
-        service=run_metadata.service,
-        timestamp=run_metadata.timestamp,
-        status_code=run_metadata.status_code,
-        body=run_metadata.body,
-    )
+    # TODO: Uncomment this once runs works
+    # write_run_metadata_to_db(run_metadata=run_metadata)
+    return run_metadata

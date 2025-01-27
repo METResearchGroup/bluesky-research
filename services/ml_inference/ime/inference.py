@@ -341,7 +341,7 @@ def classify_latest_posts(
         else:
             timestamp = None
         posts_to_classify: list[FilteredPreprocessedPostModel] = get_posts_to_classify(  # noqa
-            inference_type="ime", timestamp=timestamp, max_per_source=max_num_posts
+            inference_type="ime", timestamp=timestamp
         )
         logger.info(
             f"Classifying {len(posts_to_classify)} posts with IME classifier..."

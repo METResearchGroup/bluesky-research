@@ -13,15 +13,6 @@ class IntegrationRequest(BaseModel):
     metadata: dict
 
 
-class IntegrationResponse(BaseModel):
-    """Class for defining the expected outputs in an integration response."""
-
-    service: str
-    timestamp: str
-    status_code: int
-    body: str
-
-
 class IntegrationPayload(BaseModel):
     """Class for defining the expected inputs in an integration request payload."""
 

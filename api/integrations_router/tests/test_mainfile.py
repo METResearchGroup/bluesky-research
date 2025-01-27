@@ -7,7 +7,7 @@ causes pytest to not run these tests (it can't discover this file?).
 import pytest
 from unittest.mock import Mock, patch
 
-from api.integrations_router.models import IntegrationRequest, IntegrationResponse
+from api.integrations_router.models import IntegrationRequest, RunExecutionMetadata
 from api.integrations_router.main import parse_integration_request, route_and_run_integration_request
 
 
@@ -24,11 +24,13 @@ def test_request_dict():
 @pytest.fixture
 def mock_run_integration_request():
     """Mock for run_integration_request function."""
-    return Mock(return_value=IntegrationResponse(
+    return Mock(return_value=RunExecutionMetadata(
         service="test_service",
         timestamp="2024-03-14T12:00:00Z",
         status_code=200,
-        body="Test successful"
+        body="Test successful",
+        metadata_table_name="test_table",
+        metadata="{}"
     ))
 
 
@@ -58,11 +60,13 @@ def test_route_and_run_integration_request(test_request_dict, mock_run_integrati
     ):
         result = route_and_run_integration_request(test_request_dict)
         
-        assert isinstance(result, IntegrationResponse)
+        assert isinstance(result, RunExecutionMetadata)
         assert result.service == "test_service"
         assert result.timestamp == "2024-03-14T12:00:00Z"
         assert result.status_code == 200
         assert result.body == "Test successful"
+        assert result.metadata_table_name == "test_table"
+        assert result.metadata == "{}"
         
         mock_run_integration_request.assert_called_once()
         actual_request = mock_run_integration_request.call_args[1]["request"]

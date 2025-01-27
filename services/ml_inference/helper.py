@@ -8,7 +8,7 @@ import pandas as pd
 
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
-from lib.db.queue import Queue
+from lib.db.queue import Queue, QueueItem
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 
@@ -24,7 +24,6 @@ MIN_POST_TEXT_LENGTH = 5
 def get_posts_to_classify(
     inference_type: Literal["llm", "perspective_api", "ime"],
     timestamp: Optional[str] = None,
-    max_per_source: Optional[int] = None,
     previous_run_metadata: Optional[dict] = None,
 ) -> list[dict]:
     """Get posts to classify.
@@ -52,12 +51,18 @@ def get_posts_to_classify(
     queue = Queue(queue_name=f"input_{queue_name}")
     if not previous_run_metadata:
         previous_run_metadata = {}
-    latest_job_metadata: dict = json.loads(previous_run_metadata.get("metadata", ""))
-    if latest_job_metadata:
-        latest_id_classified = latest_job_metadata.get("latest_id_classified", None)  # noqa
+    if previous_run_metadata:
+        latest_job_metadata: dict = json.loads(
+            previous_run_metadata.get("metadata", "")
+        )
+        if latest_job_metadata:
+            latest_id_classified = latest_job_metadata.get("latest_id_classified", None)  # noqa
         latest_inference_timestamp = latest_job_metadata.get(
             "inference_timestamp", None
         )  # noqa
+    else:
+        latest_id_classified = None
+        latest_inference_timestamp = None
 
     if timestamp is not None:
         logger.info(
@@ -65,37 +70,34 @@ def get_posts_to_classify(
         )  # noqa
         latest_inference_timestamp = timestamp
 
-    latest_queue_items_json_str: str = queue.load_items_from_queue(
+    latest_queue_items: list[QueueItem] = queue.load_items_from_queue(
         limit=None,
         min_id=latest_id_classified,
         min_timestamp=latest_inference_timestamp,
         status="pending",
     )
 
-    latest_queue_items: list[dict] = json.loads(latest_queue_items_json_str)
-    latest_payloads = [item["payload"] for item in latest_queue_items]
-
+    latest_payload_strings: list[str] = [item.payload for item in latest_queue_items]
+    latest_payloads: list[dict] = []
+    for payload_string in latest_payload_strings:
+        payloads: list[dict] = json.loads(payload_string)
+        latest_payloads.extend(payloads)
+    breakpoint()
     logger.info(f"Loaded {len(latest_payloads)} posts to classify.")
 
     logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")
-    posts_df = pd.DataFrame(latest_payloads)
+    posts_df = pd.DataFrame(latest_payloads, columns=["uri", "text"])
+
+    breakpoint()
 
     if len(posts_df) == 0:
         logger.info("No posts to classify.")
         return []
 
-    if max_per_source:
-        logger.info(f"Limiting to {max_per_source} posts per source.")
-        grouped = posts_df.groupby("source")
-        groups = [group.head(max_per_source) for _, group in grouped]
-        if groups:
-            posts_df = pd.concat(groups)
-        else:
-            posts_df = pd.DataFrame()
-
     posts_df = posts_df.drop_duplicates(subset=["uri"])
 
+    breakpoint()
     return posts_df[["uri", "text"]].to_dict(orient="records")
 
 

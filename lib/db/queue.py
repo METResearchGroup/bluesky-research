@@ -54,6 +54,9 @@ class QueueItem(BaseModel):
     payload: str = Field(
         default="", description="The JSON-serialized data for this queue item."
     )
+    metadata: str = Field(
+        default="", description="The JSON-serialized metadata for this queue item."
+    )
     created_at: str = Field(
         default_factory=generate_current_datetime_str,
         description="The timestamp when the queue item was created.",
@@ -186,7 +189,7 @@ class Queue:
                     continue
                 raise
 
-    def add_item_to_queue(self, payload: dict, metadata: dict = None) -> None:
+    def add_item_to_queue(self, payload: dict, metadata: Optional[dict] = None) -> None:
         """Add single item to queue."""
         if not payload:
             raise ValueError("Payload cannot be empty")
@@ -221,7 +224,7 @@ class Queue:
         self,
         chunks: list[list[dict]],
         batch_size: int,
-        metadata: dict = None,
+        metadata: Optional[dict] = None,
     ) -> list[tuple[str, str, str, str]]:
         """Out of the chunks, create a batch of chunks that will be written to the queue."""
         batched_chunks: list[tuple[str, str, str, str]] = []
@@ -277,7 +280,7 @@ class Queue:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
                 WITH next_item AS (
-                    SELECT id, payload, created_at, status
+                    SELECT id, payload, metadata, created_at, status
                     FROM queue 
                     WHERE status = 'pending'
                     ORDER BY created_at ASC 
@@ -286,7 +289,7 @@ class Queue:
                 UPDATE queue
                 SET status = 'processing'
                 WHERE id IN (SELECT id FROM next_item)
-                RETURNING id, payload, created_at, status
+                RETURNING id, payload, metadata, created_at, status
             """)
 
             row = cursor.fetchone()
@@ -296,7 +299,11 @@ class Queue:
                 return None
 
             item = QueueItem(
-                id=row[0], payload=row[1], created_at=row[2], status="processing"
+                id=row[0],
+                payload=row[1],
+                metadata=row[2],
+                created_at=row[3],
+                status="processing",
             )
 
             count = self.get_queue_length()
@@ -339,7 +346,7 @@ class Queue:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
-            query = "SELECT id, payload, created_at, status FROM queue"
+            query = "SELECT id, payload, metadata, created_at, status FROM queue"
             conditions = []
             params = []
 
@@ -368,7 +375,11 @@ class Queue:
             items = []
             for row in rows:
                 item = QueueItem(
-                    id=row[0], payload=row[1], created_at=row[2], status=row[3]
+                    id=row[0],
+                    payload=row[1],
+                    metadata=row[2],
+                    created_at=row[3],
+                    status=row[4],
                 )
                 items.append(item)
 

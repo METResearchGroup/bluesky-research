@@ -149,7 +149,7 @@ def test_remove_item_from_queue(queue: Queue) -> None:
 
     Verifies:
     - Item is removed successfully
-    - Removed item has correct payload and processing status
+    - Removed item has correct payload, metadata and processing status
     - Empty queue returns None
     - Status transitions from 'pending' to 'processing'
 
@@ -157,11 +157,13 @@ def test_remove_item_from_queue(queue: Queue) -> None:
         queue: Test queue fixture
     """
     test_item = {"test_key": "test_value"}
-    queue.add_item_to_queue(test_item)
+    test_metadata = {"source": "test"}
+    queue.add_item_to_queue(test_item, metadata=test_metadata)
 
     removed_item = queue.remove_item_from_queue()
     assert isinstance(removed_item, QueueItem)
     assert json.loads(removed_item.payload) == test_item
+    assert json.loads(removed_item.metadata)["source"] == "test"
     assert removed_item.status == "processing"
 
     # Queue should be empty after removal
@@ -174,15 +176,17 @@ def test_batch_remove_items_from_queue(queue: Queue) -> None:
     Verifies:
     - Removes correct number of items up to limit
     - Items maintain FIFO order
-    - All items have processing status
+    - All items have processing status and metadata
     - Returns empty list when queue is empty
 
     Args:
         queue: Test queue fixture
     """
     test_items = [{"key": f"value_{i}"} for i in range(3)]
+    test_metadata = {"source": "batch_test"}
     queue.batch_add_items_to_queue(
         test_items,
+        metadata=test_metadata,
         batch_size=1 # to guarantee 3 rows in the queue.
     )
 
@@ -192,6 +196,7 @@ def test_batch_remove_items_from_queue(queue: Queue) -> None:
     for item in removed_items:
         assert isinstance(item, QueueItem)
         assert item.status == "processing"
+        assert json.loads(item.metadata)["source"] == "batch_test"
 
     # One item should remain
     remaining_items = queue.batch_remove_items_from_queue()
@@ -242,7 +247,8 @@ def test_queue_persistence(queue: Queue) -> None:
         queue: Test queue fixture
     """
     test_item = {"test_key": "test_value"}
-    queue.add_item_to_queue(test_item)
+    test_metadata = {"source": "test"}
+    queue.add_item_to_queue(test_item, metadata=test_metadata)
 
     # Create new connection to same queue
     new_queue = Queue(queue_name=queue.queue_name)
@@ -250,6 +256,7 @@ def test_queue_persistence(queue: Queue) -> None:
 
     removed_item = new_queue.remove_item_from_queue()
     assert json.loads(removed_item.payload) == test_item
+    assert json.loads(removed_item.metadata)["source"] == "test"
 
 
 def test_metadata_handling(queue: Queue) -> None:
@@ -269,7 +276,7 @@ def test_metadata_handling(queue: Queue) -> None:
     
     queue.add_item_to_queue(test_item, metadata=test_metadata)
     
-    # Verify metadata through direct DB query
+    # Verify metadata through direct DB query and through load_items
     with queue._get_connection() as conn:
         cursor = conn.execute(
             f"SELECT metadata FROM {queue.queue_table_name} LIMIT 1"
@@ -280,6 +287,12 @@ def test_metadata_handling(queue: Queue) -> None:
         assert stored_metadata["priority"] == "high"
         assert stored_metadata["batch_size"] == 1
         assert stored_metadata["actual_batch_size"] == 1
+
+    loaded_items = queue.load_items_from_queue()
+    assert len(loaded_items) == 1
+    loaded_metadata = json.loads(loaded_items[0].metadata)
+    assert loaded_metadata["source"] == "test"
+    assert loaded_metadata["priority"] == "high"
 
 
 def test_batch_chunking(queue: Queue) -> None:
@@ -348,21 +361,17 @@ def test_batch_with_metadata(queue: Queue) -> None:
         batch_size=batch_size
     )
     
-    with queue._get_connection() as conn:
-        cursor = conn.execute(
-            f"SELECT metadata FROM {queue.queue_table_name} ORDER BY created_at"
-        )
-        all_metadata = [json.loads(row[0]) for row in cursor.fetchall()]
-        
-        assert len(all_metadata) == 3  # Should be 3 chunks (2+2+1)
-        
-        for metadata in all_metadata:
-            # Original metadata preserved
-            assert metadata["source"] == "batch_test"
-            assert metadata["priority"] == "low"
-            # Batch information added
-            assert metadata["batch_size"] == batch_size
-            assert "actual_batch_size" in metadata
+    loaded_items = queue.load_items_from_queue()
+    assert len(loaded_items) == 3  # Should be 3 chunks (2+2+1)
+    
+    for item in loaded_items:
+        metadata = json.loads(item.metadata)
+        # Original metadata preserved
+        assert metadata["source"] == "batch_test"
+        assert metadata["priority"] == "low"
+        # Batch information added
+        assert metadata["batch_size"] == batch_size
+        assert "actual_batch_size" in metadata
 
 
 def test_default_batch_size(queue: Queue) -> None:
@@ -380,20 +389,17 @@ def test_default_batch_size(queue: Queue) -> None:
     
     queue.batch_add_items_to_queue(items=test_items)
     
-    with queue._get_connection() as conn:
-        cursor = conn.execute(
-            f"SELECT metadata FROM {queue.queue_table_name} ORDER BY created_at"
-        )
-        all_metadata = [json.loads(row[0]) for row in cursor.fetchall()]
-        
-        assert len(all_metadata) == 2  # Should split into 2 chunks
-        
-        # First chunk should use default batch size
-        assert all_metadata[0]["batch_size"] == DEFAULT_BATCH_SIZE
-        assert all_metadata[0]["actual_batch_size"] == DEFAULT_BATCH_SIZE
-        
-        # Second chunk should have the remainder
-        assert all_metadata[1]["actual_batch_size"] == 1
+    loaded_items = queue.load_items_from_queue()
+    assert len(loaded_items) == 2  # Should split into 2 chunks
+    
+    # First chunk should use default batch size
+    first_metadata = json.loads(loaded_items[0].metadata)
+    assert first_metadata["batch_size"] == DEFAULT_BATCH_SIZE
+    assert first_metadata["actual_batch_size"] == DEFAULT_BATCH_SIZE
+    
+    # Second chunk should have the remainder
+    last_metadata = json.loads(loaded_items[1].metadata)
+    assert last_metadata["actual_batch_size"] == 1
 
 
 def test_load_items_with_limit(queue: Queue) -> None:
@@ -402,11 +408,14 @@ def test_load_items_with_limit(queue: Queue) -> None:
     Verifies:
     - Correct number of items returned when limit specified
     - Items returned in correct order
+    - Metadata is properly loaded
     """
     # Add test items
     test_items = [{"key": f"value_{i}"} for i in range(5)]
+    test_metadata = {"source": "test"}
     queue.batch_add_items_to_queue(
         items=test_items,
+        metadata=test_metadata,
         batch_size=1
     )
     
@@ -417,6 +426,7 @@ def test_load_items_with_limit(queue: Queue) -> None:
         # payloads are lists of dicts (here, list of length 1)
         # due to batching implementation.
         assert json.loads(item.payload)[0]["key"] == f"value_{i}"
+        assert json.loads(item.metadata)["source"] == "test"
 
 
 def test_load_items_with_status(queue: Queue) -> None:
@@ -424,11 +434,14 @@ def test_load_items_with_status(queue: Queue) -> None:
     
     Verifies:
     - Only items with matching status are returned
+    - Metadata is preserved
     """
     # Add items with different statuses
     test_items = [{"key": f"value_{i}"} for i in range(5)]
+    test_metadata = {"source": "test"}
     queue.batch_add_items_to_queue(
         items=test_items,
+        metadata=test_metadata,
         batch_size=1
     )
     
@@ -441,8 +454,13 @@ def test_load_items_with_status(queue: Queue) -> None:
     # Test filtering by status
     completed_items = queue.load_items_from_queue(status="completed")
     assert len(completed_items) == 2
+    for item in completed_items:
+        assert json.loads(item.metadata)["source"] == "test"
+    
     pending_items = queue.load_items_from_queue(status="pending")
     assert len(pending_items) == 3
+    for item in pending_items:
+        assert json.loads(item.metadata)["source"] == "test"
 
 
 def test_load_items_with_min_id(queue: Queue) -> None:
@@ -450,16 +468,21 @@ def test_load_items_with_min_id(queue: Queue) -> None:
     
     Verifies:
     - Only items with id > min_id are returned
+    - Metadata is preserved
     """
     test_items = [{"key": f"value_{i}"} for i in range(5)]
+    test_metadata = {"source": "test"}
     queue.batch_add_items_to_queue(
         items=test_items,
+        metadata=test_metadata,
         batch_size=1
     )
     
     items = queue.load_items_from_queue(min_id=2)
     assert len(items) == 3  # Should return items with id 3,4,5
     assert all(item.id > 2 for item in items)
+    for item in items:
+        assert json.loads(item.metadata)["source"] == "test"
 
 
 def test_load_items_with_min_timestamp(queue: Queue) -> None:
@@ -467,13 +490,16 @@ def test_load_items_with_min_timestamp(queue: Queue) -> None:
     
     Verifies:
     - Only items with timestamp > min_timestamp are returned
+    - Metadata is preserved
     """
     # Add items with different timestamps
     test_items = [{"key": f"value_{i}"} for i in range(5)]
+    test_metadata = {"source": "test"}
 
     # add first 3 items
     queue.batch_add_items_to_queue(
-        items=test_items,
+        items=test_items[:3],
+        metadata=test_metadata,
         batch_size=1
     )
 
@@ -481,6 +507,7 @@ def test_load_items_with_min_timestamp(queue: Queue) -> None:
     time.sleep(5)
     queue.batch_add_items_to_queue(
         items=test_items[3:],
+        metadata=test_metadata,
         batch_size=1
     )
     
@@ -493,16 +520,21 @@ def test_load_items_with_min_timestamp(queue: Queue) -> None:
     
     items = queue.load_items_from_queue(min_timestamp=mid_timestamp)
     assert len(items) == 2  # Should return 2 newest items
+    for item in items:
+        assert json.loads(item.metadata)["source"] == "test"
 
 
 def test_load_items_combined_filters_1(queue: Queue) -> None:
     """Test loading items with multiple filters combined.
     
     Case 1: status + limit
+    Verifies metadata is preserved
     """
     test_items = [{"key": f"value_{i}"} for i in range(5)]
+    test_metadata = {"source": "test"}
     queue.batch_add_items_to_queue(
         items=test_items,
+        metadata=test_metadata,
         batch_size=1
     )
     
@@ -515,18 +547,23 @@ def test_load_items_combined_filters_1(queue: Queue) -> None:
     items = queue.load_items_from_queue(status="completed", limit=2)
     assert len(items) == 2
     assert all(item.status == "completed" for item in items)
+    for item in items:
+        assert json.loads(item.metadata)["source"] == "test"
 
 
 def test_load_items_combined_filters_2(queue: Queue) -> None:
     """Test loading items with multiple filters combined.
     
     Case 2: min_id + min_timestamp + limit
+    Verifies metadata is preserved
     """
     test_items = [{"key": f"value_{i}"} for i in range(5)]
+    test_metadata = {"source": "test"}
 
     # add first 3 items
     queue.batch_add_items_to_queue(
-        items=test_items,
+        items=test_items[:3],
+        metadata=test_metadata,
         batch_size=1
     )
     
@@ -534,6 +571,7 @@ def test_load_items_combined_filters_2(queue: Queue) -> None:
     time.sleep(5)
     queue.batch_add_items_to_queue(
         items=test_items[3:],
+        metadata=test_metadata,
         batch_size=1
     )
 
@@ -551,18 +589,23 @@ def test_load_items_combined_filters_2(queue: Queue) -> None:
     )
     assert len(items) == 2
     assert all(item.id > 2 for item in items)
+    for item in items:
+        assert json.loads(item.metadata)["source"] == "test"
 
 
 def test_load_items_combined_filters_3(queue: Queue) -> None:
     """Test loading items with multiple filters combined.
     
     Case 3: all filters together
+    Verifies metadata is preserved
     """
     test_items = [{"key": f"value_{i}"} for i in range(10)]
+    test_metadata = {"source": "test"}
 
     # add first 3 items
     queue.batch_add_items_to_queue(
-        items=test_items,
+        items=test_items[:3],
+        metadata=test_metadata,
         batch_size=1
     )
     
@@ -570,6 +613,7 @@ def test_load_items_combined_filters_3(queue: Queue) -> None:
     time.sleep(5)
     queue.batch_add_items_to_queue(
         items=test_items[3:],
+        metadata=test_metadata,
         batch_size=1
     )
     
@@ -592,3 +636,5 @@ def test_load_items_combined_filters_3(queue: Queue) -> None:
     assert len(items) == 2
     assert all(item.status == "completed" for item in items)
     assert all(item.id > 6 for item in items)
+    for item in items:
+        assert json.loads(item.metadata)["source"] == "test"

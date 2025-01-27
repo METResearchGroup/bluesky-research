@@ -51,7 +51,10 @@ def insert_dummy_records_into_queue(
     queue_length_before = queue.get_queue_length()
     logger.info(f"Queue length before: {queue_length_before}")
     logger.info(f"Inserting {len(records)} dummy records into {integration} queue")
-    queue.batch_add_items_to_queue(items=records, metadata=None)
+    queue.batch_add_items_to_queue(
+        items=records,
+        metadata={"service": "insert_dummy_records"},
+    )
     queue_length_after = queue.get_queue_length()
     logger.info(f"Queue length after: {queue_length_after}")
 
