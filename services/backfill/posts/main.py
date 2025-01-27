@@ -96,8 +96,13 @@ def backfill_posts(payload: dict):
         # Else, set as default to backfill all integrations.
         if payload.get("add_posts_to_queue"):
             integrations_to_backfill = posts_to_backfill.keys()
+        elif payload.get("integration"):
+            integrations_to_backfill = payload.get("integration")
         else:
             integrations_to_backfill = INTEGRATIONS_LIST
+        logger.info(
+            f"Backfilling for the following integrations: {integrations_to_backfill}"
+        )
         for integration in integrations_to_backfill:
             integration_kwargs = payload.get("integration_kwargs", {}).get(
                 integration, {}

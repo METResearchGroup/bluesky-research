@@ -3,7 +3,7 @@
 import asyncio
 from datetime import datetime, timezone
 import json
-from typing import Literal, Optional
+from typing import Optional
 
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
@@ -290,10 +290,7 @@ async def batch_classify_posts(
     posts: list[dict],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float] = 1.0,
-    source_feed: Literal["firehose", "most_liked"] = None,
 ) -> None:
-    if source_feed not in ["firehose", "most_liked"]:
-        raise ValueError("Valid source feed must be provided.")
     request_payloads: list[dict] = [
         create_perspective_request(post["text"]) for post in posts
     ]
@@ -323,14 +320,12 @@ async def batch_classify_posts(
             )
             return_failed_labels_to_input_queue(
                 failed_label_models=failed_label_models,
-                source_feed=source_feed,
                 batch_size=batch_size,
             )
         else:
             logger.info(f"Successfully labeled {len(label_models)} posts.")
             write_posts_to_cache(
                 posts=label_models,
-                source_feed=source_feed,
                 batch_size=batch_size,
             )
         del label_models
@@ -340,7 +335,6 @@ def run_batch_classification(
     posts: list[dict],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float] = DEFAULT_DELAY_SECONDS,
-    source_feed: Literal["firehose", "most_liked"] = None,
 ):
     loop = asyncio.get_event_loop()
     loop.run_until_complete(
@@ -348,6 +342,5 @@ def run_batch_classification(
             posts=posts,
             batch_size=batch_size,
             seconds_delay_per_batch=seconds_delay_per_batch,
-            source_feed=source_feed,
         )
     )

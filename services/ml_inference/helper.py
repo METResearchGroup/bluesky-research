@@ -1,24 +1,46 @@
 """Helper tooling for ML inference."""
 
+from datetime import datetime, timedelta, timezone
 import json
 from multiprocessing import Pool, cpu_count
 from typing import Literal, Optional
 
 import pandas as pd
 
-from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
+from lib.constants import timestamp_format
 from lib.db.queue import Queue, QueueItem
-from lib.helper import track_performance
 from lib.log.logger import get_logger
+from lib.helper import track_performance
 
 
 dynamodb = DynamoDB()
-athena = Athena()
-
 logger = get_logger(__name__)
+
 dynamodb_table_name = "ml_inference_labeling_sessions"
 MIN_POST_TEXT_LENGTH = 5
+
+
+def determine_backfill_latest_timestamp(
+    backfill_duration: int,
+    backfill_period: Literal["days", "hours"],
+) -> str:
+    if backfill_duration is not None and backfill_period in ["days", "hours"]:
+        current_time = datetime.now(timezone.utc)
+        if backfill_period == "days":
+            backfill_time = current_time - timedelta(days=backfill_duration)
+            logger.info(f"Backfilling {backfill_duration} days of data.")
+        elif backfill_period == "hours":
+            backfill_time = current_time - timedelta(hours=backfill_duration)
+            logger.info(f"Backfilling {backfill_duration} hours of data.")
+    else:
+        backfill_time = None
+    if backfill_time is not None:
+        backfill_timestamp = backfill_time.strftime(timestamp_format)
+        timestamp = backfill_timestamp
+    else:
+        timestamp = None
+    return timestamp
 
 
 def get_posts_to_classify(
@@ -82,22 +104,14 @@ def get_posts_to_classify(
     for payload_string in latest_payload_strings:
         payloads: list[dict] = json.loads(payload_string)
         latest_payloads.extend(payloads)
-    breakpoint()
     logger.info(f"Loaded {len(latest_payloads)} posts to classify.")
-
     logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")
     posts_df = pd.DataFrame(latest_payloads, columns=["uri", "text"])
-
-    breakpoint()
-
     if len(posts_df) == 0:
         logger.info("No posts to classify.")
         return []
-
     posts_df = posts_df.drop_duplicates(subset=["uri"])
-
-    breakpoint()
     return posts_df[["uri", "text"]].to_dict(orient="records")
 
 

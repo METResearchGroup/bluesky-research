@@ -1,18 +1,15 @@
 """Base file for classifying posts in batch using the Perspective API."""
 
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from lib.aws.s3 import S3
-from lib.constants import timestamp_format
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
-from services.ml_inference.perspective_api.export_data import export_results
 from ml_tooling.perspective_api.model import run_batch_classification
-from services.ml_inference.helper import get_posts_to_classify
+from services.ml_inference.helper import (
+    determine_backfill_latest_timestamp,
+    get_posts_to_classify,
+)
 
-
-s3 = S3()
 logger = get_logger(__file__)
 
 
@@ -62,27 +59,15 @@ def classify_latest_posts(
     If no posts are found to classify, returns a summary with zero counts.
     """
     if run_classification:
-        if backfill_duration is not None and backfill_period in ["days", "hours"]:
-            current_time = datetime.now(timezone.utc)
-            if backfill_period == "days":
-                backfill_time = current_time - timedelta(days=backfill_duration)
-                logger.info(f"Backfilling {backfill_duration} days of data.")
-            elif backfill_period == "hours":
-                backfill_time = current_time - timedelta(hours=backfill_duration)
-                logger.info(f"Backfilling {backfill_duration} hours of data.")
-        else:
-            backfill_time = None
-        if backfill_time is not None:
-            backfill_timestamp = backfill_time.strftime(timestamp_format)
-            timestamp = backfill_timestamp
-        else:
-            timestamp = None
+        backfill_latest_timestamp: str = determine_backfill_latest_timestamp(
+            backfill_duration=backfill_duration,
+            backfill_period=backfill_period,
+        )
         posts_to_classify: list[dict] = get_posts_to_classify(  # noqa
             inference_type="perspective_api",
-            timestamp=timestamp,
+            timestamp=backfill_latest_timestamp,
             previous_run_metadata=previous_run_metadata,
         )
-        breakpoint()
         logger.info(
             f"Classifying {len(posts_to_classify)} posts with the Perspective API..."
         )  # noqa
@@ -92,34 +77,16 @@ def classify_latest_posts(
                 "inference_type": "perspective_api",
                 "inference_timestamp": generate_current_datetime_str(),
                 "total_classified_posts": 0,
-                "total_classified_posts_by_source": {
-                    "firehose": 0,
-                    "most_liked": 0,
-                },
                 "event": event,
             }
-        firehose_posts = [
-            post for post in posts_to_classify if post.source == "firehose"
-        ]
-        most_liked_posts = [
-            post for post in posts_to_classify if post.source == "most_liked"
-        ]
-
-        source_to_posts_tuples = [
-            ("firehose", firehose_posts),
-            ("most_liked", most_liked_posts),
-        ]  # noqa
-        for source, posts in source_to_posts_tuples:
-            run_batch_classification(posts=posts, source_feed=source)
+        run_batch_classification(posts=posts_to_classify)
     else:
         logger.info("Skipping classification and exporting cached results...")
     timestamp = generate_current_datetime_str()
-    results = export_results()
     labeling_session = {
         "inference_type": "perspective_api",
         "inference_timestamp": timestamp,
-        "total_classified_posts": results["total_classified_posts"],
-        "total_classified_posts_by_source": results["total_classified_posts_by_source"],  # noqa
+        "total_classified_posts": len(posts_to_classify),
         "event": event,
     }
     return labeling_session
