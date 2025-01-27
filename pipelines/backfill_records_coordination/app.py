@@ -132,8 +132,6 @@ def backfill_records(
     if resolved_integrations:
         payload["integration"] = resolved_integrations
 
-    breakpoint()
-
     # Call handler with constructed event
     response = lambda_handler({"payload": payload}, None)
     click.echo(f"Backfill completed with status: {response['statusCode']}")
