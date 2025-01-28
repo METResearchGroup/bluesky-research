@@ -1,144 +1,169 @@
 import json
-from unittest.mock import Mock, patch
+from datetime import datetime, timezone, timedelta
+from unittest.mock import patch
 
-import pandas as pd
 import pytest
 
+from lib.db.queue import QueueItem
 from services.ml_inference.helper import (
+    determine_backfill_latest_timestamp,
     get_posts_to_classify,
-    load_cached_jsons_as_df,
-    process_file,
 )
 
+# Create a mock datetime class that supports subtraction
+class MockDateTime:
+    def __init__(self, dt):
+        self.dt = dt
+        
+    def strftime(self, fmt):
+        return self.dt.strftime(fmt)
+        
+    def __sub__(self, other):
+        if isinstance(other, datetime):
+            return MockDateTime(self.dt - other)
+        return MockDateTime(self.dt - other)
+
+class TestDetermineBackfillLatestTimestamp:
+    """Tests for determine_backfill_latest_timestamp function."""
+
+    @pytest.mark.parametrize("duration,period,expected", [
+        (None, "days", None),
+        (None, "hours", None), 
+        (7, "invalid", None),
+    ])
+    def test_invalid_inputs(self, duration, period, expected):
+        """Test handling of invalid/None inputs."""
+        result = determine_backfill_latest_timestamp(duration, period)
+        assert result == expected
+
+    @patch("services.ml_inference.helper.datetime")
+    def test_backfill_days(self, mock_datetime):
+        """Test backfill with days period."""
+
+        mock_now = MockDateTime(datetime(2024, 1, 7, 12, 0, tzinfo=timezone.utc))
+        mock_datetime.now.return_value = mock_now
+        mock_datetime.timezone = timezone
+        mock_datetime.timedelta = timedelta
+
+        result = determine_backfill_latest_timestamp(7, "days")
+        
+        assert result == "2023-12-31-12:00:00"
+        mock_datetime.now.assert_called_once()
+
+    @patch("services.ml_inference.helper.datetime") 
+    def test_backfill_hours(self, mock_datetime):
+        """Test backfill with hours period."""
+
+        mock_now = MockDateTime(datetime(2024, 1, 7, 12, 0, tzinfo=timezone.utc))
+        mock_datetime.now.return_value = mock_now
+        mock_datetime.timezone = timezone
+
+        result = determine_backfill_latest_timestamp(24, "hours")
+        
+        assert result == "2024-01-06-12:00:00"
+        mock_datetime.now.assert_called_once()
+
 class TestGetPostsToClassify:
-    """Tests for get_posts_to_classify function.
-    
-    This function retrieves posts from a queue that need to be classified,
-    filtering by timestamp and optionally limiting by source.
-    """
+    """Tests for get_posts_to_classify function."""
 
     @pytest.fixture
-    def mock_dependencies(self):
+    def mock_queue(self):
         """Mock Queue dependency."""
         with patch("services.ml_inference.helper.Queue") as mock_queue:
             yield mock_queue.return_value
 
-    def test_get_posts_invalid_inference_type(self):
-        """Test behavior with invalid inference type.
-        
-        Expected behavior:
-        - Should raise ValueError when inference type is not one of: llm, perspective_api, ime
-        """
-        with pytest.raises(ValueError, match="Invalid inference type: invalid_type"):
-            get_posts_to_classify("invalid_type")
+    def test_invalid_inference_type(self):
+        """Test invalid inference type raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid inference type: invalid"):
+            get_posts_to_classify("invalid")
 
-    def test_get_posts_no_items(self, mock_dependencies):
-        """Test when queue has no items.
+    def test_empty_queue(self, mock_queue):
+        """Test handling of empty queue."""
+        mock_queue.load_items_from_queue.return_value = []
         
-        Expected behavior:
-        - Should return empty list when queue has no items
-        - Should properly handle empty JSON array string from queue
-        """
-        mock_queue = mock_dependencies
-        mock_queue.load_items_from_queue.return_value = "[]"
-        previous_run_metadata = {
-            "metadata": json.dumps({
-                "latest_id_classified": "123",
-                "inference_timestamp": "2024-01-01"
-            })
-        }
-
-        result = get_posts_to_classify("llm", previous_run_metadata=previous_run_metadata)
+        result = get_posts_to_classify("perspective_api")
+        
         assert result == []
         mock_queue.load_items_from_queue.assert_called_once_with(
             limit=None,
-            min_id="123",
+            min_id=None,
+            min_timestamp=None,
+            status="pending"
+        )
+
+    def test_with_previous_metadata(self, mock_queue):
+        """Test using previous run metadata."""
+        metadata = {
+            "metadata": json.dumps({
+                "latest_id_classified": 123,
+                "inference_timestamp": "2024-01-01"
+            })
+        }
+        mock_queue.load_items_from_queue.return_value = [
+            QueueItem(
+                id=1,
+                payload=json.dumps([{"uri": "test", "text": "test post"}]),
+                metadata="{}",
+                status="pending"
+            )
+        ]
+
+        result = get_posts_to_classify(
+            "perspective_api",
+            previous_run_metadata=metadata
+        )
+
+        assert len(result) == 1
+        assert result[0]["uri"] == "test"
+        assert result[0]["text"] == "test post"
+        mock_queue.load_items_from_queue.assert_called_once_with(
+            limit=None,
+            min_id=123,
             min_timestamp="2024-01-01",
             status="pending"
         )
 
-    def test_get_posts_with_timestamp_override(self, mock_dependencies):
-        """Test when timestamp parameter overrides previous run metadata.
-        
-        Expected behavior:
-        - Should use provided timestamp instead of timestamp from previous run metadata
-        """
-        mock_queue = mock_dependencies
-        mock_queue.load_items_from_queue.return_value = "[]"
-        previous_run_metadata = {
+    def test_with_timestamp_override(self, mock_queue):
+        """Test timestamp parameter overrides metadata timestamp."""
+        metadata = {
             "metadata": json.dumps({
-                "latest_id_classified": "100",
+                "latest_id_classified": 123,
                 "inference_timestamp": "2024-01-01"
             })
         }
         override_timestamp = "2023-12-31"
+        mock_queue.load_items_from_queue.return_value = []
 
         get_posts_to_classify(
-            "llm", 
+            "perspective_api",
             timestamp=override_timestamp,
-            previous_run_metadata=previous_run_metadata
+            previous_run_metadata=metadata
         )
-        
+
         mock_queue.load_items_from_queue.assert_called_once_with(
             limit=None,
-            min_id="100",
+            min_id=123,
             min_timestamp=override_timestamp,
             status="pending"
         )
 
-class TestLoadCachedJsonsAsDf:
-    """Tests for load_cached_jsons_as_df function.
-    
-    This function loads multiple JSONL files in parallel and combines them
-    into a single pandas DataFrame with specified dtypes.
-    """
-
-    @pytest.fixture
-    def mock_file(self, tmp_path):
-        """Create a temporary JSONL file for testing."""
-        test_data = [
-            {"uri": "1", "text": "text1"},
-            {"uri": "2", "text": "text2"},
+    def test_deduplication(self, mock_queue):
+        """Test deduplication of posts by URI."""
+        mock_queue.load_items_from_queue.return_value = [
+            QueueItem(
+                id=1,
+                payload=json.dumps([
+                    {"uri": "test1", "text": "post1"},
+                    {"uri": "test1", "text": "post2"},  # Duplicate URI
+                    {"uri": "test2", "text": "post3"}
+                ]),
+                metadata="{}",
+                status="pending"
+            )
         ]
-        file_path = tmp_path / "test.jsonl"
-        with open(file_path, "w") as f:
-            for item in test_data:
-                f.write(json.dumps(item) + "\n")
-        return str(file_path)
 
-    def test_load_cached_jsons_empty_list(self):
-        """Test behavior with empty file list.
-        
-        Expected behavior:
-        - Should return None when no files are provided
-        """
-        result = load_cached_jsons_as_df([], {"uri": str, "text": str})
-        assert result is None
+        result = get_posts_to_classify("perspective_api")
 
-    def test_load_cached_jsons_valid_file(self, mock_file):
-        """Test loading valid JSONL file.
-        
-        Expected behavior:
-        - Should return DataFrame with correct structure and dtypes
-        - Should properly handle JSONL format
-        - Should deduplicate based on uri
-        """
-        dtypes = {"uri": str, "text": str}
-        result = load_cached_jsons_as_df([mock_file], dtypes)
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 2
-        assert list(result.columns) == ["uri", "text"]
-        assert result.dtypes["uri"] == "object"  # str type in pandas
-        assert result.dtypes["text"] == "object"
-
-    def test_process_file(self, mock_file):
-        """Test process_file helper function.
-        
-        Expected behavior:
-        - Should properly parse JSONL file into list of dictionaries
-        - Should maintain structure of each JSON object
-        """
-        result = process_file(mock_file)
-        assert len(result) == 2
-        assert all(isinstance(item, dict) for item in result)
-        assert all(set(item.keys()) == {"uri", "text"} for item in result)
+        assert len(result) == 2  # Should be deduplicated
+        uris = [post["uri"] for post in result]
+        assert sorted(uris) == ["test1", "test2"]

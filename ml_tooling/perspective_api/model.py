@@ -162,6 +162,8 @@ def process_response(response_str: str) -> dict:
             classification_probs_and_labels[labels["label"]] = (
                 0 if prob_score < 0.5 else 1
             )  # noqa
+    # constructiveness == reasoning now, presumably, according to
+    # the Perspective API team.
     classification_probs_and_labels["prob_constructive"] = (
         classification_probs_and_labels["prob_reasoning"]
     )
@@ -191,7 +193,17 @@ async def process_perspective_batch(requests):
     """Process a batch of requests in a single query.
 
     See https://googleapis.github.io/google-api-python-client/docs/batch.html
-    for more details
+    for more details.
+
+    Fills in the "responses" list with the classification results. Does so
+    through closure, since the callback function has access to the list.
+
+    When batch.execute() is called, it processes all requests and calls the
+    callback function for each response asynchronously. The callback function
+    then appends to the responses list in the order the responses are received.
+
+    (I didn't know closures were a thing in Python, I thought that was only
+    in JS. Nice!)
     """
     google_client = get_google_client()
     batch = google_client.new_batch_http_request()
@@ -240,6 +252,13 @@ async def process_perspective_batch(requests):
 def create_label_models(
     posts: list[dict], responses: list[dict]
 ) -> list[PerspectiveApiLabelsModel]:
+    """Create label models from posts and responses.
+
+    If there are no posts, return an empty list.
+    """
+    if not posts:
+        return []
+
     res = []
     for post, response_obj in zip(posts, responses):
         # the reason why I define the timestamp dynamically instead

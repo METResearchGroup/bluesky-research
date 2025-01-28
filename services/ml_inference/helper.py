@@ -2,19 +2,16 @@
 
 from datetime import datetime, timedelta, timezone
 import json
-from multiprocessing import Pool, cpu_count
 from typing import Literal, Optional
 
 import pandas as pd
 
-from lib.aws.dynamodb import DynamoDB
 from lib.constants import timestamp_format
 from lib.db.queue import Queue, QueueItem
 from lib.log.logger import get_logger
 from lib.helper import track_performance
 
 
-dynamodb = DynamoDB()
 logger = get_logger(__name__)
 
 dynamodb_table_name = "integration_run_metadata"
@@ -43,6 +40,7 @@ def determine_backfill_latest_timestamp(
     return timestamp
 
 
+@track_performance
 def get_posts_to_classify(
     inference_type: Literal["llm", "perspective_api", "ime"],
     timestamp: Optional[str] = None,
@@ -113,36 +111,3 @@ def get_posts_to_classify(
         return []
     posts_df = posts_df.drop_duplicates(subset=["uri"])
     return posts_df[["uri", "text"]].to_dict(orient="records")
-
-
-def json_file_reader(file_paths):
-    for path in file_paths:
-        with open(path, "r") as file:
-            yield json.loads(file.read())
-
-
-def process_file(file_path) -> list[dict]:
-    """Loads the .jsonl files at a given path."""
-    results = []
-    with open(file_path, "r") as file:
-        for line in file:
-            results.append(json.loads(line))
-    return results
-
-
-@track_performance
-def load_cached_jsons_as_df(
-    filepaths: list[str], dtypes_map: dict
-) -> Optional[pd.DataFrame]:
-    """Loads a list of JSON filepaths into a pandas DataFrame."""
-    num_processes = cpu_count()
-    logger.info(f"Using {num_processes} processes to load data...")
-    with Pool(num_processes) as pool:
-        results = pool.map(process_file, filepaths)
-    flattened_results = [item for sublist in results for item in sublist]
-    if len(flattened_results) == 0:
-        return None
-    df = pd.DataFrame(flattened_results)
-    df = df.astype(dtypes_map)
-    df = df.drop_duplicates(subset="uri")
-    return df

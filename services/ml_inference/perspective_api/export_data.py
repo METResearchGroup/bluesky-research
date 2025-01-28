@@ -20,15 +20,23 @@ def return_failed_labels_to_input_queue(
     failed_label_models: list[PerspectiveApiLabelsModel],
     batch_size: Optional[int] = None,
 ):
-    """Returns failed labels to the input queue."""
+    """Returns failed labels to the input queue.
+
+    If there are no failed labels, do nothing.
+
+    If there are failed labels, add them to the input queue. For the 'reason'
+    metadata, pick the first failed label's reason, since they all likely
+    failed for the same reason.
+    """
+    if not failed_label_models:
+        return
+
     input_queue.batch_add_items_to_queue(
         items=[{"uri": post.uri, "text": post.text} for post in failed_label_models],
         batch_size=batch_size,
         metadata={
             "reason": "failed_label_perspective_api",
-            "model_reason": failed_label_models[
-                0
-            ].reason,  # pick the first one, since they all likely failed for the same reason.
+            "model_reason": failed_label_models[0].reason,
             "label_timestamp": generate_current_datetime_str(),
         },
     )
@@ -38,7 +46,12 @@ def write_posts_to_cache(
     posts: list[PerspectiveApiLabelsModel],
     batch_size: Optional[int] = None,
 ):
-    """Write successfully classified posts to the queue storage."""
+    """Write successfully classified posts to the queue storage.
+
+    If there are no posts, do nothing.
+    """
+    if not posts:
+        return
 
     output_queue.batch_add_items_to_queue(
         items=[post.dict() for post in posts],

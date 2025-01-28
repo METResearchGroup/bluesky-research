@@ -63,14 +63,14 @@ def classify_latest_posts(
             backfill_duration=backfill_duration,
             backfill_period=backfill_period,
         )
-        posts_to_classify: list[dict] = get_posts_to_classify(  # noqa
+        posts_to_classify: list[dict] = get_posts_to_classify(
             inference_type="perspective_api",
             timestamp=backfill_latest_timestamp,
             previous_run_metadata=previous_run_metadata,
         )
         logger.info(
             f"Classifying {len(posts_to_classify)} posts with the Perspective API..."
-        )  # noqa
+        )
         if len(posts_to_classify) == 0:
             logger.warning("No posts to classify with Perspective API. Exiting...")
             return {
@@ -81,13 +81,17 @@ def classify_latest_posts(
                 "inference_metadata": {},
             }
         classification_metadata = run_batch_classification(posts=posts_to_classify)
+        total_classified = len(posts_to_classify)
     else:
         logger.info("Skipping classification and exporting cached results...")
+        classification_metadata = {}
+        total_classified = 0
+
     timestamp = generate_current_datetime_str()
     labeling_session = {
         "inference_type": "perspective_api",
         "inference_timestamp": timestamp,
-        "total_classified_posts": len(posts_to_classify),
+        "total_classified_posts": total_classified,
         "event": event,
         "inference_metadata": classification_metadata,
     }
