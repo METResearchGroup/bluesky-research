@@ -1,8 +1,5 @@
 """Tests for the Perspective API model functions."""
 
-import asyncio
-from datetime import datetime, timezone
-import json
 import pytest
 from unittest.mock import Mock, patch
 
@@ -139,7 +136,7 @@ class TestCreateLabelModels:
         
         Should create properly formatted PerspectiveApiLabelsModel objects.
         """
-        posts = [{"uri": "test_uri", "text": "test text"}]
+        posts = [{"uri": "test_uri", "text": "test text", "batch_id": 1}]
         responses = [{
             "prob_toxic": 0.8,
             "label_toxic": 1,
@@ -160,7 +157,7 @@ class TestCreateLabelModels:
         
         Should create models with was_successfully_labeled=False.
         """
-        posts = [{"uri": "test_uri", "text": "test text"}]
+        posts = [{"uri": "test_uri", "text": "test text", "batch_id": 1}]
         responses = [{"error": "API Error"}]
         
         models = create_label_models(posts, responses)
@@ -183,7 +180,9 @@ class TestBatchClassifyPosts:
 
     @pytest.mark.asyncio
     @patch('ml_tooling.perspective_api.model.process_perspective_batch')
-    async def test_batch_classify_success(self, mock_process_batch):
+    @patch('ml_tooling.perspective_api.model.return_failed_labels_to_input_queue')
+    @patch('ml_tooling.perspective_api.model.write_posts_to_cache')
+    async def test_batch_classify_success(self, mock_write, mock_return, mock_process_batch):
         """Test successful batch classification of posts.
         
         Should return metadata with success counts.
@@ -196,8 +195,8 @@ class TestBatchClassifyPosts:
         }]
 
         posts = [
-            {"uri": "test1", "text": "text 1"},
-            {"uri": "test2", "text": "text 2"}
+            {"uri": "test1", "text": "text 1", "batch_id": 1},
+            {"uri": "test2", "text": "text 2", "batch_id": 2}
         ]
         
         metadata = await batch_classify_posts(
@@ -210,6 +209,12 @@ class TestBatchClassifyPosts:
         assert metadata["total_batches"] == 2
         assert "total_posts_successfully_labeled" in metadata
         assert "total_posts_failed_to_label" in metadata
+        
+        # Verify write_posts_to_cache was called with dicts
+        mock_write.assert_called()
+        called_posts = mock_write.call_args[1]["posts"]
+        assert isinstance(called_posts, list)
+        assert all(isinstance(post, dict) for post in called_posts)
 
 
 class TestRunBatchClassification:
@@ -237,7 +242,7 @@ class TestRunBatchClassification:
             }
         mock_batch_classify.return_value = async_return()
 
-        posts = [{"uri": "test", "text": "test text"}]
+        posts = [{"uri": "test", "text": "test text", "batch_id": 1}]
         
         metadata = run_batch_classification(
             posts=posts,
@@ -265,7 +270,7 @@ class TestRunBatchClassification:
             }
         mock_batch_classify.return_value = async_return()
 
-        posts = [{"uri": "test", "text": "test text"}]
+        posts = [{"uri": "test", "text": "test text", "batch_id": 1}]
         
         metadata = run_batch_classification(posts=posts)
         

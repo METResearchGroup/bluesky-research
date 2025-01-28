@@ -330,28 +330,48 @@ async def batch_classify_posts(
         label_models: list[PerspectiveApiLabelsModel] = create_label_models(
             posts=post_batch, responses=responses
         )
-        failed_label_models = [
-            label_model
-            for label_model in label_models
-            if not label_model.was_successfully_labeled
-        ]
-        if any(failed_label_models):
+
+        # filter which labels were successful and which were not. Hydrate
+        # with metadata for the given post.
+        successful_labels: list[dict] = []
+        failed_labels: list[dict] = []
+
+        total_failed_label_models = 0
+        total_successful_label_models = 0
+
+        # we add the batch ID to the label model. This way, we can know which
+        # batches to delete from the input queue. Any batch IDs that appear in
+        # the successfully labeled set will be deleted from the input queue (
+        # since any failed labels will be re-inserted into the input queue).
+        for post, label_model in zip(post_batch, label_models):
+            label_model_dict: dict = label_model.dict()
+            post_batch_id = post["batch_id"]
+            label_model_dict["batch_id"] = post_batch_id
+            if label_model_dict["was_successfully_labeled"]:
+                successful_labels.append(label_model_dict)
+                total_successful_label_models += 1
+            else:
+                failed_labels.append(label_model_dict)
+                total_failed_label_models += 1
+
+        if total_failed_label_models > 0:
             logger.error(
-                f"Failed to label {len(failed_label_models)} posts. Re-inserting these into queue."
+                f"Failed to label {total_failed_label_models} posts. Re-inserting these into queue."
             )
             return_failed_labels_to_input_queue(
-                failed_label_models=failed_label_models,
+                failed_labels=failed_labels,
                 batch_size=batch_size,
             )
-            total_posts_failed_to_label += len(failed_label_models)
+            total_posts_failed_to_label += total_failed_label_models
         else:
-            logger.info(f"Successfully labeled {len(label_models)} posts.")
+            logger.info(f"Successfully labeled {total_successful_label_models} posts.")
             write_posts_to_cache(
-                posts=label_models,
+                posts=successful_labels,
                 batch_size=batch_size,
             )
-            total_posts_successfully_labeled += len(label_models)
-        del label_models
+            total_posts_successfully_labeled += total_successful_label_models
+        del successful_labels
+        del failed_labels
     return {
         "total_batches": total_batches,
         "total_posts_successfully_labeled": total_posts_successfully_labeled,

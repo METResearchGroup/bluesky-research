@@ -4,7 +4,7 @@ from typing import Optional
 
 from lib.db.queue import Queue
 from lib.helper import generate_current_datetime_str
-from services.ml_inference.models import PerspectiveApiLabelsModel
+from lib.log.logger import get_logger
 
 input_queue = Queue(
     queue_name="input_ml_inference_perspective_api",
@@ -15,9 +15,11 @@ output_queue = Queue(
     create_new_queue=True,
 )
 
+logger = get_logger(__file__)
+
 
 def return_failed_labels_to_input_queue(
-    failed_label_models: list[PerspectiveApiLabelsModel],
+    failed_label_models: list[dict],
     batch_size: Optional[int] = None,
 ):
     """Returns failed labels to the input queue.
@@ -32,28 +34,49 @@ def return_failed_labels_to_input_queue(
         return
 
     input_queue.batch_add_items_to_queue(
-        items=[{"uri": post.uri, "text": post.text} for post in failed_label_models],
+        items=[
+            {"uri": post["uri"], "text": post["text"]} for post in failed_label_models
+        ],
         batch_size=batch_size,
         metadata={
             "reason": "failed_label_perspective_api",
-            "model_reason": failed_label_models[0].reason,
+            "model_reason": failed_label_models[0]["reason"],
             "label_timestamp": generate_current_datetime_str(),
         },
     )
 
 
+# NOTE: given the metadata, I can use the actual metadata to know the batch
+# IDs of the posts that were classified and then delete those from the input
+# queue.
 def write_posts_to_cache(
-    posts: list[PerspectiveApiLabelsModel],
+    posts: list[dict],
     batch_size: Optional[int] = None,
 ):
     """Write successfully classified posts to the queue storage.
 
     If there are no posts, do nothing.
+
+    If there are posts, add them to the output queue and also remove them
+    from the input queue. Removes the posts by deleting the relevant
+    batch IDs from the input queue (all posts from the given batch will either
+    be successfully labeled or failed to label, and we can delete the batch ID
+    from the input queue since the failed posts will be re-inserted into the
+    input queue).
     """
     if not posts:
         return
 
+    successfully_labeled_batch_ids = set(post["batch_id"] for post in posts)
+
+    logger.info(f"Adding {len(posts)} posts to the output queue.")
     output_queue.batch_add_items_to_queue(
-        items=[post.dict() for post in posts],
+        items=posts,
         batch_size=batch_size,
+    )
+    logger.info(
+        f"Deleting {len(successfully_labeled_batch_ids)} batch IDs from the input queue."
+    )
+    input_queue.batch_delete_items_by_ids(
+        ids=list(successfully_labeled_batch_ids),
     )

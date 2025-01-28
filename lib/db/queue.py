@@ -324,6 +324,23 @@ class Queue:
             items.append(item)
         return items
 
+    def batch_delete_items_by_ids(self, ids: list[int]) -> int:
+        """Delete multiple items from queue by their ids.
+
+        Args:
+            ids: List of queue item IDs to delete
+
+        Returns:
+            int: Number of items actually deleted
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                f"DELETE FROM {self.queue_table_name} WHERE id IN ({','.join(map(str, ids))})"
+            )
+            deleted_count = cursor.rowcount
+            logger.info(f"Deleted {deleted_count} items from queue.")
+            return deleted_count
+
     def load_items_from_queue(
         self,
         limit: Optional[int] = None,

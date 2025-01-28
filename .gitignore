@@ -198,3 +198,7 @@ cython_debug/
 
 # wandb
 pipelines/backfill_records_coordination/wandb/*
+wandb/
+*/wandb/*
+*.query_profile.json
+*.query_profile.json.gz
