@@ -5,7 +5,6 @@ from unittest.mock import Mock, patch
 
 from api.integrations_router.models import (
     IntegrationRequest,
-    IntegrationResponse,
     RunExecutionMetadata
 )
 from api.integrations_router.run import (
@@ -24,7 +23,7 @@ class TestLoadLatestRunMetadata:
 
     @pytest.fixture
     def mock_dynamodb(self):
-        """Mock DynamoDB client and its query_items_by_inference_type method."""
+        """Mock DynamoDB client and its query_items_by_service method."""
         with patch("api.integrations_router.run.dynamodb") as mock_db:
             yield mock_db
 
@@ -35,7 +34,7 @@ class TestLoadLatestRunMetadata:
         - service = "ml_inference_perspective_api"
         
         Expected behavior:
-        - Should query DynamoDB with inference_type="perspective_api"
+        - Should query DynamoDB with service name
         - Should return dict with most recent timestamp
         """
         mock_items = [
@@ -56,25 +55,25 @@ class TestLoadLatestRunMetadata:
                 "metadata": {"S": "{}"}
             }
         ]
-        mock_dynamodb.query_items_by_inference_type.return_value = mock_items
+        mock_dynamodb.query_items_by_service.return_value = mock_items
 
         result = load_latest_run_metadata("ml_inference_perspective_api")
         
-        mock_dynamodb.query_items_by_inference_type.assert_called_once_with(
-            table_name="ml_inference_labeling_sessions",
-            inference_type="perspective_api"
+        mock_dynamodb.query_items_by_service.assert_called_once_with(
+            table_name="integration_run_metadata",
+            service="ml_inference_perspective_api"
         )
         assert isinstance(result, dict)
         assert result["timestamp"]["S"] == "2024-01-02"
 
     def test_ml_inference_sociopolitical_service(self, mock_dynamodb):
-        """Test retrieving metadata for LLM service.
+        """Test retrieving metadata for sociopolitical service.
         
         Expected input:
         - service = "ml_inference_sociopolitical"
         
         Expected behavior:
-        - Should query DynamoDB with inference_type="llm"
+        - Should query DynamoDB with service name
         - Should return dict with most recent timestamp
         """
         mock_items = [
@@ -87,13 +86,13 @@ class TestLoadLatestRunMetadata:
                 "metadata": {"S": "{}"}
             }
         ]
-        mock_dynamodb.query_items_by_inference_type.return_value = mock_items
+        mock_dynamodb.query_items_by_service.return_value = mock_items
 
         result = load_latest_run_metadata("ml_inference_sociopolitical")
         
-        mock_dynamodb.query_items_by_inference_type.assert_called_once_with(
-            table_name="ml_inference_labeling_sessions",
-            inference_type="llm"
+        mock_dynamodb.query_items_by_service.assert_called_once_with(
+            table_name="integration_run_metadata",
+            service="ml_inference_sociopolitical"
         )
         assert isinstance(result, dict)
         assert result["timestamp"]["S"] == "2024-01-01"
@@ -105,7 +104,7 @@ class TestLoadLatestRunMetadata:
         - service = "ml_inference_ime"
         
         Expected behavior:
-        - Should query DynamoDB with inference_type="ime"
+        - Should query DynamoDB with service name
         - Should return dict with most recent timestamp
         """
         mock_items = [
@@ -118,13 +117,13 @@ class TestLoadLatestRunMetadata:
                 "metadata": {"S": "{}"}
             }
         ]
-        mock_dynamodb.query_items_by_inference_type.return_value = mock_items
+        mock_dynamodb.query_items_by_service.return_value = mock_items
 
         result = load_latest_run_metadata("ml_inference_ime")
         
-        mock_dynamodb.query_items_by_inference_type.assert_called_once_with(
-            table_name="ml_inference_labeling_sessions",
-            inference_type="ime"
+        mock_dynamodb.query_items_by_service.assert_called_once_with(
+            table_name="integration_run_metadata",
+            service="ml_inference_ime"
         )
         assert isinstance(result, dict)
         assert result["timestamp"]["S"] == "2024-01-01"
@@ -136,12 +135,16 @@ class TestLoadLatestRunMetadata:
         - service = "other_service"
         
         Expected behavior:
-        - Should not query DynamoDB
-        - Should return empty dict
+        - Should query DynamoDB but return empty dict when no items found
         """
+        mock_dynamodb.query_items_by_service.return_value = []
+        
         result = load_latest_run_metadata("other_service")
         
-        mock_dynamodb.query_items_by_inference_type.assert_not_called()
+        mock_dynamodb.query_items_by_service.assert_called_once_with(
+            table_name="integration_run_metadata",
+            service="other_service"
+        )
         assert isinstance(result, dict)
         assert len(result) == 0
 
@@ -155,13 +158,16 @@ class TestLoadLatestRunMetadata:
         Expected behavior:
         - Should return empty dict when no items found
         """
-        mock_dynamodb.query_items_by_inference_type.return_value = []
+        mock_dynamodb.query_items_by_service.return_value = []
 
         result = load_latest_run_metadata("ml_inference_perspective_api")
         
+        mock_dynamodb.query_items_by_service.assert_called_once_with(
+            table_name="integration_run_metadata",
+            service="ml_inference_perspective_api"
+        )
         assert isinstance(result, dict)
         assert len(result) == 0
-
 
 @pytest.fixture
 def mock_service_fn():
@@ -206,7 +212,7 @@ def test_run_integration_service(test_request, mock_service_fn):
         assert result.status_code == 200
         assert result.body == "Test successful"
         
-        mock_service_fn.assert_called_once_with(key="value")
+        mock_service_fn.assert_called_once_with(event={"key": "value"}, context=None)
 
 
 def test_run_integration_request(test_request, mock_service_fn, mock_write_metadata):
@@ -220,13 +226,13 @@ def test_run_integration_request(test_request, mock_service_fn, mock_write_metad
     ):
         result = run_integration_request(test_request)
         
-        assert isinstance(result, IntegrationResponse)
+        assert isinstance(result, RunExecutionMetadata)
         assert result.service == "test_service"
         assert result.timestamp == "2024-03-14T12:00:00Z"
         assert result.status_code == 200
         assert result.body == "Test successful"
         
-        mock_service_fn.assert_called_once_with(key="value")
+        mock_service_fn.assert_called_once_with(event={"key": "value"}, context=None)
         mock_write_metadata.assert_called_once()
 
 
@@ -255,5 +261,5 @@ def test_run_integration_request_write_failure(test_request, mock_service_fn):
             run_integration_request(test_request)
         
         assert str(exc_info.value) == "DB Write Failed"
-        mock_service_fn.assert_called_once_with(key="value")
+        mock_service_fn.assert_called_once_with(event={"key": "value"}, context=None)
         mock_write_metadata.assert_called_once()

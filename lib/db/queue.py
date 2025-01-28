@@ -336,9 +336,9 @@ class Queue:
         Supports a variety of filters:
         - status: filter by status
         - min_id: filter to grab all rows whose autoincremented id is greater
-        than the provided id
+        than the provided id. Strictly greater than.
         - min_timestamp: filter to grab all rows whose created_at is greater
-        than the provided timestamp
+        than the provided timestamp. Strictly greater than.
 
         When "limit" is provided, it will return the first "limit" number of items
         that match the filters.

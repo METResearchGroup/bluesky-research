@@ -11,6 +11,7 @@ a SQLite-backed FIFO queue system. The tests cover:
 - SQLite optimization settings
 """
 
+from datetime import datetime, timedelta
 import os
 import json
 import time
@@ -598,6 +599,22 @@ def test_load_items_combined_filters_3(queue: Queue) -> None:
     
     Case 3: all filters together
     Verifies metadata is preserved
+
+    In this scenario, we have:
+    - 10 items in the queue.
+        - 3 are added in the first batch.
+        - 7 are added in the second batch.
+    - 3 items are marked as completed (the last 3).
+    - We want to load the last 2 items that are not completed but are in the
+    - second batch.
+    - We:
+        - Set the filter as just before the middle timestamp. That way, we can
+        query for records that are after the middle timestamp (here, the
+        records from the second batch).
+        - Set the status to "pending" to query for records that are not completed.
+        - Set the min_id to 6 to query for records that are in the second batch.
+        - Set the limit to 2 to query for the last 2 items in the query set
+        (there should be only 2 anyways).
     """
     test_items = [{"key": f"value_{i}"} for i in range(10)]
     test_metadata = {"source": "test"}
@@ -608,7 +625,7 @@ def test_load_items_combined_filters_3(queue: Queue) -> None:
         metadata=test_metadata,
         batch_size=1
     )
-    
+
     # wait 5 seconds, add next 7 items
     time.sleep(5)
     queue.batch_add_items_to_queue(
@@ -616,25 +633,35 @@ def test_load_items_combined_filters_3(queue: Queue) -> None:
         metadata=test_metadata,
         batch_size=1
     )
-    
+
     # Mark some items as completed
     with queue._get_connection() as conn:
         conn.execute(
-            f"UPDATE {queue.queue_table_name} SET status = 'completed' WHERE id > 5"
+            f"UPDATE {queue.queue_table_name} SET status = 'completed' WHERE id > 7"
         )
+        # Get timestamp of the 5th item (which is before our target items)
         cursor = conn.execute(
-            f"SELECT created_at FROM {queue.queue_table_name} ORDER BY created_at LIMIT 1 OFFSET 4"
+            f"SELECT created_at FROM {queue.queue_table_name} WHERE id = 5"
         )
-        mid_timestamp = cursor.fetchone()[0]
-    
+        mid_timestamp: str = cursor.fetchone()[0]
+
+    # set the filter as just before the middle timestamp. That way, we can
+    # query for records that are after the middle timestamp (here, the
+    # records from the second batch).
+    one_second_before_mid_timestamp = (
+        datetime.strptime(
+            mid_timestamp, "%Y-%m-%d-%H:%M:%S"
+        ) - timedelta(seconds=1)
+    ).strftime("%Y-%m-%d-%H:%M:%S")
+
     items = queue.load_items_from_queue(
-        status="completed",
-        min_id=6,
-        min_timestamp=mid_timestamp,
+        status="pending",
+        min_id=5,
+        min_timestamp=one_second_before_mid_timestamp,
         limit=2
     )
     assert len(items) == 2
-    assert all(item.status == "completed" for item in items)
-    assert all(item.id > 6 for item in items)
+    assert all(item.status == "pending" for item in items)
+    assert all(item.id > 5 for item in items)
     for item in items:
         assert json.loads(item.metadata)["source"] == "test"
