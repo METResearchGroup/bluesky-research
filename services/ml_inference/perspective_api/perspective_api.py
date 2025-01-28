@@ -78,8 +78,9 @@ def classify_latest_posts(
                 "inference_timestamp": generate_current_datetime_str(),
                 "total_classified_posts": 0,
                 "event": event,
+                "inference_metadata": {},
             }
-        run_batch_classification(posts=posts_to_classify)
+        classification_metadata = run_batch_classification(posts=posts_to_classify)
     else:
         logger.info("Skipping classification and exporting cached results...")
     timestamp = generate_current_datetime_str()
@@ -88,6 +89,7 @@ def classify_latest_posts(
         "inference_timestamp": timestamp,
         "total_classified_posts": len(posts_to_classify),
         "event": event,
+        "inference_metadata": classification_metadata,
     }
     return labeling_session
 

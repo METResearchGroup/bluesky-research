@@ -17,7 +17,7 @@ from lib.helper import track_performance
 dynamodb = DynamoDB()
 logger = get_logger(__name__)
 
-dynamodb_table_name = "ml_inference_labeling_sessions"
+dynamodb_table_name = "integration_run_metadata"
 MIN_POST_TEXT_LENGTH = 5
 
 

@@ -254,7 +254,7 @@ def create_label_models(
             if response_obj is None:
                 response_obj = {"error": "No response from Perspective API"}
             print(
-                f"Error processing post {post.uri} using the Perspective API: {response_obj['error']}"
+                f"Error processing post {post['uri']} using the Perspective API: {response_obj['error']}"
             )  # noqa
             res.append(
                 PerspectiveApiLabelsModel(
@@ -290,7 +290,7 @@ async def batch_classify_posts(
     posts: list[dict],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float] = 1.0,
-) -> None:
+) -> dict:
     request_payloads: list[dict] = [
         create_perspective_request(post["text"]) for post in posts
     ]
@@ -299,6 +299,8 @@ async def batch_classify_posts(
         batch_list=iterated_post_payloads, batch_size=batch_size
     )
     total_batches = len(request_payload_batches)
+    total_posts_successfully_labeled = 0
+    total_posts_failed_to_label = 0
     for i, post_request_batch in enumerate(request_payload_batches):
         # split [(post, request)] tuples into separate lists of posts
         # and of requests
@@ -322,25 +324,33 @@ async def batch_classify_posts(
                 failed_label_models=failed_label_models,
                 batch_size=batch_size,
             )
+            total_posts_failed_to_label += len(failed_label_models)
         else:
             logger.info(f"Successfully labeled {len(label_models)} posts.")
             write_posts_to_cache(
                 posts=label_models,
                 batch_size=batch_size,
             )
+            total_posts_successfully_labeled += len(label_models)
         del label_models
+    return {
+        "total_batches": total_batches,
+        "total_posts_successfully_labeled": total_posts_successfully_labeled,
+        "total_posts_failed_to_label": total_posts_failed_to_label,
+    }
 
 
 def run_batch_classification(
     posts: list[dict],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float] = DEFAULT_DELAY_SECONDS,
-):
+) -> dict:
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(
+    metadata = loop.run_until_complete(
         batch_classify_posts(
             posts=posts,
             batch_size=batch_size,
             seconds_delay_per_batch=seconds_delay_per_batch,
         )
     )
+    return metadata

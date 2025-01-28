@@ -33,24 +33,10 @@ def run_integration_service(
 
 
 def load_latest_run_metadata(service: str) -> dict:
-    if service in [
-        "ml_inference_perspective_api",
-        "ml_inference_sociopolitical",
-        "ml_inference_ime",
-    ]:
-        inference_type = (
-            "perspective_api"
-            if service == "ml_inference_perspective_api"
-            else "llm"
-            if service == "ml_inference_sociopolitical"
-            else "ime"
-        )
-        filtered_items: list[dict] = dynamodb.query_items_by_inference_type(
-            table_name=dynamodb_table_name,
-            inference_type=inference_type,
-        )
-    else:
-        filtered_items = []
+    filtered_items: list[dict] = dynamodb.query_items_by_service(
+        table_name=dynamodb_table_name,
+        service=service,
+    )
 
     if not filtered_items:
         logger.info(
@@ -76,7 +62,7 @@ def write_run_metadata_to_db(run_metadata: RunExecutionMetadata) -> None:
     try:
         dynamodb.insert_item_into_table(
             item=run_metadata.dict(),
-            table_name=run_metadata.metadata_table_name,
+            table_name=dynamodb_table_name,
         )
         logger.info(f"Successfully inserted execution metadata: {run_metadata.dict()}")
     except Exception as e:
@@ -92,6 +78,5 @@ def run_integration_request(request: IntegrationRequest) -> RunExecutionMetadata
         request=request,
         previous_run_metadata=previous_run_metadata,
     )
-    # TODO: Uncomment this once runs works
-    # write_run_metadata_to_db(run_metadata=run_metadata)
+    write_run_metadata_to_db(run_metadata=run_metadata)
     return run_metadata

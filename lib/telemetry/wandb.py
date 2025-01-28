@@ -1,5 +1,7 @@
 """Logging utilities."""
 
+import wandb
+
 from api.integrations_router.models import RunExecutionMetadata
 
 
@@ -12,11 +14,9 @@ def log_run_to_wandb(service_name: str):
 
     def decorator(func):
         def wrapper(*args, **kwargs):
-            # TODO: Uncomment this once runs works
-            # wandb.init(project=service_name)
+            wandb.init(project=service_name)
             run_metadata: RunExecutionMetadata = func(*args, **kwargs)
-            # TODO: Uncomment this once runs works
-            # wandb.log(run_metadata.dict())
+            wandb.log(run_metadata.dict())
             return run_metadata
 
         return wrapper
