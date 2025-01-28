@@ -3,6 +3,7 @@
 import wandb
 
 from api.integrations_router.models import RunExecutionMetadata
+from lib.helper import RUN_MODE
 
 
 def log_run_to_wandb(service_name: str):
@@ -14,6 +15,8 @@ def log_run_to_wandb(service_name: str):
 
     def decorator(func):
         def wrapper(*args, **kwargs):
+            if RUN_MODE == "test":
+                return func(*args, **kwargs)
             wandb.init(project=service_name)
             run_metadata: RunExecutionMetadata = func(*args, **kwargs)
             wandb.log(run_metadata.dict())
