@@ -4,6 +4,7 @@ from typing import Optional
 
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
+from ml_tooling.ime.constants import default_hyperparameters
 from ml_tooling.ime.model import run_batch_classification
 from services.ml_inference.helper import (
     determine_backfill_latest_timestamp,
@@ -74,7 +75,10 @@ def classify_latest_posts(
                 "event": event,
                 "inference_metadata": {},
             }
-        classification_metadata = run_batch_classification(posts=posts_to_classify)
+        classification_metadata = run_batch_classification(
+            posts=posts_to_classify,
+            hyperparameters=event.get("hyperparameters", default_hyperparameters),
+        )
         total_classified = len(posts_to_classify)
     else:
         logger.info("Skipping classification and exporting cached results...")

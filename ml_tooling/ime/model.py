@@ -10,17 +10,20 @@ from typing import Optional
 
 from lib.helper import create_batches, track_performance
 from lib.log.logger import get_logger
-from ml_tooling.ime.classifier import process_ime_batch
+from lib.telemetry.cometml import log_batch_classification_to_cometml
+from ml_tooling.ime.constants import default_hyperparameters
+from ml_tooling.ime.inference import process_ime_batch
 from services.ml_inference.export_data import (
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
 )
 
-default_batch_size = 100  # TODO: check this in the interface itself.
-
 logger = get_logger(__file__)
 
 
+# TODO: create a pydantic class for the responses, just so that I can have
+# a consistency for the fields. Then I can model_dump() those to dicts
+# and consolidate them here.
 def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
     """Create label models from posts and responses."""
     pass
@@ -29,7 +32,8 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
 @track_performance
 def batch_classify_posts(
     posts: list[dict],
-    batch_size: Optional[int] = default_batch_size,
+    batch_size: int,
+    minibatch_size: int,
 ) -> dict:
     """Run batch classification on the given posts."""
     batches: list[list[dict]] = create_batches(batch_list=posts, batch_size=batch_size)
@@ -39,7 +43,10 @@ def batch_classify_posts(
     for i, batch in enumerate(batches):
         if i % 10 == 0:
             logger.info(f"Processing batch {i}/{total_batches}")
-        responses: list[dict] = process_ime_batch(post_batch=batch)
+        responses: list[dict] = process_ime_batch(
+            post_batch=batch,
+            minibatch_size=minibatch_size,
+        )
         labels: list[dict] = create_labels(posts=batch, responses=responses)
 
         successful_labels: list[dict] = []
@@ -78,16 +85,47 @@ def batch_classify_posts(
             total_posts_successfully_labeled += total_successful_labels
         del successful_labels
         del failed_labels
-    return {
+
+    metadata = {
         "total_posts_successfully_labeled": total_posts_successfully_labeled,
         "total_posts_failed_to_label": total_posts_failed_to_label,
     }
+    classification_breakdown = {
+        "emotion": {"title": "Emotion", "description": "", "probs": [], "labels": []},
+        "integroup": {
+            "title": "Intergroup",
+            "description": "",
+            "probs": [],
+            "labels": [],
+        },
+        "moral": {"title": "Moral", "description": "", "probs": [], "labels": []},
+        "other": {"title": "Other", "description": "", "probs": [], "labels": []},
+    }
+    return {
+        "metadata": metadata,
+        "classification_breakdown": classification_breakdown,
+    }
 
 
+@track_performance
+@log_batch_classification_to_cometml(service="ml_inference_ime")
 def run_batch_classification(
-    posts: list[dict],
-    batch_size: Optional[int] = default_batch_size,
+    posts: list[dict], hyperparameters: Optional[dict] = default_hyperparameters
 ) -> dict:
-    """Run batch classification on the given posts."""
-    metadata = batch_classify_posts(posts=posts, batch_size=batch_size)
+    """Run batch classification on the given posts and logs to W&B."""
+    results: dict = batch_classify_posts(
+        posts=posts,
+        batch_size=hyperparameters["batch_size"],
+        minibatch_size=hyperparameters["minibatch_size"],
+    )
+    # TODO: check the nature of the metadata, is this run metadata?
+    metadata: dict = results["metadata"]
+    classification_breakdown: dict = results["classification_breakdown"]
+    experiment_metrics = {}  # TODO: add metrics.
+    telemetry_metadata = {
+        "hyperparameters": hyperparameters,
+        "metrics": experiment_metrics,
+        "classification_breakdown": classification_breakdown,
+    }
+    metadata = {"run_metadata": metadata, "telemetry_metadata": telemetry_metadata}
     return metadata

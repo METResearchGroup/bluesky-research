@@ -19,7 +19,29 @@ def log_run_to_wandb(service_name: str):
                 return func(*args, **kwargs)
             wandb.init(project=service_name)
             run_metadata: RunExecutionMetadata = func(*args, **kwargs)
-            wandb.log(run_metadata.dict())
+            wandb.log(run_metadata.model_dump())
+            return run_metadata
+
+        return wrapper
+
+    return decorator
+
+
+# NOTE: check if I want to add additional metrics or anything per-epoch
+# or if I want to visualize anything. If not, I can just use the above
+# decorator.
+def log_batch_classification_to_wandb(service="ml_inference_ime"):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            if RUN_MODE == "test":
+                return func(*args, **kwargs)
+            wandb.init(project=service)
+            run_metadata: dict = func(*args, **kwargs)
+            hyperparameters = run_metadata.pop("hyperparameters")
+            metrics = run_metadata.pop("metrics")
+            wandb.log(run_metadata)
+            wandb.log(hyperparameters)
+            wandb.log(metrics)
             return run_metadata
 
         return wrapper
