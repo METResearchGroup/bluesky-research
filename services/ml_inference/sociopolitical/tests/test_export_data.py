@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch
 
-from services.ml_inference.perspective_api.export_data import (
+from services.ml_inference.sociopolitical.export_data import (
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
 )
@@ -13,13 +13,13 @@ class TestReturnFailedLabelsToInputQueue:
     @pytest.fixture
     def mock_input_queue(self):
         """Mock input Queue dependency."""
-        with patch("services.ml_inference.perspective_api.export_data.input_queue") as mock:
+        with patch("services.ml_inference.sociopolitical.export_data.input_queue") as mock:
             yield mock
             
     @pytest.fixture
     def mock_generate_datetime(self):
         """Mock generate_current_datetime_str dependency."""
-        with patch("services.ml_inference.perspective_api.export_data.generate_current_datetime_str") as mock:
+        with patch("services.ml_inference.sociopolitical.export_data.generate_current_datetime_str") as mock:
             mock.return_value = "2024-01-01-12:00:00"
             yield mock
 
@@ -44,7 +44,7 @@ class TestReturnFailedLabelsToInputQueue:
             items=[{"uri": "test_uri", "text": "test_text"}],
             batch_size=None,
             metadata={
-                "reason": "failed_label_perspective_api",
+                "reason": "failed_label_sociopolitical",
                 "model_reason": "API_ERROR",
                 "label_timestamp": "2024-01-01-12:00:00"
             }
@@ -69,7 +69,7 @@ class TestReturnFailedLabelsToInputQueue:
             items=[{"uri": f"uri_{i}", "text": f"text_{i}"} for i in range(3)],
             batch_size=2,
             metadata={
-                "reason": "failed_label_perspective_api",
+                "reason": "failed_label_sociopolitical",
                 "model_reason": "API_ERROR",
                 "label_timestamp": "2024-01-01-12:00:00"
             }
@@ -82,19 +82,19 @@ class TestWritePostsToCache:
     @pytest.fixture
     def mock_output_queue(self):
         """Mock output Queue dependency."""
-        with patch("services.ml_inference.perspective_api.export_data.output_queue") as mock:
+        with patch("services.ml_inference.sociopolitical.export_data.output_queue") as mock:
             yield mock
 
     @pytest.fixture
     def mock_input_queue(self):
         """Mock input Queue dependency."""
-        with patch("services.ml_inference.perspective_api.export_data.input_queue") as mock:
+        with patch("services.ml_inference.sociopolitical.export_data.input_queue") as mock:
             yield mock
 
     @pytest.fixture
     def mock_logger(self):
         """Mock logger."""
-        with patch("services.ml_inference.perspective_api.export_data.logger") as mock:
+        with patch("services.ml_inference.sociopolitical.export_data.logger") as mock:
             yield mock
 
     def test_empty_posts(self, mock_output_queue, mock_input_queue):
@@ -108,14 +108,14 @@ class TestWritePostsToCache:
         post = {
             "uri": "test_uri",
             "text": "test_text",
-            "toxicity": 0.8,
-            "severe_toxicity": 0.3,
+            "is_sociopolitical": True,
+            "political_ideology_label": "left",
             "was_successfully_labeled": True,
             "label_timestamp": "2024-01-01-12:00:00",
             "batch_id": 123  # Add batch_id for deletion tracking
         }
         
-        write_posts_to_cache([post])
+        write_posts_to_cache([post], batch_size=None)
         
         # Verify output queue write
         mock_output_queue.batch_add_items_to_queue.assert_called_once_with(
@@ -138,8 +138,8 @@ class TestWritePostsToCache:
             {
                 "uri": f"uri_{i}",
                 "text": f"text_{i}",
-                "toxicity": 0.5,
-                "severe_toxicity": 0.2,
+                "is_sociopolitical": True,
+                "political_ideology_label": "right",
                 "was_successfully_labeled": True,
                 "label_timestamp": "2024-01-01-12:00:00",
                 "batch_id": 100 + i  # Unique batch_id for each post

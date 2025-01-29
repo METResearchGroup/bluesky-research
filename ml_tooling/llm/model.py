@@ -1,54 +1,197 @@
-"""Model for classifying posts using LLMs."""
+"""Model for the sociopolitical LLM service."""
 
-from langchain_community.llms import LlamaCpp
-from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler  # noqa
+from datetime import datetime, timezone
+import json
+from typing import Optional
 
-from ml_tooling.llm.inference import BACKEND_OPTIONS, get_langchain_litellm_chat_model
-
-DEFAULT_DELAY_SECONDS = 1.0
-DEFAULT_TASK_NAME = "civic_and_political_ideology"
-
-callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
-
-# model
-llama_model_path = "/kellogg/software/llama_cpp/models/llama-2-7b-chat.Q5_K_M.gguf"  # noqa
-# llama_model_path = "/kellogg/software/llama_cpp/models/Meta-Llama-3-8B-Instruct-Q8_0.gguf"  # noqa
-
-# settings
-context_size = 512
-threads = 1
-gpu_layers = -1
-max_tokens_select = 1000
-temperature_select: float = 0
-top_p_select: float = 0.9
-top_k_select: int = 0
-include_prompt = False
-
-default_remote_model = "Llama3-8b (via Groq)"
-LLM_MODEL_NAME = BACKEND_OPTIONS[default_remote_model]["model"]
-# default_remote_model = "Gemini-1.0"
+from lib.constants import timestamp_format
+from lib.helper import create_batches, track_performance
+from lib.log.logger import get_logger
+from ml_tooling.llm.inference import run_batch_queries
+from services.ml_inference.models import (
+    LLMSociopoliticalLabelModel,
+    LLMSociopoliticalLabelsModel,
+    SociopoliticalLabelsModel,
+)
+from services.ml_inference.sociopolitical.export_data import (
+    return_failed_labels_to_input_queue,
+    write_posts_to_cache,
+)
 
 
-def get_llm_model(local: bool = False, model_name=default_remote_model):
-    """Define the model used for inference.
+logger = get_logger(__name__)
+LLM_MODEL_NAME = "GPT-4o mini"
+DEFAULT_BATCH_SIZE = 100
+DEFAULT_MINIBATCH_SIZE = 10
+# max_num_posts = 15_000  # given our batching, we can handle ~500 posts/minute.
+max_num_posts = 40_000  # should run in ~40 minutes with current runtime.
 
-    If local, we will use KLC's hosted Llama model. Else we'll use an external
-    API, such as Gemini.
 
-    Sources:
-    - https://python.langchain.com/v0.2/docs/integrations/llms/llamacpp/
-    - https://github.com/rs-kellogg/krs-openllm-cookbook/blob/main/scripts/llama_cpp_python/llama2_ex.py
-    """  # noqa
-    if local:
-        return LlamaCpp(
-            model_path=llama_model_path,
-            n_ctx=context_size,
-            n_threads=threads,
-            n_gpu_layers=gpu_layers,
-            temperature=1,
-            max_tokens=2000,
-            top_p=1,
-            callback_manager=callback_manager,
-            verbose=True,  # Verbose required to pass to the callback manager
+def generate_prompt(posts: list[dict]) -> str:
+    """Generates a prompt for the LLM."""
+    enumerated_texts = ""
+    for i, post in enumerate(posts):
+        post_text = post["text"].strip()
+        enumerated_texts += f"{i+1}. {post_text}\n"
+    prompt = f"""
+You are a classifier that predicts whether a post has sociopolitical content or not. Sociopolitical refers \
+to whether a given post is related to politics (government, elections, politicians, activism, etc.) or \
+social issues (major issues that affect a large group of people, such as the economy, inequality, \
+racism, education, immigration, human rights, the environment, etc.). We refer to any content \
+that is classified as being either of these two categories as "sociopolitical"; otherwise they are not sociopolitical. \
+Please classify the following text as "sociopolitical" or "not sociopolitical". 
+
+Then, if the post is sociopolitical, classify the text based on the political lean of the opinion or argument \
+it presents. Your options are "left", "right", or 'unclear'. \
+If the text is not sociopolitical, return "unclear". Base your response on US politics.\
+
+Think through your response step by step.
+
+Do NOT include any explanation. Only return the JSON output.
+
+TEXT:
+```
+{enumerated_texts}
+```
+"""
+    return prompt
+
+
+def parse_llm_result(
+    json_result: str, expected_number_of_posts: int
+) -> list[LLMSociopoliticalLabelModel]:  # noqa
+    json_result: LLMSociopoliticalLabelsModel = LLMSociopoliticalLabelsModel(
+        **json.loads(json_result)
+    )
+    label_models: list[LLMSociopoliticalLabelModel] = json_result.labels
+    if len(label_models) != expected_number_of_posts:
+        raise ValueError(
+            f"Number of results ({len(label_models)}) does not match number of posts ({expected_number_of_posts})."
         )
-    return get_langchain_litellm_chat_model(model_name=model_name)
+    return label_models
+
+
+# TODO: check the actual model inference code at some point.
+def process_sociopolitical_batch(posts: list[dict]) -> list[dict]:
+    """Takes batch and runs the LLM for it.
+
+    Splits the batch of posts into minibatches. I've found a pragmatic limit
+    of 10 posts per prompt, so this splits the batch (e.g., batch of 100 posts)
+    into minibatches of size 10.
+
+    Returns the list of results from the LLM. If a minibatch wasn't labeled
+    successfully, returns a list of dicts, which will either be populated with
+    the label or will be an empty dict.
+    """
+    minibatches: list[list[dict]] = [
+        posts[i : i + DEFAULT_MINIBATCH_SIZE]
+        for i in range(0, len(posts), DEFAULT_MINIBATCH_SIZE)
+    ]
+    prompts: list[str] = [generate_prompt(batch) for batch in minibatches]
+    json_results: list[str] = run_batch_queries(
+        prompts, role="user", model_name=LLM_MODEL_NAME
+    )
+    results: list[dict] = []
+    for json_result, minibatch in zip(json_results, minibatches):
+        try:
+            results: list[LLMSociopoliticalLabelModel] = parse_llm_result(
+                json_result=json_result, expected_number_of_posts=len(minibatch)
+            )
+            results.extend([result.model_dump() for result in results])
+        except ValueError as e:
+            logger.error(f"Error parsing LLM result: {e}")
+            results.extend([{}] * len(minibatch))
+    return results
+
+
+def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
+    """Create label models from posts and responses.
+
+    If there are no posts, return an empty list.
+    """
+    if not posts:
+        return []
+    label_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
+    res = []
+    for post, response_obj in zip(posts, responses):
+        label = SociopoliticalLabelsModel(
+            uri=post["uri"],
+            text=post["text"],
+            llm_model_name=LLM_MODEL_NAME,
+            was_successfully_labeled=True if response_obj else False,
+            label_timestamp=label_timestamp,
+            is_sociopolitical=response_obj.get("is_sociopolitical", None),
+            political_ideology_label=response_obj.get("political_ideology_label", None),
+        )
+        res.append(label.model_dump())
+    return res
+
+
+@track_performance
+def batch_classify_posts(
+    posts: list[dict],
+    batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
+) -> dict:
+    """Classify posts in batches."""
+    batches: list[list[dict]] = create_batches(batch_list=posts, batch_size=batch_size)
+    total_batches = len(batches)
+    total_posts_successfully_labeled = 0
+    total_posts_failed_to_label = 0
+    for i, batch in enumerate(batches):
+        if i % 10 == 0:
+            logger.info(f"Processing batch {i}/{total_batches}")
+        responses: list[dict] = process_sociopolitical_batch(post_batch=batch)
+        labels: list[dict] = create_labels(posts=batch, responses=responses)
+
+        successful_labels: list[dict] = []
+        failed_labels: list[dict] = []
+
+        total_failed_labels = 0
+        total_successful_labels = 0
+
+        # we add the batch ID to the label model. This way, we can know which
+        # batches to delete from the input queue. Any batch IDs that appear in
+        # the successfully labeled set will be deleted from the input queue (
+        # since any failed labels will be re-inserted into the input queue).
+        for post, label in zip(batch, labels):
+            post_batch_id = post["batch_id"]
+            label["batch_id"] = post_batch_id
+            if label["was_successfully_labeled"]:
+                successful_labels.append(label)
+                total_successful_labels += 1
+            else:
+                failed_labels.append(label)
+                total_failed_labels += 1
+
+        if total_failed_labels > 0:
+            logger.error(
+                f"Failed to label {total_failed_labels} posts. Re-inserting these into queue."
+            )
+            return_failed_labels_to_input_queue(
+                failed_labels=failed_labels,
+                batch_size=batch_size,
+            )
+            total_posts_failed_to_label += total_failed_labels
+        else:
+            logger.info(f"Successfully labeled {total_successful_labels} posts.")
+            write_posts_to_cache(
+                posts=successful_labels,
+                batch_size=batch_size,
+            )
+            total_posts_successfully_labeled += total_successful_labels
+        del successful_labels
+        del failed_labels
+    return {
+        "total_batches": total_batches,
+        "total_posts_successfully_labeled": total_posts_successfully_labeled,
+        "total_posts_failed_to_label": total_posts_failed_to_label,
+    }
+
+
+@track_performance
+def run_batch_classification(
+    posts: list[dict],
+    batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
+) -> dict:
+    metadata = batch_classify_posts(posts=posts, batch_size=batch_size)
+    return metadata

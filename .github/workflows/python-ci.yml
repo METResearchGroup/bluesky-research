@@ -39,9 +39,12 @@ jobs:
         pytest lib/db/tests
         pytest lib/db/sql/tests
         pytest lib/telemetry/tests
+        pytest ml_tooling/llm/tests
+        pytest ml_tooling/perspective_api/tests
         pytest services/backfill/posts/tests
         pytest services/ml_inference/tests
         pytest services/ml_inference/perspective_api/tests
+        pytest services/ml_inference/sociopolitical/tests
         pytest pipelines/backfill_records_coordination/tests
         pytest api/integrations_router/tests
     - name: Lint Dockerfiles with Hadolint

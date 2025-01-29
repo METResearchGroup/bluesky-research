@@ -46,9 +46,6 @@ def return_failed_labels_to_input_queue(
     )
 
 
-# NOTE: given the metadata, I can use the actual metadata to know the batch
-# IDs of the posts that were classified and then delete those from the input
-# queue.
 def write_posts_to_cache(
     posts: list[dict],
     batch_size: Optional[int] = None,

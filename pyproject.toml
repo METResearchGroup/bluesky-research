@@ -39,10 +39,15 @@ env = [
 # Configure test collection
 testpaths = [
     "api/integrations_router/tests",
-    "lib/db/tests",
+    "lib/db/tests", 
+    "lib/db/sql/tests",
     "lib/telemetry/tests",
+    "ml_tooling/llm/tests",
+    "ml_tooling/perspective_api/tests",
+    "services/backfill/posts/tests",
     "services/ml_inference/tests",
     "services/ml_inference/perspective_api/tests",
+    "pipelines/backfill_records_coordination/tests",
 ]
 
 # Ignore certain directories

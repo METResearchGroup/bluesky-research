@@ -128,6 +128,9 @@ class PerspectiveApiLabelsModel(BaseModel):
 
 
 class LLMSociopoliticalLabelModel(BaseModel):
+    """Stores results of sociopolitical and political ideology labels from
+    the LLM."""
+
     is_sociopolitical: bool = Field(
         ..., description="Whether the text is sociopolitical"
     )  # Noqa

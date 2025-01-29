@@ -1,127 +1,76 @@
 """Exports the results of classifying posts."""
 
-import os
-import shutil
-from typing import Literal
-import uuid
+from typing import Optional
 
-import pandas as pd
-
-from lib.aws.athena import Athena
-from lib.aws.glue import Glue
-from lib.aws.s3 import S3
-from lib.constants import timestamp_format
-from lib.db.manage_local_data import export_data_to_local_storage
-from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from lib.db.queue import Queue
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
-from services.ml_inference.models import SociopoliticalLabelsModel
-from services.ml_inference.sociopolitical.constants import (
-    root_cache_path,
+
+input_queue = Queue(
+    queue_name="input_ml_inference_sociopolitical",
+    create_new_queue=True,
 )
-from services.ml_inference.sociopolitical.load_data import (
-    load_classified_posts_from_cache,
-)  # noqa
+output_queue = Queue(
+    queue_name="output_ml_inference_sociopolitical",
+    create_new_queue=True,
+)
 
-athena = Athena()
-glue = Glue()
-s3 = S3()
-
-logger = get_logger(__name__)
+logger = get_logger(__file__)
 
 
-def write_post_to_cache(
-    classified_post: SociopoliticalLabelsModel,
-    source_feed: Literal["firehose", "most_liked"],
+def return_failed_labels_to_input_queue(
+    failed_label_models: list[dict],
+    batch_size: Optional[int] = None,
 ):
-    """Writes a post to local cache."""
-    post_id = classified_post.uri.split("/")[-1]
-    author_did = classified_post.uri.split("/")[-3]
-    joint_pk = f"{author_did}_{post_id}"
-    full_dir = os.path.join(root_cache_path, source_feed)
-    if not os.path.exists(full_dir):
-        os.makedirs(full_dir)
-    full_key = os.path.join(full_dir, f"{joint_pk}.json")
-    with open(full_key, "w") as f:
-        f.write(classified_post.json())
+    """Returns failed labels to the input queue.
 
+    If there are no failed labels, do nothing.
 
-def write_posts_to_cache(
-    posts: list[SociopoliticalLabelsModel],
-    source_feed: Literal["firehose", "most_liked"],
-    classification_type: Literal["valid", "invalid"],
-):
-    hashed_value = str(uuid.uuid4())
-    timestamp = generate_current_datetime_str()
-    filename = f"{source_feed}_{classification_type}_{timestamp}_{hashed_value}.jsonl"
-    full_dir = os.path.join(root_cache_path, source_feed, classification_type)
-    if not os.path.exists(full_dir):
-        os.makedirs(full_dir)
-    full_key = os.path.join(full_dir, filename)
-    with open(full_key, "w") as f:
-        for post in posts:
-            f.write(post.json() + "\n")
+    If there are failed labels, add them to the input queue. For the 'reason'
+    metadata, pick the first failed label's reason, since they all likely
+    failed for the same reason.
+    """
+    if not failed_label_models:
+        return
 
-
-def delete_cache_paths():
-    """Deletes the cache paths."""
-    if os.path.exists(root_cache_path):
-        shutil.rmtree(root_cache_path)
-
-
-def rebuild_cache_paths():
-    """Rebuilds the cache paths."""
-    if not os.path.exists(root_cache_path):
-        os.makedirs(root_cache_path)
-    firehose_path = os.path.join(root_cache_path, "firehose")
-    most_liked_path = os.path.join(root_cache_path, "most_liked")
-    for path in [firehose_path, most_liked_path]:
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-
-def export_classified_posts() -> dict:
-    """Exports classified posts."""
-    posts_from_cache_dict: dict = load_classified_posts_from_cache()
-    firehose_posts: list[SociopoliticalLabelsModel] = posts_from_cache_dict["firehose"]  # noqa
-    most_liked_posts: list[SociopoliticalLabelsModel] = posts_from_cache_dict[
-        "most_liked"
-    ]  # noqa
-    source_to_posts_tuples = [
-        ("firehose", firehose_posts),
-        ("most_liked", most_liked_posts),
-    ]  # noqa
-    dtype_map = MAP_SERVICE_TO_METADATA["ml_inference_sociopolitical"]["dtypes_map"]
-    for source, posts in source_to_posts_tuples:
-        if len(posts) == 0:
-            continue
-        classified_post_dicts = [post.dict() for post in posts]
-        df = pd.DataFrame(classified_post_dicts)
-        df["partition_date"] = pd.to_datetime(
-            df["label_timestamp"], format=timestamp_format
-        ).dt.date
-        df["source"] = source
-        df = df.astype(dtype_map)
-        logger.info(f"Exporting {len(df)} posts from {source} to local storage.")
-        export_data_to_local_storage(
-            service="ml_inference_sociopolitical", df=df, custom_args={"source": source}
-        )
-    return {
-        "total_classified_posts": len(firehose_posts) + len(most_liked_posts),
-        "total_classified_posts_by_source": {
-            "firehose": len(firehose_posts),
-            "most_liked": len(most_liked_posts),
+    input_queue.batch_add_items_to_queue(
+        items=[
+            {"uri": post["uri"], "text": post["text"]} for post in failed_label_models
+        ],
+        batch_size=batch_size,
+        metadata={
+            "reason": "failed_label_sociopolitical",
+            "model_reason": failed_label_models[0]["reason"],
+            "label_timestamp": generate_current_datetime_str(),
         },
-    }
+    )
 
 
-def export_results() -> dict:
-    """Exports the results of classifying posts to an external store."""
-    results = export_classified_posts()
-    delete_cache_paths()
-    rebuild_cache_paths()
-    return results
+def write_posts_to_cache(posts: list[dict], batch_size: int):
+    """Write successfully classified posts to the queue storage.
 
+    If there are no posts, do nothing.
 
-# in case we need to rebuild the cache paths before running the script.
-rebuild_cache_paths()
+    If there are posts, add them to the output queue and also remove them
+    from the input queue. Removes the posts by deleting the relevant
+    batch IDs from the input queue (all posts from the given batch will either
+    be successfully labeled or failed to label, and we can delete the batch ID
+    from the input queue since the failed posts will be re-inserted into the
+    input queue).
+    """
+    if not posts:
+        return
+
+    successfully_labeled_batch_ids = set(post["batch_id"] for post in posts)
+
+    logger.info(f"Adding {len(posts)} posts to the output queue.")
+    output_queue.batch_add_items_to_queue(
+        items=posts,
+        batch_size=batch_size,
+    )
+    logger.info(
+        f"Deleting {len(successfully_labeled_batch_ids)} batch IDs from the input queue."
+    )
+    input_queue.batch_delete_items_by_ids(
+        ids=list(successfully_labeled_batch_ids),
+    )

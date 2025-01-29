@@ -189,7 +189,7 @@ def create_perspective_request(text):
     }
 
 
-async def process_perspective_batch(requests):
+async def process_perspective_batch(requests: list[dict]) -> list[dict]:
     """Process a batch of requests in a single query.
 
     See https://googleapis.github.io/google-api-python-client/docs/batch.html
@@ -249,9 +249,7 @@ async def process_perspective_batch(requests):
     return responses
 
 
-def create_label_models(
-    posts: list[dict], responses: list[dict]
-) -> list[PerspectiveApiLabelsModel]:
+def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
     """Create label models from posts and responses.
 
     If there are no posts, return an empty list.
@@ -301,7 +299,7 @@ def create_label_models(
                     **probs_response_obj,
                 )
             )
-    return res
+    return [label.model_dump() for label in res]
 
 
 @track_performance
@@ -310,66 +308,62 @@ async def batch_classify_posts(
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float] = 1.0,
 ) -> dict:
+    """Classify posts in batches."""
     request_payloads: list[dict] = [
         create_perspective_request(post["text"]) for post in posts
     ]
-    iterated_post_payloads = list(zip(posts, request_payloads))
-    request_payload_batches: list[list[dict]] = create_batches(
+    iterated_post_payloads: list[tuple[dict, dict]] = list(zip(posts, request_payloads))
+    batches: list[list[tuple[dict, dict]]] = create_batches(
         batch_list=iterated_post_payloads, batch_size=batch_size
     )
-    total_batches = len(request_payload_batches)
+    total_batches = len(batches)
     total_posts_successfully_labeled = 0
     total_posts_failed_to_label = 0
-    for i, post_request_batch in enumerate(request_payload_batches):
-        # split [(post, request)] tuples into separate lists of posts
-        # and of requests
+    for i, post_request_batch in enumerate(batches):
         logger.info(f"Processing batch {i}/{total_batches}")
         post_batch, request_batch = zip(*post_request_batch)
-        responses = await process_perspective_batch(request_batch)
-        await asyncio.sleep(seconds_delay_per_batch)
-        label_models: list[PerspectiveApiLabelsModel] = create_label_models(
-            posts=post_batch, responses=responses
-        )
+        responses: list[dict] = await process_perspective_batch(request_batch)
+        await asyncio.sleep(
+            seconds_delay_per_batch
+        )  # NOTE: maybe unnecessary given the async/await, need to check.
+        labels: list[dict] = create_labels(posts=post_batch, responses=responses)
 
-        # filter which labels were successful and which were not. Hydrate
-        # with metadata for the given post.
         successful_labels: list[dict] = []
         failed_labels: list[dict] = []
 
-        total_failed_label_models = 0
-        total_successful_label_models = 0
+        total_failed_labels = 0
+        total_successful_labels = 0
 
         # we add the batch ID to the label model. This way, we can know which
         # batches to delete from the input queue. Any batch IDs that appear in
         # the successfully labeled set will be deleted from the input queue (
         # since any failed labels will be re-inserted into the input queue).
-        for post, label_model in zip(post_batch, label_models):
-            label_model_dict: dict = label_model.dict()
+        for post, label in zip(post_batch, labels):
             post_batch_id = post["batch_id"]
-            label_model_dict["batch_id"] = post_batch_id
-            if label_model_dict["was_successfully_labeled"]:
-                successful_labels.append(label_model_dict)
-                total_successful_label_models += 1
+            label["batch_id"] = post_batch_id
+            if label["was_successfully_labeled"]:
+                successful_labels.append(label)
+                total_successful_labels += 1
             else:
-                failed_labels.append(label_model_dict)
-                total_failed_label_models += 1
+                failed_labels.append(label)
+                total_failed_labels += 1
 
-        if total_failed_label_models > 0:
+        if total_failed_labels > 0:
             logger.error(
-                f"Failed to label {total_failed_label_models} posts. Re-inserting these into queue."
+                f"Failed to label {total_failed_labels} posts. Re-inserting these into queue."
             )
             return_failed_labels_to_input_queue(
                 failed_labels=failed_labels,
                 batch_size=batch_size,
             )
-            total_posts_failed_to_label += total_failed_label_models
+            total_posts_failed_to_label += total_failed_labels
         else:
-            logger.info(f"Successfully labeled {total_successful_label_models} posts.")
+            logger.info(f"Successfully labeled {total_successful_labels} posts.")
             write_posts_to_cache(
                 posts=successful_labels,
                 batch_size=batch_size,
             )
-            total_posts_successfully_labeled += total_successful_label_models
+            total_posts_successfully_labeled += total_successful_labels
         del successful_labels
         del failed_labels
     return {

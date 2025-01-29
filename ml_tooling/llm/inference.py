@@ -144,8 +144,8 @@ def run_query(
 @track_performance
 def run_batch_queries(
     prompts: list[str],
+    model_name: str,
     role: str = "user",
-    model_name: str = "Gemini",
     num_retries: int = 2,
 ) -> list[str]:
     model_dict = BACKEND_OPTIONS[model_name]
