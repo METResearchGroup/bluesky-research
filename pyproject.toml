@@ -33,7 +33,17 @@ env = [
     "AWS_ACCESS_KEY_ID=testing",
     "AWS_SECRET_ACCESS_KEY=testing",
     "AWS_SECURITY_TOKEN=testing",
-    "AWS_SESSION_TOKEN=testing"
+    "AWS_SESSION_TOKEN=testing",
+    "GOOGLE_API_KEY=testing",
+    "NYTIMES_KEY=testing",
+    "HF_TOKEN=testing",
+    "OPENAI_API_KEY=testing",
+    "GOOGLE_AI_STUDIO_KEY=testing",
+    "NEWSAPI_API_KEY=testing",
+    "GROQ_API_KEY=testing",
+    "MONGODB_URI=testing",
+    "LANGTRACE_API_KEY=testing",
+    "COMET_API_KEY=testing",
 ]
 
 # Configure test collection
