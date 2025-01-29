@@ -13,10 +13,7 @@ from ml_tooling.llm.model import (
     batch_classify_posts,
     run_batch_classification,
 )
-from services.ml_inference.models import (
-    LLMSociopoliticalLabelModel,
-    LLMSociopoliticalLabelsModel,
-)
+from services.ml_inference.models import LLMSociopoliticalLabelModel
 
 
 class TestGeneratePrompt:

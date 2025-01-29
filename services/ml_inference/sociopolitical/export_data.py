@@ -46,7 +46,7 @@ def return_failed_labels_to_input_queue(
     )
 
 
-def write_posts_to_cache(posts: list[dict], batch_size: int):
+def write_posts_to_cache(posts: list[dict], batch_size: Optional[int] = None):
     """Write successfully classified posts to the queue storage.
 
     If there are no posts, do nothing.

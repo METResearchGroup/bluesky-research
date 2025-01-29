@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 from ml_tooling.perspective_api.model import (
     process_perspective_batch,
-    create_label_models,
+    create_labels,
     batch_classify_posts,
     run_batch_classification,
 )
@@ -121,7 +121,7 @@ class TestProcessPerspectiveBatch:
 
 
 class TestCreateLabelModels:
-    """Tests for create_label_models function.
+    """Tests for create_labels function.
     
     This class tests the function that creates PerspectiveApiLabelsModel objects from
     posts and API responses. It verifies:
@@ -134,37 +134,49 @@ class TestCreateLabelModels:
     def test_create_models_success(self):
         """Test creation of label models from successful API responses.
         
-        Should create properly formatted PerspectiveApiLabelsModel objects.
+        Should create properly formatted label dictionaries with probability fields.
         """
         posts = [{"uri": "test_uri", "text": "test text", "batch_id": 1}]
         responses = [{
             "prob_toxic": 0.8,
-            "label_toxic": 1,
-            "prob_reasoning": 0.6,
-            "label_reasoning": 1
+            "prob_severe_toxic": 0.2
         }]
         
-        models = create_label_models(posts, responses)
+        labels = create_labels(posts, responses)
         
-        assert len(models) == 1
-        assert isinstance(models[0], PerspectiveApiLabelsModel)
-        assert models[0].uri == "test_uri"
-        assert models[0].was_successfully_labeled is True
-        assert models[0].prob_toxic == 0.8
+        assert len(labels) == 1
+        assert isinstance(labels[0], dict)
+        assert labels[0]["uri"] == "test_uri"
+        assert labels[0]["text"] == "test text"
+        assert labels[0]["was_successfully_labeled"] is True
+        assert labels[0]["prob_toxic"] == 0.8
+        assert labels[0]["prob_severe_toxic"] == 0.2
+        assert "label_timestamp" in labels[0]
 
     def test_create_models_error(self):
         """Test handling of failed API responses.
         
-        Should create models with was_successfully_labeled=False.
+        Should create dictionaries with was_successfully_labeled=False.
         """
         posts = [{"uri": "test_uri", "text": "test text", "batch_id": 1}]
         responses = [{"error": "API Error"}]
         
-        models = create_label_models(posts, responses)
+        labels = create_labels(posts, responses)
         
-        assert len(models) == 1
-        assert models[0].was_successfully_labeled is False
-        assert models[0].reason == "API Error"
+        assert len(labels) == 1
+        assert isinstance(labels[0], dict)
+        assert labels[0]["uri"] == "test_uri"
+        assert labels[0]["text"] == "test text"
+        assert labels[0]["was_successfully_labeled"] is False
+        assert labels[0]["reason"] == "API Error"
+        assert "label_timestamp" in labels[0]
+
+    def test_empty_input(self):
+        """Test handling of empty input.
+        
+        Should return empty list.
+        """
+        assert create_labels([], []) == []
 
 
 class TestBatchClassifyPosts:

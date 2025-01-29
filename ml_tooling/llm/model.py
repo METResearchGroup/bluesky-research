@@ -94,10 +94,10 @@ def process_sociopolitical_batch(posts: list[dict]) -> list[dict]:
     results: list[dict] = []
     for json_result, minibatch in zip(json_results, minibatches):
         try:
-            results: list[LLMSociopoliticalLabelModel] = parse_llm_result(
+            parsed_llm_results: list[LLMSociopoliticalLabelModel] = parse_llm_result(
                 json_result=json_result, expected_number_of_posts=len(minibatch)
             )
-            results.extend([result.model_dump() for result in results])
+            results.extend([result.model_dump() for result in parsed_llm_results])
         except ValueError as e:
             logger.error(f"Error parsing LLM result: {e}")
             results.extend([{}] * len(minibatch))
