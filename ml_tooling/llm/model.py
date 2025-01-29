@@ -168,6 +168,7 @@ def batch_classify_posts(
                 f"Failed to label {total_failed_labels} posts. Re-inserting these into queue."
             )
             return_failed_labels_to_input_queue(
+                inference_type="sociopolitical",
                 failed_labels=failed_labels,
                 batch_size=batch_size,
             )
@@ -175,6 +176,7 @@ def batch_classify_posts(
         else:
             logger.info(f"Successfully labeled {total_successful_labels} posts.")
             write_posts_to_cache(
+                inference_type="sociopolitical",
                 posts=successful_labels,
                 batch_size=batch_size,
             )
