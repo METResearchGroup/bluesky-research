@@ -403,6 +403,11 @@ def load_model_and_tokenizer(
     return model, tokenizer
 
 
+def run_batch_classification(posts: list[dict]) -> dict:
+    """Run batch classification on the given posts."""
+    pass
+
+
 if __name__ == "__main__":
     model, tokenizer = load_model_and_tokenizer("distilbert")
     breakpoint()
