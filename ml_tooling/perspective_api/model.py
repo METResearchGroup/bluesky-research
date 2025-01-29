@@ -10,7 +10,7 @@ from googleapiclient.errors import HttpError
 
 from lib.helper import GOOGLE_API_KEY, create_batches, logger, track_performance  # noqa
 from services.ml_inference.models import PerspectiveApiLabelsModel
-from services.ml_inference.perspective_api.export_data import (
+from services.ml_inference.export_data import (
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
 )
@@ -353,6 +353,7 @@ async def batch_classify_posts(
                 f"Failed to label {total_failed_labels} posts. Re-inserting these into queue."
             )
             return_failed_labels_to_input_queue(
+                inference_type="perspective_api",
                 failed_labels=failed_labels,
                 batch_size=batch_size,
             )
@@ -360,6 +361,7 @@ async def batch_classify_posts(
         else:
             logger.info(f"Successfully labeled {total_successful_labels} posts.")
             write_posts_to_cache(
+                inference_type="perspective_api",
                 posts=successful_labels,
                 batch_size=batch_size,
             )

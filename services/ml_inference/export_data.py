@@ -1,24 +1,46 @@
-"""Exports the results of classifying posts to an external store."""
+"""Exports the results of classifying posts."""
 
-from typing import Optional
+from typing import Literal, Optional
 
 from lib.db.queue import Queue
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 
-input_queue = Queue(
-    queue_name="input_ml_inference_perspective_api",
-    create_new_queue=True,
-)
-output_queue = Queue(
-    queue_name="output_ml_inference_perspective_api",
-    create_new_queue=True,
-)
+inference_type_to_input_queue_map = {
+    "perspective_api": Queue(
+        queue_name="input_ml_inference_perspective_api",
+        create_new_queue=True,
+    ),
+    "sociopolitical": Queue(
+        queue_name="input_ml_inference_sociopolitical",
+        create_new_queue=True,
+    ),
+    "ime": Queue(
+        queue_name="input_ml_inference_ime",
+        create_new_queue=True,
+    ),
+}
+
+inference_type_to_output_queue_map = {
+    "perspective_api": Queue(
+        queue_name="output_ml_inference_perspective_api",
+        create_new_queue=True,
+    ),
+    "sociopolitical": Queue(
+        queue_name="output_ml_inference_sociopolitical",
+        create_new_queue=True,
+    ),
+    "ime": Queue(
+        queue_name="output_ml_inference_ime",
+        create_new_queue=True,
+    ),
+}
 
 logger = get_logger(__file__)
 
 
 def return_failed_labels_to_input_queue(
+    inference_type: Literal["perspective_api", "sociopolitical", "ime"],
     failed_label_models: list[dict],
     batch_size: Optional[int] = None,
 ):
@@ -33,20 +55,25 @@ def return_failed_labels_to_input_queue(
     if not failed_label_models:
         return
 
+    input_queue = inference_type_to_input_queue_map[inference_type]
     input_queue.batch_add_items_to_queue(
         items=[
             {"uri": post["uri"], "text": post["text"]} for post in failed_label_models
         ],
         batch_size=batch_size,
         metadata={
-            "reason": "failed_label_perspective_api",
+            "reason": f"failed_label_{inference_type}",
             "model_reason": failed_label_models[0]["reason"],
             "label_timestamp": generate_current_datetime_str(),
         },
     )
 
 
-def write_posts_to_cache(posts: list[dict], batch_size: Optional[int] = None):
+def write_posts_to_cache(
+    inference_type: Literal["perspective_api", "sociopolitical", "ime"],
+    posts: list[dict],
+    batch_size: Optional[int] = None,
+):
     """Write successfully classified posts to the queue storage.
 
     If there are no posts, do nothing.
@@ -62,6 +89,9 @@ def write_posts_to_cache(posts: list[dict], batch_size: Optional[int] = None):
         return
 
     successfully_labeled_batch_ids = set(post["batch_id"] for post in posts)
+
+    input_queue = inference_type_to_input_queue_map[inference_type]
+    output_queue = inference_type_to_output_queue_map[inference_type]
 
     logger.info(f"Adding {len(posts)} posts to the output queue.")
     output_queue.batch_add_items_to_queue(

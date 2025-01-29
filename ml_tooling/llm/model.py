@@ -13,7 +13,7 @@ from services.ml_inference.models import (
     LLMSociopoliticalLabelsModel,
     SociopoliticalLabelsModel,
 )
-from services.ml_inference.sociopolitical.export_data import (
+from services.ml_inference.export_data import (
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
 )
