@@ -10,20 +10,10 @@ certifi==2024.6.2
     # via requests
 charset-normalizer==3.3.2
     # via requests
-diskcache==5.6.3
-    # via llama-cpp-python
 idna==3.7
     # via requests
-jinja2==3.1.4
-    # via llama-cpp-python
 langsmith==0.1.53
     # via -r requirements.in
-llama-cpp-python==0.2.79
-    # via -r requirements.in
-markupsafe==2.1.5
-    # via jinja2
-numpy==2.0.0
-    # via llama-cpp-python
 orjson==3.10.5
     # via langsmith
 pydantic==2.8.0
@@ -34,7 +24,6 @@ requests==2.32.3
     # via langsmith
 typing-extensions==4.12.2
     # via
-    #   llama-cpp-python
     #   pydantic
     #   pydantic-core
 urllib3==2.2.2
