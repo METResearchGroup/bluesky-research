@@ -189,6 +189,12 @@ def mock_write_metadata():
 
 
 @pytest.fixture
+def mock_load_metadata():
+    """Mock function for loading metadata from DynamoDB."""
+    return Mock(return_value={})
+
+
+@pytest.fixture
 def test_request():
     """Sample integration request."""
     return IntegrationRequest(
@@ -215,7 +221,12 @@ def test_run_integration_service(test_request, mock_service_fn):
         mock_service_fn.assert_called_once_with(event={"key": "value"}, context=None)
 
 
-def test_run_integration_request(test_request, mock_service_fn, mock_write_metadata):
+def test_run_integration_request(
+    test_request, 
+    mock_service_fn, 
+    mock_write_metadata,
+    mock_load_metadata
+):
     """Test run_integration_request function."""
     with patch(
         "api.integrations_router.run.MAP_INTEGRATION_REQUEST_TO_SERVICE",
@@ -223,6 +234,9 @@ def test_run_integration_request(test_request, mock_service_fn, mock_write_metad
     ), patch(
         "api.integrations_router.run.write_run_metadata_to_db",
         mock_write_metadata
+    ), patch(
+        "api.integrations_router.run.load_latest_run_metadata",
+        mock_load_metadata
     ):
         result = run_integration_request(test_request)
         
@@ -234,6 +248,7 @@ def test_run_integration_request(test_request, mock_service_fn, mock_write_metad
         
         mock_service_fn.assert_called_once_with(event={"key": "value"}, context=None)
         mock_write_metadata.assert_called_once()
+        mock_load_metadata.assert_called_once_with("test_service")
 
 
 def test_run_integration_service_invalid_service(test_request):
@@ -246,7 +261,11 @@ def test_run_integration_service_invalid_service(test_request):
             run_integration_service(test_request)
 
 
-def test_run_integration_request_write_failure(test_request, mock_service_fn):
+def test_run_integration_request_write_failure(
+    test_request, 
+    mock_service_fn,
+    mock_load_metadata
+):
     """Test run_integration_request when writing metadata fails."""
     mock_write_metadata = Mock(side_effect=Exception("DB Write Failed"))
     
@@ -256,10 +275,14 @@ def test_run_integration_request_write_failure(test_request, mock_service_fn):
     ), patch(
         "api.integrations_router.run.write_run_metadata_to_db",
         mock_write_metadata
+    ), patch(
+        "api.integrations_router.run.load_latest_run_metadata",
+        mock_load_metadata
     ):
         with pytest.raises(Exception) as exc_info:
             run_integration_request(test_request)
-        
+
         assert str(exc_info.value) == "DB Write Failed"
         mock_service_fn.assert_called_once_with(event={"key": "value"}, context=None)
         mock_write_metadata.assert_called_once()
+        mock_load_metadata.assert_called_once_with("test_service")

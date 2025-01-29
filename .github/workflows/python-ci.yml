@@ -36,14 +36,14 @@ jobs:
         ruff check .
     - name: Test with pytest
       run: |
-        pytest lib/db/tests --ignore=experiments --no-header -v
-        pytest lib/db/sql/tests --ignore=experiments --no-header -v
-        pytest lib/telemetry/tests --ignore=experiments --no-header -v
-        pytest services/backfill/posts/tests --ignore=experiments --no-header -v
-        pytest services/ml_inference/tests --ignore=experiments --no-header -v
-        pytest services/ml_inference/perspective_api/tests --ignore=experiments --no-header -v
-        pytest pipelines/backfill_records_coordination/tests --ignore=experiments --no-header -v
-        pytest api/integrations_router/tests --ignore=experiments --no-header -v
+        pytest lib/db/tests
+        pytest lib/db/sql/tests
+        pytest lib/telemetry/tests
+        pytest services/backfill/posts/tests
+        pytest services/ml_inference/tests
+        pytest services/ml_inference/perspective_api/tests
+        pytest pipelines/backfill_records_coordination/tests
+        pytest api/integrations_router/tests
     - name: Lint Dockerfiles with Hadolint
       run: |
         docker run --rm -i hadolint/hadolint < Dockerfiles/add_users_to_study.Dockerfile
