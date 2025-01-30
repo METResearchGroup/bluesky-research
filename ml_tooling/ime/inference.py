@@ -50,8 +50,7 @@ def process_ime_minibatch(
     model.eval()
 
     with torch.no_grad():
-        for i, batch in enumerate(dataset):
-            # logger.info(f"Processing minibatch {i}/{total_minibatches}...")
+        for _, batch in enumerate(dataset):
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
@@ -102,11 +101,8 @@ def process_ime_minibatch(
 def process_ime_batch(
     batch: list[dict],
     minibatch_size: int,
-) -> list[dict]:
-    """Process a batch of posts using the IME classification model.
-
-    Returns a list of dicts of class labels.
-    """
+) -> pd.DataFrame:
+    """Process a batch of posts using the IME classification model."""
     minibatches: list[list[dict]] = [
         batch[i : i + minibatch_size] for i in range(0, len(batch), minibatch_size)
     ]
@@ -121,9 +117,7 @@ def process_ime_batch(
         batch_output_dfs.append(output_df)
 
     joined_output_df = pd.concat(batch_output_dfs)
-    output_dicts: list[dict] = joined_output_df.to_dict(orient="records")
 
-    del joined_output_df
     gc.collect()
 
-    return output_dicts
+    return joined_output_df

@@ -1,8 +1,6 @@
 import os
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
-ime_cometml_project_name = "IME classification inference"
-ime_cometml_workspace = "mtorres98"
 default_num_classes = 4
 default_batch_size = 512
 default_minibatch_size = 32

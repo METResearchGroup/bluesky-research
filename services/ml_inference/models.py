@@ -179,3 +179,38 @@ class SociopoliticalLabelsModel(BaseModel):
         default=None,
         description="If the post is sociopolitical, the political ideology label of the post.",
     )  # noqa
+
+
+class ImeLabelModel(BaseModel):
+    """Stores results of IME (Intergroup, Moral, Emotion) classifications."""
+
+    uri: str = Field(..., description="The URI of the post.")
+    text: str = Field(..., description="The text of the post.")
+    prob_emotion: float = Field(
+        ..., description="Probability score for emotion-based content."
+    )
+    prob_intergroup: float = Field(
+        ..., description="Probability score for intergroup content."
+    )
+    prob_moral: float = Field(..., description="Probability score for moral content.")
+    prob_other: float = Field(
+        ..., description="Probability score for other (non-IME) content."
+    )
+    label_emotion: int = Field(
+        ...,
+        description="Binary label (0/1) indicating if post contains emotion-based content.",
+    )
+    label_intergroup: int = Field(
+        ...,
+        description="Binary label (0/1) indicating if post contains intergroup content.",
+    )
+    label_moral: int = Field(
+        ..., description="Binary label (0/1) indicating if post contains moral content."
+    )
+    label_other: int = Field(
+        ...,
+        description="Binary label (0/1) indicating if post contains other (non-IME) content.",
+    )
+    label_timestamp: str = Field(
+        ..., description="Timestamp when the IME classification was performed."
+    )
