@@ -161,8 +161,10 @@ tiktoken==0.7.0
     # via
     #   -r requirements.in
     #   litellm
-tokenizers==0.21.0
-    # via litellm
+tokenizers==0.19.1
+    # via
+    #   -r requirements.in
+    #   litellm
 tomli==2.2.1
     # via pytest
 tqdm==4.67.1

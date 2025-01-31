@@ -3,3 +3,4 @@
 litellm==1.59.10
 opik==1.4.8
 tiktoken==0.7.0
+tokenizers==0.19.1
