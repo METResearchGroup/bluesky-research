@@ -1,0 +1,14 @@
+# Naming convention:
+# - input_<service_name> = queue for input data to the service (waiting for ingestion by service)
+# - output_<service_name> = queue for output data from the service (waiting for write to DB).
+# Creating a map so the queue names can be easily changed on the backend with minimal
+# changes to the code.
+
+NAME_TO_QUEUE_NAME_MAP = {
+    "input_ml_inference_perspective_api": "input_ml_inference_perspective_api",
+    "output_ml_inference_perspective_api": "output_ml_inference_perspective_api",
+    "input_ml_inference_sociopolitical": "input_ml_inference_sociopolitical",
+    "output_ml_inference_sociopolitical": "output_ml_inference_sociopolitical",
+    "input_ml_inference_ime": "input_ml_inference_ime",
+    "output_ml_inference_ime": "output_ml_inference_ime",
+}

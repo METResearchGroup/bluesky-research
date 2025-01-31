@@ -128,6 +128,9 @@ class PerspectiveApiLabelsModel(BaseModel):
 
 
 class LLMSociopoliticalLabelModel(BaseModel):
+    """Stores results of sociopolitical and political ideology labels from
+    the LLM."""
+
     is_sociopolitical: bool = Field(
         ..., description="Whether the text is sociopolitical"
     )  # Noqa
@@ -176,3 +179,45 @@ class SociopoliticalLabelsModel(BaseModel):
         default=None,
         description="If the post is sociopolitical, the political ideology label of the post.",
     )  # noqa
+
+
+class ImeLabelModel(BaseModel):
+    """Stores results of IME (Intergroup, Moral, Emotion) classifications."""
+
+    uri: str = Field(..., description="The URI of the post.")
+    text: str = Field(..., description="The text of the post.")
+    was_successfully_labeled: bool = Field(
+        ...,
+        description="Indicates if the post was successfully labeled by the Perspective API.",
+    )  # noqa
+    prob_emotion: Optional[float] = Field(
+        default=None, description="Probability score for emotion-based content."
+    )
+    prob_intergroup: Optional[float] = Field(
+        default=None, description="Probability score for intergroup content."
+    )
+    prob_moral: Optional[float] = Field(
+        default=None, description="Probability score for moral content."
+    )
+    prob_other: Optional[float] = Field(
+        default=None, description="Probability score for other (non-IME) content."
+    )
+    label_emotion: Optional[int] = Field(
+        default=None,
+        description="Binary label (0/1) indicating if post contains emotion-based content.",
+    )
+    label_intergroup: Optional[int] = Field(
+        default=None,
+        description="Binary label (0/1) indicating if post contains intergroup content.",
+    )
+    label_moral: Optional[int] = Field(
+        default=None,
+        description="Binary label (0/1) indicating if post contains moral content.",
+    )
+    label_other: Optional[int] = Field(
+        default=None,
+        description="Binary label (0/1) indicating if post contains other (non-IME) content.",
+    )
+    label_timestamp: Optional[str] = Field(
+        default=None, description="Timestamp when the IME classification was performed."
+    )

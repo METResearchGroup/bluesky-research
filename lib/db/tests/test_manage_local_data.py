@@ -3,11 +3,10 @@ import os
 from tempfile import TemporaryDirectory
 
 import pytest
+from unittest.mock import Mock, patch
 
 from lib.aws.s3 import S3
 from lib.db.manage_local_data import find_files_after_timestamp
-
-# Test cases for create_partition_key_based_on_timestamp
 
 
 @pytest.mark.parametrize("timestamp_str,expected", [
@@ -16,15 +15,21 @@ from lib.db.manage_local_data import find_files_after_timestamp
 ])
 def test_create_partition_key_based_on_timestamp(timestamp_str, expected):
     """Test create_partition_key_based_on_timestamp"""
-    assert (
-        S3.create_partition_key_based_on_timestamp(timestamp_str) == expected
-    )
+    with patch('boto3.client') as mock_client:
+        mock_s3 = Mock()
+        mock_client.return_value = mock_s3
+        s3 = S3(create_client_flag=False)
+        assert (
+            s3.create_partition_key_based_on_timestamp(timestamp_str) == expected
+        )
+
 
 # Setup for find_files_after_timestamp tests
 
 
 @pytest.fixture
 def setup_directory_structure():
+    """Create a temporary directory with test files."""
     with TemporaryDirectory() as tmpdir:
         # Create sample directory structures and test files
         timestamps = [

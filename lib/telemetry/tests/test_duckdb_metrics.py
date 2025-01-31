@@ -10,9 +10,6 @@ from lib.telemetry.duckdb_metrics import DuckDBMetricsCollector
 class TestDuckDBConnection:
     """Test class that simulates a DuckDB connection wrapper."""
     
-    def __init__(self):
-        self.conn = duckdb.connect(':memory:')
-        
     @DuckDBMetricsCollector().collect_query_metrics()
     def execute_query(self, query: str) -> pd.DataFrame:
         return self.conn.execute(query).df()
@@ -21,7 +18,11 @@ class TestDuckDBConnection:
 @pytest.fixture
 def db_connection():
     """Fixture providing a test DuckDB connection."""
-    return TestDuckDBConnection()
+    connection = TestDuckDBConnection()
+    connection.conn = duckdb.connect(':memory:')
+    yield connection
+    if hasattr(connection, 'conn'):
+        connection.conn.close()
 
 
 def test_basic_query_metrics(db_connection):

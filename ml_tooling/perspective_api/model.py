@@ -3,26 +3,33 @@
 import asyncio
 from datetime import datetime, timezone
 import json
-from typing import Literal, Optional
+from typing import Optional
 
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
 from lib.helper import GOOGLE_API_KEY, create_batches, logger, track_performance  # noqa
 from services.ml_inference.models import PerspectiveApiLabelsModel
-from services.ml_inference.perspective_api.export_data import write_posts_to_cache
-from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
-
-DEFAULT_BATCH_SIZE = 50
-DEFAULT_DELAY_SECONDS = 1.0
-
-google_client = discovery.build(
-    "commentanalyzer",
-    "v1alpha1",
-    developerKey=GOOGLE_API_KEY,
-    discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",  # noqa
-    static_discovery=False,
+from services.ml_inference.export_data import (
+    return_failed_labels_to_input_queue,
+    write_posts_to_cache,
 )
+
+# current max of 100 QPS for the Perspective API. Also put a wait time of 1.05
+# seconds to make it more unlikely that more than 2 batches go off in 1 second
+# due to network latency.
+DEFAULT_BATCH_SIZE = 90
+DEFAULT_DELAY_SECONDS = 1.05  # enough to avoid some overlapping.
+
+
+def get_google_client():
+    return discovery.build(
+        "commentanalyzer",
+        "v1alpha1",
+        developerKey=GOOGLE_API_KEY,
+        discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",  # noqa
+        static_discovery=False,
+    )
 
 
 attribute_to_labels_map = {
@@ -117,6 +124,7 @@ def request_comment_analyzer(
         f"Sending request to commentanalyzer endpoint with request={analyze_request}...",  # noqa
     )
     try:
+        google_client = get_google_client()
         response = google_client.comments().analyze(body=analyze_request).execute()  # noqa
     except HttpError as e:
         logger.error(f"Error sending request to commentanalyzer: {e}")
@@ -154,8 +162,14 @@ def process_response(response_str: str) -> dict:
             classification_probs_and_labels[labels["label"]] = (
                 0 if prob_score < 0.5 else 1
             )  # noqa
-    classification_probs_and_labels["prob_constructive"] = classification_probs_and_labels["prob_reasoning"]
-    classification_probs_and_labels["label_constructive"] = classification_probs_and_labels["label_reasoning"]
+    # constructiveness == reasoning now, presumably, according to
+    # the Perspective API team.
+    classification_probs_and_labels["prob_constructive"] = (
+        classification_probs_and_labels["prob_reasoning"]
+    )
+    classification_probs_and_labels["label_constructive"] = (
+        classification_probs_and_labels["label_reasoning"]
+    )
     return classification_probs_and_labels
 
 
@@ -175,12 +189,23 @@ def create_perspective_request(text):
     }
 
 
-async def process_perspective_batch(requests):
+async def process_perspective_batch(requests: list[dict]) -> list[dict]:
     """Process a batch of requests in a single query.
 
     See https://googleapis.github.io/google-api-python-client/docs/batch.html
-    for more details
+    for more details.
+
+    Fills in the "responses" list with the classification results. Does so
+    through closure, since the callback function has access to the list.
+
+    When batch.execute() is called, it processes all requests and calls the
+    callback function for each response asynchronously. The callback function
+    then appends to the responses list in the order the responses are received.
+
+    (I didn't know closures were a thing in Python, I thought that was only
+    in JS. Nice!)
     """
+    google_client = get_google_client()
     batch = google_client.new_batch_http_request()
     responses = []
 
@@ -209,8 +234,12 @@ async def process_perspective_batch(requests):
                         )  # noqa
                 # constructiveness == reasoning now, presumably, according to
                 # the Perspective API team.
-                classification_probs_and_labels["prob_constructive"] = classification_probs_and_labels["prob_reasoning"]
-                classification_probs_and_labels["label_constructive"] = classification_probs_and_labels["label_reasoning"]
+                classification_probs_and_labels["prob_constructive"] = (
+                    classification_probs_and_labels["prob_reasoning"]
+                )
+                classification_probs_and_labels["label_constructive"] = (
+                    classification_probs_and_labels["label_reasoning"]
+                )
                 responses.append(classification_probs_and_labels)
 
     for _, request in enumerate(requests):
@@ -220,9 +249,14 @@ async def process_perspective_batch(requests):
     return responses
 
 
-def create_label_models(
-    posts: list[FilteredPreprocessedPostModel], responses: list[dict]
-) -> list[PerspectiveApiLabelsModel]:
+def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
+    """Create label models from posts and responses.
+
+    If there are no posts, return an empty list.
+    """
+    if not posts:
+        return []
+
     res = []
     for post, response_obj in zip(posts, responses):
         # the reason why I define the timestamp dynamically instead
@@ -237,12 +271,12 @@ def create_label_models(
             if response_obj is None:
                 response_obj = {"error": "No response from Perspective API"}
             print(
-                f"Error processing post {post.uri} using the Perspective API: {response_obj['error']}"
+                f"Error processing post {post['uri']} using the Perspective API: {response_obj['error']}"
             )  # noqa
             res.append(
                 PerspectiveApiLabelsModel(
-                    uri=post.uri,
-                    text=post.text,
+                    uri=post["uri"],
+                    text=post["text"],
                     was_successfully_labeled=False,
                     reason=response_obj["error"],
                     label_timestamp=label_timestamp,
@@ -258,65 +292,100 @@ def create_label_models(
             }
             res.append(
                 PerspectiveApiLabelsModel(
-                    uri=post.uri,
-                    text=post.text,
+                    uri=post["uri"],
+                    text=post["text"],
                     was_successfully_labeled=True,
                     label_timestamp=label_timestamp,
                     **probs_response_obj,
                 )
             )
-    return res
+    return [label.model_dump() for label in res]
 
 
 @track_performance
 async def batch_classify_posts(
-    posts: list[FilteredPreprocessedPostModel],
+    posts: list[dict],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float] = 1.0,
-    source_feed: Literal["firehose", "most_liked"] = None,
-) -> None:
-    if not source_feed:
-        raise ValueError("Source feed must be provided.")
+) -> dict:
+    """Classify posts in batches."""
     request_payloads: list[dict] = [
-        create_perspective_request(post.text) for post in posts
+        create_perspective_request(post["text"]) for post in posts
     ]
-    iterated_post_payloads = list(zip(posts, request_payloads))
-    request_payload_batches: list[list[dict]] = create_batches(
+    iterated_post_payloads: list[tuple[dict, dict]] = list(zip(posts, request_payloads))
+    batches: list[list[tuple[dict, dict]]] = create_batches(
         batch_list=iterated_post_payloads, batch_size=batch_size
     )
-    total_batches = len(request_payload_batches)
-    for i, post_request_batch in enumerate(request_payload_batches):
-        # split [(post, request)] tuples into separate lists of posts
-        # and of requests
+    total_batches = len(batches)
+    total_posts_successfully_labeled = 0
+    total_posts_failed_to_label = 0
+    for i, post_request_batch in enumerate(batches):
         logger.info(f"Processing batch {i}/{total_batches}")
         post_batch, request_batch = zip(*post_request_batch)
-        responses = await process_perspective_batch(request_batch)
-        await asyncio.sleep(seconds_delay_per_batch)
-        # NOTE: can I do this write step and concurrently send the next
-        # batch of requests? Or will this step be necessarily a blocker?
-        label_models: list[PerspectiveApiLabelsModel] = create_label_models(
-            posts=post_batch, responses=responses
-        )
-        write_posts_to_cache(
-            posts=label_models,
-            source_feed=source_feed,
-            classification_type="valid",
-        )
-        del label_models
+        responses: list[dict] = await process_perspective_batch(request_batch)
+        await asyncio.sleep(
+            seconds_delay_per_batch
+        )  # NOTE: maybe unnecessary given the async/await, need to check.
+        labels: list[dict] = create_labels(posts=post_batch, responses=responses)
+
+        successful_labels: list[dict] = []
+        failed_labels: list[dict] = []
+
+        total_failed_labels = 0
+        total_successful_labels = 0
+
+        # we add the batch ID to the label model. This way, we can know which
+        # batches to delete from the input queue. Any batch IDs that appear in
+        # the successfully labeled set will be deleted from the input queue (
+        # since any failed labels will be re-inserted into the input queue).
+        for post, label in zip(post_batch, labels):
+            post_batch_id = post["batch_id"]
+            label["batch_id"] = post_batch_id
+            if label["was_successfully_labeled"]:
+                successful_labels.append(label)
+                total_successful_labels += 1
+            else:
+                failed_labels.append(label)
+                total_failed_labels += 1
+
+        if total_failed_labels > 0:
+            logger.error(
+                f"Failed to label {total_failed_labels} posts. Re-inserting these into queue."
+            )
+            return_failed_labels_to_input_queue(
+                inference_type="perspective_api",
+                failed_label_models=failed_labels,
+                batch_size=batch_size,
+            )
+            total_posts_failed_to_label += total_failed_labels
+        else:
+            logger.info(f"Successfully labeled {total_successful_labels} posts.")
+            write_posts_to_cache(
+                inference_type="perspective_api",
+                posts=successful_labels,
+                batch_size=batch_size,
+            )
+            total_posts_successfully_labeled += total_successful_labels
+        del successful_labels
+        del failed_labels
+    return {
+        "total_batches": total_batches,
+        "total_posts_successfully_labeled": total_posts_successfully_labeled,
+        "total_posts_failed_to_label": total_posts_failed_to_label,
+    }
 
 
 def run_batch_classification(
-    posts: list[FilteredPreprocessedPostModel],
+    posts: list[dict],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float] = DEFAULT_DELAY_SECONDS,
-    source_feed: Literal["firehose", "most_liked"] = None,
-):
+) -> dict:
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(
+    metadata = loop.run_until_complete(
         batch_classify_posts(
             posts=posts,
             batch_size=batch_size,
             seconds_delay_per_batch=seconds_delay_per_batch,
-            source_feed=source_feed,
         )
     )
+    return metadata

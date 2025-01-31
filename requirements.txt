@@ -81,6 +81,7 @@ numpy==1.26.4
     #   contourpy
     #   matplotlib
     #   pandas
+    #   pyarrow
 packaging==23.2
     # via matplotlib
 pandas==2.2.0
@@ -89,6 +90,8 @@ peewee==3.17.1
     # via -r requirements.in
 pillow==10.4.0
     # via matplotlib
+pyarrow==17.0.0
+    # via -r requirements.in
 pycparser==2.22
     # via cffi
 pydantic==2.9.0

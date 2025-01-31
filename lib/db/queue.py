@@ -15,6 +15,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, validator
 import typing_extensions as te
 
+from lib.db.queue_constants import NAME_TO_QUEUE_NAME_MAP
 from lib.helper import BSKY_DATA_DIR, generate_current_datetime_str
 from lib.log.logger import get_logger
 
@@ -53,6 +54,9 @@ class QueueItem(BaseModel):
     payload: str = Field(
         default="", description="The JSON-serialized data for this queue item."
     )
+    metadata: str = Field(
+        default="", description="The JSON-serialized metadata for this queue item."
+    )
     created_at: str = Field(
         default_factory=generate_current_datetime_str,
         description="The timestamp when the queue item was created.",
@@ -76,9 +80,25 @@ class QueueItem(BaseModel):
 
 class Queue:
     def __init__(self, queue_name: str, create_new_queue: bool = False):
-        self.queue_name = queue_name
+        """Initialize a Queue instance.
+
+        Args:
+            queue_name: Name of the queue
+            create_new_queue: If True, creates a new queue if it doesn't exist
+        """
+        # Special handling for test queues
+        if queue_name.startswith("test_"):
+            self.queue_name = queue_name
+        else:
+            self.queue_name = NAME_TO_QUEUE_NAME_MAP[queue_name]
+
         self.queue_table_name = "queue"
         self.db_path = os.path.join(root_db_path, f"{queue_name}.db")
+
+        if os.path.exists(self.db_path) and create_new_queue:
+            logger.info(
+                f"DB for queue {queue_name} already exists. Not overwriting, using existing DB..."
+            )
         if not os.path.exists(self.db_path):
             if create_new_queue:
                 logger.info(f"Creating new SQLite DB for queue {queue_name}...")
@@ -169,7 +189,7 @@ class Queue:
                     continue
                 raise
 
-    def add_item_to_queue(self, payload: dict, metadata: dict = None) -> None:
+    def add_item_to_queue(self, payload: dict, metadata: Optional[dict] = None) -> None:
         """Add single item to queue."""
         if not payload:
             raise ValueError("Payload cannot be empty")
@@ -204,7 +224,7 @@ class Queue:
         self,
         chunks: list[list[dict]],
         batch_size: int,
-        metadata: dict = None,
+        metadata: Optional[dict] = None,
     ) -> list[tuple[str, str, str, str]]:
         """Out of the chunks, create a batch of chunks that will be written to the queue."""
         batched_chunks: list[tuple[str, str, str, str]] = []
@@ -226,8 +246,8 @@ class Queue:
     def batch_add_items_to_queue(
         self,
         items: list[dict],
-        metadata: dict = None,
-        batch_size: int = DEFAULT_BATCH_SIZE,
+        metadata: Optional[dict] = None,
+        batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
     ) -> None:
         """Add multiple items to queue, processing in chunks for memory
         efficiency."""
@@ -239,10 +259,8 @@ class Queue:
         batched_chunks: list[tuple[str, str, str, str]] = self._create_batched_chunks(
             chunks=chunks, batch_size=batch_size, metadata=metadata
         )
-
         logger.info(f"Writing {len(batched_chunks)} items to DB...")
 
-        # write to DB
         with sqlite3.connect(self.db_path) as conn:
             conn.executemany(
                 f"""
@@ -261,7 +279,7 @@ class Queue:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
                 WITH next_item AS (
-                    SELECT id, payload, created_at, status
+                    SELECT id, payload, metadata, created_at, status
                     FROM queue 
                     WHERE status = 'pending'
                     ORDER BY created_at ASC 
@@ -270,7 +288,7 @@ class Queue:
                 UPDATE queue
                 SET status = 'processing'
                 WHERE id IN (SELECT id FROM next_item)
-                RETURNING id, payload, created_at, status
+                RETURNING id, payload, metadata, created_at, status
             """)
 
             row = cursor.fetchone()
@@ -280,7 +298,11 @@ class Queue:
                 return None
 
             item = QueueItem(
-                id=row[0], payload=row[1], created_at=row[2], status="processing"
+                id=row[0],
+                payload=row[1],
+                metadata=row[2],
+                created_at=row[3],
+                status="processing",
             )
 
             count = self.get_queue_length()
@@ -300,6 +322,129 @@ class Queue:
                 break
             items.append(item)
         return items
+
+    def batch_delete_items_by_ids(self, ids: list[int]) -> int:
+        """Delete multiple items from queue by their ids.
+
+        Args:
+            ids: List of queue item IDs to delete
+
+        Returns:
+            int: Number of items actually deleted
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                f"DELETE FROM {self.queue_table_name} WHERE id IN ({','.join(map(str, ids))})"
+            )
+            deleted_count = cursor.rowcount
+            logger.info(f"Deleted {deleted_count} items from queue.")
+            return deleted_count
+
+    def load_items_from_queue(
+        self,
+        limit: Optional[int] = None,
+        status: Optional[str] = None,
+        min_id: Optional[int] = None,
+        min_timestamp: Optional[str] = None,
+    ) -> list[QueueItem]:
+        """Load multiple items from queue.
+
+        Supports a variety of filters:
+        - status: filter by status
+        - min_id: filter to grab all rows whose autoincremented id is greater
+        than the provided id. Strictly greater than.
+        - min_timestamp: filter to grab all rows whose created_at is greater
+        than the provided timestamp. Strictly greater than.
+
+        When "limit" is provided, it will return the first "limit" number of items
+        that match the filters.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            query = "SELECT id, payload, metadata, created_at, status FROM queue"
+            conditions = []
+            params = []
+
+            if status:
+                conditions.append("status = ?")
+                params.append(status)
+
+            if min_id:
+                conditions.append("id > ?")
+                params.append(min_id)
+
+            if min_timestamp:
+                conditions.append("created_at > ?")
+                params.append(min_timestamp)
+
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+
+            if limit:
+                query += " LIMIT ?"
+                params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+
+            items = []
+            for row in rows:
+                item = QueueItem(
+                    id=row[0],
+                    payload=row[1],
+                    metadata=row[2],
+                    created_at=row[3],
+                    status=row[4],
+                )
+                items.append(item)
+
+            return items
+
+    def load_dict_items_from_queue(
+        self,
+        limit: Optional[int] = None,
+        status: Optional[str] = None,
+        min_id: Optional[int] = None,
+        min_timestamp: Optional[str] = None,
+    ) -> list[dict]:
+        """Loads the latest queue items from the queue and returns them
+        as hydrated JSON dictionaries. Each row in the queue is batch-specific
+        but we return these as a list of dictionaries where each row is a
+        single record (as opposed to a batch of records).
+
+        Each row is a JSON-dumped batch of payloads. For example, for a
+        batch size of 100 posts, one row might be a JSON-dumped string of
+        100 posts. Each row shares the same metadata. We want to not only
+        return the posts, but also the metadata, so that we can link these
+        posts to which batch row they originally came from.
+        """
+        latest_queue_items: list[QueueItem] = self.load_items_from_queue(
+            limit=limit, status=status, min_id=min_id, min_timestamp=min_timestamp
+        )
+        latest_payload_batch_strings: list[str] = []
+        latest_payload_batch_ids: list[str] = []
+        latest_payload_batch_metadata: list[str] = []
+        for item in latest_queue_items:
+            latest_payload_batch_strings.append(item.payload)
+            latest_payload_batch_ids.append(item.id)
+            latest_payload_batch_metadata.append(item.metadata)
+            latest_payloads: list[dict] = []
+            for (
+                payload_string,
+                payload_id,
+                payload_metadata,
+            ) in zip(
+                latest_payload_batch_strings,
+                latest_payload_batch_ids,
+                latest_payload_batch_metadata,
+            ):
+                payloads: list[dict] = json.loads(payload_string)
+                for payload in payloads:
+                    payload["batch_id"] = payload_id
+                    payload["batch_metadata"] = payload_metadata
+                latest_payloads.extend(payloads)
+        return latest_payloads
 
     def _get_sqlite_version(self) -> tuple:
         """Get the SQLite version as a tuple of integers."""

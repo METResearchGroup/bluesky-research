@@ -67,6 +67,21 @@ class DynamoDB:
             raise e
 
     @retry_on_aws_rate_limit
+    def query_items_by_service(self, table_name: str, service: str) -> list[dict]:  # noqa
+        """Query items by service."""
+        try:
+            response = self.client.query(
+                TableName=table_name,
+                IndexName="service-index",
+                KeyConditionExpression="service = :service",
+                ExpressionAttributeValues={":service": {"S": service}},
+            )
+            return response.get("Items", [])
+        except Exception as e:
+            print(f"Failure in querying items from DynamoDB: {e}")
+            raise e
+
+    @retry_on_aws_rate_limit
     def query_items_by_inference_type(
         self, table_name: str, inference_type: str
     ) -> list[dict]:  # noqa
