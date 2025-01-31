@@ -18,6 +18,7 @@ from lib.helper import (
     HF_TOKEN,
     OPENAI_API_KEY,
     track_performance,
+    RUN_MODE,
 )
 
 # https://litellm.vercel.app/docs/providers/gemini
@@ -27,9 +28,10 @@ os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 os.environ["OPIK_PROJECT_NAME"] = "ml_inference_llm"
 
-opik_logger = OpikLogger()
-opik.configure(use_local=False)
-litellm.callbacks = [opik_logger]
+if not RUN_MODE == "test":
+    opik_logger = OpikLogger()
+    opik.configure(use_local=False)
+    litellm.callbacks = [opik_logger]
 
 encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
 
