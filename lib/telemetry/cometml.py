@@ -31,31 +31,6 @@ def bin_probs(probs: np.ndarray, bins: int = 10) -> tuple[list, list]:
     return bin_edges.tolist(), hist.tolist()
 
 
-# TODO: can remove once I've confirmed that graphs look as expected.
-# def plot_binned_probs(bin_edges: list, bin_counts: list, title: str = "Probability Distribution"):
-#     """Plot histogram of binned probability values.
-
-#     Args:
-#         bin_edges: List of bin cutoff values
-#         bin_counts: List of counts per bin
-#         title: Plot title
-#     """
-#     plt.figure(figsize=(10, 6))
-#     bars = plt.bar(bin_edges[:-1], bin_counts, width=np.diff(bin_edges), align='edge', edgecolor='black')
-#     plt.title(title)
-#     plt.xlabel("Probability")
-#     plt.ylabel("Count")
-
-#     # Add count labels above each bar
-#     for bar in bars:
-#         height = bar.get_height()
-#         plt.text(bar.get_x() + bar.get_width()/2., height,
-#                 f'{int(height)}',
-#                 ha='center', va='bottom')
-
-#     return plt.gcf()
-
-
 def plot_and_log_ime_probs(
     probs_emotion: np.ndarray,
     probs_intergroup: np.ndarray,

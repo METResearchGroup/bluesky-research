@@ -49,7 +49,7 @@ class TestDefaultToOther:
             [0, 1, 1, 0]
         ])
         
-        result = default_to_other(input_array)
+        result = default_to_other(preds=input_array)
         np.testing.assert_array_equal(result, expected)
 
     def test_no_zero_rows(self):
@@ -66,7 +66,7 @@ class TestDefaultToOther:
             [0, 1, 0, 0],
             [0, 0, 1, 0]
         ])
-        result = default_to_other(input_array)
+        result = default_to_other(preds=input_array)
         np.testing.assert_array_equal(result, input_array)
 
 

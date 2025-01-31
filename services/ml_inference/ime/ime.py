@@ -65,9 +65,11 @@ def classify_latest_posts(
             timestamp=backfill_latest_timestamp,
             previous_run_metadata=previous_run_metadata,
         )
-        logger.info(f"Classifying {len(posts_to_classify)} posts with an LLM...")  # noqa
+        logger.info(
+            f"Classifying {len(posts_to_classify)} posts with IME classifier..."
+        )  # noqa
         if len(posts_to_classify) == 0:
-            logger.warning("No posts to classify with Perspective API. Exiting...")
+            logger.warning("No posts to classify with IME classifier. Exiting...")
             return {
                 "inference_type": "ime",
                 "inference_timestamp": generate_current_datetime_str(),

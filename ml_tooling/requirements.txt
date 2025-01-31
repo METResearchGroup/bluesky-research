@@ -48,8 +48,6 @@ distro==1.9.0
     # via openai
 exceptiongroup==1.2.2
     # via anyio
-faiss-cpu==1.8.0
-    # via -r requirements.in
 filelock==3.16.1
     # via
     #   huggingface-hub
@@ -167,7 +165,6 @@ networkx==3.4.2
     # via torch
 numpy==1.26.4
     # via
-    #   faiss-cpu
     #   langchain
     #   langchain-community
     #   scikit-learn
@@ -285,6 +282,7 @@ tiktoken==0.8.0
     # via litellm
 tokenizers==0.19.1
     # via
+    #   -r requirements.in
     #   litellm
     #   transformers
 torch==2.5.1

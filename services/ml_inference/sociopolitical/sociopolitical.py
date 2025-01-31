@@ -73,7 +73,9 @@ def classify_latest_posts(
         )
         logger.info(f"Classifying {len(posts_to_classify)} posts with an LLM...")  # noqa
         if len(posts_to_classify) == 0:
-            logger.warning("No posts to classify with Perspective API. Exiting...")
+            logger.warning(
+                "No posts to classify with sociopolitical LLM classifier. Exiting..."
+            )
             return {
                 "inference_type": "sociopolitical",
                 "inference_timestamp": generate_current_datetime_str(),

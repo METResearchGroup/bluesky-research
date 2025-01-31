@@ -26,7 +26,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r dev_requirements.txt
-        pip install -r ml_tooling/dev_requirements.txt
+        pip install -r ml_tooling/requirements.txt
         pip install -r ml_tooling/llm/requirements.txt
         pip install -r lib/telemetry/requirements.txt
     - name: Add project directory to PYTHONPATH

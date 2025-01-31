@@ -93,7 +93,7 @@ def batch_classify_posts(
             logger.info(f"Processing batch {i}/{total_batches}")
 
         output_df: pd.DataFrame = process_ime_batch(
-            post_batch=batch,
+            batch=batch,
             minibatch_size=minibatch_size,
             model=model,
             tokenizer=tokenizer,
@@ -204,7 +204,7 @@ def batch_classify_posts(
             "probs": experiment_metrics["average_prob_emotion_per_batch"],
             "labels": experiment_metrics["labels_emotion"],
         },
-        "integroup": {
+        "intergroup": {
             "title": "Intergroup",
             "description": "",
             "probs": experiment_metrics["average_prob_intergroup_per_batch"],
