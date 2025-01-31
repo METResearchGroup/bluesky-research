@@ -24,14 +24,22 @@ device = get_device()
 def load_model_and_tokenizer(
     model_name: str, device: torch.device
 ) -> tuple[MultiLabelClassifier, AutoTokenizer]:
-    """Load the model and tokenizer for the given model name, from
-    local storage."""
+    """Load the model and tokenizer for the given model name."""
     if RUN_MODE == "test":
         # Return dummy versions for testing
         model = MultiLabelClassifier(n_classes=default_num_classes, model=model_name)
         model.eval()
-        tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
-        return model, tokenizer
+
+        # Create a minimal tokenizer class for testing
+        class DummyTokenizer:
+            def __call__(self, texts, **kwargs):
+                batch_size = len(texts) if isinstance(texts, list) else 1
+                return {
+                    "input_ids": torch.zeros((batch_size, 512), dtype=torch.long),
+                    "attention_mask": torch.ones((batch_size, 512), dtype=torch.long),
+                }
+
+        return model, DummyTokenizer()
 
     # Normal production behavior
     model = MultiLabelClassifier(n_classes=default_num_classes, model=model_name)

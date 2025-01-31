@@ -23,6 +23,13 @@ def mock_posts_to_backfill():
     }
 
 
+@pytest.fixture(autouse=True)
+def mock_run_mode():
+    """Mock RUN_MODE to be 'test' for all tests."""
+    with patch("lib.helper.RUN_MODE", "test"):
+        yield
+
+
 @patch("services.backfill.posts.main.route_and_run_integration_request")
 @patch("services.backfill.posts.main.Queue")
 @patch("services.backfill.posts.main.load_posts_to_backfill")
