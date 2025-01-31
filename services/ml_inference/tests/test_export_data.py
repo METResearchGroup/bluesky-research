@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import Mock, patch
+from freezegun import freeze_time
 
 from lib.db.queue import Queue
 from services.ml_inference.export_data import (
@@ -40,6 +41,7 @@ class TestReturnFailedLabelsToInputQueue:
         "inference_type",
         ["perspective_api", "sociopolitical", "ime"]
     )
+    @freeze_time("2024-01-01 12:00:00")
     def test_single_failed_label(self, inference_type):
         """Test processing single failed label.
         
@@ -78,6 +80,7 @@ class TestReturnFailedLabelsToInputQueue:
         "inference_type",
         ["perspective_api", "sociopolitical", "ime"]
     )
+    @freeze_time("2024-01-01 12:00:00")
     def test_multiple_failed_labels(self, inference_type):
         """Test processing multiple failed labels.
         
@@ -190,6 +193,3 @@ class TestWritePostsToCache:
             mock_input_queue.batch_delete_items_by_ids.assert_called_once_with(
                 ids=[f"batch_{i}" for i in range(3)]
             )
-
-
-
