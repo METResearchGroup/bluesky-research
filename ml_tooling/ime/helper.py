@@ -11,7 +11,7 @@ def get_device():
         print("Arm mac GPU available, using GPU.")
         device = torch.device("mps")  # for Arm Macs
     else:
-        # print("GPU not available, using CPU")
-        # device = torch.device("cpu")
-        raise ValueError("GPU not available, using CPU")
+        print("GPU not available, using CPU")
+        device = torch.device("cpu")
+        # raise ValueError("GPU not available, using CPU")
     return device

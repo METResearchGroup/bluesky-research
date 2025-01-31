@@ -5,7 +5,7 @@ This script is used to write cache buffer queues to their corresponding database
 from services.write_cache_buffers_to_db.helper import (
     write_all_cache_buffer_queues_to_dbs,
     write_cache_buffer_queue_to_db,
-    MAP_SERVICE_TO_IO,
+    SERVICES_TO_WRITE,
 )
 
 
@@ -36,14 +36,9 @@ def write_cache_buffers_to_db(payload: dict):
 
     if service == "all":
         write_all_cache_buffer_queues_to_dbs()
-    elif service in MAP_SERVICE_TO_IO:
-        io_dict = MAP_SERVICE_TO_IO[service]
-        write_cache_buffer_queue_to_db(
-            service=service,
-            input_queue=io_dict["input"],
-            output_db=io_dict["output"],
-        )
+    elif service in SERVICES_TO_WRITE:
+        write_cache_buffer_queue_to_db(service=service)
     else:
         raise ValueError(
-            f"Invalid service: {service}. Must be 'all' or one of: {list(MAP_SERVICE_TO_IO.keys())}"
+            f"Invalid service: {service}. Must be 'all' or one of: {SERVICES_TO_WRITE}"
         )

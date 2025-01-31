@@ -11,9 +11,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from lib.helper import create_batches, track_performance
+from lib.helper import create_batches, track_performance, RUN_MODE
 from lib.log.logger import get_logger
-from lib.telemetry.cometml import log_batch_classification_to_cometml
 from ml_tooling.ime.constants import default_hyperparameters, default_model
 from ml_tooling.ime.helper import get_device
 from ml_tooling.ime.inference import (
@@ -30,6 +29,17 @@ logger = get_logger(__file__)
 device = get_device()
 
 model, tokenizer = load_model_and_tokenizer(model_name=default_model, device=device)
+
+# gets around errors related to importing cometml in tests.
+if RUN_MODE == "test":
+
+    def log_batch_classification_to_cometml(service="ml_inference_ime"):
+        def decorator(func):
+            return func
+
+        return decorator
+else:
+    from lib.telemetry.cometml import log_batch_classification_to_cometml
 
 
 def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:

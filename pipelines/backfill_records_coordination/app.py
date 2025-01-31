@@ -1,7 +1,8 @@
-"""CLI app for triggering backfill of records."""
+"""CLI app for triggering backfill of records and writing cache buffers."""
 
 import click
 from pipelines.backfill_records_coordination.handler import lambda_handler
+from pipelines.write_cache_buffers.handler import lambda_handler as write_cache_handler
 
 INTEGRATION_MAP = {
     "p": "ml_inference_perspective_api",
@@ -79,6 +80,19 @@ DEFAULT_INTEGRATION_KWARGS = {
     default=True,
     help="Whether to run classification on posts",
 )
+@click.option(
+    "--write-cache",
+    type=click.Choice(
+        [
+            "all",
+            "ml_inference_perspective_api",
+            "ml_inference_sociopolitical",
+            "ml_inference_ime",
+        ]
+    ),
+    default=None,
+    help="Write cache buffer for specified service to database. Use 'all' to write all services.",
+)
 def backfill_records(
     record_type: str,
     add_to_queue: bool,
@@ -87,8 +101,9 @@ def backfill_records(
     backfill_period: str | None,
     backfill_duration: int | None,
     run_classification: bool,
+    write_cache: str | None,
 ):
-    """CLI app for triggering backfill of records.
+    """CLI app for triggering backfill of records and optionally writing cache buffers.
 
     Examples:
         # Backfill all posts for all integrations
@@ -102,6 +117,12 @@ def backfill_records(
 
         # Backfill posts for last 2 days with classification
         $ python -m pipelines.backfill_records_coordination.app -r posts -p days -d 2
+
+        # Write cache buffer for all services
+        $ python -m pipelines.backfill_records_coordination.app -r posts --write-cache all
+
+        # Write cache buffer for specific service
+        $ python -m pipelines.backfill_records_coordination.app -r posts --write-cache ml_inference_perspective_api
     """
     # Convert integrations from abbreviations if needed
     resolved_integrations = (
@@ -135,6 +156,15 @@ def backfill_records(
     # Call handler with constructed event
     response = lambda_handler({"payload": payload}, None)
     click.echo(f"Backfill completed with status: {response['statusCode']}")
+
+    # Only write cache if explicitly requested
+    if write_cache:
+        cache_response = write_cache_handler(
+            {"payload": {"service": write_cache}}, None
+        )
+        click.echo(
+            f"Cache buffer write completed with status: {cache_response['statusCode']}"
+        )
 
 
 if __name__ == "__main__":

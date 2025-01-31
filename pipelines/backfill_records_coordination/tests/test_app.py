@@ -1,6 +1,8 @@
 from unittest import TestCase
 from unittest.mock import patch, Mock
+
 from click.testing import CliRunner
+
 from pipelines.backfill_records_coordination.app import backfill_records, resolve_integration
 
 class TestBackfillCoordinationCliApp(TestCase):
@@ -210,6 +212,42 @@ class TestBackfillCoordinationCliApp(TestCase):
             },
             None
         )
+
+    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
+    @patch('pipelines.backfill_records_coordination.app.write_cache_handler')
+    def test_write_cache_all_services(self, mock_write_cache, mock_handler):
+        """Test writing cache for all services."""
+        mock_handler.return_value = {"statusCode": 200}
+        mock_write_cache.return_value = {"statusCode": 200}
+
+        result = self.runner.invoke(
+            backfill_records,
+            ['--record-type', 'posts', '--write-cache', 'all']
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        mock_write_cache.assert_called_once_with(
+            {"payload": {"service": "all"}},
+            None
+        )
+
+    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
+    @patch('pipelines.backfill_records_coordination.app.write_cache_handler')
+    def test_write_cache_specific_service(self, mock_write_cache, mock_handler):
+        """Test writing cache for a specific service."""
+        mock_handler.return_value = {"statusCode": 200}
+        mock_write_cache.return_value = {"statusCode": 200}
+
+        result = self.runner.invoke(
+            backfill_records,
+            ['--record-type', 'posts', '--write-cache', 'ml_inference_perspective_api']
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        mock_write_cache.assert_called_once_with(
+            {"payload": {"service": "ml_inference_perspective_api"}},
+            None
+        )
         
     def test_invalid_record_type(self):
         """Test error handling for invalid record type."""
@@ -230,4 +268,4 @@ class TestBackfillCoordinationCliApp(TestCase):
             ]
         )
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Invalid value for '--backfill-period'", result.output) 
+        self.assertIn("Invalid value for '--backfill-period'", result.output)
