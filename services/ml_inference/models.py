@@ -186,31 +186,38 @@ class ImeLabelModel(BaseModel):
 
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
-    prob_emotion: float = Field(
-        ..., description="Probability score for emotion-based content."
-    )
-    prob_intergroup: float = Field(
-        ..., description="Probability score for intergroup content."
-    )
-    prob_moral: float = Field(..., description="Probability score for moral content.")
-    prob_other: float = Field(
-        ..., description="Probability score for other (non-IME) content."
-    )
-    label_emotion: int = Field(
+    was_successfully_labeled: bool = Field(
         ...,
+        description="Indicates if the post was successfully labeled by the Perspective API.",
+    )  # noqa
+    prob_emotion: Optional[float] = Field(
+        default=None, description="Probability score for emotion-based content."
+    )
+    prob_intergroup: Optional[float] = Field(
+        default=None, description="Probability score for intergroup content."
+    )
+    prob_moral: Optional[float] = Field(
+        default=None, description="Probability score for moral content."
+    )
+    prob_other: Optional[float] = Field(
+        default=None, description="Probability score for other (non-IME) content."
+    )
+    label_emotion: Optional[int] = Field(
+        default=None,
         description="Binary label (0/1) indicating if post contains emotion-based content.",
     )
-    label_intergroup: int = Field(
-        ...,
+    label_intergroup: Optional[int] = Field(
+        default=None,
         description="Binary label (0/1) indicating if post contains intergroup content.",
     )
-    label_moral: int = Field(
-        ..., description="Binary label (0/1) indicating if post contains moral content."
+    label_moral: Optional[int] = Field(
+        default=None,
+        description="Binary label (0/1) indicating if post contains moral content.",
     )
-    label_other: int = Field(
-        ...,
+    label_other: Optional[int] = Field(
+        default=None,
         description="Binary label (0/1) indicating if post contains other (non-IME) content.",
     )
-    label_timestamp: str = Field(
-        ..., description="Timestamp when the IME classification was performed."
+    label_timestamp: Optional[str] = Field(
+        default=None, description="Timestamp when the IME classification was performed."
     )

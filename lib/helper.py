@@ -161,12 +161,14 @@ def track_performance(func):
         execution_time_leftover_seconds = execution_time_seconds - (
             60 * execution_time_minutes
         )
+        try:
+            func_name = func.__name__
+        except AttributeError:
+            func_name = func.__class__.__name__
         print(
-            f"Execution time for {func.__name__}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds"
+            f"Execution time for {func_name}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds"
         )  # noqa
-        print(
-            f"Memory usage for {func.__name__}: {max(mem_after) - min(mem_before)} MB"
-        )  # noqa
+        print(f"Memory usage for {func_name}: {max(mem_after) - min(mem_before)} MB")  # noqa
         return result
 
     return wrapper

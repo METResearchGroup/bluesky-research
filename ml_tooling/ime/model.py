@@ -14,8 +14,12 @@ import pandas as pd
 from lib.helper import create_batches, track_performance
 from lib.log.logger import get_logger
 from lib.telemetry.cometml import log_batch_classification_to_cometml
-from ml_tooling.ime.constants import default_hyperparameters
-from ml_tooling.ime.inference import process_ime_batch
+from ml_tooling.ime.constants import default_hyperparameters, default_model
+from ml_tooling.ime.helper import get_device
+from ml_tooling.ime.inference import (
+    load_model_and_tokenizer,
+    process_ime_batch,
+)
 from services.ml_inference.export_data import (
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
@@ -23,14 +27,30 @@ from services.ml_inference.export_data import (
 from services.ml_inference.models import ImeLabelModel
 
 logger = get_logger(__file__)
+device = get_device()
+
+model, tokenizer = load_model_and_tokenizer(model_name=default_model, device=device)
 
 
-def create_labels(output_df: pd.DataFrame) -> list[dict]:
+def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
     """Create label models from posts and responses.
 
     Converts the output of the process_ime_batch function to a list of dicts,
     using Pydantic models for consistency.
+
+    If output_df is empty, then labeling failed for all posts. Return
+    objects with was_successfully_labeled set to False.
     """
+    if output_df.empty:
+        return [
+            ImeLabelModel(
+                uri=post["uri"],
+                text=post["text"],
+                was_successfully_labeled=False,
+            ).model_dump()
+            for post in posts
+        ]
+    output_df["was_successfully_labeled"] = True
     output_dicts: list[dict] = output_df.to_dict(orient="records")
     output_models: list[ImeLabelModel] = [
         ImeLabelModel(**output_dict) for output_dict in output_dicts
@@ -66,22 +86,24 @@ def batch_classify_posts(
         "labels_moral": [],
         "labels_other": [],
         "prop_multi_label_samples_per_batch": [],  # proportion of samples with more than one label
-        "prop_zero_label_samples_per_batch": [],  # proportion of samples with no label ([0, 0, 0, 0])
     }
 
     for i, batch in enumerate(batches):
         if i % 10 == 0:
             logger.info(f"Processing batch {i}/{total_batches}")
+
         output_df: pd.DataFrame = process_ime_batch(
             post_batch=batch,
             minibatch_size=minibatch_size,
+            model=model,
+            tokenizer=tokenizer,
         )
-        labels: list[dict] = create_labels(output_df)
-        successful_labels: list[dict] = []
-        failed_labels: list[dict] = []
+        labels: list[dict] = create_labels(posts=batch, output_df=output_df)
 
         total_failed_labels = 0
         total_successful_labels = 0
+        successful_labels: list[dict] = []
+        failed_labels: list[dict] = []
 
         for post, label in zip(batch, labels):
             post_batch_id = post["batch_id"]
@@ -113,80 +135,62 @@ def batch_classify_posts(
             total_posts_successfully_labeled += total_successful_labels
 
         # Calculate metrics for this batch
-        label_cols = ["label_emotion", "label_intergroup", "label_moral", "label_other"]
 
-        experiment_metrics["average_text_length_per_batch"].append(
-            output_df["text"].str.len().mean()
-        )
-        experiment_metrics["average_prob_emotion_per_batch"].append(
-            output_df["prob_emotion"].mean()
-        )
-        experiment_metrics["average_prob_intergroup_per_batch"].append(
-            output_df["prob_intergroup"].mean()
-        )
-        experiment_metrics["average_prob_moral_per_batch"].append(
-            output_df["prob_moral"].mean()
-        )
-        experiment_metrics["average_prob_other_per_batch"].append(
-            output_df["prob_other"].mean()
-        )
+        if output_df.empty:
+            logger.warning("No labels found for this batch.")
+        else:
+            label_cols = [
+                "label_emotion",
+                "label_intergroup",
+                "label_moral",
+                "label_other",
+            ]
 
-        # Calculate percentage of each label type in batch
-        experiment_metrics["prop_emotion_per_batch"].append(
-            output_df["label_emotion"].mean() * 100
-        )
-        experiment_metrics["prop_intergroup_per_batch"].append(
-            output_df["label_intergroup"].mean() * 100
-        )
-        experiment_metrics["prop_moral_per_batch"].append(
-            output_df["label_moral"].mean() * 100
-        )
-        experiment_metrics["prop_other_per_batch"].append(
-            output_df["label_other"].mean() * 100
-        )
+            experiment_metrics["average_text_length_per_batch"].append(
+                output_df["text"].str.len().mean()
+            )
+            experiment_metrics["average_prob_emotion_per_batch"].append(
+                output_df["prob_emotion"].mean()
+            )
+            experiment_metrics["average_prob_intergroup_per_batch"].append(
+                output_df["prob_intergroup"].mean()
+            )
+            experiment_metrics["average_prob_moral_per_batch"].append(
+                output_df["prob_moral"].mean()
+            )
+            experiment_metrics["average_prob_other_per_batch"].append(
+                output_df["prob_other"].mean()
+            )
 
-        # Calculate proportion of multi-label samples (more than one label)
-        label_sums = output_df[label_cols].sum(axis=1)
-        multi_label_prop = (label_sums > 1).mean()
-        experiment_metrics["prop_multi_label_samples_per_batch"].append(
-            multi_label_prop
-        )
+            # Calculate percentage of each label type in batch
+            experiment_metrics["prop_emotion_per_batch"].append(
+                output_df["label_emotion"].mean() * 100
+            )
+            experiment_metrics["prop_intergroup_per_batch"].append(
+                output_df["label_intergroup"].mean() * 100
+            )
+            experiment_metrics["prop_moral_per_batch"].append(
+                output_df["label_moral"].mean() * 100
+            )
+            experiment_metrics["prop_other_per_batch"].append(
+                output_df["label_other"].mean() * 100
+            )
 
-        # Calculate proportion of zero-label samples
-        zero_label_prop = (label_sums == 0).mean()
-        experiment_metrics["prop_zero_label_samples_per_batch"].append(zero_label_prop)
+            # Calculate proportion of multi-label samples (more than one label)
+            label_sums = output_df[label_cols].sum(axis=1)
+            multi_label_prop = (label_sums > 1).mean()
+            experiment_metrics["prop_multi_label_samples_per_batch"].append(
+                multi_label_prop
+            )
+
         del successful_labels
         del failed_labels
 
-    # log telemetry.
+    # log metrics. Exclude the labels from the metrics.
     global_experiment_metrics = {
-        "average_text_length_per_batch": np.mean(
-            experiment_metrics["average_text_length_per_batch"]
-        ),
-        "average_prob_emotion_per_batch": np.mean(
-            experiment_metrics["average_prob_emotion_per_batch"]
-        ),
-        "average_prob_intergroup_per_batch": np.mean(
-            experiment_metrics["average_prob_intergroup_per_batch"]
-        ),
-        "average_prob_moral_per_batch": np.mean(
-            experiment_metrics["average_prob_moral_per_batch"]
-        ),
-        "average_prob_other_per_batch": np.mean(
-            experiment_metrics["average_prob_other_per_batch"]
-        ),
-        "prop_emotion_per_batch": np.mean(experiment_metrics["prop_emotion_per_batch"]),
-        "prop_intergroup_per_batch": np.mean(
-            experiment_metrics["prop_intergroup_per_batch"]
-        ),
-        "prop_moral_per_batch": np.mean(experiment_metrics["prop_moral_per_batch"]),
-        "prop_other_per_batch": np.mean(experiment_metrics["prop_other_per_batch"]),
-        "prop_multi_label_samples_per_batch": np.mean(
-            experiment_metrics["prop_multi_label_samples_per_batch"]
-        ),
-        "prop_zero_label_samples_per_batch": np.mean(
-            experiment_metrics["prop_zero_label_samples_per_batch"]
-        ),
+        metric: np.mean(experiment_metrics[metric])
+        for metric in experiment_metrics
+        if not metric.startswith("labels_")
     }
     metadata = {
         "total_batches": total_batches,
@@ -237,12 +241,16 @@ def run_batch_classification(
         batch_size=hyperparameters["batch_size"],
         minibatch_size=hyperparameters["minibatch_size"],
     )
-    metadata: dict = results["metadata"]
+    breakpoint()
+    run_metadata: dict = results["metadata"]
     classification_breakdown: dict = results["classification_breakdown"]
     telemetry_metadata = {
         "hyperparameters": hyperparameters,
         "metrics": results["experiment_metrics"],
         "classification_breakdown": classification_breakdown,
     }
-    metadata = {"run_metadata": metadata, "telemetry_metadata": telemetry_metadata}
-    return metadata
+    hydrated_metadata = {
+        "run_metadata": run_metadata,
+        "telemetry_metadata": telemetry_metadata,
+    }
+    return hydrated_metadata

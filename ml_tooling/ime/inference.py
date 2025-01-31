@@ -8,14 +8,31 @@ import torch
 
 from lib.constants import current_datetime_str
 from lib.log.logger import get_logger
+from ml_tooling.ime.classes import MultiLabelClassifier
+from ml_tooling.ime.constants import default_num_classes, model_to_asset_paths_map
+from ml_tooling.ime.helper import get_device
+from transformers import AutoTokenizer
+
 from ml_tooling.ime.classes import TextDataset
-from ml_tooling.ime.constants import default_model
-from ml_tooling.ime.helper import load_model_and_tokenizer, get_device
 
 logger = get_logger(__name__)
 
 device = get_device()
-model, tokenizer = load_model_and_tokenizer(model_name=default_model, device=device)
+
+
+def load_model_and_tokenizer(
+    model_name: str, device: torch.device
+) -> tuple[MultiLabelClassifier, AutoTokenizer]:
+    """Load the model and tokenizer for the given model name, from
+    local storage."""
+    model = MultiLabelClassifier(n_classes=default_num_classes, model=model_name)
+    model.to(device)
+    model.eval()
+
+    tokenizer_path = model_to_asset_paths_map[model_name]["tokenizer"]
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+
+    return model, tokenizer
 
 
 def default_to_other(preds):
@@ -34,7 +51,10 @@ def default_to_other(preds):
 
 
 def process_ime_minibatch(
-    minibatch_df: pd.DataFrame, minibatch_size: int
+    minibatch_df: pd.DataFrame,
+    minibatch_size: int,
+    model: MultiLabelClassifier,
+    tokenizer: AutoTokenizer,
 ) -> pd.DataFrame:
     """Processes a minibatch of posts using the IME classification model"""
     dataset = TextDataset(
@@ -101,23 +121,33 @@ def process_ime_minibatch(
 def process_ime_batch(
     batch: list[dict],
     minibatch_size: int,
+    model: MultiLabelClassifier,
+    tokenizer: AutoTokenizer,
 ) -> pd.DataFrame:
     """Process a batch of posts using the IME classification model."""
-    minibatches: list[list[dict]] = [
-        batch[i : i + minibatch_size] for i in range(0, len(batch), minibatch_size)
-    ]
+    try:
+        minibatches: list[list[dict]] = [
+            batch[i : i + minibatch_size] for i in range(0, len(batch), minibatch_size)
+        ]
 
-    batch_output_dfs: list[pd.DataFrame] = []
+        batch_output_dfs: list[pd.DataFrame] = []
 
-    for minibatch in minibatches:
-        minibatch_df = pd.DataFrame(minibatch)
-        output_df: pd.DataFrame = process_ime_minibatch(
-            minibatch_df=minibatch_df, minibatch_size=minibatch_size
-        )
-        batch_output_dfs.append(output_df)
+        for minibatch in minibatches:
+            minibatch_df = pd.DataFrame(minibatch)
+            output_df: pd.DataFrame = process_ime_minibatch(
+                minibatch_df=minibatch_df,
+                minibatch_size=minibatch_size,
+                model=model,
+                tokenizer=tokenizer,
+            )
+            batch_output_dfs.append(output_df)
 
-    joined_output_df = pd.concat(batch_output_dfs)
+        joined_output_df = pd.concat(batch_output_dfs)
 
-    gc.collect()
+        gc.collect()
+
+    except Exception as e:
+        logger.error(f"Error processing batch: {e}")
+        joined_output_df = pd.DataFrame()
 
     return joined_output_df
