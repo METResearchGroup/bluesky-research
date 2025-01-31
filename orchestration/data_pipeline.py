@@ -98,9 +98,9 @@ def production_data_pipeline():
     job_run_ml_inference_perspective_api = run_ml_inference_perspective_api.submit(
         wait_for=[job_preprocess_raw_data]
     )
-    job_run_ml_inference_sociopolitical = run_ml_inference_sociopolitical.submit(
-        wait_for=[job_preprocess_raw_data]
-    )
+    # job_run_ml_inference_sociopolitical = run_ml_inference_sociopolitical.submit(
+    #     wait_for=[job_preprocess_raw_data]
+    # )
     # run_ml_inference_ime.submit(wait_for=[job_preprocess_raw_data]) # no need for consolidation to wait for this.
 
     # run enrichment integration consolidation after all integrations are finished.
@@ -108,7 +108,7 @@ def production_data_pipeline():
         wait_for=[
             job_calculate_superposters,
             job_run_ml_inference_perspective_api,
-            job_run_ml_inference_sociopolitical,
+            # job_run_ml_inference_sociopolitical,
         ]
     )
 
