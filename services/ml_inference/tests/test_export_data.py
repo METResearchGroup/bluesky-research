@@ -148,7 +148,7 @@ class TestWritePostsToCache:
         mock_input_queue = Mock(spec=Queue)
         mock_output_queue = Mock(spec=Queue)
         with patch.dict(inference_type_to_input_queue_map, {inference_type: mock_input_queue}), \
-             patch.dict(inference_type_to_output_queue_map, {inference_type: mock_output_queue}):
+            patch.dict(inference_type_to_output_queue_map, {inference_type: mock_output_queue}):
             write_posts_to_cache(inference_type=inference_type, posts=[])
             mock_output_queue.batch_add_items_to_queue.assert_not_called()
             mock_input_queue.batch_delete_items_by_ids.assert_not_called()
@@ -165,7 +165,7 @@ class TestWritePostsToCache:
             
         Expected behavior:
             - Should write posts to output queue with correct batch size
-            - Should delete corresponding batch IDs from input queue
+            - Should delete corresponding batch IDs from input queue in sorted order
             - Should maintain data integrity during transfer
             - Should work identically for all inference types
         """
@@ -183,13 +183,17 @@ class TestWritePostsToCache:
         mock_input_queue = Mock(spec=Queue)
         mock_output_queue = Mock(spec=Queue)
         with patch.dict(inference_type_to_input_queue_map, {inference_type: mock_input_queue}), \
-             patch.dict(inference_type_to_output_queue_map, {inference_type: mock_output_queue}):
+            patch.dict(inference_type_to_output_queue_map, {inference_type: mock_output_queue}):
             write_posts_to_cache(inference_type=inference_type, posts=posts, batch_size=2)
             
             mock_output_queue.batch_add_items_to_queue.assert_called_once_with(
                 items=posts,
                 batch_size=2
             )
+            
+            # Extract and sort batch IDs from the posts
+            batch_ids = sorted([post["batch_id"] for post in posts])
+            
             mock_input_queue.batch_delete_items_by_ids.assert_called_once_with(
-                ids=[f"batch_{i}" for i in range(3)]
+                ids=batch_ids
             )
