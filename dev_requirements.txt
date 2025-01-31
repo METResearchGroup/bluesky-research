@@ -32,6 +32,8 @@ flake8==7.0.0
     #   flake8-pyproject
 flake8-pyproject==1.2.3
     # via -r dev_requirements.in
+freezegun==1.2.2
+    # via -r dev_requirements.in
 identify==2.5.33
     # via pre-commit
 idna==3.10
@@ -83,6 +85,7 @@ pytest-mock==3.14.0
 python-dateutil==2.9.0.post0
     # via
     #   faker
+    #   freezegun
     #   pandas
 python-dotenv==0.21.0
     # via -r dev_requirements.in
