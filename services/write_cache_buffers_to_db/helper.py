@@ -4,7 +4,7 @@ Helper functions for the write_cache_buffers_to_db service.
 
 import pandas as pd
 
-from lib.db.queue import Queue, QueueItem
+from lib.db.queue import Queue
 from lib.db.manage_local_data import export_data_to_local_storage
 from lib.log.logger import get_logger
 
@@ -17,15 +17,7 @@ SERVICES_TO_WRITE = [
 ]
 
 
-def transform_queue_items(queue_items: list[QueueItem]) -> pd.DataFrame:
-    """Transforms the queue items into a list of dictionaries."""
-    # TODO: probably need to add some steps too no?
-    queue_item_dicts: list[dict] = [item.model_dump() for item in queue_items]
-    df = pd.DataFrame(queue_item_dicts)
-    return df
-
-
-def write_cache_buffer_queue_to_db(service: str):
+def write_cache_buffer_queue_to_db(service: str, clear_queue: bool = True):
     """Writes the cache buffer queue to the database.
 
     Takes the output queue for the given service/integration (which should
@@ -34,11 +26,11 @@ def write_cache_buffer_queue_to_db(service: str):
     """
     queue = Queue(queue_name=f"output_{service}")
 
-    latest_queue_items: list[QueueItem] = queue.load_items_from_queue(
-        limit=None, min_id=None, min_timestamp=None
+    latest_payloads: list[dict] = queue.load_dict_items_from_queue(
+        limit=None, min_id=None, min_timestamp=None, status="pending"
     )
-    latest_queue_item_ids = [item.id for item in latest_queue_items]
-    df = transform_queue_items(latest_queue_items)
+    df = pd.DataFrame(latest_payloads)
+    latest_queue_item_ids: list[str] = df["batch_id"].tolist()
 
     logger.info(
         f"Exporting {len(df)} records to local storage for service {service}..."
@@ -48,13 +40,14 @@ def write_cache_buffer_queue_to_db(service: str):
         f"Finished exporting {len(df)} records to local storage for service {service}..."
     )
 
-    logger.info(
-        f"Deleting {len(latest_queue_item_ids)} records from queue for service {service}..."
-    )
-    queue.batch_delete_items_by_ids(ids=latest_queue_item_ids)
-    logger.info(
-        f"Finished deleting {len(latest_queue_item_ids)} records from queue for service {service}..."
-    )
+    if clear_queue:
+        logger.info(
+            f"Deleting {len(latest_queue_item_ids)} records from queue for service {service}..."
+        )
+        queue.batch_delete_items_by_ids(ids=latest_queue_item_ids)
+        logger.info(
+            f"Finished deleting {len(latest_queue_item_ids)} records from queue for service {service}..."
+        )
 
 
 def write_all_cache_buffer_queues_to_dbs():

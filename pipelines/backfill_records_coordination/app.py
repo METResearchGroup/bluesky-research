@@ -36,14 +36,16 @@ DEFAULT_INTEGRATION_KWARGS = {
     help="Type of records to backfill",
 )
 @click.option(
-    "--add-to-queue/--no-add-to-queue",
-    default=True,
-    help="Whether to add records to integration queues",
+    "--add-to-queue",
+    is_flag=True,
+    default=False,
+    help="Add records to integration queues",
 )
 @click.option(
-    "--run-integrations/--no-run-integrations",
-    default=True,
-    help="Whether to run the integrations after queueing",
+    "--run-integrations",
+    is_flag=True,
+    default=False,
+    help="Run the integrations after queueing",
 )
 @click.option(
     "--integration",

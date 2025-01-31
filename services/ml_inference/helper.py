@@ -7,7 +7,7 @@ from typing import Literal, Optional
 import pandas as pd
 
 from lib.constants import timestamp_format
-from lib.db.queue import Queue, QueueItem
+from lib.db.queue import Queue
 from lib.log.logger import get_logger
 from lib.helper import track_performance
 
@@ -88,39 +88,12 @@ def get_posts_to_classify(
         )  # noqa
         latest_inference_timestamp = timestamp
 
-    latest_queue_items: list[QueueItem] = queue.load_items_from_queue(
+    latest_payloads: list[dict] = queue.load_dict_items_from_queue(
         limit=None,
         min_id=latest_id_classified,
         min_timestamp=latest_inference_timestamp,
         status="pending",
     )
-    # load the rows of data. Each row is a JSON-dumped batch of payloads. For
-    # example, for a batch size of 100 posts, one row might be a JSON-dumped
-    # string of 100 posts. Each row shares the same metadata. We want to not
-    # only return the posts, but also the metadata, so that we can link these
-    # posts to which batch row they originally came from.
-    latest_payload_batch_strings: list[str] = []
-    latest_payload_batch_ids: list[str] = []
-    latest_payload_batch_metadata: list[str] = []
-    for item in latest_queue_items:
-        latest_payload_batch_strings.append(item.payload)
-        latest_payload_batch_ids.append(item.id)
-        latest_payload_batch_metadata.append(item.metadata)
-    latest_payloads: list[dict] = []
-    for (
-        payload_string,
-        payload_id,
-        payload_metadata,
-    ) in zip(
-        latest_payload_batch_strings,
-        latest_payload_batch_ids,
-        latest_payload_batch_metadata,
-    ):
-        payloads: list[dict] = json.loads(payload_string)
-        for payload in payloads:
-            payload["batch_id"] = payload_id
-            payload["batch_metadata"] = payload_metadata
-        latest_payloads.extend(payloads)
     logger.info(f"Loaded {len(latest_payloads)} posts to classify.")
     logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")

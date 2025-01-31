@@ -354,7 +354,7 @@ async def batch_classify_posts(
             )
             return_failed_labels_to_input_queue(
                 inference_type="perspective_api",
-                failed_labels=failed_labels,
+                failed_label_models=failed_labels,
                 batch_size=batch_size,
             )
             total_posts_failed_to_label += total_failed_labels

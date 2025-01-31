@@ -41,8 +41,8 @@ class TestBackfillCoordinationCliApp(TestCase):
             {
                 "payload": {
                     "record_type": "posts",
-                    "add_posts_to_queue": True,
-                    "run_integrations": True,
+                    "add_posts_to_queue": False,
+                    "run_integrations": False,
                     "integration_kwargs": {
                         "ml_inference_perspective_api": {
                             "backfill_period": None,
@@ -62,7 +62,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         
         result = self.runner.invoke(
             backfill_records,
-            ['--record-type', 'posts', '-i', 'p', '-i', 's']
+            ['--record-type', 'posts', '-i', 'p', '-i', 's', '--add-to-queue', '--run-integrations']
         )
         
         self.assertEqual(result.exit_code, 0)
@@ -99,7 +99,9 @@ class TestBackfillCoordinationCliApp(TestCase):
                 '--record-type', 'posts',
                 '-i', 'p',
                 '--backfill-period', 'days',
-                '--backfill-duration', '2'
+                '--backfill-duration', '2',
+                '--add-to-queue',
+                '--run-integrations'
             ]
         )
         
@@ -133,6 +135,8 @@ class TestBackfillCoordinationCliApp(TestCase):
             [
                 '--record-type', 'posts',
                 '-i', 'p',
+                '--add-to-queue',
+                '--run-integrations',
                 '--no-run-classification'
             ]
         )
@@ -162,7 +166,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         
         result = self.runner.invoke(
             backfill_records,
-            ['--record-type', 'posts', '--no-run-integrations']
+            ['--record-type', 'posts', '--add-to-queue']
         )
         
         self.assertEqual(result.exit_code, 0)
@@ -191,7 +195,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         
         result = self.runner.invoke(
             backfill_records,
-            ['--record-type', 'posts', '--no-add-to-queue']
+            ['--record-type', 'posts', '--run-integrations']
         )
         
         self.assertEqual(result.exit_code, 0)

@@ -401,6 +401,51 @@ class Queue:
 
             return items
 
+    def load_dict_items_from_queue(
+        self,
+        limit: Optional[int] = None,
+        status: Optional[str] = None,
+        min_id: Optional[int] = None,
+        min_timestamp: Optional[str] = None,
+    ) -> list[dict]:
+        """Loads the latest queue items from the queue and returns them
+        as hydrated JSON dictionaries. Each row in the queue is batch-specific
+        but we return these as a list of dictionaries where each row is a
+        single record (as opposed to a batch of records).
+
+        Each row is a JSON-dumped batch of payloads. For example, for a
+        batch size of 100 posts, one row might be a JSON-dumped string of
+        100 posts. Each row shares the same metadata. We want to not only
+        return the posts, but also the metadata, so that we can link these
+        posts to which batch row they originally came from.
+        """
+        latest_queue_items: list[QueueItem] = self.load_items_from_queue(
+            limit=limit, status=status, min_id=min_id, min_timestamp=min_timestamp
+        )
+        latest_payload_batch_strings: list[str] = []
+        latest_payload_batch_ids: list[str] = []
+        latest_payload_batch_metadata: list[str] = []
+        for item in latest_queue_items:
+            latest_payload_batch_strings.append(item.payload)
+            latest_payload_batch_ids.append(item.id)
+            latest_payload_batch_metadata.append(item.metadata)
+            latest_payloads: list[dict] = []
+            for (
+                payload_string,
+                payload_id,
+                payload_metadata,
+            ) in zip(
+                latest_payload_batch_strings,
+                latest_payload_batch_ids,
+                latest_payload_batch_metadata,
+            ):
+                payloads: list[dict] = json.loads(payload_string)
+                for payload in payloads:
+                    payload["batch_id"] = payload_id
+                    payload["batch_metadata"] = payload_metadata
+                latest_payloads.extend(payloads)
+        return latest_payloads
+
     def _get_sqlite_version(self) -> tuple:
         """Get the SQLite version as a tuple of integers."""
         with sqlite3.connect(self.db_path):

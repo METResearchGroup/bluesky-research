@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 import pytest
 
-from lib.db.queue import QueueItem
 from services.ml_inference.helper import (
     determine_backfill_latest_timestamp,
     get_posts_to_classify,
@@ -30,15 +29,9 @@ class MockDateTime:
             return MockDateTime(self.dt - other)
         return MockDateTime(self.dt - other)
 
+
 class TestDetermineBackfillLatestTimestamp:
-    """Tests for determine_backfill_latest_timestamp function.
-    
-    This class tests the timestamp calculation for backfilling data:
-    - Handling of invalid inputs (None, invalid periods)
-    - Correct calculation for days-based backfill
-    - Correct calculation for hours-based backfill
-    - Proper timezone handling (UTC)
-    """
+    """Tests for determine_backfill_latest_timestamp function."""
 
     @pytest.mark.parametrize("duration,period,expected", [
         (None, "days", None),
@@ -53,7 +46,6 @@ class TestDetermineBackfillLatestTimestamp:
     @patch("services.ml_inference.helper.datetime")
     def test_backfill_days(self, mock_datetime):
         """Test backfill with days period."""
-
         mock_now = MockDateTime(datetime(2024, 1, 7, 12, 0, tzinfo=timezone.utc))
         mock_datetime.now.return_value = mock_now
         mock_datetime.timezone = timezone
@@ -67,7 +59,6 @@ class TestDetermineBackfillLatestTimestamp:
     @patch("services.ml_inference.helper.datetime") 
     def test_backfill_hours(self, mock_datetime):
         """Test backfill with hours period."""
-
         mock_now = MockDateTime(datetime(2024, 1, 7, 12, 0, tzinfo=timezone.utc))
         mock_datetime.now.return_value = mock_now
         mock_datetime.timezone = timezone
@@ -77,22 +68,9 @@ class TestDetermineBackfillLatestTimestamp:
         assert result == "2024-01-06-12:00:00"
         mock_datetime.now.assert_called_once()
 
+
 class TestGetPostsToClassify:
-    """Tests for get_posts_to_classify function.
-    
-    This class tests the post retrieval and processing functionality:
-    - Queue item loading with various filters
-    - Metadata handling and timestamp overrides
-    - Post deduplication
-    - Batch information preservation
-    
-    The function should:
-    1. Load items from the appropriate queue based on inference type
-    2. Apply filters (min_id, min_timestamp, status)
-    3. Process JSON payloads into post dictionaries
-    4. Deduplicate posts by URI
-    5. Preserve batch_id and batch_metadata for each post
-    """
+    """Tests for get_posts_to_classify function."""
 
     @pytest.fixture
     def mock_queue(self):
@@ -101,33 +79,18 @@ class TestGetPostsToClassify:
             yield mock_queue.return_value
 
     def test_invalid_inference_type(self):
-        """Test invalid inference type raises ValueError.
-        
-        Input:
-            inference_type: "invalid"
-        Expected:
-            - ValueError with message "Invalid inference type: invalid"
-        """
+        """Test invalid inference type raises ValueError."""
         with pytest.raises(ValueError, match="Invalid inference type: invalid"):
             get_posts_to_classify("invalid")
 
     def test_empty_queue(self, mock_queue):
-        """Test handling of empty queue.
-        
-        Input:
-            inference_type: "perspective_api"
-            queue: empty queue
-        Expected:
-            - Empty list returned
-            - Queue.load_items_from_queue called with correct parameters
-            - No processing attempted
-        """
-        mock_queue.load_items_from_queue.return_value = []
+        """Test handling of empty queue."""
+        mock_queue.load_dict_items_from_queue.return_value = []
         
         result = get_posts_to_classify("perspective_api")
         
         assert result == []
-        mock_queue.load_items_from_queue.assert_called_once_with(
+        mock_queue.load_dict_items_from_queue.assert_called_once_with(
             limit=None,
             min_id=None,
             min_timestamp=None,
@@ -135,36 +98,20 @@ class TestGetPostsToClassify:
         )
 
     def test_with_previous_metadata(self, mock_queue):
-        """Test using previous run metadata for filtering.
-        
-        Input:
-            inference_type: "perspective_api"
-            previous_run_metadata: {
-                "metadata": {
-                    "latest_id_classified": 123,
-                    "inference_timestamp": "2024-01-01"
-                }
-            }
-            queue: single item with batch information
-        Expected:
-            - Posts returned with batch_id and batch_metadata
-            - Correct filters applied from metadata
-            - Post data properly extracted from payload
-        """
+        """Test using previous run metadata for filtering."""
         metadata = {
             "metadata": json.dumps({
                 "latest_id_classified": 123,
                 "inference_timestamp": "2024-01-01"
             })
         }
-        test_batch_metadata = {"source": "test_source"}
-        mock_queue.load_items_from_queue.return_value = [
-            QueueItem(
-                id=124,  # After latest_id_classified
-                payload=json.dumps([{"uri": "test", "text": "test post"}]),
-                metadata=json.dumps(test_batch_metadata),
-                status="pending"
-            )
+        mock_queue.load_dict_items_from_queue.return_value = [
+            {
+                "uri": "test",
+                "text": "test post",
+                "batch_id": 124,
+                "batch_metadata": json.dumps({"source": "test_source"})
+            }
         ]
 
         result = get_posts_to_classify(
@@ -176,8 +123,8 @@ class TestGetPostsToClassify:
         assert result[0]["uri"] == "test"
         assert result[0]["text"] == "test post"
         assert result[0]["batch_id"] == 124
-        assert result[0]["batch_metadata"] == json.dumps(test_batch_metadata)
-        mock_queue.load_items_from_queue.assert_called_once_with(
+        assert result[0]["batch_metadata"] == json.dumps({"source": "test_source"})
+        mock_queue.load_dict_items_from_queue.assert_called_once_with(
             limit=None,
             min_id=123,
             min_timestamp="2024-01-01",
@@ -185,16 +132,7 @@ class TestGetPostsToClassify:
         )
 
     def test_with_timestamp_override(self, mock_queue):
-        """Test timestamp parameter overrides metadata timestamp.
-        
-        Input:
-            inference_type: "perspective_api"
-            timestamp: "2023-12-31"
-            previous_run_metadata: contains different timestamp
-        Expected:
-            - Override timestamp used instead of metadata timestamp
-            - Other metadata values (like latest_id) still used
-        """
+        """Test timestamp parameter overrides metadata timestamp."""
         metadata = {
             "metadata": json.dumps({
                 "latest_id_classified": 123,
@@ -202,7 +140,7 @@ class TestGetPostsToClassify:
             })
         }
         override_timestamp = "2023-12-31"
-        mock_queue.load_items_from_queue.return_value = []
+        mock_queue.load_dict_items_from_queue.return_value = []
 
         get_posts_to_classify(
             "perspective_api",
@@ -210,7 +148,7 @@ class TestGetPostsToClassify:
             previous_run_metadata=metadata
         )
 
-        mock_queue.load_items_from_queue.assert_called_once_with(
+        mock_queue.load_dict_items_from_queue.assert_called_once_with(
             limit=None,
             min_id=123,
             min_timestamp=override_timestamp,
@@ -218,28 +156,26 @@ class TestGetPostsToClassify:
         )
 
     def test_deduplication_with_batch_info(self, mock_queue):
-        """Test deduplication preserves correct batch information.
-        
-        Input:
-            inference_type: "perspective_api"
-            queue: multiple items with duplicate URIs but different batch info
-        Expected:
-            - Posts deduplicated by URI
-            - First occurrence's batch information preserved
-            - All other post data intact
-        """
-        test_batch_metadata = {"batch": "test_batch"}
-        mock_queue.load_items_from_queue.return_value = [
-            QueueItem(
-                id=1,
-                payload=json.dumps([
-                    {"uri": "test1", "text": "post1"},
-                    {"uri": "test1", "text": "post2"},  # Duplicate URI
-                    {"uri": "test2", "text": "post3"}
-                ]),
-                metadata=json.dumps(test_batch_metadata),
-                status="pending"
-            )
+        """Test deduplication preserves correct batch information."""
+        mock_queue.load_dict_items_from_queue.return_value = [
+            {
+                "uri": "test1",
+                "text": "post1",
+                "batch_id": 1,
+                "batch_metadata": json.dumps({"batch": "test_batch"})
+            },
+            {
+                "uri": "test1",  # Duplicate URI
+                "text": "post2",
+                "batch_id": 1,
+                "batch_metadata": json.dumps({"batch": "test_batch"})
+            },
+            {
+                "uri": "test2",
+                "text": "post3",
+                "batch_id": 1,
+                "batch_metadata": json.dumps({"batch": "test_batch"})
+            }
         ]
 
         result = get_posts_to_classify("perspective_api")
@@ -251,4 +187,4 @@ class TestGetPostsToClassify:
         # Verify batch information
         for post in result:
             assert post["batch_id"] == 1
-            assert post["batch_metadata"] == json.dumps(test_batch_metadata)
+            assert json.loads(post["batch_metadata"]) == {"batch": "test_batch"}

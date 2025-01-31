@@ -741,3 +741,70 @@ class TestLoadItemsCombinedFilters:
         assert all(item.id > 5 for item in items)
         for item in items:
             assert json.loads(item.metadata)["source"] == "test"
+
+
+class TestLoadDictItems:
+    def test_load_dict_items_from_queue(self, queue: Queue) -> None:
+        """Test loading items as dictionaries.
+        
+        Verifies:
+        - Items are returned as dictionaries
+        - All filters work as expected
+        - Metadata is included in dictionary format
+        - Payload is properly deserialized
+        """
+        # Add test items with different statuses and timestamps
+        test_items = [{"uri": f"post_{i}", "text": f"Sample text {i}"} for i in range(5)]
+        test_metadata = {"source": "test", "priority": "high"}
+        
+        # Add first batch
+        queue.batch_add_items_to_queue(
+            items=test_items[:3],
+            metadata=test_metadata,
+            batch_size=1
+        )
+        
+        # Wait and add second batch
+        time.sleep(1)
+        queue.batch_add_items_to_queue(
+            items=test_items[3:],
+            metadata=test_metadata,
+            batch_size=1
+        )
+        
+        # Mark some items as completed
+        with queue._get_connection() as conn:
+            conn.execute(
+                f"UPDATE {queue.queue_table_name} SET status = 'completed' WHERE id IN (1, 2)"
+            )
+            cursor = conn.execute(
+                f"SELECT created_at FROM {queue.queue_table_name} ORDER BY created_at LIMIT 1 OFFSET 2"
+            )
+            mid_timestamp = cursor.fetchone()[0]
+        
+        # Test loading with combined filters
+        dict_items = queue.load_dict_items_from_queue(
+            status="pending",
+            min_id=2,
+            min_timestamp=mid_timestamp,
+            limit=2
+        )
+        
+        assert len(dict_items) == 2
+        for item in dict_items:
+            # Verify dictionary structure
+            assert isinstance(item, dict)
+            assert "batch_id" in item
+            assert "batch_metadata" in item
+            
+            # Verify values
+            assert isinstance(item["batch_metadata"], str)
+            metadata = json.loads(item["batch_metadata"])
+            assert metadata["source"] == "test"
+            assert metadata["priority"] == "high"
+            
+            # Verify content
+            assert "uri" in item
+            assert "text" in item
+            assert item["uri"].startswith("post_")
+            assert item["text"].startswith("Sample text")

@@ -190,10 +190,11 @@ class TestWritePostsToCache:
                 items=posts,
                 batch_size=2
             )
-            
-            # Extract and sort batch IDs from the posts
-            batch_ids = sorted([post["batch_id"] for post in posts])
-            
+
+            expected_batch_ids = sorted(
+                [post["batch_id"] for post in posts], reverse=False
+            )
+
             mock_input_queue.batch_delete_items_by_ids.assert_called_once_with(
-                ids=batch_ids
+                ids=expected_batch_ids
             )
