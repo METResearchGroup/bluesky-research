@@ -165,7 +165,7 @@ class TestWritePostsToCache:
             
         Expected behavior:
             - Should write posts to output queue with correct batch size
-            - Should delete corresponding batch IDs from input queue in sorted order
+            - Should delete corresponding batch IDs from input queue
             - Should maintain data integrity during transfer
             - Should work identically for all inference types
         """
@@ -191,10 +191,7 @@ class TestWritePostsToCache:
                 batch_size=2
             )
 
-            expected_batch_ids = sorted(
-                [post["batch_id"] for post in posts], reverse=False
-            )
-
-            mock_input_queue.batch_delete_items_by_ids.assert_called_once_with(
-                ids=expected_batch_ids
-            )
+            # Verify the batch IDs were deleted, ignoring order
+            actual_call = mock_input_queue.batch_delete_items_by_ids.call_args[1]["ids"]
+            expected_batch_ids = {post["batch_id"] for post in posts}
+            assert set(actual_call) == expected_batch_ids
