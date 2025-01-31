@@ -65,9 +65,9 @@ def backfill_posts(payload: dict):
         # This will load and process posts only for the Perspective API and
         # sociopolitical inference integrations.
     """
-    posts_to_backfill: dict[str, set[str]] = {}
+    posts_to_backfill: dict[str, list[dict]] = {}
     if payload.get("add_posts_to_queue"):
-        posts_to_backfill: dict[str, set[str]] = load_posts_to_backfill(
+        posts_to_backfill: dict[str, list[dict]] = load_posts_to_backfill(
             payload.get("integration")
         )
         context = {"total": len(posts_to_backfill)}
@@ -79,13 +79,12 @@ def backfill_posts(payload: dict):
             logger.info("No posts to backfill. Exiting...")
             return
 
-        for integration, post_uris in posts_to_backfill.items():
+        for integration, post_dicts in posts_to_backfill.items():
             logger.info(
-                f"Adding {len(post_uris)} posts for {integration} to backfill queue..."
+                f"Adding {len(post_dicts)} posts for {integration} to backfill queue..."
             )  # noqa
             queue = Queue(queue_name=f"input_{integration}", create_new_queue=True)
-            payloads = [{"uri": uri} for uri in post_uris]
-            queue.batch_add_items_to_queue(items=payloads, metadata=None)
+            queue.batch_add_items_to_queue(items=post_dicts, metadata=None)
         logger.info("Adding posts to queue complete.")
     else:
         logger.info("Skipping adding posts to queue...")

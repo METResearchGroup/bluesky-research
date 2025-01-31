@@ -13,12 +13,12 @@ def mock_posts_to_backfill():
     """Fixture for mock posts to backfill."""
     return {
         "ml_inference_perspective_api": [
-            {"uri": "post1"},
-            {"uri": "post2"}
+            {"uri": "post1", "text": "text1"},
+            {"uri": "post2", "text": "text2"}
         ],
         "ml_inference_sociopolitical": [
-            {"uri": "post3"},
-            {"uri": "post4"}
+            {"uri": "post3", "text": "text3"},
+            {"uri": "post4", "text": "text4"}
         ]
     }
 
@@ -84,7 +84,10 @@ def test_backfill_posts_run_integrations_only(mock_load_posts, mock_queue, mock_
 def test_backfill_posts_with_integration_kwargs(mock_load_posts, mock_queue, mock_route, mock_posts_to_backfill):
     """Test backfilling posts with integration-specific kwargs."""
     mock_load_posts.return_value = {
-        "ml_inference_perspective_api": mock_posts_to_backfill["ml_inference_perspective_api"]
+        "ml_inference_perspective_api": [
+            {"uri": "post1", "text": "text1"},
+            {"uri": "post2", "text": "text2"}
+        ]
     }
     mock_queue_instance = MagicMock()
     mock_queue.return_value = mock_queue_instance
@@ -123,7 +126,10 @@ def test_backfill_posts_with_integration_kwargs(mock_load_posts, mock_queue, moc
 def test_backfill_posts_specific_integration(mock_load_posts, mock_queue, mock_route, mock_posts_to_backfill):
     """Test backfilling posts for specific integration."""
     mock_load_posts.return_value = {
-        "ml_inference_perspective_api": mock_posts_to_backfill["ml_inference_perspective_api"]
+        "ml_inference_perspective_api": [
+            {"uri": "post1", "text": "text1"},
+            {"uri": "post2", "text": "text2"}
+        ]
     }
     mock_queue_instance = MagicMock()
     mock_queue.return_value = mock_queue_instance

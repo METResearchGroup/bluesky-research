@@ -71,7 +71,6 @@ def parse_llm_result(
     return label_models
 
 
-# TODO: check the actual model inference code at some point.
 def process_sociopolitical_batch(posts: list[dict]) -> list[dict]:
     """Takes batch and runs the LLM for it.
 
@@ -140,7 +139,7 @@ def batch_classify_posts(
     for i, batch in enumerate(batches):
         if i % 10 == 0:
             logger.info(f"Processing batch {i}/{total_batches}")
-        responses: list[dict] = process_sociopolitical_batch(post_batch=batch)
+        responses: list[dict] = process_sociopolitical_batch(posts=batch)
         labels: list[dict] = create_labels(posts=batch, responses=responses)
 
         successful_labels: list[dict] = []
@@ -169,7 +168,7 @@ def batch_classify_posts(
             )
             return_failed_labels_to_input_queue(
                 inference_type="sociopolitical",
-                failed_labels=failed_labels,
+                failed_label_models=failed_labels,
                 batch_size=batch_size,
             )
             total_posts_failed_to_label += total_failed_labels

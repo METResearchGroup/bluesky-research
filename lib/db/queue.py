@@ -259,7 +259,6 @@ class Queue:
         batched_chunks: list[tuple[str, str, str, str]] = self._create_batched_chunks(
             chunks=chunks, batch_size=batch_size, metadata=metadata
         )
-
         logger.info(f"Writing {len(batched_chunks)} items to DB...")
 
         with sqlite3.connect(self.db_path) as conn:

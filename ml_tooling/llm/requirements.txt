@@ -28,14 +28,19 @@ certifi==2024.6.2
     #   httpcore
     #   httpx
     #   requests
+    #   sentry-sdk
 charset-normalizer==3.3.2
     # via requests
 click==8.1.8
-    # via litellm
+    # via
+    #   litellm
+    #   opik
 distro==1.9.0
     # via openai
 exceptiongroup==1.2.2
-    # via anyio
+    # via
+    #   anyio
+    #   pytest
 filelock==3.17.0
     # via huggingface-hub
 frozenlist==1.5.0
@@ -48,8 +53,11 @@ h11==0.14.0
     # via httpcore
 httpcore==1.0.7
     # via httpx
-httpx==0.28.1
-    # via openai
+httpx==0.27.2
+    # via
+    #   litellm
+    #   openai
+    #   opik
 huggingface-hub==0.28.0
     # via tokenizers
 idna==3.7
@@ -60,6 +68,8 @@ idna==3.7
     #   yarl
 importlib-metadata==8.6.1
     # via litellm
+iniconfig==2.0.0
+    # via pytest
 jinja2==3.1.5
     # via litellm
 jiter==0.8.2
@@ -68,18 +78,34 @@ jsonschema==4.23.0
     # via litellm
 jsonschema-specifications==2024.10.1
     # via jsonschema
-litellm==1.44.5
-    # via -r requirements.in
+levenshtein==0.26.1
+    # via opik
+litellm==1.59.10
+    # via
+    #   -r requirements.in
+    #   opik
+markdown-it-py==3.0.0
+    # via rich
 markupsafe==3.0.2
     # via jinja2
+mdurl==0.1.2
+    # via markdown-it-py
 multidict==6.1.0
     # via
     #   aiohttp
     #   yarl
 openai==1.60.2
-    # via litellm
+    # via
+    #   litellm
+    #   opik
+opik==1.4.8
+    # via -r requirements.in
 packaging==24.2
-    # via huggingface-hub
+    # via
+    #   huggingface-hub
+    #   pytest
+pluggy==1.5.0
+    # via pytest
 propcache==0.2.1
     # via
     #   aiohttp
@@ -88,12 +114,24 @@ pydantic==2.8.0
     # via
     #   litellm
     #   openai
+    #   opik
+    #   pydantic-settings
 pydantic-core==2.20.0
     # via pydantic
+pydantic-settings==2.7.1
+    # via opik
+pygments==2.19.1
+    # via rich
+pytest==8.3.4
+    # via opik
 python-dotenv==1.0.1
-    # via litellm
+    # via
+    #   litellm
+    #   pydantic-settings
 pyyaml==6.0.2
     # via huggingface-hub
+rapidfuzz==3.12.1
+    # via levenshtein
 referencing==0.36.2
     # via
     #   jsonschema
@@ -103,26 +141,35 @@ regex==2024.11.6
 requests==2.32.3
     # via
     #   huggingface-hub
-    #   litellm
     #   tiktoken
+rich==13.9.4
+    # via opik
 rpds-py==0.22.3
     # via
     #   jsonschema
     #   referencing
+sentry-sdk==2.20.0
+    # via opik
 sniffio==1.3.1
     # via
     #   anyio
+    #   httpx
     #   openai
+tenacity==9.0.0
+    # via opik
 tiktoken==0.7.0
     # via
     #   -r requirements.in
     #   litellm
 tokenizers==0.21.0
     # via litellm
+tomli==2.2.1
+    # via pytest
 tqdm==4.67.1
     # via
     #   huggingface-hub
     #   openai
+    #   opik
 typing-extensions==4.12.2
     # via
     #   anyio
@@ -132,8 +179,13 @@ typing-extensions==4.12.2
     #   pydantic
     #   pydantic-core
     #   referencing
+    #   rich
 urllib3==2.2.2
-    # via requests
+    # via
+    #   requests
+    #   sentry-sdk
+uuid6==2024.7.10
+    # via opik
 yarl==1.18.3
     # via aiohttp
 zipp==3.21.0

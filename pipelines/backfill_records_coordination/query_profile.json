@@ -1,16 +1,16 @@
 {
-    "latency": 0.016225,
+    "latency": 0.013172,
     "cumulative_rows_scanned": 0,
     "cumulative_cardinality": 2,
     "extra_info": {},
-    "cpu_time": 0.00040500000000000003,
+    "cpu_time": 0.000195,
     "blocked_thread_time": 0.0,
     "result_set_size": 16,
     "query_name": "\n                            SELECT \n                                sum(estimated_size)/1024/1024 as size_mb,\n                                count(*) as table_count\n                            FROM duckdb_tables()\n                        ",
     "rows_returned": 1,
     "children": [
         {
-            "operator_timing": 0.000402,
+            "operator_timing": 0.000191,
             "operator_rows_scanned": 0,
             "cumulative_rows_scanned": 0,
             "operator_cardinality": 1,
@@ -24,11 +24,11 @@
                 "Estimated Cardinality": "1"
             },
             "result_set_size": 16,
-            "cpu_time": 0.00040500000000000003,
+            "cpu_time": 0.000195,
             "children": [
                 {
                     "result_set_size": 24,
-                    "cpu_time": 0.000003,
+                    "cpu_time": 0.000004,
                     "extra_info": {
                         "Aggregates": [
                             "sum(#0)",
@@ -54,11 +54,11 @@
                                 "Estimated Cardinality": "1"
                             },
                             "result_set_size": 0,
-                            "cpu_time": 0.000001,
+                            "cpu_time": 0.000002,
                             "children": [
                                 {
                                     "result_set_size": 0,
-                                    "cpu_time": 0.000001,
+                                    "cpu_time": 0.000002,
                                     "extra_info": {
                                         "Projections": "#11",
                                         "Estimated Cardinality": "1"
@@ -71,7 +71,7 @@
                                     "operator_timing": 0.0,
                                     "children": [
                                         {
-                                            "operator_timing": 0.000001,
+                                            "operator_timing": 0.000002,
                                             "operator_rows_scanned": 0,
                                             "cumulative_rows_scanned": 0,
                                             "operator_cardinality": 0,
@@ -82,7 +82,7 @@
                                                 "Estimated Cardinality": "1"
                                             },
                                             "result_set_size": 65536,
-                                            "cpu_time": 0.000001,
+                                            "cpu_time": 0.000002,
                                             "children": []
                                         }
                                     ]

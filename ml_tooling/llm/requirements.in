@@ -1,4 +1,5 @@
 # llama-cpp-python==0.2.79
 # langsmith==0.1.53
-litellm==1.44.5
+litellm==1.59.10
+opik==1.4.8
 tiktoken==0.7.0

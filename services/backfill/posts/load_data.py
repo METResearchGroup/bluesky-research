@@ -43,11 +43,22 @@ def load_service_post_uris(service: str, id_field: str = "uri") -> set[str]:
 
 
 @track_performance
-def load_posts_to_backfill(integrations: list[str]) -> dict[str, set[str]]:
+def load_posts_to_backfill(integrations: list[str]) -> dict[str, dict]:
     """Given an integration, return the URIs of the posts to be backfilled.
 
-    If no integration is provided, return the URIs of all posts to be backfilled,
+    If no integration is provided, return dicts of the posts to be backfilled,
     mapped by the integration to backfill them for.
+
+    For example:
+    {
+        "ml_inference_perspective_api": [
+            {"uri": "123", "text": "..."},
+            {"uri": "456", "text": "..."},
+        ],
+        "ml_inference_sociopolitical": [
+            {"uri": "789", "text": "..."},
+        ],
+    }
     """
     integrations_to_backfill = INTEGRATIONS_LIST if not integrations else integrations
     total_posts: list[dict] = load_preprocessed_posts()

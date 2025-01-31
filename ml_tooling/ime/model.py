@@ -241,7 +241,6 @@ def run_batch_classification(
         batch_size=hyperparameters["batch_size"],
         minibatch_size=hyperparameters["minibatch_size"],
     )
-    breakpoint()
     run_metadata: dict = results["metadata"]
     classification_breakdown: dict = results["classification_breakdown"]
     telemetry_metadata = {
