@@ -110,9 +110,16 @@ def test_error_handling():
     with pytest.raises(duckdb.Error):
         db.run_query_as_df("SELECT * FROM nonexistent_table")
     
-    # Test parquet mode without filepaths
-    with pytest.raises(ValueError):
-        db.run_query_as_df("SELECT * FROM data", mode="parquet")
+    # Test parquet mode without filepaths returns empty dataframe
+    query_metadata = {"tables": [{"columns": ["col1", "col2"]}]}
+    result = db.run_query_as_df(
+        "SELECT * FROM data", 
+        mode="parquet",
+        query_metadata=query_metadata
+    )
+    assert isinstance(result, pd.DataFrame)
+    assert result.empty
+    assert list(result.columns) == ["col1", "col2"]
 
 def test_multiple_parquet_files(tmp_path):
     """Test handling multiple Parquet files."""

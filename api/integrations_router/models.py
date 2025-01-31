@@ -1,6 +1,6 @@
 """Models for the integrations router."""
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 
@@ -11,15 +11,6 @@ class IntegrationRequest(BaseModel):
     service: str
     payload: dict
     metadata: dict
-
-
-class IntegrationResponse(BaseModel):
-    """Class for defining the expected outputs in an integration response."""
-
-    service: str
-    timestamp: str
-    status_code: int
-    body: str
 
 
 class IntegrationPayload(BaseModel):
@@ -35,8 +26,8 @@ class RunExecutionMetadata(BaseModel):
     the run metadata is written to DynamoDB."""
 
     service: str
-    timestamp: str
-    status_code: int
-    body: str
-    metadata_table_name: str
-    metadata: str
+    timestamp: Optional[str]
+    status_code: Optional[int]
+    body: Optional[str]
+    metadata_table_name: Optional[str]
+    metadata: Optional[str]

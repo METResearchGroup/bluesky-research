@@ -3,8 +3,11 @@
 import os
 import time
 
+import litellm
 from litellm import acompletion, batch_completion, completion
+from litellm.integrations.opik.opik import OpikLogger
 from litellm.utils import ModelResponse
+import opik
 import tiktoken
 
 from services.ml_inference.models import LLMSociopoliticalLabelsModel
@@ -15,6 +18,7 @@ from lib.helper import (
     HF_TOKEN,
     OPENAI_API_KEY,
     track_performance,
+    RUN_MODE,
 )
 
 # https://litellm.vercel.app/docs/providers/gemini
@@ -22,6 +26,12 @@ os.environ["GEMINI_API_KEY"] = GOOGLE_AI_STUDIO_KEY
 os.environ["HUGGINGFACE_API_KEY"] = HF_TOKEN
 os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+os.environ["OPIK_PROJECT_NAME"] = "ml_inference_llm"
+
+if not RUN_MODE == "test":
+    opik_logger = OpikLogger()
+    opik.configure(use_local=False)
+    litellm.callbacks = [opik_logger]
 
 encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
 
@@ -144,8 +154,8 @@ def run_query(
 @track_performance
 def run_batch_queries(
     prompts: list[str],
+    model_name: str,
     role: str = "user",
-    model_name: str = "Gemini",
     num_retries: int = 2,
 ) -> list[str]:
     model_dict = BACKEND_OPTIONS[model_name]

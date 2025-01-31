@@ -4,12 +4,12 @@ import traceback
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.ml_inference.helper import dynamodb_table_name
-from services.ml_inference.ime.inference import classify_latest_posts
+from services.ml_inference.ime.ime import classify_latest_posts
 
 logger = get_logger(__name__)
 
 
-def lambda_handler(event, context):
+def lambda_handler(event, context) -> dict:
     try:
         if not event:
             event = {
@@ -25,12 +25,13 @@ def lambda_handler(event, context):
             backfill_period=backfill_period,
             backfill_duration=backfill_duration,
             run_classification=True,
+            event=event,
         )
         logger.info("Completed classification of latest posts.")
         session_status_metadata = {
-            "service": "ml_inference_perspective_api",
+            "service": "ml_inference_ime",
             "timestamp": session_metadata["inference_timestamp"],
-            "statusCode": 200,
+            "status_code": 200,
             "body": json.dumps("Classification of latest posts completed successfully"),
             "metadata_table_name": dynamodb_table_name,
             "metadata": json.dumps(session_metadata),
@@ -42,7 +43,7 @@ def lambda_handler(event, context):
         logger.error(
             json.dumps(
                 {
-                    "statusCode": 500,
+                    "status_code": 500,
                     "body": json.dumps(
                         f"Error in classification of latest posts: {str(e)}"
                     ),
@@ -50,9 +51,9 @@ def lambda_handler(event, context):
             )
         )
         session_status_metadata = {
-            "service": "ml_inference_perspective_api",
+            "service": "ml_inference_ime",
             "timestamp": generate_current_datetime_str(),
-            "statusCode": 500,
+            "status_code": 500,
             "body": json.dumps(f"Error in classification of latest posts: {str(e)}"),
             "metadata_table_name": dynamodb_table_name,
             "metadata": json.dumps(traceback.format_exc()),

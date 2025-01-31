@@ -15,7 +15,7 @@ from lib.db.sql.ml_inference_database import (
     batch_insert_sociopolitical_labels, get_existing_perspective_api_uris,
     get_existing_sociopolitical_uris)
 from lib.helper import track_performance
-from ml_tooling.llm.model import \
+from ml_tooling.llm.local_model import \
     run_batch_classification as sociopolitical_run_batch_classification
 from ml_tooling.perspective_api.model import \
     run_batch_classification as perspective_run_batch_classification

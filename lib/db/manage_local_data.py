@@ -336,12 +336,12 @@ def export_data_to_local_storage(
         elif service == "preprocessed_posts":
             source = custom_args["source"]
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
-        elif service == "ml_inference_perspective_api":
-            source = custom_args["source"]
-            local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
-        elif service == "ml_inference_sociopolitical":
-            source = custom_args["source"]
-            local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
+        # elif service == "ml_inference_perspective_api":
+        #     source = custom_args["source"]
+        #     local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
+        # elif service == "ml_inference_sociopolitical":
+        #     source = custom_args["source"]
+        #     local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
         else:
             # generic processing
             local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
@@ -381,8 +381,9 @@ def export_data_to_local_storage(
             # partition on the date field, and Parquet will include the partition
             # field name in the file path.
             chunk_df.to_parquet(folder_path, index=False, partition_cols=partition_cols)
+        export_path = folder_path if export_format == "parquet" else local_export_fp
         logger.info(
-            f"Successfully exported {service} data from S3 to local store ({local_export_fp}) as {export_format}"
+            f"Successfully exported {service} data ({export_path}) as {export_format}"
         )  # noqa
 
 

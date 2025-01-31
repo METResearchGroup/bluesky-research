@@ -29,10 +29,23 @@ BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_PASSWORD")
 DEV_BLUESKY_HANDLE = os.getenv("DEV_BLUESKY_HANDLE")
 DEV_BLUESKY_PASSWORD = os.getenv("DEV_BLUESKY_PASSWORD")
-RUN_MODE = os.getenv("RUN_MODE")
-BSKY_DATA_DIR = os.getenv("BSKY_DATA_DIR")
+RUN_MODE = os.getenv("RUN_MODE", "test")  # local (local dev), test (CI), or prod
 
-if not BLUESKY_HANDLE or not BLUESKY_APP_PASSWORD:
+if RUN_MODE == "test":
+    print("Running in test mode...")
+    BLUESKY_HANDLE = "test"
+    BLUESKY_APP_PASSWORD = "test"
+    DEV_BLUESKY_HANDLE = "test"
+    DEV_BLUESKY_PASSWORD = "test"
+    BSKY_DATA_DIR = "~/tmp/"
+    if not os.path.exists(BSKY_DATA_DIR):
+        os.makedirs(BSKY_DATA_DIR)
+    print(f"BSKY_DATA_DIR: {BSKY_DATA_DIR}")
+else:
+    BSKY_DATA_DIR = os.getenv("BSKY_DATA_DIR")
+
+
+if (not BLUESKY_HANDLE or not BLUESKY_APP_PASSWORD) and RUN_MODE == "prod":
     print("Fetching secrets from AWS Secrets Manager instead of the env...")
     bsky_credentials = json.loads(get_secret("bluesky_account_credentials"))
     BLUESKY_HANDLE = bsky_credentials["bluesky_handle"]
@@ -42,7 +55,7 @@ else:
 
 if not RUN_MODE:
     raise ValueError("RUN_MODE must be set to either 'local' or 'prod'")
-if not BSKY_DATA_DIR:
+if not BSKY_DATA_DIR and RUN_MODE == "prod":
     raise ValueError(
         "BSKY_DATA_DIR must be set to the path to the Bluesky data directory"
     )
@@ -148,12 +161,14 @@ def track_performance(func):
         execution_time_leftover_seconds = execution_time_seconds - (
             60 * execution_time_minutes
         )
+        try:
+            func_name = func.__name__
+        except AttributeError:
+            func_name = func.__class__.__name__
         print(
-            f"Execution time for {func.__name__}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds"
+            f"Execution time for {func_name}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds"
         )  # noqa
-        print(
-            f"Memory usage for {func.__name__}: {max(mem_after) - min(mem_before)} MB"
-        )  # noqa
+        print(f"Memory usage for {func_name}: {max(mem_after) - min(mem_before)} MB")  # noqa
         return result
 
     return wrapper

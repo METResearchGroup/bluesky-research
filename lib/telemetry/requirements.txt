@@ -4,13 +4,116 @@
 #
 #    pip-compile requirements.in
 #
+attrs==25.1.0
+    # via
+    #   jsonschema
+    #   referencing
+certifi==2024.12.14
+    # via
+    #   requests
+    #   sentry-sdk
+charset-normalizer==3.4.1
+    # via requests
+click==8.1.8
+    # via wandb
+comet-ml==3.47.1
+    # via -r requirements.in
+configobj==5.0.9
+    # via everett
 deprecated==1.2.15
     # via opentelemetry-api
+docker-pycreds==0.4.0
+    # via wandb
+dulwich==0.22.7
+    # via comet-ml
+everett[ini]==3.1.0
+    # via
+    #   comet-ml
+    #   everett
+gitdb==4.0.12
+    # via gitpython
+gitpython==3.1.44
+    # via wandb
+idna==3.10
+    # via requests
 importlib-metadata==8.5.0
     # via opentelemetry-api
+jsonschema==4.23.0
+    # via comet-ml
+jsonschema-specifications==2024.10.1
+    # via jsonschema
+markdown-it-py==3.0.0
+    # via rich
+mdurl==0.1.2
+    # via markdown-it-py
 opentelemetry-api==1.29.0
     # via -r requirements.in
+platformdirs==4.3.6
+    # via wandb
+protobuf==5.29.3
+    # via wandb
+psutil==6.1.1
+    # via
+    #   comet-ml
+    #   wandb
+pygments==2.19.1
+    # via rich
+python-box==6.1.0
+    # via comet-ml
+pyyaml==6.0.2
+    # via wandb
+referencing==0.36.2
+    # via
+    #   jsonschema
+    #   jsonschema-specifications
+requests==2.32.3
+    # via
+    #   comet-ml
+    #   requests-toolbelt
+    #   wandb
+requests-toolbelt==1.0.0
+    # via comet-ml
+rich==13.9.4
+    # via comet-ml
+rpds-py==0.22.3
+    # via
+    #   jsonschema
+    #   referencing
+semantic-version==2.10.0
+    # via comet-ml
+sentry-sdk==2.20.0
+    # via
+    #   comet-ml
+    #   wandb
+setproctitle==1.3.4
+    # via wandb
+simplejson==3.19.3
+    # via comet-ml
+six==1.17.0
+    # via docker-pycreds
+smmap==5.0.2
+    # via gitdb
+typing-extensions==4.12.2
+    # via
+    #   referencing
+    #   rich
+    #   wandb
+urllib3==2.3.0
+    # via
+    #   comet-ml
+    #   dulwich
+    #   requests
+    #   sentry-sdk
+wandb==0.18.5
+    # via -r requirements.in
 wrapt==1.17.2
-    # via deprecated
+    # via
+    #   comet-ml
+    #   deprecated
+wurlitzer==3.1.1
+    # via comet-ml
 zipp==3.21.0
     # via importlib-metadata
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools

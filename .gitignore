@@ -172,7 +172,7 @@ cython_debug/
 *.hcl
 *.tfstate
 *.tfstate.backup
-*cache*
+*/cache/*
 *.backup
 
 # secrets
@@ -192,3 +192,13 @@ cython_debug/
 # data (can be force-pushed if necessary)
 *.csv
 *.jsonl
+
+# data streams
+*services/sync/stream/cache/*
+
+# wandb
+pipelines/backfill_records_coordination/wandb/*
+wandb/
+*/wandb/*
+*.query_profile.json
+*.query_profile.json.gz

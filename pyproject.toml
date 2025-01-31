@@ -19,30 +19,69 @@ max-complexity = 10
 members = ["pipelines/get_existing_user_social_network"]
 
 [tool.pytest.ini_options]
-# Directories to ignore
+# Add custom markers
+markers = [
+    "integration: marks tests as integration tests",
+    "slow: marks tests as slow running",
+]
+
+# Set environment variables for all tests
+env = [
+    "ENVIRONMENT=test",
+    "RUN_MODE=test",
+    "AWS_DEFAULT_REGION=us-east-1",
+    "AWS_ACCESS_KEY_ID=testing",
+    "AWS_SECRET_ACCESS_KEY=testing",
+    "AWS_SECURITY_TOKEN=testing",
+    "AWS_SESSION_TOKEN=testing",
+    "GOOGLE_API_KEY=testing",
+    "NYTIMES_KEY=testing",
+    "HF_TOKEN=testing",
+    "OPENAI_API_KEY=testing",
+    "GOOGLE_AI_STUDIO_KEY=testing",
+    "NEWSAPI_API_KEY=testing",
+    "GROQ_API_KEY=testing",
+    "MONGODB_URI=testing",
+    "LANGTRACE_API_KEY=testing",
+    "COMET_API_KEY=testing",
+]
+
+# Configure test collection
+testpaths = [
+    "api/integrations_router/tests",
+    "lib/db/tests", 
+    "lib/db/sql/tests",
+    "lib/telemetry/tests",
+    "ml_tooling/ime/tests",
+    "ml_tooling/llm/tests",
+    "ml_tooling/perspective_api/tests",
+    "services/backfill/posts/tests",
+    "services/ml_inference/tests",
+    "services/ml_inference/ime/tests",
+    "services/ml_inference/perspective_api/tests",
+    "services/ml_inference/sociopolitical/tests",
+    "pipelines/backfill_records_coordination/tests",
+]
+
+# Ignore certain directories
 norecursedirs = [
-    "experiments",
-    "feed_api",  # ignoring the feed_api tests
+    "experiments*",
     "*.egg",
-    ".*",
     "build",
     "dist"
 ]
 
-# Test file patterns to look for
-python_files = ["test_*.py", "*_test.py"]
-
-# Additional test paths to include
-testpaths = [
-    "tests",
-    "integration_tests",
-    # Add other test directories here
+# Add command line default options
+addopts = [
+    "--verbose",
+    "--no-header",
+    "--ignore=experiments",
+    "--tb=short",
+    "--strict-markers",
 ]
 
-# Add any other pytest flags you want to always use
-addopts = "-v --no-header"
-
-# Ignore specific test files or directories
-ignore = [
-    "services/preprocess_raw_data/classify_language/tests/test_language_filter.py",
+# Configure pytest plugins
+required_plugins = [
+    "pytest-env",
+    "pytest-mock"
 ]
