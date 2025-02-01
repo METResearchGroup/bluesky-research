@@ -1,6 +1,7 @@
 """Model for the classify_perspective_api service."""
 
 import asyncio
+import gc
 from datetime import datetime, timezone
 import json
 from typing import Optional
@@ -320,7 +321,8 @@ async def batch_classify_posts(
     total_posts_successfully_labeled = 0
     total_posts_failed_to_label = 0
     for i, post_request_batch in enumerate(batches):
-        logger.info(f"Processing batch {i}/{total_batches}")
+        if i % 50 == 0:
+            logger.info(f"Processing batch {i}/{total_batches}")
         post_batch, request_batch = zip(*post_request_batch)
         responses: list[dict] = await process_perspective_batch(request_batch)
         await asyncio.sleep(
@@ -368,6 +370,11 @@ async def batch_classify_posts(
             total_posts_successfully_labeled += total_successful_labels
         del successful_labels
         del failed_labels
+        del post_batch
+        del request_batch
+        del responses
+        del labels
+        gc.collect()
     return {
         "total_batches": total_batches,
         "total_posts_successfully_labeled": total_posts_successfully_labeled,

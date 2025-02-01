@@ -30,7 +30,8 @@ existing_sqlite_dbs = [
     file for file in os.listdir(root_db_path) if file.endswith(".db")
 ]
 
-DEFAULT_BATCH_SIZE = 1000
+DEFAULT_BATCH_CHUNK_SIZE = 1000
+DEFAULT_BATCH_WRITE_SIZE = 25
 
 
 class QueueItem(BaseModel):
@@ -247,7 +248,8 @@ class Queue:
         self,
         items: list[dict],
         metadata: Optional[dict] = None,
-        batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
+        batch_size: Optional[int] = DEFAULT_BATCH_CHUNK_SIZE,
+        batch_write_size: Optional[int] = DEFAULT_BATCH_WRITE_SIZE,
     ) -> None:
         """Add multiple items to queue, processing in chunks for memory
         efficiency."""
@@ -256,19 +258,45 @@ class Queue:
         chunks: list[list[dict]] = [
             items[i : i + batch_size] for i in range(0, len(items), batch_size)
         ]
-        batched_chunks: list[tuple[str, str, str, str]] = self._create_batched_chunks(
+        minibatch_chunks: list[tuple[str, str, str, str]] = self._create_batched_chunks(
             chunks=chunks, batch_size=batch_size, metadata=metadata
         )
-        logger.info(f"Writing {len(batched_chunks)} items to DB...")
 
-        with sqlite3.connect(self.db_path) as conn:
-            conn.executemany(
-                f"""
-                INSERT INTO {self.queue_table_name} (payload, metadata, created_at, status)
-                VALUES (?, ?, ?, ?)
-                """,
-                batched_chunks,
-            )
+        # TODO: add this to the docstring if it works.
+        # split minibatch chunks into further batches, and these batches will
+        # be written to the DB one batch at a time.
+        # e.g., with batch_size = 1000, batch_write_size = 25, then if we have
+        # 50,000 items, it will be split into 50 minibatches of 1,000 items each,
+        # and then it will be split into 2 batches of 25 minibatches each.
+
+        batch_chunks: list[list[tuple[str, str, str, str]]] = [
+            minibatch_chunks[i : i + batch_write_size]
+            for i in range(0, len(minibatch_chunks), batch_write_size)
+        ]
+
+        total_items = len(items)
+        total_batches = len(batch_chunks)
+        total_minibatches = len(minibatch_chunks)
+
+        logger.info(
+            f"Writing {total_items} items as {total_minibatches} minibatches to DB."
+        )
+        logger.info(
+            f"Writing {total_minibatches} minibatches to DB as {total_batches} batches..."
+        )
+
+        for i, batch_chunk in enumerate(batch_chunks):
+            if i % 10 == 0:
+                logger.info(f"Processing batch {i + 1}/{total_batches}...")
+            with sqlite3.connect(self.db_path) as conn:
+                conn.executemany(
+                    f"""
+                    INSERT INTO {self.queue_table_name} (payload, metadata, created_at, status)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    batch_chunk,
+                )
+            conn.commit()
 
     def remove_item_from_queue(self) -> Optional[QueueItem]:
         """Remove and return the next available item from the queue.
