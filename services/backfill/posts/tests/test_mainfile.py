@@ -46,8 +46,8 @@ def test_backfill_posts_add_to_queue_only(mock_load_posts, mock_queue, mock_rout
 
     backfill_posts(payload)
 
-    # Verify load_posts_to_backfill was called
-    mock_load_posts.assert_called_once_with(None)
+    # Verify load_posts_to_backfill was called with default None dates
+    mock_load_posts.assert_called_once_with(None, start_date=None, end_date=None)
 
     # Verify Queue creation and batch_add for each integration
     assert mock_queue.call_count == 2
@@ -188,3 +188,29 @@ def test_backfill_posts_no_posts_found(mock_load_posts, mock_queue, mock_route):
 
     # Verify route_and_run_integration_request was not called
     assert mock_route.call_count == 0
+
+
+@patch("services.backfill.posts.main.route_and_run_integration_request")
+@patch("services.backfill.posts.main.Queue")
+@patch("services.backfill.posts.main.load_posts_to_backfill")
+def test_backfill_posts_with_date_range(mock_load_posts, mock_queue, mock_route, mock_posts_to_backfill):
+    """Test backfilling posts with date range filters."""
+    mock_load_posts.return_value = mock_posts_to_backfill
+    mock_queue_instance = MagicMock()
+    mock_queue.return_value = mock_queue_instance
+
+    payload = {
+        "add_posts_to_queue": True,
+        "run_integrations": True,
+        "start_date": "2024-01-01",
+        "end_date": "2024-01-31"
+    }
+
+    backfill_posts(payload)
+
+    # Verify load_posts_to_backfill was called with date range
+    mock_load_posts.assert_called_once_with(
+        None,
+        start_date="2024-01-01",
+        end_date="2024-01-31"
+    )

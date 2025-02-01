@@ -415,6 +415,8 @@ def list_filenames(
     directories: list[Literal["cache", "active"]] = ["active"],
     validate_pq_files: bool = False,
     partition_date: Optional[str] = None,
+    start_partition_date: Optional[str] = None,
+    end_partition_date: Optional[str] = None,
 ) -> list[str]:
     """List files in local storage for a given service."""
     local_prefixes = get_local_prefixes_for_service(service)
@@ -429,11 +431,32 @@ def list_filenames(
                 for root, _, files in os.walk(fp):
                     for file in files:
                         res.append(os.path.join(root, file))
-    if partition_date:
+    # use specific partition date only if the start/end dates aren't provided
+    # (they shouldn't be ever jointly provided anyways, since start/end date
+    # ranges should only be during backfill operations).
+    if partition_date and (start_partition_date or end_partition_date):
+        raise ValueError(
+            "Cannot use partition_date and start_partition_date or end_partition_date together."
+        )
+    if partition_date and not (start_partition_date and end_partition_date):
         print(
             f"Filtering {len(res)} files in service={service}, for partition_date={partition_date}"
         )
         res = [fp for fp in res if f"partition_date={partition_date}" in fp]
+    if start_partition_date and end_partition_date:
+        print(
+            f"Filtering {len(res)} files in service={service}, for start_partition_date={start_partition_date} and end_partition_date={end_partition_date}"
+        )
+        res = [
+            fp
+            for fp in res
+            if start_partition_date
+            <= fp.split("/")[-2].split("=")[
+                1
+            ]  # e.g., "partition_date=2024-09-26/5ca31e0389584c7aa8cf98be9bd0da68-0.parquet"
+            <= end_partition_date
+        ]
+
     return res
 
 
@@ -522,6 +545,8 @@ def load_data_from_local_storage(
     directory: Literal["cache", "active"] = "active",
     export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
     partition_date: Optional[str] = None,
+    start_partition_date: Optional[str] = None,
+    end_partition_date: Optional[str] = None,
     duckdb_query: Optional[str] = None,
     query_metadata: Optional[dict] = None,
     latest_timestamp: Optional[str] = None,
@@ -538,6 +563,8 @@ def load_data_from_local_storage(
         directories=directories,
         validate_pq_files=validate_pq_files,
         partition_date=partition_date,
+        start_partition_date=start_partition_date,
+        end_partition_date=end_partition_date,
     )
     if export_format == "jsonl":
         df = pd.read_json(filepaths, orient="records", lines=True)

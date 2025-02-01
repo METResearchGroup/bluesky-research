@@ -116,3 +116,36 @@ def test_load_posts_to_backfill_multiple_integrations(mock_load_uris, mock_load_
     
     assert len(result["ml_inference_ime"]) == 5
     assert all(post["uri"] in {"post1", "post2", "post3", "post4", "post5"} for post in result["ml_inference_ime"])
+
+
+@patch("services.backfill.posts.load_data.load_preprocessed_posts")
+@patch("services.backfill.posts.load_data.load_service_post_uris")
+def test_load_posts_to_backfill_with_date_range(mock_load_uris, mock_load_posts, mock_preprocessed_posts, mock_post_uris):
+    """Test loading posts to backfill with date range filters."""
+    mock_load_posts.return_value = mock_preprocessed_posts
+    
+    def mock_load_service_post_uris(service, start_date=None, end_date=None):
+        return mock_post_uris[service]
+    
+    mock_load_uris.side_effect = mock_load_service_post_uris
+    
+    # Test with date range
+    result = load_posts_to_backfill(
+        ["ml_inference_perspective_api"],
+        start_date="2024-01-01",
+        end_date="2024-01-31"
+    )
+    
+    # Verify the date range was passed through
+    mock_load_posts.assert_called_once_with(
+        start_date="2024-01-01",
+        end_date="2024-01-31"
+    )
+    mock_load_uris.assert_called_once_with(
+        service="ml_inference_perspective_api",
+        start_date="2024-01-01",
+        end_date="2024-01-31"
+    )
+    
+    assert isinstance(result, dict)
+    assert "ml_inference_perspective_api" in result

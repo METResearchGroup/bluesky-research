@@ -95,6 +95,18 @@ DEFAULT_INTEGRATION_KWARGS = {
     default=None,
     help="Write cache buffer for specified service to database. Use 'all' to write all services.",
 )
+@click.option(
+    "--start-date",
+    type=str,
+    default=None,
+    help="Start date for backfill (YYYY-MM-DD format, inclusive). If provided with end-date, only processes records within date range.",
+)
+@click.option(
+    "--end-date",
+    type=str,
+    default=None,
+    help="End date for backfill (YYYY-MM-DD format, inclusive). If provided with start-date, only processes records within date range.",
+)
 def backfill_records(
     record_type: str,
     add_to_queue: bool,
@@ -104,6 +116,8 @@ def backfill_records(
     backfill_duration: int | None,
     run_classification: bool,
     write_cache: str | None,
+    start_date: str | None,
+    end_date: str | None,
 ):
     """CLI app for triggering backfill of records and optionally writing cache buffers.
 
@@ -125,6 +139,9 @@ def backfill_records(
 
         # Write cache buffer for specific service
         $ python -m pipelines.backfill_records_coordination.app -r posts --write-cache ml_inference_perspective_api
+
+        # Backfill posts within a date range
+        $ python -m pipelines.backfill_records_coordination.app -r posts --start-date 2024-01-01 --end-date 2024-01-31
     """
     # Convert integrations from abbreviations if needed
     resolved_integrations = (
@@ -137,6 +154,8 @@ def backfill_records(
         "add_posts_to_queue": add_to_queue,
         "run_integrations": run_integrations,
         "integration_kwargs": {},
+        "start_date": start_date,
+        "end_date": end_date,
     }
 
     # Add integration kwargs based on CLI args or defaults

@@ -49,7 +49,9 @@ class TestBackfillCoordinationCliApp(TestCase):
                             "backfill_duration": None,
                             "run_classification": True
                         }
-                    }
+                    },
+                    "start_date": None,
+                    "end_date": None
                 }
             },
             None
@@ -273,3 +275,55 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("Invalid value for '--backfill-period'", result.output)
+
+    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
+    def test_backfill_with_date_range(self, mock_handler):
+        """Test backfill with date range parameters."""
+        mock_handler.return_value = {"statusCode": 200}
+        
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                '--record-type', 'posts',
+                '--start-date', '2024-01-01',
+                '--end-date', '2024-01-31',
+                '--add-to-queue',
+                '--run-integrations'
+            ]
+        )
+        
+        self.assertEqual(result.exit_code, 0)
+        mock_handler.assert_called_once_with(
+            {
+                "payload": {
+                    "record_type": "posts",
+                    "add_posts_to_queue": True,
+                    "run_integrations": True,
+                    "integration_kwargs": {
+                        "ml_inference_perspective_api": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        }
+                    },
+                    "start_date": "2024-01-01",
+                    "end_date": "2024-01-31"
+                }
+            },
+            None
+        )
+
+    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
+    def test_backfill_with_invalid_date_format(self, mock_handler):
+        """Test error handling for invalid date format."""
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                '--record-type', 'posts',
+                '--start-date', 'invalid-date',
+                '--end-date', '2024-01-31'
+            ]
+        )
+        
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Invalid value for '--start-date'", result.output)

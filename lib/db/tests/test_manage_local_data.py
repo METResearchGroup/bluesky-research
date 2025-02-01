@@ -2,11 +2,16 @@
 import os
 from tempfile import TemporaryDirectory
 
+import pandas as pd
 import pytest
 from unittest.mock import Mock, patch
 
 from lib.aws.s3 import S3
-from lib.db.manage_local_data import find_files_after_timestamp
+from lib.db.manage_local_data import (
+    find_files_after_timestamp,
+    list_filenames,
+    load_data_from_local_storage,
+)
 
 
 @pytest.mark.parametrize("timestamp_str,expected", [
@@ -56,3 +61,106 @@ def test_find_files_after_timestamp(setup_directory_structure):
     target_timestamp = "year=2024/month=07/day=05/hour=20/minute=58"
     files_found = find_files_after_timestamp(base_path, target_timestamp)
     assert len(files_found) == 4
+
+
+@pytest.fixture
+def mock_parquet_files():
+    """Create a mock list of parquet files with different partition dates."""
+    return [
+        "/data/service/active/partition_date=2024-03-01/file1.parquet",
+        "/data/service/active/partition_date=2024-03-02/file2.parquet",
+        "/data/service/active/partition_date=2024-03-03/file3.parquet",
+        "/data/service/active/partition_date=2024-03-04/file4.parquet",
+        "/data/service/cache/partition_date=2024-02-28/file5.parquet",
+    ]
+
+@pytest.mark.parametrize("test_params", [
+    {
+        "partition_date": "2024-03-02",
+        "start_date": None,
+        "end_date": None,
+        "expected_count": 1,
+        "directories": ["active"],
+    },
+    {
+        "partition_date": None,
+        "start_date": "2024-03-02",
+        "end_date": "2024-03-03",
+        "expected_count": 2,
+        "directories": ["active"],
+    },
+    {
+        "partition_date": None,
+        "start_date": "2024-02-28",
+        "end_date": "2024-03-04",
+        "expected_count": 5,
+        "directories": ["active", "cache"],
+    },
+])
+def test_list_filenames_with_date_filters(mock_parquet_files, test_params):
+    """Test list_filenames with various date filtering scenarios."""
+    with patch('os.walk') as mock_walk:
+        # Setup mock to return our test files
+        mock_walk.return_value = [("/data/service/active", [], mock_parquet_files)]
+        
+        result = list_filenames(
+            service="test_service",
+            directories=test_params["directories"],
+            partition_date=test_params["partition_date"],
+            start_partition_date=test_params["start_date"],
+            end_partition_date=test_params["end_date"],
+        )
+        
+        assert len(result) == test_params["expected_count"]
+
+def test_list_filenames_invalid_date_params():
+    """Test list_filenames raises error when both partition_date and date range are provided."""
+    with pytest.raises(ValueError) as exc_info:
+        list_filenames(
+            service="test_service",
+            partition_date="2024-03-01",
+            start_partition_date="2024-03-01",
+            end_partition_date="2024-03-02",
+        )
+    assert "Cannot use partition_date and start_partition_date or end_partition_date together" in str(exc_info.value)
+
+@pytest.mark.parametrize("test_params", [
+    {
+        "partition_date": "2024-03-02",
+        "start_date": None,
+        "end_date": None,
+        "latest_timestamp": None,
+        "expected_files": 1,
+    },
+    {
+        "partition_date": None,
+        "start_date": "2024-03-01",
+        "end_date": "2024-03-03",
+        "latest_timestamp": "2024-03-02T00:00:00",
+        "expected_files": 2,
+    },
+])
+def test_load_data_from_local_storage_with_date_filters(mock_parquet_files, test_params):
+    """Test load_data_from_local_storage with various date filtering scenarios."""
+    mock_df = pd.DataFrame({
+        'timestamp': ['2024-03-02T12:00:00', '2024-03-03T12:00:00'],
+        'value': [1, 2]
+    })
+    
+    with patch('pandas.read_parquet') as mock_read_parquet, \
+         patch('lib.db.manage_local_data.list_filenames') as mock_list_filenames:
+        
+        mock_read_parquet.return_value = mock_df
+        mock_list_filenames.return_value = mock_parquet_files[:test_params["expected_files"]]
+        
+        result_df = load_data_from_local_storage(
+            service="test_service",
+            partition_date=test_params["partition_date"],
+            start_partition_date=test_params["start_date"],
+            end_partition_date=test_params["end_date"],
+            latest_timestamp=test_params["latest_timestamp"],
+        )
+        
+        assert len(result_df) > 0
+        if test_params["latest_timestamp"]:
+            assert all(pd.to_datetime(result_df['timestamp']) >= pd.to_datetime(test_params["latest_timestamp"]))
