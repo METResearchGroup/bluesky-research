@@ -562,4 +562,23 @@ MAP_SERVICE_TO_METADATA = {
             "partition_date": "string",
         },
     },
+    "generated_feeds": {
+        "local_prefix": os.path.join(root_local_data_directory, "generated_feeds"),
+        "s3_prefix": "generated_feeds",
+        "glue_table_name": "generated_feeds",
+        "primary_key": "feed_id",
+        "timestamp_field": "feed_generation_timestamp",
+        "skip_deduping": True,
+        "pydantic_model": "",
+        "dtypes_map": {
+            "feed_id": "string",
+            "user": "string",
+            "bluesky_handle": "string",
+            "bluesky_user_did": "string",
+            "condition": "string",
+            "feed_statistics": "string",
+            "feed": "string",
+            "feed_generation_timestamp": "string",
+        },
+    },
 }
