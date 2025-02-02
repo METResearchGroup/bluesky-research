@@ -581,4 +581,20 @@ MAP_SERVICE_TO_METADATA = {
             "feed_generation_timestamp": "string",
         },
     },
+    "fetch_posts_used_in_feeds": {
+        "local_prefix": os.path.join(
+            root_local_data_directory, "fetch_posts_used_in_feeds"
+        ),
+        "s3_prefix": "fetch_posts_used_in_feeds",
+        "glue_table_name": "fetch_posts_used_in_feeds",
+        "primary_key": "uri",
+        "timestamp_field": "partition_date",
+        "timestamp_format": "%Y-%m-%d",  # the data will already be assigned partition dates, in %Y-%m-%d format
+        "skip_deduping": True,
+        "pydantic_model": "",
+        "dtypes_map": {
+            "uri": "string",
+            "partition_date": "string",
+        },
+    },
 }

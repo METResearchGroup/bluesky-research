@@ -1,12 +1,5 @@
 import os
 
-root_feeds_path = os.path.join(
-    "/Users",
-    "mark",
-    "Documents",
-    "work",
-    "bluesky-research",
-    "scripts",
-    "analytics",
-    "feeds",
-)
+from lib.constants import project_home_directory
+
+root_feeds_path = os.path.join(project_home_directory, "scripts", "analytics", "feeds")
