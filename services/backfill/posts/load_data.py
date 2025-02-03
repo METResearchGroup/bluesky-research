@@ -35,8 +35,15 @@ def load_preprocessed_posts(
     sort_filter = (
         f"ORDER BY partition_date {sort_direction}" if sorted_by_partition_date else ""
     )
+
+    table_columns = ["uri", "text"]
+    if sorted_by_partition_date:
+        table_columns.append("partition_date")
+    table_columns_str = ", ".join(table_columns)
+
     query = f"""
-        SELECT uri, text FROM preprocessed_posts
+        SELECT {table_columns_str}
+        FROM preprocessed_posts
         WHERE text IS NOT NULL
         AND text != ''
         {sort_filter}
@@ -48,7 +55,7 @@ def load_preprocessed_posts(
         export_format="duckdb",
         duckdb_query=query,
         query_metadata={
-            "tables": [{"name": "preprocessed_posts", "columns": ["uri", "text"]}]
+            "tables": [{"name": "preprocessed_posts", "columns": table_columns}]
         },
         start_partition_date=start_date,
         end_partition_date=end_date,
@@ -60,13 +67,19 @@ def load_preprocessed_posts(
         export_format="duckdb",
         duckdb_query=query,
         query_metadata={
-            "tables": [{"name": "preprocessed_posts", "columns": ["uri", "text"]}]
+            "tables": [{"name": "preprocessed_posts", "columns": table_columns}]
         },
         start_partition_date=start_date,
         end_partition_date=end_date,
     )
     logger.info(f"Loaded {len(active_df)} posts from active")
     df = pd.concat([cached_df, active_df])
+    print(f"Columns in cached_df: {cached_df.columns}")
+    print(f"Columns in active_df: {active_df.columns}")
+    print(f"Columns in df: {df.columns}")
+    print(f"Index names in cached_df: {cached_df.index.names}")
+    print(f"Index names in active_df: {active_df.index.names}")
+    print(f"Index names in df: {df.index.names}")
     logger.info(f"Loaded {len(df)} posts from cache and active")
     return df.to_dict(orient="records")
 

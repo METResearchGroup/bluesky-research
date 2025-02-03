@@ -610,6 +610,10 @@ def load_data_from_local_storage(
                 "Must provide a DuckDB query and query metadata when exporting to DuckDB."
             )
 
+        duckdb_query_cols = []
+        for table in query_metadata["tables"]:
+            duckdb_query_cols.extend(table["columns"])
+
         df: pd.DataFrame = duckDB.run_query_as_df(
             query=duckdb_query,
             mode="parquet",
@@ -623,9 +627,15 @@ def load_data_from_local_storage(
         df = df[df[timestamp_field] >= latest_timestamp]
     # drop extra columns that are added in during compaction steps.
     # (these will be added back in during compaction anyways)
-    for col in ["row_num", "partition_date", "startTimestamp"]:
-        if col in df.columns:
-            df = df.drop(columns=[col])
+    cols_to_drop = ["row_num", "partition_date", "startTimestamp"]
+    for col in cols_to_drop:
+        # don't drop the column if we explicitly query for it.
+        if export_format == "duckdb":
+            if col in df.columns and col not in duckdb_query_cols:
+                df = df.drop(columns=[col])
+        else:
+            if col in df.columns:
+                df = df.drop(columns=[col])
     return df
 
 
