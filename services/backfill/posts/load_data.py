@@ -102,7 +102,7 @@ def load_posts_to_backfill(
     integrations: list[str],
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-) -> dict[str, dict]:
+) -> dict[str, list[dict]]:
     """Given an integration, return the URIs of the posts to be backfilled.
 
     Args:
