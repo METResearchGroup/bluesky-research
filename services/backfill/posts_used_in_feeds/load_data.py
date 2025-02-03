@@ -4,6 +4,7 @@ from datetime import timedelta
 
 import pandas as pd
 
+from lib.constants import partition_date_format
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.helper import track_performance
 from lib.log.logger import get_logger
@@ -26,18 +27,15 @@ def calculate_start_end_date_for_lookback(partition_date: str) -> tuple[str, str
     we want to load posts from. The earliest that it can be is the
     min_lookback_date, and the latest that it can be is the partition date.
     """
-    start_date = max(
-        min_lookback_date, partition_date - timedelta(days=num_days_lookback)
-    )
+    partition_dt = pd.to_datetime(partition_date)
+    lookback_dt = partition_dt - timedelta(days=num_days_lookback)
+    lookback_date = lookback_dt.strftime(partition_date_format)
+    start_date = max(min_lookback_date, lookback_date)
     end_date = partition_date
     return start_date, end_date
 
 
-# keys = partition dates
-# values = dicts of posts
-# NOTE: reason why is we want to do processing incrementally via a rolling
-# window, else we can't process all the posts in a single run.
-def load_posts_used_in_feeds(partition_date: str) -> list[dict]:
+def load_posts_used_in_feeds(partition_date: str) -> pd.DataFrame:
     """Loads the posts that were used in the feeds for a specific date."""
     query = "SELECT uri FROM fetch_posts_used_in_feeds"
     logger.info(f"Loading posts used in feeds for partition date {partition_date}")
@@ -49,8 +47,7 @@ def load_posts_used_in_feeds(partition_date: str) -> list[dict]:
         query_metadata={
             "tables": [{"name": "fetch_posts_used_in_feeds", "columns": ["uri"]}]
         },
-        start_partition_date=partition_date,
-        end_partition_date=partition_date,
+        partition_date=partition_date,
     )
     logger.info(
         f"Loaded {len(df)} posts used in feeds for partition date {partition_date}"
@@ -64,39 +61,70 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
     lookback_end_date: str,
 ) -> list[dict]:
     """Load the preprocessed, hydrated posts for the feeds created on the
-    partition date."""
-    # load in posts used in feeds for partition date
-    # load in base pool of posts
-    # match posts used in feeds to base pool of posts
-    # load in hydrated versions of posts
-    # check if posts have any integration data
-    # if not, add to queue
-    posts_used_in_feeds: list[dict] = load_posts_used_in_feeds(partition_date)
+    partition date.
+
+    Since a feed's posts can be pooled from a base pool of posts from the past
+    few days, we load in a day's worth of posts used in feeds and then match
+    them to the base pool of posts from the past few days (as defined by
+    lookback_start_date and lookback_end_date).
+    """
+    posts_used_in_feeds_df: pd.DataFrame = load_posts_used_in_feeds(partition_date)
     logger.info(
-        f"Loaded {len(posts_used_in_feeds)} posts used in feeds for {partition_date}."
+        f"Loaded {len(posts_used_in_feeds_df)} posts used in feeds for {partition_date}."
     )
     logger.info(
         f"Loading base pool posts from {lookback_start_date} to {lookback_end_date} for {partition_date}."
     )
     base_pool_posts: list[dict] = load_preprocessed_posts(
-        start_date=lookback_start_date, end_date=lookback_end_date
+        start_date=lookback_start_date,
+        end_date=lookback_end_date,
+        sorted_by_partition_date=True,
+        ascending=True,
     )
 
     logger.info(
         f"Loaded {len(base_pool_posts)} base pool posts from {lookback_start_date} to {lookback_end_date}."
     )
 
-    uris_of_posts_used_in_feeds: set[str] = set(
-        post["uri"] for post in posts_used_in_feeds
-    )
+    uris_of_posts_used_in_feeds: set[str] = set(posts_used_in_feeds_df["uri"].values)
+    total_unique_posts_used_in_feeds = len(uris_of_posts_used_in_feeds)
+
+    if len(base_pool_posts) < total_unique_posts_used_in_feeds:
+        raise ValueError(
+            f"Base pool size ({len(base_pool_posts)}) is less than "
+            f"total unique posts used in feeds ({total_unique_posts_used_in_feeds}). "
+            "This should never happen as the base pool should not be smaller than "
+            "the total number of unique posts used in feeds."
+        )
 
     res: list[dict] = []
+    seen_uris = set()
 
     for post in base_pool_posts:
-        if post["uri"] in uris_of_posts_used_in_feeds:
+        if post["uri"] in uris_of_posts_used_in_feeds and post["uri"] not in seen_uris:
             res.append(post)
+            seen_uris.add(post["uri"])
 
     logger.info(f"Found {len(res)} posts used in feeds for {partition_date}.")
+
+    total_posts_used_in_feeds = len(posts_used_in_feeds_df)
+    total_posts_in_base_pool = len(base_pool_posts)
+    total_hydrated_posts_used_in_feeds = len(res)
+
+    logger.info(
+        f"Total posts used in feeds: {total_posts_used_in_feeds}"
+        f"Total posts in base pool: {total_posts_in_base_pool}"
+        f"Total unique posts used in feeds: {total_unique_posts_used_in_feeds}"
+        f"Total hydrated posts used in feeds: {total_hydrated_posts_used_in_feeds}"
+    )
+
+    if total_hydrated_posts_used_in_feeds < total_unique_posts_used_in_feeds:
+        logger.warning(
+            f"Found fewer hydrated posts ({total_hydrated_posts_used_in_feeds}) than "
+            f"unique posts used in feeds ({total_unique_posts_used_in_feeds}). "
+            "This means some posts used in feeds don't have corresponding records."
+            "We should investigate this, as this is OK but good to know why."
+        )
 
     return res
 

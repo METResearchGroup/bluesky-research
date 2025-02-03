@@ -9,6 +9,7 @@ BLOCKED_AUTHORS = []
 NUM_DAYS_POST_RECENCY = 3
 timestamp_format = "%Y-%m-%d-%H:%M:%S"
 bsky_timestamp_format = "%Y-%m-%dT%H:%M:%S"
+partition_date_format = "%Y-%m-%d"
 current_datetime = datetime.now(timezone.utc)
 current_datetime_str = current_datetime.strftime(timestamp_format)
 
