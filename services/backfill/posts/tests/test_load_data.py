@@ -39,7 +39,7 @@ def test_load_posts_to_backfill_specific_integration(mock_load_uris, mock_load_p
     """Test loading posts to backfill for a specific integration."""
     mock_load_posts.return_value = mock_preprocessed_posts
     
-    def mock_load_service_post_uris(service):
+    def mock_load_service_post_uris(service, start_date=None, end_date=None):
         return mock_post_uris[service]
     
     mock_load_uris.side_effect = mock_load_service_post_uris
@@ -63,7 +63,7 @@ def test_load_posts_to_backfill_no_integrations(mock_load_uris, mock_load_posts,
     """Test loading posts to backfill when no integrations specified."""
     mock_load_posts.return_value = mock_preprocessed_posts
     
-    def mock_load_service_post_uris(service):
+    def mock_load_service_post_uris(service, start_date=None, end_date=None):
         return mock_post_uris[service]
     
     mock_load_uris.side_effect = mock_load_service_post_uris
@@ -93,7 +93,7 @@ def test_load_posts_to_backfill_multiple_integrations(mock_load_uris, mock_load_
     """Test loading posts to backfill for multiple specific integrations."""
     mock_load_posts.return_value = mock_preprocessed_posts
     
-    def mock_load_service_post_uris(service):
+    def mock_load_service_post_uris(service, start_date=None, end_date=None):
         return mock_post_uris[service]
     
     mock_load_uris.side_effect = mock_load_service_post_uris
@@ -139,7 +139,9 @@ def test_load_posts_to_backfill_with_date_range(mock_load_uris, mock_load_posts,
     # Verify the date range was passed through
     mock_load_posts.assert_called_once_with(
         start_date="2024-01-01",
-        end_date="2024-01-31"
+        end_date="2024-01-31",
+        sorted_by_partition_date=False,
+        ascending=False
     )
     mock_load_uris.assert_called_once_with(
         service="ml_inference_perspective_api",

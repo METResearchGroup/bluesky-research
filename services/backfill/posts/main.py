@@ -69,10 +69,13 @@ def backfill_posts(payload: dict):
     """
     posts_to_backfill: dict[str, list[dict]] = {}
     if payload.get("add_posts_to_queue"):
+        start_date = payload.get("start_date", None)
+        end_date = payload.get("end_date", None)
+
         posts_to_backfill: dict[str, list[dict]] = load_posts_to_backfill(
-            payload.get("integration"),
-            start_date=payload.get("start_date"),
-            end_date=payload.get("end_date"),
+            integrations=payload.get("integration"),
+            start_date=start_date,
+            end_date=end_date,
         )
         context = {"total": len(posts_to_backfill)}
         logger.info(

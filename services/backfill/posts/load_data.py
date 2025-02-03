@@ -137,7 +137,10 @@ def load_posts_to_backfill(
     """
     integrations_to_backfill = INTEGRATIONS_LIST if not integrations else integrations
     total_posts: list[dict] = load_preprocessed_posts(
-        start_date=start_date, end_date=end_date
+        start_date=start_date,
+        end_date=end_date,
+        sorted_by_partition_date=False,
+        ascending=False,
     )
     posts_to_backfill_by_integration: dict[str, list[dict]] = {}
     for integration in integrations_to_backfill:

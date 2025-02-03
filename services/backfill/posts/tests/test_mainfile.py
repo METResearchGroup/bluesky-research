@@ -47,7 +47,11 @@ def test_backfill_posts_add_to_queue_only(mock_load_posts, mock_queue, mock_rout
     backfill_posts(payload)
 
     # Verify load_posts_to_backfill was called with default None dates
-    mock_load_posts.assert_called_once_with(None, start_date=None, end_date=None)
+    mock_load_posts.assert_called_once_with(
+        integrations=None,
+        start_date=None,
+        end_date=None
+    )
 
     # Verify Queue creation and batch_add for each integration
     assert mock_queue.call_count == 2
@@ -149,8 +153,12 @@ def test_backfill_posts_specific_integration(mock_load_posts, mock_queue, mock_r
 
     backfill_posts(payload)
 
-    # Verify load_posts_to_backfill was called with specific integration
-    mock_load_posts.assert_called_once_with(["ml_inference_perspective_api"])
+    # Verify load_posts_to_backfill was called with specific integration and default dates
+    mock_load_posts.assert_called_once_with(
+        integrations=["ml_inference_perspective_api"],
+        start_date=None,
+        end_date=None
+    )
 
     # Verify Queue was created only for specific integration
     mock_queue.assert_called_once_with(
@@ -180,8 +188,12 @@ def test_backfill_posts_no_posts_found(mock_load_posts, mock_queue, mock_route):
 
     backfill_posts(payload)
 
-    # Verify load_posts_to_backfill was called
-    mock_load_posts.assert_called_once_with(None)
+    # Verify load_posts_to_backfill was called with default parameters
+    mock_load_posts.assert_called_once_with(
+        integrations=None,
+        start_date=None,
+        end_date=None
+    )
 
     # Verify no Queue was created
     mock_queue.assert_not_called()
@@ -210,7 +222,7 @@ def test_backfill_posts_with_date_range(mock_load_posts, mock_queue, mock_route,
 
     # Verify load_posts_to_backfill was called with date range
     mock_load_posts.assert_called_once_with(
-        None,
+        integrations=None,
         start_date="2024-01-01",
         end_date="2024-01-31"
     )
