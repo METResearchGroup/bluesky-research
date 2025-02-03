@@ -18,18 +18,28 @@ logger = get_logger(__file__)
 
 
 def load_preprocessed_posts(
-    start_date: Optional[str] = None, end_date: Optional[str] = None
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    sorted_by_partition_date: bool = False,
+    ascending: bool = False,
 ) -> list[dict]:
     """Load the preprocessed posts.
 
     Args:
         start_date (Optional[str]): Start date in YYYY-MM-DD format (inclusive)
         end_date (Optional[str]): End date in YYYY-MM-DD format (inclusive)
+        sorted_by_partition_date (bool): Whether to sort the posts by partition date
+        ascending (bool): Whether to sort the posts in ascending order
     """
-    query = """
+    sort_direction = "ASC" if ascending else "DESC"
+    sort_filter = (
+        f"ORDER BY partition_date {sort_direction}" if sorted_by_partition_date else ""
+    )
+    query = f"""
         SELECT uri, text FROM preprocessed_posts
         WHERE text IS NOT NULL
         AND text != ''
+        {sort_filter}
     """
 
     cached_df: pd.DataFrame = load_data_from_local_storage(
@@ -52,6 +62,8 @@ def load_preprocessed_posts(
         query_metadata={
             "tables": [{"name": "preprocessed_posts", "columns": ["uri", "text"]}]
         },
+        start_partition_date=start_date,
+        end_partition_date=end_date,
     )
     logger.info(f"Loaded {len(active_df)} posts from active")
     df = pd.concat([cached_df, active_df])
