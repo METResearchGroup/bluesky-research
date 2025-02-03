@@ -84,7 +84,9 @@ class TestBackfillCoordinationCliApp(TestCase):
                             "backfill_duration": None,
                             "run_classification": True
                         }
-                    }
+                    },
+                    "start_date": None,
+                    "end_date": None
                 }
             },
             None
@@ -121,7 +123,9 @@ class TestBackfillCoordinationCliApp(TestCase):
                             "backfill_duration": 2,
                             "run_classification": True
                         }
-                    }
+                    },
+                    "start_date": None,
+                    "end_date": None
                 }
             },
             None
@@ -155,7 +159,9 @@ class TestBackfillCoordinationCliApp(TestCase):
                         "run_classification": False
                     }
                 },
-                "integration": ["ml_inference_perspective_api"]
+                "integration": ["ml_inference_perspective_api"],
+                "start_date": None,
+                "end_date": None
             }
         }
         self.assertEqual(result.exit_code, 0)
@@ -184,7 +190,9 @@ class TestBackfillCoordinationCliApp(TestCase):
                             "backfill_duration": None,
                             "run_classification": True
                         }
-                    }
+                    },
+                    "start_date": None,
+                    "end_date": None
                 }
             },
             None
@@ -213,7 +221,9 @@ class TestBackfillCoordinationCliApp(TestCase):
                             "backfill_duration": None,
                             "run_classification": True
                         }
-                    }
+                    },
+                    "start_date": None,
+                    "end_date": None
                 }
             },
             None
@@ -313,8 +323,7 @@ class TestBackfillCoordinationCliApp(TestCase):
             None
         )
 
-    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
-    def test_backfill_with_invalid_date_format(self, mock_handler):
+    def test_backfill_with_invalid_date_format(self):
         """Test error handling for invalid date format."""
         result = self.runner.invoke(
             backfill_records,
@@ -326,4 +335,4 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
         
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Invalid value for '--start-date'", result.output)
+        self.assertIn("Invalid date format", result.output)

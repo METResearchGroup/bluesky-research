@@ -3,6 +3,7 @@
 import click
 from pipelines.backfill_records_coordination.handler import lambda_handler
 from pipelines.write_cache_buffers.handler import lambda_handler as write_cache_handler
+from datetime import datetime
 
 INTEGRATION_MAP = {
     "p": "ml_inference_perspective_api",
@@ -25,6 +26,16 @@ DEFAULT_INTEGRATION_KWARGS = {
         "run_classification": True,
     }
 }
+
+
+def validate_date_format(ctx, param, value):
+    """Validates date string format (YYYY-MM-DD)."""
+    if value is None:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        raise click.BadParameter("Invalid date format. Please use YYYY-MM-DD format.")
 
 
 @click.command()
@@ -99,12 +110,14 @@ DEFAULT_INTEGRATION_KWARGS = {
     "--start-date",
     type=str,
     default=None,
+    callback=validate_date_format,
     help="Start date for backfill (YYYY-MM-DD format, inclusive). If provided with end-date, only processes records within date range.",
 )
 @click.option(
     "--end-date",
     type=str,
     default=None,
+    callback=validate_date_format,
     help="End date for backfill (YYYY-MM-DD format, inclusive). If provided with start-date, only processes records within date range.",
 )
 def backfill_records(
