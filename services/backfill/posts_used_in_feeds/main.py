@@ -30,37 +30,39 @@ def backfill_posts_used_in_feeds(payload: dict):
     - We then (optionally) run the integrations.
     """
     posts_to_backfill: dict[str, list[dict]] = {}
+
+    # Determine which integrations to process
+    specified_integrations = payload.get("integration")
+    integrations_to_process = (
+        specified_integrations
+        if specified_integrations is not None
+        else INTEGRATIONS_LIST
+    )
+
     if payload.get("add_posts_to_queue"):
-        posts_to_backfill: dict[str, list[dict]] = (
-            backfill_posts_used_in_feed_for_partition_dates(
-                start_date=payload.get("start_date"),
-                end_date=payload.get("end_date"),
-                exclude_partition_dates=payload.get("exclude_partition_dates"),
-            )
+        posts_to_backfill = backfill_posts_used_in_feed_for_partition_dates(
+            start_date=payload.get("start_date"),
+            end_date=payload.get("end_date"),
+            exclude_partition_dates=payload.get("exclude_partition_dates"),
         )
-        for integration, post_dicts in posts_to_backfill.items():
-            logger.info(
-                f"Adding {len(post_dicts)} posts for {integration} to backfill queue..."
-            )  # noqa
-            queue = Queue(queue_name=f"input_{integration}", create_new_queue=True)
-            queue.batch_add_items_to_queue(items=post_dicts, metadata=None)
+        # Only add posts for specified integrations
+        for integration in integrations_to_process:
+            if integration in posts_to_backfill:
+                post_dicts = posts_to_backfill[integration]
+                logger.info(
+                    f"Adding {len(post_dicts)} posts for {integration} to backfill queue..."
+                )
+                queue = Queue(queue_name=f"input_{integration}", create_new_queue=True)
+                queue.batch_add_items_to_queue(items=post_dicts, metadata=None)
     else:
         logger.info("Skipping adding posts to queue...")
 
     if payload.get("run_integrations"):
         logger.info("Running integrations...")
-        # if we tried to load posts to backfill, but none were found, skip.
-        # Else, set as default to backfill all integrations.
-        if payload.get("add_posts_to_queue"):
-            integrations_to_backfill = posts_to_backfill.keys()
-        elif payload.get("integration"):
-            integrations_to_backfill = payload.get("integration")
-        else:
-            integrations_to_backfill = INTEGRATIONS_LIST
         logger.info(
-            f"Backfilling for the following integrations: {integrations_to_backfill}"
+            f"Backfilling for the following integrations: {integrations_to_process}"
         )
-        for integration in integrations_to_backfill:
+        for integration in integrations_to_process:
             integration_kwargs = payload.get("integration_kwargs", {}).get(
                 integration, {}
             )
