@@ -18,7 +18,7 @@ import time
 import pytest
 from typing import Generator
 
-from lib.db.queue import DEFAULT_BATCH_SIZE, Queue, QueueItem
+from lib.db.queue import DEFAULT_BATCH_CHUNK_SIZE, DEFAULT_BATCH_WRITE_SIZE, Queue, QueueItem
 from lib.log.logger import get_logger
 
 logger = get_logger(__file__)
@@ -104,8 +104,9 @@ class TestBatchAdd:
         """Test batch adding multiple items processes all correctly.
 
         Verifies:
-        - All items are added successfully
-        - Items are properly chunked based on batch size
+        - All items are added successfully 
+        - Items are properly chunked based on batch_size
+        - Chunks are written in batches based on batch_write_size
         - Metadata is stored for each chunk
         - Queue length reflects total items
 
@@ -118,16 +119,41 @@ class TestBatchAdd:
         queue.batch_add_items_to_queue(
             items=test_items,
             metadata=test_metadata,
-            batch_size=2
+            batch_size=2,
+            batch_write_size=1
         )
         
         assert queue.get_queue_length() == 3  # Should create 3 chunks (2+2+1)
+
+    def test_batch_add_items_with_write_batching(self, queue: Queue) -> None:
+        """Test batch adding with write batching.
+
+        Verifies:
+        - Items are properly chunked into batch_size chunks
+        - Chunks are written in batch_write_size groups
+        - All items are added successfully
+
+        Args:
+            queue: Test queue fixture
+        """
+        test_items = [{"key": f"value_{i}"} for i in range(10)]
+        test_metadata = {"source": "batch_test"}
+
+        queue.batch_add_items_to_queue(
+            items=test_items,
+            metadata=test_metadata,
+            batch_size=2,  # Creates 5 chunks of 2 items each
+            batch_write_size=2  # Writes chunks in groups of 2
+        )
+
+        assert queue.get_queue_length() == 5  # Should have 5 total chunks
 
     def test_batch_add_items_with_duplicates(self, queue: Queue) -> None:
         """Test batch adding items with some duplicates.
 
         Verifies that:
         - All items are added, including duplicates
+        - Items are properly chunked and batch written
         - Queue length reflects total number of items
 
         Args:
@@ -141,11 +167,11 @@ class TestBatchAdd:
         ]
         
         queue.batch_add_items_to_queue(
-            test_items,
-            batch_size=3 # if duplicate is removed, it would be 3 items = 1 batch. If duplicate is kept, 4 items = 2 batches
+            items=test_items,
+            batch_size=2,  # Creates 2 chunks of 2 items
+            batch_write_size=1  # Write one chunk at a time
         )
-        assert queue.get_queue_length() == 2  # Should add all items including duplicates
-
+        assert queue.get_queue_length() == 2  # Should have 2 chunks
 
 class TestRemoveItem:
     def test_remove_item_from_queue(self, queue: Queue) -> None:
@@ -458,27 +484,43 @@ class TestDefaultBatchSize:
         """Test default batch size behavior.
 
         Verifies:
-        - Default batch size is used when not specified
-        - Large batches are properly chunked
-        - Metadata reflects default batch size
+        - Default batch chunk size is used when not specified
+        - Default batch write size is used when not specified 
+        - Large batches are properly chunked into minibatches
+        - Minibatches are properly grouped into write batches
+        - Metadata reflects batch sizing correctly
 
         Args:
             queue: Test queue fixture
         """
-        test_items = [{"key": f"value_{i}"} for i in range(DEFAULT_BATCH_SIZE + 1)]
+        # Create enough items to test both chunk size and write size defaults
+        num_items = DEFAULT_BATCH_CHUNK_SIZE * (DEFAULT_BATCH_WRITE_SIZE + 1) + 1
+        test_items = [{"key": f"value_{i}"} for i in range(num_items)]
         
         queue.batch_add_items_to_queue(items=test_items)
         
         loaded_items = queue.load_items_from_queue()
-        assert len(loaded_items) == 2  # Should split into 2 chunks
         
-        # First chunk should use default batch size
+        # Should create DEFAULT_BATCH_WRITE_SIZE + 2 chunks:
+        # - DEFAULT_BATCH_WRITE_SIZE full chunks of DEFAULT_BATCH_CHUNK_SIZE items
+        # - 1 full chunk of DEFAULT_BATCH_CHUNK_SIZE items
+        # - 1 partial chunk with remaining item
+        expected_chunks = DEFAULT_BATCH_WRITE_SIZE + 2
+        assert len(loaded_items) == expected_chunks
+        
+        # Check first chunk uses defaults
         first_metadata = json.loads(loaded_items[0].metadata)
-        assert first_metadata["batch_size"] == DEFAULT_BATCH_SIZE
-        assert first_metadata["actual_batch_size"] == DEFAULT_BATCH_SIZE
+        assert first_metadata["batch_size"] == DEFAULT_BATCH_CHUNK_SIZE
+        assert first_metadata["actual_batch_size"] == DEFAULT_BATCH_CHUNK_SIZE
         
-        # Second chunk should have the remainder
-        last_metadata = json.loads(loaded_items[1].metadata)
+        # Check middle chunk uses defaults
+        middle_metadata = json.loads(loaded_items[DEFAULT_BATCH_WRITE_SIZE].metadata)
+        assert middle_metadata["batch_size"] == DEFAULT_BATCH_CHUNK_SIZE
+        assert middle_metadata["actual_batch_size"] == DEFAULT_BATCH_CHUNK_SIZE
+        
+        # Check last chunk has remainder
+        last_metadata = json.loads(loaded_items[-1].metadata)
+        assert last_metadata["batch_size"] == DEFAULT_BATCH_CHUNK_SIZE
         assert last_metadata["actual_batch_size"] == 1
 
 

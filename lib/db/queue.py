@@ -252,7 +252,16 @@ class Queue:
         batch_write_size: Optional[int] = DEFAULT_BATCH_WRITE_SIZE,
     ) -> None:
         """Add multiple items to queue, processing in chunks for memory
-        efficiency."""
+        efficiency.
+
+        Split chunks into further batches. e.g., with batch_size = 1000,
+        batch_write_size = 25, then if we have 50,000 items, it will be split
+        into 50 minibatches of 1,000 items each, and then it will be split into
+        2 batches of 25 minibatches each.
+
+        See https://markptorres.com/research/2025-01-31-effectiveness-of-sqlite
+        for writeup.
+        """
         if metadata is None:
             metadata = {}
         chunks: list[list[dict]] = [
@@ -261,13 +270,6 @@ class Queue:
         minibatch_chunks: list[tuple[str, str, str, str]] = self._create_batched_chunks(
             chunks=chunks, batch_size=batch_size, metadata=metadata
         )
-
-        # TODO: add this to the docstring if it works.
-        # split minibatch chunks into further batches, and these batches will
-        # be written to the DB one batch at a time.
-        # e.g., with batch_size = 1000, batch_write_size = 25, then if we have
-        # 50,000 items, it will be split into 50 minibatches of 1,000 items each,
-        # and then it will be split into 2 batches of 25 minibatches each.
 
         batch_chunks: list[list[tuple[str, str, str, str]]] = [
             minibatch_chunks[i : i + batch_write_size]

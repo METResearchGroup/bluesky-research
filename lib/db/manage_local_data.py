@@ -421,16 +421,24 @@ def list_filenames(
     """List files in local storage for a given service."""
     local_prefixes = get_local_prefixes_for_service(service)
     res: list[str] = []
+    seen_files = set()  # Track unique files
+
     for local_prefix in local_prefixes:
         for directory in directories:
             fp = os.path.join(local_prefix, directory)
             if validate_pq_files:
                 validated_filepaths: list[str] = validated_pq_files_within_directory(fp)
-                res.extend(validated_filepaths)
+                for filepath in validated_filepaths:
+                    if filepath not in seen_files:
+                        res.append(filepath)
+                        seen_files.add(filepath)
             else:
                 for root, _, files in os.walk(fp):
                     for file in files:
-                        res.append(os.path.join(root, file))
+                        full_path = os.path.join(root, file)
+                        if full_path not in seen_files:
+                            res.append(full_path)
+                            seen_files.add(full_path)
     # use specific partition date only if the start/end dates aren't provided
     # (they shouldn't be ever jointly provided anyways, since start/end date
     # ranges should only be during backfill operations).
@@ -461,10 +469,12 @@ def list_filenames(
 
 
 def validate_pq_file(filepath: str) -> bool:
+    """Validate a parquet file."""
     try:
         pq.ParquetFile(filepath)
         return True
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error validating {filepath}: {e}")
         return False
 
 
@@ -476,12 +486,11 @@ def validated_pq_files_within_directory(directory: str) -> list[str]:
         for file in files:
             if file.endswith(".parquet"):
                 fp = os.path.join(root, file)
-                try:
-                    pq.ParquetFile(fp)
+                if validate_pq_file(fp):
                     filepaths.append(fp)
-                except Exception as e:
-                    logger.error(f"Error validating {fp}: {e}")
+                else:
                     invalidated_filepaths.append(fp)
+
     total_invalidated_filepaths = len(invalidated_filepaths)
     if filepaths:
         logger.info(f"Found {len(filepaths)} valid Parquet files in {directory}.")
@@ -590,20 +599,25 @@ def load_data_from_local_storage(
             kwargs["filters"] = filters
         df = pd.read_parquet(**kwargs)
         if schema:
-            # attempt to convert dtypes after the fact. Parquet doesn't preserve the exact same dtypes as pandas so I need to
-            # re-convert these after the fact.
+            # attempt to convert dtypes after the fact, but only for columns that exist
             dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", {})
             for col, dtype in dtypes_map.items():
-                if dtype == "Int64":
-                    df[col] = df[col].astype("Int64")
-                elif dtype == "Float64":
-                    df[col] = df[col].astype("Float64")
-                elif dtype == "bool":
-                    df[col] = df[col].astype("bool")
-                elif dtype == "object":
-                    df[col] = df[col].astype("object")
-                elif dtype == "string":
-                    df[col] = df[col].astype("string")
+                if col in df.columns:  # Only convert if column exists
+                    try:
+                        if dtype == "Int64":
+                            df[col] = df[col].astype("Int64")
+                        elif dtype == "Float64":
+                            df[col] = df[col].astype("Float64")
+                        elif dtype == "bool":
+                            df[col] = df[col].astype("bool")
+                        elif dtype == "object":
+                            df[col] = df[col].astype("object")
+                        elif dtype == "string":
+                            df[col] = df[col].astype("string")
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to convert column {col} to type {dtype}: {e}"
+                        )
     elif export_format == "duckdb":
         if not duckdb_query or not query_metadata:
             raise ValueError(
