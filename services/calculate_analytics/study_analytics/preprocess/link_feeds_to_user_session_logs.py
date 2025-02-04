@@ -243,6 +243,7 @@ def link_feeds_to_user_session_logs_for_partition_date(partition_date: str) -> N
         candidate_feeds_df=candidate_feeds_df,
     )
 
+    # TODO:  check if this is correct. Check constants file (e.g., for correct 'timestamp' field)
     export_data_to_local_storage(
         service="linked_feeds_to_user_session_logs",
         df=linked_df,
@@ -250,7 +251,7 @@ def link_feeds_to_user_session_logs_for_partition_date(partition_date: str) -> N
     )
 
     logger.info(
-        f"Exported linked feeds to user session logs to local storage for partition date {partition_date}"
+        f"Completed linking feeds to user session logs for partition date {partition_date}"
     )
 
 

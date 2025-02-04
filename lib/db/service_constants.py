@@ -616,4 +616,28 @@ MAP_SERVICE_TO_METADATA = {
             "timestamp": "string",
         },
     },
+    # TODO:  check if this is correct
+    "linked_feeds_to_user_session_logs": {
+        "local_prefix": os.path.join(
+            root_local_data_directory, "linked_feeds_to_user_session_logs"
+        ),
+        "s3_prefix": "linked_feeds_to_user_session_logs",
+        "glue_table_name": "linked_feeds_to_user_session_logs",
+        "primary_key": "feed_id",
+        "timestamp_field": "feed_generation_timestamp",  # TODO: check...
+        "skip_deduping": True,
+        "pydantic_model": "",
+    },
+    # TODO:  check if this is correct
+    "linked_posts_to_feeds": {
+        "local_prefix": os.path.join(
+            root_local_data_directory, "linked_posts_to_feeds"
+        ),
+        "s3_prefix": "linked_posts_to_feeds",
+        "glue_table_name": "linked_posts_to_feeds",
+        "primary_key": "uri",
+        "timestamp_field": "partition_date",  # TODO: check...
+        "skip_deduping": True,
+        "pydantic_model": "",
+    },
 }

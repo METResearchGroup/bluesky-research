@@ -67,6 +67,8 @@ def enrich_hydrate_posts(
     return result_df
 
 
+# TODO: Update this. I need to link the posts used in feeds to the
+# preprocessed posts (like I do in the posts_used_in_feeds backfill).
 def enrich_hydrate_posts_for_partition_date(
     partition_date: str, integrations: Optional[list[str]] = None
 ) -> None:
