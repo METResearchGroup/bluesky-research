@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import os
 
 from lib.aws.s3 import S3
-from services.calculate_analytics.study_analytics.load_data.constants import (
+from services.calculate_analytics.study_analytics.constants import (
     raw_data_root_path,
 )
 

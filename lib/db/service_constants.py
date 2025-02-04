@@ -597,4 +597,23 @@ MAP_SERVICE_TO_METADATA = {
             "partition_date": "string",
         },
     },
+    "generated_user_session_logs": {
+        "local_prefix": os.path.join(
+            root_local_data_directory, "generated_user_session_logs"
+        ),
+        "s3_prefix": "generated_user_session_logs",
+        "glue_table_name": "generated_user_session_logs",
+        "primary_key": "",
+        "timestamp_field": "timestamp",
+        "skip_deduping": True,
+        "pydantic_model": "",
+        "dtypes_map": {
+            "user_did": "string",
+            "cursor": "string",
+            "limit": "Int64",
+            "feed_length": "Int64",
+            "feed": "string",
+            "timestamp": "string",
+        },
+    },
 }
