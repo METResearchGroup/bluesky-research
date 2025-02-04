@@ -30,21 +30,33 @@ class TestBackfillCoordinationCliApp(TestCase):
             self.assertEqual(resolve_integration(abbrev), full_name)
 
     @patch('pipelines.backfill_records_coordination.app.lambda_handler')
-    def test_backfill_all_integrations(self, mock_handler):
-        """Test backfill with default settings (all integrations)."""
+    def test_run_integrations_only(self, mock_handler):
+        """Test running integrations without record type."""
         mock_handler.return_value = {"statusCode": 200}
         
-        result = self.runner.invoke(backfill_records, ['--record-type', 'posts'])
+        result = self.runner.invoke(
+            backfill_records,
+            ['--run-integrations', '-i', 'p', '-i', 's']
+        )
         
         self.assertEqual(result.exit_code, 0)
         mock_handler.assert_called_once_with(
             {
                 "payload": {
-                    "record_type": "posts",
+                    "record_type": None,
                     "add_posts_to_queue": False,
-                    "run_integrations": False,
+                    "run_integrations": True,
+                    "integration": [
+                        "ml_inference_perspective_api",
+                        "ml_inference_sociopolitical"
+                    ],
                     "integration_kwargs": {
                         "ml_inference_perspective_api": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        },
+                        "ml_inference_sociopolitical": {
                             "backfill_period": None,
                             "backfill_duration": None,
                             "run_classification": True
@@ -56,7 +68,19 @@ class TestBackfillCoordinationCliApp(TestCase):
             },
             None
         )
+
+    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
+    def test_add_to_queue_requires_record_type(self, mock_handler):
+        """Test that add_to_queue requires record_type."""
+        result = self.runner.invoke(
+            backfill_records,
+            ['--add-to-queue']
+        )
         
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--record-type is required when --add-to-queue is used", result.output)
+        mock_handler.assert_not_called()
+
     @patch('pipelines.backfill_records_coordination.app.lambda_handler')
     def test_backfill_specific_integrations(self, mock_handler):
         """Test backfill with specific integrations."""
@@ -80,6 +104,11 @@ class TestBackfillCoordinationCliApp(TestCase):
                     ],
                     "integration_kwargs": {
                         "ml_inference_perspective_api": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        },
+                        "ml_inference_sociopolitical": {
                             "backfill_period": None,
                             "backfill_duration": None,
                             "run_classification": True
@@ -189,6 +218,16 @@ class TestBackfillCoordinationCliApp(TestCase):
                             "backfill_period": None,
                             "backfill_duration": None,
                             "run_classification": True
+                        },
+                        "ml_inference_sociopolitical": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        },
+                        "ml_inference_ime": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
                         }
                     },
                     "start_date": None,
@@ -205,18 +244,28 @@ class TestBackfillCoordinationCliApp(TestCase):
         
         result = self.runner.invoke(
             backfill_records,
-            ['--record-type', 'posts', '--run-integrations']
+            ['--run-integrations']
         )
         
         self.assertEqual(result.exit_code, 0)
         mock_handler.assert_called_once_with(
             {
                 "payload": {
-                    "record_type": "posts",
+                    "record_type": None,
                     "add_posts_to_queue": False,
                     "run_integrations": True,
                     "integration_kwargs": {
                         "ml_inference_perspective_api": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        },
+                        "ml_inference_sociopolitical": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        },
+                        "ml_inference_ime": {
                             "backfill_period": None,
                             "backfill_duration": None,
                             "run_classification": True
@@ -238,7 +287,7 @@ class TestBackfillCoordinationCliApp(TestCase):
 
         result = self.runner.invoke(
             backfill_records,
-            ['--record-type', 'posts', '--write-cache', 'all']
+            ['--write-cache', 'all']
         )
 
         self.assertEqual(result.exit_code, 0)
@@ -256,7 +305,7 @@ class TestBackfillCoordinationCliApp(TestCase):
 
         result = self.runner.invoke(
             backfill_records,
-            ['--record-type', 'posts', '--write-cache', 'ml_inference_perspective_api']
+            ['--write-cache', 'ml_inference_perspective_api']
         )
 
         self.assertEqual(result.exit_code, 0)
@@ -279,7 +328,6 @@ class TestBackfillCoordinationCliApp(TestCase):
         result = self.runner.invoke(
             backfill_records,
             [
-                '--record-type', 'posts',
                 '--backfill-period', 'invalid'
             ]
         )
@@ -314,6 +362,16 @@ class TestBackfillCoordinationCliApp(TestCase):
                             "backfill_period": None,
                             "backfill_duration": None,
                             "run_classification": True
+                        },
+                        "ml_inference_sociopolitical": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        },
+                        "ml_inference_ime": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
                         }
                     },
                     "start_date": "2024-01-01",
@@ -328,7 +386,6 @@ class TestBackfillCoordinationCliApp(TestCase):
         result = self.runner.invoke(
             backfill_records,
             [
-                '--record-type', 'posts',
                 '--start-date', 'invalid-date',
                 '--end-date', '2024-01-31'
             ]
@@ -360,6 +417,16 @@ class TestBackfillCoordinationCliApp(TestCase):
                     "run_integrations": False,
                     "integration_kwargs": {
                         "ml_inference_perspective_api": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        },
+                        "ml_inference_sociopolitical": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        },
+                        "ml_inference_ime": {
                             "backfill_period": None,
                             "backfill_duration": None,
                             "run_classification": True
