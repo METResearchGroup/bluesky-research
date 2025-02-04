@@ -23,20 +23,28 @@ conn = duckdb.connect(db_path)
 missing_firehose_dates = ["2024-10-08", "2024-10-09", "2024-10-11"]
 missing_most_liked_dates = ["2024-10-09", "2024-10-11"]
 
-base_firehose_path = "/projects/p32375/bluesky_research_data/ml_inference_sociopolitical/firehose/cache"
+base_firehose_path = (
+    "/projects/p32375/bluesky_research_data/ml_inference_sociopolitical/firehose/cache"
+)
 base_most_liked_path = "/projects/p32375/bluesky_research_data/ml_inference_sociopolitical/most_liked/cache"
+
 
 def load_firehose_sociopolitical_labels(partition_date: str) -> pd.DataFrame:
     if partition_date not in missing_firehose_dates:
-        print(f"Loading firehose sociopolitical labels for partition date={partition_date}")
+        print(
+            f"Loading firehose sociopolitical labels for partition date={partition_date}"
+        )
         path = os.path.join(base_firehose_path, f"partition_date={partition_date}")
         return load_raw_parquet_data_as_df(path)
     print(f"No firehose sociopolitical labels for partition date={partition_date}")
     return None
 
+
 def load_most_liked_labels(partition_date: str) -> pd.DataFrame:
     if partition_date not in missing_most_liked_dates:
-        print(f"Loading most liked sociopolitical labels for partition date={partition_date}")
+        print(
+            f"Loading most liked sociopolitical labels for partition date={partition_date}"
+        )
         path = os.path.join(base_most_liked_path, f"partition_date={partition_date}")
         return load_raw_parquet_data_as_df(path)
     print(f"No most liked sociopolitical labels for partition date={partition_date}")
@@ -58,7 +66,9 @@ def main():
         else:
             df = pd.concat([firehose_df, most_liked_df], ignore_index=True)
         if df is None or len(df) == 0:
-            print(f"No sociopolitical labels for partition date={current_partition_date}. Skipping...")
+            print(
+                f"No sociopolitical labels for partition date={current_partition_date}. Skipping..."
+            )
             continue
         insert_df_to_duckdb(df, "sociopolitical_labels", conn=conn)
         total_count += len(df)
