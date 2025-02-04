@@ -31,6 +31,8 @@ def backfill_posts_used_in_feeds(payload: dict):
     """
     posts_to_backfill: dict[str, list[dict]] = {}
 
+    breakpoint()
+
     # Determine which integrations to process
     specified_integrations = payload.get("integration")
     integrations_to_process = (
@@ -40,10 +42,12 @@ def backfill_posts_used_in_feeds(payload: dict):
     )
 
     if payload.get("add_posts_to_queue"):
-        posts_to_backfill = backfill_posts_used_in_feed_for_partition_dates(
-            start_date=payload.get("start_date"),
-            end_date=payload.get("end_date"),
-            exclude_partition_dates=payload.get("exclude_partition_dates"),
+        posts_to_backfill: dict[str, list[dict]] = (
+            backfill_posts_used_in_feed_for_partition_dates(
+                start_date=payload.get("start_date"),
+                end_date=payload.get("end_date"),
+                exclude_partition_dates=payload.get("exclude_partition_dates"),
+            )
         )
         # Only add posts for specified integrations
         for integration in integrations_to_process:

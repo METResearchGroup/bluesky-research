@@ -336,3 +336,70 @@ class TestBackfillCoordinationCliApp(TestCase):
         
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("Invalid date format", result.output)
+
+    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
+    def test_posts_used_in_feeds_with_date_range(self, mock_handler):
+        """Test backfill for posts_used_in_feeds with required date range."""
+        mock_handler.return_value = {"statusCode": 200}
+        
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                '--record-type', 'posts_used_in_feeds',
+                '--start-date', '2024-01-01',
+                '--end-date', '2024-01-31'
+            ]
+        )
+        
+        self.assertEqual(result.exit_code, 0)
+        mock_handler.assert_called_once_with(
+            {
+                "payload": {
+                    "record_type": "posts_used_in_feeds",
+                    "add_posts_to_queue": False,
+                    "run_integrations": False,
+                    "integration_kwargs": {
+                        "ml_inference_perspective_api": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        }
+                    },
+                    "start_date": "2024-01-01",
+                    "end_date": "2024-01-31"
+                }
+            },
+            None
+        )
+
+    def test_posts_used_in_feeds_missing_dates(self):
+        """Test error when posts_used_in_feeds is missing required dates."""
+        # Test missing both dates
+        result = self.runner.invoke(
+            backfill_records,
+            ['--record-type', 'posts_used_in_feeds']
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Both --start-date and --end-date are required", result.output)
+
+        # Test missing end date
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                '--record-type', 'posts_used_in_feeds',
+                '--start-date', '2024-01-01'
+            ]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Both --start-date and --end-date are required", result.output)
+
+        # Test missing start date
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                '--record-type', 'posts_used_in_feeds',
+                '--end-date', '2024-01-31'
+            ]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Both --start-date and --end-date are required", result.output)

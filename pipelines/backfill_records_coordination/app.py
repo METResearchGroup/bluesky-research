@@ -42,7 +42,7 @@ def validate_date_format(ctx, param, value):
 @click.option(
     "--record-type",
     "-r",
-    type=click.Choice(["posts"]),
+    type=click.Choice(["posts", "posts_used_in_feeds"]),
     required=True,
     help="Type of records to backfill",
 )
@@ -156,6 +156,13 @@ def backfill_records(
         # Backfill posts within a date range
         $ python -m pipelines.backfill_records_coordination.app -r posts --start-date 2024-01-01 --end-date 2024-01-31
     """
+    # Validate that posts_used_in_feeds requires both start_date and end_date
+    if record_type == "posts_used_in_feeds":
+        if not (start_date and end_date):
+            raise click.UsageError(
+                "Both --start-date and --end-date are required when record_type is 'posts_used_in_feeds'"
+            )
+
     # Convert integrations from abbreviations if needed
     resolved_integrations = (
         [resolve_integration(i) for i in integration] if integration else None
