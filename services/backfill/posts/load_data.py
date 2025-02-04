@@ -1,6 +1,6 @@
 """Loading data for backfilling."""
 
-from typing import Optional
+from typing import Literal, Optional
 
 import pandas as pd
 
@@ -22,7 +22,8 @@ def load_preprocessed_posts(
     end_date: Optional[str] = None,
     sorted_by_partition_date: bool = False,
     ascending: bool = False,
-) -> list[dict]:
+    output_format: Literal["list", "df"] = "list",
+) -> list[dict] | pd.DataFrame:
     """Load the preprocessed posts.
 
     Args:
@@ -81,7 +82,9 @@ def load_preprocessed_posts(
     print(f"Index names in active_df: {active_df.index.names}")
     print(f"Index names in df: {df.index.names}")
     logger.info(f"Loaded {len(df)} posts from cache and active")
-    return df.to_dict(orient="records")
+    if output_format == "list":
+        return df.to_dict(orient="records")
+    return df
 
 
 def load_service_post_uris(

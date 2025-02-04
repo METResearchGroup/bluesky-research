@@ -75,11 +75,16 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
     logger.info(
         f"Loading base pool posts from {lookback_start_date} to {lookback_end_date} for {partition_date}."
     )
-    base_pool_posts: list[dict] = load_preprocessed_posts(
+    base_pool_posts: pd.DataFrame = load_preprocessed_posts(
         start_date=lookback_start_date,
         end_date=lookback_end_date,
         sorted_by_partition_date=True,
         ascending=True,
+        output_format="df",
+    )
+
+    base_pool_posts["partition_date"] = base_pool_posts["partition_date"].dt.strftime(
+        partition_date_format
     )
 
     logger.info(
@@ -112,10 +117,10 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
     total_hydrated_posts_used_in_feeds = len(res)
 
     logger.info(
-        f"Total posts used in feeds: {total_posts_used_in_feeds}"
-        f"Total posts in base pool: {total_posts_in_base_pool}"
-        f"Total unique posts used in feeds: {total_unique_posts_used_in_feeds}"
-        f"Total hydrated posts used in feeds: {total_hydrated_posts_used_in_feeds}"
+        f"Total posts used in feeds: {total_posts_used_in_feeds}\n"
+        f"Total posts in base pool: {total_posts_in_base_pool}\n"
+        f"Total unique posts used in feeds: {total_unique_posts_used_in_feeds}\n"
+        f"Total hydrated posts used in feeds: {total_hydrated_posts_used_in_feeds}\n"
     )
 
     if total_hydrated_posts_used_in_feeds < total_unique_posts_used_in_feeds:

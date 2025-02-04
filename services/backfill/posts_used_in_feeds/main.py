@@ -31,8 +31,6 @@ def backfill_posts_used_in_feeds(payload: dict):
     """
     posts_to_backfill: dict[str, list[dict]] = {}
 
-    breakpoint()
-
     # Determine which integrations to process
     specified_integrations = payload.get("integration")
     integrations_to_process = (

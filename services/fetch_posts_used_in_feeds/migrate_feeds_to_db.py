@@ -7,25 +7,10 @@ Reads from the consolidated feeds.parquet file and exports to the
 generated_feeds service.
 """
 
-import os
-
 import pandas as pd
 
 from lib.db.manage_local_data import export_data_to_local_storage
-
-
-# previously consolidated version of the feeds.
-root_feeds_path = os.path.join(
-    "/Users",
-    "mark",
-    "Documents",
-    "work",
-    "bluesky-research",
-    "scripts",
-    "analytics",
-    "preprocessing",
-    "consolidated_feeds.parquet",
-)
+from services.fetch_posts_used_in_feeds.constants import root_feeds_path
 
 
 def main():

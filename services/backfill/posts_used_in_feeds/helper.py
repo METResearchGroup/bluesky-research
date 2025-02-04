@@ -37,9 +37,6 @@ def backfill_posts_used_in_feed_for_partition_dates(
     exclude_partition_dates: list[str] = [],
 ):
     """Backfill posts used in feed for a range of partition dates."""
-
-    breakpoint()
-
     partition_dates: list[str] = get_partition_dates(
         start_date=start_date,
         end_date=end_date,
