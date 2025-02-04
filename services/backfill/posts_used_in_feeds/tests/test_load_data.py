@@ -43,20 +43,6 @@ def mock_preprocessed_posts():
     ]
 
 
-class TestCalculateStartEndDateForLookback:
-    def test_normal_case(self):
-        """Test calculating dates when partition date minus lookback is after min date."""
-        start, end = calculate_start_end_date_for_lookback("2024-10-10")
-        assert start == "2024-10-05"  # 5 days before
-        assert end == "2024-10-10"
-
-    def test_min_date_case(self):
-        """Test calculating dates when partition date minus lookback is before min date."""
-        start, end = calculate_start_end_date_for_lookback("2024-09-30")
-        assert start == "2024-09-28"  # Should use min date
-        assert end == "2024-09-30"
-
-
 class TestLoadPostsUsedInFeeds:
     @patch("services.backfill.posts_used_in_feeds.load_data.load_data_from_local_storage")
     def test_load_posts(self, mock_load_data):

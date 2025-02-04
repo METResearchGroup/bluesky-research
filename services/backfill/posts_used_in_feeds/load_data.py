@@ -1,38 +1,21 @@
 """Load data for posts used in feeds backfill pipeline."""
 
-from datetime import timedelta
-
 import pandas as pd
 
-from lib.constants import partition_date_format
 from lib.db.manage_local_data import load_data_from_local_storage
-from lib.helper import track_performance
+from lib.helper import calculate_start_end_date_for_lookback, track_performance
 from lib.log.logger import get_logger
 from services.backfill.posts.load_data import (
     INTEGRATIONS_LIST,
     load_preprocessed_posts,
     load_service_post_uris,
 )
+from services.backfill.posts_used_in_feeds.constants import (
+    num_days_lookback,
+    min_lookback_date,
+)
 
 logger = get_logger(__file__)
-
-num_days_lookback = 5
-min_lookback_date = "2024-09-28"
-
-
-def calculate_start_end_date_for_lookback(partition_date: str) -> tuple[str, str]:
-    """Calculate the start and end date for the lookback period.
-
-    The lookback period is the period of time before the partition date that
-    we want to load posts from. The earliest that it can be is the
-    min_lookback_date, and the latest that it can be is the partition date.
-    """
-    partition_dt = pd.to_datetime(partition_date)
-    lookback_dt = partition_dt - timedelta(days=num_days_lookback)
-    lookback_date = lookback_dt.strftime(partition_date_format)
-    start_date = max(min_lookback_date, lookback_date)
-    end_date = partition_date
-    return start_date, end_date
 
 
 def load_posts_used_in_feeds(partition_date: str) -> pd.DataFrame:
@@ -144,7 +127,9 @@ def load_posts_to_backfill(
     returns the URIs of the posts to be backfilled for each integration.
     """
     lookback_start_date, lookback_end_date = calculate_start_end_date_for_lookback(
-        partition_date
+        partition_date=partition_date,
+        num_days_lookback=num_days_lookback,
+        min_lookback_date=min_lookback_date,
     )
     posts_used_in_feeds: list[dict] = (
         load_preprocessed_posts_used_in_feeds_for_partition_date(
