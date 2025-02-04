@@ -9,7 +9,7 @@ from lib.db.manage_local_data import (
     export_data_to_local_storage,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
-from lib.helper import calculate_start_end_date_for_lookback
+from lib.helper import calculate_start_end_date_for_lookback, get_partition_dates
 from lib.log.logger import get_logger
 from services.backfill.posts_used_in_feeds.constants import (
     num_days_lookback,
@@ -20,6 +20,9 @@ from services.backfill.posts_used_in_feeds.load_data import (
     load_preprocessed_posts_used_in_feeds_for_partition_date,
 )
 from services.backfill.posts.load_data import INTEGRATIONS_LIST
+
+default_start_date = "2024-09-29"
+default_end_date = "2024-10-08"
 
 logger = get_logger(__file__)
 
@@ -151,8 +154,20 @@ def enrich_hydrate_posts_for_partition_date(
     )
 
 
-def main():
-    pass
+def main(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+):
+    if start_date is None:
+        start_date = default_start_date
+    if end_date is None:
+        end_date = default_end_date
+    partition_dates = get_partition_dates(start_date, end_date)
+    for partition_date in partition_dates:
+        enrich_hydrate_posts_for_partition_date(partition_date)
+    logger.info(
+        f"Completed enrichment and hydration of posts for {start_date} to {end_date}"
+    )
 
 
 if __name__ == "__main__":
