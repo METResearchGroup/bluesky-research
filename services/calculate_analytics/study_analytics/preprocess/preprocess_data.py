@@ -18,8 +18,8 @@ logger = get_logger(__file__)
 def preprocess_data_for_partition_date(partition_date: str) -> None:
     """Preprocessing data for a given partition date."""
     logger.info(f"Preprocessing data for partition date: {partition_date}")
-    link_posts_to_feeds_for_partition_date(partition_date)
     enrich_hydrate_posts_for_partition_date(partition_date)
+    link_posts_to_feeds_for_partition_date(partition_date)
     link_feeds_to_user_session_logs_for_partition_date(partition_date)
     logger.info(f"Completed preprocess data for partition date: {partition_date}")
 
