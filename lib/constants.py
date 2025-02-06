@@ -8,7 +8,18 @@ BLOCKED_AUTHORS = []
 # we only want recent posts (Bluesky docs recommend 3 days, see )
 NUM_DAYS_POST_RECENCY = 3
 timestamp_format = "%Y-%m-%d-%H:%M:%S"
-bsky_timestamp_format = "%Y-%m-%dT%H:%M:%S"
+default_bsky_timestamp_format = "%Y-%m-%dT%H:%M:%S"  # e.g. "2024-01-15T13:45:30"
+bsky_timestamp_formats = [
+    default_bsky_timestamp_format,
+    "%Y-%m-%dT%H:%M:%S.%fZ",  # e.g. "2024-01-15T13:45:30.000000Z"
+    "%Y-%m-%dT%H:%M:%SZ",  # e.g. "2024-01-15T13:45:30Z"
+    "%Y-%m-%dT%H:%M:%S.%f%z",  # e.g. "2024-01-15T13:45:30.000000+0000"
+    "%Y-%m-%dT%H:%M:%S%z",  # e.g. "2024-10-20T17:52:03+00:00"
+    "%Y-%m-%dT%H:%M:%S.%f",  # e.g. "2024-10-20T18:36:54.5935595"
+    "%Y-%m-%dT%H:%M:%S.%fZ",  # e.g. "2024-10-20T18:36:54.5935595Z" (microseconds precision)
+]
+
+
 partition_date_format = "%Y-%m-%d"
 current_datetime = datetime.now(timezone.utc)
 current_datetime_str = current_datetime.strftime(timestamp_format)
@@ -30,5 +41,42 @@ default_lookback_days = 2
 def convert_pipeline_to_bsky_dt_format(pipeline_dt: str) -> str:
     """Converts a pipeline datetime string to a Bluesky datetime string."""
     dt = datetime.strptime(pipeline_dt, timestamp_format)
-    dt_formatted: str = dt.strftime(bsky_timestamp_format)
+    dt_formatted: str = dt.strftime(default_bsky_timestamp_format)
     return dt_formatted
+
+
+def try_default_ts_truncation(timestamp: str) -> str:
+    """Truncates a timestamp to seconds precision.
+
+    Args:
+        timestamp: A timestamp string that starts with format "YYYY-MM-DDThh:mm:ss"
+            but may have varying precision endings
+
+    Returns:
+        The timestamp truncated to seconds precision (YYYY-MM-DDThh:mm:ss)
+    """
+    return timestamp[:19]  # Truncate after seconds (19 chars: YYYY-MM-DDThh:mm:ss)
+
+
+def convert_bsky_dt_to_pipeline_dt(bsky_dt: str) -> str:
+    """Converts a Bluesky datetime string to a pipeline datetime string.
+
+    There's been various timestamp formats used in Bluesky, so we try to convert
+    the timestamp to a pipeline datetime string by trying each format.
+
+    Timestamps are the worst...
+    """
+    for bsky_timestamp_format in bsky_timestamp_formats:
+        try:
+            dt = datetime.strptime(bsky_dt, bsky_timestamp_format)
+            dt_formatted: str = dt.strftime(timestamp_format)
+            return dt_formatted
+        except ValueError:
+            continue
+    default_ts_truncation = try_default_ts_truncation(bsky_dt)
+    try:
+        dt = datetime.strptime(default_ts_truncation, default_bsky_timestamp_format)
+        dt_formatted: str = dt.strftime(timestamp_format)
+        return dt_formatted
+    except ValueError:
+        raise ValueError(f"Invalid Bluesky datetime string: {bsky_dt}")
