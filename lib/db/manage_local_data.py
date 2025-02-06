@@ -393,14 +393,14 @@ def get_local_prefixes_for_service(service: str) -> list[str]:
         subpaths = MAP_SERVICE_TO_METADATA[service]["subpaths"]
         for _, subpath in subpaths.items():
             local_prefixes.append(subpath)
-    elif (
-        service == "ml_inference_perspective_api"
-        or service == "ml_inference_sociopolitical"
-    ):
-        local_prefixes = []
-        subpaths = MAP_SERVICE_TO_METADATA[service]["subpaths"]
-        for _, subpath in subpaths.items():
-            local_prefixes.append(subpath)
+    # elif (
+    #     service == "ml_inference_perspective_api"
+    #     or service == "ml_inference_sociopolitical"
+    # ):
+    #     local_prefixes = []
+    #     subpaths = MAP_SERVICE_TO_METADATA[service]["subpaths"]
+    #     for _, subpath in subpaths.items():
+    #         local_prefixes.append(subpath)
     else:
         local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
         if service == "study_user_activity":
@@ -420,9 +420,10 @@ def list_filenames(
 ) -> list[str]:
     """List files in local storage for a given service."""
     local_prefixes = get_local_prefixes_for_service(service)
-    res: list[str] = []
+    loaded_filepaths: list[str] = []
     seen_files = set()  # Track unique files
 
+    # get files in current filesystem format.
     for local_prefix in local_prefixes:
         for directory in directories:
             fp = os.path.join(local_prefix, directory)
@@ -430,15 +431,35 @@ def list_filenames(
                 validated_filepaths: list[str] = validated_pq_files_within_directory(fp)
                 for filepath in validated_filepaths:
                     if filepath not in seen_files:
-                        res.append(filepath)
+                        loaded_filepaths.append(filepath)
                         seen_files.add(filepath)
             else:
                 for root, _, files in os.walk(fp):
                     for file in files:
                         full_path = os.path.join(root, file)
                         if full_path not in seen_files:
-                            res.append(full_path)
+                            loaded_filepaths.append(full_path)
                             seen_files.add(full_path)
+
+    # get filenames from deprecated ["firehose", "most_liked"] format.
+    if service in ["ml_inference_perspective_api", "ml_inference_sociopolitical"]:
+        local_prefixes = get_local_prefixes_for_service(service)
+        local_prefix = local_prefixes[0]
+        local_prefixes = [
+            os.path.join(local_prefix, source_type)
+            for source_type in ["firehose", "most_liked"]
+        ]
+
+        for local_prefix in local_prefixes:
+            for directory in directories:
+                fp = os.path.join(local_prefix, directory)
+                for root, _, files in os.walk(fp):
+                    for file in files:
+                        full_path = os.path.join(root, file)
+                        if full_path not in seen_files:
+                            loaded_filepaths.append(full_path)
+                            seen_files.add(full_path)
+
     # use specific partition date only if the start/end dates aren't provided
     # (they shouldn't be ever jointly provided anyways, since start/end date
     # ranges should only be during backfill operations).
@@ -446,26 +467,31 @@ def list_filenames(
         raise ValueError(
             "Cannot use partition_date and start_partition_date or end_partition_date together."
         )
-    if partition_date and not (start_partition_date and end_partition_date):
-        print(
-            f"Filtering {len(res)} files in service={service}, for partition_date={partition_date}"
-        )
-        res = [fp for fp in res if f"partition_date={partition_date}" in fp]
-    if start_partition_date and end_partition_date:
-        print(
-            f"Filtering {len(res)} files in service={service}, for start_partition_date={start_partition_date} and end_partition_date={end_partition_date}"
-        )
-        res = [
-            fp
-            for fp in res
-            if start_partition_date
-            <= fp.split("/")[-2].split("=")[
-                1
-            ]  # e.g., "partition_date=2024-09-26/5ca31e0389584c7aa8cf98be9bd0da68-0.parquet"
-            <= end_partition_date
-        ]
 
-    return res
+    filtered_filepaths: list[str] = []
+
+    if partition_date or (start_partition_date and end_partition_date):
+        print(
+            f"Filtering {len(loaded_filepaths)} files in service={service}, "
+            f"for {'partition_date=' + partition_date if partition_date else f'date range {start_partition_date} to {end_partition_date}'}"
+        )
+        for fp in loaded_filepaths:
+            path_parts = fp.split("/")
+            partition_parts = [p for p in path_parts if "partition_date=" in p]
+            if not partition_parts:
+                continue
+
+            file_partition_date = partition_parts[0].split("=")[1]
+
+            if partition_date:
+                if file_partition_date == partition_date:
+                    filtered_filepaths.append(fp)
+            elif start_partition_date <= file_partition_date <= end_partition_date:
+                filtered_filepaths.append(fp)
+
+    loaded_filepaths = filtered_filepaths
+
+    return loaded_filepaths
 
 
 def validate_pq_file(filepath: str) -> bool:

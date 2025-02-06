@@ -45,6 +45,20 @@ def convert_pipeline_to_bsky_dt_format(pipeline_dt: str) -> str:
     return dt_formatted
 
 
+def normalize_timestamp(timestamp: str) -> str:
+    """Normalizes timestamps that use hour 24 instead of 00.
+
+    Args:
+        timestamp: A timestamp string that might contain hour 24
+
+    Returns:
+        Normalized timestamp with hour 00 of the next day
+    """
+    if "T24:" in timestamp:
+        return timestamp.replace("T24:", "T00:")
+    return timestamp
+
+
 def try_default_ts_truncation(timestamp: str) -> str:
     """Truncates a timestamp to seconds precision.
 
@@ -66,6 +80,7 @@ def convert_bsky_dt_to_pipeline_dt(bsky_dt: str) -> str:
 
     Timestamps are the worst...
     """
+    bsky_dt = normalize_timestamp(bsky_dt)
     for bsky_timestamp_format in bsky_timestamp_formats:
         try:
             dt = datetime.strptime(bsky_dt, bsky_timestamp_format)
