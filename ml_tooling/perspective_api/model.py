@@ -258,6 +258,12 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
     if not posts:
         return []
 
+    if len(responses) != len(posts):
+        logger.warning(
+            f"Number of responses ({len(responses)}) does not match number of posts ({len(posts)}). Likely means that some posts failed to be labeled. Re-inserting all posts into queue..."
+        )
+        responses = [None] * len(posts)
+
     res = []
     for post, response_obj in zip(posts, responses):
         # the reason why I define the timestamp dynamically instead

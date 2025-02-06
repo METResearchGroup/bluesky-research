@@ -1,7 +1,6 @@
 """Backfill pipeline for posts that were used in feeds."""
 
 from api.integrations_router.main import route_and_run_integration_request
-from lib.db.queue import Queue
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.backfill.posts.load_data import INTEGRATIONS_LIST
@@ -29,8 +28,6 @@ def backfill_posts_used_in_feeds(payload: dict):
     the queue.
     - We then (optionally) run the integrations.
     """
-    posts_to_backfill: dict[str, list[dict]] = {}
-
     # Determine which integrations to process
     specified_integrations = payload.get("integration")
     integrations_to_process = (
@@ -40,22 +37,12 @@ def backfill_posts_used_in_feeds(payload: dict):
     )
 
     if payload.get("add_posts_to_queue"):
-        posts_to_backfill: dict[str, list[dict]] = (
-            backfill_posts_used_in_feed_for_partition_dates(
-                start_date=payload.get("start_date"),
-                end_date=payload.get("end_date"),
-                exclude_partition_dates=payload.get("exclude_partition_dates"),
-            )
+        backfill_posts_used_in_feed_for_partition_dates(
+            start_date=payload.get("start_date"),
+            end_date=payload.get("end_date"),
+            exclude_partition_dates=payload.get("exclude_partition_dates"),
+            integrations_to_process=integrations_to_process,
         )
-        # Only add posts for specified integrations
-        for integration in integrations_to_process:
-            if integration in posts_to_backfill:
-                post_dicts = posts_to_backfill[integration]
-                logger.info(
-                    f"Adding {len(post_dicts)} posts for {integration} to backfill queue..."
-                )
-                queue = Queue(queue_name=f"input_{integration}", create_new_queue=True)
-                queue.batch_add_items_to_queue(items=post_dicts, metadata=None)
     else:
         logger.info("Skipping adding posts to queue...")
 

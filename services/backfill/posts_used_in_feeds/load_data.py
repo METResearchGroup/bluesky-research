@@ -1,6 +1,7 @@
 """Load data for posts used in feeds backfill pipeline."""
 
 from datetime import timedelta
+from typing import Optional
 
 import pandas as pd
 
@@ -16,11 +17,15 @@ from services.backfill.posts.load_data import (
 
 logger = get_logger(__file__)
 
-num_days_lookback = 5
-min_lookback_date = "2024-09-28"
+default_num_days_lookback = 5
+default_min_lookback_date = "2024-09-28"
 
 
-def calculate_start_end_date_for_lookback(partition_date: str) -> tuple[str, str]:
+def calculate_start_end_date_for_lookback(
+    partition_date: str,
+    num_days_lookback: int = default_num_days_lookback,
+    min_lookback_date: str = default_min_lookback_date,
+) -> tuple[str, str]:
     """Calculate the start and end date for the lookback period.
 
     The lookback period is the period of time before the partition date that
@@ -87,6 +92,9 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
         partition_date_format
     )
 
+    # convert to list of dicts, for easier downstream iteration + processing.
+    base_pool_posts: list[dict] = base_pool_posts.to_dict(orient="records")
+
     logger.info(
         f"Loaded {len(base_pool_posts)} base pool posts from {lookback_start_date} to {lookback_end_date}."
     )
@@ -137,7 +145,7 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
 @track_performance
 def load_posts_to_backfill(
     partition_date: str,
-    integrations: list[str] = INTEGRATIONS_LIST,
+    integrations: Optional[list[str]] = None,
 ) -> dict[str, list[dict]]:
     """Load the posts to be backfilled for the partition date.
 
@@ -148,8 +156,13 @@ def load_posts_to_backfill(
     Loads the posts used in feeds (the hydrated, preprocessed versions) and then
     returns the URIs of the posts to be backfilled for each integration.
     """
+    if not integrations:
+        integrations = INTEGRATIONS_LIST
+
     lookback_start_date, lookback_end_date = calculate_start_end_date_for_lookback(
-        partition_date
+        partition_date=partition_date,
+        num_days_lookback=default_num_days_lookback,
+        min_lookback_date=default_min_lookback_date,
     )
     posts_used_in_feeds: list[dict] = (
         load_preprocessed_posts_used_in_feeds_for_partition_date(
@@ -158,16 +171,35 @@ def load_posts_to_backfill(
             lookback_end_date=lookback_end_date,
         )
     )
+    total_posts_used_in_feeds = len(posts_used_in_feeds)
     posts_to_backfill_by_integration: dict[str, list[dict]] = {}
+    logger.info(f"Loading posts to backfill for integrations: {integrations}...")
     for integration in integrations:
+        logger.info(f"Loading posts to backfill for {integration}...")
         integration_post_uris: set[str] = load_service_post_uris(
             service=integration,
             start_date=lookback_start_date,
             end_date=lookback_end_date,
         )
-        posts_to_backfill_by_integration[integration] = [
+        total_integration_uris = len(integration_post_uris)
+        logger.info(
+            f"Loaded {total_integration_uris} URIs for {integration} from {lookback_start_date} to {lookback_end_date}.\n"
+            f"Comparing to {total_posts_used_in_feeds} posts used in feeds for {partition_date}."
+        )
+        integration_posts_to_backfill: list[dict] = [
             post
             for post in posts_used_in_feeds
             if post["uri"] not in integration_post_uris
         ]
+        logger.info(
+            f"Found {len(integration_posts_to_backfill)} posts to backfill for {integration}."
+        )
+        posts_to_backfill_by_integration[integration] = integration_posts_to_backfill
+
+    integration_to_backfill_count = {
+        integration: len(posts_to_backfill_by_integration[integration])
+        for integration in integrations
+    }
+    logger.info(f"Posts to backfill per integration: {integration_to_backfill_count}")
+
     return posts_to_backfill_by_integration

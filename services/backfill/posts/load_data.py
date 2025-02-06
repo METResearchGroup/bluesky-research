@@ -22,6 +22,7 @@ def load_preprocessed_posts(
     end_date: Optional[str] = None,
     sorted_by_partition_date: bool = False,
     ascending: bool = False,
+    table_columns: Optional[list[str]] = None,
     output_format: Literal["list", "df"] = "list",
 ) -> list[dict] | pd.DataFrame:
     """Load the preprocessed posts.
@@ -31,14 +32,18 @@ def load_preprocessed_posts(
         end_date (Optional[str]): End date in YYYY-MM-DD format (inclusive)
         sorted_by_partition_date (bool): Whether to sort the posts by partition date
         ascending (bool): Whether to sort the posts in ascending order
+        table_columns (Optional[list[str]]): Columns to load from the table
+        output_format (Literal["list", "df"]): Format to return the data in
     """
     sort_direction = "ASC" if ascending else "DESC"
     sort_filter = (
         f"ORDER BY partition_date {sort_direction}" if sorted_by_partition_date else ""
     )
 
-    table_columns = ["uri", "text"]
-    if sorted_by_partition_date:
+    if table_columns is None:
+        table_columns = ["uri", "text", "created_at"]
+
+    if sorted_by_partition_date and "partition_date" not in table_columns:
         table_columns.append("partition_date")
     table_columns_str = ", ".join(table_columns)
 
