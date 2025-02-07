@@ -37,9 +37,17 @@ def backfill_posts_used_in_feeds(payload: dict):
     )
 
     if payload.get("add_posts_to_queue"):
+        # Validate required dates when adding to queue
+        start_date = payload.get("start_date")
+        end_date = payload.get("end_date")
+        if not start_date or not end_date:
+            raise ValueError(
+                "start_date and end_date are required when add_posts_to_queue is True"
+            )
+
         backfill_posts_used_in_feed_for_partition_dates(
-            start_date=payload.get("start_date"),
-            end_date=payload.get("end_date"),
+            start_date=start_date,
+            end_date=end_date,
             exclude_partition_dates=payload.get("exclude_partition_dates"),
             integrations_to_process=integrations_to_process,
         )

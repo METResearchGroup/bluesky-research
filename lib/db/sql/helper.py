@@ -1,29 +1,21 @@
-import peewee
-from peewee import TextField
-from playhouse.migrate import migrate, SqliteMigrator
+def normalize_sql(sql: str) -> str:
+    """Normalize SQL string by removing extra whitespace and newlines.
 
+    Args:
+        sql (str): SQL query string to normalize
 
-# table_name comes from [class]._meta.table_name
-# (e.g., RawPost._meta.table_name)
-def add_new_column_to_table(
-    cls,
-    cursor,
-    db: peewee.SqliteDatabase,
-    colname: str
-) -> None:
-    """Adds a new column to the existing RawPost table and backfills
-    existing records with a null default value.
-
-    Assumes TextField type (for now, though this can be changed).
+    Returns:
+        str: Normalized SQL string
     """
-    table_name = cls._meta.table_name
-    print(f"Adding new column {colname} to {table_name} table")
-    migrator = SqliteMigrator(db)
-    migrate(
-        migrator.add_column(table_name, colname, TextField(null=True))
-    )
-    print(f"Added new column {colname} to {table_name} table")
-    current_table_cols = [
-        col[1] for col in cursor.execute(f"PRAGMA table_info({table_name})")
-    ]
-    print(f"Current columns in {table_name} table: {current_table_cols}")
+    # Split into lines and strip each line
+    lines = [line.strip() for line in sql.split("\n")]
+    # Join lines with single space, removing empty lines
+    sql = " ".join(line for line in lines if line)
+
+    # Normalize spaces around operators and punctuation
+    sql = sql.replace(" ,", ",")
+    sql = sql.replace(", ", ",")
+    sql = sql.replace(" =", "=")
+    sql = sql.replace("= ", "=")
+
+    return sql

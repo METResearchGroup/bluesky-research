@@ -15,12 +15,14 @@ INTEGRATIONS_LIST = [
     "ml_inference_ime",
 ]
 
+default_table_columns = ["uri", "text", "created_at"]
+
 logger = get_logger(__file__)
 
 
 def load_preprocessed_posts(
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: str = "",
+    end_date: str = "",
     sorted_by_partition_date: bool = False,
     ascending: bool = False,
     table_columns: Optional[list[str]] = None,
@@ -30,32 +32,38 @@ def load_preprocessed_posts(
     """Load the preprocessed posts.
 
     Args:
-        start_date (Optional[str]): Start date in YYYY-MM-DD format (inclusive)
-        end_date (Optional[str]): End date in YYYY-MM-DD format (inclusive)
+        start_date (str): Start date in YYYY-MM-DD format (inclusive)
+        end_date (str): End date in YYYY-MM-DD format (inclusive)
         sorted_by_partition_date (bool): Whether to sort the posts by partition date
         ascending (bool): Whether to sort the posts in ascending order
         table_columns (Optional[list[str]]): Columns to load from the table
         output_format (Literal["list", "df"]): Format to return the data in
     """
+    if not start_date or not end_date:
+        raise ValueError("start_date and end_date must be provided")
+
+    if table_columns is None:
+        table_columns = (
+            default_table_columns.copy()
+        )  # Make a copy to avoid modifying the default
+
+    # Only add partition_date if sorting and it's not already in columns
+    if sorted_by_partition_date and "partition_date" not in table_columns:
+        table_columns.append("partition_date")
+
     sort_direction = "ASC" if ascending else "DESC"
     sort_filter = (
         f"ORDER BY partition_date {sort_direction}" if sorted_by_partition_date else ""
     )
 
-    if table_columns is None:
-        table_columns = ["uri", "text", "created_at"]
-
-    if sorted_by_partition_date and "partition_date" not in table_columns:
-        table_columns.append("partition_date")
     table_columns_str = ", ".join(table_columns)
-
-    query = f"""
-        SELECT {table_columns_str}
-        FROM preprocessed_posts
-        WHERE text IS NOT NULL
-        AND text != ''
-        {sort_filter}
-    """
+    query = (
+        f"SELECT {table_columns_str} "
+        f"FROM preprocessed_posts "
+        f"WHERE text IS NOT NULL "
+        f"AND text != '' "
+        f"{sort_filter}"
+    ).strip()
 
     cached_df: pd.DataFrame = load_data_from_local_storage(
         service="preprocessed_posts",
@@ -81,7 +89,7 @@ def load_preprocessed_posts(
         end_partition_date=end_date,
     )
     logger.info(f"Loaded {len(active_df)} posts from active")
-    df = pd.concat([cached_df, active_df])
+    df = pd.concat([cached_df, active_df]).drop_duplicates(subset="uri", keep="first")
     print(f"Columns in cached_df: {cached_df.columns}")
     print(f"Columns in active_df: {active_df.columns}")
     print(f"Columns in df: {df.columns}")
@@ -99,7 +107,6 @@ def load_preprocessed_posts(
                 df[ts_col] = df[ts_col].dt.strftime(partition_date_format)
             else:
                 df[ts_col] = df[ts_col].apply(convert_bsky_dt_to_pipeline_dt)
-
     if output_format == "list":
         return df.to_dict(orient="records")
     return df
@@ -141,8 +148,10 @@ def load_service_post_uris(
         end_partition_date=end_date,
     )
     logger.info(f"Loaded {len(active_df)} post URIs from active")
-    df = pd.concat([cached_df, active_df])
-    logger.info(f"Loaded {len(df)} post URIs from cache and active")
+    df = pd.concat([cached_df, active_df]).drop_duplicates(
+        subset=id_field, keep="first"
+    )
+    logger.info(f"Loaded {len(df)} unique post URIs from cache and active")
     return set(df[id_field])
 
 
@@ -160,16 +169,21 @@ def load_posts_to_backfill(
         end_date (Optional[str]): End date in YYYY-MM-DD format (inclusive)
     """
     integrations_to_backfill = INTEGRATIONS_LIST if not integrations else integrations
+
     total_posts: list[dict] = load_preprocessed_posts(
         start_date=start_date,
         end_date=end_date,
         sorted_by_partition_date=False,
         ascending=False,
+        table_columns=default_table_columns,
+        output_format="list",
     )
     posts_to_backfill_by_integration: dict[str, list[dict]] = {}
     for integration in integrations_to_backfill:
         integration_post_uris: set[str] = load_service_post_uris(
-            service=integration, start_date=start_date, end_date=end_date
+            service=integration,
+            start_date=start_date,
+            end_date=end_date,
         )
         posts_to_backfill_by_integration[integration] = [
             post for post in total_posts if post["uri"] not in integration_post_uris

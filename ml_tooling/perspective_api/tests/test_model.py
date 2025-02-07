@@ -129,6 +129,7 @@ class TestCreateLabelModels:
     - Error handling for failed responses
     - Correct timestamp assignment
     - Proper field mapping
+    - Handling of mismatched response/post counts
     """
 
     def test_create_models_success(self):
@@ -177,6 +178,33 @@ class TestCreateLabelModels:
         Should return empty list.
         """
         assert create_labels([], []) == []
+
+    def test_mismatched_response_count(self, caplog):
+        """Test handling of mismatched response and post counts.
+        
+        Should log a warning and treat all posts as failed responses.
+        """
+        posts = [
+            {"uri": "test1", "text": "test text 1"},
+            {"uri": "test2", "text": "test text 2"}
+        ]
+        responses = [{
+            "prob_toxic": 0.8,
+            "prob_severe_toxic": 0.2
+        }]  # Only one response for two posts
+
+        labels = create_labels(posts, responses)
+
+        # Check warning was logged
+        assert "Number of responses (1) does not match number of posts (2)" in caplog.text
+
+        # Should get two failed labels back
+        assert len(labels) == 2
+        for label in labels:
+            assert isinstance(label, dict)
+            assert label["was_successfully_labeled"] is False
+            assert label["reason"] == "No response from Perspective API"
+            assert "label_timestamp" in label
 
 
 class TestBatchClassifyPosts:

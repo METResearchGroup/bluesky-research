@@ -23,26 +23,6 @@ from services.backfill.posts_used_in_feeds.load_data import (
 )
 
 
-@pytest.fixture
-def mock_posts_used_in_feeds_df():
-    """Fixture for mock posts used in feeds DataFrame."""
-    return pd.DataFrame({
-        "uri": ["post1", "post2", "post3", "post4", "post5"]
-    })
-
-
-@pytest.fixture
-def mock_preprocessed_posts():
-    """Fixture for mock preprocessed posts."""
-    return [
-        {"uri": "post1", "text": "text1"},
-        {"uri": "post2", "text": "text2"},
-        {"uri": "post3", "text": "text3"},
-        {"uri": "post4", "text": "text4"},
-        {"uri": "post5", "text": "text5"}
-    ]
-
-
 class TestCalculateStartEndDateForLookback:
     def test_normal_case(self):
         """Test calculating dates when partition date minus lookback is after min date."""
@@ -105,11 +85,13 @@ class TestLoadPreprocessedPostsUsedInFeeds:
     @patch("services.backfill.posts_used_in_feeds.load_data.load_posts_used_in_feeds")
     def test_no_posts_used_in_feeds(self, mock_load_feeds, mock_load_preprocessed):
         """Test case where there are no posts used in feeds for the partition date."""
-        mock_load_feeds.return_value = pd.DataFrame({"uri": []})  # Empty DataFrame with uri column
-        mock_load_preprocessed.return_value = [
-            {"uri": "post1", "text": "text1"},
-            {"uri": "post2", "text": "text2"}
-        ]
+        mock_load_feeds.return_value = pd.DataFrame({"uri": []})
+        # Return DataFrame instead of list
+        mock_load_preprocessed.return_value = pd.DataFrame({
+            "uri": ["post1", "post2"],
+            "text": ["text1", "text2"],
+            "partition_date": pd.to_datetime(["2024-10-05", "2024-10-06"])
+        })
         
         result = load_preprocessed_posts_used_in_feeds_for_partition_date(
             partition_date="2024-10-10",
@@ -127,7 +109,12 @@ class TestLoadPreprocessedPostsUsedInFeeds:
         mock_load_feeds.return_value = pd.DataFrame({
             "uri": ["post1", "post2"]
         })
-        mock_load_preprocessed.return_value = []
+        # Return empty DataFrame with correct columns
+        mock_load_preprocessed.return_value = pd.DataFrame({
+            "uri": [],
+            "text": [],
+            "partition_date": pd.Series(dtype='datetime64[ns]')
+        })
         
         with pytest.raises(ValueError) as exc_info:
             load_preprocessed_posts_used_in_feeds_for_partition_date(
@@ -149,10 +136,11 @@ class TestLoadPreprocessedPostsUsedInFeeds:
         mock_load_feeds.return_value = pd.DataFrame({
             "uri": ["post1", "post2"]
         })
-        mock_load_preprocessed.return_value = [
-            {"uri": "post1", "text": "text1"},
-            {"uri": "post2", "text": "text2"}
-        ]
+        mock_load_preprocessed.return_value = pd.DataFrame({
+            "uri": ["post1", "post2"],
+            "text": ["text1", "text2"],
+            "partition_date": pd.to_datetime(["2024-10-05", "2024-10-06"])
+        })
         
         result = load_preprocessed_posts_used_in_feeds_for_partition_date(
             partition_date="2024-10-10",
@@ -171,11 +159,11 @@ class TestLoadPreprocessedPostsUsedInFeeds:
         mock_load_feeds.return_value = pd.DataFrame({
             "uri": ["post1", "post2"]
         })
-        mock_load_preprocessed.return_value = [
-            {"uri": "post1", "text": "text1"},
-            {"uri": "post2", "text": "text2"},
-            {"uri": "post3", "text": "text3"}
-        ]
+        mock_load_preprocessed.return_value = pd.DataFrame({
+            "uri": ["post1", "post2", "post3"],
+            "text": ["text1", "text2", "text3"],
+            "partition_date": pd.to_datetime(["2024-10-05", "2024-10-06", "2024-10-07"])
+        })
         
         result = load_preprocessed_posts_used_in_feeds_for_partition_date(
             partition_date="2024-10-10",
@@ -197,10 +185,11 @@ class TestLoadPreprocessedPostsUsedInFeeds:
         mock_load_feeds.return_value = pd.DataFrame({
             "uri": ["post1", "post2", "post3"]
         })
-        mock_load_preprocessed.return_value = [
-            {"uri": "post1", "text": "text1"},
-            {"uri": "post2", "text": "text2"}
-        ]
+        mock_load_preprocessed.return_value = pd.DataFrame({
+            "uri": ["post1", "post2"],
+            "text": ["text1", "text2"],
+            "partition_date": pd.to_datetime(["2024-10-05", "2024-10-06"])
+        })
         
         with pytest.raises(ValueError) as exc_info:
             load_preprocessed_posts_used_in_feeds_for_partition_date(
@@ -222,11 +211,11 @@ class TestLoadPreprocessedPostsUsedInFeeds:
         mock_load_feeds.return_value = pd.DataFrame({
             "uri": ["post1", "post1", "post2", "post2", "post3"]
         })
-        mock_load_preprocessed.return_value = [
-            {"uri": "post1", "text": "text1"},
-            {"uri": "post2", "text": "text2"},
-            {"uri": "post3", "text": "text3"}
-        ]
+        mock_load_preprocessed.return_value = pd.DataFrame({
+            "uri": ["post1", "post2", "post3"],
+            "text": ["text1", "text2", "text3"],
+            "partition_date": pd.to_datetime(["2024-10-05", "2024-10-06", "2024-10-07"])
+        })
         
         result = load_preprocessed_posts_used_in_feeds_for_partition_date(
             partition_date="2024-10-10",
@@ -245,10 +234,11 @@ class TestLoadPreprocessedPostsUsedInFeeds:
         mock_load_feeds.return_value = pd.DataFrame({
             "uri": ["post1", "post2", "post3"]  # 3 unique posts
         })
-        mock_load_preprocessed.return_value = [
-            {"uri": "post1", "text": "text1"},
-            {"uri": "post2", "text": "text2"}  # Only 2 posts in base pool
-        ]
+        mock_load_preprocessed.return_value = pd.DataFrame({
+            "uri": ["post1", "post2"],  # Only 2 posts in base pool
+            "text": ["text1", "text2"],
+            "partition_date": pd.to_datetime(["2024-10-05", "2024-10-06"])
+        })
         
         with pytest.raises(ValueError) as exc_info:
             load_preprocessed_posts_used_in_feeds_for_partition_date(
@@ -270,11 +260,11 @@ class TestLoadPreprocessedPostsUsedInFeeds:
         mock_load_feeds.return_value = pd.DataFrame({
             "uri": ["post1", "post2"]  # 2 unique posts
         })
-        mock_load_preprocessed.return_value = [
-            {"uri": "post1", "text": "text1"},
-            {"uri": "post2", "text": "text2"},
-            {"uri": "post3", "text": "text3"}  # 3 posts in base pool is OK
-        ]
+        mock_load_preprocessed.return_value = pd.DataFrame({
+            "uri": ["post1", "post2", "post3"],
+            "text": ["text1", "text2", "text3"],
+            "partition_date": pd.to_datetime(["2024-10-05", "2024-10-06", "2024-10-07"])
+        })
         
         result = load_preprocessed_posts_used_in_feeds_for_partition_date(
             partition_date="2024-10-10",
@@ -286,12 +276,11 @@ class TestLoadPreprocessedPostsUsedInFeeds:
         assert len(result) == 2
         assert {post["uri"] for post in result} == {"post1", "post2"}
 
+
 class TestLoadPostsToBackfill:
     @patch("services.backfill.posts_used_in_feeds.load_data.load_service_post_uris")
     @patch("services.backfill.posts_used_in_feeds.load_data.load_preprocessed_posts_used_in_feeds_for_partition_date")
-    def test_filter_by_integration(
-        self, mock_load_posts_used, mock_load_uris, mock_preprocessed_posts
-    ):
+    def test_filter_by_integration(self, mock_load_posts_used, mock_load_uris):
         """Test filtering posts by integration status.
         
         Verifies:
@@ -299,7 +288,14 @@ class TestLoadPostsToBackfill:
         - Correctly filters out posts already processed by each integration
         - Handles multiple integrations appropriately
         """
-        mock_load_posts_used.return_value = mock_preprocessed_posts
+        mock_posts = [
+            {"uri": "post1", "text": "text1"},
+            {"uri": "post2", "text": "text2"},
+            {"uri": "post3", "text": "text3"},
+            {"uri": "post4", "text": "text4"},
+            {"uri": "post5", "text": "text5"}
+        ]
+        mock_load_posts_used.return_value = mock_posts
         mock_load_uris.return_value = {"post1", "post2"}  # Some posts already processed
         
         partition_date = "2024-10-10"
@@ -318,4 +314,3 @@ class TestLoadPostsToBackfill:
         assert len(result["ml_inference_perspective_api"]) == 3
         assert all(post["uri"] in {"post3", "post4", "post5"} 
                   for post in result["ml_inference_perspective_api"])
-
