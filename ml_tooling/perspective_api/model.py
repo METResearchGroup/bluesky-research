@@ -206,6 +206,9 @@ async def process_perspective_batch(requests: list[dict]) -> list[dict]:
     (I didn't know closures were a thing in Python, I thought that was only
     in JS. Nice!)
     """
+    if not requests:
+        return []
+
     google_client = get_google_client()
     batch = google_client.new_batch_http_request()
     responses = []
@@ -258,26 +261,59 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
     if not posts:
         return []
 
+    if len(responses) != len(posts):
+        logger.warning(
+            f"Number of responses ({len(responses)}) does not match number of posts ({len(posts)}). Likely means that some posts failed to be labeled. Re-inserting all posts into queue..."
+        )
+        responses = [None] * len(posts)
+
     res = []
+
+    # the reason why I define the timestamp dynamically instead
+    # of setting this up as a single value for the entire job,
+    # like I do elsewhere, is that inference can take hours to
+    # run and is batched. Therefore, I wanto to have a more
+    # fine-grained idea of when a specific sample was
+    # classified, not just the single timestamp that the job
+    # was started.
+    label_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H:%M:%S")
+
     for post, response_obj in zip(posts, responses):
-        # the reason why I define the timestamp dynamically instead
-        # of setting this up as a single value for the entire job,
-        # like I do elsewhere, is that inference can take hours to
-        # run and is batched. Therefore, I wanto to have a more
-        # fine-grained idea of when a specific sample was
-        # classified, not just the single timestamp that the job
-        # was started.
-        label_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H:%M:%S")  # noqa
+        # Check for malformed response
+        if response_obj is not None and "attributeScores" in response_obj:
+            is_malformed = False
+            error_msg = []
+
+            # Validate required fields
+            for attribute in response_obj["attributeScores"]:
+                if "summaryScore" not in response_obj["attributeScores"][attribute]:
+                    is_malformed = True
+                    error_msg.append(
+                        f"Missing required field: summaryScore for {attribute}"
+                    )
+                elif (
+                    "value"
+                    not in response_obj["attributeScores"][attribute]["summaryScore"]
+                ):
+                    is_malformed = True
+                    error_msg.append(
+                        f"Missing required field: value in summaryScore for {attribute}"
+                    )
+
+            if is_malformed:
+                response_obj = {"error": "; ".join(error_msg)}
+
         if response_obj is None or "error" in response_obj:
             if response_obj is None:
                 response_obj = {"error": "No response from Perspective API"}
             print(
                 f"Error processing post {post['uri']} using the Perspective API: {response_obj['error']}"
-            )  # noqa
+            )
             res.append(
                 PerspectiveApiLabelsModel(
                     uri=post["uri"],
                     text=post["text"],
+                    created_at=post["created_at"],
                     was_successfully_labeled=False,
                     reason=response_obj["error"],
                     label_timestamp=label_timestamp,
@@ -295,6 +331,7 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
                 PerspectiveApiLabelsModel(
                     uri=post["uri"],
                     text=post["text"],
+                    created_at=post["created_at"],
                     was_successfully_labeled=True,
                     label_timestamp=label_timestamp,
                     **probs_response_obj,
@@ -350,6 +387,15 @@ async def batch_classify_posts(
                 failed_labels.append(label)
                 total_failed_labels += 1
 
+        if total_successful_labels > 0:
+            logger.info(f"Successfully labeled {total_successful_labels} posts.")
+            write_posts_to_cache(
+                inference_type="perspective_api",
+                posts=successful_labels,
+                batch_size=batch_size,
+            )
+            total_posts_successfully_labeled += total_successful_labels
+
         if total_failed_labels > 0:
             logger.error(
                 f"Failed to label {total_failed_labels} posts. Re-inserting these into queue."
@@ -360,14 +406,7 @@ async def batch_classify_posts(
                 batch_size=batch_size,
             )
             total_posts_failed_to_label += total_failed_labels
-        else:
-            logger.info(f"Successfully labeled {total_successful_labels} posts.")
-            write_posts_to_cache(
-                inference_type="perspective_api",
-                posts=successful_labels,
-                batch_size=batch_size,
-            )
-            total_posts_successfully_labeled += total_successful_labels
+
         del successful_labels
         del failed_labels
         del post_batch

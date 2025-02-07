@@ -45,28 +45,54 @@ else:
 def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
     """Create label models from posts and responses.
 
-    Converts the output of the process_ime_batch function to a list of dicts,
-    using Pydantic models for consistency.
+    Takes a list of posts and a DataFrame of processed results, and creates label models
+    for each post. For posts that were successfully processed (their URIs exist in the
+    output DataFrame), creates a label model with the processed results and sets
+    was_successfully_labeled=True. For posts that were not processed (either due to
+    output_df being empty or their URIs not existing in it), creates a label model with
+    just the post metadata and sets was_successfully_labeled=False.
 
-    If output_df is empty, then labeling failed for all posts. Return
-    objects with was_successfully_labeled set to False.
+    Args:
+        posts (list[dict]): List of post dictionaries containing uri, text, and created_at
+        output_df (pd.DataFrame): DataFrame containing processed results, with uri column
+
+    Returns:
+        list[dict]: List of serialized ImeLabelModel objects for each input post
     """
     if output_df.empty:
         return [
             ImeLabelModel(
                 uri=post["uri"],
                 text=post["text"],
+                created_at=post["created_at"],
                 was_successfully_labeled=False,
             ).model_dump()
             for post in posts
         ]
-    output_df["was_successfully_labeled"] = True
-    output_dicts: list[dict] = output_df.to_dict(orient="records")
-    output_models: list[ImeLabelModel] = [
-        ImeLabelModel(**output_dict) for output_dict in output_dicts
-    ]
-    output_dicts = [model.model_dump() for model in output_models]
-    return output_dicts
+
+    # Create a mapping of URIs to their processed results
+    processed_uris = set(output_df["uri"])
+
+    labels = []
+    for post in posts:
+        if post["uri"] in processed_uris:
+            # Post was successfully processed
+            post_df = output_df[output_df["uri"] == post["uri"]]
+            post_dict = post_df.iloc[0].to_dict()
+            post_dict["was_successfully_labeled"] = True
+            labels.append(ImeLabelModel(**post_dict).model_dump())
+        else:
+            # Post was not processed
+            labels.append(
+                ImeLabelModel(
+                    uri=post["uri"],
+                    text=post["text"],
+                    created_at=post["created_at"],
+                    was_successfully_labeled=False,
+                ).model_dump()
+            )
+
+    return labels
 
 
 @track_performance
@@ -125,6 +151,16 @@ def batch_classify_posts(
                 failed_labels.append(label)
                 total_failed_labels += 1
 
+        # Handle successful and failed labels separately
+        if total_successful_labels > 0:
+            logger.info(f"Successfully labeled {total_successful_labels} posts.")
+            write_posts_to_cache(
+                inference_type="ime",
+                posts=successful_labels,
+                batch_size=batch_size,
+            )
+            total_posts_successfully_labeled += total_successful_labels
+
         if total_failed_labels > 0:
             logger.error(
                 f"Failed to label {total_failed_labels} posts. Re-inserting these into queue."
@@ -135,14 +171,6 @@ def batch_classify_posts(
                 batch_size=batch_size,
             )
             total_posts_failed_to_label += total_failed_labels
-        else:
-            logger.info(f"Successfully labeled {total_successful_labels} posts.")
-            write_posts_to_cache(
-                inference_type="ime",
-                posts=successful_labels,
-                batch_size=batch_size,
-            )
-            total_posts_successfully_labeled += total_successful_labels
 
         # Calculate metrics for this batch
 

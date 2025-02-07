@@ -8,8 +8,8 @@
 #SBATCH --mem=15G
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
-#SBATCH --job-name=backfill_records_coordination_ml_inference_perspective_api_%j
-#SBATCH --output=/projects/p32375/bluesky-research/lib/log/backfill_records_coordination/ml_inference_perspective_api-%j.log
+#SBATCH --job-name=write_cache_ml_inference_perspective_api_%j
+#SBATCH --output=/projects/p32375/bluesky-research/lib/log/backfill_records_coordination/write_cache_ml_inference_perspective_api-%j.log
 
 # load conda env
 CONDA_PATH="/hpc/software/mamba/23.1.0/etc/profile.d/conda.sh"
@@ -19,7 +19,11 @@ PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 
 source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
 echo "Starting slurm job."
-python "/projects/p32375/bluesky-research/pipelines/backfill_records_coordination/app.py" --record-type posts --integration ml_inference_perspective_api --run-integrations
+python "/projects/p32375/bluesky-research/pipelines/backfill_records_coordination/app.py" \
+    --record-type posts_used_in_feeds \
+    --write-cache ml_inference_perspective_api \
+    --start-date 2024-10-01 \
+    --end-date 2024-10-03
 exit_code=$?
 echo "Python script exited with code $exit_code"
 if [ $exit_code -ne 0 ]; then
@@ -29,9 +33,10 @@ fi
 echo "Completed slurm job."
 
 # Send log file via email
-log_file="/projects/p32375/bluesky-research/lib/log/backfill_records_coordination/ml_inference_perspective_api-${SLURM_JOB_ID}.log"
+log_file="/projects/p32375/bluesky-research/lib/log/backfill_records_coordination/write_cache_ml_inference_perspective_api-${SLURM_JOB_ID}.log"
 if [ -f "$log_file" ]; then
     mail -s "Log output for job ${SLURM_JOB_ID}" markptorres1@gmail.com < "$log_file"
 fi
 
 exit 0
+

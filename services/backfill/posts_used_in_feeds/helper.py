@@ -1,5 +1,7 @@
 """Helper functions for the posts_used_in_feeds backfill."""
 
+from typing import Optional
+
 from lib.db.queue import Queue
 from lib.helper import get_partition_dates
 from lib.log.logger import get_logger
@@ -8,9 +10,13 @@ from services.backfill.posts_used_in_feeds.load_data import load_posts_to_backfi
 logger = get_logger(__file__)
 
 
-def backfill_posts_used_in_feed_for_partition_date(partition_date: str):
+def backfill_posts_used_in_feed_for_partition_date(
+    partition_date: str,
+    integrations_to_process: Optional[list[str]] = None,
+):
     posts_to_backfill: dict[str, list[dict]] = load_posts_to_backfill(
         partition_date=partition_date,
+        integrations=integrations_to_process,
     )
     context = {"total": len(posts_to_backfill)}
     logger.info(
@@ -34,12 +40,10 @@ def backfill_posts_used_in_feed_for_partition_date(partition_date: str):
 def backfill_posts_used_in_feed_for_partition_dates(
     start_date: str,
     end_date: str,
-    exclude_partition_dates: list[str] = [],
+    exclude_partition_dates: Optional[list[str]] = None,
+    integrations_to_process: Optional[list[str]] = None,
 ):
     """Backfill posts used in feed for a range of partition dates."""
-
-    breakpoint()
-
     partition_dates: list[str] = get_partition_dates(
         start_date=start_date,
         end_date=end_date,
@@ -50,7 +54,10 @@ def backfill_posts_used_in_feed_for_partition_dates(
         logger.info(
             f"Backfilling posts used in feed for partition date {partition_date}..."
         )
-        backfill_posts_used_in_feed_for_partition_date(partition_date)
+        backfill_posts_used_in_feed_for_partition_date(
+            partition_date,
+            integrations_to_process=integrations_to_process,
+        )
         logger.info(
             f"Finished backfilling posts used in feed for partition date {partition_date}."
         )

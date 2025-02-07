@@ -40,44 +40,75 @@ def determine_backfill_latest_timestamp(
     return timestamp
 
 
+def filter_posts_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Filter out posts with invalid text.
+
+    Args:
+        df: DataFrame containing posts with 'text' column and 'created_at' column
+
+    Returns:
+        DataFrame with posts removed that have:
+        - Missing text (if text column exists)
+        - Empty text (if text column exists)
+        - Text shorter than MIN_POST_TEXT_LENGTH characters (if text column exists)
+        - Missing created_at timestamp (if created_at column exists)
+    """
+    filtered_df = df.copy()
+
+    # Only apply text filters if text column exists
+    if "text" in filtered_df.columns:
+        filtered_df = filtered_df[
+            filtered_df["text"].notna()
+            & (filtered_df["text"] != "")
+            & (filtered_df["text"].str.len() >= MIN_POST_TEXT_LENGTH)
+        ]
+
+    # Only apply timestamp filter if created_at column exists
+    if "created_at" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["created_at"].notna()]
+
+    return filtered_df
+
+
 @track_performance
 def get_posts_to_classify(
     inference_type: Literal["llm", "perspective_api", "ime"],
     timestamp: Optional[str] = None,
     previous_run_metadata: Optional[dict] = None,
+    columns: Optional[list[str]] = None,
 ) -> list[dict]:
-    """Get posts to classify.
+    """Get posts to classify from the queue.
 
-    Steps:
-    - Takes the inference type
-    - Loads in the latest labeling session for the inference type (from DynamoDB)    - Get the latest inference timestamp
-    - Use that as a filter for labeling.
-    - Get the rows of data to label.
+    This is the single entry point for getting data for inference. All inference modules
+    should use this function to get their data.
+
+    Args:
+        inference_type: Type of inference to run
+        timestamp: Optional timestamp to override latest inference timestamp
+        previous_run_metadata: Optional metadata from previous run
+        columns: Optional list of columns to return
+
+    Returns:
+        List of posts to classify
     """
-    queue_name = (
-        "ml_inference_perspective_api"
-        if inference_type == "perspective_api"
-        else "ml_inference_sociopolitical"
-        if inference_type == "llm"
-        else "ml_inference_ime"
-        if inference_type == "ime"
-        else None
-    )
-    if queue_name is None:
+    # Map inference types to queue names
+    queue_mapping = {
+        "perspective_api": "input_ml_inference_perspective_api",
+        "llm": "input_ml_inference_sociopolitical",
+        "ime": "input_ml_inference_ime",
+    }
+
+    if inference_type not in queue_mapping:
         raise ValueError(f"Invalid inference type: {inference_type}")
 
-    queue = Queue(queue_name=f"input_{queue_name}")
-    if not previous_run_metadata:
-        previous_run_metadata = {}
-    if previous_run_metadata:
-        latest_job_metadata: dict = json.loads(
-            previous_run_metadata.get("metadata", "")
-        )
-        if latest_job_metadata:
-            latest_id_classified = latest_job_metadata.get("latest_id_classified", None)  # noqa
+    queue = Queue(queue_name=queue_mapping[inference_type])
+
+    if previous_run_metadata is not None:
+        latest_job_metadata = json.loads(previous_run_metadata.get("metadata", "{}"))
+        latest_id_classified = latest_job_metadata.get("latest_id_classified", None)
         latest_inference_timestamp = latest_job_metadata.get(
             "inference_timestamp", None
-        )  # noqa
+        )
     else:
         latest_id_classified = None
         latest_inference_timestamp = None
@@ -85,7 +116,7 @@ def get_posts_to_classify(
     if timestamp is not None:
         logger.info(
             f"Using backfill timestamp {timestamp} instead of latest inference timestamp: {latest_inference_timestamp}"
-        )  # noqa
+        )
         latest_inference_timestamp = timestamp
 
     latest_payloads: list[dict] = queue.load_dict_items_from_queue(
@@ -95,16 +126,32 @@ def get_posts_to_classify(
         status="pending",
     )
     logger.info(f"Loaded {len(latest_payloads)} posts to classify.")
-    logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
+    logger.info(f"Getting posts to classify for inference type {inference_type}.")
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")
-    posts_df = pd.DataFrame(
-        latest_payloads,
-        columns=["uri", "text", "batch_id", "batch_metadata"],
-    )
-    if len(posts_df) == 0:
+
+    if not latest_payloads:
         logger.info("No posts to classify.")
         return []
-    posts_df = posts_df.drop_duplicates(subset=["uri"])
-    return posts_df[["uri", "text", "batch_id", "batch_metadata"]].to_dict(
-        orient="records"
-    )
+
+    if columns is None:
+        columns = ["uri", "text", "created_at", "batch_id", "batch_metadata"]
+
+    # Create DataFrame with all columns from the payloads
+    posts_df = pd.DataFrame(latest_payloads)
+
+    # Drop duplicates before any other processing
+    if "uri" in posts_df.columns:
+        posts_df = posts_df.drop_duplicates(subset=["uri"])
+
+    # Filter posts if needed
+    posts_df = filter_posts_df(posts_df)
+
+    # Verify required columns exist and add missing ones with None values
+    missing_columns = [col for col in columns if col not in posts_df.columns]
+    if missing_columns:
+        logger.warning(f"Missing required columns: {missing_columns}")
+        for col in missing_columns:
+            posts_df[col] = None
+
+    # Select only requested columns
+    return posts_df[columns].to_dict(orient="records")

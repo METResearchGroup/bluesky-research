@@ -4,9 +4,9 @@
 #SBATCH -p short
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 0:20:00
+#SBATCH -t 1:00:00
 #SBATCH --mem=15G
-#SBATCH --mail-type=FAIL
+#SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --job-name=backfill_records_coordination_ml_inference_sociopolitical_%j
 #SBATCH --output=/projects/p32375/bluesky-research/lib/log/backfill_records_coordination/ml_inference_sociopolitical-%j.log
@@ -19,7 +19,7 @@ PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 
 source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
 echo "Starting slurm job."
-python "/projects/p32375/bluesky-research/pipelines/backfill_records_coordination/app.py --integration ml_inference_sociopolitical --run_integration"
+python "/projects/p32375/bluesky-research/pipelines/backfill_records_coordination/app.py" --record-type posts --integration ml_inference_sociopolitical --run-integrations
 exit_code=$?
 echo "Python script exited with code $exit_code"
 if [ $exit_code -ne 0 ]; then
@@ -27,4 +27,11 @@ if [ $exit_code -ne 0 ]; then
     exit $exit_code
 fi
 echo "Completed slurm job."
+
+# Send log file via email
+log_file="/projects/p32375/bluesky-research/lib/log/backfill_records_coordination/ml_inference_sociopolitical-${SLURM_JOB_ID}.log"
+if [ -f "$log_file" ]; then
+    mail -s "Log output for job ${SLURM_JOB_ID}" markptorres1@gmail.com < "$log_file"
+fi
+
 exit 0
