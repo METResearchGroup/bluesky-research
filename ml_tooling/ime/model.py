@@ -56,6 +56,7 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
             ImeLabelModel(
                 uri=post["uri"],
                 text=post["text"],
+                created_at=post["created_at"],
                 was_successfully_labeled=False,
             ).model_dump()
             for post in posts

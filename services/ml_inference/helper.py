@@ -40,11 +40,33 @@ def determine_backfill_latest_timestamp(
     return timestamp
 
 
+def filter_posts_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Filter out posts with invalid text.
+
+    Args:
+        df: DataFrame containing posts with 'text' column and 'created_at' column
+
+    Returns:
+        DataFrame with posts removed that have:
+        - Missing text
+        - Empty text
+        - Text shorter than MIN_POST_TEXT_LENGTH characters
+        - Missing created_at timestamp
+    """
+    valid_texts_df = df[
+        df["text"].notna()
+        & (df["text"] != "")
+        & (df["text"].str.len() >= MIN_POST_TEXT_LENGTH)
+    ]
+    valid_texts_df = valid_texts_df[valid_texts_df["created_at"].notna()]
+
+
 @track_performance
 def get_posts_to_classify(
     inference_type: Literal["llm", "perspective_api", "ime"],
     timestamp: Optional[str] = None,
     previous_run_metadata: Optional[dict] = None,
+    columns: Optional[list[str]] = None,
 ) -> list[dict]:
     """Get posts to classify.
 
@@ -97,14 +119,19 @@ def get_posts_to_classify(
     logger.info(f"Loaded {len(latest_payloads)} posts to classify.")
     logger.info(f"Getting posts to classify for inference type {inference_type}.")  # noqa
     logger.info(f"Latest inference timestamp: {latest_inference_timestamp}")
+
+    if columns is None:
+        columns = ["uri", "text", "created_at", "batch_id", "batch_metadata"]
+
     posts_df = pd.DataFrame(
         latest_payloads,
-        columns=["uri", "text", "batch_id", "batch_metadata"],
+        columns=columns,
     )
     if len(posts_df) == 0:
         logger.info("No posts to classify.")
         return []
     posts_df = posts_df.drop_duplicates(subset=["uri"])
-    return posts_df[["uri", "text", "batch_id", "batch_metadata"]].to_dict(
-        orient="records"
-    )
+
+    posts_df = filter_posts_df(posts_df)
+
+    return posts_df[columns].to_dict(orient="records")

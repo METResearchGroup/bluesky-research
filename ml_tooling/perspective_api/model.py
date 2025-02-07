@@ -284,6 +284,7 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
                 PerspectiveApiLabelsModel(
                     uri=post["uri"],
                     text=post["text"],
+                    created_at=post["created_at"],
                     was_successfully_labeled=False,
                     reason=response_obj["error"],
                     label_timestamp=label_timestamp,
@@ -301,6 +302,7 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
                 PerspectiveApiLabelsModel(
                     uri=post["uri"],
                     text=post["text"],
+                    created_at=post["created_at"],
                     was_successfully_labeled=True,
                     label_timestamp=label_timestamp,
                     **probs_response_obj,
