@@ -11,6 +11,18 @@ order to mimick the full prod workflow for the integrations.
 """
 
 payloads = {
+    "backfill_posts_used_in_feeds_insert_dummy_records_only": {
+        "description": """
+            Insert dummy records only, skip the run_integration step. Figure out 
+            which posts were used in feeds for a given date range, and then
+            insert dummy records for those posts. For using posts in feeds,
+            we need to provide a date range.
+        """,
+        "command": """
+            python app.py --record-type posts_used_in_feeds --add-to-queue
+            \ --start-date 2024-01-01 --end-date 2024-01-31
+        """,
+    },
     "perspective_api_insert_dummy_records_only": {
         "description": "Insert dummy records only, skip the run_integration step",
         "command": "python app.py --record-type posts --integration ml_inference_perspective_api --add-to-queue",

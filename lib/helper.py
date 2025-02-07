@@ -1,6 +1,6 @@
 """Helper functions."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from functools import wraps
 import json
@@ -9,6 +9,7 @@ from memory_profiler import memory_usage
 import os
 import threading
 import time
+from typing import Optional
 
 from atproto import Client
 
@@ -222,3 +223,32 @@ def create_batches(batch_list, batch_size) -> list[list]:
 
 def generate_current_datetime_str() -> str:
     return datetime.now(timezone.utc).strftime(timestamp_format)
+
+
+def get_partition_dates(
+    start_date: str,
+    end_date: str,
+    exclude_partition_dates: Optional[list[str]] = None,
+) -> list[str]:
+    """Returns a list of dates between start_date and end_date, inclusive.
+
+    Args:
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+
+    Returns:
+        List of dates in YYYY-MM-DD format
+    """
+    partition_dates = []
+    current_date = datetime.strptime(start_date, "%Y-%m-%d")
+    end_timestamp = datetime.strptime(end_date, "%Y-%m-%d")
+
+    while current_date <= end_timestamp:
+        date_str = current_date.strftime("%Y-%m-%d")
+        if exclude_partition_dates and date_str in exclude_partition_dates:
+            current_date += timedelta(days=1)
+            continue
+        partition_dates.append(date_str)
+        current_date += timedelta(days=1)
+
+    return partition_dates

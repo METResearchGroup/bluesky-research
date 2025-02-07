@@ -51,8 +51,8 @@ class TestCreateLabels:
     def test_empty_output_df(self):
         """Test handling of empty output DataFrame."""
         posts = [
-            {'uri': 'uri1', 'text': 'text1'},
-            {'uri': 'uri2', 'text': 'text2'}
+            {'uri': 'uri1', 'text': 'text1', 'created_at': '2024-01-01'},
+            {'uri': 'uri2', 'text': 'text2', 'created_at': '2024-01-01'}
         ]
         empty_df = pd.DataFrame()
         
@@ -62,17 +62,19 @@ class TestCreateLabels:
         assert all(not label['was_successfully_labeled'] for label in result)
         assert all('uri' in label for label in result)
         assert all('text' in label for label in result)
+        assert all('created_at' in label for label in result)
 
     def test_successful_label_creation(self):
         """Test converting DataFrame to label dictionaries."""
         posts = [
-            {'uri': 'uri1', 'text': 'text1'},
-            {'uri': 'uri2', 'text': 'text2'}
+            {'uri': 'uri1', 'text': 'text1', 'created_at': '2024-01-01'},
+            {'uri': 'uri2', 'text': 'text2', 'created_at': '2024-01-01'}
         ]
         
         input_df = pd.DataFrame({
             'uri': ['uri1', 'uri2'],
             'text': ['text1', 'text2'],
+            'created_at': ['2024-01-01', '2024-01-01'],
             'prob_emotion': [0.8, 0.1],
             'prob_intergroup': [0.2, 0.9],
             'prob_moral': [0.1, 0.1],
@@ -90,6 +92,7 @@ class TestCreateLabels:
         assert all(label['was_successfully_labeled'] for label in result)
         assert all('uri' in label for label in result)
         assert all('text' in label for label in result)
+        assert all('created_at' in label for label in result)
         assert all('label_timestamp' in label for label in result)
 
 
@@ -109,8 +112,8 @@ class TestBatchClassifyPosts:
     ):
         """Test processing batches with successful labels."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'text1', 'batch_id': 'batch1'},
-            {'uri': 'uri2', 'text': 'text2', 'batch_id': 'batch1'}
+            {'uri': 'uri1', 'text': 'text1', 'batch_id': 'batch1', 'created_at': '2024-01-01'},
+            {'uri': 'uri2', 'text': 'text2', 'batch_id': 'batch1', 'created_at': '2024-01-01'}
         ]
         
         mock_create_batches.return_value = [input_posts]
@@ -118,6 +121,7 @@ class TestBatchClassifyPosts:
         mock_process_batch.return_value = pd.DataFrame({
             'uri': ['uri1', 'uri2'],
             'text': ['text1', 'text2'],
+            'created_at': ['2024-01-01', '2024-01-01'],
             'prob_emotion': [0.8, 0.1],
             'prob_intergroup': [0.2, 0.9],
             'prob_moral': [0.1, 0.1], 
@@ -155,8 +159,8 @@ class TestBatchClassifyPosts:
     ):
         """Test handling of failed labels."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'text1', 'batch_id': 'batch1'},
-            {'uri': 'uri2', 'text': 'text2', 'batch_id': 'batch1'}
+            {'uri': 'uri1', 'text': 'text1', 'batch_id': 'batch1', 'created_at': '2024-01-01'},
+            {'uri': 'uri2', 'text': 'text2', 'batch_id': 'batch1', 'created_at': '2024-01-01'}
         ]
         
         mock_create_batches.return_value = [input_posts]
@@ -175,3 +179,114 @@ class TestBatchClassifyPosts:
         assert result['metadata']['total_posts_successfully_labeled'] == 0
         mock_return_failed.assert_called_once()
         mock_write_cache.assert_not_called()
+
+    @patch('ml_tooling.ime.model.create_batches')
+    @patch('ml_tooling.ime.model.process_ime_batch')
+    @patch('ml_tooling.ime.model.write_posts_to_cache')
+    @patch('ml_tooling.ime.model.return_failed_labels_to_input_queue')
+    def test_metric_collection(
+        self,
+        mock_return_failed,
+        mock_write_cache,
+        mock_process_batch,
+        mock_create_batches
+    ):
+        """Test that metrics are correctly calculated for a batch."""
+        input_posts = [
+            {'uri': 'uri1', 'text': 'short', 'batch_id': 'batch1', 'created_at': '2024-01-01'},
+            {'uri': 'uri2', 'text': 'very long text', 'batch_id': 'batch1', 'created_at': '2024-01-01'}
+        ]
+        
+        mock_create_batches.return_value = [input_posts]
+        
+        # Create DataFrame with known values to verify metrics
+        mock_process_batch.return_value = pd.DataFrame({
+            'uri': ['uri1', 'uri2'],
+            'text': ['short', 'very long text'],
+            'created_at': ['2024-01-01', '2024-01-01'],
+            'prob_emotion': [0.8, 0.2],
+            'prob_intergroup': [0.7, 0.3],
+            'prob_moral': [0.6, 0.4],
+            'prob_other': [0.5, 0.5],
+            'label_emotion': [1, 0],
+            'label_intergroup': [1, 0],
+            'label_moral': [1, 0],
+            'label_other': [0, 0],
+            'label_timestamp': ['2024-01-01', '2024-01-01']
+        })
+
+        result = batch_classify_posts(
+            posts=input_posts,
+            batch_size=2,
+            minibatch_size=1
+        )
+        
+        metrics = result['experiment_metrics']
+        # Verify average probabilities (now scalar values)
+        assert metrics['average_prob_emotion_per_batch'] == 0.5
+        assert metrics['prop_emotion_per_batch'] == 50.0
+        # Verify multi-label detection
+        assert metrics['prop_multi_label_samples_per_batch'] == 0.5
+
+    @patch('ml_tooling.ime.model.create_batches')
+    @patch('ml_tooling.ime.model.process_ime_batch')
+    @patch('ml_tooling.ime.model.write_posts_to_cache')
+    @patch('ml_tooling.ime.model.return_failed_labels_to_input_queue')
+    def test_partial_batch_success(
+        self,
+        mock_return_failed,
+        mock_write_cache,
+        mock_process_batch,
+        mock_create_batches
+    ):
+        """Test handling of batches where some posts succeed and others fail."""
+        input_posts = [
+            {'uri': 'uri1', 'text': 'text1', 'batch_id': 'batch1', 'created_at': '2024-01-01'},
+            {'uri': 'uri2', 'text': 'text2', 'batch_id': 'batch1', 'created_at': '2024-01-01'}
+        ]
+   
+        mock_create_batches.return_value = [input_posts]
+        
+        # Create a DataFrame that only includes the first post
+        # This simulates a partial success where the second post failed processing
+        mock_process_batch.return_value = pd.DataFrame({
+            'uri': ['uri1'],
+            'text': ['text1'],
+            'created_at': ['2024-01-01'],
+            'prob_emotion': [0.8],
+            'prob_intergroup': [0.2],
+            'prob_moral': [0.1],
+            'prob_other': [0.1],
+            'label_emotion': [1],
+            'label_intergroup': [0],
+            'label_moral': [0],
+            'label_other': [0],
+            'label_timestamp': ['2024-01-01']
+        })
+
+        result = batch_classify_posts(
+            posts=input_posts,
+            batch_size=2,
+            minibatch_size=1
+        )
+        
+        # The posts not included in the output DataFrame are considered failed
+        assert result['metadata']['total_posts_successfully_labeled'] == 1
+        # The second post should be marked as failed since it wasn't in the output DataFrame
+        assert result['metadata']['total_posts_failed_to_label'] == 1
+        
+        # Verify both success and failure handling were called
+        mock_write_cache.assert_called_once()
+        mock_return_failed.assert_called_once()
+
+    def test_empty_input_posts(self):
+        """Test handling of empty input posts list."""
+        result = batch_classify_posts(
+            posts=[],
+            batch_size=2,
+            minibatch_size=1
+        )
+        
+        assert result['metadata']['total_posts_successfully_labeled'] == 0
+        assert result['metadata']['total_posts_failed_to_label'] == 0
+        assert result['metadata']['total_batches'] == 0

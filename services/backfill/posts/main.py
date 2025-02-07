@@ -23,6 +23,8 @@ def backfill_posts(payload: dict):
                 "run_integrations" (bool): Whether to run the integrations after queueing
                 "integration" (Optional[list[str]]): List of specific integrations to backfill.
                     If not provided, will backfill for all integrations.
+                "start_date" (Optional[str]): Start date in YYYY-MM-DD format (inclusive)
+                "end_date" (Optional[str]): End date in YYYY-MM-DD format (inclusive)
             }
 
     The function performs two main steps:
@@ -67,8 +69,13 @@ def backfill_posts(payload: dict):
     """
     posts_to_backfill: dict[str, list[dict]] = {}
     if payload.get("add_posts_to_queue"):
+        start_date = payload.get("start_date", None)
+        end_date = payload.get("end_date", None)
+
         posts_to_backfill: dict[str, list[dict]] = load_posts_to_backfill(
-            payload.get("integration")
+            integrations=payload.get("integration"),
+            start_date=start_date,
+            end_date=end_date,
         )
         context = {"total": len(posts_to_backfill)}
         logger.info(

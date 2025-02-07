@@ -1,4 +1,5 @@
 from services.backfill.posts.main import backfill_posts
+from services.backfill.posts_used_in_feeds.main import backfill_posts_used_in_feeds
 
 
 def backfill_records(payload: dict):
@@ -33,4 +34,7 @@ def backfill_records(payload: dict):
     record_type = payload.get("record_type")
     if record_type == "posts":
         backfill_posts(payload)
-    pass
+    elif record_type == "posts_used_in_feeds":
+        backfill_posts_used_in_feeds(payload)
+    else:
+        raise ValueError(f"Unsupported record type: {record_type}")

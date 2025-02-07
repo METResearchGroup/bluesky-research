@@ -3,6 +3,7 @@
 import click
 from pipelines.backfill_records_coordination.handler import lambda_handler
 from pipelines.write_cache_buffers.handler import lambda_handler as write_cache_handler
+from datetime import datetime
 
 INTEGRATION_MAP = {
     "p": "ml_inference_perspective_api",
@@ -23,16 +24,37 @@ DEFAULT_INTEGRATION_KWARGS = {
         "backfill_period": None,
         "backfill_duration": None,
         "run_classification": True,
-    }
+    },
+    "ml_inference_sociopolitical": {
+        "backfill_period": None,
+        "backfill_duration": None,
+        "run_classification": True,
+    },
+    "ml_inference_ime": {
+        "backfill_period": None,
+        "backfill_duration": None,
+        "run_classification": True,
+    },
 }
+
+
+def validate_date_format(ctx, param, value):
+    """Validates date string format (YYYY-MM-DD)."""
+    if value is None:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        raise click.BadParameter("Invalid date format. Please use YYYY-MM-DD format.")
 
 
 @click.command()
 @click.option(
     "--record-type",
     "-r",
-    type=click.Choice(["posts"]),
-    required=True,
+    type=click.Choice(["posts", "posts_used_in_feeds"]),
+    required=False,
+    default=None,
     help="Type of records to backfill",
 )
 @click.option(
@@ -95,8 +117,22 @@ DEFAULT_INTEGRATION_KWARGS = {
     default=None,
     help="Write cache buffer for specified service to database. Use 'all' to write all services.",
 )
+@click.option(
+    "--start-date",
+    type=str,
+    default=None,
+    callback=validate_date_format,
+    help="Start date for backfill (YYYY-MM-DD format, inclusive). If provided with end-date, only processes records within date range.",
+)
+@click.option(
+    "--end-date",
+    type=str,
+    default=None,
+    callback=validate_date_format,
+    help="End date for backfill (YYYY-MM-DD format, inclusive). If provided with start-date, only processes records within date range.",
+)
 def backfill_records(
-    record_type: str,
+    record_type: str | None,
     add_to_queue: bool,
     run_integrations: bool,
     integration: tuple[str, ...],
@@ -104,6 +140,8 @@ def backfill_records(
     backfill_duration: int | None,
     run_classification: bool,
     write_cache: str | None,
+    start_date: str | None,
+    end_date: str | None,
 ):
     """CLI app for triggering backfill of records and optionally writing cache buffers.
 
@@ -115,17 +153,31 @@ def backfill_records(
         $ python -m pipelines.backfill_records_coordination.app -r posts -i p --no-run-integrations
 
         # Run existing queued posts for multiple integrations without adding new ones
-        $ python -m pipelines.backfill_records_coordination.app -r posts -i p -i s --no-add-to-queue
+        $ python -m pipelines.backfill_records_coordination.app -i p -i s --run-integrations
 
         # Backfill posts for last 2 days with classification
         $ python -m pipelines.backfill_records_coordination.app -r posts -p days -d 2
 
         # Write cache buffer for all services
-        $ python -m pipelines.backfill_records_coordination.app -r posts --write-cache all
+        $ python -m pipelines.backfill_records_coordination.app --write-cache all
 
         # Write cache buffer for specific service
-        $ python -m pipelines.backfill_records_coordination.app -r posts --write-cache ml_inference_perspective_api
+        $ python -m pipelines.backfill_records_coordination.app --write-cache ml_inference_perspective_api
+
+        # Backfill posts within a date range
+        $ python -m pipelines.backfill_records_coordination.app -r posts --start-date 2024-01-01 --end-date 2024-01-31
     """
+    # Validate that record_type is provided when add_to_queue is True
+    if add_to_queue and not record_type:
+        raise click.UsageError("--record-type is required when --add-to-queue is used")
+
+    # Validate that posts_used_in_feeds requires both start_date and end_date
+    if record_type == "posts_used_in_feeds":
+        if not (start_date and end_date):
+            raise click.UsageError(
+                "Both --start-date and --end-date are required when record_type is 'posts_used_in_feeds'"
+            )
+
     # Convert integrations from abbreviations if needed
     resolved_integrations = (
         [resolve_integration(i) for i in integration] if integration else None
@@ -137,6 +189,8 @@ def backfill_records(
         "add_posts_to_queue": add_to_queue,
         "run_integrations": run_integrations,
         "integration_kwargs": {},
+        "start_date": start_date,
+        "end_date": end_date,
     }
 
     # Add integration kwargs based on CLI args or defaults

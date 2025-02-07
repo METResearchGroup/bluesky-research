@@ -387,16 +387,13 @@ def export_data_to_local_storage(
         )  # noqa
 
 
+def get_local_prefix_for_service(service: str) -> str:
+    """Get the local prefix for a given service."""
+    return MAP_SERVICE_TO_METADATA[service]["local_prefix"]
+
+
 def get_local_prefixes_for_service(service: str) -> list[str]:
     if service == "preprocessed_posts":
-        local_prefixes = []
-        subpaths = MAP_SERVICE_TO_METADATA[service]["subpaths"]
-        for _, subpath in subpaths.items():
-            local_prefixes.append(subpath)
-    elif (
-        service == "ml_inference_perspective_api"
-        or service == "ml_inference_sociopolitical"
-    ):
         local_prefixes = []
         subpaths = MAP_SERVICE_TO_METADATA[service]["subpaths"]
         for _, subpath in subpaths.items():
@@ -410,38 +407,225 @@ def get_local_prefixes_for_service(service: str) -> list[str]:
     return local_prefixes
 
 
+def _crawl_local_prefix(
+    local_prefix: str,
+    directories: list[Literal["cache", "active"]] = ["active"],
+    validate_pq_files: bool = False,
+) -> list[str]:
+    """Crawls the local prefix and returns all filepaths.
+
+    For the current format, the prefix would be <service>/<directory = cache / active>
+    For the deprecated format, the prefix would be <service>/<source_type = firehose / most_liked>/<directory = cache / active>
+    """
+    loaded_filepaths: list[str] = []
+    seen_files = set()  # Track unique files
+
+    for directory in directories:
+        fp = os.path.join(local_prefix, directory)
+        if validate_pq_files:
+            validated_filepaths: list[str] = validated_pq_files_within_directory(fp)
+            for filepath in validated_filepaths:
+                if filepath not in seen_files:
+                    loaded_filepaths.append(filepath)
+                    seen_files.add(filepath)
+        else:
+            for root, _, files in os.walk(fp):
+                for file in files:
+                    full_path = os.path.join(root, file)
+                    if full_path not in seen_files:
+                        loaded_filepaths.append(full_path)
+                        seen_files.add(full_path)
+    return loaded_filepaths
+
+
+def _get_all_filenames(
+    service: str,
+    directories: list[Literal["cache", "active"]] = ["active"],
+    validate_pq_files: bool = False,
+) -> list[str]:
+    """Gets all filenames for a given service.
+
+    Uses the current file format of
+    - <service>
+        - <directory = cache / active>
+            - <partition_date = YYYY-MM-DD>
+                - <filename>
+
+    Example:
+    - /projects/p32375/bluesky_research_data/ml_inference_perspective_api/
+    cache/partition_date=2024-09-29/bbab32f2d9764d52a3d89a7aee014192-0.parquet
+    """
+    root_local_prefix = get_local_prefix_for_service(service)
+
+    return _crawl_local_prefix(
+        local_prefix=root_local_prefix,
+        directories=directories,
+        validate_pq_files=validate_pq_files,
+    )
+
+
+def _get_all_filenames_deprecated_format(
+    service: str,
+    directories: list[Literal["cache", "active"]] = ["active"],
+    validate_pq_files: bool = False,
+) -> list[str]:
+    """Gets all filenames for a given service.
+
+    Uses the deprecated file format of
+    - <service>
+        - <source_type = firehose / most_liked>
+             - <directory = cache / active>
+                - <partition_date = YYYY-MM-DD>
+                    - <filename>
+
+    Subdirectories beneath "directory" could vary. Sometimes they have the
+    parquet filename as a folder, e.g., "startTimestamp=2024-09-19-11:58:16_endTimestamp=2024-09-19-23:59:59_fileCreatedTimestamp=2024-09-26-18:42:28.parquet"
+
+    In this case, the full filepath is:
+        /projects/p32375/bluesky_research_data/ml_inference_perspective_api/
+        firehose/cache/
+        startTimestamp=2024-09-19-11:58:16_endTimestamp=2024-09-19-23:59:59_fileCreatedTimestamp=2024-09-26-18:42:28.parquet
+        /partition_date=2024-09-19/bbb05056707144e28a0b51725ef9940c-0.parquet
+
+    (this came because I thought you could name the .parquet files, but you can't (or it's a hassle to,
+    and you don't ever need to do so)).
+
+    Either way, this function looks for the file format listed above and
+    returns all the filenames.
+    """
+    if service not in [
+        "preprocessed_posts",
+        "ml_inference_perspective_api",
+        "ml_inference_sociopolitical",
+        "study_user_activity",
+    ]:
+        raise ValueError(f"Service {service} is not supported for deprecated format.")
+
+    root_local_prefix = get_local_prefix_for_service(service)
+
+    local_prefixes = [
+        os.path.join(root_local_prefix, source_type)
+        for source_type in ["firehose", "most_liked"]
+    ]
+
+    loaded_filepaths: list[str] = []
+
+    for local_prefix in local_prefixes:
+        loaded_filepaths.extend(
+            _crawl_local_prefix(
+                local_prefix=local_prefix,
+                directories=directories,
+                validate_pq_files=validate_pq_files,
+            )
+        )
+
+    return loaded_filepaths
+
+
+def _validate_filepaths(
+    service: str,
+    filepaths: list[str],
+    partition_date: Optional[str] = None,
+    start_partition_date: Optional[str] = None,
+    end_partition_date: Optional[str] = None,
+) -> list[str]:
+    """Validate filepaths."""
+    filtered_filepaths: list[str] = []
+
+    if (start_partition_date and not end_partition_date) or (
+        end_partition_date and not start_partition_date
+    ):
+        raise ValueError(
+            "Both start_partition_date and end_partition_date must be provided together."
+        )
+
+    # use specific partition date only if the start/end dates aren't provided
+    # (they shouldn't be ever jointly provided anyways, since start/end date
+    # ranges should only be during backfill operations).
+    if partition_date and (start_partition_date or end_partition_date):
+        raise ValueError(
+            "Cannot use partition_date and start_partition_date or end_partition_date together."
+        )
+
+    if partition_date or (start_partition_date and end_partition_date):
+        print(
+            f"Filtering {len(filepaths)} files in service={service}, "
+            f"for {'partition_date=' + partition_date if partition_date else f'date range {start_partition_date} to {end_partition_date}'}"
+        )
+        for fp in filepaths:
+            path_parts = fp.split("/")
+            partition_parts = [p for p in path_parts if "partition_date=" in p]
+            if not partition_parts:
+                continue
+
+            file_partition_date = partition_parts[0].split("=")[1]
+
+            if partition_date:
+                if file_partition_date == partition_date:
+                    filtered_filepaths.append(fp)
+            elif start_partition_date <= file_partition_date <= end_partition_date:
+                filtered_filepaths.append(fp)
+    return filtered_filepaths
+
+
 def list_filenames(
     service: str,
     directories: list[Literal["cache", "active"]] = ["active"],
     validate_pq_files: bool = False,
     partition_date: Optional[str] = None,
+    start_partition_date: Optional[str] = None,
+    end_partition_date: Optional[str] = None,
 ) -> list[str]:
     """List files in local storage for a given service."""
-    local_prefixes = get_local_prefixes_for_service(service)
-    res: list[str] = []
-    for local_prefix in local_prefixes:
-        for directory in directories:
-            fp = os.path.join(local_prefix, directory)
-            if validate_pq_files:
-                validated_filepaths: list[str] = validated_pq_files_within_directory(fp)
-                res.extend(validated_filepaths)
-            else:
-                for root, _, files in os.walk(fp):
-                    for file in files:
-                        res.append(os.path.join(root, file))
-    if partition_date:
-        print(
-            f"Filtering {len(res)} files in service={service}, for partition_date={partition_date}"
+
+    loaded_filepaths: list[str] = []
+
+    # get filenames from deprecated ["firehose", "most_liked"] format.
+    # We want to add these in addition to files in the current format.
+    if service in [
+        "preprocessed_posts",
+        "ml_inference_perspective_api",
+        "ml_inference_sociopolitical",
+        "study_user_activity",
+    ]:
+        logger.info(
+            f"Getting all filenames for service={service} in deprecated format."
         )
-        res = [fp for fp in res if f"partition_date={partition_date}" in fp]
-    return res
+        loaded_filepaths.extend(
+            _get_all_filenames_deprecated_format(
+                service=service,
+                directories=directories,
+                validate_pq_files=validate_pq_files,
+            )
+        )
+
+    logger.info(f"Getting all filenames for service={service} in current format.")
+    loaded_filepaths.extend(
+        _get_all_filenames(
+            service=service,
+            directories=directories,
+            validate_pq_files=validate_pq_files,
+        )
+    )
+
+    loaded_filepaths = _validate_filepaths(
+        service=service,
+        filepaths=loaded_filepaths,
+        partition_date=partition_date,
+        start_partition_date=start_partition_date,
+        end_partition_date=end_partition_date,
+    )
+
+    return loaded_filepaths
 
 
 def validate_pq_file(filepath: str) -> bool:
+    """Validate a parquet file."""
     try:
         pq.ParquetFile(filepath)
         return True
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error validating {filepath}: {e}")
         return False
 
 
@@ -453,12 +637,11 @@ def validated_pq_files_within_directory(directory: str) -> list[str]:
         for file in files:
             if file.endswith(".parquet"):
                 fp = os.path.join(root, file)
-                try:
-                    pq.ParquetFile(fp)
+                if validate_pq_file(fp):
                     filepaths.append(fp)
-                except Exception as e:
-                    logger.error(f"Error validating {fp}: {e}")
+                else:
                     invalidated_filepaths.append(fp)
+
     total_invalidated_filepaths = len(invalidated_filepaths)
     if filepaths:
         logger.info(f"Found {len(filepaths)} valid Parquet files in {directory}.")
@@ -522,6 +705,8 @@ def load_data_from_local_storage(
     directory: Literal["cache", "active"] = "active",
     export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
     partition_date: Optional[str] = None,
+    start_partition_date: Optional[str] = None,
+    end_partition_date: Optional[str] = None,
     duckdb_query: Optional[str] = None,
     query_metadata: Optional[dict] = None,
     latest_timestamp: Optional[str] = None,
@@ -538,6 +723,8 @@ def load_data_from_local_storage(
         directories=directories,
         validate_pq_files=validate_pq_files,
         partition_date=partition_date,
+        start_partition_date=start_partition_date,
+        end_partition_date=end_partition_date,
     )
     if export_format == "jsonl":
         df = pd.read_json(filepaths, orient="records", lines=True)
@@ -563,25 +750,34 @@ def load_data_from_local_storage(
             kwargs["filters"] = filters
         df = pd.read_parquet(**kwargs)
         if schema:
-            # attempt to convert dtypes after the fact. Parquet doesn't preserve the exact same dtypes as pandas so I need to
-            # re-convert these after the fact.
+            # attempt to convert dtypes after the fact, but only for columns that exist
             dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", {})
             for col, dtype in dtypes_map.items():
-                if dtype == "Int64":
-                    df[col] = df[col].astype("Int64")
-                elif dtype == "Float64":
-                    df[col] = df[col].astype("Float64")
-                elif dtype == "bool":
-                    df[col] = df[col].astype("bool")
-                elif dtype == "object":
-                    df[col] = df[col].astype("object")
-                elif dtype == "string":
-                    df[col] = df[col].astype("string")
+                if col in df.columns:  # Only convert if column exists
+                    try:
+                        if dtype == "Int64":
+                            df[col] = df[col].astype("Int64")
+                        elif dtype == "Float64":
+                            df[col] = df[col].astype("Float64")
+                        elif dtype == "bool":
+                            df[col] = df[col].astype("bool")
+                        elif dtype == "object":
+                            df[col] = df[col].astype("object")
+                        elif dtype == "string":
+                            df[col] = df[col].astype("string")
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to convert column {col} to type {dtype}: {e}"
+                        )
     elif export_format == "duckdb":
         if not duckdb_query or not query_metadata:
             raise ValueError(
                 "Must provide a DuckDB query and query metadata when exporting to DuckDB."
             )
+
+        duckdb_query_cols = []
+        for table in query_metadata["tables"]:
+            duckdb_query_cols.extend(table["columns"])
 
         df: pd.DataFrame = duckDB.run_query_as_df(
             query=duckdb_query,
@@ -596,9 +792,15 @@ def load_data_from_local_storage(
         df = df[df[timestamp_field] >= latest_timestamp]
     # drop extra columns that are added in during compaction steps.
     # (these will be added back in during compaction anyways)
-    for col in ["row_num", "partition_date", "startTimestamp"]:
-        if col in df.columns:
-            df = df.drop(columns=[col])
+    cols_to_drop = ["row_num", "partition_date", "startTimestamp"]
+    for col in cols_to_drop:
+        # don't drop the column if we explicitly query for it.
+        if export_format == "duckdb":
+            if col in df.columns and col not in duckdb_query_cols:
+                df = df.drop(columns=[col])
+        else:
+            if col in df.columns:
+                df = df.drop(columns=[col])
     return df
 
 

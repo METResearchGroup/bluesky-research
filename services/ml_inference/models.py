@@ -49,6 +49,7 @@ class PerspectiveApiLabelsModel(BaseModel):
 
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
+    created_at: str = Field(..., description="The created_at timestamp of the post.")
     was_successfully_labeled: bool = Field(
         ...,
         description="Indicates if the post was successfully labeled by the Perspective API.",
@@ -186,6 +187,7 @@ class ImeLabelModel(BaseModel):
 
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
+    created_at: str = Field(..., description="The created_at timestamp of the post.")
     was_successfully_labeled: bool = Field(
         ...,
         description="Indicates if the post was successfully labeled by the Perspective API.",
