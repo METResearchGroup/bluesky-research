@@ -387,20 +387,17 @@ def export_data_to_local_storage(
         )  # noqa
 
 
+def get_local_prefix_for_service(service: str) -> str:
+    """Get the local prefix for a given service."""
+    return MAP_SERVICE_TO_METADATA[service]["local_prefix"]
+
+
 def get_local_prefixes_for_service(service: str) -> list[str]:
     if service == "preprocessed_posts":
         local_prefixes = []
         subpaths = MAP_SERVICE_TO_METADATA[service]["subpaths"]
         for _, subpath in subpaths.items():
             local_prefixes.append(subpath)
-    # elif (
-    #     service == "ml_inference_perspective_api"
-    #     or service == "ml_inference_sociopolitical"
-    # ):
-    #     local_prefixes = []
-    #     subpaths = MAP_SERVICE_TO_METADATA[service]["subpaths"]
-    #     for _, subpath in subpaths.items():
-    #         local_prefixes.append(subpath)
     else:
         local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
         if service == "study_user_activity":
@@ -410,55 +407,145 @@ def get_local_prefixes_for_service(service: str) -> list[str]:
     return local_prefixes
 
 
-def list_filenames(
+def _crawl_local_prefix(
+    local_prefix: str,
+    directories: list[Literal["cache", "active"]] = ["active"],
+    validate_pq_files: bool = False,
+) -> list[str]:
+    """Crawls the local prefix and returns all filepaths.
+
+    For the current format, the prefix would be <service>/<directory = cache / active>
+    For the deprecated format, the prefix would be <service>/<source_type = firehose / most_liked>/<directory = cache / active>
+    """
+    loaded_filepaths: list[str] = []
+    seen_files = set()  # Track unique files
+
+    for directory in directories:
+        fp = os.path.join(local_prefix, directory)
+        if validate_pq_files:
+            validated_filepaths: list[str] = validated_pq_files_within_directory(fp)
+            for filepath in validated_filepaths:
+                if filepath not in seen_files:
+                    loaded_filepaths.append(filepath)
+                    seen_files.add(filepath)
+        else:
+            for root, _, files in os.walk(fp):
+                for file in files:
+                    full_path = os.path.join(root, file)
+                    if full_path not in seen_files:
+                        loaded_filepaths.append(full_path)
+                        seen_files.add(full_path)
+    return loaded_filepaths
+
+
+def _get_all_filenames(
     service: str,
     directories: list[Literal["cache", "active"]] = ["active"],
     validate_pq_files: bool = False,
+) -> list[str]:
+    """Gets all filenames for a given service.
+
+    Uses the current file format of
+    - <service>
+        - <directory = cache / active>
+            - <partition_date = YYYY-MM-DD>
+                - <filename>
+
+    Example:
+    - /projects/p32375/bluesky_research_data/ml_inference_perspective_api/
+    cache/partition_date=2024-09-29/bbab32f2d9764d52a3d89a7aee014192-0.parquet
+    """
+    if service in [
+        "preprocessed_posts",
+        "ml_inference_perspective_api",
+        "ml_inference_sociopolitical",
+        "study_user_activity",
+    ]:
+        raise ValueError(f"Service {service} is not supported for current format.")
+
+    root_local_prefix = get_local_prefix_for_service(service)
+
+    return _crawl_local_prefix(
+        local_prefix=root_local_prefix,
+        directories=directories,
+        validate_pq_files=validate_pq_files,
+    )
+
+
+def _get_all_filenames_deprecated_format(
+    service: str,
+    directories: list[Literal["cache", "active"]] = ["active"],
+    validate_pq_files: bool = False,
+) -> list[str]:
+    """Gets all filenames for a given service.
+
+    Uses the deprecated file format of
+    - <service>
+        - <source_type = firehose / most_liked>
+             - <directory = cache / active>
+                - <partition_date = YYYY-MM-DD>
+                    - <filename>
+
+    Subdirectories beneath "directory" could vary. Sometimes they have the
+    parquet filename as a folder, e.g., "startTimestamp=2024-09-19-11:58:16_endTimestamp=2024-09-19-23:59:59_fileCreatedTimestamp=2024-09-26-18:42:28.parquet"
+
+    In this case, the full filepath is:
+        /projects/p32375/bluesky_research_data/ml_inference_perspective_api/
+        firehose/cache/
+        startTimestamp=2024-09-19-11:58:16_endTimestamp=2024-09-19-23:59:59_fileCreatedTimestamp=2024-09-26-18:42:28.parquet
+        /partition_date=2024-09-19/bbb05056707144e28a0b51725ef9940c-0.parquet
+
+    (this came because I thought you could name the .parquet files, but you can't (or it's a hassle to,
+    and you don't ever need to do so)).
+
+    Either way, this function looks for the file format listed above and
+    returns all the filenames.
+    """
+    if service not in [
+        "preprocessed_posts",
+        "ml_inference_perspective_api",
+        "ml_inference_sociopolitical",
+        "study_user_activity",
+    ]:
+        raise ValueError(f"Service {service} is not supported for deprecated format.")
+
+    root_local_prefix = get_local_prefix_for_service(service)
+
+    local_prefixes = [
+        os.path.join(root_local_prefix, source_type)
+        for source_type in ["firehose", "most_liked"]
+    ]
+
+    loaded_filepaths: list[str] = []
+
+    for local_prefix in local_prefixes:
+        loaded_filepaths.extend(
+            _crawl_local_prefix(
+                local_prefix=local_prefix,
+                directories=directories,
+                validate_pq_files=validate_pq_files,
+            )
+        )
+
+    return loaded_filepaths
+
+
+def _validate_filepaths(
+    service: str,
+    filepaths: list[str],
     partition_date: Optional[str] = None,
     start_partition_date: Optional[str] = None,
     end_partition_date: Optional[str] = None,
 ) -> list[str]:
-    """List files in local storage for a given service."""
-    local_prefixes = get_local_prefixes_for_service(service)
-    loaded_filepaths: list[str] = []
-    seen_files = set()  # Track unique files
+    """Validate filepaths."""
+    filtered_filepaths: list[str] = []
 
-    # get files in current filesystem format.
-    for local_prefix in local_prefixes:
-        for directory in directories:
-            fp = os.path.join(local_prefix, directory)
-            if validate_pq_files:
-                validated_filepaths: list[str] = validated_pq_files_within_directory(fp)
-                for filepath in validated_filepaths:
-                    if filepath not in seen_files:
-                        loaded_filepaths.append(filepath)
-                        seen_files.add(filepath)
-            else:
-                for root, _, files in os.walk(fp):
-                    for file in files:
-                        full_path = os.path.join(root, file)
-                        if full_path not in seen_files:
-                            loaded_filepaths.append(full_path)
-                            seen_files.add(full_path)
-
-    # get filenames from deprecated ["firehose", "most_liked"] format.
-    if service in ["ml_inference_perspective_api", "ml_inference_sociopolitical"]:
-        local_prefixes = get_local_prefixes_for_service(service)
-        local_prefix = local_prefixes[0]
-        local_prefixes = [
-            os.path.join(local_prefix, source_type)
-            for source_type in ["firehose", "most_liked"]
-        ]
-
-        for local_prefix in local_prefixes:
-            for directory in directories:
-                fp = os.path.join(local_prefix, directory)
-                for root, _, files in os.walk(fp):
-                    for file in files:
-                        full_path = os.path.join(root, file)
-                        if full_path not in seen_files:
-                            loaded_filepaths.append(full_path)
-                            seen_files.add(full_path)
+    if (start_partition_date and not end_partition_date) or (
+        end_partition_date and not start_partition_date
+    ):
+        raise ValueError(
+            "Both start_partition_date and end_partition_date must be provided together."
+        )
 
     # use specific partition date only if the start/end dates aren't provided
     # (they shouldn't be ever jointly provided anyways, since start/end date
@@ -468,14 +555,12 @@ def list_filenames(
             "Cannot use partition_date and start_partition_date or end_partition_date together."
         )
 
-    filtered_filepaths: list[str] = []
-
     if partition_date or (start_partition_date and end_partition_date):
         print(
-            f"Filtering {len(loaded_filepaths)} files in service={service}, "
+            f"Filtering {len(filepaths)} files in service={service}, "
             f"for {'partition_date=' + partition_date if partition_date else f'date range {start_partition_date} to {end_partition_date}'}"
         )
-        for fp in loaded_filepaths:
+        for fp in filepaths:
             path_parts = fp.split("/")
             partition_parts = [p for p in path_parts if "partition_date=" in p]
             if not partition_parts:
@@ -488,8 +573,56 @@ def list_filenames(
                     filtered_filepaths.append(fp)
             elif start_partition_date <= file_partition_date <= end_partition_date:
                 filtered_filepaths.append(fp)
+    return filtered_filepaths
 
-    loaded_filepaths = filtered_filepaths
+
+def list_filenames(
+    service: str,
+    directories: list[Literal["cache", "active"]] = ["active"],
+    validate_pq_files: bool = False,
+    partition_date: Optional[str] = None,
+    start_partition_date: Optional[str] = None,
+    end_partition_date: Optional[str] = None,
+) -> list[str]:
+    """List files in local storage for a given service."""
+
+    loaded_filepaths: list[str] = []
+
+    # get filenames from deprecated ["firehose", "most_liked"] format.
+    # We want to add these in addition to files in the current format.
+    if service in [
+        "preprocessed_posts",
+        "ml_inference_perspective_api",
+        "ml_inference_sociopolitical",
+        "study_user_activity",
+    ]:
+        logger.info(
+            f"Getting all filenames for service={service} in deprecated format."
+        )
+        loaded_filepaths.extend(
+            _get_all_filenames_deprecated_format(
+                service=service,
+                directories=directories,
+                validate_pq_files=validate_pq_files,
+            )
+        )
+
+    logger.info(f"Getting all filenames for service={service} in current format.")
+    loaded_filepaths.extend(
+        _get_all_filenames(
+            service=service,
+            directories=directories,
+            validate_pq_files=validate_pq_files,
+        )
+    )
+
+    loaded_filepaths = _validate_filepaths(
+        service=service,
+        filepaths=loaded_filepaths,
+        partition_date=partition_date,
+        start_partition_date=start_partition_date,
+        end_partition_date=end_partition_date,
+    )
 
     return loaded_filepaths
 
