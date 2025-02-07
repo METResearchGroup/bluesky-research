@@ -4,6 +4,7 @@ from typing import Literal, Optional
 
 import pandas as pd
 
+from lib.constants import convert_bsky_dt_to_pipeline_dt, partition_date_format
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.helper import track_performance
 from lib.log.logger import get_logger
@@ -24,6 +25,7 @@ def load_preprocessed_posts(
     ascending: bool = False,
     table_columns: Optional[list[str]] = None,
     output_format: Literal["list", "df"] = "list",
+    convert_ts_fields: bool = False,
 ) -> list[dict] | pd.DataFrame:
     """Load the preprocessed posts.
 
@@ -87,6 +89,17 @@ def load_preprocessed_posts(
     print(f"Index names in active_df: {active_df.index.names}")
     print(f"Index names in df: {df.index.names}")
     logger.info(f"Loaded {len(df)} posts from cache and active")
+
+    if convert_ts_fields:
+        logger.info(
+            "Converting timestamp fields to consolidated pipeline-friendly string formats."
+        )
+        for ts_col in ["partition_date", "created_at"]:
+            if ts_col == "partition_date":
+                df[ts_col] = df[ts_col].dt.strftime(partition_date_format)
+            else:
+                df[ts_col] = df[ts_col].apply(convert_bsky_dt_to_pipeline_dt)
+
     if output_format == "list":
         return df.to_dict(orient="records")
     return df
@@ -110,6 +123,7 @@ def load_service_post_uris(
     logger.info(f"Loading {service} post URIs from local storage")
     cached_df: pd.DataFrame = load_data_from_local_storage(
         service=service,
+        directory="cache",
         export_format="duckdb",
         duckdb_query=query,
         query_metadata={"tables": [{"name": service, "columns": [id_field]}]},
@@ -123,6 +137,8 @@ def load_service_post_uris(
         export_format="duckdb",
         duckdb_query=query,
         query_metadata={"tables": [{"name": service, "columns": [id_field]}]},
+        start_partition_date=start_date,
+        end_partition_date=end_date,
     )
     logger.info(f"Loaded {len(active_df)} post URIs from active")
     df = pd.concat([cached_df, active_df])

@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import pytest
+import pandas as pd
 
 from services.backfill.posts.load_data import load_posts_to_backfill, INTEGRATIONS_LIST
 
@@ -141,7 +142,8 @@ def test_load_posts_to_backfill_with_date_range(mock_load_uris, mock_load_posts,
         start_date="2024-01-01",
         end_date="2024-01-31",
         sorted_by_partition_date=False,
-        ascending=False
+        ascending=False,
+        output_format="list"
     )
     mock_load_uris.assert_called_once_with(
         service="ml_inference_perspective_api",
@@ -151,3 +153,35 @@ def test_load_posts_to_backfill_with_date_range(mock_load_uris, mock_load_posts,
     
     assert isinstance(result, dict)
     assert "ml_inference_perspective_api" in result
+
+
+@patch("services.backfill.posts.load_data.load_preprocessed_posts")
+@patch("services.backfill.posts.load_data.load_service_post_uris")
+def test_load_posts_to_backfill_dataframe_output(mock_load_uris, mock_load_posts, mock_preprocessed_posts, mock_post_uris):
+    """Test loading posts to backfill with dataframe output."""
+    mock_df = pd.DataFrame(mock_preprocessed_posts)
+    mock_load_posts.return_value = mock_df
+    
+    def mock_load_service_post_uris(service, start_date=None, end_date=None):
+        return mock_post_uris[service]
+    
+    mock_load_uris.side_effect = mock_load_service_post_uris
+    
+    result = load_posts_to_backfill(
+        ["ml_inference_perspective_api"],
+        output_format="df"
+    )
+    
+    mock_load_posts.assert_called_once_with(
+        start_date=None,
+        end_date=None,
+        sorted_by_partition_date=False,
+        ascending=False,
+        output_format="df"
+    )
+    
+    assert isinstance(result, dict)
+    assert "ml_inference_perspective_api" in result
+    assert isinstance(result["ml_inference_perspective_api"], pd.DataFrame)
+    assert len(result["ml_inference_perspective_api"]) == 3
+    assert all(uri in {"post3", "post4", "post5"} for uri in result["ml_inference_perspective_api"]["uri"])

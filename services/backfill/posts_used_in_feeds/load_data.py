@@ -85,11 +85,9 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
         end_date=lookback_end_date,
         sorted_by_partition_date=True,
         ascending=True,
+        table_columns=["uri", "text", "created_at", "partition_date"],
         output_format="df",
-    )
-
-    base_pool_posts["partition_date"] = base_pool_posts["partition_date"].dt.strftime(
-        partition_date_format
+        convert_ts_fields=True,
     )
 
     # convert to list of dicts, for easier downstream iteration + processing.
