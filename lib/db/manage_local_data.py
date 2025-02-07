@@ -455,14 +455,6 @@ def _get_all_filenames(
     - /projects/p32375/bluesky_research_data/ml_inference_perspective_api/
     cache/partition_date=2024-09-29/bbab32f2d9764d52a3d89a7aee014192-0.parquet
     """
-    if service in [
-        "preprocessed_posts",
-        "ml_inference_perspective_api",
-        "ml_inference_sociopolitical",
-        "study_user_activity",
-    ]:
-        raise ValueError(f"Service {service} is not supported for current format.")
-
     root_local_prefix = get_local_prefix_for_service(service)
 
     return _crawl_local_prefix(
