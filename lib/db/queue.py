@@ -12,7 +12,7 @@ import sqlite3
 import time
 from typing import Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 import typing_extensions as te
 
 from lib.db.queue_constants import NAME_TO_QUEUE_NAME_MAP
@@ -67,9 +67,20 @@ class QueueItem(BaseModel):
         description="The current status of the queue item. One of: 'pending', 'processing', 'completed', 'failed'.",
     )
 
-    @validator("payload")
-    def model_validator(cls, v):
-        """Validate the payload field."""
+    @field_validator("payload")
+    @classmethod
+    def model_validator(cls, v: str) -> str:
+        """Validate the payload field.
+
+        Args:
+            v: The payload value to validate
+
+        Returns:
+            The validated payload string
+
+        Raises:
+            ValueError: If payload is empty or not valid JSON
+        """
         if not v:
             raise ValueError("Payload cannot be empty")
         try:
