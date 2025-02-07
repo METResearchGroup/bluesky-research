@@ -351,6 +351,69 @@ class TestLoadPreprocessedPosts:
         assert len(result) == 4
         assert mock_load_data.call_count == 2
 
+    @patch("services.backfill.posts.load_data.load_data_from_local_storage")
+    def test_custom_table_columns(self, mock_load_data):
+        """Test specifying custom table columns.
+        
+        Expected inputs:
+            - table_columns: ["uri", "custom_field"]
+            
+        Mock behavior:
+            - Returns DataFrame with custom columns
+            
+        Expected outputs:
+            - Query includes only specified columns
+            - Result contains only specified columns
+        """
+        mock_df = pd.DataFrame({
+            "uri": ["post1"],
+            "custom_field": ["value1"]
+        })
+        mock_load_data.return_value = mock_df
+
+        result = load_preprocessed_posts(
+            start_date="2023-01-01",
+            end_date="2023-01-31",
+            table_columns=["uri", "custom_field"],
+            output_format="df"
+        )
+
+        assert list(result.columns) == ["uri", "custom_field"]
+        actual_query = mock_load_data.call_args[1]['duckdb_query']
+        assert "SELECT uri, custom_field" in actual_query
+
+    @patch("services.backfill.posts.load_data.load_data_from_local_storage")
+    def test_convert_ts_fields(self, mock_load_data):
+        """Test timestamp field conversion.
+        
+        Expected inputs:
+            - convert_ts_fields: True
+            
+        Mock behavior:
+            - Returns DataFrame with timestamp fields
+            
+        Expected outputs:
+            - partition_date is converted to YYYY-MM-DD format
+            - created_at is converted to YYYY-MM-DD-HH:MM:SS format
+        """
+        mock_df = pd.DataFrame({
+            "uri": ["post1"],
+            "created_at": pd.to_datetime(["2023-01-01T12:00:00Z"]),
+            "partition_date": pd.to_datetime(["2023-01-01"])
+        })
+        mock_load_data.return_value = mock_df
+
+        result = load_preprocessed_posts(
+            start_date="2023-01-01",
+            end_date="2023-01-31",
+            sorted_by_partition_date=True,
+            convert_ts_fields=True,
+            output_format="df"
+        )
+
+        assert result["partition_date"].iloc[0] == "2023-01-01"
+        assert result["created_at"].iloc[0] == "2023-01-01-12:00:00"
+
 
 class TestLoadServicePostUris:
     """Tests for load_service_post_uris function."""
@@ -442,6 +505,28 @@ class TestLoadServicePostUris:
         assert isinstance(result, set)
         assert result == {"post1", "post2", "post3"}  # post2 appears only once
         assert mock_load_data.call_count == 2
+
+    @patch("services.backfill.posts.load_data.load_service_post_uris")
+    def test_invalid_integration(self, mock_load_uris):
+        """Test behavior with invalid integration name.
+        
+        Expected inputs:
+            - integrations: ["invalid_integration"]
+            - start_date: "2024-01-01"
+            - end_date: "2024-01-31"
+            
+        Expected outputs:
+            - Should skip invalid integration
+            - Should only process valid integrations
+        """
+        result = load_posts_to_backfill(
+            ["invalid_integration"],
+            start_date="2024-01-01",
+            end_date="2024-01-31"
+        )
+        
+        assert len(result) == 0
+        mock_load_uris.assert_not_called()
 
 
 class TestLoadPostsToBackfill:
@@ -682,3 +767,19 @@ class TestLoadPostsToBackfill:
 
         assert isinstance(result, dict)
         assert "ml_inference_perspective_api" in result
+
+    @patch("services.backfill.posts.load_data.load_preprocessed_posts")
+    def test_empty_preprocessed_posts(self, mock_load_posts):
+        """Test behavior when no preprocessed posts are found.
+        
+        Mock behavior:
+            - Returns empty list of preprocessed posts
+            
+        Expected outputs:
+            - Should return empty lists for all integrations
+        """
+        mock_load_posts.return_value = []
+        
+        result = load_posts_to_backfill(INTEGRATIONS_LIST)
+        
+        assert all(len(posts) == 0 for posts in result.values())

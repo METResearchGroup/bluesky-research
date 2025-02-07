@@ -4,7 +4,11 @@ from typing import Literal, Optional
 
 import pandas as pd
 
-from lib.constants import convert_bsky_dt_to_pipeline_dt, partition_date_format
+from lib.constants import (
+    convert_bsky_dt_to_pipeline_dt,
+    partition_date_format,
+    timestamp_format,
+)
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.helper import track_performance
 from lib.log.logger import get_logger
@@ -103,10 +107,14 @@ def load_preprocessed_posts(
             "Converting timestamp fields to consolidated pipeline-friendly string formats."
         )
         for ts_col in ["partition_date", "created_at"]:
-            if ts_col == "partition_date":
-                df[ts_col] = df[ts_col].dt.strftime(partition_date_format)
-            else:
-                df[ts_col] = df[ts_col].apply(convert_bsky_dt_to_pipeline_dt)
+            if ts_col in df.columns:  # Check if column exists
+                if ts_col == "partition_date":
+                    df[ts_col] = df[ts_col].dt.strftime(partition_date_format)
+                else:
+                    if pd.api.types.is_datetime64_any_dtype(df[ts_col]):
+                        df[ts_col] = df[ts_col].dt.strftime(timestamp_format)
+                    else:
+                        df[ts_col] = df[ts_col].apply(convert_bsky_dt_to_pipeline_dt)
     if output_format == "list":
         return df.to_dict(orient="records")
     return df
@@ -167,8 +175,17 @@ def load_posts_to_backfill(
         integrations (list[str]): List of integrations to backfill for
         start_date (Optional[str]): Start date in YYYY-MM-DD format (inclusive)
         end_date (Optional[str]): End date in YYYY-MM-DD format (inclusive)
+
+    Returns:
+        dict[str, list[dict]]: Dictionary mapping valid integration names to lists of posts
     """
-    integrations_to_backfill = INTEGRATIONS_LIST if not integrations else integrations
+    # Filter out invalid integrations
+    valid_integrations = [
+        i for i in (integrations or INTEGRATIONS_LIST) if i in INTEGRATIONS_LIST
+    ]
+
+    if not valid_integrations:
+        return {}  # Return empty dict if no valid integrations
 
     total_posts: list[dict] = load_preprocessed_posts(
         start_date=start_date,
@@ -178,8 +195,9 @@ def load_posts_to_backfill(
         table_columns=default_table_columns,
         output_format="list",
     )
+
     posts_to_backfill_by_integration: dict[str, list[dict]] = {}
-    for integration in integrations_to_backfill:
+    for integration in valid_integrations:
         integration_post_uris: set[str] = load_service_post_uris(
             service=integration,
             start_date=start_date,
