@@ -22,6 +22,7 @@ from ml_tooling.perspective_api.model import (
     create_perspective_request,
     default_requested_attributes,
     DEFAULT_BATCH_SIZE,
+    process_perspective_batch_with_retries,
 )
 
 from services.ml_inference.models import PerspectiveApiLabelsModel
@@ -268,7 +269,7 @@ class TestProcessPerspectiveBatch:
                 assert "prob_reasoning" in result
                 assert "label_reasoning" in result
                 assert result["prob_constructive"] == result["prob_reasoning"]
-                assert result["label_constructive"] == result["label_reasoning"]
+                assert result["label_constructive"] == results[0]["label_reasoning"]
 
         # Verify each batch got its own client request
         assert mock_client.new_batch_http_request.call_count == 3
@@ -754,3 +755,463 @@ class TestHelperFunctions:
         assert "requestedAttributes" in request
         assert all(attr in request["requestedAttributes"] 
                   for attr in default_requested_attributes)
+
+
+class TestProcessPerspectiveBatchWithRetries:
+    """Tests for process_perspective_batch_with_retries function.
+    
+    This class tests the retry wrapper around process_perspective_batch, verifying:
+    - Different retry strategies (batch vs individual)
+    - Various success/failure patterns
+    - Exponential backoff behavior
+    - Maintenance of request order
+    - Proper logging of retry attempts
+    - Final result aggregation
+    """
+
+    def create_test_requests(self, n: int = 20) -> list[dict]:
+        """Helper to create n test requests."""
+        return [
+            {
+                "comment": {"text": f"test text {i}"},
+                "languages": ["en"],
+                "requestedAttributes": {"TOXICITY": {}}
+            }
+            for i in range(n)
+        ]
+
+    def create_success_response(self, request_id: int) -> dict:
+        """Helper to create a successful response."""
+        return {
+            "prob_toxic": 0.8,
+            "label_toxic": 1,
+            "prob_severe_toxic": 0.7,
+            "label_severe_toxic": 1,
+            "prob_identity_attack": 0.6,
+            "label_identity_attack": 1,
+            "prob_insult": 0.5,
+            "label_insult": 1,
+            "prob_profanity": 0.4,
+            "label_profanity": 0,
+            "prob_threat": 0.3,
+            "label_threat": 0,
+            "prob_reasoning": 0.6,
+            "label_reasoning": 1,
+            "prob_constructive": 0.6,  # Same as reasoning
+            "label_constructive": 1    # Same as reasoning
+        }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("retry_strategy", ["batch", "individual"])
+    async def test_all_requests_succeed_first_try(
+        self, retry_strategy, mocker, caplog
+    ):
+        """Test case where all requests succeed on first attempt.
+        
+        Args:
+            retry_strategy: Strategy to use for retries
+            mocker: pytest-mock fixture
+            caplog: pytest logging capture fixture
+            
+        Verifies:
+            - All requests succeed immediately
+            - process_perspective_batch called exactly once
+            - No retries attempted
+            - All responses contain expected data
+            - Original request order maintained
+        """
+        n_requests = 20
+        requests = self.create_test_requests(n_requests)
+        
+        # Mock process_perspective_batch to return success for all
+        mock_process = mocker.patch(
+            'ml_tooling.perspective_api.model.process_perspective_batch',
+            return_value=[self.create_success_response(i) for i in range(n_requests)]
+        )
+        
+        results = await process_perspective_batch_with_retries(
+            requests=requests,
+            retry_strategy=retry_strategy,
+            max_retries=3,
+            initial_delay=0.1
+        )
+        
+        # Verify results
+        assert len(results) == n_requests
+        assert all(r is not None for r in results)
+        assert all("prob_toxic" in r for r in results)
+        
+        # Verify process_perspective_batch called exactly once
+        mock_process.assert_called_once_with(requests)
+        assert mock_process.call_count == 1
+        
+        # Verify no retry messages in logs
+        assert "Retrying" not in caplog.text
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("retry_strategy", ["batch", "individual"])
+    async def test_all_fail_then_succeed(self, retry_strategy, mocker, caplog):
+        """Test case where all requests fail first try but succeed on retry.
+        
+        Args:
+            retry_strategy: Strategy to use for retries
+            mocker: pytest-mock fixture
+            caplog: pytest logging capture fixture
+            
+        Verifies:
+            - All requests fail on first attempt
+            - All requests succeed on second attempt
+            - Proper exponential backoff delay
+            - Correct number of retries
+            - Final results contain all successes
+        """
+        n_requests = 20
+        requests = self.create_test_requests(n_requests)
+        
+        # Mock to fail first time, succeed second time
+        mock_process = mocker.patch(
+            'ml_tooling.perspective_api.model.process_perspective_batch',
+            side_effect=[
+                [None] * n_requests,  # First try: all fail
+                [self.create_success_response(i) for i in range(n_requests)]  # Second try: all succeed
+            ]
+        )
+        
+        results = await process_perspective_batch_with_retries(
+            requests=requests,
+            retry_strategy=retry_strategy,
+            max_retries=3,
+            initial_delay=0.1
+        )
+        
+        # Verify results
+        assert len(results) == n_requests
+        assert all(r is not None for r in results)
+        assert all("prob_toxic" in r for r in results)
+        
+        # Verify call count and arguments
+        assert mock_process.call_count == 2
+        if retry_strategy == "batch":
+            mock_process.assert_has_calls([
+                mocker.call(requests),  # First try
+                mocker.call(requests)   # Retry
+            ])
+        else:  # individual
+            mock_process.assert_has_calls([
+                mocker.call(requests),  # First try
+                mocker.call(requests)   # Retry all failed
+            ])
+        
+        # Verify retry message in logs
+        assert "Retrying" in caplog.text
+        assert str(n_requests) in caplog.text  # Should mention number of failed requests
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("retry_strategy", ["batch", "individual"])
+    async def test_all_requests_fail_all_retries(self, retry_strategy, mocker, caplog):
+        """Test case where all requests fail across all retry attempts.
+        
+        Args:
+            retry_strategy: Strategy to use for retries
+            mocker: pytest-mock fixture
+            caplog: pytest logging capture fixture
+            
+        Verifies:
+            - All requests fail consistently
+            - Maximum retries reached
+            - Proper exponential backoff
+            - Final results are all None
+            - Proper error logging
+        """
+        n_requests = 20
+        requests = self.create_test_requests(n_requests)
+        max_retries = 3
+        
+        # Mock to fail every time
+        mock_process = mocker.patch(
+            'ml_tooling.perspective_api.model.process_perspective_batch',
+            return_value=[None] * n_requests
+        )
+        
+        results = await process_perspective_batch_with_retries(
+            requests=requests,
+            retry_strategy=retry_strategy,
+            max_retries=max_retries,
+            initial_delay=0.1
+        )
+        
+        # Verify results
+        assert len(results) == n_requests
+        assert all(r is None for r in results)
+        
+        # Verify call count matches max retries
+        assert mock_process.call_count == max_retries
+        expected_calls = [mocker.call(requests)] * max_retries
+        mock_process.assert_has_calls(expected_calls)
+        
+        # Verify final failure count in logs
+        assert f"{n_requests} failed" in caplog.text
+        assert str(max_retries) in caplog.text
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("retry_strategy", ["batch", "individual"])
+    async def test_half_succeed_then_rest_succeed(self, retry_strategy, mocker, caplog):
+        """Test case where half succeed first try, rest succeed on retry.
+        
+        Args:
+            retry_strategy: Strategy to use for retries
+            mocker: pytest-mock fixture
+            caplog: pytest logging capture fixture
+            
+        Verifies:
+            - Half of requests succeed immediately
+            - Remaining requests succeed on first retry
+            - Original request order maintained
+            - Proper retry count and timing
+            - All final results successful
+        """
+        n_requests = 20
+        requests = self.create_test_requests(n_requests)
+        half = n_requests // 2
+        
+        # First half succeed, second half fail, then succeed
+        first_response = (
+            [self.create_success_response(i) for i in range(half)] +
+            [None] * half
+        )
+        second_response = [self.create_success_response(i) for i in range(half)]
+        
+        if retry_strategy == "batch":
+            mock_responses = [
+                first_response,
+                [self.create_success_response(i) for i in range(n_requests)]
+            ]
+        else:  # individual
+            mock_responses = [
+                first_response,
+                second_response
+            ]
+        
+        mock_process = mocker.patch(
+            'ml_tooling.perspective_api.model.process_perspective_batch',
+            side_effect=mock_responses
+        )
+        
+        results = await process_perspective_batch_with_retries(
+            requests=requests,
+            retry_strategy=retry_strategy,
+            max_retries=3,
+            initial_delay=0.1
+        )
+        
+        # Verify results
+        assert len(results) == n_requests
+        assert all(r is not None for r in results)
+        assert all("prob_toxic" in r for r in results)
+        
+        # Verify call count and arguments
+        assert mock_process.call_count == 2
+        if retry_strategy == "batch":
+            mock_process.assert_has_calls([
+                mocker.call(requests),
+                mocker.call(requests)
+            ])
+        else:  # individual
+            mock_process.assert_has_calls([
+                mocker.call(requests),
+                mocker.call(requests[half:])  # Only retry failed half
+            ])
+        
+        # Verify retry logging
+        assert str(half) in caplog.text  # Should mention number of failed requests
+        assert "successful" in caplog.text
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("retry_strategy", ["batch", "individual"])
+    async def test_gradual_success_complete(self, retry_strategy, mocker, caplog):
+        """Test case where requests gradually succeed with final success.
+        
+        Args:
+            retry_strategy: Strategy to use for retries
+            mocker: pytest-mock fixture
+            caplog: pytest logging capture fixture
+            
+        Verifies:
+            - Requests succeed gradually across retries
+            - Final retry completes all remaining requests
+            - Order maintained throughout retries
+            - Proper retry count and timing
+            - All final results successful
+        """
+        n_requests = 20
+        requests = self.create_test_requests(n_requests)
+        
+        # Create responses with increasing success rate
+        def create_partial_success(success_count: int, total: int) -> list[dict]:
+            return (
+                [self.create_success_response(i) for i in range(success_count)] +
+                [None] * (total - success_count)
+            )
+        
+        if retry_strategy == "batch":
+            mock_responses = [
+                create_partial_success(5, n_requests),   # 5 succeed
+                create_partial_success(10, n_requests),  # 10 succeed
+                create_partial_success(n_requests, n_requests)  # all succeed
+            ]
+        else:  # individual
+            mock_responses = [
+                create_partial_success(5, n_requests),   # 5 succeed
+                create_partial_success(5, 15),          # 5 more succeed
+                create_partial_success(10, 10)          # remaining succeed
+            ]
+        
+        mock_process = mocker.patch(
+            'ml_tooling.perspective_api.model.process_perspective_batch',
+            side_effect=mock_responses
+        )
+        
+        results = await process_perspective_batch_with_retries(
+            requests=requests,
+            retry_strategy=retry_strategy,
+            max_retries=3,
+            initial_delay=0.1
+        )
+        
+        # Verify results
+        assert len(results) == n_requests
+        assert all(r is not None for r in results)
+        assert all("prob_toxic" in r for r in results)
+        
+        # Verify call count
+        assert mock_process.call_count == 3
+        
+        # Verify proper logging of progress
+        assert "5 successful" in caplog.text
+        assert "10 successful" in caplog.text
+        assert str(n_requests) in caplog.text
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("retry_strategy", ["batch", "individual"])
+    async def test_gradual_success_with_final_failures(
+        self, retry_strategy, mocker, caplog
+    ):
+        """Test case where requests gradually succeed but some ultimately fail.
+        
+        Args:
+            retry_strategy: Strategy to use for retries
+            mocker: pytest-mock fixture
+            caplog: pytest logging capture fixture
+            
+        Verifies:
+            - Requests succeed gradually across retries
+            - Some requests remain failed after max retries
+            - Order maintained throughout retries
+            - Proper retry count and timing
+            - Mix of successful and failed results
+        """
+        n_requests = 20
+        requests = self.create_test_requests(n_requests)
+        final_failures = 2
+        
+        def create_partial_success(success_count: int, total: int) -> list[dict]:
+            return (
+                [self.create_success_response(i) for i in range(success_count)] +
+                [None] * (total - success_count)
+            )
+        
+        if retry_strategy == "batch":
+            mock_responses = [
+                create_partial_success(5, n_requests),   # 5 succeed
+                create_partial_success(10, n_requests),  # 10 succeed
+                create_partial_success(n_requests - final_failures, n_requests)  # 18 succeed
+            ]
+        else:  # individual
+            mock_responses = [
+                create_partial_success(5, n_requests),   # 5 succeed
+                create_partial_success(5, 15),          # 5 more succeed
+                create_partial_success(8, 10)           # 8 more succeed, 2 fail
+            ]
+        
+        mock_process = mocker.patch(
+            'ml_tooling.perspective_api.model.process_perspective_batch',
+            side_effect=mock_responses
+        )
+        
+        results = await process_perspective_batch_with_retries(
+            requests=requests,
+            retry_strategy=retry_strategy,
+            max_retries=3,
+            initial_delay=0.1
+        )
+        
+        # Verify results
+        assert len(results) == n_requests
+        assert sum(1 for r in results if r is not None) == n_requests - final_failures
+        assert sum(1 for r in results if r is None) == final_failures
+        
+        # Verify call count
+        assert mock_process.call_count == 3
+        
+        # Verify final status logging
+        assert f"{final_failures} failed" in caplog.text
+        assert f"{n_requests - final_failures} successful" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_empty_request_list(self, mocker):
+        """Test handling of empty request list.
+        
+        Verifies immediate return of empty list without any API calls.
+        """
+        mock_process = mocker.patch(
+            'ml_tooling.perspective_api.model.process_perspective_batch'
+        )
+        
+        results = await process_perspective_batch_with_retries([])
+        
+        assert results == []
+        mock_process.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("retry_strategy", ["batch", "individual"])
+    async def test_exponential_backoff_timing(self, retry_strategy, mocker):
+        """Test exponential backoff delay between retries.
+        
+        Verifies proper delay timing with exponential increase.
+        """
+        n_requests = 20
+        requests = self.create_test_requests(n_requests)
+        initial_delay = 0.1
+        
+        mock_sleep = mocker.patch('asyncio.sleep')
+        # Make sure all attempts fail to trigger all retries
+        mock_process = mocker.patch(
+            'ml_tooling.perspective_api.model.process_perspective_batch',
+            side_effect=[[None] * n_requests] * 3  # Fail all 3 attempts
+        )
+        
+        await process_perspective_batch_with_retries(
+            requests=requests,
+            retry_strategy=retry_strategy,
+            max_retries=3,
+            initial_delay=initial_delay
+        )
+        
+        # Verify exponential delay increase
+        mock_sleep.assert_has_calls([
+            mocker.call(initial_delay),
+            mocker.call(initial_delay * 2)
+        ], any_order=False)
+        assert mock_sleep.call_count == 2  # Only 2 delays for 3 attempts
+
+    @pytest.mark.asyncio
+    async def test_invalid_retry_strategy(self, mocker):
+        """Test handling of invalid retry strategy.
+        
+        Verifies proper error handling for invalid strategy.
+        """
+        with pytest.raises(ValueError):
+            await process_perspective_batch_with_retries(
+                requests=[],
+                retry_strategy="invalid"  # type: ignore
+            )

@@ -21,42 +21,49 @@ def classify_latest_posts(
     previous_run_metadata: Optional[dict] = None,
     event: Optional[dict] = None,
 ) -> dict:
-    """Classifies posts using the Perspective API and exports the results.
+    """Classifies posts using the Perspective API and manages classification results.
 
-    This function handles both real-time classification of new posts and historical backfilling.
-    It retrieves posts to classify, runs them through the Perspective API model, and exports
-    the results.
+    This function orchestrates the end-to-end process of retrieving posts from a queue,
+    classifying them using the Perspective API, and managing the results. It supports
+    both backfilling historical data and processing new posts.
 
     Args:
-        backfill_period (Optional[str]): The unit for backfilling - either "days" or "hours".
-            Must be provided together with backfill_duration.
-        backfill_duration (Optional[int]): The number of time units to backfill.
-            Must be provided together with backfill_period.
-        run_classification (bool): Whether to run the classification model on posts.
-            If False, will only export cached results. Defaults to True.
-        previous_run_metadata (Optional[dict]): Metadata from previous classification runs
-            to avoid reprocessing posts.
-        event (Optional[dict]): The original event/payload passed to the handler function.
-            This is included in the returned session metadata for tracking purposes.
+        backfill_period (Optional[str]): The time unit for historical data processing.
+            Must be either "days" or "hours". Required if backfill_duration is provided.
+        backfill_duration (Optional[int]): Number of time units to process historically.
+            Required if backfill_period is provided.
+        run_classification (bool): Controls whether to execute new classifications (True)
+            or only export cached results (False). Defaults to True.
+        previous_run_metadata (Optional[dict]): Metadata from prior classification runs
+            containing 'metadata' key with JSON string of:
+            - latest_id_classified: ID of last processed post
+            - inference_timestamp: Timestamp of last inference
+            Used to prevent duplicate processing.
+        event (Optional[dict]): Original event/payload from the handler function,
+            included in return metadata for traceability.
 
     Returns:
-        dict: A labeling session summary containing:
-            - inference_type (str): Always "perspective_api"
-            - inference_timestamp (str): Timestamp of when inference was run
-            - total_classified_posts (int): Total number of posts classified
-            - total_classified_posts_by_source (dict): Breakdown of classified posts by source:
-                - firehose (int): Number of posts from firehose source
-                - most_liked (int): Number of posts from most_liked source
-            - event (dict): The original event/payload passed to the function
+        dict: Classification session summary containing:
+            - inference_type (str): Fixed value "perspective_api"
+            - inference_timestamp (str): Execution timestamp in format YYYY-MM-DD-HH:MM:SS
+            - total_classified_posts (int): Count of processed posts (0 if run_classification=False)
+            - event (dict): Original input event data
+            - inference_metadata (dict): Classification results from run_batch_classification()
+                if run_classification=True, containing:
+                - total_batches (int): Number of batches processed
+                - total_posts_successfully_labeled (int): Count of successfully labeled posts
+                - total_posts_failed_to_label (int): Count of failed post classifications
 
-    The function:
-    1. Determines the time range for post selection based on backfill parameters
-    2. Retrieves posts to classify using get_posts_to_classify()
-    3. Separates posts by source (firehose vs most_liked)
-    4. Runs batch classification on each source's posts if run_classification is True
-    5. Exports and returns the results
-
-    If no posts are found to classify, returns a summary with zero counts.
+    Control Flow:
+        1. If run_classification=True:
+            a. Calculates latest timestamp for backfilling using backfill parameters
+            b. Retrieves candidate posts via get_posts_to_classify()
+            c. If no posts found, returns early with zero counts
+            d. Processes posts through Perspective API via run_batch_classification()
+        2. If run_classification=False:
+            a. Skips classification and prepares empty metadata
+        3. Generates current timestamp
+        4. Returns session summary with classification results or empty metadata
     """
     if run_classification:
         backfill_latest_timestamp: str = determine_backfill_latest_timestamp(
