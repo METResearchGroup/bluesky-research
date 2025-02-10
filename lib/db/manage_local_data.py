@@ -380,6 +380,10 @@ def export_data_to_local_storage(
             # NOTE: we don't use local_export_fp here because we want to
             # partition on the date field, and Parquet will include the partition
             # field name in the file path.
+            output_partition_date = chunk_df["partition_date"].iloc[0]
+            logger.info(
+                f"[Service = {service}, Partition Date = {output_partition_date}] Exporting n={len(chunk_df)} records to {folder_path}..."
+            )
             chunk_df.to_parquet(folder_path, index=False, partition_cols=partition_cols)
         export_path = folder_path if export_format == "parquet" else local_export_fp
         logger.info(
