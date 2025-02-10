@@ -47,6 +47,12 @@ services_list = [
     "study_user_activity",
 ]
 
+# there are some really weird records that come along and have "created_at"
+# dates that are completely implausible. We'll set these to a default partition
+# date of 2016-01-01 so that we can at least process the data and then we
+# can keep these in one place.
+DEFAULT_ERROR_PARTITION_DATE = "2016-01-01"
+
 
 def load_jsonl_data(filepath: str) -> list[dict]:
     """Load JSONL data from a file, supporting gzipped files."""
@@ -237,6 +243,32 @@ def truncate_string(s: str) -> str:
     return s
 
 
+def convert_timestamp(x, timestamp_format):
+    """Attempts to convert a timestamp to a datetime.
+
+    If the timestamp is not in the correct format, it will be converted to a
+    default partition date of 2016-01-01.
+
+    Also checks for the year of the post. Sometimes the timestamp is corrupted
+    and the year is before 2024. In this case, we'll log a warning and return
+    the default partition date.
+    """
+    try:
+        dt = pd.to_datetime(x, format=timestamp_format)
+        if dt.year < 2024:
+            logger.warning(
+                f"Timestamp year {dt.year} is before 2024, will try to coerce using {DEFAULT_ERROR_PARTITION_DATE}: {x}."
+            )
+            pass
+        else:
+            return dt
+    except Exception as e:
+        logger.warning(
+            f"Error converting timestamp ({e}), will try to coerce using {DEFAULT_ERROR_PARTITION_DATE}: {x}."
+        )
+    return pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format="%Y-%m-%d")
+
+
 def partition_data_by_date(
     df: pd.DataFrame, timestamp_field: str, timestamp_format: Optional[str] = None
 ) -> list[dict]:
@@ -258,10 +290,29 @@ def partition_data_by_date(
     # clean timestamp field if relevant.
     df[timestamp_field] = df[timestamp_field].apply(truncate_string)
 
-    # convert to datetime
-    df[f"{timestamp_field}_datetime"] = pd.to_datetime(
-        df[timestamp_field], format=timestamp_format
-    )
+    try:
+        # convert to datetime
+        df[f"{timestamp_field}_datetime"] = pd.to_datetime(
+            df[timestamp_field], format=timestamp_format
+        )
+        years = df[f"{timestamp_field}_datetime"].dt.year
+        total_invalid_years = sum(1 for year in years if year < 2024)
+        if total_invalid_years > 0:
+            raise ValueError(
+                f"""
+                Some records have years before 2024. This is impossible and an 
+                error on Bluesky's part, so we're going to coerce those records
+                to a default partition date.
+                Total records affected: {total_invalid_years}.
+                """
+            )
+    except Exception as e:
+        # sometimes weird records come along. We'll set these, as a default,
+        # as being written to a default partition_date.
+        logger.warning(f"Error converting timestamp field to datetime: {e}")
+        df[f"{timestamp_field}_datetime"] = df[timestamp_field].apply(
+            lambda x: convert_timestamp(x, timestamp_format)
+        )
 
     df["partition_date"] = df[f"{timestamp_field}_datetime"].dt.date
 

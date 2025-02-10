@@ -13,6 +13,7 @@ from lib.db.manage_local_data import (
 from lib.helper import get_partition_dates
 from lib.log.logger import get_logger
 from services.backfill.posts.load_data import load_preprocessed_posts
+from lib.constants import convert_bsky_dt_to_pipeline_dt
 
 logger = get_logger(__file__)
 
@@ -30,16 +31,23 @@ def map_uris_to_created_at(partition_date: str) -> pd.DataFrame:
             - created_at (str): The timestamp when the post was created
     """
     logger.info(f"Loading preprocessed posts for partition date {partition_date}...")
-    posts_df = load_preprocessed_posts(
+    posts_df: pd.DataFrame = load_preprocessed_posts(
         start_date=partition_date,
         end_date=partition_date,
-        table_columns=["uri", "created_at"],
+        table_columns=["uri", "created_at", "text"],
         output_format="df",
     )
 
     if len(posts_df) == 0:
         logger.warning(f"No posts found for partition date {partition_date}")
         return pd.DataFrame(columns=["uri", "created_at"])
+
+    posts_df = posts_df[posts_df["text"].notna() & (posts_df["text"] != "")]
+
+    # Convert Bluesky timestamps to pipeline format
+    posts_df["created_at"] = posts_df["created_at"].apply(
+        convert_bsky_dt_to_pipeline_dt
+    )
 
     logger.info(f"Found {len(posts_df)} posts for partition date {partition_date}")
     return posts_df[["uri", "created_at"]]

@@ -32,6 +32,7 @@ def map_uri_to_created_at(payload: dict):
         }
     """
     start_date = payload.get("start_date", "2024-09-28")
+    # start_date = "2024-10-19"
     end_date = payload.get("end_date", "2025-12-01")
     exclude_partition_dates = payload.get("exclude_partition_dates", ["2024-10-08"])
 
