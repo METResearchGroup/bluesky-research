@@ -61,6 +61,7 @@ testpaths = [
     "services/ml_inference/perspective_api/tests",
     "services/ml_inference/sociopolitical/tests",
     "services/get_preprocessed_posts_used_in_feeds/tests",
+    "services/map_uri_to_created_at/tests",
     "pipelines/backfill_records_coordination/tests",
 ]
 
