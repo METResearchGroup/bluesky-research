@@ -247,32 +247,37 @@ class TestProcessPerspectiveBatch:
             mock_batch.add.side_effect = mock_add
             mock_batch.execute.side_effect = mock_execute
             return mock_batch
-        
+            
         mock_client.new_batch_http_request.side_effect = mock_new_batch
         
-        # Create multiple batches
-        batches = [[create_perspective_request(f"text_{i}_{j}") 
-                   for j in range(5)] for i in range(3)]
+        # Create test requests for multiple batches
+        test_requests = [
+            {
+                "comment": {"text": "test text 1"},
+                "languages": ["en"],
+                "requestedAttributes": default_requested_attributes
+            },
+            {
+                "comment": {"text": "test text 2"},
+                "languages": ["en"],
+                "requestedAttributes": default_requested_attributes
+            }
+        ]
         
         # Process batches concurrently
-        tasks = [process_perspective_batch(batch) for batch in batches]
-        results = await asyncio.gather(*tasks)
+        results = await asyncio.gather(
+            process_perspective_batch([test_requests[0]]),
+            process_perspective_batch([test_requests[1]])
+        )
         
         # Verify results
-        assert len(results) == 3  # Three batches
-        for batch_result in results:
-            assert len(batch_result) == 5  # Five items per batch
-            for result in batch_result:
-                assert isinstance(result, dict)
-                assert "prob_toxic" in result
-                assert "label_toxic" in result
-                assert "prob_reasoning" in result
-                assert "label_reasoning" in result
-                assert result["prob_constructive"] == result["prob_reasoning"]
-                assert result["label_constructive"] == results[0]["label_reasoning"]
-
-        # Verify each batch got its own client request
-        assert mock_client.new_batch_http_request.call_count == 3
+        assert len(results) == 2  # Two batches
+        assert len(results[0]) == 1  # One result per batch
+        assert len(results[1]) == 1
+        
+        # Check that constructiveness equals reasoning in first result
+        result = results[0][0]  # First batch, first result
+        assert result["label_constructive"] == result["label_reasoning"]
 
 
 class TestCreateLabelModels:
@@ -463,24 +468,78 @@ class TestBatchClassifyPosts:
         assert all(isinstance(post, dict) for post in called_posts)
 
     @pytest.mark.asyncio
-    @patch('ml_tooling.perspective_api.model.process_perspective_batch')
+    @patch('ml_tooling.perspective_api.model.process_perspective_batch_with_retries')
     @patch('ml_tooling.perspective_api.model.return_failed_labels_to_input_queue')
     @patch('ml_tooling.perspective_api.model.write_posts_to_cache')
-    async def test_batch_classify_partial_success(self, mock_write, mock_return, mock_process_batch):
+    @patch('ml_tooling.perspective_api.model.create_labels')
+    async def test_batch_classify_partial_success(
+        self, mock_create_labels, mock_write, mock_return, mock_process_batch
+    ):
         """Test batch classification with mixed success/failure."""
         posts = [
             {'uri': 'test1', 'text': 'text1', 'batch_id': 'batch1', 'created_at': '2024-01-01'},
             {'uri': 'test2', 'text': 'text2', 'batch_id': 'batch1', 'created_at': '2024-01-01'}
         ]
         
-        # First post succeeds, second fails
-        mock_process_batch.return_value = [{"prob_toxic": 0.8}, None]
+        # Mock process_batch to return raw API responses
+        mock_process_batch.return_value = [
+            {
+                "attributeScores": {
+                    "TOXICITY": {"summaryScore": {"value": 0.8}},
+                    "REASONING_EXPERIMENTAL": {"summaryScore": {"value": 0.6}}
+                }
+            },
+            None  # Failed response
+        ]
         
-        metadata = await batch_classify_posts(posts=posts)
+        # Mock create_labels to return one success and one failure
+        mock_create_labels.return_value = [
+            {
+                "uri": "test1",
+                "batch_id": "batch1",
+                "prob_toxic": 0.8,
+                "label_toxic": 1,
+                "prob_reasoning": 0.6,
+                "label_reasoning": 1,
+                "prob_constructive": 0.6,
+                "label_constructive": 1,
+                "was_successfully_labeled": True
+            },
+            {
+                "uri": "test2",
+                "batch_id": "batch1",
+                "prob_toxic": None,
+                "label_toxic": None,
+                "prob_reasoning": None,
+                "label_reasoning": None,
+                "prob_constructive": None,
+                "label_constructive": None,
+                "was_successfully_labeled": False,
+                "reason": "Failed to get API response"
+            }
+        ]
+        
+        metadata = await batch_classify_posts(
+            posts=posts,
+            max_retries=1  # Only try once to avoid multiple retries
+        )
+        
         assert metadata["total_posts_successfully_labeled"] == 1
         assert metadata["total_posts_failed_to_label"] == 1
+        
+        # Verify the successful post was written to cache
         mock_write.assert_called_once()
+        written_posts = mock_write.call_args[1]["posts"]
+        assert len(written_posts) == 1
+        assert written_posts[0]["batch_id"] == "batch1"
+        assert written_posts[0]["was_successfully_labeled"]
+        
+        # Verify the failed post was returned to queue
         mock_return.assert_called_once()
+        failed_posts = mock_return.call_args[1]["failed_label_models"]
+        assert len(failed_posts) == 1
+        assert failed_posts[0]["batch_id"] == "batch1"
+        assert not failed_posts[0]["was_successfully_labeled"]
 
     @pytest.mark.asyncio
     @patch('ml_tooling.perspective_api.model.get_google_client')

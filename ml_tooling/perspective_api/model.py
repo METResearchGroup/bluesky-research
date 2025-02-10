@@ -363,7 +363,7 @@ async def process_perspective_batch_with_retries(
         return []
 
     # Initial attempt
-    responses = await process_perspective_batch(requests)
+    responses: list[dict] = await process_perspective_batch(requests)
     current_delay = initial_delay
     attempt = 1
 
