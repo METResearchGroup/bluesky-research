@@ -312,12 +312,21 @@ def export_data_to_local_storage(
     export_format: Literal["jsonl", "parquet"] = "parquet",
     lookback_days: int = default_lookback_days,
     custom_args: Optional[dict] = None,
+    override_local_prefix: Optional[str] = None,
 ) -> None:
     """Exports data to local storage.
 
     Any data older than "lookback_days" will be stored in the "/cache"
     path while any data more recent than "lookback_days" will be stored in
     the "/active" path.
+
+    Args:
+        service: Name of the service to export data for
+        df: DataFrame containing the data to export
+        export_format: Format to export data in ("jsonl" or "parquet")
+        lookback_days: Number of days to look back for determining cache vs active
+        custom_args: Optional custom arguments for specific services
+        override_local_prefix: Optional override for the service's local prefix path
 
     Receives a generic dataframe and exports it to local storage.
     """
@@ -330,7 +339,9 @@ def export_data_to_local_storage(
     )
     for chunk in chunked_dfs:
         # processing specific for firehose
-        if service == "study_user_activity":
+        if override_local_prefix:
+            local_prefix = override_local_prefix
+        elif service == "study_user_activity":
             record_type = custom_args["record_type"]
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
         elif service == "preprocessed_posts":
@@ -579,6 +590,7 @@ def list_filenames(
     partition_date: Optional[str] = None,
     start_partition_date: Optional[str] = None,
     end_partition_date: Optional[str] = None,
+    override_local_prefix: Optional[str] = None,
 ) -> list[str]:
     """List files in local storage for a given service."""
 
@@ -619,6 +631,11 @@ def list_filenames(
         start_partition_date=start_partition_date,
         end_partition_date=end_partition_date,
     )
+
+    if override_local_prefix:
+        loaded_filepaths = [
+            os.path.join(override_local_prefix, fp) for fp in loaded_filepaths
+        ]
 
     return loaded_filepaths
 
@@ -716,8 +733,24 @@ def load_data_from_local_storage(
     latest_timestamp: Optional[str] = None,
     use_all_data: bool = False,
     validate_pq_files: bool = False,
+    override_local_prefix: Optional[str] = None,
 ) -> pd.DataFrame:
-    """Load data from local storage."""
+    """Load data from local storage.
+
+    Args:
+        service: Name of the service to load data from
+        directory: Which directory to load from ("cache" or "active")
+        export_format: Format of the data files ("jsonl", "parquet", or "duckdb")
+        partition_date: Specific partition date to load
+        start_partition_date: Start of partition date range to load
+        end_partition_date: End of partition date range to load
+        duckdb_query: SQL query for DuckDB format
+        query_metadata: Metadata for DuckDB query
+        latest_timestamp: Only load data after this timestamp
+        use_all_data: Whether to load from both cache and active directories
+        validate_pq_files: Whether to validate parquet files
+        override_local_prefix: Optional override for the service's local prefix path
+    """
     directories = [directory]
     if use_all_data:
         directories = ["cache", "active"]
@@ -729,6 +762,7 @@ def load_data_from_local_storage(
         partition_date=partition_date,
         start_partition_date=start_partition_date,
         end_partition_date=end_partition_date,
+        override_local_prefix=override_local_prefix,
     )
     if export_format == "jsonl":
         df = pd.read_json(filepaths, orient="records", lines=True)

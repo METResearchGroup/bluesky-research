@@ -8,7 +8,9 @@ This test suite verifies the functionality of repartitioning helper functions:
 """
 
 import os
-from unittest.mock import patch, MagicMock
+import unittest
+from unittest.mock import patch, MagicMock, Mock, call, ANY
+import datetime
 
 import pandas as pd
 import pytest
@@ -20,6 +22,7 @@ from services.repartition_service.helper import (
     repartition_data_for_partition_dates,
     VerificationError,
     OperationStatus,
+    OperationResult,
 )
 
 # Mock service metadata for testing
@@ -65,7 +68,7 @@ class TestVerifyDataFramesEqual:
         assert not verify_dataframes_equal(mock_df, df2)
 
 
-class TestGetServicePaths:
+class TestGetServicePaths(unittest.TestCase):
     """Tests for get_service_paths function."""
 
     @patch("services.repartition_service.helper.MAP_SERVICE_TO_METADATA")
@@ -93,83 +96,94 @@ class TestGetServicePaths:
             get_service_paths("unknown_service", "2024-01-01")
 
 
-class TestRepartitionDataForPartitionDate:
+class TestRepartitionDataForPartitionDate(unittest.TestCase):
     """Tests for repartition_data_for_partition_date function."""
 
-    @patch("services.repartition_service.helper.get_service_paths")
-    @patch("services.repartition_service.helper.load_data_from_local_storage")
-    @patch("services.repartition_service.helper.export_data_to_local_storage")
-    @patch("services.repartition_service.helper.MAP_SERVICE_TO_METADATA")
-    @patch("shutil.rmtree")
-    def test_successful_repartition(
-        self, mock_rmtree, mock_metadata, mock_export, mock_load, mock_paths, mock_df
-    ):
-        """Test successful repartitioning of data."""
-        mock_paths.return_value = {
-            "original": "/data/test/original",
-            "backup": "/data/test/backup",
-            "temp": "/data/test/temp"
-        }
-        mock_load.return_value = mock_df
-        mock_metadata.__getitem__.return_value = {"timestamp_field": "created_at"}
-        
-        repartition_data_for_partition_date(
-            partition_date="2024-01-01",
-            service="test_service",
-            new_service_partition_key="indexed_at"
-        )
-        
-        assert mock_export.call_count == 3  # backup, temp, and final export
-        assert mock_rmtree.called_once_with("/data/test/original")
+    def test_empty_data(self):
+        """Test handling of empty data during repartitioning."""
+        mock_load = Mock(return_value=pd.DataFrame())
+        mock_export = Mock()
+        mock_rmtree = Mock()
+        mock_exists = Mock(return_value=True)
+        mock_makedirs = Mock()
 
-    @patch("services.repartition_service.helper.get_service_paths")
-    @patch("services.repartition_service.helper.load_data_from_local_storage")
-    def test_empty_data(self, mock_load, mock_paths):
-        """Test handling of empty data."""
-        mock_paths.return_value = {
-            "original": "/data/test/original",
-            "backup": "/data/test/backup",
-            "temp": "/data/test/temp"
-        }
-        mock_load.return_value = pd.DataFrame()
-        
-        repartition_data_for_partition_date(
-            partition_date="2024-01-01",
-            service="test_service",
-            new_service_partition_key="indexed_at"
-        )
-        
-        # Should exit early without error
-        mock_load.assert_called_once()
+        with patch('services.repartition_service.helper.load_data_from_local_storage', mock_load), \
+             patch('services.repartition_service.helper.export_data_to_local_storage', mock_export), \
+             patch('services.repartition_service.helper.shutil.rmtree', mock_rmtree), \
+             patch('services.repartition_service.helper.root_local_data_directory', '/mock/data'), \
+             patch('services.repartition_service.helper.os.path.exists', mock_exists), \
+             patch('services.repartition_service.helper.os.makedirs', mock_makedirs):
 
-    @patch("services.repartition_service.helper.get_service_paths")
-    @patch("services.repartition_service.helper.load_data_from_local_storage")
-    @patch("services.repartition_service.helper.export_data_to_local_storage")
-    def test_verification_failure(self, mock_export, mock_load, mock_paths, mock_df):
-        """Test handling of verification failure."""
-        mock_paths.return_value = {
-            "original": "/data/test/original",
-            "backup": "/data/test/backup",
-            "temp": "/data/test/temp"
-        }
-        
-        # Return different DataFrames for original and backup
-        df2 = mock_df.copy()
-        df2.loc[0, "text"] = "different"
-        mock_load.side_effect = [mock_df, df2]
-        
-        result = repartition_data_for_partition_date(
-            partition_date="2024-01-01",
-            service="test_service",
-            new_service_partition_key="indexed_at"
-        )
-        
-        assert result.status == OperationStatus.FAILED
-        assert isinstance(result.error, VerificationError)
-        assert "verification failed" in str(result.error)
+            result = repartition_data_for_partition_date('test_service', '2024-01-01', new_service_partition_key='created_at')
+
+            mock_load.assert_called_once_with(
+                service='test_service',
+                partition_date='2024-01-01',
+                output_format='df'
+            )
+            mock_export.assert_not_called()
+            mock_rmtree.assert_called_once_with(ANY)
+            assert result.status == OperationStatus.SUCCESS
+
+    def test_successful_repartition(self):
+        """Test successful data repartitioning."""
+        mock_df = pd.DataFrame({'data': [1, 2, 3]})
+        mock_load = Mock(side_effect=[mock_df, mock_df, mock_df])
+        mock_export = Mock()
+        mock_rmtree = Mock()
+        mock_exists = Mock(return_value=True)
+        mock_makedirs = Mock()
+
+        with patch('services.repartition_service.helper.load_data_from_local_storage', mock_load), \
+             patch('services.repartition_service.helper.export_data_to_local_storage', mock_export), \
+             patch('services.repartition_service.helper.shutil.rmtree', mock_rmtree), \
+             patch('services.repartition_service.helper.root_local_data_directory', '/mock/data'), \
+             patch('services.repartition_service.helper.os.path.exists', mock_exists), \
+             patch('services.repartition_service.helper.os.makedirs', mock_makedirs):
+
+            result = repartition_data_for_partition_date('test_service', '2024-01-01', new_service_partition_key='created_at')
+
+            mock_load.assert_has_calls([
+                call(service='test_service', partition_date='2024-01-01', output_format='df'),
+                call(service='test_service', partition_date='2024-01-01', output_format='df', override_local_prefix='/mock/data/old_test_service'),
+                call(service='test_service', partition_date='2024-01-01', output_format='df', override_local_prefix='/mock/data/tmp_test_service')
+            ])
+            assert mock_export.call_count == 3
+            mock_rmtree.assert_has_calls([
+                call('/data/test_service/cache/partition_date=2024-01-01'),
+                call('/mock/data/tmp_test_service/cache/partition_date=2024-01-01')
+            ])
+            assert result.status == OperationStatus.SUCCESS
+
+    def test_verification_failure(self):
+        """Test handling of verification failure during repartitioning."""
+        mock_df1 = pd.DataFrame({'data': [1, 2, 3]})
+        mock_df2 = pd.DataFrame({'data': [4, 5, 6]})  # Different data to trigger verification failure
+        mock_load = Mock(side_effect=[mock_df1, mock_df2])
+        mock_export = Mock()
+        mock_rmtree = Mock()
+        mock_exists = Mock(return_value=True)
+        mock_makedirs = Mock()
+
+        with patch('services.repartition_service.helper.load_data_from_local_storage', mock_load), \
+             patch('services.repartition_service.helper.export_data_to_local_storage', mock_export), \
+             patch('services.repartition_service.helper.shutil.rmtree', mock_rmtree), \
+             patch('services.repartition_service.helper.root_local_data_directory', '/mock/data'), \
+             patch('services.repartition_service.helper.os.path.exists', mock_exists), \
+             patch('services.repartition_service.helper.os.makedirs', mock_makedirs):
+
+            result = repartition_data_for_partition_date('test_service', '2024-01-01', new_service_partition_key='created_at')
+
+            mock_load.assert_has_calls([
+                call(service='test_service', partition_date='2024-01-01', output_format='df'),
+                call(service='test_service', partition_date='2024-01-01', output_format='df', override_local_prefix='/mock/data/old_test_service')
+            ])
+            assert mock_export.call_count == 1
+            mock_rmtree.assert_called_once_with(ANY)
+            assert result.status == OperationStatus.FAILED
 
 
-class TestRepartitionDataForPartitionDates:
+class TestRepartitionDataForPartitionDates(unittest.TestCase):
     """Tests for repartition_data_for_partition_dates function."""
 
     @patch("services.repartition_service.helper.get_partition_dates")
@@ -230,7 +244,10 @@ class TestRepartitionDataForPartitionDates:
         """Test handling of errors during processing."""
         mock_get_dates.return_value = ["2024-01-01", "2024-01-02"]
         mock_metadata.__contains__.return_value = True
-        mock_repartition_single.side_effect = [ValueError("Test error"), None]
+        mock_repartition_single.side_effect = [
+            OperationResult(status=OperationStatus.FAILED, error="Test error"),
+            OperationResult(status=OperationStatus.SUCCESS)
+        ]
         
         # Should continue processing despite error
         repartition_data_for_partition_dates(

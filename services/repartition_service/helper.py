@@ -205,6 +205,8 @@ def create_backup(
             message=f"Successfully backed up {len(df)} records",
         )
 
+    except VerificationError as e:
+        return OperationResult(status=OperationStatus.FAILED, error=e)
     except Exception as e:
         return OperationResult(
             status=OperationStatus.FAILED, error=BackupError(f"Backup failed: {str(e)}")
@@ -307,34 +309,35 @@ def export_repartitioned_data(
 
 
 def repartition_data_for_partition_date(
-    partition_date: str,
     service: str,
-    new_service_partition_key: str,
+    partition_date: str,
+    new_service_partition_key: str = "created_at",
 ) -> OperationResult:
-    """Repartition data for a single partition date with backup and verification.
+    """Repartition data for a single partition date.
 
     Args:
-        partition_date (str): The partition date to process in YYYY-MM-DD format
-        service (str): Name of the service being repartitioned
+        service (str): Name of the service to repartition
+        partition_date (str): The partition date to process
         new_service_partition_key (str): Field name to use as the new partition key
 
     Returns:
         OperationResult: Result of the repartition operation
 
     Behavior:
-        1. Load original data
-        2. Create and verify backup
-        3. Create and verify temporary copy
-        4. Delete original data after verification
-        5. Export repartitioned data
-        6. Clean up temporary files
-        7. Return operation status
+        1. Gets paths and loads data
+        2. Creates backup and temp copies
+        3. Verifies data integrity
+        4. Exports repartitioned data
+        5. Returns operation status
     """
-    logger.info(f"Processing partition date {partition_date} for service {service}...")
-
+    paths = None
     try:
-        # Get paths and load data
         paths = get_service_paths(service, partition_date)
+        logger.info(
+            f"Processing partition date {partition_date} for service {service}..."
+        )
+
+        # Load data
         df = load_data_from_local_storage(
             service=service,
             partition_date=partition_date,
@@ -343,19 +346,47 @@ def repartition_data_for_partition_date(
 
         if len(df) == 0:
             return OperationResult(
-                status=OperationStatus.SKIPPED,
+                status=OperationStatus.SUCCESS,
                 message=f"No data found for partition date {partition_date}",
             )
 
         # Create backup
-        backup_result = create_backup(df, service, paths, partition_date)
-        if backup_result.status != OperationStatus.SUCCESS:
-            raise backup_result.error or BackupError("Backup failed")
+        export_data_to_local_storage(
+            service=service,
+            df=df,
+            export_format="parquet",
+            override_local_prefix=paths["backup"],
+        )
+
+        # Verify backup
+        backup_df = load_data_from_local_storage(
+            service=service,
+            partition_date=partition_date,
+            output_format="df",
+            override_local_prefix=os.path.dirname(os.path.dirname(paths["backup"])),
+        )
+
+        if not verify_dataframes_equal(df, backup_df):
+            raise VerificationError("Backup verification failed")
 
         # Create temp copy
-        temp_result = create_temp_copy(df, service, paths, partition_date)
-        if temp_result.status != OperationStatus.SUCCESS:
-            raise temp_result.error or RepartitionError("Temporary copy failed")
+        export_data_to_local_storage(
+            service=service,
+            df=df,
+            export_format="parquet",
+            override_local_prefix=paths["temp"],
+        )
+
+        # Verify temp copy
+        temp_df = load_data_from_local_storage(
+            service=service,
+            partition_date=partition_date,
+            output_format="df",
+            override_local_prefix=os.path.dirname(os.path.dirname(paths["temp"])),
+        )
+
+        if not verify_dataframes_equal(df, temp_df):
+            raise VerificationError("Temporary copy verification failed")
 
         # Delete original after successful backup and temp copy
         if os.path.exists(paths["original"]):
@@ -363,14 +394,15 @@ def repartition_data_for_partition_date(
             logger.info(f"Deleted original data at {paths['original']}")
 
         # Export repartitioned data
-        export_result = export_repartitioned_data(
-            df, service, new_service_partition_key
-        )
-        if export_result.status != OperationStatus.SUCCESS:
-            raise export_result.error or RepartitionError("Export failed")
+        service_metadata = MAP_SERVICE_TO_METADATA[service].copy()
+        service_metadata["timestamp_field"] = new_service_partition_key
 
-        # Clean up
-        cleanup_temp_files(paths)
+        export_data_to_local_storage(
+            service=service,
+            df=df,
+            export_format="parquet",
+            override_metadata=service_metadata,
+        )
 
         return OperationResult(
             status=OperationStatus.SUCCESS,
@@ -378,11 +410,10 @@ def repartition_data_for_partition_date(
         )
 
     except Exception as e:
-        cleanup_temp_files(paths)
-        return OperationResult(
-            status=OperationStatus.FAILED,
-            error=RepartitionError(f"Repartition failed: {str(e)}"),
-        )
+        return OperationResult(status=OperationStatus.FAILED, error=e, message=str(e))
+    finally:
+        if paths:
+            cleanup_temp_files(paths)
 
 
 def repartition_data_for_partition_dates(
@@ -431,8 +462,8 @@ def repartition_data_for_partition_dates(
 
     for partition_date in partition_dates:
         result = repartition_data_for_partition_date(
-            partition_date=partition_date,
             service=service,
+            partition_date=partition_date,
             new_service_partition_key=new_service_partition_key,
         )
         results[partition_date] = result
