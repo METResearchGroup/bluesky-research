@@ -64,6 +64,7 @@ testpaths = [
     "services/map_uri_to_created_at/tests",
     "services/repartition_service/tests",
     "services/calculate_analytics/tests",
+    "services/write_cache_buffers_to_db/tests",
     "pipelines/backfill_records_coordination/tests",
 ]
 

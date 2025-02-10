@@ -118,6 +118,12 @@ def validate_date_format(ctx, param, value):
     help="Write cache buffer for specified service to database. Use 'all' to write all services.",
 )
 @click.option(
+    "--clear-queue",
+    is_flag=True,
+    default=False,
+    help="Clear the queue after writing cache buffer. Only used with --write-cache.",
+)
+@click.option(
     "--start-date",
     type=str,
     default=None,
@@ -140,6 +146,7 @@ def backfill_records(
     backfill_duration: int | None,
     run_classification: bool,
     write_cache: str | None,
+    clear_queue: bool,
     start_date: str | None,
     end_date: str | None,
 ):
@@ -216,7 +223,7 @@ def backfill_records(
     # Only write cache if explicitly requested
     if write_cache:
         cache_response = write_cache_handler(
-            {"payload": {"service": write_cache}}, None
+            {"payload": {"service": write_cache, "clear_queue": clear_queue}}, None
         )
         click.echo(
             f"Cache buffer write completed with status: {cache_response['statusCode']}"

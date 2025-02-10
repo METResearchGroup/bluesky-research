@@ -292,7 +292,7 @@ class TestBackfillCoordinationCliApp(TestCase):
 
         self.assertEqual(result.exit_code, 0)
         mock_write_cache.assert_called_once_with(
-            {"payload": {"service": "all"}},
+            {"payload": {"service": "all", "clear_queue": False}},
             None
         )
 
@@ -310,7 +310,25 @@ class TestBackfillCoordinationCliApp(TestCase):
 
         self.assertEqual(result.exit_code, 0)
         mock_write_cache.assert_called_once_with(
-            {"payload": {"service": "ml_inference_perspective_api"}},
+            {"payload": {"service": "ml_inference_perspective_api", "clear_queue": False}},
+            None
+        )
+
+    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
+    @patch('pipelines.backfill_records_coordination.app.write_cache_handler')
+    def test_write_cache_with_clear_queue(self, mock_write_cache, mock_handler):
+        """Test writing cache with clear_queue flag."""
+        mock_handler.return_value = {"statusCode": 200}
+        mock_write_cache.return_value = {"statusCode": 200}
+
+        result = self.runner.invoke(
+            backfill_records,
+            ['--write-cache', 'all', '--clear-queue']
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        mock_write_cache.assert_called_once_with(
+            {"payload": {"service": "all", "clear_queue": True}},
             None
         )
         

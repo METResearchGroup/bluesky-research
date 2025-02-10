@@ -1,8 +1,4 @@
-WRITE_TESTS_PROMPT = """
-    Given the file(s) in <file(s)>, write comprehensive unit tests for
-    each function in the file(s).
-
-    For any unit tests in Python, I want you to always use Pytest.
+TESTS_CRITERIA = """
     1. Encapsulate each function's tests into a test class, named with camelcase
     (e.g., for function "foo", name the test class "TestFoo").
     2. Mock or patch any I/O where necessary, unless specified otherwise and
@@ -10,6 +6,16 @@ WRITE_TESTS_PROMPT = """
     3. For any mocked or patched I/O, assert the kwargs to the I/O calls.
     I want to make sure that even if they are patched, any I/O is happening
     and is being called as expected.
+    4. Each test has detailed docstrings detailing input, output, and expected
+    behavior and why that behavior is expected.
+"""
+
+WRITE_TESTS_PROMPT = f"""
+    Given the file(s) in <file(s)>, write comprehensive unit tests for
+    each function in the file(s).
+
+    For any unit tests in Python, I want you to always use Pytest.
+    {TESTS_CRITERIA}
 
     Write comprehensive docstrings detailing input, output, and expected
     behavior and why that behavior is expected.
@@ -30,6 +36,8 @@ REVIEW_ALL_TESTS_PROMPT = f"""
     is testing. 
     
     Activate the env using the instructions in {ACTIVATE_ENV_PROMPT}
-    
-    Then run the tests one by one.
+
+    Then run the tests one by one. Verify that the tests are passing
+    and that the following criteria are met:
+    {TESTS_CRITERIA}
 """

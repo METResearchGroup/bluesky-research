@@ -50,9 +50,14 @@ def write_cache_buffer_queue_to_db(service: str, clear_queue: bool = True):
         )
 
 
-def write_all_cache_buffer_queues_to_dbs():
+def write_all_cache_buffer_queues_to_dbs(clear_queue: bool = False):
+    """Write all cache buffer queues to their corresponding databases.
+
+    Args:
+        clear_queue (bool): Whether to clear the queue after writing. Defaults to False.
+    """
     logger.info("Starting to write all cache buffer queues to DBs...")
     for service in SERVICES_TO_WRITE:
         logger.info(f"Migrating cache buffer queue for service {service}...")
-        write_cache_buffer_queue_to_db(service=service)
+        write_cache_buffer_queue_to_db(service=service, clear_queue=clear_queue)
     logger.info("Finished writing all cache buffer queues to DBs.")
