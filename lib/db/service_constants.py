@@ -640,4 +640,17 @@ MAP_SERVICE_TO_METADATA = {
             "partition_date": "string",
         },
     },
+    "uris_to_created_at": {
+        "local_prefix": os.path.join(root_local_data_directory, "uris_to_created_at"),
+        "s3_prefix": "uris_to_created_at",
+        "glue_table_name": "uris_to_created_at",
+        "primary_key": "uri",
+        "timestamp_field": "created_at",
+        "skip_deduping": True,
+        "pydantic_model": "",
+        "dtypes_map": {
+            "uri": "string",
+            "created_at": "string",
+        },
+    },
 }
