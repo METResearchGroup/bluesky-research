@@ -4,7 +4,7 @@ MAP_SERVICE_TO_SERVICE_TEMPLATE = {
         repartition_service
 
         [Details]
-        This service is used for repartitioning a service’s data. For a given partition_date, it moves the old records to a new location.
+        This service is used for repartitioning a service's data. For a given partition_date, it moves the old records to a new location.
 
         [Parameters]
         1. start_date

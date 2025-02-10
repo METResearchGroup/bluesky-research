@@ -3,7 +3,6 @@ from agents.documentation_agent import REWRITE_DOCSTRING_PROMPT
 CREATE_NEW_SERVICE_PROMPT = f"""
     You will create a new microservice. You will receive instructions in this format:
 
-
     ```
     [Name]
 
@@ -17,7 +16,7 @@ CREATE_NEW_SERVICE_PROMPT = f"""
 
     Your task is:
     1. Create the microservice, within `services/<service_name>`.
-    2. Create a README, describing the details of the microservice and its
+    2. Create a README.md, describing the details of the microservice and its
     purpose.
     3. Create a main.py, in which there is a main function that takes a payload
     dict with the specified parameters. Use <fetch_posts_used_in_feeds/main.py>
@@ -38,6 +37,7 @@ CREATE_NEW_SERVICE_PROMPT = f"""
 
     5. Add unit tests for all your functionality. See
     <fetch_posts_used_in_feeds/tests> and <uris_to_created_at/tests> for
-    examples.
+    examples. Any tests for a main.py should be named `test_mainfile.py`, to
+    avoid namespace conflicts.
     ```
 """
