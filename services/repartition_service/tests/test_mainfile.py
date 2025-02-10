@@ -28,8 +28,7 @@ MOCK_SERVICE_METADATA = {
 def mock_service_metadata():
     """Automatically mock service metadata for all tests."""
     with patch("services.repartition_service.helper.MAP_SERVICE_TO_METADATA", MOCK_SERVICE_METADATA):
-        with patch("services.repartition_service.main.MAP_SERVICE_TO_METADATA", MOCK_SERVICE_METADATA):
-            yield
+        yield
 
 class TestRepartitionService(unittest.TestCase):
     """Tests for repartition_service function."""
