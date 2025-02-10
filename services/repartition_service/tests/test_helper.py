@@ -18,8 +18,23 @@ from services.repartition_service.helper import (
     get_service_paths,
     repartition_data_for_partition_date,
     repartition_data_for_partition_dates,
+    VerificationError,
+    OperationStatus,
 )
 
+# Mock service metadata for testing
+MOCK_SERVICE_METADATA = {
+    "test_service": {
+        "local_prefix": "/data/test_service",
+        "timestamp_field": "created_at",
+    }
+}
+
+@pytest.fixture(autouse=True)
+def mock_service_metadata():
+    """Automatically mock service metadata for all tests."""
+    with patch("services.repartition_service.helper.MAP_SERVICE_TO_METADATA", MOCK_SERVICE_METADATA):
+        yield
 
 @pytest.fixture
 def mock_df():
@@ -143,12 +158,15 @@ class TestRepartitionDataForPartitionDate:
         df2.loc[0, "text"] = "different"
         mock_load.side_effect = [mock_df, df2]
         
-        with pytest.raises(ValueError, match="Backup verification failed"):
-            repartition_data_for_partition_date(
-                partition_date="2024-01-01",
-                service="test_service",
-                new_service_partition_key="indexed_at"
-            )
+        result = repartition_data_for_partition_date(
+            partition_date="2024-01-01",
+            service="test_service",
+            new_service_partition_key="indexed_at"
+        )
+        
+        assert result.status == OperationStatus.FAILED
+        assert isinstance(result.error, VerificationError)
+        assert "verification failed" in str(result.error)
 
 
 class TestRepartitionDataForPartitionDates:
