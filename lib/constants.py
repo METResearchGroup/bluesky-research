@@ -11,6 +11,7 @@ timestamp_format = "%Y-%m-%d-%H:%M:%S"
 default_bsky_timestamp_format = "%Y-%m-%dT%H:%M:%S"  # e.g. "2024-01-15T13:45:30"
 bsky_timestamp_formats = [
     default_bsky_timestamp_format,
+    timestamp_format,  # e.g., "2024-01-15-13:45:30", this is the default that we use in the pipeline; some records may have this already
     "%Y-%m-%dT%H:%M:%S.%fZ",  # e.g. "2024-01-15T13:45:30.000000Z"
     "%Y-%m-%dT%H:%M:%SZ",  # e.g. "2024-01-15T13:45:30Z"
     "%Y-%m-%dT%H:%M:%S.%f%z",  # e.g. "2024-01-15T13:45:30.000000+0000"
