@@ -585,7 +585,9 @@ MAP_SERVICE_TO_METADATA = {
         },
     },
     "fetch_posts_used_in_feeds": {
-        "": os.path.join(root_local_data_directory, "fetch_posts_used_in_feeds"),
+        "local_prefix": os.path.join(
+            root_local_data_directory, "fetch_posts_used_in_feeds"
+        ),
         "s3_prefix": "fetch_posts_used_in_feeds",
         "glue_table_name": "fetch_posts_used_in_feeds",
         "primary_key": "uri",
