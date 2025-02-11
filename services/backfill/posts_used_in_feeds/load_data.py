@@ -20,6 +20,15 @@ logger = get_logger(__file__)
 default_num_days_lookback = 5
 default_min_lookback_date = "2024-09-28"
 
+# we use preprocessing_timestamp now for our timestamps since the "created_at"
+# timestamps are not accurate from the Bluesky firehose.
+default_preprocessed_posts_columns = [
+    "uri",
+    "text",
+    "preprocessing_timestamp",
+    "partition_date",
+]
+
 
 def calculate_start_end_date_for_lookback(
     partition_date: str,
@@ -85,7 +94,7 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
         end_date=lookback_end_date,
         sorted_by_partition_date=True,
         ascending=True,
-        table_columns=["uri", "text", "created_at", "partition_date"],
+        table_columns=default_preprocessed_posts_columns,
         output_format="df",
         convert_ts_fields=True,
     )
@@ -162,14 +171,26 @@ def load_posts_to_backfill(
         num_days_lookback=default_num_days_lookback,
         min_lookback_date=default_min_lookback_date,
     )
-    posts_used_in_feeds: list[dict] = (
-        load_preprocessed_posts_used_in_feeds_for_partition_date(
-            partition_date=partition_date,
-            lookback_start_date=lookback_start_date,
-            lookback_end_date=lookback_end_date,
-        )
+    cols_str = ",".join(default_preprocessed_posts_columns)
+    query = f"SELECT {cols_str} FROM preprocessed_posts_used_in_feeds;"
+
+    posts_used_in_feeds_df: pd.DataFrame = load_data_from_local_storage(
+        service="preprocessed_posts_used_in_feeds",
+        directory="cache",
+        export_format="duckdb",
+        duckdb_query=query,
+        query_metadata={
+            "tables": [
+                {
+                    "name": "preprocessed_posts_used_in_feeds",
+                    "columns": default_preprocessed_posts_columns,
+                }
+            ]
+        },
+        partition_date=partition_date,
     )
-    total_posts_used_in_feeds = len(posts_used_in_feeds)
+
+    total_posts_used_in_feeds = len(posts_used_in_feeds_df)
     posts_to_backfill_by_integration: dict[str, list[dict]] = {}
     logger.info(f"Loading posts to backfill for integrations: {integrations}...")
     for integration in integrations:
@@ -184,11 +205,14 @@ def load_posts_to_backfill(
             f"Loaded {total_integration_uris} URIs for {integration} from {lookback_start_date} to {lookback_end_date}.\n"
             f"Comparing to {total_posts_used_in_feeds} posts used in feeds for {partition_date}."
         )
-        integration_posts_to_backfill: list[dict] = [
-            post
-            for post in posts_used_in_feeds
-            if post["uri"] not in integration_post_uris
+
+        integration_posts_to_backfill_df: pd.DataFrame = posts_used_in_feeds_df[
+            ~posts_used_in_feeds_df["uri"].isin(integration_post_uris)
         ]
+        integration_posts_to_backfill: list[dict] = (
+            integration_posts_to_backfill_df.to_dict(orient="records")
+        )
+        del integration_posts_to_backfill_df
         logger.info(
             f"Found {len(integration_posts_to_backfill)} posts to backfill for {integration}."
         )

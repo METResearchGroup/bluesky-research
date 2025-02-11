@@ -77,6 +77,11 @@ def get_and_export_preprocessed_posts_used_in_feeds_for_partition_date(
         1. Loads preprocessed posts used in feeds for the partition date
         2. Exports the loaded data to local storage in parquet format
         3. Logs the number of posts exported
+
+    The partition_date is partitioned on the "preprocessing_timestamp" field
+    of the preprocessed_posts. We use this in lieu of the "created_at" field
+    from the fetch_posts_used_in_feeds service, since the "created_at" field
+    is not accurate from the Bluesky firehose.
     """
     logger.info(
         f"Processing preprocessed posts from feeds with partition date {partition_date}..."
