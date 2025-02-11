@@ -53,7 +53,7 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
     just the post metadata and sets was_successfully_labeled=False.
 
     Args:
-        posts (list[dict]): List of post dictionaries containing uri, text, and created_at
+        posts (list[dict]): List of post dictionaries containing uri, text, and preprocessing_timestam
         output_df (pd.DataFrame): DataFrame containing processed results, with uri column
 
     Returns:
@@ -64,7 +64,7 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
             ImeLabelModel(
                 uri=post["uri"],
                 text=post["text"],
-                created_at=post["created_at"],
+                preprocessing_timestam=post["preprocessing_timestam"],
                 was_successfully_labeled=False,
             ).model_dump()
             for post in posts
@@ -87,7 +87,7 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
                 ImeLabelModel(
                     uri=post["uri"],
                     text=post["text"],
-                    created_at=post["created_at"],
+                    preprocessing_timestam=post["preprocessing_timestam"],
                     was_successfully_labeled=False,
                 ).model_dump()
             )

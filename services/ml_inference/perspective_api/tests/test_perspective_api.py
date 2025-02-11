@@ -36,13 +36,13 @@ class TestClassifyLatestPosts:
                 {
                     "uri": "test1", 
                     "text": "test post 1",
-                    "created_at": "2024-01-01-12:00:00",
+                    "preprocessing_timestam": "2024-01-01-12:00:00",
                     "batch_id": 1
                 },
                 {
                     "uri": "test2", 
                     "text": "test post 2",
-                    "created_at": "2024-01-01-12:00:00",
+                    "preprocessing_timestam": "2024-01-01-12:00:00",
                     "batch_id": 2
                 }
             ]
@@ -334,7 +334,7 @@ class TestClassifyLatestPosts:
                 "uri": f"test{i}", 
                 "text": f"test post {i}", 
                 "batch_id": i,
-                "created_at": "2024-01-01-12:00:00"
+                "preprocessing_timestam": "2024-01-01-12:00:00"
             }
             for i in range(50)
         ]
@@ -362,7 +362,7 @@ class TestClassifyLatestPosts:
                 "uri": f"test{i}", 
                 "text": f"test post {i}", 
                 "batch_id": i+50,
-                "created_at": "2024-01-01-12:00:00"
+                "preprocessing_timestam": "2024-01-01-12:00:00"
             }
             for i in range(30)
         ]
@@ -388,7 +388,7 @@ class TestClassifyLatestPosts:
                 "uri": f"test{i}", 
                 "text": f"test post {i}", 
                 "batch_id": i+80,
-                "created_at": "2024-01-01-12:00:00"
+                "preprocessing_timestam": "2024-01-01-12:00:00"
             }
             for i in range(12)
         ]

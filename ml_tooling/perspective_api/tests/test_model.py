@@ -298,7 +298,7 @@ class TestCreateLabelModels:
             {
                 'uri': 'test_uri',
                 'text': 'test text',
-                'created_at': '2024-01-01',  # Add this field
+                'preprocessing_timestam': '2024-01-01',  # Add this field
                 'batch_id': 'batch1'
             }
         ]
@@ -324,7 +324,7 @@ class TestCreateLabelModels:
             {
                 'uri': 'test_uri',
                 'text': 'test text',
-                'created_at': '2024-01-01',  # Add this field
+                'preprocessing_timestam': '2024-01-01',  # Add this field
                 'batch_id': 'batch1'
             }
         ]
@@ -353,13 +353,13 @@ class TestCreateLabelModels:
             {
                 'uri': 'test1',
                 'text': 'text1',
-                'created_at': '2024-01-01',  # Add this field
+                'preprocessing_timestam': '2024-01-01',  # Add this field
                 'batch_id': 'batch1'
             },
             {
                 'uri': 'test2',
                 'text': 'text2',
-                'created_at': '2024-01-01',  # Add this field
+                'preprocessing_timestam': '2024-01-01',  # Add this field
                 'batch_id': 'batch1'
             }
         ]
@@ -400,7 +400,7 @@ class TestCreateLabelModels:
             Should detect missing required fields and mark the label as failed
             with a descriptive error message.
         """
-        posts = [{'uri': 'test', 'text': 'test', 'created_at': '2024-01-01'}]
+        posts = [{'uri': 'test', 'text': 'test', 'preprocessing_timestam': '2024-01-01'}]
         responses = [{'attributeScores': {'TOXICITY': {}}}]  # Missing summaryScore
         
         labels = create_labels(posts=posts, responses=responses)
@@ -438,7 +438,7 @@ class TestBatchClassifyPosts:
             {
                 'uri': 'test1',
                 'text': 'text1',
-                'created_at': '2024-01-01',  # Add this field
+                'preprocessing_timestam': '2024-01-01',  # Add this field
                 'batch_id': 'batch1'
             }
         ]
@@ -477,8 +477,8 @@ class TestBatchClassifyPosts:
     ):
         """Test batch classification with mixed success/failure."""
         posts = [
-            {'uri': 'test1', 'text': 'text1', 'batch_id': 'batch1', 'created_at': '2024-01-01'},
-            {'uri': 'test2', 'text': 'text2', 'batch_id': 'batch1', 'created_at': '2024-01-01'}
+            {'uri': 'test1', 'text': 'text1', 'batch_id': 'batch1', 'preprocessing_timestam': '2024-01-01'},
+            {'uri': 'test2', 'text': 'text2', 'batch_id': 'batch1', 'preprocessing_timestam': '2024-01-01'}
         ]
         
         # Mock process_batch to return raw API responses
@@ -597,7 +597,7 @@ class TestBatchClassifyPosts:
         mock_client.new_batch_http_request.side_effect = mock_new_batch
         
         # Test maximum batch size
-        max_posts = [{'uri': f'test{i}', 'text': f'text{i}', 'batch_id': 'batch1', 'created_at': '2024-01-01'} 
+        max_posts = [{'uri': f'test{i}', 'text': f'text{i}', 'batch_id': 'batch1', 'preprocessing_timestam': '2024-01-01'} 
                     for i in range(DEFAULT_BATCH_SIZE + 1)]
         
         metadata = await batch_classify_posts(

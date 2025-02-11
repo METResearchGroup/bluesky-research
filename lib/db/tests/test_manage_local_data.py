@@ -21,13 +21,13 @@ from lib.db.manage_local_data import (
 MOCK_SERVICE_METADATA = {
     "test_service": {
         "local_prefix": "/data/test_service",
-        "timestamp_field": "created_at",
-        "partition_key": "created_at",
+        "timestamp_field": "preprocessing_timestam",
+        "partition_key": "preprocessing_timestam",
     },
     "preprocessed_posts": {
         "local_prefix": "/data/preprocessed_posts",
-        "timestamp_field": "created_at",
-        "partition_key": "created_at",
+        "timestamp_field": "preprocessing_timestam",
+        "partition_key": "preprocessing_timestam",
     }
 }
 
@@ -1028,8 +1028,8 @@ class TestExportDataToLocalStorage:
         mock_metadata = {
             "test_service": {
                 "local_prefix": "/data/test_service",
-                "timestamp_field": "created_at",
-                "partition_key": "created_at",
+                "timestamp_field": "preprocessing_timestam",
+                "partition_key": "preprocessing_timestam",
                 "subpaths": {
                     "firehose": "/data/test_service/firehose",
                     "active": "/data/test_service/active",
@@ -1037,8 +1037,8 @@ class TestExportDataToLocalStorage:
             },
             "preprocessed_posts": {
                 "local_prefix": "/data/preprocessed_posts",
-                "timestamp_field": "created_at",
-                "partition_key": "created_at",
+                "timestamp_field": "preprocessing_timestam",
+                "partition_key": "preprocessing_timestam",
                 "subpaths": {
                     "firehose": "/data/preprocessed_posts/firehose",
                     "active": "/data/preprocessed_posts/active",
@@ -1054,7 +1054,7 @@ class TestExportDataToLocalStorage:
         return pd.DataFrame({
             "col1": [1, 2],
             "col2": ["a", "b"],
-            "created_at": ["2024-01-01", "2024-01-01"]
+            "preprocessing_timestam": ["2024-01-01", "2024-01-01"]
         })
 
     def test_basic_export(self, mocker, mock_service_metadata, mock_df, tmp_path):

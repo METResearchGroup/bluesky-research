@@ -38,7 +38,7 @@ class TestLoadPreprocessedPosts:
             - Empty list (since mock returns empty DataFrames)
             - Query contains expected clauses
         """
-        empty_df = pd.DataFrame(columns=["uri", "text", "created_at"])
+        empty_df = pd.DataFrame(columns=["uri", "text", "preprocessing_timestam"])
         mock_load_data.return_value = empty_df
 
         result = load_preprocessed_posts(
@@ -51,7 +51,7 @@ class TestLoadPreprocessedPosts:
         
         expected_substrings = [
             "FROM preprocessed_posts",
-            "SELECT uri, text, created_at",
+            "SELECT uri, text, preprocessing_timestam",
             "WHERE text IS NOT NULL",
             "text != ''"
         ]
@@ -93,7 +93,7 @@ class TestLoadPreprocessedPosts:
         mock_df = pd.DataFrame({
             "uri": ["post1", "post2"],
             "text": ["text1", "text2"],
-            "created_at": ["2023-01-01", "2023-01-02"]
+            "preprocessing_timestam": ["2023-01-01", "2023-01-02"]
         })
         mock_load_data.return_value = mock_df
 
@@ -123,7 +123,7 @@ class TestLoadPreprocessedPosts:
         mock_df = pd.DataFrame({
             "uri": ["post1", "post2"],
             "text": ["text1", "text2"],
-            "created_at": ["2023-01-01", "2023-01-02"]
+            "preprocessing_timestam": ["2023-01-01", "2023-01-02"]
         })
         mock_load_data.return_value = mock_df
 
@@ -154,7 +154,7 @@ class TestLoadPreprocessedPosts:
         )
 
         expected_substrings = [
-            "SELECT uri, text, created_at, partition_date",
+            "SELECT uri, text, preprocessing_timestam, partition_date",
             "FROM preprocessed_posts",
             "ORDER BY partition_date ASC"
         ]
@@ -180,7 +180,7 @@ class TestLoadPreprocessedPosts:
         )
 
         expected_substrings = [
-            "SELECT uri, text, created_at, partition_date",
+            "SELECT uri, text, preprocessing_timestam, partition_date",
             "FROM preprocessed_posts",
             "ORDER BY partition_date DESC"
         ]
@@ -206,7 +206,7 @@ class TestLoadPreprocessedPosts:
         )
 
         expected_substrings = [
-            "SELECT uri, text, created_at",
+            "SELECT uri, text, preprocessing_timestam",
             "FROM preprocessed_posts"
         ]
         
@@ -231,7 +231,7 @@ class TestLoadPreprocessedPosts:
         )
 
         expected_substrings = [
-            "SELECT uri, text, created_at",
+            "SELECT uri, text, preprocessing_timestam",
             "FROM preprocessed_posts"
         ]
         
@@ -252,7 +252,7 @@ class TestLoadPreprocessedPosts:
         )
 
         expected_substrings = [
-            "SELECT uri, text, created_at, partition_date",
+            "SELECT uri, text, preprocessing_timestam, partition_date",
             "FROM preprocessed_posts",
             "ORDER BY partition_date DESC"
         ]
@@ -274,9 +274,9 @@ class TestLoadPreprocessedPosts:
         cached_df = pd.DataFrame({
             "uri": ["post1", "post2"],
             "text": ["text1", "text2"],
-            "created_at": ["2023-01-01", "2023-01-02"]
+            "preprocessing_timestam": ["2023-01-01", "2023-01-02"]
         })
-        empty_df = pd.DataFrame(columns=["uri", "text", "created_at"])
+        empty_df = pd.DataFrame(columns=["uri", "text", "preprocessing_timestam"])
         
         mock_load_data.side_effect = [cached_df, empty_df]
 
@@ -300,11 +300,11 @@ class TestLoadPreprocessedPosts:
         Expected outputs:
             - Combined DataFrame has 2 rows from active
         """
-        empty_df = pd.DataFrame(columns=["uri", "text", "created_at"])
+        empty_df = pd.DataFrame(columns=["uri", "text", "preprocessing_timestam"])
         active_df = pd.DataFrame({
             "uri": ["post1", "post2"],
             "text": ["text1", "text2"],
-            "created_at": ["2023-01-01", "2023-01-02"]
+            "preprocessing_timestam": ["2023-01-01", "2023-01-02"]
         })
         
         mock_load_data.side_effect = [empty_df, active_df]
@@ -332,12 +332,12 @@ class TestLoadPreprocessedPosts:
         cached_df = pd.DataFrame({
             "uri": ["post1", "post2"],
             "text": ["text1", "text2"],
-            "created_at": ["2023-01-01", "2023-01-02"]
+            "preprocessing_timestam": ["2023-01-01", "2023-01-02"]
         })
         active_df = pd.DataFrame({
             "uri": ["post3", "post4"],
             "text": ["text3", "text4"],
-            "created_at": ["2023-01-03", "2023-01-04"]
+            "preprocessing_timestam": ["2023-01-03", "2023-01-04"]
         })
         
         mock_load_data.side_effect = [cached_df, active_df]
@@ -394,11 +394,11 @@ class TestLoadPreprocessedPosts:
             
         Expected outputs:
             - partition_date is converted to YYYY-MM-DD format
-            - created_at is converted to YYYY-MM-DD-HH:MM:SS format
+            - preprocessing_timestam is converted to YYYY-MM-DD-HH:MM:SS format
         """
         mock_df = pd.DataFrame({
             "uri": ["post1"],
-            "created_at": pd.to_datetime(["2023-01-01T12:00:00Z"]),
+            "preprocessing_timestam": pd.to_datetime(["2023-01-01T12:00:00Z"]),
             "partition_date": pd.to_datetime(["2023-01-01"])
         })
         mock_load_data.return_value = mock_df
@@ -412,7 +412,7 @@ class TestLoadPreprocessedPosts:
         )
 
         assert result["partition_date"].iloc[0] == "2023-01-01"
-        assert result["created_at"].iloc[0] == "2023-01-01-12:00:00"
+        assert result["preprocessing_timestam"].iloc[0] == "2023-01-01-12:00:00"
 
 
 class TestLoadServicePostUris:
@@ -596,7 +596,7 @@ class TestLoadPostsToBackfill:
             end_date=None,
             sorted_by_partition_date=False,
             ascending=False,
-            table_columns=["uri", "text", "created_at"],
+            table_columns=["uri", "text", "preprocessing_timestam"],
             output_format="list"
         )
 
@@ -655,7 +655,7 @@ class TestLoadPostsToBackfill:
             end_date=None,
             sorted_by_partition_date=False,
             ascending=False,
-            table_columns=["uri", "text", "created_at"],
+            table_columns=["uri", "text", "preprocessing_timestam"],
             output_format="list"
         )
 
@@ -713,7 +713,7 @@ class TestLoadPostsToBackfill:
             end_date=None,
             sorted_by_partition_date=False,
             ascending=False,
-            table_columns=["uri", "text", "created_at"],
+            table_columns=["uri", "text", "preprocessing_timestam"],
             output_format="list"
         )
 
@@ -756,7 +756,7 @@ class TestLoadPostsToBackfill:
             end_date="2024-01-31",
             sorted_by_partition_date=False,
             ascending=False,
-            table_columns=["uri", "text", "created_at"],
+            table_columns=["uri", "text", "preprocessing_timestam"],
             output_format="list"
         )
         mock_load_uris.assert_called_once_with(

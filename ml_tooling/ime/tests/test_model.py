@@ -51,8 +51,8 @@ class TestCreateLabels:
     def test_empty_output_df(self):
         """Test handling of empty output DataFrame."""
         posts = [
-            {'uri': 'uri1', 'text': 'text1', 'created_at': '2024-01-01'},
-            {'uri': 'uri2', 'text': 'text2', 'created_at': '2024-01-01'}
+            {'uri': 'uri1', 'text': 'text1', 'preprocessing_timestam': '2024-01-01'},
+            {'uri': 'uri2', 'text': 'text2', 'preprocessing_timestam': '2024-01-01'}
         ]
         empty_df = pd.DataFrame()
         
@@ -62,19 +62,19 @@ class TestCreateLabels:
         assert all(not label['was_successfully_labeled'] for label in result)
         assert all('uri' in label for label in result)
         assert all('text' in label for label in result)
-        assert all('created_at' in label for label in result)
+        assert all('preprocessing_timestam' in label for label in result)
 
     def test_successful_label_creation(self):
         """Test converting DataFrame to label dictionaries."""
         posts = [
-            {'uri': 'uri1', 'text': 'text1', 'created_at': '2024-01-01'},
-            {'uri': 'uri2', 'text': 'text2', 'created_at': '2024-01-01'}
+            {'uri': 'uri1', 'text': 'text1', 'preprocessing_timestam': '2024-01-01'},
+            {'uri': 'uri2', 'text': 'text2', 'preprocessing_timestam': '2024-01-01'}
         ]
         
         input_df = pd.DataFrame({
             'uri': ['uri1', 'uri2'],
             'text': ['text1', 'text2'],
-            'created_at': ['2024-01-01', '2024-01-01'],
+            'preprocessing_timestam': ['2024-01-01', '2024-01-01'],
             'prob_emotion': [0.8, 0.1],
             'prob_intergroup': [0.2, 0.9],
             'prob_moral': [0.1, 0.1],
@@ -92,7 +92,7 @@ class TestCreateLabels:
         assert all(label['was_successfully_labeled'] for label in result)
         assert all('uri' in label for label in result)
         assert all('text' in label for label in result)
-        assert all('created_at' in label for label in result)
+        assert all('preprocessing_timestam' in label for label in result)
         assert all('label_timestamp' in label for label in result)
 
 
@@ -112,8 +112,8 @@ class TestBatchClassifyPosts:
     ):
         """Test processing batches with successful labels."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'text1', 'batch_id': 'batch1', 'created_at': '2024-01-01'},
-            {'uri': 'uri2', 'text': 'text2', 'batch_id': 'batch1', 'created_at': '2024-01-01'}
+            {'uri': 'uri1', 'text': 'text1', 'batch_id': 'batch1', 'preprocessing_timestam': '2024-01-01'},
+            {'uri': 'uri2', 'text': 'text2', 'batch_id': 'batch1', 'preprocessing_timestam': '2024-01-01'}
         ]
         
         mock_create_batches.return_value = [input_posts]
@@ -121,7 +121,7 @@ class TestBatchClassifyPosts:
         mock_process_batch.return_value = pd.DataFrame({
             'uri': ['uri1', 'uri2'],
             'text': ['text1', 'text2'],
-            'created_at': ['2024-01-01', '2024-01-01'],
+            'preprocessing_timestam': ['2024-01-01', '2024-01-01'],
             'prob_emotion': [0.8, 0.1],
             'prob_intergroup': [0.2, 0.9],
             'prob_moral': [0.1, 0.1], 
@@ -159,8 +159,8 @@ class TestBatchClassifyPosts:
     ):
         """Test handling of failed labels."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'text1', 'batch_id': 'batch1', 'created_at': '2024-01-01'},
-            {'uri': 'uri2', 'text': 'text2', 'batch_id': 'batch1', 'created_at': '2024-01-01'}
+            {'uri': 'uri1', 'text': 'text1', 'batch_id': 'batch1', 'preprocessing_timestam': '2024-01-01'},
+            {'uri': 'uri2', 'text': 'text2', 'batch_id': 'batch1', 'preprocessing_timestam': '2024-01-01'}
         ]
         
         mock_create_batches.return_value = [input_posts]
@@ -193,8 +193,8 @@ class TestBatchClassifyPosts:
     ):
         """Test that metrics are correctly calculated for a batch."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'short', 'batch_id': 'batch1', 'created_at': '2024-01-01'},
-            {'uri': 'uri2', 'text': 'very long text', 'batch_id': 'batch1', 'created_at': '2024-01-01'}
+            {'uri': 'uri1', 'text': 'short', 'batch_id': 'batch1', 'preprocessing_timestam': '2024-01-01'},
+            {'uri': 'uri2', 'text': 'very long text', 'batch_id': 'batch1', 'preprocessing_timestam': '2024-01-01'}
         ]
         
         mock_create_batches.return_value = [input_posts]
@@ -203,7 +203,7 @@ class TestBatchClassifyPosts:
         mock_process_batch.return_value = pd.DataFrame({
             'uri': ['uri1', 'uri2'],
             'text': ['short', 'very long text'],
-            'created_at': ['2024-01-01', '2024-01-01'],
+            'preprocessing_timestam': ['2024-01-01', '2024-01-01'],
             'prob_emotion': [0.8, 0.2],
             'prob_intergroup': [0.7, 0.3],
             'prob_moral': [0.6, 0.4],
@@ -241,8 +241,8 @@ class TestBatchClassifyPosts:
     ):
         """Test handling of batches where some posts succeed and others fail."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'text1', 'batch_id': 'batch1', 'created_at': '2024-01-01'},
-            {'uri': 'uri2', 'text': 'text2', 'batch_id': 'batch1', 'created_at': '2024-01-01'}
+            {'uri': 'uri1', 'text': 'text1', 'batch_id': 'batch1', 'preprocessing_timestam': '2024-01-01'},
+            {'uri': 'uri2', 'text': 'text2', 'batch_id': 'batch1', 'preprocessing_timestam': '2024-01-01'}
         ]
    
         mock_create_batches.return_value = [input_posts]
@@ -252,7 +252,7 @@ class TestBatchClassifyPosts:
         mock_process_batch.return_value = pd.DataFrame({
             'uri': ['uri1'],
             'text': ['text1'],
-            'created_at': ['2024-01-01'],
+            'preprocessing_timestam': ['2024-01-01'],
             'prob_emotion': [0.8],
             'prob_intergroup': [0.2],
             'prob_moral': [0.1],

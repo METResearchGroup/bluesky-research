@@ -121,10 +121,10 @@ class TestGetPostsToClassify:
     def test_filtering_invalid_posts(self, mock_queue):
         """Test that invalid posts are filtered out."""
         mock_queue.load_dict_items_from_queue.return_value = [
-            {"uri": "test1", "text": "", "created_at": "2024-01-01"},  # Empty text
-            {"uri": "test2", "text": "a", "created_at": "2024-01-01"},  # Too short
-            {"uri": "test3", "text": "valid post", "created_at": None},  # Missing timestamp
-            {"uri": "test4", "text": "valid post", "created_at": "2024-01-01"}  # Valid
+            {"uri": "test1", "text": "", "preprocessing_timestam": "2024-01-01"},  # Empty text
+            {"uri": "test2", "text": "a", "preprocessing_timestam": "2024-01-01"},  # Too short
+            {"uri": "test3", "text": "valid post", "preprocessing_timestam": None},  # Missing timestamp
+            {"uri": "test4", "text": "valid post", "preprocessing_timestam": "2024-01-01"}  # Valid
         ]
         result = get_posts_to_classify("perspective_api")
         assert len(result) == 1

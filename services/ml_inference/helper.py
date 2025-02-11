@@ -72,14 +72,14 @@ def filter_posts_df(df: pd.DataFrame) -> pd.DataFrame:
     """Filter out posts with invalid text.
 
     Args:
-        df: DataFrame containing posts with 'text' column and 'created_at' column
+        df: DataFrame containing posts with 'text' column and 'preprocessing_timestam' column
 
     Returns:
         DataFrame with posts removed that have:
         - Missing text (if text column exists)
         - Empty text (if text column exists)
         - Text shorter than MIN_POST_TEXT_LENGTH characters (if text column exists)
-        - Missing created_at timestamp (if created_at column exists)
+        - Missing preprocessing_timestam timestamp (if preprocessing_timestam column exists)
     """
     filtered_df = df.copy()
 
@@ -91,9 +91,9 @@ def filter_posts_df(df: pd.DataFrame) -> pd.DataFrame:
             & (filtered_df["text"].str.len() >= MIN_POST_TEXT_LENGTH)
         ]
 
-    # Only apply timestamp filter if created_at column exists
-    if "created_at" in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df["created_at"].notna()]
+    # Only apply timestamp filter if preprocessing_timestam column exists
+    if "preprocessing_timestam" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["preprocessing_timestam"].notna()]
 
     return filtered_df
 
@@ -124,7 +124,7 @@ def get_posts_to_classify(
                 - latest_id_classified (Optional[int]): ID of last processed post
                 - inference_timestamp (Optional[str]): Timestamp of last inference
         columns (Optional[list[str]]): List of columns to return in output.
-            Defaults to ["uri", "text", "created_at", "batch_id", "batch_metadata"].
+            Defaults to ["uri", "text", "preprocessing_timestam", "batch_id", "batch_metadata"].
 
     Returns:
         list[dict]: List of posts to classify, where each post is a dictionary containing
@@ -192,7 +192,13 @@ def get_posts_to_classify(
         return []
 
     if columns is None:
-        columns = ["uri", "text", "created_at", "batch_id", "batch_metadata"]
+        columns = [
+            "uri",
+            "text",
+            "preprocessing_timestam",
+            "batch_id",
+            "batch_metadata",
+        ]
 
     # Create DataFrame with all columns from the payloads
     posts_df = pd.DataFrame(latest_payloads)

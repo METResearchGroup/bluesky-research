@@ -34,7 +34,7 @@ def repartition_service(payload: dict) -> None:
                 end_date (str): End date in YYYY-MM-DD format (inclusive).
                     Defaults to "2025-12-01".
                 new_service_partition_key (str): Field name to use as the new partition key.
-                    Defaults to "created_at".
+                    Defaults to "preprocessing_timestam".
                 exclude_partition_dates (list[str]): List of dates to exclude in YYYY-MM-DD format.
                     Defaults to ["2024-10-08"].
                 use_parallel (bool): Whether to use parallel processing. Defaults to False.
@@ -52,7 +52,9 @@ def repartition_service(payload: dict) -> None:
     start_date = payload.get("start_date", "2024-09-28")
     end_date = payload.get("end_date", "2025-12-01")
     service = payload["service"]  # Required parameter
-    new_service_partition_key = payload.get("new_service_partition_key", "created_at")
+    new_service_partition_key = payload.get(
+        "new_service_partition_key", "preprocessing_timestam"
+    )
     exclude_partition_dates = payload.get("exclude_partition_dates", ["2024-10-08"])
     use_parallel = payload.get("use_parallel", False)
 
@@ -77,6 +79,6 @@ def repartition_service(payload: dict) -> None:
 if __name__ == "__main__":
     # Example payload for testing
     payload = {
-        "service": "uris_to_created_at",  # Required
+        "service": "uris_to_preprocessing_timestam",  # Required
     }
     repartition_service(payload)

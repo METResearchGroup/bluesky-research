@@ -311,7 +311,7 @@ def export_repartitioned_data(
 def repartition_data_for_partition_date(
     service: str,
     partition_date: str,
-    new_service_partition_key: str = "created_at",
+    new_service_partition_key: str = "preprocessing_timestam",
 ) -> OperationResult:
     """Repartition data for a single partition date.
 
@@ -420,7 +420,7 @@ def repartition_data_for_partition_dates(
     start_date: str = "2024-09-28",
     end_date: str = "2025-12-01",
     service: str = "",
-    new_service_partition_key: str = "created_at",
+    new_service_partition_key: str = "preprocessing_timestam",
     exclude_partition_dates: List[str] = None,
 ) -> Dict[str, OperationResult]:
     """Repartition data for multiple partition dates with error handling.

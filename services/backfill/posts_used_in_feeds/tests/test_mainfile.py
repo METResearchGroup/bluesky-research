@@ -18,12 +18,12 @@ class TestBackfillPostsUsedInFeeds:
         """Fixture for mock posts to backfill."""
         return {
             "ml_inference_perspective_api": [
-                {"uri": "post1", "text": "text1", "created_at": "2024-01-01"},
-                {"uri": "post2", "text": "text2", "created_at": "2024-01-02"}
+                {"uri": "post1", "text": "text1", "preprocessing_timestam": "2024-01-01"},
+                {"uri": "post2", "text": "text2", "preprocessing_timestam": "2024-01-02"}
             ],
             "ml_inference_sociopolitical": [
-                {"uri": "post3", "text": "text3", "created_at": "2024-01-03"},
-                {"uri": "post4", "text": "text4", "created_at": "2024-01-04"}
+                {"uri": "post3", "text": "text3", "preprocessing_timestam": "2024-01-03"},
+                {"uri": "post4", "text": "text4", "preprocessing_timestam": "2024-01-04"}
             ]
         }
 
@@ -37,7 +37,7 @@ class TestBackfillPostsUsedInFeeds:
             return pd.DataFrame({
                 "uri": uris,
                 "text": [f"text{i}" for i in range(len(uris))],
-                "created_at": pd.to_datetime([f"2024-01-0{i+1}" for i in range(len(uris))]),
+                "preprocessing_timestam": pd.to_datetime([f"2024-01-0{i+1}" for i in range(len(uris))]),
                 "partition_date": pd.to_datetime([f"2024-01-0{i+1}" for i in range(len(uris))])
             })
         return create_mock_df
@@ -64,7 +64,7 @@ class TestBackfillPostsUsedInFeeds:
     #     mock_df = pd.DataFrame({
     #         "uri": ["post1", "post2"],
     #         "text": ["text1", "text2"],
-    #         "created_at": pd.to_datetime(["2024-01-01", "2024-01-02"]),
+    #         "preprocessing_timestam": pd.to_datetime(["2024-01-01", "2024-01-02"]),
     #         "partition_date": pd.to_datetime(["2024-01-01", "2024-01-02"])
     #     })
         
@@ -110,7 +110,7 @@ class TestBackfillPostsUsedInFeeds:
     #     mock_df = pd.DataFrame({
     #         "uri": ["post1", "post2"],
     #         "text": ["text1", "text2"],
-    #         "created_at": pd.to_datetime(["2024-01-01", "2024-01-02"]),
+    #         "preprocessing_timestam": pd.to_datetime(["2024-01-01", "2024-01-02"]),
     #         "partition_date": pd.to_datetime(["2024-01-01", "2024-01-02"])
     #     })
         

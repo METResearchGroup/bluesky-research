@@ -19,7 +19,7 @@ payload = {
     "start_date": "2024-01-01",  # Start date for processing (YYYY-MM-DD)
     "end_date": "2024-01-31",    # End date for processing (YYYY-MM-DD)
     "service": "service_name",    # Name of the service to repartition
-    "new_service_partition_key": "created_at",  # New partition key to use (default: "created_at")
+    "new_service_partition_key": "preprocessing_timestam",  # New partition key to use (default: "preprocessing_timestam")
     "exclude_partition_dates": ["2024-01-15"]  # Optional dates to exclude
 }
 ```

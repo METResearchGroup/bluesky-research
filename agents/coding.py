@@ -20,12 +20,12 @@ CREATE_NEW_SERVICE_PROMPT = f"""
     purpose.
     3. Create a main.py, in which there is a main function that takes a payload
     dict with the specified parameters. Use <fetch_posts_used_in_feeds/main.py>
-    and <uris_to_created_at/main.py> as your template. Unless specified, the 
+    and <uris_to_preprocessing_timestam/main.py> as your template. Unless specified, the 
     service should take, at minimum, a start_date and end_date and
     excluded_partition_dates args, in addition to other kwargs.
     4. Create a helper.py. This should encapsulate the core functionality of
     the service. Make the code modular. See
-    <fetch_posts_used_in_feeds/helper.py> and <uris_to_created_at/helper.py>
+    <fetch_posts_used_in_feeds/helper.py> and <uris_to_preprocessing_timestam/helper.py>
     for inspiration. The code should follow the following flow:
         - Load data
             - Use "load_data_from_local_storage" for any interactions that
@@ -36,7 +36,7 @@ CREATE_NEW_SERVICE_PROMPT = f"""
     Add type hinting and docs, as per {REWRITE_DOCSTRING_PROMPT}.
 
     5. Add unit tests for all your functionality. See
-    <fetch_posts_used_in_feeds/tests> and <uris_to_created_at/tests> for
+    <fetch_posts_used_in_feeds/tests> and <uris_to_preprocessing_timestam/tests> for
     examples. Any tests for a main.py should be named `test_mainfile.py`, to
     avoid namespace conflicts.
     ```
