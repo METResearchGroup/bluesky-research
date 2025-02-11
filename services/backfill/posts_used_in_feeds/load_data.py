@@ -73,7 +73,7 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
     partition_date: str,
     lookback_start_date: str,
     lookback_end_date: str,
-) -> list[dict]:
+) -> pd.DataFrame:
     """Load the preprocessed, hydrated posts for the feeds created on the
     partition date.
 
@@ -81,6 +81,10 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
     few days, we load in a day's worth of posts used in feeds and then match
     them to the base pool of posts from the past few days (as defined by
     lookback_start_date and lookback_end_date).
+
+    Returns:
+        pd.DataFrame: DataFrame containing the preprocessed posts used in feeds.
+            For duplicate URIs, keeps the earliest version based on preprocessing_timestamp.
     """
     posts_used_in_feeds_df: pd.DataFrame = load_posts_used_in_feeds(partition_date)
     logger.info(
@@ -99,9 +103,6 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
         convert_ts_fields=True,
     )
 
-    # convert to list of dicts, for easier downstream iteration + processing.
-    base_pool_posts: list[dict] = base_pool_posts.to_dict(orient="records")
-
     logger.info(
         f"Loaded {len(base_pool_posts)} base pool posts from {lookback_start_date} to {lookback_end_date}."
     )
@@ -117,19 +118,22 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
             "the total number of unique posts used in feeds."
         )
 
-    res: list[dict] = []
-    seen_uris = set()
+    # Filter to only posts used in feeds and sort by preprocessing_timestamp
+    filtered_posts = base_pool_posts[
+        base_pool_posts["uri"].isin(uris_of_posts_used_in_feeds)
+    ]
+    filtered_posts = filtered_posts.sort_values(
+        "preprocessing_timestamp", ascending=True
+    )
 
-    for post in base_pool_posts:
-        if post["uri"] in uris_of_posts_used_in_feeds and post["uri"] not in seen_uris:
-            res.append(post)
-            seen_uris.add(post["uri"])
+    # Keep earliest version of each post
+    result_df = filtered_posts.drop_duplicates(subset=["uri"], keep="first")
 
-    logger.info(f"Found {len(res)} posts used in feeds for {partition_date}.")
+    logger.info(f"Found {len(result_df)} posts used in feeds for {partition_date}.")
 
     total_posts_used_in_feeds = len(posts_used_in_feeds_df)
     total_posts_in_base_pool = len(base_pool_posts)
-    total_hydrated_posts_used_in_feeds = len(res)
+    total_hydrated_posts_used_in_feeds = len(result_df)
 
     logger.info(
         f"Total posts used in feeds: {total_posts_used_in_feeds}\n"
@@ -146,7 +150,7 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
             "We should investigate this, as this is OK but good to know why."
         )
 
-    return res
+    return result_df
 
 
 @track_performance
