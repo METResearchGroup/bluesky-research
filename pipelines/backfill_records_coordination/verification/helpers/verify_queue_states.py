@@ -3,6 +3,9 @@
 import json
 
 from lib.db.queue import Queue
+from lib.log.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def verify_queue_zero_state(queue: Queue) -> bool:
@@ -18,7 +21,10 @@ def verify_queue_zero_state(queue: Queue) -> bool:
         bool: True if queue is empty, False otherwise
     """
     queue_counts = queue.get_queue_length()
-    print(f"Queue {queue.queue_name} has {queue_counts} items.")
+    logger.info(
+        f"Queue {queue.queue_name} has {queue_counts} items.",
+        context={"queue_name": queue.queue_name, "queue_count": queue_counts},
+    )
     return queue_counts == 0
 
 
@@ -35,7 +41,10 @@ def verify_queue_non_zero_state(queue: Queue) -> bool:
         bool: True if queue contains items, False if empty
     """
     queue_counts = queue.get_queue_length()
-    print(f"Queue {queue.queue_name} has {queue_counts} items.")
+    logger.info(
+        f"Queue {queue.queue_name} has {queue_counts} items.",
+        context={"queue_name": queue.queue_name, "queue_count": queue_counts},
+    )
     return queue_counts > 0
 
 
@@ -52,11 +61,14 @@ def get_total_records_in_queue(queue: Queue) -> int:
     Returns:
         int: Total number of individual records in pending queue items
     """
-    query = "SELECT metadata FROM queue WHERE status = 'pending';"
+    query = "SELECT metadata FROM queue WHERE status = 'pending'"
     res = queue.run_query(query)
     total_records = 0
     for record in res:
         metadata = json.loads(record["metadata"])
         total_records += metadata["actual_batch_size"]
-    print(f"Queue {queue.queue_name} has {total_records} records.")
+    logger.info(
+        f"Queue {queue.queue_name} has {total_records} records.",
+        context={"queue_name": queue.queue_name, "total_records": total_records},
+    )
     return total_records

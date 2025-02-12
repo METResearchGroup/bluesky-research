@@ -72,14 +72,14 @@ def filter_posts_df(df: pd.DataFrame) -> pd.DataFrame:
     """Filter out posts with invalid text.
 
     Args:
-        df: DataFrame containing posts with 'text' column and 'preprocessing_timestam' column
+        df: DataFrame containing posts with 'text' column and 'preprocessing_timestamp' column
 
     Returns:
         DataFrame with posts removed that have:
         - Missing text (if text column exists)
         - Empty text (if text column exists)
         - Text shorter than MIN_POST_TEXT_LENGTH characters (if text column exists)
-        - Missing preprocessing_timestam timestamp (if preprocessing_timestam column exists)
+        - Missing preprocessing_timestamp timestamp (if preprocessing_timestamp column exists)
     """
     filtered_df = df.copy()
 
@@ -91,9 +91,9 @@ def filter_posts_df(df: pd.DataFrame) -> pd.DataFrame:
             & (filtered_df["text"].str.len() >= MIN_POST_TEXT_LENGTH)
         ]
 
-    # Only apply timestamp filter if preprocessing_timestam column exists
-    if "preprocessing_timestam" in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df["preprocessing_timestam"].notna()]
+    # Only apply timestamp filter if preprocessing_timestamp column exists
+    if "preprocessing_timestamp" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["preprocessing_timestamp"].notna()]
 
     return filtered_df
 
@@ -124,7 +124,7 @@ def get_posts_to_classify(
                 - latest_id_classified (Optional[int]): ID of last processed post
                 - inference_timestamp (Optional[str]): Timestamp of last inference
         columns (Optional[list[str]]): List of columns to return in output.
-            Defaults to ["uri", "text", "preprocessing_timestam", "batch_id", "batch_metadata"].
+            Defaults to ["uri", "text", "preprocessing_timestamp", "batch_id", "batch_metadata"].
 
     Returns:
         list[dict]: List of posts to classify, where each post is a dictionary containing
@@ -195,7 +195,7 @@ def get_posts_to_classify(
         columns = [
             "uri",
             "text",
-            "preprocessing_timestam",
+            "preprocessing_timestamp",
             "batch_id",
             "batch_metadata",
         ]
@@ -213,9 +213,7 @@ def get_posts_to_classify(
     # Verify required columns exist and add missing ones with None values
     missing_columns = [col for col in columns if col not in posts_df.columns]
     if missing_columns:
-        logger.warning(f"Missing required columns: {missing_columns}")
-        for col in missing_columns:
-            posts_df[col] = None
+        raise ValueError(f"Missing required columns: {missing_columns}")
 
     # Select only requested columns
     return posts_df[columns].to_dict(orient="records")

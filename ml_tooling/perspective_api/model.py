@@ -430,7 +430,7 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
         posts (list[dict]): List of posts to create labels for. Each post must contain:
             - uri (str): Unique identifier for the post
             - text (str): The text content that was classified
-            - preprocessing_timestam (str): Post creation timestamp in YYYY-MM-DD-HH:MM:SS format
+            - preprocessing_timestamp (str): Post creation timestamp in YYYY-MM-DD-HH:MM:SS format
         responses (list[dict]): List of Perspective API responses, one per post.
             Each response can be:
             - None: Indicating API call failed
@@ -442,7 +442,7 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
             post. Each model contains:
             - uri (str): Post identifier
             - text (str): Post content
-            - preprocessing_timestam (str): Post creation timestamp
+            - preprocessing_timestamp (str): Post creation timestamp
             - was_successfully_labeled (bool): Whether classification succeeded
             - label_timestamp (str): Classification timestamp in YYYY-MM-DD-HH:MM:SS
             - reason (str): Error message if classification failed
@@ -526,7 +526,7 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
                 PerspectiveApiLabelsModel(
                     uri=post["uri"],
                     text=post["text"],
-                    preprocessing_timestam=post["preprocessing_timestam"],
+                    preprocessing_timestamp=post["preprocessing_timestamp"],
                     was_successfully_labeled=False,
                     reason=response_obj["error"],
                     label_timestamp=label_timestamp,
@@ -544,7 +544,7 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
                 PerspectiveApiLabelsModel(
                     uri=post["uri"],
                     text=post["text"],
-                    preprocessing_timestam=post["preprocessing_timestam"],
+                    preprocessing_timestamp=post["preprocessing_timestamp"],
                     was_successfully_labeled=True,
                     label_timestamp=label_timestamp,
                     **probs_response_obj,
@@ -572,7 +572,7 @@ async def batch_classify_posts(
         posts (list[dict]): List of posts to classify. Each post must contain:
             - text (str): The text content to classify
             - uri (str): Unique identifier for the post
-            - preprocessing_timestam (str): Post creation timestamp in YYYY-MM-DD-HH:MM:SS format
+            - preprocessing_timestamp (str): Post creation timestamp in YYYY-MM-DD-HH:MM:SS format
             - batch_id: ID linking the post to its original batch in the queue
         batch_size (Optional[int]): Number of posts to process in each API batch.
             Defaults to DEFAULT_BATCH_SIZE (90). Should not exceed 100 due to
@@ -714,7 +714,7 @@ def run_batch_classification(
         posts (list[dict]): List of posts to classify. Each post must contain:
             - text (str): The text content to classify
             - uri (str): Unique identifier for the post
-            - preprocessing_timestam (str): Post creation timestamp
+            - preprocessing_timestamp (str): Post creation timestamp
             - batch_id: ID linking the post to its original batch in the queue
         batch_size (Optional[int]): Number of posts to process in each API batch.
             Defaults to DEFAULT_BATCH_SIZE (90). Should not exceed 100 due to

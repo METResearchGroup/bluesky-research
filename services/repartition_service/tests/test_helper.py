@@ -29,7 +29,7 @@ from services.repartition_service.helper import (
 MOCK_SERVICE_METADATA = {
     "test_service": {
         "local_prefix": "/data/test_service",
-        "timestamp_field": "preprocessing_timestam",
+        "timestamp_field": "preprocessing_timestamp",
     }
 }
 
@@ -44,7 +44,7 @@ def mock_df():
     """Create a mock DataFrame for testing."""
     return pd.DataFrame({
         "uri": ["post1", "post2"],
-        "preprocessing_timestam": ["2024-01-01", "2024-01-01"],
+        "preprocessing_timestamp": ["2024-01-01", "2024-01-01"],
         "text": ["text1", "text2"]
     })
 
@@ -114,7 +114,7 @@ class TestRepartitionDataForPartitionDate(unittest.TestCase):
              patch('services.repartition_service.helper.os.path.exists', mock_exists), \
              patch('services.repartition_service.helper.os.makedirs', mock_makedirs):
 
-            result = repartition_data_for_partition_date('test_service', '2024-01-01', new_service_partition_key='preprocessing_timestam')
+            result = repartition_data_for_partition_date('test_service', '2024-01-01', new_service_partition_key='preprocessing_timestamp')
 
             mock_load.assert_called_once_with(
                 service='test_service',
@@ -141,7 +141,7 @@ class TestRepartitionDataForPartitionDate(unittest.TestCase):
              patch('services.repartition_service.helper.os.path.exists', mock_exists), \
              patch('services.repartition_service.helper.os.makedirs', mock_makedirs):
 
-            result = repartition_data_for_partition_date('test_service', '2024-01-01', new_service_partition_key='preprocessing_timestam')
+            result = repartition_data_for_partition_date('test_service', '2024-01-01', new_service_partition_key='preprocessing_timestamp')
 
             mock_load.assert_has_calls([
                 call(service='test_service', partition_date='2024-01-01', output_format='df'),
@@ -172,7 +172,7 @@ class TestRepartitionDataForPartitionDate(unittest.TestCase):
              patch('services.repartition_service.helper.os.path.exists', mock_exists), \
              patch('services.repartition_service.helper.os.makedirs', mock_makedirs):
 
-            result = repartition_data_for_partition_date('test_service', '2024-01-01', new_service_partition_key='preprocessing_timestam')
+            result = repartition_data_for_partition_date('test_service', '2024-01-01', new_service_partition_key='preprocessing_timestamp')
 
             mock_load.assert_has_calls([
                 call(service='test_service', partition_date='2024-01-01', output_format='df'),

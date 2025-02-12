@@ -13,7 +13,9 @@ from pipelines.backfill_records_coordination.verification.helpers.verify_queue_s
     verify_queue_zero_state,
     get_total_records_in_queue,
 )
+from lib.log.logger import get_logger
 
+logger = get_logger(__name__)
 
 input_ml_inference_perspective_api_queue = Queue(
     queue_name="input_ml_inference_perspective_api"
@@ -51,20 +53,38 @@ def print_mid_state():
     # Perspective API queues
     input_p = get_total_records_in_queue(input_ml_inference_perspective_api_queue)
     output_p = get_total_records_in_queue(output_ml_inference_perspective_api_queue)
-    print(f"Perspective API - Input queue: {input_p}, Output queue: {output_p}")
-    print(f"Perspective API - Total records: {input_p + output_p}")
+    logger.info(
+        f"Perspective API - Input queue: {input_p}, Output queue: {output_p}, Total records: {input_p + output_p}",
+        context={
+            "input_queue": input_p,
+            "output_queue": output_p,
+            "total_records": input_p + output_p,
+        },
+    )
 
     # Sociopolitical queues
     input_s = get_total_records_in_queue(input_ml_inference_sociopolitical_queue)
     output_s = get_total_records_in_queue(output_ml_inference_sociopolitical_queue)
-    print(f"Sociopolitical - Input queue: {input_s}, Output queue: {output_s}")
-    print(f"Sociopolitical - Total records: {input_s + output_s}")
+    logger.info(
+        f"Sociopolitical - Input queue: {input_s}, Output queue: {output_s}, Total records: {input_s + output_s}",
+        context={
+            "input_queue": input_s,
+            "output_queue": output_s,
+            "total_records": input_s + output_s,
+        },
+    )
 
     # IME queues
     input_i = get_total_records_in_queue(input_ml_inference_ime_queue)
     output_i = get_total_records_in_queue(output_ml_inference_ime_queue)
-    print(f"IME - Input queue: {input_i}, Output queue: {output_i}")
-    print(f"IME - Total records: {input_i + output_i}")
+    logger.info(
+        f"IME - Input queue: {input_i}, Output queue: {output_i}, Total records: {input_i + output_i}",
+        context={
+            "input_queue": input_i,
+            "output_queue": output_i,
+            "total_records": input_i + output_i,
+        },
+    )
 
 
 def verify_end_state():
@@ -91,3 +111,7 @@ def main(state):
         print_mid_state()
     else:  # end
         verify_end_state()
+
+
+if __name__ == "__main__":
+    main()

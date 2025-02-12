@@ -157,7 +157,7 @@ def repartition_data_for_partition_dates_parallel(
     start_date: str,
     end_date: str,
     service: str,
-    new_service_partition_key: str = "preprocessing_timestam",
+    new_service_partition_key: str = "preprocessing_timestamp",
     exclude_partition_dates: List[str] = None,
     parallel_config: Optional[ParallelConfig] = None,
 ) -> Dict[str, OperationResult]:

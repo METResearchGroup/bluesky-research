@@ -10,7 +10,7 @@ MAP_SERVICE_TO_SERVICE_TEMPLATE = {
         1. start_date
         2. end_date
         3. service
-        4. new_service_partition_key="preprocessing_timestam"
+        4. new_service_partition_key="preprocessing_timestamp"
 
         [Steps]
         1. For a given partition date, load in the data. Use “load_data_from_local_storage”.

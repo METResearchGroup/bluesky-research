@@ -11,9 +11,7 @@ from typing import Dict, List
 
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
-from services.backfill.posts_used_in_feeds.load_data import (
-    calculate_start_end_date_for_lookback,
-)
+from lib.helper import get_partition_dates
 
 logger = get_logger(__file__)
 
@@ -36,6 +34,7 @@ def count_records_for_dates(
         try:
             df = load_data_from_local_storage(
                 service=integration,
+                directory="cache",
                 partition_date=date,
             )
             counts[date] = len(df) if df is not None else 0
@@ -78,48 +77,38 @@ def main():
         help="Name of the integration to count records for",
     )
     parser.add_argument(
-        "--partition_date", required=True, help="End date in YYYY-MM-DD format"
+        "--start_date",
+        required=True,
+        help="Start date in YYYY-MM-DD format",
     )
     parser.add_argument(
-        "--num_days_lookback",
-        type=int,
-        default=7,
-        help="Number of days to look back (default: 7)",
-    )
-    parser.add_argument(
-        "--min_lookback_date",
-        default="2024-09-28",
-        help="Minimum date to look back to (default: 2024-09-28)",
+        "--end_date",
+        required=True,
+        help="End date in YYYY-MM-DD format",
     )
 
     args = parser.parse_args()
 
-    # Validate partition date format
+    # Validate date formats
     try:
-        datetime.strptime(args.partition_date, "%Y-%m-%d")
+        datetime.strptime(args.start_date, "%Y-%m-%d")
+        datetime.strptime(args.end_date, "%Y-%m-%d")
     except ValueError:
-        parser.error("partition_date must be in YYYY-MM-DD format")
-
-    # Calculate date range
-    start_date, _ = calculate_start_end_date_for_lookback(
-        partition_date=args.partition_date,
-        num_days_lookback=args.num_days_lookback,
-        min_lookback_date=args.min_lookback_date,
-    )
+        parser.error("dates must be in YYYY-MM-DD format")
 
     # Generate list of dates to process
-    dates = []
-    current_date = datetime.strptime(start_date, "%Y-%m-%d")
-    end_date = datetime.strptime(args.partition_date, "%Y-%m-%d")
-    while current_date <= end_date:
-        dates.append(current_date.strftime("%Y-%m-%d"))
-        current_date = current_date.replace(day=current_date.day + 1)
+    dates = get_partition_dates(start_date=args.start_date, end_date=args.end_date)
 
     # Count records for each date
     counts = count_records_for_dates(args.integration, dates)
 
     # Print results
-    print_record_counts(args.integration, counts, start_date, args.partition_date)
+    print_record_counts(args.integration, counts, args.start_date, args.end_date)
+
+    total_records = sum(counts.values())
+    print(
+        f"\nTotal records for the integration {args.integration} from {args.start_date} to {args.end_date}: {total_records}"
+    )
 
 
 if __name__ == "__main__":

@@ -49,8 +49,8 @@ class PerspectiveApiLabelsModel(BaseModel):
 
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
-    preprocessing_timestam: str = Field(
-        ..., description="The preprocessing_timestam timestamp of the post."
+    preprocessing_timestamp: str = Field(
+        ..., description="The preprocessing_timestamp timestamp of the post."
     )
     was_successfully_labeled: bool = Field(
         ...,
@@ -160,6 +160,9 @@ class SociopoliticalLabelsModel(BaseModel):
 
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
+    preprocessing_timestamp: str = Field(
+        ..., description="The preprocessing_timestamp timestamp of the post."
+    )
     llm_model_name: Optional[str] = Field(
         default=None, description="Name of LLM model used for inference."
     )  # noqa
@@ -189,8 +192,8 @@ class ImeLabelModel(BaseModel):
 
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
-    preprocessing_timestam: str = Field(
-        ..., description="The preprocessing_timestam timestamp of the post."
+    preprocessing_timestamp: str = Field(
+        ..., description="The preprocessing_timestamp timestamp of the post."
     )
     was_successfully_labeled: bool = Field(
         ...,

@@ -97,16 +97,16 @@ def test_main_with_valid_args():
     """Test main function with valid arguments."""
     test_args = [
         "--integration", "test_integration",
-        "--partition_date", "2024-10-15",
-        "--num_days_lookback", "2"
+        "--start_date", "2024-10-14",
+        "--end_date", "2024-10-15"
     ]
     
     with patch("sys.argv", ["script.py"] + test_args):
         with patch("services.calculate_analytics.count_records_for_integration.count_records_for_dates") as mock_count:
-            with patch("services.calculate_analytics.count_records_for_integration.calculate_start_end_date_for_lookback") as mock_calc:
+            with patch("services.calculate_analytics.count_records_for_integration.get_partition_dates") as mock_dates:
                 mock_count.return_value = {"2024-10-14": 5, "2024-10-15": 10}
-                mock_calc.return_value = ("2024-10-14", "2024-10-15")
-                
+                mock_dates.return_value = ["2024-10-14", "2024-10-15"]
+
                 # Capture stdout
                 captured_output = io.StringIO()
                 sys.stdout = captured_output
@@ -123,11 +123,12 @@ def test_main_with_valid_args():
                 finally:
                     sys.stdout = sys.__stdout__
 
-def test_main_with_invalid_date():
+def test_main_with_invalid_date_format():
     """Test main function with invalid date format."""
     test_args = [
         "--integration", "test_integration",
-        "--partition_date", "invalid_date"
+        "--start_date", "2024/10/14",
+        "--end_date", "2024-10-15"
     ]
     
     with patch("sys.argv", ["script.py"] + test_args):

@@ -19,8 +19,8 @@ from services.repartition_service.helper import OperationResult, OperationStatus
 MOCK_SERVICE_METADATA = {
     "test_service": {
         "local_prefix": "/data/test_service",
-        "timestamp_field": "preprocessing_timestam",
-        "partition_key": "preprocessing_timestam",
+        "timestamp_field": "preprocessing_timestamp",
+        "partition_key": "preprocessing_timestamp",
     }
 }
 
@@ -50,7 +50,7 @@ class TestRepartitionService(unittest.TestCase):
             start_date=self.default_start_date,
             end_date=self.default_end_date,
             service="test_service",
-            new_service_partition_key="preprocessing_timestam",
+            new_service_partition_key="preprocessing_timestamp",
             exclude_partition_dates=self.default_exclude_dates,
             use_parallel=False,
         )
@@ -91,7 +91,7 @@ class TestRepartitionService(unittest.TestCase):
             start_date="2024-01-01",
             end_date=self.default_end_date,
             service="test_service",
-            new_service_partition_key="preprocessing_timestam",
+            new_service_partition_key="preprocessing_timestamp",
             exclude_partition_dates=["2024-10-08"],
             use_parallel=False,
         )
@@ -115,7 +115,7 @@ class TestRepartitionService(unittest.TestCase):
         mock_logger.info.assert_has_calls([
             call(
                 "Repartitioning test_service data from 2024-01-01 to 2025-12-01 "
-                "using partition key 'preprocessing_timestam', excluding dates: ['2024-10-08']"
+                "using partition key 'preprocessing_timestamp', excluding dates: ['2024-10-08']"
             ),
             call("Finished repartitioning test_service data."),
         ]) 
