@@ -172,20 +172,10 @@ def process_sociopolitical_batch_with_retries(
 
     Returns:
         list[dict]: A list of result dictionaries from the LLM classification for each post.
-            Successful results contain classification data, failed results are empty dictionaries.
+            Successful results contain classification data, failed results are None.
 
     Raises:
         KeyError: If any post in the input list is missing the required "text" field.
-
-    Behavior:
-        1. Validates input posts for required fields.
-        2. If posts list is empty, returns empty list immediately.
-        3. Processes posts through LLM classification.
-        4. For failed results:
-            - Retries up to max_retries times
-            - Uses exponential backoff starting at abs(initial_delay)
-            - Maintains original post order in results
-        5. Returns final results with empty dictionaries for any posts that ultimately failed.
     """
     if not posts:
         return []
@@ -199,13 +189,24 @@ def process_sociopolitical_batch_with_retries(
     max_retries = max(0, max_retries)
     initial_delay = abs(initial_delay)
 
-    final_results = [None] * len(posts)  # Initialize with None placeholders
-    posts_to_retry = posts
-    retry_indices = list(range(len(posts)))  # Track original indices
-    retries = 0
+    # Make initial attempt
+    final_results = process_sociopolitical_batch(posts)
 
+    # Setup for retries if needed
+    posts_to_retry = []
+    retry_indices = []
+    for idx, result in enumerate(final_results):
+        if result is None:
+            posts_to_retry.append(posts[idx])
+            retry_indices.append(idx)
+
+    retries = 0
     while posts_to_retry and retries < max_retries:
-        results: list[dict | None] = process_sociopolitical_batch(posts_to_retry)
+        # Sleep with exponential backoff before each retry
+        time.sleep(initial_delay * (2**retries))
+        retries += 1
+
+        results = process_sociopolitical_batch(posts_to_retry)
 
         # Process results and track which need retry
         new_posts_to_retry = []
@@ -222,16 +223,11 @@ def process_sociopolitical_batch_with_retries(
             logger.warning(
                 f"{len(new_posts_to_retry)} posts failed to be labeled. Retrying..."
             )
-            retries += 1
-            if retries < max_retries:  # Only sleep if we're going to retry
-                time.sleep(initial_delay * (2**retries))
             posts_to_retry = new_posts_to_retry
             retry_indices = new_retry_indices
         else:
             break
 
-    # Fill any remaining None results with empty dicts
-    final_results = [result if result is not None else None for result in final_results]
     return final_results
 
 
