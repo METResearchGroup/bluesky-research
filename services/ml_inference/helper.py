@@ -10,6 +10,7 @@ from lib.constants import timestamp_format
 from lib.db.queue import Queue
 from lib.log.logger import get_logger
 from lib.helper import track_performance
+from services.ml_inference.models import PostToLabelModel
 
 
 logger = get_logger(__name__)
@@ -216,4 +217,7 @@ def get_posts_to_classify(
         raise ValueError(f"Missing required columns: {missing_columns}")
 
     # Select only requested columns
-    return posts_df[columns].to_dict(orient="records")
+    dicts = posts_df[columns].to_dict(orient="records")
+    dict_models = [PostToLabelModel(**d) for d in dicts]  # to verify fields
+    dicts = [d.model_dump() for d in dict_models]
+    return dicts
