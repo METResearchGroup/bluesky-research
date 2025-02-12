@@ -30,7 +30,8 @@ echo "Starting slurm job for partition date: $PARTITION_DATE"
 python /projects/p32375/bluesky-research/pipelines/backfill_records_coordination/app.py \
     --record-type posts_used_in_feeds \
     --add-to-queue \
-    --partition-date $PARTITION_DATE
+    --start-date $PARTITION_DATE \
+    --end-date $PARTITION_DATE
 exit_code=$?
 echo "Python script exited with code $exit_code"
 if [ $exit_code -ne 0 ]; then

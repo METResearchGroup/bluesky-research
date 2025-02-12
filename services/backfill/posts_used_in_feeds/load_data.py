@@ -6,7 +6,7 @@ from typing import Optional
 
 import pandas as pd
 
-from lib.constants import partition_date_format
+from lib.constants import partition_date_format, timestamp_format
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.helper import track_performance
 from lib.log.logger import get_logger
@@ -220,6 +220,40 @@ def load_posts_to_backfill(
         integration_posts_to_backfill_df: pd.DataFrame = posts_used_in_feeds_df[
             ~posts_used_in_feeds_df["uri"].isin(integration_post_uris)
         ]
+
+        # convert "preprocessing_timestamp" and "partition_date" to from datetime
+        # to str, if they aren't already strings.
+        if pd.api.types.is_datetime64_any_dtype(
+            integration_posts_to_backfill_df["preprocessing_timestamp"]
+        ):
+            integration_posts_to_backfill_df["preprocessing_timestamp"] = (
+                integration_posts_to_backfill_df[
+                    "preprocessing_timestamp"
+                ].dt.strftime(timestamp_format)
+            )
+        else:
+            integration_posts_to_backfill_df["preprocessing_timestamp"] = (
+                integration_posts_to_backfill_df["preprocessing_timestamp"].astype(str)
+            )
+
+        if pd.api.types.is_datetime64_any_dtype(
+            integration_posts_to_backfill_df["partition_date"]
+        ):
+            integration_posts_to_backfill_df["partition_date"] = (
+                integration_posts_to_backfill_df[
+                    "partition_date"
+                ].dt.strftime(partition_date_format)
+            )
+        else:
+            integration_posts_to_backfill_df["partition_date"] = (
+                integration_posts_to_backfill_df["partition_date"].astype(str)
+            )
+
+        logger.info(
+            f"Dtypes for integration posts to backfill for {integration}:\n"
+            f"{integration_posts_to_backfill_df.dtypes}"
+        )
+
         integration_posts_to_backfill: list[dict] = (
             integration_posts_to_backfill_df.to_dict(orient="records")
         )
