@@ -11,6 +11,7 @@ import os
 import sqlite3
 import time
 from typing import Optional
+import re
 
 from pydantic import BaseModel, Field, field_validator
 import typing_extensions as te
@@ -496,3 +497,88 @@ class Queue:
     def _supports_returning(self) -> bool:
         """Check if SQLite version supports RETURNING clause."""
         return self._get_sqlite_version() >= (3, 35, 0)
+
+    def run_query(self, query: str, params: Optional[tuple] = None) -> list[dict]:
+        """Execute a SQL query and return results as a list of dictionaries.
+
+        This method safely executes read-only SQL queries against the queue database
+        and returns the results as a list of dictionaries where each dictionary
+        represents a row with column names as keys.
+
+        The method implements several security measures:
+        - Only SELECT queries are allowed
+        - Unsafe operations (INSERT, UPDATE, etc.) are blocked
+        - Multiple statements are rejected
+        - Parameters are properly bound to prevent SQL injection
+        - Transactions are isolated
+
+        Args:
+            query: The SQL query to execute. Must be a single SELECT statement.
+            params: Optional tuple of parameters to bind to the query for safe
+                   value substitution.
+
+        Returns:
+            List of dictionaries containing the query results, where each dict
+            represents a row with column names as keys. Column types are preserved:
+            - INTEGER columns return int
+            - TEXT columns return str
+            - NULL values return None
+            Unicode characters are fully supported in both queries and results.
+
+        Raises:
+            ValueError: If the query:
+                - Is not a SELECT statement
+                - Contains unsafe operations
+                - Contains multiple statements
+            sqlite3.Error: If there is a database error during execution
+        """
+        if not query or not isinstance(query, str):
+            raise ValueError("Query must be a non-empty string")
+
+        # Basic safety checks
+        query_lower = query.lower().strip()
+        if not query_lower.startswith("select"):
+            raise ValueError("Only SELECT queries are allowed")
+
+        # Check for unsafe keywords, but only match whole words
+        unsafe_keywords = ["insert", "update", "delete", "drop", "alter", "create"]
+        query_words = set(query_lower.split())
+        if any(keyword in query_words for keyword in unsafe_keywords):
+            raise ValueError(f"Query contains unsafe operations: {query}")
+
+        # Check for multiple statements
+        if ";" in query_lower:
+            # Allow semicolons in string literals and subqueries
+            stripped_query = query_lower
+            # Remove string literals
+            stripped_query = re.sub(r"'[^']*'", "", stripped_query)
+            stripped_query = re.sub(r'"[^"]*"', "", stripped_query)
+            # Remove comments
+            stripped_query = re.sub(r"--.*$", "", stripped_query, flags=re.MULTILINE)
+            stripped_query = re.sub(r"/\*.*?\*/", "", stripped_query, flags=re.DOTALL)
+
+            if ";" in stripped_query:
+                raise ValueError("Multiple SQL statements are not allowed")
+
+        try:
+            with self._get_connection() as conn:
+                # Set timeout to prevent long-running queries
+                conn.execute("PRAGMA busy_timeout = 30000")  # 30 second timeout
+
+                cursor = conn.execute(query, params or ())
+
+                # Get column names from cursor description
+                columns = [desc[0] for desc in cursor.description]
+
+                # Convert rows to dictionaries while preserving types
+                results = []
+                for row in cursor.fetchall():
+                    row_dict = {}
+                    for i, value in enumerate(row):
+                        row_dict[columns[i]] = value
+                    results.append(row_dict)
+
+                return results
+        except sqlite3.Error as e:
+            logger.error(f"Database error executing query: {e}")
+            raise

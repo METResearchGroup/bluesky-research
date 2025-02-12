@@ -17,6 +17,7 @@ import json
 import time
 import pytest
 from typing import Generator
+import sqlite3
 
 from lib.db.queue import DEFAULT_BATCH_CHUNK_SIZE, DEFAULT_BATCH_WRITE_SIZE, Queue, QueueItem
 from lib.log.logger import get_logger
@@ -850,3 +851,397 @@ class TestLoadDictItems:
             assert "text" in item
             assert item["uri"].startswith("post_")
             assert item["text"].startswith("Sample text")
+
+
+class TestRunQuery:
+    """Test suite for the run_query method."""
+
+    def test_basic_select(self, queue: Queue) -> None:
+        """Test basic SELECT query execution.
+        
+        Verifies:
+        - Simple SELECT query works
+        - Results are returned as list of dicts
+        - Column names are preserved
+        """
+        # Add test data
+        test_items = [{"key": "value1"}, {"key": "value2"}]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # Run query
+        results = queue.run_query("SELECT id, payload FROM queue")
+        
+        assert len(results) == 2
+        assert all(isinstance(row, dict) for row in results)
+        assert all({"id", "payload"}.issubset(row.keys()) for row in results)
+        assert all(isinstance(row["id"], int) for row in results)
+        assert all(isinstance(row["payload"], str) for row in results)
+
+    def test_parameterized_query(self, queue: Queue) -> None:
+        """Test query with parameter binding.
+        
+        Verifies:
+        - Parameter binding works correctly
+        - Results are filtered correctly
+        """
+        # Add test data
+        test_items = [
+            {"key": "value1", "type": "A"},
+            {"key": "value2", "type": "B"},
+            {"key": "value3", "type": "A"}
+        ]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # Run parameterized query
+        results = queue.run_query(
+            "SELECT * FROM queue WHERE status = ?",
+            params=("pending",)
+        )
+        
+        assert len(results) == 3
+        assert all(isinstance(row, dict) for row in results)
+
+    def test_empty_result(self, queue: Queue) -> None:
+        """Test query returning no results.
+        
+        Verifies:
+        - Empty result set is handled correctly
+        - Returns empty list
+        """
+        results = queue.run_query("SELECT * FROM queue WHERE 1=0")
+        assert isinstance(results, list)
+        assert len(results) == 0
+
+    def test_unsafe_queries(self, queue: Queue) -> None:
+        """Test rejection of unsafe queries.
+        
+        Verifies:
+        - Non-SELECT queries are rejected
+        - Queries with unsafe keywords are rejected
+        """
+        unsafe_queries = [
+            "INSERT INTO queue (payload) VALUES ('test')",
+            "UPDATE queue SET status='completed'",
+            "DELETE FROM queue",
+            "DROP TABLE queue",
+            "ALTER TABLE queue ADD COLUMN test TEXT",
+            "CREATE TABLE test (id INTEGER)",
+            "SELECT * FROM queue; DROP TABLE queue",
+        ]
+        
+        for query in unsafe_queries:
+            with pytest.raises(ValueError, match=".*unsafe.*|.*SELECT.*"):
+                queue.run_query(query)
+
+    def test_complex_select(self, queue: Queue) -> None:
+        """Test complex SELECT query with joins and aggregations.
+        
+        Verifies:
+        - Complex queries work correctly
+        - Aggregation results are properly returned
+        """
+        # Add test data
+        test_items = [
+            {"key": "value1", "count": 5},
+            {"key": "value2", "count": 3},
+            {"key": "value1", "count": 2}
+        ]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # Run complex query
+        results = queue.run_query("""
+            SELECT 
+                COUNT(*) as total_count,
+                MIN(created_at) as first_created,
+                MAX(created_at) as last_created
+            FROM queue
+        """)
+        
+        assert len(results) == 1
+        assert results[0]["total_count"] == 3
+        assert isinstance(results[0]["first_created"], str)
+        assert isinstance(results[0]["last_created"], str)
+
+    def test_null_values(self, queue: Queue) -> None:
+        """Test handling of NULL values in query results.
+        
+        Verifies:
+        - NULL values are properly returned as None
+        - Mixed NULL and non-NULL values work
+        """
+        # Add test data with NULL metadata
+        with queue._get_connection() as conn:
+            conn.execute(
+                "INSERT INTO queue (payload, metadata) VALUES (?, ?)",
+                (json.dumps({"key": "value"}), None)
+            )
+        
+        results = queue.run_query("SELECT payload, metadata FROM queue")
+        
+        assert len(results) == 1
+        assert results[0]["metadata"] is None
+        assert isinstance(results[0]["payload"], str)
+
+    def test_error_handling(self, queue: Queue) -> None:
+        """Test error handling for invalid queries.
+        
+        Verifies:
+        - Syntax errors are caught and raised
+        - Invalid column references are caught and raised
+        """
+        invalid_queries = [
+            "SELECT invalid_column FROM queue",
+            "SELECT * FROM nonexistent_table",
+            "SELECT * FROM queue WHERE",  # Incomplete query
+        ]
+        
+        for query in invalid_queries:
+            with pytest.raises(sqlite3.Error):
+                queue.run_query(query)
+
+    def test_whitespace_handling(self, queue: Queue) -> None:
+        """Test handling of queries with different whitespace.
+        
+        Verifies:
+        - Queries with different whitespace patterns work
+        - Leading/trailing whitespace is handled
+        """
+        valid_queries = [
+            "   SELECT * FROM queue   ",
+            "SELECT\n*\nFROM\nqueue",
+            "SELECT * \n FROM queue \n WHERE 1=1",
+        ]
+        
+        for query in valid_queries:
+            try:
+                queue.run_query(query)
+            except Exception as e:
+                pytest.fail(f"Valid query failed: {query}, error: {e}")
+
+    def test_sql_injection_prevention(self, queue: Queue) -> None:
+        """Test prevention of SQL injection attacks.
+        
+        Verifies:
+        - Parameter binding prevents SQL injection
+        - Malicious input in parameters is escaped
+        - Attempts to inject additional statements are blocked
+        
+        This is critical for security as it ensures the query method properly
+        handles potentially malicious input without compromising the database.
+        """
+        # Add test data
+        test_items = [{"key": "safe_value"}]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # Test injection attempts
+        malicious_inputs = [
+            "' OR '1'='1",
+            "'; DROP TABLE queue; --",
+            "' UNION SELECT * FROM queue; --",
+        ]
+        
+        for malicious_input in malicious_inputs:
+            # This should safely escape the malicious input
+            results = queue.run_query(
+                "SELECT * FROM queue WHERE payload = ?",
+                params=(malicious_input,)
+            )
+            assert len(results) == 0  # Should find no matches
+            
+            # Verify table still exists and data is intact
+            results = queue.run_query("SELECT COUNT(*) as count FROM queue")
+            assert results[0]["count"] == 1
+
+    def test_large_result_set(self, queue: Queue) -> None:
+        """Test handling of large result sets.
+        
+        Verifies:
+        - Large result sets are processed efficiently
+        - Memory usage remains reasonable
+        - All rows are correctly converted to dictionaries
+        
+        This test ensures the query method can handle substantial amounts of data
+        without performance degradation or memory issues.
+        """
+        # Add 1000 test items
+        test_items = [{"key": f"value_{i}"} for i in range(1000)]
+        queue.batch_add_items_to_queue(test_items, batch_size=50)
+        
+        # Query all items
+        start_time = time.time()
+        results = queue.run_query("SELECT COUNT(*) as total FROM queue")
+        query_time = time.time() - start_time
+        
+        assert results[0]["total"] == 20  # 1000 items in batches of 50
+        assert query_time < 2.0  # Should complete in reasonable time
+        
+        # Verify we can get all the batched data
+        results = queue.run_query("SELECT payload FROM queue")
+        total_items = sum(len(json.loads(row["payload"])) for row in results)
+        assert total_items == 1000
+
+    def test_special_column_names(self, queue: Queue) -> None:
+        """Test handling of special characters in column aliases.
+        
+        Verifies:
+        - Quoted column names are handled correctly
+        - Special characters in aliases work
+        - Column name case is preserved
+        
+        This ensures the query method properly handles various SQL column naming
+        conventions and special cases.
+        """
+        test_items = [{"key": "value"}]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        queries = [
+            'SELECT payload as "Column With Spaces" FROM queue',
+            'SELECT payload as "Special!@#$%" FROM queue',
+            'SELECT payload as "MixedCase" FROM queue',
+        ]
+        
+        for query in queries:
+            results = queue.run_query(query)
+            assert len(results) == 1
+            row = results[0]
+            # Verify the exact column name is preserved
+            alias = query.split(' as ')[1].split(' FROM')[0].strip('"')
+            assert alias in row
+
+    def test_transaction_isolation(self, queue: Queue) -> None:
+        """Test query execution in isolated transactions.
+        
+        Verifies:
+        - Queries run in isolated transactions
+        - Changes in one transaction don't affect others
+        - Failed transactions don't impact the database
+        
+        This ensures data consistency and isolation between different
+        query operations.
+        """
+        test_items = [{"key": "value"}]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # Run query in transaction that will be rolled back
+        with queue._get_connection() as conn:
+            try:
+                conn.execute("BEGIN TRANSACTION")
+                conn.execute("UPDATE queue SET status = 'testing'")
+                # Simulate a failure that causes rollback
+                raise Exception("Simulated failure")
+            except:
+                conn.rollback()
+        
+        # Verify original data is unchanged
+        results = queue.run_query("SELECT status FROM queue")
+        assert results[0]["status"] == "pending"
+
+    def test_column_type_preservation(self, queue: Queue) -> None:
+        """Test preservation of SQLite column types in results.
+        
+        Verifies:
+        - Integer columns remain integers
+        - Text columns remain strings
+        - NULL values are preserved as None
+        - Timestamps are preserved as strings
+        
+        This ensures data types are correctly maintained when converting
+        results to dictionaries.
+        """
+        # Add test data with various types
+        with queue._get_connection() as conn:
+            conn.execute("""
+                INSERT INTO queue (payload, metadata, status)
+                VALUES (?, ?, ?)
+            """, (
+                json.dumps({"int_value": 42}),
+                None,
+                "test_status"
+            ))
+        
+        results = queue.run_query("""
+            SELECT 
+                id as int_col,
+                payload as text_col,
+                metadata as null_col,
+                created_at as timestamp_col
+            FROM queue
+        """)
+        
+        assert len(results) == 1
+        row = results[0]
+        assert isinstance(row["int_col"], int)
+        assert isinstance(row["text_col"], str)
+        assert row["null_col"] is None
+        assert isinstance(row["timestamp_col"], str)
+
+    def test_multi_statement_rejection(self, queue: Queue) -> None:
+        """Test rejection of multiple SQL statements.
+        
+        Verifies:
+        - Multiple statements in single query are rejected
+        - Semicolon usage in legitimate contexts is allowed
+        - Complex subqueries are still allowed
+        
+        This is a critical security feature that prevents execution of
+        unintended statements.
+        """
+        test_items = [{"key": "value"}]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # These should be rejected
+        multi_statements = [
+            "SELECT * FROM queue; SELECT * FROM queue",
+            "SELECT * FROM queue; DROP TABLE queue",
+        ]
+        for query in multi_statements:
+            with pytest.raises(ValueError):
+                queue.run_query(query)
+        
+        # These should be allowed (semicolons in legitimate contexts)
+        valid_queries = [
+            "SELECT * FROM queue WHERE payload LIKE '%;%'",
+            """
+            SELECT * FROM queue WHERE id IN (
+                SELECT id FROM queue WHERE status = 'pending'
+            )
+            """
+        ]
+        for query in valid_queries:
+            try:
+                queue.run_query(query)
+            except Exception as e:
+                pytest.fail(f"Valid query failed: {query}, error: {e}")
+
+    def test_unicode_handling(self, queue: Queue) -> None:
+        """Test handling of Unicode characters in queries and results.
+        
+        Verifies:
+        - Unicode characters in queries work correctly
+        - Unicode data is preserved in results
+        - Different Unicode character types are handled
+        
+        This ensures proper handling of international characters and
+        special symbols.
+        """
+        # Add test data with Unicode
+        test_items = [
+            {"key": "value", "unicode": "Hello, 世界"},
+            {"key": "value", "unicode": "🌟 Star"},
+            {"key": "value", "unicode": "über"},
+        ]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # Query with Unicode in conditions
+        results = queue.run_query(
+            "SELECT payload FROM queue WHERE json_extract(payload, '$[0].unicode') LIKE ?",
+            params=("%世界%",)
+        )
+        assert len(results) == 1
+        
+        # Verify Unicode is preserved
+        results = queue.run_query("SELECT payload FROM queue")
+        payloads = [json.loads(r["payload"])[0] for r in results]
+        assert any("世界" in p["unicode"] for p in payloads)
+        assert any("🌟" in p["unicode"] for p in payloads)
+        assert any("über" in p["unicode"] for p in payloads)
