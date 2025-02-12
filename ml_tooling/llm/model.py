@@ -47,7 +47,10 @@ If the text is not sociopolitical, return "unclear". Base your response on US po
 
 Think through your response step by step.
 
-Do NOT include any explanation. Only return the JSON output.
+Do NOT include any explanation. Only return the JSON output. You must
+return an output for each of the enumerated posts, even if the output
+would be the same for all posts. For example, if 10 posts are provided,
+I expect 10 outputs in the JSON.
 
 TEXT:
 ```
