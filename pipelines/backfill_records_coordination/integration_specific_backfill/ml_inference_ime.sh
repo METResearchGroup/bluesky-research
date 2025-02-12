@@ -5,8 +5,8 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 2:00:00
-#SBATCH --mem=15G
+#SBATCH -t 0:30:00
+#SBATCH --mem=5G
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --job-name=backfill_records_coordination_ml_inference_ime_%j

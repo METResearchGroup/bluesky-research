@@ -240,5 +240,5 @@ class PostToLabelModel(BaseModel):
     preprocessing_timestamp: str = Field(
         ..., description="The preprocessing_timestamp timestamp of the post."
     )
-    batch_id: str = Field(..., description="The batch ID of the post.")
-    batch_metadata: dict = Field(..., description="The batch metadata of the post.")
+    batch_id: int = Field(..., description="The batch ID of the post.")
+    batch_metadata: str = Field(..., description="The batch metadata of the post.")

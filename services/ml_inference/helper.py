@@ -207,9 +207,11 @@ def get_posts_to_classify(
     # Drop duplicates before any other processing
     if "uri" in posts_df.columns:
         posts_df = posts_df.drop_duplicates(subset=["uri"])
+    logger.info(f"After dropping duplicates, {len(posts_df)} posts remain.")
 
     # Filter posts if needed
     posts_df = filter_posts_df(posts_df)
+    logger.info(f"After filtering, {len(posts_df)} posts remain.")
 
     # Verify required columns exist and add missing ones with None values
     missing_columns = [col for col in columns if col not in posts_df.columns]

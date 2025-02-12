@@ -66,6 +66,15 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
                 text=post["text"],
                 preprocessing_timestamp=post["preprocessing_timestamp"],
                 was_successfully_labeled=False,
+                prob_emotion=None,
+                prob_intergroup=None,
+                prob_moral=None,
+                prob_other=None,
+                label_emotion=None,
+                label_intergroup=None,
+                label_moral=None,
+                label_other=None,
+                label_timestamp=None,
             ).model_dump()
             for post in posts
         ]
@@ -79,8 +88,23 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
             # Post was successfully processed
             post_df = output_df[output_df["uri"] == post["uri"]]
             post_dict = post_df.iloc[0].to_dict()
-            post_dict["was_successfully_labeled"] = True
-            labels.append(ImeLabelModel(**post_dict).model_dump())
+            labels.append(
+                ImeLabelModel(
+                    uri=post["uri"],
+                    text=post["text"],
+                    preprocessing_timestamp=post["preprocessing_timestamp"],
+                    was_successfully_labeled=True,
+                    prob_emotion=post_dict["prob_emotion"],
+                    prob_intergroup=post_dict["prob_intergroup"],
+                    prob_moral=post_dict["prob_moral"],
+                    prob_other=post_dict["prob_other"],
+                    label_emotion=post_dict["label_emotion"],
+                    label_intergroup=post_dict["label_intergroup"],
+                    label_moral=post_dict["label_moral"],
+                    label_other=post_dict["label_other"],
+                    label_timestamp=post_dict["label_timestamp"],
+                ).model_dump()
+            )
         else:
             # Post was not processed
             labels.append(
@@ -89,6 +113,15 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
                     text=post["text"],
                     preprocessing_timestamp=post["preprocessing_timestamp"],
                     was_successfully_labeled=False,
+                    prob_emotion=None,
+                    prob_intergroup=None,
+                    prob_moral=None,
+                    prob_other=None,
+                    label_emotion=None,
+                    label_intergroup=None,
+                    label_moral=None,
+                    label_other=None,
+                    label_timestamp=None,
                 ).model_dump()
             )
 
