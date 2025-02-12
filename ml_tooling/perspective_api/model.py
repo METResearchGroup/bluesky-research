@@ -540,16 +540,31 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
                 for (field, value) in response_obj.items()
                 if field.startswith("prob_")
             }
-            res.append(
-                PerspectiveApiLabelsModel(
-                    uri=post["uri"],
-                    text=post["text"],
-                    preprocessing_timestamp=post["preprocessing_timestamp"],
-                    was_successfully_labeled=True,
-                    label_timestamp=label_timestamp,
-                    **probs_response_obj,
+            try:
+                res.append(
+                    PerspectiveApiLabelsModel(
+                        uri=post["uri"],
+                        text=post["text"],
+                        preprocessing_timestamp=post["preprocessing_timestamp"],
+                        was_successfully_labeled=True,
+                        label_timestamp=label_timestamp,
+                        **probs_response_obj,
+                    )
                 )
-            )
+            except Exception as e:
+                logger.warning(
+                    f"Unable to export the following record ({post}) and label ({response_obj}), due to error ({e})"
+                )
+                res.append(
+                    PerspectiveApiLabelsModel(
+                        uri=post["uri"],
+                        text=post["text"],
+                        preprocessing_timestamp=post["preprocessing_timestamp"],
+                        was_successfully_labeled=False,
+                        reason=str(e),
+                        label_timestamp=label_timestamp,
+                    )
+                )
     return [label.model_dump() for label in res]
 
 
