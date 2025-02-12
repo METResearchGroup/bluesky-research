@@ -6,6 +6,8 @@ posts were actually used in feeds. The service supports loading data with a look
 window to ensure we capture all relevant preprocessed posts.
 """
 
+import gc
+
 import pandas as pd
 
 from lib.db.manage_local_data import export_data_to_local_storage
@@ -100,6 +102,8 @@ def get_and_export_preprocessed_posts_used_in_feeds_for_partition_date(
         f"Exported {len(preprocessed_posts_df)} preprocessed posts to preprocessed_posts_used_in_feeds "
         f"for partition date {partition_date}."
     )
+    del preprocessed_posts_df
+    gc.collect()
 
 
 def get_and_export_preprocessed_posts_used_in_feeds_for_partition_dates(

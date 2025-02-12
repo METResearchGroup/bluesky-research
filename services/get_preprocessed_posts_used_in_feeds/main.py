@@ -42,7 +42,8 @@ def get_preprocessed_posts_used_in_feeds(payload: dict):
             "exclude_partition_dates": ["2024-10-08"]
         }
     """
-    start_date = payload.get("start_date", "2024-09-28")
+    # start_date = payload.get("start_date", "2024-09-28")
+    start_date = "2024-10-06"
     end_date = payload.get("end_date", "2025-12-01")
     exclude_partition_dates = payload.get("exclude_partition_dates", ["2024-10-08"])
 

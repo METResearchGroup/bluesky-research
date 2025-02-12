@@ -1,6 +1,7 @@
 """Load data for posts used in feeds backfill pipeline."""
 
 from datetime import timedelta
+import gc
 from typing import Optional
 
 import pandas as pd
@@ -149,6 +150,12 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
             "This means some posts used in feeds don't have corresponding records."
             "We should investigate this, as this is OK but good to know why."
         )
+
+    del posts_used_in_feeds_df
+    del filtered_posts
+    del uris_of_posts_used_in_feeds
+    del base_pool_posts
+    gc.collect()
 
     return result_df
 
