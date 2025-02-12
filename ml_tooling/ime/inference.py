@@ -161,10 +161,11 @@ def process_ime_batch(
 
         joined_output_df = pd.concat(batch_output_dfs)
 
-        gc.collect()
-
     except Exception as e:
         logger.error(f"Error processing batch: {e}")
         joined_output_df = pd.DataFrame()
+
+    finally:
+        gc.collect()
 
     return joined_output_df

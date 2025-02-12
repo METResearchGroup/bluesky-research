@@ -8,8 +8,15 @@ This test suite verifies the functionality of the IME classification service:
 - Integration with the IME model
 """
 
+import sys
 from unittest.mock import patch, MagicMock
+
 import pytest
+
+# Mock comet_ml and other dependencies BEFORE any imports
+mock_comet = MagicMock()
+sys.modules['comet_ml'] = mock_comet
+sys.modules['lib.telemetry.cometml'] = MagicMock()
 
 from ml_tooling.ime.constants import default_hyperparameters
 from services.ml_inference.ime.ime import classify_latest_posts
@@ -30,8 +37,18 @@ class TestClassifyLatestPosts:
         """Mock the get_posts_to_classify function."""
         with patch("services.ml_inference.ime.ime.get_posts_to_classify") as mock:
             mock.return_value = [
-                {"uri": "post1", "text": "text1"},
-                {"uri": "post2", "text": "text2"}
+                {
+                    "uri": "post1", 
+                    "text": "text1", 
+                    "preprocessing_timestamp": "2024-01-01T00:00:00",
+                    "batch_id": "batch1"
+                },
+                {
+                    "uri": "post2", 
+                    "text": "text2", 
+                    "preprocessing_timestamp": "2024-01-01T00:00:00",
+                    "batch_id": "batch1"
+                }
             ]
             yield mock
 
@@ -40,9 +57,20 @@ class TestClassifyLatestPosts:
         """Mock the run_batch_classification function."""
         with patch("services.ml_inference.ime.ime.run_batch_classification") as mock:
             mock.return_value = {
-                "model_version": "v1.0",
-                "batch_size": 2,
-                "processing_time": 1.5
+                "run_metadata": {
+                    "total_posts_successfully_labeled": 2,
+                    "total_posts_failed_to_label": 0,
+                    "total_batches": 1
+                },
+                "telemetry_metadata": {
+                    "hyperparameters": default_hyperparameters,
+                    "metrics": {
+                        "average_prob_emotion_per_batch": 0.5,
+                        "average_prob_intergroup_per_batch": 0.5,
+                        "average_prob_moral_per_batch": 0.5,
+                        "average_prob_other_per_batch": 0.5
+                    }
+                }
             }
             yield mock
 
@@ -90,11 +118,8 @@ class TestClassifyLatestPosts:
         assert result["inference_type"] == "ime"
         assert result["total_classified_posts"] == 2
         assert "inference_timestamp" in result
-        assert result["inference_metadata"] == {
-            "model_version": "v1.0",
-            "batch_size": 2,
-            "processing_time": 1.5
-        }
+        assert result["inference_metadata"]["run_metadata"]["total_posts_successfully_labeled"] == 2
+        assert result["inference_metadata"]["run_metadata"]["total_posts_failed_to_label"] == 0
 
     def test_classify_latest_posts_no_posts(
         self,
@@ -141,7 +166,7 @@ class TestClassifyLatestPosts:
         3. Event data is included in result
         """
         event = {
-            "hyperparameters": {"custom_param": "value"},
+            "hyperparameters": {"batch_size": 4, "minibatch_size": 2},
             "metadata": {"run_id": "test123"}
         }
 
@@ -153,10 +178,11 @@ class TestClassifyLatestPosts:
 
         mock_run_classification.assert_called_once_with(
             posts=mock_get_posts.return_value,
-            hyperparameters={"custom_param": "value"}
+            hyperparameters=event["hyperparameters"]
         )
 
         assert result["event"] == event
+        assert result["total_classified_posts"] == 2
 
     def test_classify_latest_posts_skip_classification(
         self,
@@ -221,11 +247,7 @@ class TestClassifyLatestPosts:
         )
 
         assert result["total_classified_posts"] == 2
-        assert result["inference_metadata"] == {
-            "model_version": "v1.0",
-            "batch_size": 2,
-            "processing_time": 1.5
-        }
+        assert result["inference_metadata"]["run_metadata"]["total_posts_successfully_labeled"] == 2
 
     @pytest.mark.parametrize("backfill_period,backfill_duration", [
         (None, None),

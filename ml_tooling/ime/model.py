@@ -124,6 +124,50 @@ def batch_classify_posts(
         "prop_multi_label_samples_per_batch": [],  # proportion of samples with more than one label
     }
 
+    # If there are no batches, return 0 for all metrics
+    if not batches:
+        global_experiment_metrics = {
+            metric: 0
+            for metric in experiment_metrics
+            if not metric.startswith("labels_")
+        }
+        metadata = {
+            "total_batches": 0,
+            "total_posts_successfully_labeled": 0,
+            "total_posts_failed_to_label": 0,
+        }
+        classification_breakdown = {
+            "emotion": {
+                "title": "Emotion",
+                "description": "",
+                "probs": [],
+                "labels": [],
+            },
+            "intergroup": {
+                "title": "Intergroup",
+                "description": "",
+                "probs": [],
+                "labels": [],
+            },
+            "moral": {
+                "title": "Moral",
+                "description": "",
+                "probs": [],
+                "labels": [],
+            },
+            "other": {
+                "title": "Other",
+                "description": "",
+                "probs": [],
+                "labels": [],
+            },
+        }
+        return {
+            "metadata": metadata,
+            "experiment_metrics": global_experiment_metrics,
+            "classification_breakdown": classification_breakdown,
+        }
+
     for i, batch in enumerate(batches):
         if i % 10 == 0:
             logger.info(f"Processing batch {i}/{total_batches}")
