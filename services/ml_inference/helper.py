@@ -20,8 +20,8 @@ MIN_POST_TEXT_LENGTH = 5
 
 
 def determine_backfill_latest_timestamp(
-    backfill_duration: int,
-    backfill_period: Literal["days", "hours"],
+    backfill_duration: Optional[int] = None,
+    backfill_period: Optional[Literal["days", "hours"]] = None,
 ) -> str:
     """Calculates the timestamp for backfilling data based on a duration and period.
 

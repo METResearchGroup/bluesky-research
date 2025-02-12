@@ -62,13 +62,6 @@ def classify_latest_posts(
         - What should be the behavior if backfill parameters are missing when classification is enabled?
     """
     if run_classification:
-        if backfill_period is None or backfill_duration is None:
-            logger.error(
-                "Backfill parameters must be provided when run_classification is True"
-            )
-            raise ValueError(
-                "backfill_period and backfill_duration are required when run_classification is True"
-            )
         backfill_latest_timestamp: str = determine_backfill_latest_timestamp(
             backfill_duration=backfill_duration,
             backfill_period=backfill_period,
