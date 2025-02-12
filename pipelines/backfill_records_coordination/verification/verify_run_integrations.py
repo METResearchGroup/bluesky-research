@@ -1,13 +1,12 @@
-"""Verifies that we've successfully run the integrations.
+"""Verifies the state of integration queues at different stages.
 
-Checks for the following:
-1. The input queues are empty.
-2. The output queues are not empty.
-3. The total number of records in the output queues is correct.
-
-Should be run after running the integration(s).
+Checks for the following states:
+1. Start: Input queues not empty, output queues empty
+2. Mid: Print queue counts and totals for each integration
+3. End: Input queues empty, output queues not empty
 """
 
+import click
 from lib.db.queue import Queue
 from pipelines.backfill_records_coordination.verification.helpers.verify_queue_states import (
     verify_queue_non_zero_state,
@@ -37,7 +36,39 @@ input_ml_inference_ime_queue = Queue(queue_name="input_ml_inference_ime")
 output_ml_inference_ime_queue = Queue(queue_name="output_ml_inference_ime")
 
 
-def main():
+def verify_start_state():
+    """Verify that input queues have records and output queues are empty."""
+    assert verify_queue_non_zero_state(input_ml_inference_perspective_api_queue)
+    assert verify_queue_zero_state(output_ml_inference_perspective_api_queue)
+    assert verify_queue_non_zero_state(input_ml_inference_sociopolitical_queue)
+    assert verify_queue_zero_state(output_ml_inference_sociopolitical_queue)
+    assert verify_queue_non_zero_state(input_ml_inference_ime_queue)
+    assert verify_queue_zero_state(output_ml_inference_ime_queue)
+
+
+def print_mid_state():
+    """Print counts for all queues and total records per integration."""
+    # Perspective API queues
+    input_p = get_total_records_in_queue(input_ml_inference_perspective_api_queue)
+    output_p = get_total_records_in_queue(output_ml_inference_perspective_api_queue)
+    print(f"Perspective API - Input queue: {input_p}, Output queue: {output_p}")
+    print(f"Perspective API - Total records: {input_p + output_p}")
+
+    # Sociopolitical queues
+    input_s = get_total_records_in_queue(input_ml_inference_sociopolitical_queue)
+    output_s = get_total_records_in_queue(output_ml_inference_sociopolitical_queue)
+    print(f"Sociopolitical - Input queue: {input_s}, Output queue: {output_s}")
+    print(f"Sociopolitical - Total records: {input_s + output_s}")
+
+    # IME queues
+    input_i = get_total_records_in_queue(input_ml_inference_ime_queue)
+    output_i = get_total_records_in_queue(output_ml_inference_ime_queue)
+    print(f"IME - Input queue: {input_i}, Output queue: {output_i}")
+    print(f"IME - Total records: {input_i + output_i}")
+
+
+def verify_end_state():
+    """Verify that input queues are empty and output queues have records."""
     assert verify_queue_zero_state(input_ml_inference_perspective_api_queue)
     assert verify_queue_non_zero_state(output_ml_inference_perspective_api_queue)
     assert verify_queue_zero_state(input_ml_inference_sociopolitical_queue)
@@ -45,10 +76,18 @@ def main():
     assert verify_queue_zero_state(input_ml_inference_ime_queue)
     assert verify_queue_non_zero_state(output_ml_inference_ime_queue)
 
-    for queue in [
-        output_ml_inference_perspective_api_queue,
-        output_ml_inference_sociopolitical_queue,
-        output_ml_inference_ime_queue,
-    ]:
-        total_records = get_total_records_in_queue(queue)
-        print(f"Total records in {queue.queue_name}: {total_records}")
+
+@click.command()
+@click.option(
+    "--state",
+    type=click.Choice(["start", "mid", "end"]),
+    required=True,
+    help="State to verify: start, mid, or end",
+)
+def main(state):
+    if state == "start":
+        verify_start_state()
+    elif state == "mid":
+        print_mid_state()
+    else:  # end
+        verify_end_state()
