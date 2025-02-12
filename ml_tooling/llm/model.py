@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 import json
+import time
 from typing import Optional
 
 from lib.constants import timestamp_format
@@ -28,24 +29,41 @@ max_num_posts = 40_000  # should run in ~40 minutes with current runtime.
 
 
 def generate_prompt(posts: list[dict]) -> str:
-    """Generates a prompt for the LLM."""
+    """Generates a structured prompt for LLM-based sociopolitical classification.
+
+    Args:
+        posts (list[dict]): A list of dictionaries, each representing a post. Each dictionary must contain a "text" key with the post's content.
+
+    Returns:
+        str: A formatted prompt string that includes numbered texts of posts along with instructions for classification.
+
+    Behavior:
+        1. Iterates over the list of posts, strips whitespace from each post's "text" field, and enumerates them starting at 1.
+        2. Joins all post texts into a single string and interpolates them into a multi-line template that instructs the LLM on how to classify posts as "sociopolitical" or "not sociopolitical".
+
+    [Suggestions]:
+        - Consider validating the presence of the "text" key in each post.
+
+    [Clarifications]:
+        - Is the output prompt intended for direct submission to an LLM?
+    """
     enumerated_texts = ""
     for i, post in enumerate(posts):
         post_text = post["text"].strip()
         enumerated_texts += f"{i+1}. {post_text}\n"
     prompt = f"""
 You are a classifier that predicts whether a post has sociopolitical content or not. Sociopolitical refers \
-to whether a given post is related to politics (government, elections, politicians, activism, etc.) or \
-social issues (major issues that affect a large group of people, such as the economy, inequality, \
-racism, education, immigration, human rights, the environment, etc.). We refer to any content \
-that is classified as being either of these two categories as "sociopolitical"; otherwise they are not sociopolitical. \
+ to whether a given post is related to politics (government, elections, politicians, activism, etc.) or \
+ social issues (major issues that affect a large group of people, such as the economy, inequality, \
+ racism, education, immigration, human rights, the environment, etc.). We refer to any content \
+ that is classified as being either of these two categories as "sociopolitical"; otherwise they are not sociopolitical. \
 Please classify the following text as "sociopolitical" or "not sociopolitical". 
 
 Then, if the post is sociopolitical, classify the text based on the political lean of the opinion or argument \
-it presents. Your options are "left", "right", or 'unclear'. \
+ it presents. Your options are "left", "right", or 'unclear'. \
 If the text is not sociopolitical, return "unclear". Base your response on US politics.\
 
-Think through your response step by step.
+Think through your response step by step.\
 
 Do NOT include any explanation. Only return the JSON output. You must
 return an output for each of the enumerated posts, even if the output
@@ -55,18 +73,38 @@ I expect 10 outputs in the JSON.
 TEXT:
 ```
 {enumerated_texts}
-```
+``` 
 """
     return prompt
 
 
 def parse_llm_result(
     json_result: str, expected_number_of_posts: int
-) -> list[LLMSociopoliticalLabelModel]:  # noqa
-    json_result: LLMSociopoliticalLabelsModel = LLMSociopoliticalLabelsModel(
+) -> list[LLMSociopoliticalLabelModel]:
+    """Parses the JSON result obtained from an LLM query and returns a list of label models.
+
+    Args:
+        json_result (str): A JSON-formatted string containing LLM classification results.
+        expected_number_of_posts (int): The expected count of classification outputs (number of posts processed).
+
+    Returns:
+        list[LLMSociopoliticalLabelModel]: A list of label model objects parsed from the JSON string.
+
+    Behavior:
+        - Deserializes the JSON string into a LLMSociopoliticalLabelsModel object.
+        - Extracts the 'labels' attribute, ensuring its length matches expected_number_of_posts.
+        - Raises a ValueError if the count does not match.
+
+    [Suggestions]:
+        - Consider adding more robust error handling if the JSON schema changes.
+
+    [Clarifications]:
+        - Should additional fields be verified in the response?
+    """
+    json_result_obj: LLMSociopoliticalLabelsModel = LLMSociopoliticalLabelsModel(
         **json.loads(json_result)
     )
-    label_models: list[LLMSociopoliticalLabelModel] = json_result.labels
+    label_models: list[LLMSociopoliticalLabelModel] = json_result_obj.labels
     if len(label_models) != expected_number_of_posts:
         raise ValueError(
             f"Number of results ({len(label_models)}) does not match number of posts ({expected_number_of_posts})."
@@ -75,16 +113,25 @@ def parse_llm_result(
 
 
 def process_sociopolitical_batch(posts: list[dict]) -> list[dict]:
-    """Takes batch and runs the LLM for it.
+    """Processes a batch of posts through LLM classification by splitting them into mini-batches and aggregating the results.
 
-    Splits the batch of posts into minibatches. I've found a pragmatic limit
-    of 10 posts per prompt, so this splits the batch (e.g., batch of 100 posts)
-    into minibatches of size 10.
+    Args:
+        posts (list[dict]): A list of dictionaries, each representing a post, where each post must include a "text" key.
 
-    Returns the list of results from the LLM. If a minibatch wasn't labeled
-    successfully, returns a list of dicts, which will either be populated with
-    the label or will be an empty dict.
+    Returns:
+        list[dict]: A list of result dictionaries from the LLM classification for each post; if a mini-batch fails, corresponding entries are empty dictionaries.
+
+    Behavior:
+        1. Splits the posts into mini-batches of size defined by DEFAULT_MINIBATCH_SIZE.
+        2. Generates a prompt for each mini-batch using generate_prompt.
+        3. Sends the prompts to the LLM via run_batch_queries.
+        4. For each mini-batch, attempts to parse the JSON result with parse_llm_result.
+        5. Logs errors and replaces results with empty dictionaries if parsing fails.
+        6. Combines all mini-batch results into a single list and returns it.
     """
+    if not posts:
+        return []
+
     minibatches: list[list[dict]] = [
         posts[i : i + DEFAULT_MINIBATCH_SIZE]
         for i in range(0, len(posts), DEFAULT_MINIBATCH_SIZE)
@@ -93,6 +140,11 @@ def process_sociopolitical_batch(posts: list[dict]) -> list[dict]:
     json_results: list[str] = run_batch_queries(
         prompts, role="user", model_name=LLM_MODEL_NAME
     )
+    if len(json_results) != len(minibatches):
+        logger.warning(
+            f"Number of results ({len(json_results)}) does not match number of posts ({len(minibatches)}). Need to retry."
+        )
+        return [None] * len(posts)
     results: list[dict] = []
     for json_result, minibatch in zip(json_results, minibatches):
         try:
@@ -102,28 +154,131 @@ def process_sociopolitical_batch(posts: list[dict]) -> list[dict]:
             results.extend([result.model_dump() for result in parsed_llm_results])
         except ValueError as e:
             logger.error(f"Error parsing LLM result: {e}")
-            results.extend([{}] * len(minibatch))
+            results.extend([None for _ in range(len(minibatch))])
     return results
 
 
-def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
-    """Create label models from posts and responses.
+def process_sociopolitical_batch_with_retries(
+    posts: list[dict],
+    max_retries: int = 4,
+    initial_delay: float = 1.0,
+) -> list[dict]:
+    """Processes a batch of posts through LLM classification with retry logic.
 
-    If there are no posts, return an empty list.
+    Args:
+        posts (list[dict]): A list of dictionaries, each representing a post, where each post must include a "text" key.
+        max_retries (int): The maximum number of retry attempts. If negative, treated as 0.
+        initial_delay (float): The initial delay in seconds before the first retry. If negative, absolute value is used.
+
+    Returns:
+        list[dict]: A list of result dictionaries from the LLM classification for each post.
+            Successful results contain classification data, failed results are None.
+
+    Raises:
+        KeyError: If any post in the input list is missing the required "text" field.
     """
     if not posts:
         return []
+
+    # Input validation
+    for post in posts:
+        if "text" not in post:
+            raise KeyError("All posts must contain a 'text' field")
+
+    # Normalize parameters
+    max_retries = max(0, max_retries)
+    initial_delay = abs(initial_delay)
+
+    # Make initial attempt
+    final_results = process_sociopolitical_batch(posts)
+
+    # Setup for retries if needed
+    posts_to_retry = []
+    retry_indices = []
+    for idx, result in enumerate(final_results):
+        if result is None:
+            posts_to_retry.append(posts[idx])
+            retry_indices.append(idx)
+
+    retries = 0
+    while posts_to_retry and retries < max_retries:
+        # Sleep with exponential backoff before each retry
+        time.sleep(initial_delay * (2**retries))
+        retries += 1
+
+        results = process_sociopolitical_batch(posts_to_retry)
+
+        # Process results and track which need retry
+        new_posts_to_retry = []
+        new_retry_indices = []
+
+        for idx, (result, original_idx) in enumerate(zip(results, retry_indices)):
+            if result is None:
+                new_posts_to_retry.append(posts_to_retry[idx])
+                new_retry_indices.append(original_idx)
+            else:
+                final_results[original_idx] = result
+
+        if new_posts_to_retry:
+            logger.warning(
+                f"{len(new_posts_to_retry)} posts failed to be labeled. Retrying..."
+            )
+            posts_to_retry = new_posts_to_retry
+            retry_indices = new_retry_indices
+        else:
+            break
+
+    return final_results
+
+
+def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
+    """Creates label models by combining post data with corresponding LLM responses.
+
+    Args:
+        posts (list[dict]): A list of post dictionaries. Each dictionary should contain keys like "uri", "text", and "preprocessing_timestamp".
+        responses (list[dict]): A list of response dictionaries produced by the LLM for each corresponding post.
+
+    Returns:
+        list[dict]: A list of dictionaries representing the labeled post information, which includes:
+            - uri: The unique identifier of the post.
+            - text: The original text content of the post.
+            - llm_model_name: The LLM model used for classification.
+            - was_successfully_labeled: A boolean flag indicating success of labeling.
+            - preprocessing_timestamp: The timestamp of when preprocessing occurred (UTC, formatted per timestamp_format).
+            - label_timestamp: The timestamp of when labeling occurred (UTC, formatted per timestamp_format).
+            - is_sociopolitical: The classification result for sociopolitical content.
+            - political_ideology_label: The classification of political lean, if available.
+
+    Behavior:
+        1. Retrieves the current UTC timestamp formatted by timestamp_format.
+        2. Iterates through posts and their corresponding responses to create a standardized label model.
+        3. Returns an aggregated list of these labeled dictionaries.
+    """
+    if not posts:
+        return []
+
+    if len(responses) != len(posts):
+        logger.warning(
+            f"Number of responses ({len(responses)}) does not match number of posts ({len(posts)}). Likely means that some posts failed to be labeled. Re-inserting all posts into queue..."
+        )
+        responses = [None] * len(posts)
+
     label_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
     res = []
     for post, response_obj in zip(posts, responses):
         label = SociopoliticalLabelsModel(
             uri=post["uri"],
             text=post["text"],
+            preprocessing_timestamp=post["preprocessing_timestamp"],
             llm_model_name=LLM_MODEL_NAME,
             was_successfully_labeled=True if response_obj else False,
             label_timestamp=label_timestamp,
-            is_sociopolitical=response_obj.get("is_sociopolitical", None),
-            political_ideology_label=response_obj.get("political_ideology_label", None),
+            is_sociopolitical=response_obj.get("is_sociopolitical", None)
+            if response_obj
+            else None,
+            political_ideology_label=response_obj.get("political_ideology_label", None)
+            if response_obj
+            else None,
         )
         res.append(label.model_dump())
     return res
@@ -134,7 +289,29 @@ def batch_classify_posts(
     posts: list[dict],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
 ) -> dict:
-    """Classify posts in batches."""
+    """Classifies posts in batches using LLM inference and aggregates classification results.
+
+    Args:
+        posts (list[dict]): A list of post dictionaries representing the posts to classify.
+        batch_size (Optional[int]): The number of posts to process per batch. Defaults to DEFAULT_BATCH_SIZE.
+
+    Returns:
+        dict: A summary dictionary of the batch classification process containing:
+            - total_batches (int): The number of batches processed.
+            - total_posts_successfully_labeled (int): Total number of posts successfully labeled.
+            - total_posts_failed_to_label (int): Total number of posts that failed to be labeled.
+
+    Behavior:
+        1. Splits posts into batches of up to batch_size posts using create_batches.
+        2. For each batch:
+            - Logs progress every 10 batches.
+            - Processes the batch with process_sociopolitical_batch to obtain raw responses.
+            - Uses create_labels to convert responses into structured labels.
+            - Separates successful labels from failed labels based on the was_successfully_labeled flag.
+            - If any labels in a batch fail, logs the failure and re-inserts them into the processing queue.
+            - Otherwise, caches the successful labels.
+        3. Aggregates and returns a summary of the total batches processed and label outcomes.
+    """
     batches: list[list[dict]] = create_batches(batch_list=posts, batch_size=batch_size)
     total_batches = len(batches)
     total_posts_successfully_labeled = 0
@@ -142,7 +319,7 @@ def batch_classify_posts(
     for i, batch in enumerate(batches):
         if i % 10 == 0:
             logger.info(f"Processing batch {i}/{total_batches}")
-        responses: list[dict] = process_sociopolitical_batch(posts=batch)
+        responses: list[dict] = process_sociopolitical_batch_with_retries(posts=batch)
         labels: list[dict] = create_labels(posts=batch, responses=responses)
 
         successful_labels: list[dict] = []
@@ -151,10 +328,6 @@ def batch_classify_posts(
         total_failed_labels = 0
         total_successful_labels = 0
 
-        # we add the batch ID to the label model. This way, we can know which
-        # batches to delete from the input queue. Any batch IDs that appear in
-        # the successfully labeled set will be deleted from the input queue (
-        # since any failed labels will be re-inserted into the input queue).
         for post, label in zip(batch, labels):
             post_batch_id = post["batch_id"]
             label["batch_id"] = post_batch_id
@@ -197,5 +370,19 @@ def run_batch_classification(
     posts: list[dict],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
 ) -> dict:
+    """Executes batch classification of posts using the LLM and returns metadata.
+
+    Args:
+        posts (list[dict]): A list of post dictionaries to classify.
+        batch_size (Optional[int]): The number of posts per batch. Defaults to DEFAULT_BATCH_SIZE.
+
+    Returns:
+        dict: A metadata dictionary as returned by batch_classify_posts, summarizing classification outcomes.
+
+    Behavior:
+        - Invokes batch_classify_posts with the provided posts and batch_size.
+        - Returns the resulting metadata containing counts of batches processed, successful, and failed classifications.
+    """
+
     metadata = batch_classify_posts(posts=posts, batch_size=batch_size)
     return metadata
