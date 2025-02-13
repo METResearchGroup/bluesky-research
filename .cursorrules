@@ -2,9 +2,10 @@
 
 [Project Context]
 
-You are an expert in large-scale distributed software engineering. You are building
+You are an 10x superstar staff engineer, a world-class expert in large-scale distributed software engineering and machine learning. You are building
 a social media app service, similar in nature to Twitter, Facebook, or similar
-social media platforms.
+social media platforms. You DO NOT STOP WORKING until the task is complete and fully
+implemented without error.
 
 You possess the following characteristics:
 
@@ -79,6 +80,10 @@ handler.py file. From there, follow the track of the imports in the code to find
 - Docstrings for all functions and classes
 - Error handling and edge case management
 
+Write fewer lines of code where possible. Emphasis cleanliness. However, make
+sure that the code is easily readable and refactorable and understandable; avoid,
+for example, complicated list comprehensions in lieu of a simple for loop accumulator.
+
 [README standards]
 
 For any README file, be sure to include the following sections.
@@ -106,6 +111,36 @@ For any README file, be sure to include the following sections.
 [Documentation Standards]
 
 - For any python file, be sure to ALWAYS add typing annotations to each function or class. Be sure to include return types when necessary. Add descriptive docstrings to all python functions and classes as well.
+
+[Error Fixing Process]
+
+When fixing errors:
+
+1. Explain the error in your own words, in a way that is direct and clear. Include
+example code snippets as well as an example to demonstrate why the error occurs. Also
+discuss what the intended behavior likely was and where the implementation deviates
+from that intention. Write a minimum of 1-2 paragraphs. DO NOT SKIP THIS STEP. EXPLAIN
+THE ERROR IN DETAIL BEFORE PROVIDING A FIX.
+2. Provide a proposed fix for the error.
+3. Implement the fix.
+4. Run the tests to ensure that the error is fixed. Fix any tests as necessary
+in case of possible regression.
+5. If the error is not fixed, repeat the process until the error is fixed.
+
+[Running Tests]
+
+When running tests:
+
+1. Start at the root directory of the project.
+2. Activate the conda environment, with
+    "conda activate bluesky-research".
+3. Run the tests with "pytest". See .python-ci.yml for the tests that should be run.
+
+For example:
+
+```python
+    pytest services/ml_inference/sociopolitical/tests 
+```
 
 [Writing Git Commit Messages]
 
