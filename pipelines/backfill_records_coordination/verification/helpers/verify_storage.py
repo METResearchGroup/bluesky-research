@@ -7,6 +7,9 @@ import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.db.queue import Queue
+from lib.log.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def get_num_cached_records_by_partition_date(integration: str) -> dict[str, int]:
@@ -73,15 +76,22 @@ def verify_storage(integration: str):
     num_cached_records_by_partition_date = get_num_cached_records_by_partition_date(
         integration=integration
     )
-    num_db_records_by_partition_date = get_total_current_db_records_by_partition_date(
-        integration=integration,
-        partition_dates=num_cached_records_by_partition_date.keys(),
-    )
-    total_expected_records_by_partition_date = {
-        partition_date: num_cached_records_by_partition_date[partition_date]
-        + num_db_records_by_partition_date[partition_date]
-        for partition_date in num_cached_records_by_partition_date.keys()
-    }
+    if num_cached_records_by_partition_date:
+        num_db_records_by_partition_date = (
+            get_total_current_db_records_by_partition_date(
+                integration=integration,
+                partition_dates=num_cached_records_by_partition_date.keys(),
+            )
+        )
+        total_expected_records_by_partition_date = {
+            partition_date: num_cached_records_by_partition_date[partition_date]
+            + num_db_records_by_partition_date[partition_date]
+            for partition_date in num_cached_records_by_partition_date.keys()
+        }
+    else:
+        logger.info("No cached records found. Skipping DB verification.")
+        print("Total cached records: 0")
+        return
 
     sorted_dates = sorted(total_expected_records_by_partition_date.keys())
 

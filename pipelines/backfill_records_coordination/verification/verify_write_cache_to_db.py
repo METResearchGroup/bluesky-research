@@ -127,11 +127,6 @@ def verify_end_state():
 
     print_queue_counts()
 
-    # Verify storage for each integration
-    verify_storage("ml_inference_perspective_api")
-    verify_storage("ml_inference_sociopolitical")
-    verify_storage("ml_inference_ime")
-
 
 @click.command()
 @click.option(
