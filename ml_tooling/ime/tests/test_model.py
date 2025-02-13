@@ -166,7 +166,8 @@ class TestBatchClassifyPosts:
             'label_emotion': [1, 0],
             'label_intergroup': [0, 1],
             'label_moral': [0, 0],
-            'label_other': [0, 0]
+            'label_other': [0, 0],
+            'label_timestamp': ['2024-01-01-12:00:00', '2024-01-01-12:00:00']
         })
 
         result = batch_classify_posts(
@@ -220,7 +221,8 @@ class TestBatchClassifyPosts:
             'label_emotion': [1],
             'label_intergroup': [0],
             'label_moral': [0],
-            'label_other': [0]
+            'label_other': [0],
+            'label_timestamp': ['2024-01-01-12:00:00']
         })
 
         result = batch_classify_posts(
@@ -256,7 +258,7 @@ class TestBatchClassifyPosts:
             'label_intergroup': [1, 0],
             'label_moral': [1, 0],
             'label_other': [0, 0],
-            'label_timestamp': ['2024-01-01', '2024-01-01']
+            'label_timestamp': ['2024-01-01-12:00:00', '2024-01-01-12:00:00']
         })
 
         result = batch_classify_posts(

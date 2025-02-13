@@ -42,6 +42,7 @@ jobs:
         pytest lib/telemetry/tests
         pytest ml_tooling/llm/tests
         pytest ml_tooling/perspective_api/tests
+        pytest ml_tooling/ime/tests
         pytest services/backfill/posts/tests
         pytest services/ml_inference/tests
         pytest services/ml_inference/perspective_api/tests

@@ -97,6 +97,7 @@ class TestGetPostsToClassify:
                 "uri": "test1",
                 "text": "test post 1",
                 "created_at": "2024-01-01",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
                 "batch_id": 1,
                 "batch_metadata": json.dumps({"source": "test"})
             }
@@ -109,9 +110,27 @@ class TestGetPostsToClassify:
     def test_deduplication(self, mock_queue):
         """Test that posts are properly deduplicated by URI."""
         mock_queue.load_dict_items_from_queue.return_value = [
-            {"uri": "test1", "text": "first version"},
-            {"uri": "test1", "text": "second version"},
-            {"uri": "test2", "text": "unique post"}
+            {
+                "uri": "test1",
+                "text": "first version",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
+                "batch_id": 1,
+                "batch_metadata": json.dumps({"source": "test"})
+            },
+            {
+                "uri": "test1",
+                "text": "second version",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
+                "batch_id": 1,
+                "batch_metadata": json.dumps({"source": "test"})
+            },
+            {
+                "uri": "test2",
+                "text": "unique post",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
+                "batch_id": 2,
+                "batch_metadata": json.dumps({"source": "test"})
+            }
         ]
         result = get_posts_to_classify("perspective_api")
         assert len(result) == 2
@@ -121,10 +140,34 @@ class TestGetPostsToClassify:
     def test_filtering_invalid_posts(self, mock_queue):
         """Test that invalid posts are filtered out."""
         mock_queue.load_dict_items_from_queue.return_value = [
-            {"uri": "test1", "text": "", "preprocessing_timestamp": "2024-01-01"},  # Empty text
-            {"uri": "test2", "text": "a", "preprocessing_timestamp": "2024-01-01"},  # Too short
-            {"uri": "test3", "text": "valid post", "preprocessing_timestamp": None},  # Missing timestamp
-            {"uri": "test4", "text": "valid post", "preprocessing_timestamp": "2024-01-01"}  # Valid
+            {
+                "uri": "test1",
+                "text": "",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
+                "batch_id": 1,
+                "batch_metadata": json.dumps({"source": "test"})
+            },  # Empty text
+            {
+                "uri": "test2",
+                "text": "a",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
+                "batch_id": 2,
+                "batch_metadata": json.dumps({"source": "test"})
+            },  # Too short
+            {
+                "uri": "test3",
+                "text": "valid post",
+                "preprocessing_timestamp": None,
+                "batch_id": 3,
+                "batch_metadata": json.dumps({"source": "test"})
+            },  # Missing timestamp
+            {
+                "uri": "test4",
+                "text": "valid post",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
+                "batch_id": 4,
+                "batch_metadata": json.dumps({"source": "test"})
+            }  # Valid
         ]
         result = get_posts_to_classify("perspective_api")
         assert len(result) == 1
@@ -136,12 +179,15 @@ class TestGetPostsToClassify:
             {
                 "uri": "test1",
                 "text": "test post",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
+                "batch_id": 1,
+                "batch_metadata": json.dumps({"source": "test"}),
                 "extra_field": "should not appear"
             }
         ]
-        result = get_posts_to_classify("perspective_api", columns=["uri", "text"])
+        result = get_posts_to_classify("perspective_api", columns=["uri", "text", "preprocessing_timestamp", "batch_id", "batch_metadata"])
         assert len(result) == 1
-        assert set(result[0].keys()) == {"uri", "text"}
+        assert set(result[0].keys()) == {"uri", "text", "preprocessing_timestamp", "batch_id", "batch_metadata"}
         assert "extra_field" not in result[0]
 
     def test_previous_metadata_handling(self, mock_queue):
@@ -153,7 +199,13 @@ class TestGetPostsToClassify:
             })
         }
         mock_queue.load_dict_items_from_queue.return_value = [
-            {"uri": "test1", "text": "test post"}
+            {
+                "uri": "test1",
+                "text": "test post",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
+                "batch_id": 1,
+                "batch_metadata": json.dumps({"source": "test"})
+            }
         ]
         get_posts_to_classify("perspective_api", previous_run_metadata=metadata)
         mock_queue.load_dict_items_from_queue.assert_called_once_with(
