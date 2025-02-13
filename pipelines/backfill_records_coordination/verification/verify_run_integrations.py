@@ -11,6 +11,7 @@ from lib.db.queue import Queue
 from pipelines.backfill_records_coordination.verification.helpers.verify_queue_states import (
     verify_queue_non_zero_state,
     verify_queue_zero_state,
+    verify_only_invalid_records_in_queue,
     get_total_records_in_queue,
 )
 from lib.log.logger import get_logger
@@ -88,12 +89,19 @@ def print_mid_state():
 
 
 def verify_end_state():
-    """Verify that input queues are empty and output queues have records."""
-    assert verify_queue_zero_state(input_ml_inference_perspective_api_queue)
+    """Verify that input queues only have invalid records (if any) and output
+    queues have records.
+
+    This checks to see if the integration classifies all the records that it
+    was supposed to do.
+    """
+    assert verify_only_invalid_records_in_queue(
+        input_ml_inference_perspective_api_queue
+    )
     assert verify_queue_non_zero_state(output_ml_inference_perspective_api_queue)
-    assert verify_queue_zero_state(input_ml_inference_sociopolitical_queue)
+    assert verify_only_invalid_records_in_queue(input_ml_inference_sociopolitical_queue)
     assert verify_queue_non_zero_state(output_ml_inference_sociopolitical_queue)
-    assert verify_queue_zero_state(input_ml_inference_ime_queue)
+    assert verify_only_invalid_records_in_queue(input_ml_inference_ime_queue)
     assert verify_queue_non_zero_state(output_ml_inference_ime_queue)
 
 

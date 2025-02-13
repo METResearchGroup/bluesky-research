@@ -48,7 +48,7 @@ env = [
 
 # Configure test collection
 testpaths = [
-    "api/integrations_router/tests",
+    "lib/tests",
     "lib/db/tests", 
     "lib/db/sql/tests",
     "lib/telemetry/tests",
@@ -65,6 +65,7 @@ testpaths = [
     "services/calculate_analytics/tests",
     "services/write_cache_buffers_to_db/tests",
     "pipelines/backfill_records_coordination/tests",
+    "api/integrations_router/tests",
 ]
 
 # Ignore certain directories

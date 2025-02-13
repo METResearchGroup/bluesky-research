@@ -37,6 +37,7 @@ jobs:
         ruff check .
     - name: Test with pytest
       run: |
+        pytest lib/tests
         pytest lib/db/tests
         pytest lib/db/sql/tests
         pytest lib/telemetry/tests

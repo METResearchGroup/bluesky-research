@@ -10,13 +10,13 @@ from lib.constants import timestamp_format
 from lib.db.queue import Queue
 from lib.log.logger import get_logger
 from lib.helper import track_performance
+from lib.utils import filter_posts_df
 from services.ml_inference.models import PostToLabelModel
 
 
 logger = get_logger(__name__)
 
 dynamodb_table_name = "integration_run_metadata"
-MIN_POST_TEXT_LENGTH = 5
 
 
 def determine_backfill_latest_timestamp(
@@ -67,36 +67,6 @@ def determine_backfill_latest_timestamp(
     else:
         timestamp = None
     return timestamp
-
-
-def filter_posts_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Filter out posts with invalid text.
-
-    Args:
-        df: DataFrame containing posts with 'text' column and 'preprocessing_timestamp' column
-
-    Returns:
-        DataFrame with posts removed that have:
-        - Missing text (if text column exists)
-        - Empty text (if text column exists)
-        - Text shorter than MIN_POST_TEXT_LENGTH characters (if text column exists)
-        - Missing preprocessing_timestamp timestamp (if preprocessing_timestamp column exists)
-    """
-    filtered_df = df.copy()
-
-    # Only apply text filters if text column exists
-    if "text" in filtered_df.columns:
-        filtered_df = filtered_df[
-            filtered_df["text"].notna()
-            & (filtered_df["text"] != "")
-            & (filtered_df["text"].str.len() >= MIN_POST_TEXT_LENGTH)
-        ]
-
-    # Only apply timestamp filter if preprocessing_timestamp column exists
-    if "preprocessing_timestamp" in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df["preprocessing_timestamp"].notna()]
-
-    return filtered_df
 
 
 @track_performance

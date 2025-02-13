@@ -2,8 +2,11 @@
 
 import json
 
+import pandas as pd
+
 from lib.db.queue import Queue
 from lib.log.logger import get_logger
+from lib.utils import filter_posts_df
 
 logger = get_logger(__name__)
 
@@ -72,3 +75,29 @@ def get_total_records_in_queue(queue: Queue) -> int:
         context={"queue_name": queue.queue_name, "total_records": total_records},
     )
     return total_records
+
+
+def verify_only_invalid_records_in_queue(queue: Queue) -> bool:
+    """Verify that only invalid records are remaining in the queue.
+
+    These are records whose text is either empty or some variation of
+    None/pd.isnan/pd.isnull/pd.isna.
+    """
+    df = pd.DataFrame()
+    filtered_df = filter_posts_df(df, strict=True)
+    total_records_remaining = len(filtered_df)
+    if total_records_remaining > 0:
+        logger.info(
+            f"There are still {total_records_remaining} valid records in the queue {queue.queue_name}.",
+            context={
+                "queue_name": queue.queue_name,
+                "total_records_remaining": total_records_remaining,
+            },
+        )
+        return False
+    else:
+        logger.info(
+            f"There are no valid records in the queue {queue.queue_name}.",
+            context={"queue_name": queue.queue_name},
+        )
+        return True
