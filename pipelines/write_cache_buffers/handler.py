@@ -15,6 +15,8 @@ def lambda_handler(event, context):
             {
                 "payload": {
                     "service": str,  # Name of specific service to migrate, or "all" to migrate all services
+                    "clear_queue": bool,  # Optional. Whether to clear the queue after writing. Defaults to False.
+                    "bypass_write": bool,  # Optional. If True, skips writing to DB and only clears cache. Defaults to False.
                 }
             }
         context: Lambda context object (unused)
@@ -26,6 +28,26 @@ def lambda_handler(event, context):
 
     Raises:
         Exception: Propagates any exceptions that occur during write
+        KeyError: If required 'service' field is missing from payload
+        ValueError: If service name is not 'all' and not in SERVICES_TO_WRITE
+        TypeError: If clear_queue is provided but not a boolean
+
+    Example:
+        # Migrate all services
+        event = {
+            "payload": {
+                "service": "all",
+                "clear_queue": False
+            }
+        }
+
+        # Migrate specific service and clear queue
+        event = {
+            "payload": {
+                "service": "ml_inference_perspective_api",
+                "clear_queue": True
+            }
+        }
     """
     try:
         logger.info("Starting cache buffer write process.")

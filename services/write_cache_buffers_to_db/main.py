@@ -22,6 +22,7 @@ def write_cache_buffers_to_db(payload: dict):
             {
                 "service": str,  # Name of specific service to migrate, or "all" to migrate all services
                 "clear_queue": bool,  # Optional. Whether to clear the queue after writing. Defaults to False.
+                "bypass_write": bool,  # Optional. If True, skips writing to DB and only clears cache. Defaults to False.
             }
 
             If service="all", migrates all services defined in MAP_SERVICE_TO_IO
@@ -42,8 +43,9 @@ def write_cache_buffers_to_db(payload: dict):
 
     Raises:
         KeyError: If required 'service' field is missing from payload
-        ValueError: If service name is not 'all' and not in SERVICES_TO_WRITE
-        TypeError: If clear_queue is provided but not a boolean
+        ValueError: If service name is not 'all' and not in SERVICES_TO_WRITE,
+                    or if bypass_write is True but clear_queue is not True.
+        TypeError: If clear_queue or bypass_write is provided but not a boolean.
     """
     if "service" not in payload:
         logger.error("Missing required 'service' field in payload")
@@ -57,6 +59,18 @@ def write_cache_buffers_to_db(payload: dict):
     if not isinstance(clear_queue, bool):
         logger.error(f"Invalid clear_queue type: {type(clear_queue)}. Must be boolean.")
         raise TypeError("clear_queue must be a boolean")
+
+    # Validate bypass_write type
+    if not isinstance(bypass_write, bool):
+        logger.error(
+            f"Invalid bypass_write type: {type(bypass_write)}. Must be boolean."
+        )
+        raise TypeError("bypass_write must be a boolean")
+
+    # Validate combination: bypass_write requires clear_queue to be True
+    if bypass_write and not clear_queue:
+        logger.error("bypass_write requires clear_queue to be True")
+        raise ValueError("bypass_write requires clear_queue to be True")
 
     logger.info(f"Processing write request for service: {service}")
 

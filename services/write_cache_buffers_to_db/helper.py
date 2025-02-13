@@ -72,15 +72,6 @@ def clear_cache(service: str):
     )
     df = pd.DataFrame(latest_payloads)
     latest_queue_item_ids: list[str] = df["batch_id"].tolist()
-
-    logger.info(
-        f"Exporting {len(df)} records to local storage for service {service}..."
-    )
-    export_data_to_local_storage(service=service, df=df, export_format="parquet")
-    logger.info(
-        f"Finished exporting {len(df)} records to local storage for service {service}..."
-    )
-
     logger.info(
         f"Deleting {len(latest_queue_item_ids)} records from queue for service {service}..."
     )

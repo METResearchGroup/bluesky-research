@@ -21,6 +21,7 @@ The tests ensure that the service correctly handles:
 from unittest import mock
 from unittest.mock import patch, MagicMock
 import pytest
+import json
 
 from services.write_cache_buffers_to_db.main import write_cache_buffers_to_db
 from services.write_cache_buffers_to_db.helper import SERVICES_TO_WRITE
@@ -47,6 +48,15 @@ class TestWriteCacheBuffersToDb:
         """
         self.valid_service = "ml_inference_perspective_api"
         self.invalid_service = "invalid_service"
+        # Updated mock data to simulate the processed output of load_dict_items_from_queue.
+        # Each record already contains a "batch_id" key as expected in production.
+        self.mock_queue_data = [{
+            "data": "test1",
+            "preprocessing_timestamp": "2024-01-01T00:00:00",
+            "created_at": "2024-01-01T00:00:00",
+            "batch_id": 1,
+            "batch_metadata": {"batch_size": 1, "actual_batch_size": 1}
+        }]
 
     @patch("services.write_cache_buffers_to_db.main.write_cache_buffer_queue_to_db")
     def test_write_specific_service(self, mock_write):
@@ -193,4 +203,83 @@ class TestWriteCacheBuffersToDb:
         with pytest.raises(TypeError) as exc_info:
             write_cache_buffers_to_db(payload)
         
-        assert "clear_queue must be a boolean" in str(exc_info.value) 
+        assert "clear_queue must be a boolean" in str(exc_info.value)
+
+    @patch("services.write_cache_buffers_to_db.helper.Queue")
+    def test_bypass_write_without_clear_queue(self, mock_queue_cls):
+        """Test that bypass_write requires clear_queue to be True."""
+        mock_queue = MagicMock()
+        # Return already processed data including "batch_id"
+        mock_queue.load_dict_items_from_queue.return_value = self.mock_queue_data
+        mock_queue_cls.return_value = mock_queue
+
+        payload = {
+            "service": self.valid_service,
+            "bypass_write": True,
+            "clear_queue": False
+        }
+        
+        with pytest.raises(ValueError) as exc_info:
+            write_cache_buffers_to_db(payload)
+        
+        assert "bypass_write requires clear_queue to be True" in str(exc_info.value)
+
+    @patch("services.write_cache_buffers_to_db.helper.Queue")
+    def test_bypass_write_type_validation(self, mock_queue_cls):
+        """Test that bypass_write must be a boolean."""
+        mock_queue = MagicMock()
+        mock_queue.load_dict_items_from_queue.return_value = self.mock_queue_data
+        mock_queue_cls.return_value = mock_queue
+
+        payload = {
+            "service": self.valid_service,
+            "bypass_write": "not_a_boolean"
+        }
+        
+        with pytest.raises(TypeError) as exc_info:
+            write_cache_buffers_to_db(payload)
+        
+        assert "bypass_write must be a boolean" in str(exc_info.value)
+
+    @patch("services.write_cache_buffers_to_db.helper.Queue")
+    def test_bypass_write_with_clear_queue(self, mock_queue_cls):
+        """Test bypass_write with clear_queue skips write and only clears cache."""
+        mock_queue = MagicMock()
+        mock_queue.load_dict_items_from_queue.return_value = self.mock_queue_data
+        mock_queue_cls.return_value = mock_queue
+
+        payload = {
+            "service": self.valid_service,
+            "bypass_write": True,
+            "clear_queue": True
+        }
+        
+        write_cache_buffers_to_db(payload)
+        
+        # Verify queue operations: "batch_id" is present in the processed data.
+        mock_queue.load_dict_items_from_queue.assert_called_once_with(
+            limit=None, min_id=None, min_timestamp=None, status="pending"
+        )
+        mock_queue.batch_delete_items_by_ids.assert_called_once_with(
+            ids=[1]  # Expecting the batch_id from the processed output.
+        )
+
+    @patch("services.write_cache_buffers_to_db.helper.Queue")
+    def test_bypass_write_all_services(self, mock_queue_cls):
+        """Test bypass_write functionality when service='all'."""
+        mock_queue = MagicMock()
+        mock_queue.load_dict_items_from_queue.return_value = self.mock_queue_data
+        mock_queue_cls.return_value = mock_queue
+
+        payload = {
+            "service": "all",
+            "bypass_write": True,
+            "clear_queue": True
+        }
+        
+        write_cache_buffers_to_db(payload)
+        
+        # Verify queue operations for each service
+        assert mock_queue_cls.call_count == len(SERVICES_TO_WRITE)
+        assert mock_queue.load_dict_items_from_queue.call_count == len(SERVICES_TO_WRITE)
+        assert mock_queue.batch_delete_items_by_ids.call_count == len(SERVICES_TO_WRITE) 

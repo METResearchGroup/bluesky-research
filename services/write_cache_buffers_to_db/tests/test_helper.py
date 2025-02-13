@@ -25,20 +25,33 @@ from services.write_cache_buffers_to_db.helper import (
     write_cache_buffer_queue_to_db,
     write_all_cache_buffer_queues_to_dbs,
     SERVICES_TO_WRITE,
+    clear_cache,
+    clear_all_caches,
 )
 
 
 @pytest.fixture
 def mock_queue_data():
-    """Create mock queue data for testing.
-    
-    Returns:
-        List of dictionaries representing queue items with batch IDs.
-    """
+    """Create mock queue data for testing."""
     return [
-        {"batch_id": "1", "data": "test1"},
-        {"batch_id": "2", "data": "test2"},
-        {"batch_id": "3", "data": "test3"},
+        {
+            "batch_id": "1",
+            "data": "test1",
+            "preprocessing_timestamp": "2024-01-01T00:00:00",
+            "created_at": "2024-01-01T00:00:00"
+        },
+        {
+            "batch_id": "2",
+            "data": "test2",
+            "preprocessing_timestamp": "2024-01-01T00:00:00",
+            "created_at": "2024-01-01T00:00:00"
+        },
+        {
+            "batch_id": "3",
+            "data": "test3",
+            "preprocessing_timestamp": "2024-01-01T00:00:00",
+            "created_at": "2024-01-01T00:00:00"
+        }
     ]
 
 
@@ -50,6 +63,37 @@ def mock_df(mock_queue_data):
         pandas.DataFrame: DataFrame containing the mock queue data.
     """
     return pd.DataFrame(mock_queue_data)
+
+
+class TestCacheClearingFunctions:
+    """Tests for cache clearing functions."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.service = "ml_inference_perspective_api"
+        self.queue_name = f"output_{self.service}"
+
+    @patch("services.write_cache_buffers_to_db.helper.Queue")
+    def test_clear_cache(self, mock_queue_cls, mock_queue_data):
+        """Test clear_cache function."""
+        mock_queue = MagicMock()
+        mock_queue.load_dict_items_from_queue.return_value = mock_queue_data
+        mock_queue_cls.return_value = mock_queue
+
+        clear_cache(self.service)
+
+        mock_queue.batch_delete_items_by_ids.assert_called_once_with(
+            ids=["1", "2", "3"]
+        )
+
+    @patch("services.write_cache_buffers_to_db.helper.clear_cache")
+    def test_clear_all_caches(self, mock_clear):
+        """Test clear_all_caches function."""
+        clear_all_caches()
+
+        assert mock_clear.call_count == len(SERVICES_TO_WRITE)
+        for service in SERVICES_TO_WRITE:
+            mock_clear.assert_any_call(service=service)
 
 
 class TestWriteCacheBufferQueueToDb:
