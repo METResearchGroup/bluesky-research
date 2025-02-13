@@ -460,6 +460,9 @@ class Queue:
         100 posts. Each row shares the same metadata. We want to not only
         return the posts, but also the metadata, so that we can link these
         posts to which batch row they originally came from.
+
+        Also does deduplication of payloads (in case it happens, though it
+        is highly unlikely).
         """
         latest_queue_items: list[QueueItem] = self.load_items_from_queue(
             limit=limit, status=status, min_id=min_id, min_timestamp=min_timestamp
@@ -471,22 +474,35 @@ class Queue:
             latest_payload_batch_strings.append(item.payload)
             latest_payload_batch_ids.append(item.id)
             latest_payload_batch_metadata.append(item.metadata)
-            latest_payloads: list[dict] = []
-            for (
-                payload_string,
-                payload_id,
-                payload_metadata,
-            ) in zip(
-                latest_payload_batch_strings,
-                latest_payload_batch_ids,
-                latest_payload_batch_metadata,
-            ):
-                payloads: list[dict] = json.loads(payload_string)
-                for payload in payloads:
-                    payload["batch_id"] = payload_id
-                    payload["batch_metadata"] = payload_metadata
-                latest_payloads.extend(payloads)
-        return latest_payloads
+
+        # Initialize accumulator for all payload dictionaries.
+        latest_payloads: list[dict] = []
+        for (
+            payload_string,
+            payload_id,
+            payload_metadata,
+        ) in zip(
+            latest_payload_batch_strings,
+            latest_payload_batch_ids,
+            latest_payload_batch_metadata,
+        ):
+            payloads: list[dict] = json.loads(payload_string)
+            for payload in payloads:
+                payload["batch_id"] = payload_id
+                payload["batch_metadata"] = payload_metadata
+            latest_payloads.extend(payloads)
+
+        # deduplicate payload dictionaries
+        unique_payloads = []
+        seen = set()
+        for payload in latest_payloads:
+            # Create a canonical string representation of the payload
+            canonical = json.dumps(payload, sort_keys=True)
+            if canonical not in seen:
+                seen.add(canonical)
+                unique_payloads.append(payload)
+
+        return unique_payloads
 
     def _get_sqlite_version(self) -> tuple:
         """Get the SQLite version as a tuple of integers."""
