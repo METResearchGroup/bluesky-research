@@ -207,8 +207,8 @@ def test_request():
 def test_run_integration_service(test_request, mock_service_fn):
     """Test run_integration_service function."""
     with patch(
-        "api.integrations_router.run.MAP_INTEGRATION_REQUEST_TO_SERVICE",
-        {"test_service": mock_service_fn}
+        "api.integrations_router.run.get_handler",
+        return_value=mock_service_fn
     ):
         result = run_integration_service(test_request)
         
@@ -229,8 +229,8 @@ def test_run_integration_request(
 ):
     """Test run_integration_request function."""
     with patch(
-        "api.integrations_router.run.MAP_INTEGRATION_REQUEST_TO_SERVICE",
-        {"test_service": mock_service_fn}
+        "api.integrations_router.run.get_handler",
+        return_value=mock_service_fn
     ), patch(
         "api.integrations_router.run.write_run_metadata_to_db",
         mock_write_metadata
@@ -254,8 +254,8 @@ def test_run_integration_request(
 def test_run_integration_service_invalid_service(test_request):
     """Test run_integration_service with invalid service name."""
     with patch(
-        "api.integrations_router.run.MAP_INTEGRATION_REQUEST_TO_SERVICE",
-        {}
+        "api.integrations_router.run.get_handler",
+        side_effect=KeyError("Unknown service name: test_service")
     ):
         with pytest.raises(KeyError):
             run_integration_service(test_request)
@@ -270,8 +270,8 @@ def test_run_integration_request_write_failure(
     mock_write_metadata = Mock(side_effect=Exception("DB Write Failed"))
     
     with patch(
-        "api.integrations_router.run.MAP_INTEGRATION_REQUEST_TO_SERVICE",
-        {"test_service": mock_service_fn}
+        "api.integrations_router.run.get_handler",
+        return_value=mock_service_fn
     ), patch(
         "api.integrations_router.run.write_run_metadata_to_db",
         mock_write_metadata

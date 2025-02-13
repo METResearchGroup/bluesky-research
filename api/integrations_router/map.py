@@ -28,14 +28,6 @@ def return_ime_handler():
     return ml_inference_ime_handler
 
 
-# Map service names to their loader functions (not the actual handlers)
-MAP_INTEGRATION_REQUEST_TO_SERVICE = {
-    "ml_inference_perspective_api": return_perspective_api_handler,
-    "ml_inference_sociopolitical": return_sociopolitical_handler,
-    "ml_inference_ime": return_ime_handler,
-}
-
-
 def get_handler(service_name: str):
     """Get the handler for a given service name.
 
@@ -48,5 +40,12 @@ def get_handler(service_name: str):
     Raises:
         KeyError: If the service name is not found in the map.
     """
-    handler_func = MAP_INTEGRATION_REQUEST_TO_SERVICE[service_name]
+    if service_name == "ml_inference_perspective_api":
+        handler_func = return_perspective_api_handler
+    elif service_name == "ml_inference_sociopolitical":
+        handler_func = return_sociopolitical_handler
+    elif service_name == "ml_inference_ime":
+        handler_func = return_ime_handler
+    else:
+        raise KeyError(f"Unknown service name: {service_name}")
     return handler_func()
