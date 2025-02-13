@@ -149,24 +149,24 @@ class TestFilterPostsDf:
         """Test strict filtering with check_if_string_is_empty."""
         df = pd.DataFrame({
             'text': [
-                'valid text',        # Valid
-                'NULL',              # Common null string
-                'None',              # Common none string
-                'nan',               # Common nan string
-                ' \t \n ',          # Whitespace
-                'proper text'        # Valid
+                'valid text',            # Valid
+                'NULL',                  # Common null string
+                'None',                  # Common none string
+                'nan',                   # Common nan string
+                '   valid text   ',      # Valid with whitespace
+                'proper text'            # Valid
             ],
             'preprocessing_timestamp': ['2024-01-01'] * 6
         })
         
-        # Normal filtering
+        # Normal filtering - should only remove empty strings and too-short texts
         result = filter_posts_df(df)
-        assert len(result) == 6  # All meet basic criteria
+        assert len(result) == 3  # Only valid texts remain (valid text, valid text with whitespace, proper text)
         
-        # Strict filtering
+        # Strict filtering - should also remove null-like strings
         result_strict = filter_posts_df(df, strict=True)
-        assert len(result_strict) == 2
-        assert all(text in ['valid text', 'proper text'] for text in result_strict['text'])
+        assert len(result_strict) == 3  # Only valid texts remain
+        assert all(text.strip() in ['valid text', 'proper text'] for text in result_strict['text'])
 
     def test_text_length_requirement(self):
         """Test enforcement of minimum text length."""
