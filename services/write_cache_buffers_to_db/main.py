@@ -4,6 +4,8 @@ This script is used to write cache buffer queues to their corresponding database
 
 from lib.log.logger import get_logger
 from services.write_cache_buffers_to_db.helper import (
+    clear_cache,
+    clear_all_caches,
     write_all_cache_buffer_queues_to_dbs,
     write_cache_buffer_queue_to_db,
     SERVICES_TO_WRITE,
@@ -49,6 +51,7 @@ def write_cache_buffers_to_db(payload: dict):
 
     service = payload["service"]
     clear_queue = payload.get("clear_queue", False)
+    bypass_write = payload.get("bypass_write", False)
 
     # Validate clear_queue type
     if not isinstance(clear_queue, bool):
@@ -58,11 +61,19 @@ def write_cache_buffers_to_db(payload: dict):
     logger.info(f"Processing write request for service: {service}")
 
     if service == "all":
-        logger.info("Writing all cache buffer queues to databases")
-        write_all_cache_buffer_queues_to_dbs(clear_queue=clear_queue)
+        if bypass_write and clear_queue:
+            logger.info("Bypassing write and only clearing cache")
+            clear_all_caches()
+        else:
+            logger.info("Writing all cache buffer queues to databases")
+            write_all_cache_buffer_queues_to_dbs(clear_queue=clear_queue)
     elif service in SERVICES_TO_WRITE:
-        logger.info(f"Writing cache buffer queue for service: {service}")
-        write_cache_buffer_queue_to_db(service=service, clear_queue=clear_queue)
+        if bypass_write:
+            logger.info("Bypassing write")
+            clear_cache(service=service)
+        else:
+            logger.info(f"Writing cache buffer queue for service: {service}")
+            write_cache_buffer_queue_to_db(service=service, clear_queue=clear_queue)
     else:
         error_msg = (
             f"Invalid service: {service}. Must be 'all' or one of: {SERVICES_TO_WRITE}"

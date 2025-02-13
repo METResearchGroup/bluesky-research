@@ -1,5 +1,7 @@
 """Verify the number of records currently in storage."""
 
+from datetime import datetime
+
 import click
 import pandas as pd
 
@@ -9,14 +11,17 @@ from lib.db.queue import Queue
 
 def get_num_cached_records_by_partition_date(integration: str) -> dict[str, int]:
     """Get the number of records by partition date."""
-    queue = Queue(integration)
-    records: list[dict] = []
-    while not queue.is_empty():
-        records.append(queue.get())
+    queue = Queue(
+        f"output_{integration}"
+    )  # we only want the output queues, since this is what we're writing to the DB.
+    records: list[dict] = queue.load_dict_items_from_queue()
 
     partition_date_to_count_map = {}
     for record in records:
-        partition_date = record["partition_date"]
+        timestamp = record["preprocessing_timestamp"]
+        partition_date = datetime.strptime(timestamp, "%Y-%m-%d-%H:%M:%S").strftime(
+            "%Y-%m-%d"
+        )
         if partition_date not in partition_date_to_count_map:
             partition_date_to_count_map[partition_date] = 0
         partition_date_to_count_map[partition_date] += 1

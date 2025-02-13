@@ -124,6 +124,12 @@ def validate_date_format(ctx, param, value):
     help="Clear the queue after writing cache buffer. Only used with --write-cache.",
 )
 @click.option(
+    "--bypass-write",
+    is_flag=True,
+    default=False,
+    help="Skip writing to DB and only clear cache. Only valid with --write-cache and --clear-queue.",
+)
+@click.option(
     "--start-date",
     type=str,
     default=None,
@@ -147,6 +153,7 @@ def backfill_records(
     run_classification: bool,
     write_cache: str | None,
     clear_queue: bool,
+    bypass_write: bool,
     start_date: str | None,
     end_date: str | None,
 ):
@@ -185,6 +192,12 @@ def backfill_records(
                 "Both --start-date and --end-date are required when record_type is 'posts_used_in_feeds'"
             )
 
+    # Validate bypass_write usage
+    if bypass_write and not (write_cache and clear_queue):
+        raise click.UsageError(
+            "--bypass-write requires --write-cache and --clear-queue"
+        )
+
     # Convert integrations from abbreviations if needed
     resolved_integrations = (
         [resolve_integration(i) for i in integration] if integration else None
@@ -200,30 +213,41 @@ def backfill_records(
         "end_date": end_date,
     }
 
-    # Add integration kwargs based on CLI args or defaults
-    for integration_name in resolved_integrations or DEFAULT_INTEGRATION_KWARGS.keys():
-        if integration_name in DEFAULT_INTEGRATION_KWARGS:
-            integration_kwargs = DEFAULT_INTEGRATION_KWARGS[integration_name].copy()
-            integration_kwargs.update(
-                {
-                    "backfill_period": backfill_period,
-                    "backfill_duration": backfill_duration,
-                    "run_classification": run_classification,
-                }
-            )
-            payload["integration_kwargs"][integration_name] = integration_kwargs
+    # Only proceed if adding to queue or running integrations
+    if add_to_queue or run_integrations:
+        # Add integration kwargs based on CLI args or defaults
+        for integration_name in (
+            resolved_integrations or DEFAULT_INTEGRATION_KWARGS.keys()
+        ):
+            if integration_name in DEFAULT_INTEGRATION_KWARGS:
+                integration_kwargs = DEFAULT_INTEGRATION_KWARGS[integration_name].copy()
+                integration_kwargs.update(
+                    {
+                        "backfill_period": backfill_period,
+                        "backfill_duration": backfill_duration,
+                        "run_classification": run_classification,
+                    }
+                )
+                payload["integration_kwargs"][integration_name] = integration_kwargs
 
-    if resolved_integrations:
-        payload["integration"] = resolved_integrations
+        if resolved_integrations:
+            payload["integration"] = resolved_integrations
 
-    # Call handler with constructed event
-    response = lambda_handler({"payload": payload}, None)
-    click.echo(f"Backfill completed with status: {response['statusCode']}")
+        # Call handler with constructed event
+        response = lambda_handler({"payload": payload}, None)
+        click.echo(f"Backfill completed with status: {response['statusCode']}")
 
     # Only write cache if explicitly requested
     if write_cache:
         cache_response = write_cache_handler(
-            {"payload": {"service": write_cache, "clear_queue": clear_queue}}, None
+            {
+                "payload": {
+                    "service": write_cache,
+                    "clear_queue": clear_queue,
+                    "bypass_write": bypass_write,
+                }
+            },
+            None,
         )
         click.echo(
             f"Cache buffer write completed with status: {cache_response['statusCode']}"
