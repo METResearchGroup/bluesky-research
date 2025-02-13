@@ -4,7 +4,8 @@ from tempfile import TemporaryDirectory
 
 import pandas as pd
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
+from datetime import datetime
 
 from lib.aws.s3 import S3
 from lib.db.manage_local_data import (
@@ -14,8 +15,21 @@ from lib.db.manage_local_data import (
     _validate_filepaths,
     list_filenames,
     load_data_from_local_storage,
+    export_data_to_local_storage,
 )
 
+MOCK_SERVICE_METADATA = {
+    "test_service": {
+        "local_prefix": "/data/test_service",
+        "timestamp_field": "preprocessing_timestamp",
+        "partition_key": "preprocessing_timestamp",
+    },
+    "preprocessed_posts": {
+        "local_prefix": "/data/preprocessed_posts",
+        "timestamp_field": "preprocessing_timestamp",
+        "partition_key": "preprocessing_timestamp",
+    }
+}
 
 @pytest.mark.parametrize("timestamp_str,expected", [
     ("2024-07-06-20:39:30", "year=2024/month=07/day=06/hour=20/minute=39"),
@@ -679,7 +693,8 @@ class TestLoadDataFromLocalStorage:
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=None,
-            end_partition_date=None
+            end_partition_date=None,
+            override_local_prefix=None
         )
 
     @pytest.mark.parametrize("export_format,mock_data", [
@@ -790,7 +805,8 @@ class TestLoadDataFromLocalStorage:
             validate_pq_files=False,
             partition_date=test_params["partition_date"],
             start_partition_date=None,
-            end_partition_date=None
+            end_partition_date=None,
+            override_local_prefix=None
         )
 
     @pytest.mark.parametrize("test_params", [
@@ -818,7 +834,8 @@ class TestLoadDataFromLocalStorage:
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=test_params["start_date"],
-            end_partition_date=test_params["end_date"]
+            end_partition_date=test_params["end_date"],
+            override_local_prefix=None
         )
 
     def test_use_all_data(self, mocker, mock_service_metadata):
@@ -837,7 +854,8 @@ class TestLoadDataFromLocalStorage:
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=None,
-            end_partition_date=None
+            end_partition_date=None,
+            override_local_prefix=None
         )
 
     def test_validate_pq_files(self, mocker, mock_service_metadata):
@@ -856,7 +874,8 @@ class TestLoadDataFromLocalStorage:
             validate_pq_files=True,
             partition_date=None,
             start_partition_date=None,
-            end_partition_date=None
+            end_partition_date=None,
+            override_local_prefix=None
         )
 
     def test_preprocessed_posts_validation(self, mocker):
@@ -976,3 +995,149 @@ class TestLoadDataFromLocalStorage:
             start_partition_date="2024-03-01",
             end_partition_date="2024-03-02"
         )
+
+    def test_override_local_prefix(self, mocker, mock_service_metadata):
+        """Test loading data with overridden local prefix."""
+        mock_read_parquet = mocker.patch("pandas.read_parquet")
+        mock_list_filenames = mocker.patch("lib.db.manage_local_data.list_filenames")
+        mock_df = pd.DataFrame({"col1": [1, 2], "col2": ["a", "b"]})
+        mock_read_parquet.return_value = mock_df
+        
+        override_path = "/custom/path"
+        load_data_from_local_storage(
+            service="test_service",
+            override_local_prefix=override_path
+        )
+        
+        mock_list_filenames.assert_called_with(
+            service="test_service",
+            directories=["active"],
+            validate_pq_files=False,
+            partition_date=None,
+            start_partition_date=None,
+            end_partition_date=None,
+            override_local_prefix=override_path
+        )
+
+class TestExportDataToLocalStorage:
+    """Tests for export_data_to_local_storage function."""
+
+    @pytest.fixture
+    def mock_service_metadata(self, mocker):
+        """Mock service metadata for testing."""
+        mock_metadata = {
+            "test_service": {
+                "local_prefix": "/data/test_service",
+                "timestamp_field": "preprocessing_timestamp",
+                "partition_key": "preprocessing_timestamp",
+                "subpaths": {
+                    "firehose": "/data/test_service/firehose",
+                    "active": "/data/test_service/active",
+                }
+            },
+            "preprocessed_posts": {
+                "local_prefix": "/data/preprocessed_posts",
+                "timestamp_field": "preprocessing_timestamp",
+                "partition_key": "preprocessing_timestamp",
+                "subpaths": {
+                    "firehose": "/data/preprocessed_posts/firehose",
+                    "active": "/data/preprocessed_posts/active",
+                }
+            }
+        }
+        mocker.patch("lib.db.manage_local_data.MAP_SERVICE_TO_METADATA", mock_metadata)
+        return mock_metadata
+
+    @pytest.fixture
+    def mock_df(self):
+        """Create a mock DataFrame for testing."""
+        return pd.DataFrame({
+            "col1": [1, 2],
+            "col2": ["a", "b"],
+            "preprocessing_timestamp": ["2024-01-01", "2024-01-01"]
+        })
+
+    def test_basic_export(self, mocker, mock_service_metadata, mock_df, tmp_path):
+        """Test basic export functionality."""
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-01",
+            "data": mock_df
+        }])
+        mocker.patch("os.makedirs")
+        mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
+        
+        export_data_to_local_storage(
+            service="test_service",
+            df=mock_df
+        )
+        
+        mock_to_parquet.assert_called_once()
+
+    def test_override_local_prefix(self, mocker, mock_service_metadata, mock_df, tmp_path):
+        """Test export with overridden local prefix."""
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-01",
+            "data": mock_df
+        }])
+        mock_makedirs = mocker.patch("os.makedirs")
+        mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
+        
+        override_path = "/custom/path"
+        export_data_to_local_storage(
+            service="test_service",
+            df=mock_df,
+            override_local_prefix=override_path
+        )
+        
+        # Verify the override path was used
+        assert any(call_args[0][0].startswith(override_path) 
+                  for call_args in mock_makedirs.call_args_list)
+        mock_to_parquet.assert_called_once()
+
+    def test_export_with_custom_args(self, mocker, mock_service_metadata, mock_df):
+        """Test export with custom arguments."""
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-01",
+            "data": mock_df
+        }])
+        mocker.patch("os.makedirs")
+        mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
+        
+        custom_args = {"source": "firehose"}
+        export_data_to_local_storage(
+            service="preprocessed_posts",
+            df=mock_df,
+            custom_args=custom_args
+        )
+        
+        mock_to_parquet.assert_called_once()
+
+    def test_export_formats(self, mocker, mock_service_metadata, mock_df):
+        """Test different export formats."""
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-01",
+            "data": mock_df
+        }])
+        mocker.patch("os.makedirs")
+        mock_to_json = mocker.patch.object(pd.DataFrame, "to_json")
+        mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
+        
+        # Test JSONL format
+        export_data_to_local_storage(
+            service="test_service",
+            df=mock_df,
+            export_format="jsonl"
+        )
+        mock_to_json.assert_called_once()
+        
+        # Test Parquet format
+        export_data_to_local_storage(
+            service="test_service",
+            df=mock_df,
+            export_format="parquet"
+        )
+        mock_to_parquet.assert_called_once()

@@ -17,14 +17,42 @@ CONDA_PATH="/hpc/software/mamba/23.1.0/etc/profile.d/conda.sh"
 # set pythonpath
 PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 
-# insert backfill records into queues, for date range.
-source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
-echo "Starting slurm job."
-python /projects/p32375/bluesky-research/pipelines/backfill_records_coordination/app.py \
+# Parse command line arguments
+PARTITION_DATE=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        *)
+            if [ -z "$PARTITION_DATE" ]; then
+                PARTITION_DATE="$1"
+                shift
+            else
+                echo "Error: Unexpected argument: $1"
+                exit 1
+            fi
+            ;;
+    esac
+done
+
+# Check required arguments
+if [ -z "$PARTITION_DATE" ]; then
+    echo "Error: partition_date argument is required"
+    exit 1
+fi
+
+# Build python command
+PYTHON_CMD="/projects/p32375/bluesky-research/pipelines/backfill_records_coordination/app.py \
     --record-type posts_used_in_feeds \
     --add-to-queue \
-    --start-date 2024-10-01 \
-    --end-date 2024-10-03
+    --start-date $PARTITION_DATE \
+    --end-date $PARTITION_DATE"
+
+echo "Running python command: $PYTHON_CMD"
+
+# insert backfill records into queues for partition date
+source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
+echo "Starting slurm job for partition date: $PARTITION_DATE"
+python $PYTHON_CMD
 exit_code=$?
 echo "Python script exited with code $exit_code"
 if [ $exit_code -ne 0 ]; then

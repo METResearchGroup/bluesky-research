@@ -10,18 +10,47 @@ from lib.constants import timestamp_format
 from lib.db.queue import Queue
 from lib.log.logger import get_logger
 from lib.helper import track_performance
+from lib.utils import filter_posts_df
+from services.ml_inference.models import PostToLabelModel
 
 
 logger = get_logger(__name__)
 
 dynamodb_table_name = "integration_run_metadata"
-MIN_POST_TEXT_LENGTH = 5
 
 
 def determine_backfill_latest_timestamp(
-    backfill_duration: int,
-    backfill_period: Literal["days", "hours"],
+    backfill_duration: Optional[int] = None,
+    backfill_period: Optional[Literal["days", "hours"]] = None,
 ) -> str:
+    """Calculates the timestamp for backfilling data based on a duration and period.
+
+    This function computes a historical timestamp by subtracting a specified duration
+    from the current UTC time. The duration can be specified in either days or hours.
+
+    Args:
+        backfill_duration (int): The number of time units to look back. Must be a positive integer.
+        backfill_period (Literal["days", "hours"]): The time unit for backfilling.
+            Must be either "days" or "hours".
+
+    Returns:
+        str: A timestamp string in format YYYY-MM-DD-HH:MM:SS (from lib/constants.py timestamp_format)
+            representing the calculated historical point in time, or None if invalid parameters
+            are provided.
+
+    Control Flow:
+        1. Validates input parameters (backfill_duration not None and period is valid)
+        2. Gets current UTC time
+        3. If period is "days":
+            a. Subtracts backfill_duration days from current time
+        4. If period is "hours":
+            a. Subtracts backfill_duration hours from current time
+        5. If parameters were valid:
+            a. Formats backfill time as timestamp string
+            b. Returns formatted timestamp
+        6. If parameters were invalid:
+            a. Returns None
+    """
     if backfill_duration is not None and backfill_period in ["days", "hours"]:
         current_time = datetime.now(timezone.utc)
         if backfill_period == "days":
@@ -40,36 +69,6 @@ def determine_backfill_latest_timestamp(
     return timestamp
 
 
-def filter_posts_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Filter out posts with invalid text.
-
-    Args:
-        df: DataFrame containing posts with 'text' column and 'created_at' column
-
-    Returns:
-        DataFrame with posts removed that have:
-        - Missing text (if text column exists)
-        - Empty text (if text column exists)
-        - Text shorter than MIN_POST_TEXT_LENGTH characters (if text column exists)
-        - Missing created_at timestamp (if created_at column exists)
-    """
-    filtered_df = df.copy()
-
-    # Only apply text filters if text column exists
-    if "text" in filtered_df.columns:
-        filtered_df = filtered_df[
-            filtered_df["text"].notna()
-            & (filtered_df["text"] != "")
-            & (filtered_df["text"].str.len() >= MIN_POST_TEXT_LENGTH)
-        ]
-
-    # Only apply timestamp filter if created_at column exists
-    if "created_at" in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df["created_at"].notna()]
-
-    return filtered_df
-
-
 @track_performance
 def get_posts_to_classify(
     inference_type: Literal["llm", "perspective_api", "ime"],
@@ -77,19 +76,49 @@ def get_posts_to_classify(
     previous_run_metadata: Optional[dict] = None,
     columns: Optional[list[str]] = None,
 ) -> list[dict]:
-    """Get posts to classify from the queue.
+    """Retrieves posts from the appropriate queue for classification.
 
     This is the single entry point for getting data for inference. All inference modules
-    should use this function to get their data.
+    should use this function to get their data. The function handles queue selection,
+    post filtering, and data formatting.
 
     Args:
-        inference_type: Type of inference to run
-        timestamp: Optional timestamp to override latest inference timestamp
-        previous_run_metadata: Optional metadata from previous run
-        columns: Optional list of columns to return
+        inference_type (Literal["llm", "perspective_api", "ime"]): Type of inference to run.
+            Maps to specific queue names:
+            - "perspective_api" -> "input_ml_inference_perspective_api"
+            - "llm" -> "input_ml_inference_sociopolitical"
+            - "ime" -> "input_ml_inference_ime"
+        timestamp (Optional[str]): Optional timestamp in YYYY-MM-DD-HH:MM:SS format to
+            override latest inference timestamp for filtering posts.
+        previous_run_metadata (Optional[dict]): Metadata from previous run containing:
+            - metadata (str): JSON string with:
+                - latest_id_classified (Optional[int]): ID of last processed post
+                - inference_timestamp (Optional[str]): Timestamp of last inference
+        columns (Optional[list[str]]): List of columns to return in output.
+            Defaults to ["uri", "text", "preprocessing_timestamp", "batch_id", "batch_metadata"].
 
     Returns:
-        List of posts to classify
+        list[dict]: List of posts to classify, where each post is a dictionary containing
+            the requested columns. Posts are filtered to remove:
+            - Duplicates (based on uri)
+            - Invalid text (missing, empty, or too short)
+            - Missing timestamps
+            If a requested column doesn't exist, it will be included with None values.
+
+    Control Flow:
+        1. Maps inference type to appropriate queue name
+        2. Creates Queue instance for specified inference type
+        3. Extracts metadata from previous run if provided
+        4. Loads posts from queue with filters:
+            - After latest_id_classified (if provided)
+            - After latest_inference_timestamp or override timestamp
+            - With status="pending"
+        5. If no posts found, returns empty list
+        6. Creates DataFrame from posts
+        7. Drops duplicate URIs
+        8. Filters posts using filter_posts_df()
+        9. Ensures all requested columns exist (adds missing ones with None)
+        10. Returns filtered posts as list of dicts with requested columns
     """
     # Map inference types to queue names
     queue_mapping = {
@@ -134,7 +163,13 @@ def get_posts_to_classify(
         return []
 
     if columns is None:
-        columns = ["uri", "text", "created_at", "batch_id", "batch_metadata"]
+        columns = [
+            "uri",
+            "text",
+            "preprocessing_timestamp",
+            "batch_id",
+            "batch_metadata",
+        ]
 
     # Create DataFrame with all columns from the payloads
     posts_df = pd.DataFrame(latest_payloads)
@@ -142,16 +177,19 @@ def get_posts_to_classify(
     # Drop duplicates before any other processing
     if "uri" in posts_df.columns:
         posts_df = posts_df.drop_duplicates(subset=["uri"])
+    logger.info(f"After dropping duplicates, {len(posts_df)} posts remain.")
 
     # Filter posts if needed
     posts_df = filter_posts_df(posts_df)
+    logger.info(f"After filtering, {len(posts_df)} posts remain.")
 
     # Verify required columns exist and add missing ones with None values
     missing_columns = [col for col in columns if col not in posts_df.columns]
     if missing_columns:
-        logger.warning(f"Missing required columns: {missing_columns}")
-        for col in missing_columns:
-            posts_df[col] = None
+        raise ValueError(f"Missing required columns: {missing_columns}")
 
     # Select only requested columns
-    return posts_df[columns].to_dict(orient="records")
+    dicts = posts_df[columns].to_dict(orient="records")
+    dict_models = [PostToLabelModel(**d) for d in dicts]  # to verify fields
+    dicts = [d.model_dump() for d in dict_models]
+    return dicts

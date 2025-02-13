@@ -19,7 +19,7 @@ INTEGRATIONS_LIST = [
     "ml_inference_ime",
 ]
 
-default_table_columns = ["uri", "text", "created_at"]
+default_table_columns = ["uri", "text", "preprocessing_timestamp"]
 
 logger = get_logger(__file__)
 
@@ -106,7 +106,7 @@ def load_preprocessed_posts(
         logger.info(
             "Converting timestamp fields to consolidated pipeline-friendly string formats."
         )
-        for ts_col in ["partition_date", "created_at"]:
+        for ts_col in ["partition_date", "preprocessing_timestamp"]:
             if ts_col in df.columns:  # Check if column exists
                 if ts_col == "partition_date":
                     df[ts_col] = df[ts_col].dt.strftime(partition_date_format)
