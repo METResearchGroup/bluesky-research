@@ -1,7 +1,7 @@
 """Tests for perspective_api.py."""
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, call
 
 from services.ml_inference.perspective_api.perspective_api import classify_latest_posts
 
@@ -33,22 +33,55 @@ class TestClassifyLatestPosts:
             "services.ml_inference.perspective_api.perspective_api.get_posts_to_classify"
         ) as mock:
             mock.return_value = [
-                {"uri": "test1", "text": "test post 1"},
-                {"uri": "test2", "text": "test post 2"}
+                {
+                    "uri": "test1", 
+                    "text": "test post 1",
+                    "preprocessing_timestamp": "2024-01-01-12:00:00",
+                    "batch_id": 1
+                },
+                {
+                    "uri": "test2", 
+                    "text": "test post 2",
+                    "preprocessing_timestamp": "2024-01-01-12:00:00",
+                    "batch_id": 2
+                }
             ]
             yield mock
 
     @pytest.fixture
-    def mock_run_classification(self):
-        """Mock run_batch_classification function."""
+    def mock_process_batch(self):
+        """Mock process_perspective_batch_with_retries function."""
         with patch(
-            "services.ml_inference.perspective_api.perspective_api.run_batch_classification"
+            "ml_tooling.perspective_api.model.process_perspective_batch_with_retries"
         ) as mock:
-            mock.return_value = {
-                "total_batches": 1,
-                "total_posts_successfully_labeled": 2,
-                "total_posts_failed_to_label": 0
-            }
+            # Create an async mock that returns different success/failure patterns
+            async def mock_process(*args, **kwargs):
+                test_response = {
+                    "prob_toxic": 0.8,
+                    "label_toxic": 1,
+                    "prob_reasoning": 0.6,
+                    "label_reasoning": 1,
+                    "prob_constructive": 0.6,
+                    "label_constructive": 1
+                }
+                
+                # Get the posts from kwargs
+                posts = kwargs.get("requests", [])
+                total_posts = len(posts)
+                
+                # First run: 20 succeed, 30 fail
+                if total_posts == 50:
+                    return ([test_response] * 20) + ([None] * 30)
+                # Second run: 18 succeed, 12 fail
+                elif total_posts == 30:
+                    return ([test_response] * 18) + ([None] * 12)
+                # Final run: all 12 succeed
+                elif total_posts == 12:
+                    return [test_response] * 12
+                else:
+                    return []
+                
+            mock.side_effect = mock_process
             yield mock
 
     @pytest.fixture
@@ -59,12 +92,30 @@ class TestClassifyLatestPosts:
         ) as mock:
             yield mock
 
+    @pytest.fixture
+    def mock_write_posts_to_cache(self):
+        """Mock write_posts_to_cache function."""
+        with patch(
+            "ml_tooling.perspective_api.model.write_posts_to_cache"
+        ) as mock:
+            yield mock
+
+    @pytest.fixture
+    def mock_return_failed_labels(self):
+        """Mock return_failed_labels_to_input_queue function."""
+        with patch(
+            "ml_tooling.perspective_api.model.return_failed_labels_to_input_queue"
+        ) as mock:
+            yield mock
+
     def test_classify_latest_posts_success(
         self,
         mock_determine_backfill,
         mock_get_posts,
-        mock_run_classification,
-        mock_logger
+        mock_logger,
+        mock_write_posts_to_cache,
+        mock_return_failed_labels,
+        mock_process_batch
     ):
         """Test successful classification of latest posts.
         
@@ -85,7 +136,6 @@ class TestClassifyLatestPosts:
             timestamp="2024-01-01-12:00:00",
             previous_run_metadata=None
         )
-        mock_run_classification.assert_called_once_with(posts=mock_get_posts.return_value)
         
         # Verify result structure
         assert isinstance(result, dict)
@@ -99,7 +149,6 @@ class TestClassifyLatestPosts:
         self,
         mock_determine_backfill,
         mock_get_posts,
-        mock_run_classification,
         mock_logger
     ):
         """Test behavior when no posts are found to classify.
@@ -113,7 +162,6 @@ class TestClassifyLatestPosts:
             backfill_duration=7
         )
         
-        mock_run_classification.assert_not_called()
         assert result["total_classified_posts"] == 0
         assert "inference_metadata" in result
         mock_logger.warning.assert_called_once()
@@ -122,8 +170,10 @@ class TestClassifyLatestPosts:
         self,
         mock_determine_backfill,
         mock_get_posts,
-        mock_run_classification,
-        mock_logger
+        mock_logger,
+        mock_write_posts_to_cache,
+        mock_return_failed_labels,
+        mock_process_batch
     ):
         """Test classification with event metadata.
         
@@ -143,7 +193,6 @@ class TestClassifyLatestPosts:
         self,
         mock_determine_backfill,
         mock_get_posts,
-        mock_run_classification,
         mock_logger
     ):
         """Test skipping classification and exporting cached results.
@@ -157,7 +206,6 @@ class TestClassifyLatestPosts:
         # Verify no classification was attempted
         mock_determine_backfill.assert_not_called()
         mock_get_posts.assert_not_called()
-        mock_run_classification.assert_not_called()
         
         # Verify result structure
         assert isinstance(result, dict)
@@ -177,8 +225,10 @@ class TestClassifyLatestPosts:
         self,
         mock_determine_backfill,
         mock_get_posts,
-        mock_run_classification,
-        mock_logger
+        mock_logger,
+        mock_write_posts_to_cache,
+        mock_return_failed_labels,
+        mock_process_batch
     ):
         """Test classification using previous run metadata.
         
@@ -214,8 +264,10 @@ class TestClassifyLatestPosts:
         backfill_duration,
         mock_determine_backfill,
         mock_get_posts,
-        mock_run_classification,
-        mock_logger
+        mock_logger,
+        mock_write_posts_to_cache,
+        mock_return_failed_labels,
+        mock_process_batch
     ):
         """Test handling of invalid backfill parameters.
         
@@ -235,3 +287,123 @@ class TestClassifyLatestPosts:
         )
         assert isinstance(result, dict)
         assert "inference_timestamp" in result 
+
+    def test_multi_step_classification_with_partial_success(
+        self,
+        mock_determine_backfill,
+        mock_get_posts,
+        mock_logger,
+        mock_write_posts_to_cache,
+        mock_return_failed_labels,
+        mock_process_batch
+    ):
+        """Test multi-step classification process with partial successes.
+        
+        This test verifies the behavior of classify_latest_posts when processing
+        a large batch of posts across multiple runs, with different success rates
+        in each run. The test follows this sequence:
+        
+        Initial State:
+        - 50 total posts to process
+        
+        Step 1 (First Run):
+        - 20 posts successfully classified
+        - 30 posts fail classification
+        - Successfully classified posts written to cache
+        - Failed posts returned to input queue
+        
+        Step 2 (Second Run):
+        - 18 posts successfully classified
+        - 12 posts fail classification
+        - Same operations as Step 1
+        - Running total: 38 successful, 12 remaining
+        
+        Step 3 (Final Run):
+        - All remaining 12 posts successfully classified
+        - Final total: 50 posts successfully classified
+        
+        For each step, verifies:
+        - classify_latest_posts input/output behavior
+        - Cache writing operations
+        - Failed label handling
+        - Metadata accuracy in classify_latest_posts output
+        """
+        # Setup initial test data
+        initial_posts = [
+            {
+                "uri": f"test{i}", 
+                "text": f"test post {i}", 
+                "batch_id": i,
+                "preprocessing_timestamp": "2024-01-01-12:00:00"
+            }
+            for i in range(50)
+        ]
+        
+        # Step 1: First run (20 success, 30 fail)
+        mock_get_posts.return_value = initial_posts
+        
+        result1 = classify_latest_posts(
+            backfill_period="days",
+            backfill_duration=7
+        )
+        
+        # Verify first run results
+        assert result1["total_classified_posts"] == 50
+        assert result1["inference_metadata"]["total_posts_successfully_labeled"] == 20
+        assert result1["inference_metadata"]["total_posts_failed_to_label"] == 30
+        
+        # Verify write_posts_to_cache and return_failed_labels were called appropriately
+        mock_write_posts_to_cache.assert_called_once()
+        mock_return_failed_labels.assert_called_once()
+        
+        # Step 2: Second run (18 success, 12 fail)
+        remaining_posts = [
+            {
+                "uri": f"test{i}", 
+                "text": f"test post {i}", 
+                "batch_id": i+50,
+                "preprocessing_timestamp": "2024-01-01-12:00:00"
+            }
+            for i in range(30)
+        ]
+        mock_get_posts.return_value = remaining_posts
+        
+        result2 = classify_latest_posts(
+            backfill_period="days",
+            backfill_duration=7
+        )
+        
+        # Verify second run results
+        assert result2["total_classified_posts"] == 30
+        assert result2["inference_metadata"]["total_posts_successfully_labeled"] == 18
+        assert result2["inference_metadata"]["total_posts_failed_to_label"] == 12
+        
+        # Verify write_posts_to_cache and return_failed_labels were called appropriately
+        assert mock_write_posts_to_cache.call_count == 2
+        assert mock_return_failed_labels.call_count == 2
+        
+        # Step 3: Final run (12 success, 0 fail)
+        final_posts = [
+            {
+                "uri": f"test{i}", 
+                "text": f"test post {i}", 
+                "batch_id": i+80,
+                "preprocessing_timestamp": "2024-01-01-12:00:00"
+            }
+            for i in range(12)
+        ]
+        mock_get_posts.return_value = final_posts
+        
+        result3 = classify_latest_posts(
+            backfill_period="days",
+            backfill_duration=7
+        )
+        
+        # Verify final run results
+        assert result3["total_classified_posts"] == 12
+        assert result3["inference_metadata"]["total_posts_successfully_labeled"] == 12
+        assert result3["inference_metadata"]["total_posts_failed_to_label"] == 0
+        
+        # Verify write_posts_to_cache and return_failed_labels were called appropriately
+        assert mock_write_posts_to_cache.call_count == 3  # Called for all successful posts
+        assert mock_return_failed_labels.call_count == 2  # Not called in final run (no failures)

@@ -4,8 +4,8 @@
 #SBATCH -p short
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 1:00:00
-#SBATCH --mem=15G
+#SBATCH -t 3:00:00
+#SBATCH --mem=25G
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --job-name=backfill_records_coordination_ml_inference_sociopolitical_%j

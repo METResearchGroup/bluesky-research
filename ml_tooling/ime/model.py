@@ -53,7 +53,7 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
     just the post metadata and sets was_successfully_labeled=False.
 
     Args:
-        posts (list[dict]): List of post dictionaries containing uri, text, and created_at
+        posts (list[dict]): List of post dictionaries containing uri, text, and preprocessing_timestamp
         output_df (pd.DataFrame): DataFrame containing processed results, with uri column
 
     Returns:
@@ -64,8 +64,17 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
             ImeLabelModel(
                 uri=post["uri"],
                 text=post["text"],
-                created_at=post["created_at"],
+                preprocessing_timestamp=post["preprocessing_timestamp"],
                 was_successfully_labeled=False,
+                prob_emotion=None,
+                prob_intergroup=None,
+                prob_moral=None,
+                prob_other=None,
+                label_emotion=None,
+                label_intergroup=None,
+                label_moral=None,
+                label_other=None,
+                label_timestamp=None,
             ).model_dump()
             for post in posts
         ]
@@ -79,16 +88,40 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
             # Post was successfully processed
             post_df = output_df[output_df["uri"] == post["uri"]]
             post_dict = post_df.iloc[0].to_dict()
-            post_dict["was_successfully_labeled"] = True
-            labels.append(ImeLabelModel(**post_dict).model_dump())
+            labels.append(
+                ImeLabelModel(
+                    uri=post["uri"],
+                    text=post["text"],
+                    preprocessing_timestamp=post["preprocessing_timestamp"],
+                    was_successfully_labeled=True,
+                    prob_emotion=post_dict["prob_emotion"],
+                    prob_intergroup=post_dict["prob_intergroup"],
+                    prob_moral=post_dict["prob_moral"],
+                    prob_other=post_dict["prob_other"],
+                    label_emotion=post_dict["label_emotion"],
+                    label_intergroup=post_dict["label_intergroup"],
+                    label_moral=post_dict["label_moral"],
+                    label_other=post_dict["label_other"],
+                    label_timestamp=post_dict["label_timestamp"],
+                ).model_dump()
+            )
         else:
             # Post was not processed
             labels.append(
                 ImeLabelModel(
                     uri=post["uri"],
                     text=post["text"],
-                    created_at=post["created_at"],
+                    preprocessing_timestamp=post["preprocessing_timestamp"],
                     was_successfully_labeled=False,
+                    prob_emotion=None,
+                    prob_intergroup=None,
+                    prob_moral=None,
+                    prob_other=None,
+                    label_emotion=None,
+                    label_intergroup=None,
+                    label_moral=None,
+                    label_other=None,
+                    label_timestamp=None,
                 ).model_dump()
             )
 
@@ -123,6 +156,50 @@ def batch_classify_posts(
         "labels_other": [],
         "prop_multi_label_samples_per_batch": [],  # proportion of samples with more than one label
     }
+
+    # If there are no batches, return 0 for all metrics
+    if not batches:
+        global_experiment_metrics = {
+            metric: 0
+            for metric in experiment_metrics
+            if not metric.startswith("labels_")
+        }
+        metadata = {
+            "total_batches": 0,
+            "total_posts_successfully_labeled": 0,
+            "total_posts_failed_to_label": 0,
+        }
+        classification_breakdown = {
+            "emotion": {
+                "title": "Emotion",
+                "description": "",
+                "probs": [],
+                "labels": [],
+            },
+            "intergroup": {
+                "title": "Intergroup",
+                "description": "",
+                "probs": [],
+                "labels": [],
+            },
+            "moral": {
+                "title": "Moral",
+                "description": "",
+                "probs": [],
+                "labels": [],
+            },
+            "other": {
+                "title": "Other",
+                "description": "",
+                "probs": [],
+                "labels": [],
+            },
+        }
+        return {
+            "metadata": metadata,
+            "experiment_metrics": global_experiment_metrics,
+            "classification_breakdown": classification_breakdown,
+        }
 
     for i, batch in enumerate(batches):
         if i % 10 == 0:

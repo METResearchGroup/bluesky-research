@@ -28,38 +28,38 @@ def classify_latest_posts(
     previous_run_metadata: Optional[dict] = None,
     event: Optional[dict] = None,
 ) -> dict:
-    """Classifies the latest posts using LLM inference.
+    """
+    Classifies the latest posts using LLM inference and generates a labeling session summary.
 
     Args:
-        backfill_period (Optional[str]): The unit for backfilling - either "days" or "hours".
-            Must be provided together with backfill_duration.
-        backfill_duration (Optional[int]): The number of time units to backfill.
-            Must be provided together with backfill_period.
-        run_classification (bool): Whether to run the classification model on posts.
-            If False, will only export cached results. Defaults to True.
-        previous_run_metadata (Optional[dict]): Metadata from previous classification runs
-            to avoid reprocessing posts.
-        event (Optional[dict]): The original event/payload passed to the handler function.
-            This is included in the returned session metadata for tracking purposes.
+        backfill_period (Optional[str]): Unit for backfilling (e.g., "days" or "hours"). Required if run_classification is True.
+        backfill_duration (Optional[int]): Duration to backfill in units specified by backfill_period. Required if run_classification is True.
+        run_classification (bool): Flag indicating whether to execute LLM classification. If False, returns cached results.
+        previous_run_metadata (Optional[dict]): Metadata from prior classification runs to skip reprocessing posts.
+        event (Optional[dict]): Original event or payload provided to the function, which is returned as part of the session metadata.
 
     Returns:
-        dict: A labeling session summary containing:
-            - inference_type (str): Always "perspective_api"
-            - inference_timestamp (str): Timestamp of when inference was run
-            - total_classified_posts (int): Total number of posts classified
-            - total_classified_posts_by_source (dict): Breakdown of classified posts by source:
-                - firehose (int): Number of posts from firehose source
-                - most_liked (int): Number of posts from most_liked source
-            - event (dict): The original event/payload passed to the function
+        dict: A dictionary containing:
+            - inference_type (str): Always set to "sociopolitical".
+            - inference_timestamp (str): The timestamp when the labeling session was generated.
+            - total_classified_posts (int): Total number of posts processed for classification.
+            - inference_metadata (dict): Metadata produced during batch classification, or an empty dict if classification is skipped.
+            - event (Optional[dict]): The input event payload.
 
-    The function:
-    1. Determines the time range for post selection based on backfill parameters
-    2. Retrieves posts to classify using get_posts_to_classify()
-    3. Separates posts by source (firehose vs most_liked)
-    4. Runs batch classification on each source's posts if run_classification is True
-    5. Exports and returns the results
+    Behavior:
+        1. If run_classification is True, validates that both backfill_period and backfill_duration are provided.
+        2. Determines the latest timestamp using determine_backfill_latest_timestamp.
+        3. Retrieves posts via get_posts_to_classify using the determined timestamp and previous_run_metadata.
+        4. Logs the number of posts retrieved.
+        5. If no posts are found, logs a warning and returns a summary with zero classified posts.
+        6. Otherwise, runs batch classification and records the number of classified posts.
+        7. If run_classification is False, skips classification and returns cached results.
 
-    If no posts are found to classify, returns a summary with zero counts.
+    [Suggestions]:
+        - Consider wrapping critical calls in try/except blocks for improved error handling.
+
+    [Clarifications]:
+        - What should be the behavior if backfill parameters are missing when classification is enabled?
     """
     if run_classification:
         backfill_latest_timestamp: str = determine_backfill_latest_timestamp(

@@ -37,15 +37,22 @@ jobs:
         ruff check .
     - name: Test with pytest
       run: |
+        pytest lib/tests
         pytest lib/db/tests
         pytest lib/db/sql/tests
         pytest lib/telemetry/tests
         pytest ml_tooling/llm/tests
         pytest ml_tooling/perspective_api/tests
+        pytest ml_tooling/ime/tests
         pytest services/backfill/posts/tests
         pytest services/ml_inference/tests
         pytest services/ml_inference/perspective_api/tests
         pytest services/ml_inference/sociopolitical/tests
+        pytest services/ml_inference/ime/tests
+        pytest services/get_preprocessed_posts_used_in_feeds/tests
+        pytest services/repartition_service/tests
+        pytest services/calculate_analytics/tests
+        pytest services/write_cache_buffers_to_db/tests
         pytest pipelines/backfill_records_coordination/tests
         pytest api/integrations_router/tests
     - name: Lint Dockerfiles with Hadolint

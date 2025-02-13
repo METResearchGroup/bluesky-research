@@ -38,20 +38,17 @@ def classify_latest_posts(
 
     Returns:
         dict: A labeling session summary containing:
-            - inference_type (str): Always "perspective_api"
+            - inference_type (str): Always "ime"
             - inference_timestamp (str): Timestamp of when inference was run
             - total_classified_posts (int): Total number of posts classified
-            - total_classified_posts_by_source (dict): Breakdown of classified posts by source:
-                - firehose (int): Number of posts from firehose source
-                - most_liked (int): Number of posts from most_liked source
+            - inference_metadata (dict): Metadata about the classification run
             - event (dict): The original event/payload passed to the function
 
     The function:
     1. Determines the time range for post selection based on backfill parameters
     2. Retrieves posts to classify using get_posts_to_classify()
-    3. Separates posts by source (firehose vs most_liked)
-    4. Runs batch classification on each source's posts if run_classification is True
-    5. Exports and returns the results
+    3. Runs batch classification on posts if run_classification is True
+    4. Exports and returns the results
 
     If no posts are found to classify, returns a summary with zero counts.
     """
@@ -77,9 +74,12 @@ def classify_latest_posts(
                 "event": event,
                 "inference_metadata": {},
             }
+        hyperparameters = default_hyperparameters
+        if event is not None and "hyperparameters" in event:
+            hyperparameters = event["hyperparameters"]
         classification_metadata = run_batch_classification(
             posts=posts_to_classify,
-            hyperparameters=event.get("hyperparameters", default_hyperparameters),
+            hyperparameters=hyperparameters,
         )
         total_classified = len(posts_to_classify)
     else:

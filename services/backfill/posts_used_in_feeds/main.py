@@ -36,6 +36,8 @@ def backfill_posts_used_in_feeds(payload: dict):
         else INTEGRATIONS_LIST
     )
 
+    logger.info(f"Integrations to process: {integrations_to_process}")
+
     if payload.get("add_posts_to_queue"):
         # Validate required dates when adding to queue
         start_date = payload.get("start_date")

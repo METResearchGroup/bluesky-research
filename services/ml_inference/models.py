@@ -49,7 +49,9 @@ class PerspectiveApiLabelsModel(BaseModel):
 
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
-    created_at: str = Field(..., description="The created_at timestamp of the post.")
+    preprocessing_timestamp: str = Field(
+        ..., description="The preprocessing_timestamp timestamp of the post."
+    )
     was_successfully_labeled: bool = Field(
         ...,
         description="Indicates if the post was successfully labeled by the Perspective API.",
@@ -158,6 +160,9 @@ class SociopoliticalLabelsModel(BaseModel):
 
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
+    preprocessing_timestamp: str = Field(
+        ..., description="The preprocessing_timestamp timestamp of the post."
+    )
     llm_model_name: Optional[str] = Field(
         default=None, description="Name of LLM model used for inference."
     )  # noqa
@@ -187,7 +192,9 @@ class ImeLabelModel(BaseModel):
 
     uri: str = Field(..., description="The URI of the post.")
     text: str = Field(..., description="The text of the post.")
-    created_at: str = Field(..., description="The created_at timestamp of the post.")
+    preprocessing_timestamp: str = Field(
+        ..., description="The preprocessing_timestamp timestamp of the post."
+    )
     was_successfully_labeled: bool = Field(
         ...,
         description="Indicates if the post was successfully labeled by the Perspective API.",
@@ -223,3 +230,15 @@ class ImeLabelModel(BaseModel):
     label_timestamp: Optional[str] = Field(
         default=None, description="Timestamp when the IME classification was performed."
     )
+
+
+class PostToLabelModel(BaseModel):
+    """A model for a post to be labeled."""
+
+    uri: str = Field(..., description="The URI of the post.")
+    text: str = Field(..., description="The text of the post.")
+    preprocessing_timestamp: str = Field(
+        ..., description="The preprocessing_timestamp timestamp of the post."
+    )
+    batch_id: int = Field(..., description="The batch ID of the post.")
+    batch_metadata: str = Field(..., description="The batch metadata of the post.")

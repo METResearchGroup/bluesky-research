@@ -12,7 +12,7 @@ logger = get_logger(__file__)
 
 def backfill_posts_used_in_feed_for_partition_date(
     partition_date: str,
-    integrations_to_process: Optional[list[str]] = None,
+    integrations_to_process: list[str],
 ):
     posts_to_backfill: dict[str, list[dict]] = load_posts_to_backfill(
         partition_date=partition_date,
@@ -40,8 +40,8 @@ def backfill_posts_used_in_feed_for_partition_date(
 def backfill_posts_used_in_feed_for_partition_dates(
     start_date: str,
     end_date: str,
+    integrations_to_process: list[str],
     exclude_partition_dates: Optional[list[str]] = None,
-    integrations_to_process: Optional[list[str]] = None,
 ):
     """Backfill posts used in feed for a range of partition dates."""
     partition_dates: list[str] = get_partition_dates(
