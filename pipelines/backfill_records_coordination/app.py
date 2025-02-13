@@ -4,6 +4,10 @@ import click
 from pipelines.backfill_records_coordination.handler import lambda_handler
 from pipelines.write_cache_buffers.handler import lambda_handler as write_cache_handler
 from datetime import datetime
+from lib.db.queue import Queue
+from lib.log.logger import get_logger
+
+logger = get_logger(__name__)
 
 INTEGRATION_MAP = {
     "p": "ml_inference_perspective_api",
@@ -143,6 +147,18 @@ def validate_date_format(ctx, param, value):
     callback=validate_date_format,
     help="End date for backfill (YYYY-MM-DD format, inclusive). If provided with start-date, only processes records within date range.",
 )
+@click.option(
+    "--clear-input-queues",
+    is_flag=True,
+    default=False,
+    help="Clear all input queues for specified integrations. Will prompt for confirmation.",
+)
+@click.option(
+    "--clear-output-queues",
+    is_flag=True,
+    default=False,
+    help="Clear all output queues for specified integrations. Will prompt for confirmation.",
+)
 def backfill_records(
     record_type: str | None,
     add_to_queue: bool,
@@ -156,6 +172,8 @@ def backfill_records(
     bypass_write: bool,
     start_date: str | None,
     end_date: str | None,
+    clear_input_queues: bool,
+    clear_output_queues: bool,
 ):
     """CLI app for triggering backfill of records and optionally writing cache buffers.
 
@@ -180,7 +198,53 @@ def backfill_records(
 
         # Backfill posts within a date range
         $ python -m pipelines.backfill_records_coordination.app -r posts --start-date 2024-01-01 --end-date 2024-01-31
+
+        # Clear input queues for specific integrations
+        $ python -m pipelines.backfill_records_coordination.app -i p -i s --clear-input-queues
+
+        # Clear output queues for specific integrations
+        $ python -m pipelines.backfill_records_coordination.app -i p -i s --clear-output-queues
     """
+    # Handle queue clearing first if requested
+    if clear_input_queues or clear_output_queues:
+        # Determine which integrations to clear
+        integrations_to_clear = (
+            [resolve_integration(i) for i in integration]
+            if integration
+            else DEFAULT_INTEGRATION_KWARGS.keys()
+        )
+
+        # Ask for confirmation
+        queue_type = "input" if clear_input_queues else "output"
+        integrations_str = ", ".join(integrations_to_clear)
+        if not click.confirm(
+            f"Are you sure you want to clear all {queue_type} queues for these integrations: {integrations_str}?"
+        ):
+            click.echo("Operation cancelled.")
+            return
+
+        # Clear the queues
+        for integration_name in integrations_to_clear:
+            if clear_input_queues:
+                logger.warning(f"Clearing input queue for {integration_name}...")
+                queue = Queue(
+                    queue_name=f"input_{integration_name}", create_new_queue=True
+                )
+                deleted_count = queue.clear_queue()
+                logger.info(
+                    f"Cleared {deleted_count} items from input queue for {integration_name}"
+                )
+
+            if clear_output_queues:
+                logger.warning(f"Clearing output queue for {integration_name}...")
+                queue = Queue(
+                    queue_name=f"output_{integration_name}", create_new_queue=True
+                )
+                deleted_count = queue.clear_queue()
+                logger.info(
+                    f"Cleared {deleted_count} items from output queue for {integration_name}"
+                )
+
     # Validate that record_type is provided when add_to_queue is True
     if add_to_queue and not record_type:
         raise click.UsageError("--record-type is required when --add-to-queue is used")

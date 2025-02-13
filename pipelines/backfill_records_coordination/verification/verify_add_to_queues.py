@@ -52,3 +52,7 @@ def main():
     ]:
         total_records = get_total_records_in_queue(queue)
         print(f"Total records in {queue.queue_name}: {total_records}")
+
+
+if __name__ == "__main__":
+    main()

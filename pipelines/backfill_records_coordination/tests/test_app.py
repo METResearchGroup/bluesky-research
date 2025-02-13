@@ -1,9 +1,13 @@
 from unittest import TestCase
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, MagicMock, call
 
 from click.testing import CliRunner
 
-from pipelines.backfill_records_coordination.app import backfill_records, resolve_integration
+from pipelines.backfill_records_coordination.app import (
+    backfill_records,
+    resolve_integration,
+    DEFAULT_INTEGRATION_KWARGS,
+)
 
 class TestBackfillCoordinationCliApp(TestCase):
     def setUp(self):
@@ -614,3 +618,148 @@ class TestBackfillCoordinationCliApp(TestCase):
         
         self.assertEqual(result.exit_code, 0)
         mock_handler.assert_not_called()
+
+    @patch('pipelines.backfill_records_coordination.app.Queue')
+    def test_clear_input_queues_with_confirmation(self, mock_queue_cls):
+        """Test clearing input queues with user confirmation."""
+        mock_queue = MagicMock()
+        mock_queue.clear_queue.return_value = 5  # Simulate 5 items cleared
+        mock_queue_cls.return_value = mock_queue
+
+        # Simulate user confirming the action
+        result = self.runner.invoke(
+            backfill_records,
+            ['--clear-input-queues', '-i', 'p', '-i', 's'],
+            input='y\n'  # Simulate user typing 'y' when prompted
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        # Should be called twice, once for each integration
+        self.assertEqual(mock_queue_cls.call_count, 2)
+        mock_queue_cls.assert_has_calls([
+            call(queue_name='input_ml_inference_perspective_api', create_new_queue=True),
+            call().clear_queue(),
+            call(queue_name='input_ml_inference_sociopolitical', create_new_queue=True),
+            call().clear_queue(),
+        ])
+        self.assertEqual(mock_queue.clear_queue.call_count, 2)
+
+    @patch('pipelines.backfill_records_coordination.app.Queue')
+    def test_clear_output_queues_with_confirmation(self, mock_queue_cls):
+        """Test clearing output queues with user confirmation."""
+        mock_queue = MagicMock()
+        mock_queue.clear_queue.return_value = 3  # Simulate 3 items cleared
+        mock_queue_cls.return_value = mock_queue
+
+        # Simulate user confirming the action
+        result = self.runner.invoke(
+            backfill_records,
+            ['--clear-output-queues', '-i', 'p', '-i', 's'],
+            input='y\n'  # Simulate user typing 'y' when prompted
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        # Should be called twice, once for each integration
+        self.assertEqual(mock_queue_cls.call_count, 2)
+        mock_queue_cls.assert_has_calls([
+            call(queue_name='output_ml_inference_perspective_api', create_new_queue=True),
+            call().clear_queue(),
+            call(queue_name='output_ml_inference_sociopolitical', create_new_queue=True),
+            call().clear_queue(),
+        ])
+        self.assertEqual(mock_queue.clear_queue.call_count, 2)
+
+    @patch('pipelines.backfill_records_coordination.app.Queue')
+    def test_clear_both_queues_with_confirmation(self, mock_queue_cls):
+        """Test clearing both input and output queues with user confirmation."""
+        mock_queue = MagicMock()
+        mock_queue.clear_queue.return_value = 4  # Simulate 4 items cleared
+        mock_queue_cls.return_value = mock_queue
+
+        # Simulate user confirming both actions
+        result = self.runner.invoke(
+            backfill_records,
+            ['--clear-input-queues', '--clear-output-queues', '-i', 'p'],
+            input='y\n'  # Only need one confirmation since both are handled together
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        # Should be called twice for the one integration (input and output)
+        self.assertEqual(mock_queue_cls.call_count, 2)
+        mock_queue_cls.assert_has_calls([
+            call(queue_name='input_ml_inference_perspective_api', create_new_queue=True),
+            call().clear_queue(),
+            call(queue_name='output_ml_inference_perspective_api', create_new_queue=True),
+            call().clear_queue(),
+        ])
+        self.assertEqual(mock_queue.clear_queue.call_count, 2)
+
+    @patch('pipelines.backfill_records_coordination.app.Queue')
+    def test_clear_queues_cancelled(self, mock_queue_cls):
+        """Test cancellation of queue clearing when user declines confirmation."""
+        mock_queue = MagicMock()
+        mock_queue_cls.return_value = mock_queue
+
+        # Simulate user declining the action
+        result = self.runner.invoke(
+            backfill_records,
+            ['--clear-input-queues', '-i', 'p'],
+            input='n\n'  # Simulate user typing 'n' when prompted
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Operation cancelled", result.output)
+        mock_queue_cls.assert_not_called()
+        mock_queue.clear_queue.assert_not_called()
+
+    @patch('pipelines.backfill_records_coordination.app.Queue')
+    def test_clear_queues_all_integrations(self, mock_queue_cls):
+        """Test clearing queues for all integrations when none specified."""
+        mock_queue = MagicMock()
+        mock_queue.clear_queue.return_value = 2  # Simulate 2 items cleared
+        mock_queue_cls.return_value = mock_queue
+
+        # Simulate user confirming the action
+        result = self.runner.invoke(
+            backfill_records,
+            ['--clear-input-queues'],  # No integrations specified
+            input='y\n'
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        # Should be called once for each default integration
+        expected_calls = len(DEFAULT_INTEGRATION_KWARGS)
+        self.assertEqual(mock_queue_cls.call_count, expected_calls)
+        self.assertEqual(mock_queue.clear_queue.call_count, expected_calls)
+
+    @patch('pipelines.backfill_records_coordination.app.Queue')
+    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
+    def test_clear_queues_with_other_operations(self, mock_handler, mock_queue_cls):
+        """Test clearing queues combined with other operations."""
+        mock_queue = MagicMock()
+        mock_queue.clear_queue.return_value = 3
+        mock_queue_cls.return_value = mock_queue
+        mock_handler.return_value = {"statusCode": 200}
+
+        # Simulate user confirming the action
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                '--clear-input-queues',
+                '-i', 'p',
+                '--record-type', 'posts',
+                '--add-to-queue',
+                '--run-integrations'
+            ],
+            input='y\n'
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        # Verify queue clearing happened
+        mock_queue_cls.assert_called_once_with(
+            queue_name='input_ml_inference_perspective_api',
+            create_new_queue=True
+        )
+        mock_queue.clear_queue.assert_called_once()
+        # Verify other operations were also performed
+        mock_handler.assert_called_once()

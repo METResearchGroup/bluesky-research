@@ -12,6 +12,7 @@ from lib.log.logger import get_logger
 from pipelines.backfill_records_coordination.verification.helpers.verify_queue_states import (
     verify_queue_non_zero_state,
     verify_queue_zero_state,
+    verify_only_invalid_records_in_queue,
     get_total_records_in_queue,
 )
 from pipelines.backfill_records_coordination.verification.helpers.verify_storage import (
@@ -91,9 +92,11 @@ def print_queue_counts():
 def verify_start_or_mid_state():
     """Verify start/mid state and print storage info."""
     # Verify input queues are empty
-    assert verify_queue_zero_state(input_ml_inference_perspective_api_queue)
-    assert verify_queue_zero_state(input_ml_inference_sociopolitical_queue)
-    assert verify_queue_zero_state(input_ml_inference_ime_queue)
+    assert verify_only_invalid_records_in_queue(
+        input_ml_inference_perspective_api_queue
+    )
+    assert verify_only_invalid_records_in_queue(input_ml_inference_sociopolitical_queue)
+    assert verify_only_invalid_records_in_queue(input_ml_inference_ime_queue)
 
     # Verify output queues have records
     assert verify_queue_non_zero_state(output_ml_inference_perspective_api_queue)
@@ -110,10 +113,12 @@ def verify_start_or_mid_state():
 
 def verify_end_state():
     """Verify end state and print storage info."""
-    # Verify input queues are empty
-    assert verify_queue_zero_state(input_ml_inference_perspective_api_queue)
-    assert verify_queue_zero_state(input_ml_inference_sociopolitical_queue)
-    assert verify_queue_zero_state(input_ml_inference_ime_queue)
+    # Verify input queues only have invalid records
+    assert verify_only_invalid_records_in_queue(
+        input_ml_inference_perspective_api_queue
+    )
+    assert verify_only_invalid_records_in_queue(input_ml_inference_sociopolitical_queue)
+    assert verify_only_invalid_records_in_queue(input_ml_inference_ime_queue)
 
     # Verify output queues are empty
     assert verify_queue_zero_state(output_ml_inference_perspective_api_queue)

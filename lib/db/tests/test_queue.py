@@ -303,6 +303,98 @@ class TestBatchDelete:
             assert payload["value"] in [1, 3, 5]
 
 
+class TestClearQueue:
+    """Tests for queue clearing functionality."""
+
+    def test_clear_empty_queue(self, queue: Queue) -> None:
+        """Test clearing an empty queue.
+
+        Verifies:
+        - Clearing empty queue returns 0 items deleted
+        - Operation completes successfully
+        """
+        deleted_count = queue.clear_queue()
+        assert deleted_count == 0
+        assert queue.get_queue_length() == 0
+
+    def test_clear_queue_with_items(self, queue: Queue) -> None:
+        """Test clearing a queue with items.
+
+        Verifies:
+        - All items are deleted
+        - Returns correct number of deleted items
+        - Queue is empty after clearing
+        """
+        # Add test items
+        test_items = [{"key": f"value_{i}"} for i in range(5)]
+        queue.batch_add_items_to_queue(test_items, batch_size=2)
+        initial_length = queue.get_queue_length()
+        assert initial_length == 3  # Should be 3 chunks (2+2+1)
+
+        # Clear queue
+        deleted_count = queue.clear_queue()
+        assert deleted_count == initial_length
+        assert queue.get_queue_length() == 0
+
+        # Verify no items can be loaded
+        assert len(queue.load_items_from_queue()) == 0
+
+    def test_clear_queue_with_mixed_status(self, queue: Queue) -> None:
+        """Test clearing queue with items in different states.
+
+        Verifies:
+        - Items with all statuses are deleted
+        - Returns total number of deleted items
+        - Queue is empty after clearing
+        """
+        # Add test items
+        test_items = [{"key": f"value_{i}"} for i in range(4)]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # Set some items to different statuses
+        with queue._get_connection() as conn:
+            conn.execute(
+                f"UPDATE {queue.queue_table_name} SET status = 'processing' WHERE id = 1"
+            )
+            conn.execute(
+                f"UPDATE {queue.queue_table_name} SET status = 'completed' WHERE id = 2"
+            )
+
+        initial_length = queue.get_queue_length()
+        assert initial_length == 4
+
+        # Clear queue
+        deleted_count = queue.clear_queue()
+        assert deleted_count == initial_length
+        assert queue.get_queue_length() == 0
+
+        # Verify no items remain with any status
+        for status in ["pending", "processing", "completed", "failed"]:
+            assert len(queue.load_items_from_queue(status=status)) == 0
+
+    def test_clear_queue_idempotency(self, queue: Queue) -> None:
+        """Test clearing queue multiple times.
+
+        Verifies:
+        - Multiple clear operations are safe
+        - Subsequent clears return 0 items deleted
+        - Queue remains empty
+        """
+        # Add test items
+        test_items = [{"key": f"value_{i}"} for i in range(3)]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # First clear
+        first_clear_count = queue.clear_queue()
+        assert first_clear_count == 3
+        assert queue.get_queue_length() == 0
+
+        # Second clear
+        second_clear_count = queue.clear_queue()
+        assert second_clear_count == 0
+        assert queue.get_queue_length() == 0
+
+
 class TestQueueEmpty:
     def test_queue_empty_behavior(self, queue: Queue) -> None:
         """Test queue operations on empty queue return expected values.

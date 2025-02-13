@@ -382,6 +382,18 @@ class Queue:
             logger.info(f"Deleted {deleted_count} items from queue.")
             return deleted_count
 
+    def clear_queue(self) -> int:
+        """Delete all items from the queue.
+
+        Returns:
+            int: Number of items deleted
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(f"DELETE FROM {self.queue_table_name}")
+            deleted_count = cursor.rowcount
+            logger.info(f"Cleared {deleted_count} items from queue {self.queue_name}")
+            return deleted_count
+
     def load_items_from_queue(
         self,
         limit: Optional[int] = None,
