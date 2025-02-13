@@ -91,6 +91,13 @@ def print_queue_counts():
 
 def verify_start_or_mid_state():
     """Verify start/mid state and print storage info."""
+    print_queue_counts()
+
+    # Verify storage for each integration
+    verify_storage("ml_inference_perspective_api")
+    verify_storage("ml_inference_sociopolitical")
+    verify_storage("ml_inference_ime")
+
     # Verify input queues are empty
     assert verify_only_invalid_records_in_queue(
         input_ml_inference_perspective_api_queue
@@ -102,13 +109,6 @@ def verify_start_or_mid_state():
     assert verify_queue_non_zero_state(output_ml_inference_perspective_api_queue)
     assert verify_queue_non_zero_state(output_ml_inference_sociopolitical_queue)
     assert verify_queue_non_zero_state(output_ml_inference_ime_queue)
-
-    print_queue_counts()
-
-    # Verify storage for each integration
-    verify_storage("ml_inference_perspective_api")
-    verify_storage("ml_inference_sociopolitical")
-    verify_storage("ml_inference_ime")
 
 
 def verify_end_state():

@@ -2,7 +2,7 @@
 
 from typing import Callable, Optional
 
-from api.integrations_router.map import MAP_INTEGRATION_REQUEST_TO_SERVICE
+from api.integrations_router.map import get_handler
 from api.integrations_router.models import IntegrationRequest, RunExecutionMetadata
 from lib.aws.dynamodb import DynamoDB
 from lib.helper import track_performance
@@ -26,7 +26,7 @@ def run_integration_service(
     payload = request.payload
     if not previous_run_metadata:
         previous_run_metadata = {}
-    service_handler: Callable = MAP_INTEGRATION_REQUEST_TO_SERVICE[service]
+    service_handler: Callable = get_handler(service)
     run_metadata = service_handler(event=payload, context=None)
     transformed_run_metadata = RunExecutionMetadata(**run_metadata)
     return transformed_run_metadata

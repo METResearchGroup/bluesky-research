@@ -2,7 +2,6 @@
 
 from datetime import timedelta
 import gc
-from typing import Optional
 
 import pandas as pd
 
@@ -11,7 +10,6 @@ from lib.db.manage_local_data import load_data_from_local_storage
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.backfill.posts.load_data import (
-    INTEGRATIONS_LIST,
     load_preprocessed_posts,
     load_service_post_uris,
 )
@@ -163,7 +161,7 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
 @track_performance
 def load_posts_to_backfill(
     partition_date: str,
-    integrations: Optional[list[str]] = None,
+    integrations: list[str],
 ) -> dict[str, list[dict]]:
     """Load the posts to be backfilled for the partition date.
 
@@ -174,9 +172,6 @@ def load_posts_to_backfill(
     Loads the posts used in feeds (the hydrated, preprocessed versions) and then
     returns the URIs of the posts to be backfilled for each integration.
     """
-    if not integrations:
-        integrations = INTEGRATIONS_LIST
-
     lookback_start_date, lookback_end_date = calculate_start_end_date_for_lookback(
         partition_date=partition_date,
         num_days_lookback=default_num_days_lookback,

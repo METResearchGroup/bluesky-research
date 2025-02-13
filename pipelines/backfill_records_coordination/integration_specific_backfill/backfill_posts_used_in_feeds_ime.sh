@@ -19,14 +19,9 @@ PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 
 # Parse command line arguments
 PARTITION_DATE=""
-INTEGRATION=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --integration)
-            INTEGRATION="$2"
-            shift 2
-            ;;
         *)
             if [ -z "$PARTITION_DATE" ]; then
                 PARTITION_DATE="$1"
@@ -45,19 +40,15 @@ if [ -z "$PARTITION_DATE" ]; then
     exit 1
 fi
 
-# Build python command with optional integration flag
+# Build python command with integration flag
 PYTHON_CMD="/projects/p32375/bluesky-research/pipelines/backfill_records_coordination/app.py \
     --record-type posts_used_in_feeds \
     --add-to-queue \
     --start-date $PARTITION_DATE \
-    --end-date $PARTITION_DATE"
-
-if [ ! -z "$INTEGRATION" ]; then
-    PYTHON_CMD="$PYTHON_CMD --integration $INTEGRATION"
-fi
+    --end-date $PARTITION_DATE \
+    --integration i"
 
 echo "Running python command: $PYTHON_CMD"
-
 
 # insert backfill records into queues for partition date
 source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
@@ -70,4 +61,4 @@ if [ $exit_code -ne 0 ]; then
     exit $exit_code
 fi
 echo "Completed slurm job."
-exit 0
+exit 0 
