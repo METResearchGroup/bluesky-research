@@ -204,9 +204,6 @@ def get_hydrated_feed_posts_per_user(partition_date: str) -> dict[str, pd.DataFr
     map_user_to_subset_df: dict[str, pd.DataFrame] = {}
     for user, posts in users_to_posts.items():
         subset_df = posts_df[posts_df["uri"].isin(posts)]
-        logger.info(
-            f"Hydrated {len(subset_df)} posts for user {user} for partition date {partition_date}"
-        )
         map_user_to_subset_df[user] = subset_df
     return map_user_to_subset_df
 
@@ -226,14 +223,13 @@ def get_per_user_feed_averages_for_partition_date(partition_date: str) -> pd.Dat
     # Create list to store per-user averages
     user_averages = []
 
-    for user, posts_df in map_user_to_posts_df.items():
-        logger.info(
-            f"Calculating per-user averages for user {user} for partition date {partition_date}"
-        )
+    logger.info(f"Calculating per-user averages for partition date {partition_date}")
 
+    for user, posts_df in map_user_to_posts_df.items():
         # Calculate averages for each feature
         averages = {
             "user": user,
+            "user_did": user,
             "avg_prob_toxic": posts_df["prob_toxic"].dropna().mean(),
             "avg_prob_severe_toxic": posts_df["prob_severe_toxic"].dropna().mean(),
             "avg_prob_identity_attack": posts_df["prob_identity_attack"]
@@ -300,6 +296,10 @@ def get_per_user_feed_averages_for_partition_date(partition_date: str) -> pd.Dat
     averages_df = pd.DataFrame(user_averages)
     averages_df = averages_df.set_index("user")
 
+    logger.info(
+        f"Finished calculating per-user averages for partition date {partition_date}"
+    )
+
     return averages_df
 
 
@@ -321,13 +321,12 @@ def get_per_user_feed_averages_for_study() -> pd.DataFrame:
         df = get_per_user_feed_averages_for_partition_date(partition_date)
         df["date"] = partition_date
         dfs.append(df)
-    logger.info("Concatenating all dataframes...")
     concat_df = pd.concat(dfs)
     # Sort by user and partition date in ascending order
-    concat_df = concat_df.sort_values(
-        ["user", "partition_date"], ascending=[True, True]
+    concat_df = concat_df.sort_values(["user", "date"], ascending=[True, True])
+    logger.info(
+        f"Exporting a dataframe of per-user feed averages, with {len(concat_df)} rows"
     )
-    logger.info(f"Exporting a concated dataframe with {len(concat_df)} rows")
     return concat_df
 
 
@@ -820,28 +819,15 @@ def main(generate_user_week_thresholds_bool: bool = False):
 
     # load week thresholds.
     if generate_user_week_thresholds_bool:
-        week_thresholds: pd.DataFrame = generate_week_thresholds()
-    else:
-        week_thresholds: pd.DataFrame = pd.read_csv(
-            os.path.join(current_filedir, "bluesky_per_user_week_assignments.csv")
-        )
+        generate_week_thresholds()
 
-    # join against user averages.
+    # get per-user daily averages for each date.
     per_user_averages: pd.DataFrame = get_per_user_feed_averages_for_study()
+
     joined_df: pd.DataFrame = per_user_averages.merge(
         user_demographics, left_on="user_did", right_on="bluesky_user_did", how="left"
     )
-    assert len(joined_df) == len(
-        per_user_averages
-    ), f"Expected {len(per_user_averages)} rows after join but got {len(joined_df)}"
 
-    joined_df = joined_df.merge(
-        week_thresholds, on=["bluesky_handle", "date", "wave"], how="left"
-    )  # FIX.
-
-    assert len(joined_df) == len(
-        per_user_averages
-    ), f"Expected {len(per_user_averages)} rows after join but got {len(joined_df)}"
     joined_df.to_csv(os.path.join(current_filedir, "condition_aggregated.csv"))
 
 
