@@ -10,6 +10,9 @@ from lib.log.logger import get_logger
 from services.backfill.posts_used_in_feeds.load_data import (
     calculate_start_end_date_for_lookback,
 )
+from services.calculate_analytics.study_analytics.deprecated.get_fine_grained_weekly_usage_reports import (
+    UTC_DTS,
+)
 from services.fetch_posts_used_in_feeds.helper import load_feed_from_json_str
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
@@ -18,6 +21,9 @@ from services.participant_data.models import UserToBlueskyProfileModel
 start_date = "2024-10-01"
 end_date = "2024-12-01"
 exclude_partition_dates = ["2024-10-08"]
+
+# first element is the end of week 1.
+utc_dates_formatted = [dt.strftime("%Y-%m-%d") for dt in UTC_DTS]
 
 logger = get_logger(__file__)
 
@@ -317,24 +323,22 @@ def load_user_demographic_info() -> pd.DataFrame:
     return user_df
 
 
-def get_week_thresholds_per_user_dynamic(
-    user_handle_to_wave_df: pd.DataFrame,
-) -> pd.DataFrame:
-    """Get the week thresholds for each user, based on their Qualtrics
-    survey dates.
+def map_date_to_static_week(partition_date: str, wave: int) -> int:
+    """Map a partition date to a static week number, based on the user's wave.
 
-    Returns a dataframe with three columns:
-    - bluesky_handle: str
-    - date: %Y-%m-%d
-    - week_dynamic: 1-8
-
-    Requires knowing the user's wave in order to offset their week
-    cutoffs correctly.
+    Returns a week number between 1 and 8.
     """
-    # TODO: I can load this from the file I used before.
-    pass
+    week = 0
+
+    while partition_date <= utc_dates_formatted[week]:
+        week += 1
+
+    if wave == 2:
+        week -= 1
+    return week
 
 
+# TODO: send relevant file to Quest.
 def get_week_thresholds_per_user_static(
     user_handle_to_wave_df: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -349,36 +353,85 @@ def get_week_thresholds_per_user_static(
     Requires knowing the user's wave in order to offset their week
     cutoffs correctly.
     """
-    pass
+    partition_dates = get_partition_dates(
+        start_date=start_date,
+        end_date=end_date,
+        exclude_partition_dates=exclude_partition_dates,
+    )
+    # Create a list of all combinations of handles and partition dates
+    all_combinations = []
+    for _, row in user_handle_to_wave_df.iterrows():
+        for partition_date in partition_dates:
+            all_combinations.append(
+                {
+                    "bluesky_handle": row["bluesky_handle"],
+                    "wave": row["wave"],
+                    "date": partition_date,
+                    "week_static": map_date_to_static_week(partition_date, row["wave"]),
+                }
+            )
+
+    # Convert to DataFrame
+    df = pd.DataFrame(all_combinations)
+
+    # Sort by handle and date
+    df = df.sort_values(["bluesky_handle", "date"])
+
+    logger.info(f"Created week thresholds DataFrame with {len(df)} rows")
+
+    return df
 
 
 # TODO: edit and verify.
-def get_user_handle_to_wave_df() -> pd.DataFrame:
+def get_week_thresholds_per_user_dynamic(
+    week_thresholds_per_user_static: pd.DataFrame,
+) -> pd.DataFrame:
     """Get a mapping of user handles to the wave they were in.
 
     Returns:
         pd.DataFrame: DataFrame with columns 'bluesky_handle' and 'wave'
+
+    Loads in the "valid_weeks_per_bluesky_user.csv" file and:
+    - If the user filled out the survey AND they have a survey timestamp,
+    we use that as the end cutoff for that week (this is how we did it
+    before, where we counted a user's survey as valid only IF they went
+    into the app before they filled out the survey. Therefore, the survey
+    is the end date of that week, with regards to checking for user activity).
+    - Else, we use the static threshold defined in
+    `get_week_thresholds_per_user_static`.
     """
-    # Load the Qualtrics logs which contain the wave information
-    qualtrics_logs = pd.read_csv(
-        "services/calculate_analytics/study_analytics/qualtrics_logs.csv"
+    valid_weeks_per_bluesky_user: pd.DataFrame = pd.read_csv(
+        os.path.join(current_filedir, "valid_weeks_per_bluesky_user.csv")
     )
 
-    # Get unique handle and wave combinations
-    wave_df = qualtrics_logs[["handle", "wave"]].drop_duplicates()
+    valid_weeks_per_bluesky_user = valid_weeks_per_bluesky_user[
+        ["handle", "filled_out_survey", "survey_timestamp_utc"]
+    ]
 
-    # Rename columns to match expected output
-    wave_df = wave_df.rename(
-        columns={
-            "handle": "bluesky_handle",
-        }
-    )
+    # TODO: verify that this treats NaNs correctly, by not filtering
+    # them out. IDK. Will have to check.
+    valid_weeks_per_bluesky_user["survey_timestamp_date"] = pd.to_datetime(
+        valid_weeks_per_bluesky_user["survey_timestamp_utc"],
+        format="%Y-%m-%d-%H:%M:%S",
+        errors="coerce",
+    ).dt.date
 
-    return wave_df
+    # TODO: need to figure out the logic, as per the docstring.
+    df = pd.DataFrame()
+
+    return df
+
+
+def get_user_handle_to_wave_df() -> dict[str, int]:
+    """Get a mapping of user handles to the wave they were in."""
+    qualtrics_df = pd.read_csv(os.path.join(current_filedir, "qualtrics_logs.csv"))
+    qualtrics_df = qualtrics_df[["handle", "wave"]]
+    qualtrics_df = qualtrics_df.dropna(subset=["handle"])
+    qualtrics_df["handle"] = qualtrics_df["handle"].str.lower()
+    return qualtrics_df.set_index("handle")["wave"].to_dict()
 
 
 def main():
-    per_user_averages: pd.DataFrame = get_per_user_feed_averages_for_study()
     user_demographics: pd.DataFrame = load_user_demographic_info()
     user_handle_to_wave_df: dict[str, int] = get_user_handle_to_wave_df()
     week_thresholds_per_user_static: pd.DataFrame = get_week_thresholds_per_user_static(
@@ -389,6 +442,7 @@ def main():
             user_handle_to_wave_df=user_handle_to_wave_df
         )
     )
+    per_user_averages: pd.DataFrame = get_per_user_feed_averages_for_study()
     joined_df: pd.DataFrame = per_user_averages.merge(
         user_demographics, left_on="user_did", right_on="bluesky_user_did", how="left"
     )
