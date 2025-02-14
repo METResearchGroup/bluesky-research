@@ -1,5 +1,6 @@
-# TODO: refactor as necessary. This is just a first pass.
+"""Generates the 'condition_aggregated.csv' file."""
 
+import gc
 import os
 
 import pandas as pd
@@ -95,25 +96,25 @@ def get_ime_labels_for_posts(posts: pd.DataFrame, partition_date: str) -> pd.Dat
     return df
 
 
-def get_sociopolitical_labels_for_posts(
-    posts: pd.DataFrame, partition_date: str
-) -> pd.DataFrame:
-    """Get the sociopolitical labels for a list of posts."""
-    start_date, end_date = calculate_start_end_date_for_lookback(
-        partition_date=partition_date
-    )
-    df: pd.DataFrame = load_data_from_local_storage(
-        service="ml_inference_sociopolitical",
-        directory="cache",
-        partition_date=partition_date,
-        start_partition_date=start_date,
-        end_partition_date=end_date,
-    )
-    df = df[df["uri"].isin(posts["uri"])]
-    logger.info(
-        f"Filtered to {len(df)} sociopolitical labels for partition date {partition_date}"
-    )
-    return df
+# def get_sociopolitical_labels_for_posts(
+#     posts: pd.DataFrame, partition_date: str
+# ) -> pd.DataFrame:
+#     """Get the sociopolitical labels for a list of posts."""
+#     start_date, end_date = calculate_start_end_date_for_lookback(
+#         partition_date=partition_date
+#     )
+#     df: pd.DataFrame = load_data_from_local_storage(
+#         service="ml_inference_sociopolitical",
+#         directory="cache",
+#         partition_date=partition_date,
+#         start_partition_date=start_date,
+#         end_partition_date=end_date,
+#     )
+#     df = df[df["uri"].isin(posts["uri"])]
+#     logger.info(
+#         f"Filtered to {len(df)} sociopolitical labels for partition date {partition_date}"
+#     )
+#     return df
 
 
 def map_users_to_posts_used_in_feeds(
@@ -143,9 +144,11 @@ def get_hydrated_posts_for_partition_date(partition_date: str) -> pd.DataFrame:
     ime_labels_df: pd.DataFrame = get_ime_labels_for_posts(
         posts=posts_df, partition_date=partition_date
     )
-    sociopolitical_labels_df: pd.DataFrame = get_sociopolitical_labels_for_posts(
-        posts=posts_df, partition_date=partition_date
-    )
+
+    # NOTE: won't have complete data yet for it.
+    # sociopolitical_labels_df: pd.DataFrame = get_sociopolitical_labels_for_posts(
+    #     posts=posts_df, partition_date=partition_date
+    # )
 
     # deduping
     posts_df = posts_df.drop_duplicates(subset=["uri"])
@@ -153,7 +156,7 @@ def get_hydrated_posts_for_partition_date(partition_date: str) -> pd.DataFrame:
         subset=["uri"]
     )
     ime_labels_df = ime_labels_df.drop_duplicates(subset=["uri"])
-    sociopolitical_labels_df = sociopolitical_labels_df.drop_duplicates(subset=["uri"])
+    # sociopolitical_labels_df = sociopolitical_labels_df.drop_duplicates(subset=["uri"])
 
     # Left join each set of labels against the posts dataframe
     # This ensures we keep all posts even if they don't have certain labels
@@ -163,9 +166,18 @@ def get_hydrated_posts_for_partition_date(partition_date: str) -> pd.DataFrame:
 
     posts_with_ime = posts_with_perspective.merge(ime_labels_df, on="uri", how="left")
 
-    posts_with_all_labels = posts_with_ime.merge(
-        sociopolitical_labels_df, on="uri", how="left"
-    )
+    # posts_with_all_labels = posts_with_ime.merge(
+    #     sociopolitical_labels_df, on="uri", how="left"
+    # )
+
+    posts_with_all_labels = posts_with_ime
+
+    del posts_df
+    del posts_with_perspective
+    del posts_with_ime
+    del perspective_api_labels_df
+    del ime_labels_df
+    gc.collect()
 
     logger.info(
         f"Created wide table with {len(posts_with_all_labels)} rows for partition date {partition_date}"
@@ -248,32 +260,32 @@ def get_per_user_feed_averages_for_partition_date(partition_date: str) -> pd.Dat
         }
 
         # Calculate political averages
-        total_rows = len(posts_df)
-        avg_is_political = posts_df["is_sociopolitical"].dropna().mean()
+        # total_rows = len(posts_df)
+        # avg_is_political = posts_df["is_sociopolitical"].dropna().mean()
 
-        political_averages = {
-            "avg_is_political": avg_is_political,
-            "avg_is_not_political": 1 - avg_is_political,
-            "avg_is_political_left": (
-                posts_df["political_ideology_label"].fillna("").eq("left")
-            ).sum()
-            / total_rows,
-            "avg_is_political_right": (
-                posts_df["political_ideology_label"].fillna("").eq("right")
-            ).sum()
-            / total_rows,
-            "avg_is_political_moderate": (
-                posts_df["political_ideology_label"].fillna("").eq("moderate")
-            ).sum()
-            / total_rows,
-            "avg_is_political_unclear": (
-                posts_df["political_ideology_label"].fillna("").eq("unclear")
-            ).sum()
-            / total_rows,
-        }
+        # political_averages = {
+        #     "avg_is_political": avg_is_political,
+        #     "avg_is_not_political": 1 - avg_is_political,
+        #     "avg_is_political_left": (
+        #         posts_df["political_ideology_label"].fillna("").eq("left")
+        #     ).sum()
+        #     / total_rows,
+        #     "avg_is_political_right": (
+        #         posts_df["political_ideology_label"].fillna("").eq("right")
+        #     ).sum()
+        #     / total_rows,
+        #     "avg_is_political_moderate": (
+        #         posts_df["political_ideology_label"].fillna("").eq("moderate")
+        #     ).sum()
+        #     / total_rows,
+        #     "avg_is_political_unclear": (
+        #         posts_df["political_ideology_label"].fillna("").eq("unclear")
+        #     ).sum()
+        #     / total_rows,
+        # }
 
-        # Combine all averages
-        averages.update(political_averages)
+        # # Combine all averages
+        # averages.update(political_averages)
 
         user_averages.append(averages)
 
@@ -353,10 +365,10 @@ def get_week_thresholds_per_user_static(
     Requires knowing the user's wave in order to offset their week
     cutoffs correctly.
     """
-    partition_dates = get_partition_dates(
+    partition_dates: list[str] = get_partition_dates(
         start_date=start_date,
         end_date=end_date,
-        exclude_partition_dates=exclude_partition_dates,
+        exclude_partition_dates=[],
     )
     # Create a list of all combinations of handles and partition dates
     all_combinations = []
@@ -382,7 +394,6 @@ def get_week_thresholds_per_user_static(
     return df
 
 
-# TODO: edit and verify.
 def get_week_thresholds_per_user_dynamic(
     week_thresholds_per_user_static: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -405,19 +416,75 @@ def get_week_thresholds_per_user_dynamic(
     )
 
     valid_weeks_per_bluesky_user = valid_weeks_per_bluesky_user[
-        ["handle", "filled_out_survey", "survey_timestamp_utc"]
+        ["handle", "survey_week", "filled_out_survey", "survey_timestamp_utc"]
     ]
 
-    # TODO: verify that this treats NaNs correctly, by not filtering
-    # them out. IDK. Will have to check.
+    # Convert timestamp strings to dates, preserving NaN values
+    # NaN values in survey_timestamp_utc will remain NaN in survey_timestamp_date
     valid_weeks_per_bluesky_user["survey_timestamp_date"] = pd.to_datetime(
         valid_weeks_per_bluesky_user["survey_timestamp_utc"],
         format="%Y-%m-%d-%H:%M:%S",
         errors="coerce",
     ).dt.date
 
-    # TODO: need to figure out the logic, as per the docstring.
-    df = pd.DataFrame()
+    user_survey_week_to_end_of_week_date: dict[tuple[str, int], str] = {}
+
+    week_thresholds_per_user_static_dict: dict[tuple[str, int], str] = {
+        (row["bluesky_handle"], row["week_static"]): row["date"]
+        for _, row in week_thresholds_per_user_static.iterrows()
+    }
+
+    # determine threshold by either looking at the survey timestamp or the
+    # static threshold
+    for row in valid_weeks_per_bluesky_user.iterrows():
+        handle = row["handle"]
+        survey_week = row["survey_week"]
+        filled_out_survey = row["filled_out_survey"]
+        survey_timestamp_date = row["survey_timestamp_date"]
+
+        if filled_out_survey and survey_timestamp_date:
+            user_survey_week_to_end_of_week_date[(handle, survey_week)] = (
+                survey_timestamp_date
+            )
+        else:
+            user_survey_week_to_end_of_week_date[(handle, survey_week)] = (
+                week_thresholds_per_user_static_dict[(handle, survey_week)]
+            )
+
+    # Convert user_survey_week_to_end_of_week_date to user_to_end_of_week_date
+    user_to_end_of_week_date: dict[str, dict[int, str]] = {}
+    for (handle, week), date in user_survey_week_to_end_of_week_date.items():
+        if handle not in user_to_end_of_week_date:
+            user_to_end_of_week_date[handle] = {}
+        user_to_end_of_week_date[handle][week] = date
+
+    partition_dates: list[str] = get_partition_dates(
+        start_date=start_date,
+        end_date=end_date,
+        exclude_partition_dates=[],
+    )
+
+    user_dates_to_dynamic_week_thresholds: list[dict] = []
+
+    # iterate through each partition date
+    for partition_date in partition_dates:
+        # iterate through each user and their end of week dates
+        for handle, end_of_week_date_dict in user_to_end_of_week_date.items():
+            # iterate through each week and its end of week date
+            for week, end_of_week_date in end_of_week_date_dict.items():
+                # if the partition date is less than or equal to the end of
+                # week date, then add the user, partition date, and week to
+                # the list
+                if partition_date <= end_of_week_date:
+                    user_dates_to_dynamic_week_thresholds.append(
+                        {
+                            "bluesky_handle": handle,
+                            "date": partition_date,
+                            "week_dynamic": week,
+                        }
+                    )
+
+    df: pd.DataFrame = pd.DataFrame(user_dates_to_dynamic_week_thresholds)
 
     return df
 
