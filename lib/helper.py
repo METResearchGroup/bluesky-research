@@ -240,7 +240,7 @@ def get_partition_dates(
     Returns:
         List of dates in YYYY-MM-DD format
     """
-    if not exclude_partition_dates:
+    if exclude_partition_dates is None:
         exclude_partition_dates = ["2024-10-08"]  # server crashed.
     partition_dates = []
     current_date = datetime.strptime(start_date, "%Y-%m-%d")
