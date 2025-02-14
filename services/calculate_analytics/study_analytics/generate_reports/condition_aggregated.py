@@ -437,7 +437,7 @@ def get_week_thresholds_per_user_static(
 
     df = pd.DataFrame(user_date_combinations)
     df = df.sort_values(["bluesky_handle", "date"])
-    df = df[["bluesky_handle", "date", "week_static"]]
+    df = df[["bluesky_handle", "date", "wave", "week_static"]]
 
     return df
 
@@ -686,7 +686,7 @@ def get_week_thresholds_per_user_dynamic(
 
     df: pd.DataFrame = pd.DataFrame(user_date_combinations)
     df = df.sort_values(["bluesky_handle", "date"])
-    df = df[["bluesky_handle", "date", "week_dynamic"]]
+    df = df[["bluesky_handle", "date", "wave", "week_dynamic"]]
 
     return df
 
@@ -816,7 +816,9 @@ def main():
         f"Generated week thresholds per user dynamic with {len(week_thresholds_per_user_dynamic)} rows"
     )
     week_thresholds: pd.DataFrame = week_thresholds_per_user_static.merge(
-        week_thresholds_per_user_dynamic, on=["bluesky_handle", "date"], how="left"
+        week_thresholds_per_user_dynamic,
+        on=["bluesky_handle", "date", "wave"],
+        how="left",
     )
     assert (
         len(week_thresholds) == len(week_thresholds_per_user_static)
@@ -824,6 +826,11 @@ def main():
     assert (
         len(week_thresholds) == len(week_thresholds_per_user_dynamic)
     ), f"Expected {len(week_thresholds_per_user_dynamic)} rows after merge but got {len(week_thresholds)}"
+
+    # Export week thresholds.
+    week_thresholds.to_csv(
+        os.path.join(current_filedir, "bluesky_per_user_week_assignments.csv")
+    )
 
     breakpoint()
 
