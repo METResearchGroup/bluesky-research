@@ -1,7 +1,9 @@
 """Generates the 'condition_aggregated.csv' file."""
 
+from datetime import date
 import gc
 import os
+from typing import Optional
 
 import pandas as pd
 
@@ -398,7 +400,7 @@ def get_week_thresholds_per_user_static(
         exclude_partition_dates=[],
     )
     # Create a list of all combinations of handles and partition dates
-    all_combinations = []
+    user_date_combinations = []
     for _, row in user_handle_to_wave_df.iterrows():
         bluesky_handle = row["bluesky_handle"]
         wave = row["wave"]
@@ -406,7 +408,7 @@ def get_week_thresholds_per_user_static(
             # account for different waves, where wave 1 ends 11/25 and wave 2
             # ends 12/1.
             if wave == 1 and partition_date > wave_1_study_end_date_inclusive:
-                all_combinations.append(
+                user_date_combinations.append(
                     {
                         "bluesky_handle": bluesky_handle,
                         "wave": wave,
@@ -415,7 +417,7 @@ def get_week_thresholds_per_user_static(
                     }
                 )
             elif wave == 2 and partition_date < wave_2_study_start_date_inclusive:
-                all_combinations.append(
+                user_date_combinations.append(
                     {
                         "bluesky_handle": bluesky_handle,
                         "wave": wave,
@@ -424,7 +426,7 @@ def get_week_thresholds_per_user_static(
                     }
                 )
             else:
-                all_combinations.append(
+                user_date_combinations.append(
                     {
                         "bluesky_handle": bluesky_handle,
                         "wave": wave,
@@ -433,13 +435,9 @@ def get_week_thresholds_per_user_static(
                     }
                 )
 
-    # Convert to DataFrame
-    df = pd.DataFrame(all_combinations)
-
-    # Sort by handle and date
+    df = pd.DataFrame(user_date_combinations)
     df = df.sort_values(["bluesky_handle", "date"])
-
-    logger.info(f"Created week thresholds DataFrame with {len(df)} rows")
+    df = df[["bluesky_handle", "date", "week_static"]]
 
     return df
 
@@ -459,8 +457,10 @@ def get_latest_survey_timestamp_within_period(
         start_date: start date of the period
         end_date: end date of the period
     """
-    # Filter out any None values from survey timestamps
-    survey_timestamps = [ts for ts in survey_timestamps if ts is not None]
+    # Filter out any None values and NaT values from survey timestamps
+    survey_timestamps = [
+        ts for ts in survey_timestamps if ts is not None and pd.notna(ts)
+    ]
 
     # Return None if no valid timestamps
     if not survey_timestamps:
@@ -469,6 +469,11 @@ def get_latest_survey_timestamp_within_period(
     # Get latest timestamp within period
     valid_timestamps = []
     for survey_timestamp in survey_timestamps:
+        if isinstance(survey_timestamp, date):
+            survey_timestamp = survey_timestamp.strftime("%Y-%m-%d")
+        # Skip if timestamp is NaT
+        if pd.isna(survey_timestamp):
+            continue
         if start_date <= survey_timestamp <= end_date:
             valid_timestamps.append(survey_timestamp)
 
@@ -568,23 +573,40 @@ def get_week_threshold_for_user_dynamic(
     return week_thresholds
 
 
-def map_date_to_dynamic_week(date: str, dynamic_week_thresholds: list[str]) -> int:
+def map_date_to_dynamic_week(
+    date: str, dynamic_week_thresholds: list[str]
+) -> Optional[int]:
     """Map a date to a dynamic week number.
 
     Returns a week number between 1 and 8.
 
     Weeks go Monday -> Sunday.
+
+    We can have weeks > 8 (e.g., week = 9), this means that the date
+    in question is after the user filled out the survey in their last
+    week.
+
+    For example, for Wave 1, the last week ends 2024-11-24. We already mark
+    as NaN the dates in the range 2024-09-30 -> 2024-12-01 that are after
+    2024-11-24 since the users are not counted for those dates. However,
+    during that last week, some users filled out their surveys before 2024-11-24,
+    so we set their threshold to the date they filled out their survey and we
+    say that that's the last day that their data is counted and we don't
+    count any other days past that.
     """
     week = 1
     for threshold in dynamic_week_thresholds:
         if date <= threshold:
             break
         week += 1
+
+    if week > 8:
+        return None
     return week
 
 
 def get_week_thresholds_per_user_dynamic(
-    valid_weeks_per_bluesky_user: pd.DataFrame, user_handle_to_wave_df: pd.DataFrame
+    qualtrics_logs: pd.DataFrame, user_handle_to_wave_df: pd.DataFrame
 ) -> pd.DataFrame:
     """Get the week thresholds for each user, based on when they filled out
     the survey.
@@ -607,24 +629,22 @@ def get_week_thresholds_per_user_dynamic(
     }
 
     # Sort by handle and survey_week in ascending order
-    valid_weeks_per_bluesky_user = valid_weeks_per_bluesky_user.sort_values(
-        ["handle", "survey_week"], ascending=[True, True]
+    qualtrics_logs = qualtrics_logs.sort_values(
+        ["handle", "survey_timestamp_date"], ascending=[True, True]
     )
 
     # every user has 8 survey timestamps, one per week. This was verified
     # before already.
-    user_survey_timestamps_df = valid_weeks_per_bluesky_user[
-        ["handle", "survey_timestamp"]
-    ]
+    user_survey_timestamps_df = qualtrics_logs[["handle", "survey_timestamp_date"]]
 
     user_to_week_thresholds: dict[str, list[str]] = {}
     for handle, user_df in user_survey_timestamps_df.groupby("handle"):
         user_to_week_thresholds[handle] = get_week_threshold_for_user_dynamic(
             wave=user_handle_to_wave[handle],
-            survey_timestamps=user_df["survey_timestamp"].tolist(),
+            survey_timestamps=user_df["survey_timestamp_date"].tolist(),
         )
 
-    all_combinations = []
+    user_date_combinations = []
 
     for _, row in user_handle_to_wave_df.iterrows():
         bluesky_handle = row["bluesky_handle"]
@@ -634,7 +654,7 @@ def get_week_thresholds_per_user_dynamic(
             # account for different waves, where wave 1 ends 11/25 and wave 2
             # ends 12/1.
             if wave == 1 and partition_date > wave_1_study_end_date_inclusive:
-                all_combinations.append(
+                user_date_combinations.append(
                     {
                         "bluesky_handle": bluesky_handle,
                         "wave": wave,
@@ -643,7 +663,7 @@ def get_week_thresholds_per_user_dynamic(
                     }
                 )
             elif wave == 2 and partition_date < wave_2_study_start_date_inclusive:
-                all_combinations.append(
+                user_date_combinations.append(
                     {
                         "bluesky_handle": bluesky_handle,
                         "wave": wave,
@@ -652,7 +672,7 @@ def get_week_thresholds_per_user_dynamic(
                     }
                 )
             else:
-                all_combinations.append(
+                user_date_combinations.append(
                     {
                         "bluesky_handle": bluesky_handle,
                         "wave": wave,
@@ -664,7 +684,9 @@ def get_week_thresholds_per_user_dynamic(
                     }
                 )
 
-    df: pd.DataFrame = pd.DataFrame(all_combinations)
+    df: pd.DataFrame = pd.DataFrame(user_date_combinations)
+    df = df.sort_values(["bluesky_handle", "date"])
+    df = df[["bluesky_handle", "date", "week_dynamic"]]
 
     return df
 
@@ -713,8 +735,26 @@ def main():
         os.path.join(current_filedir, "qualtrics_logs.csv")
     )
     qualtrics_logs = filter_process_users_from_qualtrics_data(qualtrics_logs)
-    qualtrics_logs = qualtrics_logs[["handle", "wave"]]
+    qualtrics_logs = qualtrics_logs[["handle", "wave", "condition", "StartDate"]]
+    qualtrics_logs["survey_timestamp_mountain_time"] = pd.to_datetime(
+        qualtrics_logs["StartDate"],
+        format="%m/%d/%Y %H:%M",
+        errors="coerce",
+    ).dt.tz_localize("America/Denver")  # Explicitly set Mountain Time timezone
+    qualtrics_logs["survey_timestamp_utc"] = qualtrics_logs[
+        "survey_timestamp_mountain_time"
+    ].dt.tz_convert("UTC")
+    qualtrics_logs["survey_timestamp_date"] = qualtrics_logs[
+        "survey_timestamp_utc"
+    ].dt.date
+    qualtrics_logs["survey_timestamp_date"] = qualtrics_logs[
+        "survey_timestamp_date"
+    ].astype(str)
+    qualtrics_logs = qualtrics_logs[
+        ["handle", "wave", "condition", "survey_timestamp_date"]
+    ]
 
+    # grabbing this file only since we filtered out users correctly in this file.
     valid_weeks_per_bluesky_user: pd.DataFrame = pd.read_csv(
         os.path.join(current_filedir, "valid_weeks_per_bluesky_user.csv")
     )
@@ -722,15 +762,7 @@ def main():
         valid_weeks_per_bluesky_user,
         filter_duplicate_wave_users=False,
     )
-    valid_weeks_per_bluesky_user = valid_weeks_per_bluesky_user[
-        ["handle", "survey_week", "filled_out_survey", "survey_timestamp_utc"]
-    ]
-    valid_weeks_per_bluesky_user["survey_timestamp_date"] = pd.to_datetime(
-        valid_weeks_per_bluesky_user["survey_timestamp_utc"],
-        format="%Y-%m-%d-%H:%M:%S",
-        errors="coerce",
-    ).dt.date
-
+    valid_weeks_per_bluesky_user = valid_weeks_per_bluesky_user[["handle"]]
     # load user demographics from DynamoDB
     user_demographics: pd.DataFrame = load_user_demographic_info()
     logger.info(f"Loaded user demographics with {len(user_demographics)} rows")
@@ -777,20 +809,23 @@ def main():
     )
     week_thresholds_per_user_dynamic: pd.DataFrame = (
         get_week_thresholds_per_user_dynamic(
-            valid_weeks_per_bluesky_user=valid_weeks_per_bluesky_user,
-            user_handle_to_wave_df=user_handle_to_wave_df,
-            week_thresholds_per_user_static=week_thresholds_per_user_static,
+            qualtrics_logs=qualtrics_logs, user_handle_to_wave_df=user_handle_to_wave_df
         )
     )
     logger.info(
         f"Generated week thresholds per user dynamic with {len(week_thresholds_per_user_dynamic)} rows"
     )
-    # TODO: join stuff here before the per-user averages.
-    breakpoint()
     week_thresholds: pd.DataFrame = week_thresholds_per_user_static.merge(
         week_thresholds_per_user_dynamic, on=["bluesky_handle", "date"], how="left"
     )
-    print(week_thresholds.head())
+    assert (
+        len(week_thresholds) == len(week_thresholds_per_user_static)
+    ), f"Expected {len(week_thresholds_per_user_static)} rows after merge but got {len(week_thresholds)}"
+    assert (
+        len(week_thresholds) == len(week_thresholds_per_user_dynamic)
+    ), f"Expected {len(week_thresholds_per_user_dynamic)} rows after merge but got {len(week_thresholds)}"
+
+    breakpoint()
 
     # join against user averages.
     per_user_averages: pd.DataFrame = get_per_user_feed_averages_for_study()

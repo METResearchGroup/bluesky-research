@@ -2,9 +2,12 @@
 
 import pytest
 from datetime import datetime, timedelta
+import pandas as pd
+from datetime import date
 
 from services.calculate_analytics.study_analytics.generate_reports.condition_aggregated import (
     map_date_to_static_week,
+    get_latest_survey_timestamp_within_period,
 )
 
 # Helper function to generate dates in range
@@ -100,4 +103,38 @@ def test_specific_boundary_dates_wave_2():
     
     for date, expected_week in test_cases:
         result = map_date_to_static_week(date, wave=2)
-        assert result == expected_week, f"Wave 2 boundary: Date {date} should map to week {expected_week}, got {result}" 
+        assert result == expected_week, f"Wave 2 boundary: Date {date} should map to week {expected_week}, got {result}"
+
+def test_get_latest_survey_timestamp_within_period():
+    # Test case 1: Normal case with valid timestamps
+    timestamps = ["2024-01-01", "2024-01-02", "2024-01-03"]
+    assert get_latest_survey_timestamp_within_period(
+        timestamps, "2024-01-01", "2024-01-03"
+    ) == "2024-01-03"
+
+    # Test case 2: Empty list
+    assert get_latest_survey_timestamp_within_period([], "2024-01-01", "2024-01-03") is None
+
+    # Test case 3: Timestamps outside range
+    timestamps = ["2024-01-04", "2024-01-05"]
+    assert get_latest_survey_timestamp_within_period(
+        timestamps, "2024-01-01", "2024-01-03"
+    ) is None
+
+    # Test case 4: Mix of date objects and strings
+    timestamps = [date(2024, 1, 1), "2024-01-02", date(2024, 1, 3)]
+    assert get_latest_survey_timestamp_within_period(
+        timestamps, "2024-01-01", "2024-01-03"
+    ) == "2024-01-03"
+
+    # Test case 5: List with None and NaT values
+    timestamps = ["2024-01-01", None, pd.NaT, "2024-01-03"]
+    assert get_latest_survey_timestamp_within_period(
+        timestamps, "2024-01-01", "2024-01-03"
+    ) == "2024-01-03"
+
+    # Test case 6: List with only None and NaT values
+    timestamps = [None, pd.NaT, None]
+    assert get_latest_survey_timestamp_within_period(
+        timestamps, "2024-01-01", "2024-01-03"
+    ) is None 
