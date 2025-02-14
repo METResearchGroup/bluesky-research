@@ -20,16 +20,18 @@ from services.calculate_analytics.study_analytics.deprecated.get_fine_grained_we
     EXCLUDELIST_HANDLES,
 )
 from services.calculate_analytics.study_analytics.generate_reports.constants import (
+    wave_1_study_start_date_inclusive,
     wave_1_study_end_date_inclusive,
-    wave_2_start_date_inclusive,
+    wave_2_study_start_date_inclusive,
+    wave_2_study_end_date_inclusive,
+    wave_1_week_start_dates_inclusive,
     wave_1_week_end_dates_inclusive,
+    wave_2_week_start_dates_inclusive,
     wave_2_week_end_dates_inclusive,
 )
 
-start_date_inclusive = "2024-09-30"
-end_date_inclusive = (
-    "2024-11-30"  # 2024-12-01 should be the upper bound (i.e., not included)
-)
+start_date_inclusive = wave_1_study_start_date_inclusive
+end_date_inclusive = wave_2_study_end_date_inclusive  # 2024-12-01 (inclusive)
 exclude_partition_dates = ["2024-10-08"]
 
 logger = get_logger(__file__)
@@ -379,6 +381,7 @@ def get_week_thresholds_per_user_static(
 
     Returns a dataframe with three columns:
     - bluesky_handle: str
+    - wave: int
     - date: %Y-%m-%d
     - week_static: 1-8
 
@@ -411,7 +414,7 @@ def get_week_thresholds_per_user_static(
                         "week_static": None,
                     }
                 )
-            elif wave == 2 and partition_date < wave_2_start_date_inclusive:
+            elif wave == 2 and partition_date < wave_2_study_start_date_inclusive:
                 all_combinations.append(
                     {
                         "bluesky_handle": bluesky_handle,
@@ -441,98 +444,157 @@ def get_week_thresholds_per_user_static(
     return df
 
 
-def get_week_thresholds_per_user_dynamic(
-    valid_weeks_per_bluesky_user: pd.DataFrame,
-    user_handle_to_wave_df: pd.DataFrame,
-    week_thresholds_per_user_static: pd.DataFrame,
-) -> pd.DataFrame:
-    """Get a mapping of user handles to the wave they were in.
+def get_latest_survey_timestamp_within_period(
+    survey_timestamps: list[str],
+    start_date: str,
+    end_date: str,
+):
+    """Get the latest survey timestamp within a given period.
 
-    Returns:
-        pd.DataFrame: DataFrame with columns 'bluesky_handle' and 'wave'
+    Returns the latest survey timestamp that falls within the given period.
+    If there are no survey timestamps within the period, returns None.
 
-    Loads in the "valid_weeks_per_bluesky_user.csv" file and:
-    - If the user filled out the survey AND they have a survey timestamp,
-    we use that as the end cutoff for that week (this is how we did it
-    before, where we counted a user's survey as valid only IF they went
-    into the app before they filled out the survey. Therefore, the survey
-    is the end date of that week, with regards to checking for user activity).
-    - Else, we use the static threshold defined in
-    `get_week_thresholds_per_user_static`.
+    Args:
+        survey_timestamps: list of survey timestamps
+        start_date: start date of the period
+        end_date: end date of the period
     """
-    user_survey_week_to_end_of_week_date: dict[tuple[str, int], str] = {}
+    # Filter out any None values from survey timestamps
+    survey_timestamps = [ts for ts in survey_timestamps if ts is not None]
 
-    week_thresholds_per_user_static_dict: dict[tuple[str, int], str] = {
-        (row["bluesky_handle"], row["week_static"]): row["date"]
-        for _, row in week_thresholds_per_user_static.iterrows()
-    }
+    # Return None if no valid timestamps
+    if not survey_timestamps:
+        return None
 
-    # determine threshold by either looking at the survey timestamp or the
-    # static threshold
+    # Get latest timestamp within period
+    valid_timestamps = []
+    for survey_timestamp in survey_timestamps:
+        if start_date <= survey_timestamp <= end_date:
+            valid_timestamps.append(survey_timestamp)
 
-    # LOGIC: If they fill out the survey within the 7 day period from
-    # Monday -> Sunday, then we use that date as the end of the week, and count
-    # all activity starting from Monday up to that date. Otherwise, we use
-    # the date of the survey as the end date (inclusive) of that week.
+    # Return latest valid timestamp
+    if valid_timestamps:
+        return max(valid_timestamps)
+    return None
 
-    # NOTE: we make all end dates inclusive.
 
-    # Example:
-    # For static weeks, we do Monday -> Sunday.
-    # The dates for the Mondays are 09/30, 10/07, 10/14, 10/21, 10/28,
-    # 11/04, 11/11, 11/18, 11/25, 12/02.
+def get_week_threshold_for_user_dynamic(
+    wave: int, survey_timestamps: list[str]
+) -> list[str]:
+    """Returns inclusive end dates for each week, based on when the user
+    filled out the survey.
 
-    # This means that for static weeks, for Wave 1, the weeks are:
-    # Week 1: 09/30 - 10/06
-    # Week 2: 10/07 - 10/13
-    # Week 3: 10/14 - 10/20
-    # Week 4: 10/21 - 10/27
-    # Week 5: 10/28 - 11/03
-    # Week 6: 11/04 - 11/10
-    # Week 7: 11/11 - 11/17
-    # Week 8: 11/18 - 11/24
-    # For Wave 2, the weeks are:
-    # Week 1: 10/07 - 10/13
-    # Week 2: 10/14 - 10/20
-    # Week 3: 10/21 - 10/27
-    # Week 4: 10/28 - 11/03
-    # Week 5: 11/04 - 11/10
-    # Week 6: 11/11 - 11/17
-    # Week 7: 11/18 - 11/24
-    # Week 8: 11/25 - 12/01
+    For a given time period, checks to see if there are any `survey_timestamp`
+    values within that week. If so, it uses that survey timestamp as the end
+    date of that week. Else, it uses the end date (inclusive) of the date range.
 
-    # For dynamic weeks, we do Monday -> Sunday.
-    # The dates for the Mondays are 09/30, 10/07, 10/14, 10/21, 10/28,
-    # 11/04, 11/11, 11/18, 11/25, 12/02.
+    Weeks go Monday -> Sunday.
 
-    #
-    # Then we move to
-    # the next Monday -> Sunday period and check if they filled out they
+    Example: let's say that a user is in Wave 2. Their weeks would be normally
+    defined as:
+    - 2024-10-07 -> 2024-10-13
+    - 2024-10-14 -> 2024-10-20
+    - 2024-10-21 -> 2024-10-27
+    - 2024-10-28 -> 2024-11-03
+    - 2024-11-04 -> 2024-11-10
+    - 2024-11-11 -> 2024-11-17
+    - 2024-11-18 -> 2024-11-24
+    - 2024-11-25 -> 2024-12-01
 
-    # Example:
+    Let's say the user fills out surveys on:
+    - 2024-10-10
+    - 2024-10-25
+    - 2024-10-26
+    - 2024-11-14
 
-    for _, row in valid_weeks_per_bluesky_user.iterrows():
-        handle = row["handle"]
-        survey_week = row["survey_week"]
-        filled_out_survey = row["filled_out_survey"]
-        survey_timestamp_date = row["survey_timestamp_date"]
+    The algorithm would proceed as follows:
+    - In the first period, 2024-10-07 -> 2024-10-13, the user filled out a survey.
+    Therefore the end date is the date of the survey, 2024-10-10.
+    - In the second period, 2024-10-14 -> 2024-10-20, the user did not fill out a survey.
+    Therefore the end date is the end date of the period, 2024-10-20.
+    - In the third period, 2024-10-21 -> 2024-10-27, the user filled out surveys
+    on both 2024-10-25 and 2024-10-26. We take the later of these two values, so
+    we set the end date to 2024-10-26.
+    - In the fourth period, 2024-10-28 -> 2024-11-03, the user did not fill out
+    a survey, so we set the end date to 2024-11-03.
+    - In the fifth period, 2024-11-04 -> 2024-11-10, the user did not fill out
+    a survey, so we set the end date to 2024-11-10.
+    - In the sixth period, 2024-11-11 -> 2024-11-17, the user filled out a survey.
+    Therefore the end date is the date of the survey, 2024-11-14.
+    - In the seventh period, 2024-11-18 -> 2024-11-24, the user did not fill out
+    a survey, so we set the end date to 2024-11-24.
+    - In the eighth period, 2024-11-25 -> 2024-12-01, the user did not fill out
+    a survey, so we set the end date to 2024-12-01.
 
-        if filled_out_survey and survey_timestamp_date:
-            user_survey_week_to_end_of_week_date[(handle, survey_week)] = (
-                survey_timestamp_date
+    Therefore, the output would be:
+    - 2024-10-10
+    - 2024-10-20
+    - 2024-10-26
+    - 2024-11-03
+    - 2024-11-10
+    - 2024-11-14
+    - 2024-11-24
+    - 2024-12-01
+    """
+    week_thresholds: list[
+        str
+    ] = []  # dates inclusive, so if the first element is 10/06, then dates up to and including 10/06 are in week 1.
+    if wave == 1:
+        for start_date, end_date in zip(
+            wave_1_week_start_dates_inclusive, wave_1_week_end_dates_inclusive
+        ):
+            ts = get_latest_survey_timestamp_within_period(
+                survey_timestamps=survey_timestamps,
+                start_date=start_date,
+                end_date=end_date,
             )
-        else:
-            user_survey_week_to_end_of_week_date[(handle, survey_week)] = (
-                week_thresholds_per_user_static_dict[(handle, survey_week)]
+            if ts:
+                week_thresholds.append(ts)
+            else:
+                week_thresholds.append(end_date)
+    elif wave == 2:
+        for start_date, end_date in zip(
+            wave_2_week_start_dates_inclusive, wave_2_week_end_dates_inclusive
+        ):
+            ts = get_latest_survey_timestamp_within_period(
+                survey_timestamps, start_date, end_date
             )
+            if ts:
+                week_thresholds.append(ts)
+            else:
+                week_thresholds.append(end_date)
+    else:
+        raise ValueError(f"Invalid wave: {wave}")
+    return week_thresholds
 
-    # Convert user_survey_week_to_end_of_week_date to user_to_end_of_week_date
-    user_to_end_of_week_date: dict[str, dict[int, str]] = {}
-    for (handle, week), date in user_survey_week_to_end_of_week_date.items():
-        if handle not in user_to_end_of_week_date:
-            user_to_end_of_week_date[handle] = {}
-        user_to_end_of_week_date[handle][week] = date
 
+def map_date_to_dynamic_week(date: str, dynamic_week_thresholds: list[str]) -> int:
+    """Map a date to a dynamic week number.
+
+    Returns a week number between 1 and 8.
+
+    Weeks go Monday -> Sunday.
+    """
+    week = 1
+    for threshold in dynamic_week_thresholds:
+        if date <= threshold:
+            break
+        week += 1
+    return week
+
+
+def get_week_thresholds_per_user_dynamic(
+    valid_weeks_per_bluesky_user: pd.DataFrame, user_handle_to_wave_df: pd.DataFrame
+) -> pd.DataFrame:
+    """Get the week thresholds for each user, based on when they filled out
+    the survey.
+
+    Returns a dataframe with the following columns:
+    - bluesky_handle: str
+    - wave: int
+    - date: %Y-%m-%d
+    - week_dynamic: 1-8
+    """
     partition_dates: list[str] = get_partition_dates(
         start_date=start_date_inclusive,
         end_date=end_date_inclusive,
@@ -544,74 +606,65 @@ def get_week_thresholds_per_user_dynamic(
         for _, row in user_handle_to_wave_df.iterrows()
     }
 
-    user_dates_to_dynamic_week_thresholds: list[dict] = []
+    # Sort by handle and survey_week in ascending order
+    valid_weeks_per_bluesky_user = valid_weeks_per_bluesky_user.sort_values(
+        ["handle", "survey_week"], ascending=[True, True]
+    )
 
-    # iterate through each user and their end of week dates
-    for handle, end_of_week_date_dict in user_to_end_of_week_date.items():
-        # Convert any datetime.date objects to string format
-        end_of_week_dates: list[str] = [
-            date.strftime("%Y-%m-%d") if hasattr(date, "strftime") else date
-            for date in end_of_week_date_dict.values()
-        ]
-        end_of_week_dates: list[str] = sorted(end_of_week_dates)
-        if len(end_of_week_dates) != 8:
-            print(f"User {handle} has {len(end_of_week_dates)} end of week dates")
+    # every user has 8 survey timestamps, one per week. This was verified
+    # before already.
+    user_survey_timestamps_df = valid_weeks_per_bluesky_user[
+        ["handle", "survey_timestamp"]
+    ]
 
-        updates: list[dict] = []
+    user_to_week_thresholds: dict[str, list[str]] = {}
+    for handle, user_df in user_survey_timestamps_df.groupby("handle"):
+        user_to_week_thresholds[handle] = get_week_threshold_for_user_dynamic(
+            wave=user_handle_to_wave[handle],
+            survey_timestamps=user_df["survey_timestamp"].tolist(),
+        )
 
-        wave = user_handle_to_wave[handle]
+    all_combinations = []
 
-        # iterate through each partition date
+    for _, row in user_handle_to_wave_df.iterrows():
+        bluesky_handle = row["bluesky_handle"]
+        wave = row["wave"]
+        end_of_week_dates = user_to_week_thresholds[bluesky_handle]
         for partition_date in partition_dates:
-            week = 0
-
             # account for different waves, where wave 1 ends 11/25 and wave 2
             # ends 12/1.
-            if wave == 1 and partition_date > "2024-11-24":
-                updates.append(
+            if wave == 1 and partition_date > wave_1_study_end_date_inclusive:
+                all_combinations.append(
                     {
-                        "bluesky_handle": handle,
+                        "bluesky_handle": bluesky_handle,
+                        "wave": wave,
                         "date": partition_date,
                         "week_dynamic": None,
                     }
                 )
-            elif wave == 2 and partition_date < "2024-10-07":
-                updates.append(
+            elif wave == 2 and partition_date < wave_2_study_start_date_inclusive:
+                all_combinations.append(
                     {
-                        "bluesky_handle": handle,
+                        "bluesky_handle": bluesky_handle,
+                        "wave": wave,
                         "date": partition_date,
                         "week_dynamic": None,
                     }
                 )
             else:
-                # iterate through each week and its end of week date
-                for end_of_week_date in end_of_week_dates:
-                    # if the partition date is less than or equal to the end of
-                    # week date, then add the user, partition date, and week to
-                    # the list
-                    week += 1
-                    # NOTE: is equality correct here? Perhaps not? We want
-                    # the weeks to go Monday -> Sunday, so the date
-                    # of the subsequent Monday should be the cap?
-                    if partition_date <= end_of_week_date:
-                        updates.append(
-                            {
-                                "bluesky_handle": handle,
-                                "date": partition_date,
-                                "week_dynamic": week,
-                            }
-                        )
-                        break
+                all_combinations.append(
+                    {
+                        "bluesky_handle": bluesky_handle,
+                        "wave": wave,
+                        "date": partition_date,
+                        "week_dynamic": map_date_to_dynamic_week(
+                            date=partition_date,
+                            dynamic_week_thresholds=end_of_week_dates,
+                        ),
+                    }
+                )
 
-        if len(updates) != len(partition_dates):
-            print("SOMETHING WRONG IN THE UPDATES.")
-            breakpoint()
-
-        user_dates_to_dynamic_week_thresholds.extend(updates)
-
-    breakpoint()
-
-    df: pd.DataFrame = pd.DataFrame(user_dates_to_dynamic_week_thresholds)
+    df: pd.DataFrame = pd.DataFrame(all_combinations)
 
     return df
 
