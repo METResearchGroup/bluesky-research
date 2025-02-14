@@ -11,20 +11,24 @@ from lib.log.logger import get_logger
 from services.backfill.posts_used_in_feeds.load_data import (
     calculate_start_end_date_for_lookback,
 )
-from services.calculate_analytics.study_analytics.deprecated.get_fine_grained_weekly_usage_reports import (
-    UTC_DTS,
-)
 from services.fetch_posts_used_in_feeds.helper import load_feed_from_json_str
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
-
+from services.calculate_analytics.study_analytics.deprecated.get_fine_grained_weekly_usage_reports import (
+    fix_misspelled_handle,
+    DUPLICATE_WAVE_USERS,
+    EXCLUDELIST_HANDLES,
+)
+from services.calculate_analytics.study_analytics.generate_reports.constants import (
+    wave_1_study_end_date_inclusive,
+    wave_2_start_date_inclusive,
+    wave_1_week_end_dates_inclusive,
+    wave_2_week_end_dates_inclusive,
+)
 
 start_date = "2024-10-01"
-end_date = "2024-12-01"
+end_date = "2024-11-30"  # 2024-12-01 should be the upper bound (i.e., not included)
 exclude_partition_dates = ["2024-10-08"]
-
-# first element is the end of week 1.
-utc_dates_formatted = [dt.strftime("%Y-%m-%d") for dt in UTC_DTS]
 
 logger = get_logger(__file__)
 
@@ -339,22 +343,36 @@ def map_date_to_static_week(partition_date: str, wave: int) -> int:
     """Map a partition date to a static week number, based on the user's wave.
 
     Returns a week number between 1 and 8.
+
+    Weeks are defined Monday -> Sunday. The dates in
+    `wave_1_week_end_dates_inclusive` and `wave_2_week_end_dates_inclusive`
+    are the end dates of each week (inclusive), meaning these are Sundays.
     """
-    week = 0
 
-    while partition_date <= utc_dates_formatted[week]:
-        week += 1
+    week = 1
 
-    if wave == 2:
-        week -= 1
+    if wave == 1:
+        for end_date in wave_1_week_end_dates_inclusive:
+            if partition_date <= end_date:
+                break
+            week += 1
+
+    elif wave == 2:
+        for end_date in wave_2_week_end_dates_inclusive:
+            if partition_date <= end_date:
+                break
+            week += 1
+
+    else:
+        raise ValueError(f"Invalid wave: {wave}")
+
     return week
 
 
-# TODO: send relevant file to Quest.
 def get_week_thresholds_per_user_static(
     user_handle_to_wave_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Get the week thresholds for each user, based on a Sunday -> Sunday
+    """Get the week thresholds for each user, based on a Monday -> Monday
     week schedule.
 
     Returns a dataframe with three columns:
@@ -373,15 +391,38 @@ def get_week_thresholds_per_user_static(
     # Create a list of all combinations of handles and partition dates
     all_combinations = []
     for _, row in user_handle_to_wave_df.iterrows():
+        bluesky_handle = row["bluesky_handle"]
+        wave = row["wave"]
         for partition_date in partition_dates:
-            all_combinations.append(
-                {
-                    "bluesky_handle": row["bluesky_handle"],
-                    "wave": row["wave"],
-                    "date": partition_date,
-                    "week_static": map_date_to_static_week(partition_date, row["wave"]),
-                }
-            )
+            # account for different waves, where wave 1 ends 11/25 and wave 2
+            # ends 12/1.
+            if wave == 1 and partition_date > wave_1_study_end_date_inclusive:
+                all_combinations.append(
+                    {
+                        "bluesky_handle": bluesky_handle,
+                        "wave": wave,
+                        "date": partition_date,
+                        "week_static": None,
+                    }
+                )
+            elif wave == 2 and partition_date < wave_2_start_date_inclusive:
+                all_combinations.append(
+                    {
+                        "bluesky_handle": bluesky_handle,
+                        "wave": wave,
+                        "date": partition_date,
+                        "week_static": None,
+                    }
+                )
+            else:
+                all_combinations.append(
+                    {
+                        "bluesky_handle": bluesky_handle,
+                        "wave": wave,
+                        "date": partition_date,
+                        "week_static": map_date_to_static_week(partition_date, wave),
+                    }
+                )
 
     # Convert to DataFrame
     df = pd.DataFrame(all_combinations)
@@ -395,6 +436,8 @@ def get_week_thresholds_per_user_static(
 
 
 def get_week_thresholds_per_user_dynamic(
+    valid_weeks_per_bluesky_user: pd.DataFrame,
+    user_handle_to_wave_df: pd.DataFrame,
     week_thresholds_per_user_static: pd.DataFrame,
 ) -> pd.DataFrame:
     """Get a mapping of user handles to the wave they were in.
@@ -411,22 +454,6 @@ def get_week_thresholds_per_user_dynamic(
     - Else, we use the static threshold defined in
     `get_week_thresholds_per_user_static`.
     """
-    valid_weeks_per_bluesky_user: pd.DataFrame = pd.read_csv(
-        os.path.join(current_filedir, "valid_weeks_per_bluesky_user.csv")
-    )
-
-    valid_weeks_per_bluesky_user = valid_weeks_per_bluesky_user[
-        ["handle", "survey_week", "filled_out_survey", "survey_timestamp_utc"]
-    ]
-
-    # Convert timestamp strings to dates, preserving NaN values
-    # NaN values in survey_timestamp_utc will remain NaN in survey_timestamp_date
-    valid_weeks_per_bluesky_user["survey_timestamp_date"] = pd.to_datetime(
-        valid_weeks_per_bluesky_user["survey_timestamp_utc"],
-        format="%Y-%m-%d-%H:%M:%S",
-        errors="coerce",
-    ).dt.date
-
     user_survey_week_to_end_of_week_date: dict[tuple[str, int], str] = {}
 
     week_thresholds_per_user_static_dict: dict[tuple[str, int], str] = {
@@ -436,7 +463,49 @@ def get_week_thresholds_per_user_dynamic(
 
     # determine threshold by either looking at the survey timestamp or the
     # static threshold
-    for row in valid_weeks_per_bluesky_user.iterrows():
+
+    # LOGIC: If they fill out the survey within the 7 day period from
+    # Monday -> Sunday, then we use that date as the end of the week, and count
+    # all activity starting from Monday up to that date. Otherwise, we use
+    # the date of the survey as the end date (inclusive) of that week.
+
+    # NOTE: we make all end dates inclusive.
+
+    # Example:
+    # For static weeks, we do Monday -> Sunday.
+    # The dates for the Mondays are 09/30, 10/07, 10/14, 10/21, 10/28,
+    # 11/04, 11/11, 11/18, 11/25, 12/02.
+
+    # This means that for static weeks, for Wave 1, the weeks are:
+    # Week 1: 09/30 - 10/06
+    # Week 2: 10/07 - 10/13
+    # Week 3: 10/14 - 10/20
+    # Week 4: 10/21 - 10/27
+    # Week 5: 10/28 - 11/03
+    # Week 6: 11/04 - 11/10
+    # Week 7: 11/11 - 11/17
+    # Week 8: 11/18 - 11/24
+    # For Wave 2, the weeks are:
+    # Week 1: 10/07 - 10/13
+    # Week 2: 10/14 - 10/20
+    # Week 3: 10/21 - 10/27
+    # Week 4: 10/28 - 11/03
+    # Week 5: 11/04 - 11/10
+    # Week 6: 11/11 - 11/17
+    # Week 7: 11/18 - 11/24
+    # Week 8: 11/25 - 12/01
+
+    # For dynamic weeks, we do Monday -> Sunday.
+    # The dates for the Mondays are 09/30, 10/07, 10/14, 10/21, 10/28,
+    # 11/04, 11/11, 11/18, 11/25, 12/02.
+
+    #
+    # Then we move to
+    # the next Monday -> Sunday period and check if they filled out they
+
+    # Example:
+
+    for _, row in valid_weeks_per_bluesky_user.iterrows():
         handle = row["handle"]
         survey_week = row["survey_week"]
         filled_out_survey = row["filled_out_survey"]
@@ -464,51 +533,207 @@ def get_week_thresholds_per_user_dynamic(
         exclude_partition_dates=[],
     )
 
+    user_handle_to_wave: dict[str, int] = {
+        row["bluesky_handle"]: row["wave"]
+        for _, row in user_handle_to_wave_df.iterrows()
+    }
+
     user_dates_to_dynamic_week_thresholds: list[dict] = []
 
-    # iterate through each partition date
-    for partition_date in partition_dates:
-        # iterate through each user and their end of week dates
-        for handle, end_of_week_date_dict in user_to_end_of_week_date.items():
-            # iterate through each week and its end of week date
-            for week, end_of_week_date in end_of_week_date_dict.items():
-                # if the partition date is less than or equal to the end of
-                # week date, then add the user, partition date, and week to
-                # the list
-                if partition_date <= end_of_week_date:
-                    user_dates_to_dynamic_week_thresholds.append(
-                        {
-                            "bluesky_handle": handle,
-                            "date": partition_date,
-                            "week_dynamic": week,
-                        }
-                    )
+    # iterate through each user and their end of week dates
+    for handle, end_of_week_date_dict in user_to_end_of_week_date.items():
+        # Convert any datetime.date objects to string format
+        end_of_week_dates: list[str] = [
+            date.strftime("%Y-%m-%d") if hasattr(date, "strftime") else date
+            for date in end_of_week_date_dict.values()
+        ]
+        end_of_week_dates: list[str] = sorted(end_of_week_dates)
+        if len(end_of_week_dates) != 8:
+            print(f"User {handle} has {len(end_of_week_dates)} end of week dates")
+
+        updates: list[dict] = []
+
+        wave = user_handle_to_wave[handle]
+
+        # iterate through each partition date
+        for partition_date in partition_dates:
+            week = 0
+
+            # account for different waves, where wave 1 ends 11/25 and wave 2
+            # ends 12/1.
+            if wave == 1 and partition_date > "2024-11-24":
+                updates.append(
+                    {
+                        "bluesky_handle": handle,
+                        "date": partition_date,
+                        "week_dynamic": None,
+                    }
+                )
+            elif wave == 2 and partition_date < "2024-10-07":
+                updates.append(
+                    {
+                        "bluesky_handle": handle,
+                        "date": partition_date,
+                        "week_dynamic": None,
+                    }
+                )
+            else:
+                # iterate through each week and its end of week date
+                for end_of_week_date in end_of_week_dates:
+                    # if the partition date is less than or equal to the end of
+                    # week date, then add the user, partition date, and week to
+                    # the list
+                    week += 1
+                    # NOTE: is equality correct here? Perhaps not? We want
+                    # the weeks to go Monday -> Sunday, so the date
+                    # of the subsequent Monday should be the cap?
+                    if partition_date <= end_of_week_date:
+                        updates.append(
+                            {
+                                "bluesky_handle": handle,
+                                "date": partition_date,
+                                "week_dynamic": week,
+                            }
+                        )
+                        break
+
+        if len(updates) != len(partition_dates):
+            print("SOMETHING WRONG IN THE UPDATES.")
+            breakpoint()
+
+        user_dates_to_dynamic_week_thresholds.extend(updates)
+
+    breakpoint()
 
     df: pd.DataFrame = pd.DataFrame(user_dates_to_dynamic_week_thresholds)
 
     return df
 
 
-def get_user_handle_to_wave_df() -> dict[str, int]:
+def filter_process_users_from_qualtrics_data(
+    qualtrics_df: pd.DataFrame,
+    filter_duplicate_wave_users: bool = True,
+) -> pd.DataFrame:
+    """Filter and process the handles in the qualtrics dataframe."""
+    qualtrics_df["handle"] = qualtrics_df["handle"].apply(fix_misspelled_handle)
+
+    # remove excluded handles
+    qualtrics_df = qualtrics_df[~qualtrics_df["handle"].isin(EXCLUDELIST_HANDLES)]
+
+    if filter_duplicate_wave_users:
+        # filter out duplicate wave users
+        qualtrics_df = qualtrics_df[
+            ~(
+                (qualtrics_df["handle"].isin(DUPLICATE_WAVE_USERS.keys()))
+                & (
+                    qualtrics_df["wave"]
+                    == qualtrics_df["handle"].map(DUPLICATE_WAVE_USERS)
+                )
+            )
+        ]
+    return qualtrics_df
+
+
+def get_user_handle_to_wave_df(qualtrics_df: pd.DataFrame) -> pd.DataFrame:
     """Get a mapping of user handles to the wave they were in."""
-    qualtrics_df = pd.read_csv(os.path.join(current_filedir, "qualtrics_logs.csv"))
     qualtrics_df = qualtrics_df[["handle", "wave"]]
     qualtrics_df = qualtrics_df.dropna(subset=["handle"])
     qualtrics_df["handle"] = qualtrics_df["handle"].str.lower()
-    return qualtrics_df.set_index("handle")["wave"].to_dict()
+    # Rename handle to bluesky_handle to match other dataframes
+    qualtrics_df = qualtrics_df.rename(columns={"handle": "bluesky_handle"})
+    # Get unique combinations of bluesky_handle and wave
+    qualtrics_df = qualtrics_df.drop_duplicates(subset=["bluesky_handle", "wave"])
+    return qualtrics_df
 
 
 def main():
+    logger.info("Starting main function...")
+
+    # load data from Qualtrics
+    qualtrics_logs: pd.DataFrame = pd.read_csv(
+        os.path.join(current_filedir, "qualtrics_logs.csv")
+    )
+    qualtrics_logs = filter_process_users_from_qualtrics_data(qualtrics_logs)
+    qualtrics_logs = qualtrics_logs[["handle", "wave"]]
+
+    valid_weeks_per_bluesky_user: pd.DataFrame = pd.read_csv(
+        os.path.join(current_filedir, "valid_weeks_per_bluesky_user.csv")
+    )
+    valid_weeks_per_bluesky_user = filter_process_users_from_qualtrics_data(
+        valid_weeks_per_bluesky_user,
+        filter_duplicate_wave_users=False,
+    )
+    valid_weeks_per_bluesky_user = valid_weeks_per_bluesky_user[
+        ["handle", "survey_week", "filled_out_survey", "survey_timestamp_utc"]
+    ]
+    valid_weeks_per_bluesky_user["survey_timestamp_date"] = pd.to_datetime(
+        valid_weeks_per_bluesky_user["survey_timestamp_utc"],
+        format="%Y-%m-%d-%H:%M:%S",
+        errors="coerce",
+    ).dt.date
+
+    # load user demographics from DynamoDB
     user_demographics: pd.DataFrame = load_user_demographic_info()
-    user_handle_to_wave_df: dict[str, int] = get_user_handle_to_wave_df()
+    logger.info(f"Loaded user demographics with {len(user_demographics)} rows")
+
+    # consolidate handles and use only the valid ones (people who filled out
+    # the Qualtrics survey and weren't filtered out).
+    user_demographics_bsky_handles_set = set(user_demographics["bluesky_handle"])
+    qualtrics_logs_bsky_handles_set = set(qualtrics_logs["handle"])
+    valid_weeks_per_bluesky_user_bsky_handles_set = set(
+        valid_weeks_per_bluesky_user["handle"]
+    )
+    print(len(qualtrics_logs_bsky_handles_set))
+    print(len(user_demographics_bsky_handles_set))
+    print(len(valid_weeks_per_bluesky_user_bsky_handles_set))
+
+    valid_user_handles = valid_weeks_per_bluesky_user_bsky_handles_set
+
+    user_demographics = user_demographics[
+        user_demographics["bluesky_handle"].isin(valid_user_handles)
+    ]
+    qualtrics_logs = qualtrics_logs[qualtrics_logs["handle"].isin(valid_user_handles)]
+    valid_weeks_per_bluesky_user = valid_weeks_per_bluesky_user[
+        valid_weeks_per_bluesky_user["handle"].isin(valid_user_handles)
+    ]
+
+    assert (
+        set(user_demographics["bluesky_handle"])
+        == set(qualtrics_logs["handle"])
+        == set(valid_weeks_per_bluesky_user["handle"])
+    )
+
+    # start wrangling demographic and Qualtrics data
+    user_handle_to_wave_df: pd.DataFrame = get_user_handle_to_wave_df(
+        qualtrics_df=qualtrics_logs
+    )
+    logger.info(
+        f"Loaded user handle to wave mapping with {len(user_handle_to_wave_df)} rows"
+    )
     week_thresholds_per_user_static: pd.DataFrame = get_week_thresholds_per_user_static(
         user_handle_to_wave_df=user_handle_to_wave_df
     )
+    logger.info(
+        f"Generated week thresholds per user static with {len(week_thresholds_per_user_static)} rows"
+    )
     week_thresholds_per_user_dynamic: pd.DataFrame = (
         get_week_thresholds_per_user_dynamic(
-            user_handle_to_wave_df=user_handle_to_wave_df
+            valid_weeks_per_bluesky_user=valid_weeks_per_bluesky_user,
+            user_handle_to_wave_df=user_handle_to_wave_df,
+            week_thresholds_per_user_static=week_thresholds_per_user_static,
         )
     )
+    logger.info(
+        f"Generated week thresholds per user dynamic with {len(week_thresholds_per_user_dynamic)} rows"
+    )
+    # TODO: join stuff here before the per-user averages.
+    breakpoint()
+    week_thresholds: pd.DataFrame = week_thresholds_per_user_static.merge(
+        week_thresholds_per_user_dynamic, on=["bluesky_handle", "date"], how="left"
+    )
+    print(week_thresholds.head())
+
+    # join against user averages.
     per_user_averages: pd.DataFrame = get_per_user_feed_averages_for_study()
     joined_df: pd.DataFrame = per_user_averages.merge(
         user_demographics, left_on="user_did", right_on="bluesky_user_did", how="left"
