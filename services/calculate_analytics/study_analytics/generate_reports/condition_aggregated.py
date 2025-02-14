@@ -75,7 +75,6 @@ def get_perspective_api_labels_for_posts(
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_perspective_api",
         directory="cache",
-        partition_date=partition_date,
         start_partition_date=start_date,
         end_partition_date=end_date,
     )
@@ -97,7 +96,6 @@ def get_ime_labels_for_posts(posts: pd.DataFrame, partition_date: str) -> pd.Dat
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_ime",
         directory="cache",
-        partition_date=partition_date,
         start_partition_date=start_date,
         end_partition_date=end_date,
     )
@@ -116,7 +114,6 @@ def get_ime_labels_for_posts(posts: pd.DataFrame, partition_date: str) -> pd.Dat
 #     df: pd.DataFrame = load_data_from_local_storage(
 #         service="ml_inference_sociopolitical",
 #         directory="cache",
-#         partition_date=partition_date,
 #         start_partition_date=start_date,
 #         end_partition_date=end_date,
 #     )
@@ -321,7 +318,7 @@ def get_per_user_feed_averages_for_study() -> pd.DataFrame:
     )
     for partition_date in partition_dates:
         logger.info(f"Getting per-user averages for partition date: {partition_date}")
-        df = get_hydrated_posts_for_partition_date(partition_date)
+        df = get_per_user_feed_averages_for_partition_date(partition_date)
         df["date"] = partition_date
         dfs.append(df)
     logger.info("Concatenating all dataframes...")
@@ -727,8 +724,8 @@ def get_user_handle_to_wave_df(qualtrics_df: pd.DataFrame) -> pd.DataFrame:
     return qualtrics_df
 
 
-def main():
-    logger.info("Starting main function...")
+def generate_week_thresholds():
+    """Generate the week thresholds for each user."""
 
     # load data from Qualtrics
     qualtrics_logs: pd.DataFrame = pd.read_csv(
@@ -763,36 +760,14 @@ def main():
         filter_duplicate_wave_users=False,
     )
     valid_weeks_per_bluesky_user = valid_weeks_per_bluesky_user[["handle"]]
-    # load user demographics from DynamoDB
-    user_demographics: pd.DataFrame = load_user_demographic_info()
-    logger.info(f"Loaded user demographics with {len(user_demographics)} rows")
 
     # consolidate handles and use only the valid ones (people who filled out
     # the Qualtrics survey and weren't filtered out).
-    user_demographics_bsky_handles_set = set(user_demographics["bluesky_handle"])
-    qualtrics_logs_bsky_handles_set = set(qualtrics_logs["handle"])
     valid_weeks_per_bluesky_user_bsky_handles_set = set(
         valid_weeks_per_bluesky_user["handle"]
     )
-    print(len(qualtrics_logs_bsky_handles_set))
-    print(len(user_demographics_bsky_handles_set))
-    print(len(valid_weeks_per_bluesky_user_bsky_handles_set))
-
     valid_user_handles = valid_weeks_per_bluesky_user_bsky_handles_set
-
-    user_demographics = user_demographics[
-        user_demographics["bluesky_handle"].isin(valid_user_handles)
-    ]
     qualtrics_logs = qualtrics_logs[qualtrics_logs["handle"].isin(valid_user_handles)]
-    valid_weeks_per_bluesky_user = valid_weeks_per_bluesky_user[
-        valid_weeks_per_bluesky_user["handle"].isin(valid_user_handles)
-    ]
-
-    assert (
-        set(user_demographics["bluesky_handle"])
-        == set(qualtrics_logs["handle"])
-        == set(valid_weeks_per_bluesky_user["handle"])
-    )
 
     # start wrangling demographic and Qualtrics data
     user_handle_to_wave_df: pd.DataFrame = get_user_handle_to_wave_df(
@@ -831,8 +806,25 @@ def main():
     week_thresholds.to_csv(
         os.path.join(current_filedir, "bluesky_per_user_week_assignments.csv")
     )
+    return week_thresholds
 
-    breakpoint()
+
+def main(generate_user_week_thresholds_bool: bool = False):
+    """Main function."""
+
+    logger.info("Starting main function...")
+
+    # load user demographics from DynamoDB
+    user_demographics: pd.DataFrame = load_user_demographic_info()
+    logger.info(f"Loaded user demographics with {len(user_demographics)} rows")
+
+    # load week thresholds.
+    if generate_user_week_thresholds_bool:
+        week_thresholds: pd.DataFrame = generate_week_thresholds()
+    else:
+        week_thresholds: pd.DataFrame = pd.read_csv(
+            os.path.join(current_filedir, "bluesky_per_user_week_assignments.csv")
+        )
 
     # join against user averages.
     per_user_averages: pd.DataFrame = get_per_user_feed_averages_for_study()
@@ -843,13 +835,10 @@ def main():
         per_user_averages
     ), f"Expected {len(per_user_averages)} rows after join but got {len(joined_df)}"
 
-    # Join with week thresholds on bluesky_handle and date
     joined_df = joined_df.merge(
-        week_thresholds_per_user_static, on=["bluesky_handle", "date"], how="left"
-    )
-    joined_df = joined_df.merge(
-        week_thresholds_per_user_dynamic, on=["bluesky_handle", "date"], how="left"
-    )
+        week_thresholds, on=["bluesky_handle", "date", "wave"], how="left"
+    )  # FIX.
+
     assert len(joined_df) == len(
         per_user_averages
     ), f"Expected {len(per_user_averages)} rows after join but got {len(joined_df)}"
@@ -857,4 +846,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(generate_user_week_thresholds_bool=True)
