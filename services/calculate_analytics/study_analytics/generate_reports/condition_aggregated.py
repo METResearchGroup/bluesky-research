@@ -26,8 +26,10 @@ from services.calculate_analytics.study_analytics.generate_reports.constants imp
     wave_2_week_end_dates_inclusive,
 )
 
-start_date = "2024-10-01"
-end_date = "2024-11-30"  # 2024-12-01 should be the upper bound (i.e., not included)
+start_date_inclusive = "2024-09-30"
+end_date_inclusive = (
+    "2024-11-30"  # 2024-12-01 should be the upper bound (i.e., not included)
+)
 exclude_partition_dates = ["2024-10-08"]
 
 logger = get_logger(__file__)
@@ -309,8 +311,8 @@ def get_per_user_feed_averages_for_study() -> pd.DataFrame:
     """
     dfs: list[pd.DataFrame] = []
     partition_dates: list[str] = get_partition_dates(
-        start_date=start_date,
-        end_date=end_date,
+        start_date=start_date_inclusive,
+        end_date=end_date_inclusive,
         exclude_partition_dates=exclude_partition_dates,
     )
     for partition_date in partition_dates:
@@ -383,9 +385,13 @@ def get_week_thresholds_per_user_static(
     Requires knowing the user's wave in order to offset their week
     cutoffs correctly.
     """
+    # If empty DataFrame, return empty DataFrame with correct columns
+    if len(user_handle_to_wave_df) == 0:
+        return pd.DataFrame(columns=["bluesky_handle", "wave", "date", "week_static"])
+
     partition_dates: list[str] = get_partition_dates(
-        start_date=start_date,
-        end_date=end_date,
+        start_date=start_date_inclusive,
+        end_date=end_date_inclusive,
         exclude_partition_dates=[],
     )
     # Create a list of all combinations of handles and partition dates
@@ -528,8 +534,8 @@ def get_week_thresholds_per_user_dynamic(
         user_to_end_of_week_date[handle][week] = date
 
     partition_dates: list[str] = get_partition_dates(
-        start_date=start_date,
-        end_date=end_date,
+        start_date=start_date_inclusive,
+        end_date=end_date_inclusive,
         exclude_partition_dates=[],
     )
 
