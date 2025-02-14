@@ -19,24 +19,36 @@ PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 
 # Parse command line arguments
 PARTITION_DATE=""
+START_DATE=""
+END_DATE=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --partition_date)
+            PARTITION_DATE="$2"
+            shift 2
+            ;;
+        --start_date)
+            START_DATE="$2"
+            shift 2
+            ;;
+        --end_date)
+            END_DATE="$2"
+            shift 2
+            ;;
         *)
-            if [ -z "$PARTITION_DATE" ]; then
-                PARTITION_DATE="$1"
-                shift
-            else
-                echo "Error: Unexpected argument: $1"
-                exit 1
-            fi
+            echo "Error: Unknown argument: $1"
+            exit 1
             ;;
     esac
 done
 
-# Check required arguments
-if [ -z "$PARTITION_DATE" ]; then
-    echo "Error: partition_date argument is required"
+# Check arguments
+if [ ! -z "$PARTITION_DATE" ]; then
+    START_DATE=$PARTITION_DATE
+    END_DATE=$PARTITION_DATE
+elif [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
+    echo "Error: Either --partition_date OR both --start_date and --end_date must be provided"
     exit 1
 fi
 
@@ -44,15 +56,15 @@ fi
 PYTHON_CMD="/projects/p32375/bluesky-research/pipelines/backfill_records_coordination/app.py \
     --record-type posts_used_in_feeds \
     --add-to-queue \
-    --start-date $PARTITION_DATE \
-    --end-date $PARTITION_DATE \
+    --start-date $START_DATE \
+    --end-date $END_DATE \
     --integration s"
 
 echo "Running python command: $PYTHON_CMD"
 
 # insert backfill records into queues for partition date
 source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
-echo "Starting slurm job for partition date: $PARTITION_DATE"
+echo "Starting slurm job for dates: $START_DATE to $END_DATE"
 python $PYTHON_CMD
 exit_code=$?
 echo "Python script exited with code $exit_code"
@@ -61,4 +73,4 @@ if [ $exit_code -ne 0 ]; then
     exit $exit_code
 fi
 echo "Completed slurm job."
-exit 0 
+exit 0
