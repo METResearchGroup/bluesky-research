@@ -5,8 +5,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4  # enough to support the various threads for the async operations.
-#SBATCH -t 3:00:00
-#SBATCH --mem=10G
+#SBATCH -t 3:30:00
+#SBATCH --mem=15G
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --job-name=backfill_records_coordination_ml_inference_sociopolitical_%j
