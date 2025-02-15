@@ -1,12 +1,16 @@
 """Creates a report of the baseline averages for each of the integration scores
-per day across the firehose."""
+per day across the firehose.
+
+Does rolling average across 5 days since our baseline pool of posts to use
+for a given day's posts is the most recent 5 days.
+"""
 
 import os
 
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
-from lib.helper import get_partition_dates
+from lib.helper import calculate_start_end_date_for_lookback, get_partition_dates
 
 
 current_filedir = os.path.dirname(os.path.abspath(__file__))
@@ -14,10 +18,16 @@ current_filedir = os.path.dirname(os.path.abspath(__file__))
 
 def load_average_perspective_api_labels_for_partition_date(partition_date: str) -> dict:
     """Get the average of the Perspective API labels for a given partition date."""
+    start, end = calculate_start_end_date_for_lookback(
+        partition_date=partition_date,
+        num_days_lookback=5,
+        min_lookback_date="2024-09-28",
+    )
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_perspective_api",
         directory="cache",
-        partition_date=partition_date,
+        start_date=start,
+        end_date=end,
     )
     averages = {
         "avg_prob_toxic": df["prob_toxic"].dropna().mean(),
@@ -49,10 +59,16 @@ def load_average_perspective_api_labels_for_partition_date(partition_date: str) 
 
 def load_average_ime_labels_for_partition_date(partition_date: str) -> dict:
     """Get the average of the IME labels for a given partition date."""
+    start, end = calculate_start_end_date_for_lookback(
+        partition_date=partition_date,
+        num_days_lookback=5,
+        min_lookback_date="2024-09-28",
+    )
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_ime",
         directory="cache",
-        partition_date=partition_date,
+        start_date=start,
+        end_date=end,
     )
     averages = {
         "avg_prob_intergroup": df["prob_intergroup"].dropna().mean(),
@@ -66,10 +82,16 @@ def load_average_ime_labels_for_partition_date(partition_date: str) -> dict:
 
 def load_average_sociopolitical_labels_for_partition_date(partition_date: str) -> dict:
     """Get the average of the sociopolitical labels for a given partition date."""
+    start, end = calculate_start_end_date_for_lookback(
+        partition_date=partition_date,
+        num_days_lookback=5,
+        min_lookback_date="2024-09-28",
+    )
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_sociopolitical",
         directory="cache",
-        partition_date=partition_date,
+        start_date=start,
+        end_date=end,
     )
     total_rows = len(df)
     avg_is_political = df["is_sociopolitical"].dropna().mean()
