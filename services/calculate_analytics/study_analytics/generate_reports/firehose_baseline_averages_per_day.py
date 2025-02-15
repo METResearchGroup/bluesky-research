@@ -26,8 +26,8 @@ def load_average_perspective_api_labels_for_partition_date(partition_date: str) 
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_perspective_api",
         directory="cache",
-        start_date=start,
-        end_date=end,
+        start_partition_date=start,
+        end_partition_date=end,
     )
     averages = {
         "avg_prob_toxic": df["prob_toxic"].dropna().mean(),
@@ -67,8 +67,8 @@ def load_average_ime_labels_for_partition_date(partition_date: str) -> dict:
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_ime",
         directory="cache",
-        start_date=start,
-        end_date=end,
+        start_partition_date=start,
+        end_partition_date=end,
     )
     averages = {
         "avg_prob_intergroup": df["prob_intergroup"].dropna().mean(),
@@ -90,8 +90,8 @@ def load_average_sociopolitical_labels_for_partition_date(partition_date: str) -
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_sociopolitical",
         directory="cache",
-        start_date=start,
-        end_date=end,
+        start_partition_date=start,
+        end_partition_date=end,
     )
     total_rows = len(df)
     avg_is_political = df["is_sociopolitical"].dropna().mean()
