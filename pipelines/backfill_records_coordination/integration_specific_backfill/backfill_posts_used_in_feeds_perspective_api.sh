@@ -4,7 +4,7 @@
 #SBATCH -p short
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 0:30:00
+#SBATCH -t 1:00:00
 #SBATCH --mem=20G
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=markptorres1@gmail.com

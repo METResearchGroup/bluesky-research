@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:a100:2
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 1:20:00
+#SBATCH -t 1:30:00
 #SBATCH --mem=40G  # Increased memory for larger batches
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=markptorres1@gmail.com

@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4  # enough to support the various threads for the async operations.
-#SBATCH -t 12:00:00
+#SBATCH -t 16:00:00
 #SBATCH --mem=20G
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
