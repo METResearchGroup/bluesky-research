@@ -299,7 +299,11 @@ def backfill_records(
 
         # Call handler with constructed event
         response = lambda_handler({"payload": payload}, None)
-        click.echo(f"Backfill completed with status: {response['statusCode']}")
+        try:
+            click.echo(f"Backfill completed with status: {response['statusCode']}")
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            logger.error(f"Response: {response}")
 
     # Only write cache if explicitly requested
     if write_cache:

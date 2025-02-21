@@ -3,6 +3,7 @@
 Done as an alternative to writing to DuckDB since jobs keep crashing for some
 reason.
 """
+
 import gc
 
 from lib.db.manage_local_data import load_data_from_local_storage
@@ -10,6 +11,7 @@ from scripts.analytics.duckdb_helper import insert_df_to_duckdb
 from scripts.analytics.helper import get_partition_dates
 
 excluded_partition_dates = ["2024-10-09"]  # server outage
+
 
 def main():
     total_count = 0
@@ -31,8 +33,7 @@ def main():
         if "partition_date" not in consolidated_enriched_posts_df.columns:
             consolidated_enriched_posts_df["partition_date"] = current_partition_date
         insert_df_to_duckdb(
-            df=consolidated_enriched_posts_df,
-            table_name="consolidated_enriched_posts"
+            df=consolidated_enriched_posts_df, table_name="consolidated_enriched_posts"
         )
         total_count += len(consolidated_enriched_posts_df)
         del consolidated_enriched_posts_df

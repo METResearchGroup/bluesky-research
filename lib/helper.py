@@ -12,9 +12,10 @@ import time
 from typing import Optional
 
 from atproto import Client
+import pandas as pd
 
 from lib.aws.secretsmanager import get_secret
-from lib.constants import timestamp_format
+from lib.constants import timestamp_format, partition_date_format
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 
@@ -239,6 +240,8 @@ def get_partition_dates(
     Returns:
         List of dates in YYYY-MM-DD format
     """
+    if exclude_partition_dates is None:
+        exclude_partition_dates = ["2024-10-08"]  # server crashed.
     partition_dates = []
     current_date = datetime.strptime(start_date, "%Y-%m-%d")
     end_timestamp = datetime.strptime(end_date, "%Y-%m-%d")
@@ -252,3 +255,22 @@ def get_partition_dates(
         current_date += timedelta(days=1)
 
     return partition_dates
+
+
+def calculate_start_end_date_for_lookback(
+    partition_date: str,
+    num_days_lookback: int,
+    min_lookback_date: str,
+) -> tuple[str, str]:
+    """Calculate the start and end date for the lookback period.
+
+    The lookback period is the period of time before the partition date that
+    we want to load posts from. The earliest that it can be is the
+    min_lookback_date, and the latest that it can be is the partition date.
+    """
+    partition_dt = pd.to_datetime(partition_date)
+    lookback_dt = partition_dt - timedelta(days=num_days_lookback)
+    lookback_date = lookback_dt.strftime(partition_date_format)
+    start_date = max(min_lookback_date, lookback_date)
+    end_date = partition_date
+    return start_date, end_date

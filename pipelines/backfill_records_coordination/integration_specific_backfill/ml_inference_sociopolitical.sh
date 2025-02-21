@@ -1,11 +1,12 @@
 #!/bin/bash
 
 #SBATCH -A p32375
-#SBATCH -p short
+#SBATCH -p normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 3:00:00
-#SBATCH --mem=25G
+#SBATCH --cpus-per-task=4  # enough to support the various threads for the async operations.
+#SBATCH -t 16:00:00
+#SBATCH --mem=20G
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --job-name=backfill_records_coordination_ml_inference_sociopolitical_%j
