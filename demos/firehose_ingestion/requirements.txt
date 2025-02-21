@@ -1,0 +1,4 @@
+atproto==0.0.31
+aiofiles==23.2.1
+pydantic==2.5.2
+rich==13.7.0 
