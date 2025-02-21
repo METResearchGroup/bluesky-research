@@ -29,18 +29,18 @@ from services.calculate_analytics.study_analytics.deprecated.get_fine_grained_we
     EXCLUDELIST_HANDLES,
 )
 from services.calculate_analytics.study_analytics.generate_reports.constants import (
+    wave_1_study_start_date_inclusive,
     wave_1_study_end_date_inclusive,
     wave_2_study_start_date_inclusive,
+    wave_2_study_end_date_inclusive,
     wave_1_week_start_dates_inclusive,
     wave_1_week_end_dates_inclusive,
     wave_2_week_start_dates_inclusive,
     wave_2_week_end_dates_inclusive,
 )
 
-# start_date_inclusive = wave_1_study_start_date_inclusive
-start_date_inclusive = "2024-11-06"
-# end_date_inclusive = wave_2_study_end_date_inclusive  # 2024-12-01 (inclusive)
-end_date_inclusive = "2024-11-11"
+start_date_inclusive = wave_1_study_start_date_inclusive
+end_date_inclusive = wave_2_study_end_date_inclusive  # 2024-12-01 (inclusive)
 exclude_partition_dates = ["2024-10-08"]
 
 logger = get_logger(__file__)
@@ -930,6 +930,35 @@ def main(generate_user_week_thresholds_bool: bool = False):
     )
 
     joined_df.to_csv(os.path.join(current_filedir, "condition_aggregated.csv"))
+
+    # now, get a joined version mapping the joined_df to the week thresholds.
+    week_thresholds: pd.DataFrame = pd.read_csv(
+        os.path.join(current_filedir, "bluesky_per_user_week_assignments.csv")
+    )
+    week_thresholds = week_thresholds[["bluesky_handle", "date", "week_static"]]
+    joined_df = joined_df.merge(
+        week_thresholds, on=["bluesky_handle", "date"], how="left"
+    ).sort_values(["bluesky_handle", "date"], ascending=[True, True])
+    # Group by handle and week, taking mean of numeric columns and mode of categorical columns
+    numeric_cols = joined_df.select_dtypes(include=["float64", "int64"]).columns
+    categorical_cols = joined_df.select_dtypes(include=["object", "category"]).columns
+
+    # Create aggregation dictionary
+    agg_dict = {}
+    for col in joined_df.columns:
+        if col in ["bluesky_handle", "week_static"]:  # Skip groupby columns
+            continue
+        elif col in numeric_cols:
+            agg_dict[col] = "mean"
+        elif col in categorical_cols:
+            agg_dict[col] = lambda x: x.mode().iloc[0] if not x.mode().empty else None
+
+    weekly_joined_df = (
+        joined_df.groupby(["bluesky_handle", "week_static"]).agg(agg_dict).reset_index()
+    )
+    weekly_joined_df.to_csv(
+        os.path.join(current_filedir, "weekly_condition_aggregated.csv")
+    )
 
 
 if __name__ == "__main__":
