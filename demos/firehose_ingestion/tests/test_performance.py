@@ -8,8 +8,9 @@ from typing import Dict, List
 from rich.console import Console
 from rich.table import Table
 
-from ..utils import FirehoseSubscriber, BatchWriter
-from ..config import settings
+from demos.firehose_ingestion.utils.firehose import FirehoseSubscriber
+from demos.firehose_ingestion.utils.writer import BatchWriter
+from demos.firehose_ingestion.config import settings
 
 console = Console()
 
@@ -19,6 +20,9 @@ class PerformanceResults:
         self.start_time = time.time()
         self.process = psutil.Process()
         self.latencies = []
+        self.record_counts = {
+            settings.RECORD_TYPE_DIRS[rt]: 0 for rt in settings.RECORD_TYPES
+        }
 
     def add_result(self, test_name: str, criteria: str, passed: bool, value: str):
         self.results.append({
@@ -63,27 +67,29 @@ async def test_throughput(duration_seconds: int = 60):
     subscriber = FirehoseSubscriber()
     writer = BatchWriter()
     
-    record_count = 0
     start_time = time.time()
     
-    async for record in subscriber.subscribe():
-        # Process record
+    async for operations in subscriber.subscribe():
+        # Process records
         before_write = time.time()
-        await writer.add_record(record)
+        await writer.add_records(operations)
         after_write = time.time()
         
         # Record latency
         latency_ms = (after_write - before_write) * 1000
         perf_results.record_latency(latency_ms)
         
-        record_count += 1
+        # Count records by type
+        for record_type, ops in operations.items():
+            perf_results.record_counts[record_type] += len(ops["created"])
         
         if time.time() - start_time >= duration_seconds:
             break
     
     # Calculate metrics
     elapsed_time = time.time() - start_time
-    records_per_second = record_count / elapsed_time
+    total_records = sum(perf_results.record_counts.values())
+    records_per_second = total_records / elapsed_time
     avg_latency = statistics.mean(perf_results.latencies)
     p95_latency = statistics.quantiles(perf_results.latencies, n=20)[18]  # 95th percentile
     max_memory = perf_results.get_memory_usage()
@@ -124,6 +130,15 @@ async def test_throughput(duration_seconds: int = 60):
         avg_cpu < 50,
         f"{avg_cpu:.2f}%"
     )
+    
+    # Record type distribution
+    for record_type, count in perf_results.record_counts.items():
+        perf_results.add_result(
+            f"Record Distribution - {record_type}",
+            "Should have records",
+            count > 0,
+            f"{count} records"
+        )
 
 async def test_batch_sizes():
     """Test different batch size configurations."""
@@ -135,17 +150,24 @@ async def test_batch_sizes():
         start_time = time.time()
         memory_before = perf_results.get_memory_usage()
         
-        # Process 5000 records with this batch size
-        for i in range(5000):
-            record_type = settings.RECORD_TYPES[i % len(settings.RECORD_TYPES)]
-            record = {
-                'type': record_type,
-                'uri': f'test_uri_{i}',
-                'cid': f'test_cid_{i}',
-                'author': 'test_author',
-                'record': {'test': 'data'}
+        # Create test operations for each batch size
+        test_operations = {
+            settings.RECORD_TYPE_DIRS[rt]: {
+                "created": [
+                    {
+                        "record": {"test": "data"},
+                        "uri": f"test_uri_{i}",
+                        "cid": f"test_cid_{i}",
+                        "author": "test_author"
+                    }
+                    for i in range(5000)  # Test with 5000 records per type
+                ],
+                "deleted": []
             }
-            await writer.add_record(record)
+            for rt in settings.RECORD_TYPES
+        }
+        
+        await writer.add_records(test_operations)
         
         elapsed_time = time.time() - start_time
         memory_after = perf_results.get_memory_usage()
@@ -153,7 +175,7 @@ async def test_batch_sizes():
         
         perf_results.add_result(
             f"Batch Size {batch_size}",
-            f"Should process 5000 records efficiently",
+            f"Should process records efficiently",
             elapsed_time < 60,  # Should process within 60 seconds
             f"{elapsed_time:.2f}s, {memory_impact:.2f}MB"
         )

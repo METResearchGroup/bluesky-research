@@ -1,7 +1,7 @@
 """Configuration settings for the Bluesky firehose ingestion demo."""
 
 from typing import List, Dict
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     """Configuration settings for the firehose ingestion."""

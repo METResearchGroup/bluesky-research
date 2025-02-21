@@ -9,8 +9,9 @@ from rich.console import Console
 from rich.table import Table
 from lib.db.queue import Queue
 
-from ..utils import FirehoseSubscriber, BatchWriter
-from ..config import settings
+from demos.firehose_ingestion.utils.firehose import FirehoseSubscriber
+from demos.firehose_ingestion.utils.writer import BatchWriter
+from demos.firehose_ingestion.config import settings
 
 console = Console()
 
@@ -77,12 +78,14 @@ async def test_record_processing(subscriber: FirehoseSubscriber):
     """Test record processing and classification."""
     processed_records = []
     record_count = 0
-    type_counts = {record_type: 0 for record_type in settings.RECORD_TYPES}
+    type_counts = {settings.RECORD_TYPE_DIRS[rt]: 0 for rt in settings.RECORD_TYPES}
     
-    async for record in subscriber.subscribe():
-        processed_records.append(record)
-        record_count += 1
-        type_counts[record['type']] += 1
+    async for operations in subscriber.subscribe():
+        for record_type, ops in operations.items():
+            created_records = ops["created"]
+            type_counts[record_type] += len(created_records)
+            record_count += len(created_records)
+            processed_records.extend(created_records)
         
         if record_count >= 100:  # Test with 100 records
             break
@@ -95,7 +98,7 @@ async def test_record_processing(subscriber: FirehoseSubscriber):
     )
     
     # Check record type classification
-    for record_type in settings.RECORD_TYPES:
+    for record_type in settings.RECORD_TYPE_DIRS.values():
         test_results.add_result(
             f"Record Classification - {record_type}",
             f"Should have records of type {record_type}",
@@ -104,25 +107,33 @@ async def test_record_processing(subscriber: FirehoseSubscriber):
 
 async def test_batch_operations(writer: BatchWriter):
     """Test batch writing operations."""
-    # Create test records
-    test_records = []
-    for i in range(2000):  # Test with 2000 records
-        record_type = settings.RECORD_TYPES[i % len(settings.RECORD_TYPES)]
-        test_records.append({
-            'type': record_type,
-            'uri': f'test_uri_{i}',
-            'cid': f'test_cid_{i}',
-            'author': 'test_author',
-            'record': {'test': 'data'}
-        })
+    # Create test operations
+    test_operations = {
+        settings.RECORD_TYPE_DIRS[rt]: {
+            "created": [
+                {
+                    "record": {"test": "data"},
+                    "uri": f"test_uri_{i}",
+                    "cid": f"test_cid_{i}",
+                    "author": "test_author"
+                }
+                for i in range(2000)  # Test with 2000 records per type
+            ],
+            "deleted": []
+        }
+        for rt in settings.RECORD_TYPES
+    }
     
     # Write records
-    for record in test_records:
-        await writer.add_record(record)
+    await writer.add_records(test_operations)
     
     # Verify batch sizes
-    for record_type in settings.RECORD_TYPES:
-        queue = writer._queues[record_type]
+    for record_type in settings.RECORD_TYPE_DIRS.values():
+        queue_type = next(
+            rt for rt, dir_name in settings.RECORD_TYPE_DIRS.items()
+            if dir_name == record_type
+        )
+        queue = writer._queues[queue_type]
         items = queue.load_items_from_queue(status='pending')
         
         test_results.add_result(

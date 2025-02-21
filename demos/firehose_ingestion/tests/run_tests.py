@@ -4,8 +4,8 @@ import asyncio
 from rich.console import Console
 from rich.table import Table
 
-from test_basic_functionality import run_all_tests as run_basic_tests
-from test_performance import run_performance_tests
+from demos.firehose_ingestion.tests.test_basic_functionality import run_all_tests as run_basic_tests
+from demos.firehose_ingestion.tests.test_performance import run_performance_tests
 
 console = Console()
 
