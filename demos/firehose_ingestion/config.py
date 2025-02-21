@@ -1,14 +1,7 @@
 """Configuration settings for the Bluesky firehose ingestion demo."""
 
-import os
-from pathlib import Path
 from typing import List, Dict
 from pydantic import BaseSettings
-
-# Import the root data directory from the project constants
-import sys
-sys.path.append("../../")
-from lib.constants import root_local_data_directory
 
 class Settings(BaseSettings):
     """Configuration settings for the firehose ingestion."""
@@ -21,7 +14,7 @@ class Settings(BaseSettings):
         "app.bsky.feed.repost"
     ]
 
-    # Mapping of record types to directory names
+    # Mapping of record types to queue names
     RECORD_TYPE_DIRS: Dict[str, str] = {
         "app.bsky.feed.post": "posts",
         "app.bsky.feed.like": "likes",
@@ -31,16 +24,6 @@ class Settings(BaseSettings):
 
     # Batch size for writing records
     BATCH_SIZE: int = 1000
-
-    # Base directory for storing data
-    BASE_DIR: Path = Path(root_local_data_directory) / "demo_firehose"
-
-    # Create directories if they don't exist
-    def create_directories(self) -> None:
-        """Create the necessary directories for storing records."""
-        self.BASE_DIR.mkdir(parents=True, exist_ok=True)
-        for dir_name in self.RECORD_TYPE_DIRS.values():
-            (self.BASE_DIR / dir_name).mkdir(parents=True, exist_ok=True)
 
     class Config:
         """Pydantic configuration."""
