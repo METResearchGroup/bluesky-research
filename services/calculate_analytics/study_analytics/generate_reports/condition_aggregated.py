@@ -7,11 +7,18 @@ from typing import Optional
 
 import pandas as pd
 
+
+from lib.constants import partition_date_format, timestamp_format
 from lib.db.manage_local_data import load_data_from_local_storage
+from lib.db.queue import Queue
 from lib.helper import get_partition_dates
 from lib.log.logger import get_logger
 from services.backfill.posts_used_in_feeds.load_data import (
     calculate_start_end_date_for_lookback,
+    default_num_days_lookback,
+)
+from services.backfill.posts_used_in_feeds.load_data import (
+    load_preprocessed_posts_used_in_feeds_for_partition_date,
 )
 from services.fetch_posts_used_in_feeds.helper import load_feed_from_json_str
 from services.participant_data.helper import get_all_users
@@ -22,36 +29,35 @@ from services.calculate_analytics.study_analytics.deprecated.get_fine_grained_we
     EXCLUDELIST_HANDLES,
 )
 from services.calculate_analytics.study_analytics.generate_reports.constants import (
-    wave_1_study_start_date_inclusive,
     wave_1_study_end_date_inclusive,
     wave_2_study_start_date_inclusive,
-    wave_2_study_end_date_inclusive,
     wave_1_week_start_dates_inclusive,
     wave_1_week_end_dates_inclusive,
     wave_2_week_start_dates_inclusive,
     wave_2_week_end_dates_inclusive,
 )
 
-start_date_inclusive = wave_1_study_start_date_inclusive
-end_date_inclusive = wave_2_study_end_date_inclusive  # 2024-12-01 (inclusive)
+# start_date_inclusive = wave_1_study_start_date_inclusive
+start_date_inclusive = "2024-11-06"
+# end_date_inclusive = wave_2_study_end_date_inclusive  # 2024-12-01 (inclusive)
+end_date_inclusive = "2024-11-11"
 exclude_partition_dates = ["2024-10-08"]
 
 logger = get_logger(__file__)
 
 current_filedir = os.path.dirname(os.path.abspath(__file__))
 
-
-def get_posts_used_in_feeds_for_partition_date(partition_date: str) -> pd.DataFrame:
-    """Get the posts used in feeds for a given partition date."""
-    df: pd.DataFrame = load_data_from_local_storage(
-        service="fetch_posts_used_in_feeds",
-        directory="cache",
-        partition_date=partition_date,
-    )
-    logger.info(
-        f"Loaded {len(df)} posts used in feeds for partition date {partition_date}"
-    )
-    return df
+queue_name_to_queue_dict = {
+    "ml_inference_ime": Queue(
+        queue_name="input_ml_inference_ime", create_new_queue=False
+    ),
+    "ml_inference_perspective_api": Queue(
+        queue_name="input_ml_inference_perspective_api", create_new_queue=False
+    ),
+    "ml_inference_sociopolitical": Queue(
+        queue_name="input_ml_inference_sociopolitical", create_new_queue=False
+    ),
+}
 
 
 def get_feeds_for_partition_date(partition_date: str) -> pd.DataFrame:
@@ -66,17 +72,17 @@ def get_feeds_for_partition_date(partition_date: str) -> pd.DataFrame:
 
 
 def get_perspective_api_labels_for_posts(
-    posts: pd.DataFrame, partition_date: str
+    posts: pd.DataFrame,
+    partition_date: str,
+    lookback_start_date: str,
+    lookback_end_date: str,
 ) -> pd.DataFrame:
     """Get the Perspective API labels for a list of posts."""
-    start_date, end_date = calculate_start_end_date_for_lookback(
-        partition_date=partition_date
-    )
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_perspective_api",
         directory="cache",
-        start_partition_date=start_date,
-        end_partition_date=end_date,
+        start_partition_date=lookback_start_date,
+        end_partition_date=lookback_end_date,
     )
     logger.info(
         f"Loaded {len(df)} Perspective API labels for partition date {partition_date}"
@@ -88,40 +94,42 @@ def get_perspective_api_labels_for_posts(
     return df
 
 
-def get_ime_labels_for_posts(posts: pd.DataFrame, partition_date: str) -> pd.DataFrame:
+def get_ime_labels_for_posts(
+    posts: pd.DataFrame,
+    partition_date: str,
+    lookback_start_date: str,
+    lookback_end_date: str,
+) -> pd.DataFrame:
     """Get the IME labels for a list of posts."""
-    start_date, end_date = calculate_start_end_date_for_lookback(
-        partition_date=partition_date
-    )
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_ime",
         directory="cache",
-        start_partition_date=start_date,
-        end_partition_date=end_date,
+        start_partition_date=lookback_start_date,
+        end_partition_date=lookback_end_date,
     )
     df = df[df["uri"].isin(posts["uri"])]
     logger.info(f"Filtered to {len(df)} IME labels for partition date {partition_date}")
     return df
 
 
-# def get_sociopolitical_labels_for_posts(
-#     posts: pd.DataFrame, partition_date: str
-# ) -> pd.DataFrame:
-#     """Get the sociopolitical labels for a list of posts."""
-#     start_date, end_date = calculate_start_end_date_for_lookback(
-#         partition_date=partition_date
-#     )
-#     df: pd.DataFrame = load_data_from_local_storage(
-#         service="ml_inference_sociopolitical",
-#         directory="cache",
-#         start_partition_date=start_date,
-#         end_partition_date=end_date,
-#     )
-#     df = df[df["uri"].isin(posts["uri"])]
-#     logger.info(
-#         f"Filtered to {len(df)} sociopolitical labels for partition date {partition_date}"
-#     )
-#     return df
+def get_sociopolitical_labels_for_posts(
+    posts: pd.DataFrame,
+    partition_date: str,
+    lookback_start_date: str,
+    lookback_end_date: str,
+) -> pd.DataFrame:
+    """Get the sociopolitical labels for a list of posts."""
+    df: pd.DataFrame = load_data_from_local_storage(
+        service="ml_inference_sociopolitical",
+        directory="cache",
+        start_partition_date=lookback_start_date,
+        end_partition_date=lookback_end_date,
+    )
+    df = df[df["uri"].isin(posts["uri"])]
+    logger.info(
+        f"Filtered to {len(df)} sociopolitical labels for partition date {partition_date}"
+    )
+    return df
 
 
 def map_users_to_posts_used_in_feeds(
@@ -142,20 +150,71 @@ def map_users_to_posts_used_in_feeds(
     return users_to_posts
 
 
+def insert_missing_posts_to_backfill_queue(
+    integration_posts_to_backfill_df: pd.DataFrame, queue_name: str
+) -> None:
+    """For any posts that are missing labels, re-insert them into the queue."""
+    if pd.api.types.is_datetime64_any_dtype(
+        integration_posts_to_backfill_df["preprocessing_timestamp"]
+    ):
+        integration_posts_to_backfill_df["preprocessing_timestamp"] = (
+            integration_posts_to_backfill_df[
+                "preprocessing_timestamp"
+            ].dt.strftime(timestamp_format)
+        )
+    else:
+        integration_posts_to_backfill_df["preprocessing_timestamp"] = (
+            integration_posts_to_backfill_df["preprocessing_timestamp"].astype(str)
+        )
+
+    if pd.api.types.is_datetime64_any_dtype(
+        integration_posts_to_backfill_df["partition_date"]
+    ):
+        integration_posts_to_backfill_df["partition_date"] = (
+            integration_posts_to_backfill_df[
+                "partition_date"
+            ].dt.strftime(partition_date_format)
+        )
+    else:
+        integration_posts_to_backfill_df["partition_date"] = (
+            integration_posts_to_backfill_df["partition_date"].astype(str)
+        )
+
+    items = integration_posts_to_backfill_df.to_dict(orient="records")
+    queue = queue_name_to_queue_dict[queue_name]
+    queue.batch_add_items_to_queue(items=items, metadata=None)
+
+
 def get_hydrated_posts_for_partition_date(partition_date: str) -> pd.DataFrame:
     """Hydrate each post and create a wide table of post features."""
-    posts_df: pd.DataFrame = get_posts_used_in_feeds_for_partition_date(partition_date)
+    lookback_start_date, lookback_end_date = calculate_start_end_date_for_lookback(
+        partition_date=partition_date,
+        num_days_lookback=default_num_days_lookback,
+    )
+    posts_df: pd.DataFrame = load_preprocessed_posts_used_in_feeds_for_partition_date(
+        partition_date=partition_date,
+        lookback_start_date=lookback_start_date,
+        lookback_end_date=lookback_end_date,
+    )
     perspective_api_labels_df: pd.DataFrame = get_perspective_api_labels_for_posts(
-        posts=posts_df, partition_date=partition_date
+        posts=posts_df,
+        partition_date=partition_date,
+        lookback_start_date=lookback_start_date,
+        lookback_end_date=lookback_end_date,
     )
     ime_labels_df: pd.DataFrame = get_ime_labels_for_posts(
-        posts=posts_df, partition_date=partition_date
+        posts=posts_df,
+        partition_date=partition_date,
+        lookback_start_date=lookback_start_date,
+        lookback_end_date=lookback_end_date,
     )
 
-    # NOTE: won't have complete data yet for it.
-    # sociopolitical_labels_df: pd.DataFrame = get_sociopolitical_labels_for_posts(
-    #     posts=posts_df, partition_date=partition_date
-    # )
+    sociopolitical_labels_df: pd.DataFrame = get_sociopolitical_labels_for_posts(
+        posts=posts_df,
+        partition_date=partition_date,
+        lookback_start_date=lookback_start_date,
+        lookback_end_date=lookback_end_date,
+    )
 
     # deduping
     posts_df = posts_df.drop_duplicates(subset=["uri"])
@@ -163,27 +222,69 @@ def get_hydrated_posts_for_partition_date(partition_date: str) -> pd.DataFrame:
         subset=["uri"]
     )
     ime_labels_df = ime_labels_df.drop_duplicates(subset=["uri"])
-    # sociopolitical_labels_df = sociopolitical_labels_df.drop_duplicates(subset=["uri"])
+    sociopolitical_labels_df = sociopolitical_labels_df.drop_duplicates(subset=["uri"])
 
     # Left join each set of labels against the posts dataframe
     # This ensures we keep all posts even if they don't have certain labels
-    posts_with_perspective = posts_df.merge(
-        perspective_api_labels_df, on="uri", how="left"
+    # Keep only the left dataframe's columns when there are duplicates
+    # Get list of duplicate columns between posts_df and perspective_api_labels_df
+    duplicate_cols = [
+        col
+        for col in perspective_api_labels_df.columns
+        if col in posts_df.columns and col != "uri"
+    ]
+    # Drop duplicate columns from perspective_api_labels_df before merging
+    perspective_api_labels_df_deduped = perspective_api_labels_df.drop(
+        columns=duplicate_cols
+    )
+    ime_labels_df_deduped = ime_labels_df.drop(columns=duplicate_cols)
+    sociopolitical_labels_df_deduped = sociopolitical_labels_df.drop(
+        columns=duplicate_cols
     )
 
-    posts_with_ime = posts_with_perspective.merge(ime_labels_df, on="uri", how="left")
+    posts_with_perspective = posts_df.merge(
+        perspective_api_labels_df_deduped, on="uri", how="left"
+    )
 
-    # posts_with_all_labels = posts_with_ime.merge(
-    #     sociopolitical_labels_df, on="uri", how="left"
-    # )
+    posts_with_ime = posts_with_perspective.merge(
+        ime_labels_df_deduped, on="uri", how="left"
+    )
 
-    posts_with_all_labels = posts_with_ime
+    posts_with_all_labels = posts_with_ime.merge(
+        sociopolitical_labels_df_deduped, on="uri", how="left"
+    )
+
+    # get missing labels.
+    missing_perspective_api_labels_df = posts_df[
+        ~posts_df["uri"].isin(perspective_api_labels_df["uri"])
+    ]
+
+    missing_sociopolitical_labels_df = posts_df[
+        ~posts_df["uri"].isin(sociopolitical_labels_df["uri"])
+    ]
+
+    missing_ime_labels_df = posts_df[~posts_df["uri"].isin(ime_labels_df["uri"])]
+
+    for integration, missing_df in [
+        ("ml_inference_perspective_api", missing_perspective_api_labels_df),
+        ("ml_inference_sociopolitical", missing_sociopolitical_labels_df),
+        ("ml_inference_ime", missing_ime_labels_df),
+    ]:
+        if len(missing_df) > 0:
+            print(
+                f"Found {len(missing_df)} missing {integration} labels for partition date = {partition_date}"
+            )
+            insert_missing_posts_to_backfill_queue(missing_df, integration)
 
     del posts_df
     del posts_with_perspective
     del posts_with_ime
     del perspective_api_labels_df
     del ime_labels_df
+    del sociopolitical_labels_df
+    del missing_perspective_api_labels_df
+    del missing_sociopolitical_labels_df
+    del missing_ime_labels_df
     gc.collect()
 
     logger.info(
@@ -263,32 +364,32 @@ def get_per_user_feed_averages_for_partition_date(partition_date: str) -> pd.Dat
         }
 
         # Calculate political averages
-        # total_rows = len(posts_df)
-        # avg_is_political = posts_df["is_sociopolitical"].dropna().mean()
+        total_rows = len(posts_df)
+        avg_is_political = posts_df["is_sociopolitical"].dropna().mean()
 
-        # political_averages = {
-        #     "avg_is_political": avg_is_political,
-        #     "avg_is_not_political": 1 - avg_is_political,
-        #     "avg_is_political_left": (
-        #         posts_df["political_ideology_label"].fillna("").eq("left")
-        #     ).sum()
-        #     / total_rows,
-        #     "avg_is_political_right": (
-        #         posts_df["political_ideology_label"].fillna("").eq("right")
-        #     ).sum()
-        #     / total_rows,
-        #     "avg_is_political_moderate": (
-        #         posts_df["political_ideology_label"].fillna("").eq("moderate")
-        #     ).sum()
-        #     / total_rows,
-        #     "avg_is_political_unclear": (
-        #         posts_df["political_ideology_label"].fillna("").eq("unclear")
-        #     ).sum()
-        #     / total_rows,
-        # }
+        political_averages = {
+            "avg_is_political": avg_is_political,
+            "avg_is_not_political": 1 - avg_is_political,
+            "avg_is_political_left": (
+                posts_df["political_ideology_label"].fillna("").eq("left")
+            ).sum()
+            / total_rows,
+            "avg_is_political_right": (
+                posts_df["political_ideology_label"].fillna("").eq("right")
+            ).sum()
+            / total_rows,
+            "avg_is_political_moderate": (
+                posts_df["political_ideology_label"].fillna("").eq("moderate")
+            ).sum()
+            / total_rows,
+            "avg_is_political_unclear": (
+                posts_df["political_ideology_label"].fillna("").eq("unclear")
+            ).sum()
+            / total_rows,
+        }
 
-        # # Combine all averages
-        # averages.update(political_averages)
+        # Combine all averages
+        averages.update(political_averages)
 
         user_averages.append(averages)
 
@@ -832,4 +933,4 @@ def main(generate_user_week_thresholds_bool: bool = False):
 
 
 if __name__ == "__main__":
-    main(generate_user_week_thresholds_bool=True)
+    main(generate_user_week_thresholds_bool=False)
