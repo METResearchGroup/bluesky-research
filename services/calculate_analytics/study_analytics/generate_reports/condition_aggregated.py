@@ -929,6 +929,25 @@ def main(generate_user_week_thresholds_bool: bool = False):
         user_demographics, left_on="user_did", right_on="bluesky_user_did", how="left"
     )
 
+    # postprocessing.
+    # Drop unnamed index column if it exists
+    for col in ["Unnamed: 0", "bluesky_user_did"]:
+        if col in joined_df.columns:
+            joined_df = joined_df.drop(col, axis=1)
+
+    # Sort rows with user_did = "default" to end of dataframe
+    default_mask = joined_df["user_did"] == "default"
+    joined_df = pd.concat(
+        [joined_df[~default_mask], joined_df[default_mask]]
+    ).reset_index(drop=True)
+
+    # Reorder columns to put key columns first
+    cols = joined_df.columns.tolist()
+    key_cols = ["bluesky_handle", "user_did", "condition", "date"]
+    other_cols = [col for col in cols if col not in key_cols]
+    joined_df = joined_df[key_cols + other_cols]
+
+    # export
     joined_df.to_csv(os.path.join(current_filedir, "condition_aggregated.csv"))
 
     # now, get a joined version mapping the joined_df to the week thresholds.
