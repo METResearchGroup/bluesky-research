@@ -4,12 +4,12 @@
 #SBATCH -p short
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 1:00:00
+#SBATCH -t 0:30:00
 #SBATCH --mem=20G
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
-#SBATCH --job-name=backfill_posts_used_in_feeds_%j
-#SBATCH --output=/projects/p32375/bluesky-research/lib/log/backfill_records_coordination/backfill_posts_used_in_feeds-%j.log
+#SBATCH --job-name=backfill_posts_%j
+#SBATCH --output=/projects/p32375/bluesky-research/lib/log/backfill_records_coordination/backfill_posts-%j.log
 
 # load conda env
 CONDA_PATH="/hpc/software/mamba/23.1.0/etc/profile.d/conda.sh"
@@ -54,7 +54,7 @@ fi
 
 # Build python command with integration flag
 PYTHON_CMD="/projects/p32375/bluesky-research/pipelines/backfill_records_coordination/app.py \
-    --record-type posts_used_in_feeds \
+    --record-type posts \
     --add-to-queue \
     --start-date $START_DATE \
     --end-date $END_DATE \
@@ -73,4 +73,4 @@ if [ $exit_code -ne 0 ]; then
     exit $exit_code
 fi
 echo "Completed slurm job."
-exit 0
+exit 0 

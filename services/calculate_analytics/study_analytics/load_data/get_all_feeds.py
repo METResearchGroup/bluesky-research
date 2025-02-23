@@ -1,17 +1,24 @@
-"""Fetches all the user session logs from S3."""
+"""Fetches all the feeds from S3.
+
+1. Loads all the feed files from 2024-09-30 to 2024-12-01
+2. Parses the feed files into dataframes.
+3. Saves the dataframes locally.
+"""
 
 from datetime import datetime, timedelta
 import os
 
 from lib.aws.s3 import S3
+from services.calculate_analytics.study_analytics.constants import (
+    raw_data_root_path,
+)
 
 s3 = S3()
 
-root_s3_uri = "user_session_logs"
+exclude_partition_date = "2024-10-08"  # server crashed on this date.
 
-exclude_partition_date = "2024-10-13"  # server crashed on this date.
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
+root_s3_uri = os.path.join("custom_feeds", "cached_custom_feeds")
+export_dir = os.path.join(raw_data_root_path, "feeds")
 
 
 def get_partition_dates(start_date: str, end_date: str) -> list[str]:
@@ -39,38 +46,32 @@ def get_partition_dates(start_date: str, end_date: str) -> list[str]:
 
 
 def main():
-    print("Fetching all the user session logs...")
+    print("Fetching all the feeds...")
+    # partition_dates: list[str] = get_partition_dates(start_date="2024-09-30", end_date="2024-12-01")
     partition_dates: list[str] = get_partition_dates(
-        start_date="2024-09-30", end_date="2024-12-01"
+        start_date="2024-09-28", end_date="2024-12-01"
     )
     for partition_date in partition_dates:
-        if partition_date == exclude_partition_date:
-            continue
         print(f"Fetching {partition_date}...")
         folder_prefix = os.path.join(root_s3_uri, f"partition_date={partition_date}")
         print(f"Folder prefix: {folder_prefix}")
         keys = s3.get_keys_given_prefix(folder_prefix)
         print(f"Found {len(keys)} keys for {partition_date}...")
-        compacted_keys = [key for key in keys if "compacted" in key]
 
-        # if there is a compacted version of the keys, it's already compacted,
+        backfilled_keys = [key for key in keys if "backfill" in key]
+
+        # if there is a backfilled version of the keys, it's already compacted,
         # else download all the keys individually.
-        if compacted_keys:
-            print(f"Found {len(compacted_keys)} compacted keys for {partition_date}...")
-            df = s3.load_keys_to_df(compacted_keys)
+        if backfilled_keys:
+            df = s3.load_keys_to_df(backfilled_keys)
         else:
-            print(
-                f"No compacted keys found for {partition_date}. Loading {len(keys)} keys..."
-            )
             df = s3.load_keys_to_df(keys)
-        export_filepath = os.path.join(
-            current_dir, "user_session_logs", f"{partition_date}.parquet"
-        )
+        export_filepath = os.path.join(export_dir, f"feeds_{partition_date}.parquet")
         df.to_parquet(export_filepath)
         print(f"Saved to {export_filepath}")
         print(f"Finished fetching {partition_date}.")
         print("-" * 10)
-    print("Finished fetching all the user session logs.")
+    print("Finished fetching all the feeds.")
 
 
 if __name__ == "__main__":

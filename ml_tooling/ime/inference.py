@@ -43,6 +43,12 @@ def load_model_and_tokenizer(
 
     # Normal production behavior
     model = MultiLabelClassifier(n_classes=default_num_classes, model=model_name)
+
+    # Enable multi-GPU if available
+    if torch.cuda.device_count() > 1:
+        logger.info(f"Using {torch.cuda.device_count()} GPUs!")
+        model = torch.nn.DataParallel(model)
+
     model.to(device)
     model.eval()
 

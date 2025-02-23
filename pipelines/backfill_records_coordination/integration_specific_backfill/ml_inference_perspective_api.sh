@@ -1,11 +1,12 @@
 #!/bin/bash
 
 #SBATCH -A p32375
-#SBATCH -p short
+#SBATCH -p normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 2:30:00
-#SBATCH --mem=15G
+#SBATCH --cpus-per-task=4  # enough to support the various threads for the async operations, since having multiple CPUs means no blocking while waiting for the API.
+#SBATCH -t 8:00:00
+#SBATCH --mem=25G
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --job-name=backfill_records_coordination_ml_inference_perspective_api_%j

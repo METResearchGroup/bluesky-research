@@ -102,7 +102,7 @@ def main(b: bool, i: bool, s: bool, p: bool):
 
     # Map flags to file prefixes
     components = {
-        "b": "backfill_posts_used_in_feeds",
+        "b": "backfill_posts",
         "i": "ml_inference_ime",
         "s": "ml_inference_sociopolitical",
         "p": "ml_inference_perspective_api",
