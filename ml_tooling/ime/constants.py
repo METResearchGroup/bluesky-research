@@ -1,12 +1,19 @@
 import os
+import torch
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 default_num_classes = 4
-default_batch_size = 512
+default_batch_size = 128
 default_minibatch_size = 32
 default_model = "distilbert"
 # max_num_posts = 40_000 # can run quite a few at a time due to GPU speedups.
 max_num_posts = 200_000  # can run quite a few at a time due to GPU speedups.
+
+# If multiple GPUs are available, increase batch sizes
+if torch.cuda.device_count() > 1:
+    default_batch_size = 512  # Double the batch size for 2 GPUs
+    default_minibatch_size = 128  # Double the minibatch size for 2 GPUs
+
 default_hyperparameters = {
     "model_name": default_model,
     "batch_size": default_batch_size,
