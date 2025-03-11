@@ -8,10 +8,14 @@ import os
 import numpy as np
 import pandas as pd
 
-from scripts.analytics.helper import get_partition_dates
+from lib.helper import get_partition_dates
+from services.calculate_analytics.study_analytics.constants import (
+    raw_data_root_path,
+    consolidated_data_root_path,
+)
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-feed_filedir = os.path.join(current_dir, "feeds")
+raw_filedir = os.path.join(raw_data_root_path, "feeds")
+consolidated_filedir = os.path.join(consolidated_data_root_path, "feeds")
 
 
 def serialize_feed(feed):
@@ -29,7 +33,7 @@ def main():
     )
     for partition_date in partition_dates:
         print(f"Loading {partition_date}...")
-        filepath = os.path.join(feed_filedir, f"{partition_date}.parquet")
+        filepath = os.path.join(raw_filedir, f"feeds_{partition_date}.parquet")
         try:
             df = pd.read_parquet(filepath)
             print(f"Loaded {filepath}")
@@ -46,7 +50,9 @@ def main():
     compacted_df = pd.concat(dfs)
     feeds_df = pd.DataFrame({"feed": compacted_df["feed"].apply(serialize_feed)})
     compacted_df["feed"] = feeds_df["feed"]
-    compacted_df.to_parquet(os.path.join(current_dir, "consolidated_feeds.parquet"))
+    compacted_df.to_parquet(
+        os.path.join(consolidated_filedir, "feeds", "consolidated_feeds.parquet")
+    )
 
 
 if __name__ == "__main__":

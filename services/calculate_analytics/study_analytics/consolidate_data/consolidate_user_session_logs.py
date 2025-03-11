@@ -8,10 +8,14 @@ import os
 import numpy as np
 import pandas as pd
 
-from scripts.analytics.helper import get_partition_dates
+from lib.helper import get_partition_dates
+from services.calculate_analytics.study_analytics.constants import (
+    raw_data_root_path,
+    consolidated_data_root_path,
+)
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-log_filedir = os.path.join(current_dir, "user_session_logs")
+raw_filedir = os.path.join(raw_data_root_path, "user_session_logs")
+consolidated_filedir = os.path.join(consolidated_data_root_path, "user_session_logs")
 
 
 def serialize_feed(feed):
@@ -28,7 +32,9 @@ def main():
     )
     dfs: list[pd.DataFrame] = []
     for partition_date in partition_dates:
-        filepath = os.path.join(log_filedir, f"{partition_date}.parquet")
+        filepath = os.path.join(
+            raw_filedir, f"user_session_logs_{partition_date}.parquet"
+        )
         try:
             df = pd.read_parquet(filepath)
         except FileNotFoundError:
@@ -39,7 +45,7 @@ def main():
     feeds_df = pd.DataFrame({"feed": compacted_df["feed"].apply(serialize_feed)})
     compacted_df["feed"] = feeds_df["feed"]
     compacted_df.to_parquet(
-        os.path.join(current_dir, "consolidated_user_session_logs.parquet")
+        os.path.join(consolidated_filedir, "consolidated_user_session_logs.parquet")
     )
 
 

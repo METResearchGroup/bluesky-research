@@ -1,3 +1,5 @@
-# TODO: remove, since this is where all data is anyways, so this
-# is redundant.
-root_feeds_path = "/projects/p32375/bluesky_research_data/analytics/consolidated/feeds"
+import os
+
+from lib.constants import project_home_directory
+
+root_feeds_path = os.path.join(project_home_directory, "scripts", "analytics", "feeds")
