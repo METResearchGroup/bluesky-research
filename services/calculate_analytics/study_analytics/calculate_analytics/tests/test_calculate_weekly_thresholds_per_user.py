@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from datetime import date
 
-from services.calculate_analytics.study_analytics.generate_reports.condition_aggregated import (
+from services.calculate_analytics.study_analytics.calculate_analytics.calculate_weekly_thresholds_per_user import (
     map_date_to_static_week,
     get_latest_survey_timestamp_within_period,
 )
@@ -137,4 +137,4 @@ def test_get_latest_survey_timestamp_within_period():
     timestamps = [None, pd.NaT, None]
     assert get_latest_survey_timestamp_within_period(
         timestamps, "2024-01-01", "2024-01-03"
-    ) is None 
+    ) is None
