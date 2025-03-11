@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 from typing import List, Optional, Tuple
-from scipy.signal import savgol_filter
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 
 def load_data(file_path: str) -> pd.DataFrame:
@@ -55,8 +55,7 @@ def plot_time_series_by_condition(
     title_prefix: Optional[str] = None,
     figsize: Tuple[int, int] = (12, 8),
     dpi: int = 100,
-    smoothing_window: int = 21,
-    smoothing_poly_order: int = 3,
+    loess_frac: float = 0.15,  # Fraction of data used for each LOESS estimation
 ) -> None:
     """
     Create and save a time series plot for a specific feature column, grouped by condition.
@@ -68,8 +67,7 @@ def plot_time_series_by_condition(
         title_prefix: Optional prefix for the plot title
         figsize: Figure size (width, height)
         dpi: DPI for the figure
-        smoothing_window: Window size for Savitzky-Golay filter (must be odd)
-        smoothing_poly_order: Polynomial order for the Savitzky-Golay filter
+        loess_frac: Fraction parameter for LOESS smoothing (determines smoothness)
     """
     # Create the directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
@@ -99,7 +97,7 @@ def plot_time_series_by_condition(
         plt.scatter(
             condition_data["date"],
             condition_data[feature_col],
-            alpha=0.1,  # Reduced alpha value (half of previous 0.2)
+            alpha=0.1,  # Reduced alpha value for background dots
             color="gray",
             s=5,
         )
@@ -121,23 +119,31 @@ def plot_time_series_by_condition(
         # Sort data by date
         condition_data = condition_data.sort_values("date")
 
-        # Extract x and y values for smoothing
-        # x = np.arange(len(condition_data))
-        y = condition_data[feature_col].values
+        # Convert dates to numeric format for LOESS
+        date_numeric = pd.to_numeric(condition_data["date"])
 
         # Only apply smoothing if we have enough data points
-        if len(y) > smoothing_window:
-            # Ensure window is odd
-            if smoothing_window % 2 == 0:
-                smoothing_window += 1
+        if len(condition_data) > 10:  # Minimum points needed for reasonable smoothing
+            # Apply LOESS smoothing
+            # Convert to numeric values for LOESS
+            x = (date_numeric - date_numeric.min()) / (
+                1e9 * 60 * 60 * 24
+            )  # Convert to days since min date
+            y = condition_data[feature_col].values
 
-            # Apply Savitzky-Golay filter for smoothing
-            y_smoothed = savgol_filter(y, smoothing_window, smoothing_poly_order)
+            # Apply LOESS smoothing
+            smoothed = lowess(y, x, frac=loess_frac, it=1, return_sorted=True)
+
+            # Map the smoothed values back to the original dates
+            # First ensure smoothed x is in the same scale as our original x
+            smoothed_dates = pd.to_datetime(
+                smoothed[:, 0] * 1e9 * 60 * 60 * 24 + date_numeric.min()
+            )
 
             # Plot the smoothed line
             plt.plot(
-                condition_data["date"],
-                y_smoothed,
+                smoothed_dates,
+                smoothed[:, 1],
                 label=condition,
                 color=color_mapping[condition],
                 linewidth=2.5,

@@ -12,7 +12,11 @@ A modular script that generates time series visualizations for all feature colum
 - Generates visualizations for all feature columns
 - Excludes non-feature columns (bluesky_handle, user_did, condition, date)
 - Shows raw data points with lower opacity in the background
-- Creates smoothed trend lines for each condition
+- Creates smoothed trend lines using LOESS smoothing
+- Uses specific colors for each condition:
+  - Reverse Chronological: black
+  - Engagement-Based: red
+  - Diversified Extremity: green
 - Automatically formats column names for display
 - Saves all plots to an output directory
 
@@ -23,7 +27,7 @@ python time_series.py
 
 ### 2. `plot_toxicity.py`
 
-A focused script that recreates specifically the toxicity time series chart shown in the example. This script is a simpler version that only plots the `avg_prob_toxic` column.
+A focused script that recreates specifically the toxicity chart. This script is a simpler version that only plots the `avg_prob_toxic` column.
 
 **Usage:**
 ```bash
@@ -44,4 +48,18 @@ Required Python packages:
 - pandas
 - matplotlib
 - seaborn
-- numpy 
+- numpy
+- statsmodels (for LOESS smoothing)
+
+## Run Script
+
+The `run_visualizations.sh` script will:
+1. Activate the conda environment
+2. Check for required dependencies
+3. Run both visualization scripts
+4. Save all output to the `output` directory
+
+To run all visualizations:
+```bash
+./run_visualizations.sh
+``` 
