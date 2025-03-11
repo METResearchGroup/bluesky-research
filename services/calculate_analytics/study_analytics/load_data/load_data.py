@@ -1,9 +1,11 @@
 """Loads the data for a given partition date."""
 
 import gc
+import os
 
 import pandas as pd
 
+from lib.constants import project_home_directory
 from lib.log.logger import get_logger
 from services.backfill.posts_used_in_feeds.load_data import (
     calculate_start_end_date_for_lookback,
@@ -21,22 +23,72 @@ from services.calculate_analytics.study_analytics.load_data.load_labels import (
 from services.calculate_analytics.study_analytics.load_data.helper import (
     insert_missing_posts_to_backfill_queue,
 )
+from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
+    BSKY_HANDLES_TO_EXCLUDE,
+)
+
+invalid_dids = pd.read_csv(
+    os.path.join(
+        project_home_directory,
+        "services/preprocess_raw_data/classify_nsfw_content/dids_to_exclude.csv",
+    )
+)
+invalid_handles = BSKY_HANDLES_TO_EXCLUDE
 
 
 logger = get_logger(__file__)
 
 
-def get_hydrated_posts_for_partition_date(partition_date: str) -> pd.DataFrame:
+def load_filtered_preprocessed_posts(
+    partition_date: str,
+    lookback_start_date: str,
+    lookback_end_date: str,
+) -> pd.DataFrame:
+    """Load preprocessed posts that have been filtered with additional
+    custom filters for analysis.
+
+    We can check, for example, what happens if we remove posts from invalid
+    authors (e.g., NSFW authors), which was a change that eventually made it
+    into production but wasn't present in the beginning."""
+    columns = ["uri", "text", "preprocessing_timestamp", "author_did", "author_handle"]
+    posts_df: pd.DataFrame = load_preprocessed_posts_used_in_feeds_for_partition_date(
+        partition_date=partition_date,
+        lookback_start_date=lookback_start_date,
+        lookback_end_date=lookback_end_date,
+        table_columns=columns,
+    )
+    logger.info(f"Loaded {len(posts_df)} posts for partition date {partition_date}")
+    posts_df = posts_df[~posts_df["author_did"].isin(invalid_dids["did"])]
+    posts_df = posts_df[~posts_df["author_handle"].isin(invalid_handles)]
+    logger.info(
+        f"Filtered {len(posts_df)} posts for partition date {partition_date} by removing invalid authors"
+    )
+    return posts_df
+
+
+def get_hydrated_posts_for_partition_date(
+    partition_date: str, load_unfiltered_posts: bool = True
+) -> pd.DataFrame:
     """Hydrate each post and create a wide table of post features."""
     lookback_start_date, lookback_end_date = calculate_start_end_date_for_lookback(
         partition_date=partition_date,
         num_days_lookback=default_num_days_lookback,
     )
-    posts_df: pd.DataFrame = load_preprocessed_posts_used_in_feeds_for_partition_date(
-        partition_date=partition_date,
-        lookback_start_date=lookback_start_date,
-        lookback_end_date=lookback_end_date,
-    )
+    if load_unfiltered_posts:
+        posts_df: pd.DataFrame = (
+            load_preprocessed_posts_used_in_feeds_for_partition_date(
+                partition_date=partition_date,
+                lookback_start_date=lookback_start_date,
+                lookback_end_date=lookback_end_date,
+            )
+        )
+    else:
+        posts_df: pd.DataFrame = load_filtered_preprocessed_posts(
+            partition_date=partition_date,
+            lookback_start_date=lookback_start_date,
+            lookback_end_date=lookback_end_date,
+        )
+
     perspective_api_labels_df: pd.DataFrame = get_perspective_api_labels_for_posts(
         posts=posts_df,
         partition_date=partition_date,
@@ -135,11 +187,15 @@ def get_hydrated_posts_for_partition_date(partition_date: str) -> pd.DataFrame:
     return posts_with_all_labels
 
 
-def get_hydrated_feed_posts_per_user(partition_date: str) -> dict[str, pd.DataFrame]:
+def get_hydrated_feed_posts_per_user(
+    partition_date: str, load_unfiltered_posts: bool = True
+) -> dict[str, pd.DataFrame]:
     """Get the hydrated posts for a given partition date and map them to
     the users who posted them.
     """
-    posts_df: pd.DataFrame = get_hydrated_posts_for_partition_date(partition_date)
+    posts_df: pd.DataFrame = get_hydrated_posts_for_partition_date(
+        partition_date=partition_date, load_unfiltered_posts=load_unfiltered_posts
+    )
     users_to_posts: dict[str, set[str]] = map_users_to_posts_used_in_feeds(
         partition_date=partition_date
     )

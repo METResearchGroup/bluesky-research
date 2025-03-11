@@ -19,7 +19,9 @@ exclude_partition_dates = ["2024-10-08"]
 logger = get_logger(__file__)
 
 
-def get_per_user_feed_averages_for_partition_date(partition_date: str) -> pd.DataFrame:
+def get_per_user_feed_averages_for_partition_date(
+    partition_date: str, load_unfiltered_posts: bool = True
+) -> pd.DataFrame:
     """For each user, calculates the average feed content for a given partition
     date.
 
@@ -28,7 +30,7 @@ def get_per_user_feed_averages_for_partition_date(partition_date: str) -> pd.Dat
     posts? The average % of IME labels?
     """
     map_user_to_posts_df: dict[str, pd.DataFrame] = get_hydrated_feed_posts_per_user(
-        partition_date
+        partition_date=partition_date, load_unfiltered_posts=load_unfiltered_posts
     )
 
     # Create list to store per-user averages
@@ -114,7 +116,9 @@ def get_per_user_feed_averages_for_partition_date(partition_date: str) -> pd.Dat
     return averages_df
 
 
-def get_per_user_feed_averages_for_study() -> pd.DataFrame:
+def get_per_user_feed_averages_for_study(
+    load_unfiltered_posts: bool = True,
+) -> pd.DataFrame:
     """Get the per-user feed averages for the study, on a daily basis.
 
     Returns a dataframe where eaech row is a user + date combination, and the
@@ -129,7 +133,9 @@ def get_per_user_feed_averages_for_study() -> pd.DataFrame:
     )
     for partition_date in partition_dates:
         logger.info(f"Getting per-user averages for partition date: {partition_date}")
-        df = get_per_user_feed_averages_for_partition_date(partition_date)
+        df = get_per_user_feed_averages_for_partition_date(
+            partition_date=partition_date, load_unfiltered_posts=load_unfiltered_posts
+        )
         df["date"] = partition_date
         dfs.append(df)
     concat_df = pd.concat(dfs)

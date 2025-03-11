@@ -4,6 +4,7 @@ import os
 
 import pandas as pd
 
+from lib.constants import current_datetime_str
 from lib.log.logger import get_logger
 from services.calculate_analytics.study_analytics.calculate_analytics.calculate_weekly_thresholds_per_user import (
     load_user_demographic_info,
@@ -18,7 +19,9 @@ logger = get_logger(__file__)
 current_filedir = os.path.dirname(os.path.abspath(__file__))
 
 
-def main(generate_user_week_thresholds_bool: bool = False):
+def main(
+    generate_user_week_thresholds_bool: bool = False, load_unfiltered_posts: bool = True
+):
     """Main function."""
 
     logger.info("Starting main function...")
@@ -32,7 +35,9 @@ def main(generate_user_week_thresholds_bool: bool = False):
         generate_week_thresholds()
 
     # get per-user daily averages for each date.
-    per_user_averages: pd.DataFrame = get_per_user_feed_averages_for_study()
+    per_user_averages: pd.DataFrame = get_per_user_feed_averages_for_study(
+        load_unfiltered_posts=load_unfiltered_posts
+    )
 
     joined_df: pd.DataFrame = per_user_averages.merge(
         user_demographics, left_on="user_did", right_on="bluesky_user_did", how="left"
@@ -57,7 +62,11 @@ def main(generate_user_week_thresholds_bool: bool = False):
     joined_df = joined_df[key_cols + other_cols]
 
     # export
-    joined_df.to_csv(os.path.join(current_filedir, "condition_aggregated.csv"))
+    joined_df.to_csv(
+        os.path.join(
+            current_filedir, f"condition_aggregated_{current_datetime_str}.csv"
+        )
+    )
 
     # now, get a joined version mapping the joined_df to the week thresholds.
     week_thresholds: pd.DataFrame = pd.read_csv(
@@ -85,9 +94,11 @@ def main(generate_user_week_thresholds_bool: bool = False):
         joined_df.groupby(["bluesky_handle", "week_static"]).agg(agg_dict).reset_index()
     )
     weekly_joined_df.to_csv(
-        os.path.join(current_filedir, "weekly_condition_aggregated.csv")
+        os.path.join(
+            current_filedir, f"weekly_condition_aggregated_{current_datetime_str}.csv"
+        )
     )
 
 
 if __name__ == "__main__":
-    main(generate_user_week_thresholds_bool=False)
+    main(generate_user_week_thresholds_bool=False, load_unfiltered_posts=True)

@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 import gc
+from typing import Optional
 
 import pandas as pd
 
@@ -72,6 +73,7 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
     partition_date: str,
     lookback_start_date: str,
     lookback_end_date: str,
+    table_columns: Optional[list[str]] = None,
 ) -> pd.DataFrame:
     """Load the preprocessed, hydrated posts for the feeds created on the
     partition date.
@@ -92,12 +94,14 @@ def load_preprocessed_posts_used_in_feeds_for_partition_date(
     logger.info(
         f"Loading base pool posts from {lookback_start_date} to {lookback_end_date} for {partition_date}."
     )
+    if not table_columns:
+        table_columns = default_preprocessed_posts_columns
     base_pool_posts: pd.DataFrame = load_preprocessed_posts(
         start_date=lookback_start_date,
         end_date=lookback_end_date,
         sorted_by_partition_date=True,
         ascending=True,
-        table_columns=default_preprocessed_posts_columns,
+        table_columns=table_columns,
         output_format="df",
         convert_ts_fields=True,
     )
