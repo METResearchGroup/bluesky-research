@@ -30,18 +30,18 @@ class FirehoseRecord(BaseModel):
     """Represents a single record from the Bluesky firehose.
 
     Attributes:
-        cid: Content identifier for the record
-        operation: Operation type (create, update, delete)
-        record: JSON record content
-        rev: Revision identifier
-        rkey: Record key
+        did: Repository DID identifier
+        time_us: Timestamp in microseconds
+        kind: Kind of event (commit, identity, account)
+        commit: JSON commit data
+        collection: Collection type (e.g. app.bsky.feed.post)
         created_at: Timestamp when this record was added to the database
     """
-    cid: str
-    operation: str
-    record: str  # JSONB (stored as string)
-    rev: str
-    rkey: str
+    did: str
+    time_us: str
+    kind: str
+    commit: str  # JSONB (stored as string)
+    collection: str
     created_at: str = Field(
         default_factory=generate_current_datetime_str,
         description="Timestamp when the record was added to the database"
@@ -124,18 +124,19 @@ class FirehoseDB:
             conn.execute(f"""
                 CREATE TABLE {self.table_name} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cid TEXT NOT NULL,
-                    operation TEXT NOT NULL,
-                    record TEXT NOT NULL,
-                    rev TEXT NOT NULL,
-                    rkey TEXT NOT NULL,
+                    did TEXT NOT NULL,
+                    time_us TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    commit TEXT NOT NULL,
+                    collection TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 )
             """)
 
             # Create indexes for faster queries
-            conn.execute(f"CREATE INDEX idx_{self.table_name}_cid ON {self.table_name}(cid)")
-            conn.execute(f"CREATE INDEX idx_{self.table_name}_rkey ON {self.table_name}(rkey)")
+            conn.execute(f"CREATE INDEX idx_{self.table_name}_did ON {self.table_name}(did)")
+            conn.execute(f"CREATE INDEX idx_{self.table_name}_collection ON {self.table_name}(collection)")
+            conn.execute(f"CREATE INDEX idx_{self.table_name}_time_us ON {self.table_name}(time_us)")
             conn.execute(f"CREATE INDEX idx_{self.table_name}_created_at ON {self.table_name}(created_at)")
 
             # Ensure WAL mode is persisted
@@ -210,15 +211,15 @@ class FirehoseDB:
                 conn.execute(
                     f"""
                     INSERT INTO {self.table_name} 
-                    (cid, operation, record, rev, rkey, created_at) 
+                    (did, time_us, kind, commit, collection, created_at) 
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        record.cid,
-                        record.operation,
-                        record.record,
-                        record.rev,
-                        record.rkey,
+                        record.did,
+                        record.time_us,
+                        record.kind,
+                        record.commit,
+                        record.collection,
                         generate_current_datetime_str(),
                     ),
                 )
@@ -262,11 +263,11 @@ class FirehoseDB:
             if isinstance(record, dict):
                 record = FirehoseRecord(**record)
             formatted_records.append((
-                record.cid,
-                record.operation,
-                record.record,
-                record.rev,
-                record.rkey,
+                record.did,
+                record.time_us,
+                record.kind,
+                record.commit,
+                record.collection,
                 generate_current_datetime_str(),
             ))
         
@@ -305,7 +306,7 @@ class FirehoseDB:
                     conn.executemany(
                         f"""
                         INSERT INTO {self.table_name} 
-                        (cid, operation, record, rev, rkey, created_at)
+                        (did, time_us, kind, commit, collection, created_at)
                         VALUES (?, ?, ?, ?, ?, ?)
                         """,
                         chunk,
@@ -324,7 +325,10 @@ class FirehoseDB:
         self,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
-        operation: Optional[str] = None,
+        kind: Optional[str] = None,
+        collection: Optional[str] = None,
+        did: Optional[str] = None,
+        min_time_us: Optional[str] = None,
         min_id: Optional[int] = None,
         min_timestamp: Optional[str] = None,
     ) -> List[FirehoseRecord]:
@@ -333,7 +337,10 @@ class FirehoseDB:
         Args:
             limit: Maximum number of records to return
             offset: Number of records to skip
-            operation: Filter by operation type
+            kind: Filter by event kind (commit, identity, account)
+            collection: Filter by collection type
+            did: Filter by repository DID
+            min_time_us: Filter records with time_us greater than this value
             min_id: Filter records with ID greater than this value
             min_timestamp: Filter records created after this timestamp
 
@@ -342,16 +349,28 @@ class FirehoseDB:
         """
         with self._get_connection() as conn:
             query = f"""
-                SELECT id, cid, operation, record, rev, rkey, created_at 
+                SELECT id, did, time_us, kind, commit, collection, created_at 
                 FROM {self.table_name}
             """
             
             conditions = []
             params = []
             
-            if operation:
-                conditions.append("operation = ?")
-                params.append(operation)
+            if kind:
+                conditions.append("kind = ?")
+                params.append(kind)
+                
+            if collection:
+                conditions.append("collection = ?")
+                params.append(collection)
+                
+            if did:
+                conditions.append("did = ?")
+                params.append(did)
+                
+            if min_time_us:
+                conditions.append("time_us > ?")
+                params.append(min_time_us)
                 
             if min_id:
                 conditions.append("id > ?")
@@ -380,11 +399,11 @@ class FirehoseDB:
             records = []
             for row in rows:
                 record = FirehoseRecord(
-                    cid=row[1],
-                    operation=row[2],
-                    record=row[3],
-                    rev=row[4],
-                    rkey=row[5],
+                    did=row[1],
+                    time_us=row[2],
+                    kind=row[3],
+                    commit=row[4],
+                    collection=row[5],
                     created_at=row[6],
                 )
                 records.append(record)

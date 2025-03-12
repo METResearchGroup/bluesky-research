@@ -16,7 +16,7 @@ import json
 import time
 from collections import Counter
 from pprint import pprint
-from typing import Dict, List, Set, Union
+from typing import Union, Optional
 
 from demos.firehose_ingestion.db import FirehoseDB
 from demos.firehose_ingestion.jetstream_connector import JetstreamConnector
@@ -25,47 +25,55 @@ from lib.log.logger import get_logger
 logger = get_logger(__file__)
 
 
-def analyze_record_types(db: FirehoseDB, limit: int = 1000) -> Dict:
-    """Analyze the record types stored in the database.
+def analyze_collections(db: FirehoseDB, limit: int = 1000) -> dict:
+    """Analyze the collections stored in the database.
     
     Args:
         db: FirehoseDB instance to query
         limit: Maximum number of records to analyze
         
     Returns:
-        Dictionary with record type statistics
+        Dictionary with collection statistics
     """
     records = db.get_records(limit=limit)
     
     if not records:
         return {"error": "No records found"}
     
-    # Analyze record types
-    record_types = []
-    operations = []
+    # Analyze collections and types
+    collections = []
+    kinds = []
+    dids = set()
     
     for record in records:
-        # Parse the JSON record
-        record_data = json.loads(record.record)
-        record_type = record_data.get("$type", "unknown")
-        record_types.append(record_type)
-        operations.append(record.operation)
+        collections.append(record.collection)
+        kinds.append(record.kind)
+        dids.add(record.did)
     
     # Count frequencies
-    type_counts = dict(Counter(record_types))
-    operation_counts = dict(Counter(operations))
+    collection_counts = dict(Counter(collections))
+    kind_counts = dict(Counter(kinds))
+    
+    # Extract a sample commit
+    sample_commit = None
+    if records:
+        try:
+            sample_commit = json.loads(records[0].commit)
+        except json.JSONDecodeError:
+            sample_commit = {"error": "Failed to parse commit JSON"}
     
     return {
         "record_counts": {
             "total": len(records),
-            "by_type": type_counts,
-            "by_operation": operation_counts
+            "by_collection": collection_counts,
+            "by_kind": kind_counts,
+            "unique_dids": len(dids)
         },
-        "sample_record": json.loads(records[0].record) if records else None
+        "sample_commit": sample_commit
     }
 
 
-def analyze_post_contents(db: FirehoseDB, limit: int = 100) -> Dict:
+def analyze_post_contents(db: FirehoseDB, limit: int = 100) -> dict:
     """Analyze post contents for text length, mentions, URLs, etc.
     
     Args:
@@ -76,16 +84,23 @@ def analyze_post_contents(db: FirehoseDB, limit: int = 100) -> Dict:
         Dictionary with post content statistics
     """
     # Get posts specifically
-    records = db.get_records(limit=limit)
-    posts = []
+    records = db.get_records(limit=limit, collection="app.bsky.feed.post")
     
+    if not records:
+        return {"error": "No post records found"}
+    
+    posts = []
     for record in records:
-        record_data = json.loads(record.record)
-        if record_data.get("$type") == "app.bsky.feed.post":
-            posts.append(record_data)
+        try:
+            commit_data = json.loads(record.commit)
+            if "record" in commit_data and "$type" in commit_data["record"]:
+                if commit_data["record"]["$type"] == "app.bsky.feed.post":
+                    posts.append(commit_data["record"])
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning(f"Error parsing post record: {e}")
     
     if not posts:
-        return {"error": "No posts found"}
+        return {"error": "No valid posts found in records"}
     
     # Analyze text lengths
     text_lengths = [len(post.get("text", "")) for post in posts]
@@ -126,13 +141,63 @@ def analyze_post_contents(db: FirehoseDB, limit: int = 100) -> Dict:
     }
 
 
+def analyze_likes(db: FirehoseDB, limit: int = 100) -> dict:
+    """Analyze like records to see which types of content are being liked.
+    
+    Args:
+        db: FirehoseDB instance to query
+        limit: Maximum number of like records to analyze
+        
+    Returns:
+        Dictionary with like statistics
+    """
+    records = db.get_records(limit=limit, collection="app.bsky.feed.like")
+    
+    if not records:
+        return {"error": "No like records found"}
+    
+    likes = []
+    for record in records:
+        try:
+            commit_data = json.loads(record.commit)
+            if "record" in commit_data and "$type" in commit_data["record"]:
+                if commit_data["record"]["$type"] == "app.bsky.feed.like":
+                    likes.append(commit_data["record"])
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning(f"Error parsing like record: {e}")
+    
+    if not likes:
+        return {"error": "No valid likes found in records"}
+    
+    # Analyze which URIs are being liked
+    uri_counts = {}
+    for like in likes:
+        if "subject" in like and "uri" in like["subject"]:
+            uri = like["subject"]["uri"]
+            # Extract the collection from the URI
+            parts = uri.split("/")
+            if len(parts) >= 5:
+                collection = parts[4]
+                uri_counts[collection] = uri_counts.get(collection, 0) + 1
+    
+    return {
+        "like_stats": {
+            "count": len(likes),
+            "liked_collections": uri_counts
+        },
+        "sample_like": likes[0] if likes else None
+    }
+
+
 async def run_ingestion(
     db_name: str,
     instance: str,
-    collections: Union[str, List[str]],
+    collections: Union[str, list[str]],
     target_count: int,
-    max_time: int
-) -> Dict:
+    max_time: int,
+    cursor: Optional[str] = None,
+    wanted_dids: Optional[Union[str, list[str]]] = None
+) -> dict:
     """Run the firehose ingestion process.
     
     Args:
@@ -141,6 +206,8 @@ async def run_ingestion(
         collections: Collection(s) to subscribe to
         target_count: Target number of records to ingest
         max_time: Maximum time to run in seconds
+        cursor: Optional cursor for starting at a specific point
+        wanted_dids: Optional specific DIDs to filter for
         
     Returns:
         Dictionary with ingestion statistics
@@ -154,6 +221,8 @@ async def run_ingestion(
         wanted_collections=collections,
         target_count=target_count,
         max_time=max_time,
+        cursor=cursor,
+        wanted_dids=wanted_dids
     )
     
     return stats
@@ -175,13 +244,14 @@ def main():
                         help='Target number of records to ingest')
     parser.add_argument('--max_time', type=int, default=300,
                         help='Maximum time to run in seconds')
+    parser.add_argument('--cursor', type=str,
+                        help='Cursor for starting at a specific point in the firehose')
+    parser.add_argument('--wanted_dids', type=str,
+                        help='Comma-separated list of DIDs to filter for')
     parser.add_argument('--analysis', action='store_true',
                         help='Perform analysis on ingested data')
     
     args = parser.parse_args()
-    
-    # Split collections if comma-separated
-    collections = args.collections.split(',') if ',' in args.collections else args.collections
     
     # Generate db_name if not provided
     db_name = args.db_name
@@ -193,9 +263,11 @@ def main():
         run_ingestion(
             db_name=db_name,
             instance=args.instance,
-            collections=collections,
+            collections=args.collections,
             target_count=args.target_count,
-            max_time=args.max_time
+            max_time=args.max_time,
+            cursor=args.cursor,
+            wanted_dids=args.wanted_dids
         )
     )
     
@@ -210,20 +282,30 @@ def main():
         # Reconnect to the database
         db = FirehoseDB(db_name, create_new_db=False)
         
-        # Analyze record types
-        logger.info("Analyzing record types...")
-        type_analysis = analyze_record_types(db)
-        logger.info("Record type analysis:")
-        pprint(type_analysis)
+        # Analyze collections
+        logger.info("Analyzing collections...")
+        collection_analysis = analyze_collections(db)
+        logger.info("Collection analysis:")
+        pprint(collection_analysis)
         
         # Analyze post contents (if we have posts)
-        if "app.bsky.feed.post" in stats.get("record_types", []):
+        if "app.bsky.feed.post" in stats.get("collections", []):
             logger.info("Analyzing post contents...")
             post_analysis = analyze_post_contents(db)
             logger.info("Post content analysis:")
             pprint(post_analysis)
+            
+        # Analyze likes (if we have likes)
+        if "app.bsky.feed.like" in stats.get("collections", []):
+            logger.info("Analyzing likes...")
+            likes_analysis = analyze_likes(db)
+            logger.info("Likes analysis:")
+            pprint(likes_analysis)
     
     logger.info("All done!")
+    
+    if stats.get("latest_cursor"):
+        logger.info(f"To resume from this point, use --cursor={stats['latest_cursor']}")
 
 
 if __name__ == "__main__":

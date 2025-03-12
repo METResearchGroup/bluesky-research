@@ -24,11 +24,11 @@ from lib.log.logger import get_logger
 
 logger = get_logger(__file__)
 
-# Operations that can be performed on records
-OPERATIONS = ["create", "update", "delete"]
+# Kinds of messages in the firehose
+MESSAGE_KINDS = ["commit"]
 
-# Types of records to generate
-RECORD_TYPES = ["app.bsky.feed.post", "app.bsky.feed.like", "app.bsky.graph.follow"]
+# Types of collections
+COLLECTIONS = ["app.bsky.feed.post", "app.bsky.feed.like", "app.bsky.graph.follow"]
 
 class ResourceMonitor:
     """Monitor system resource usage during testing."""
@@ -86,43 +86,83 @@ def generate_random_string(length: int = 10) -> str:
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
 
+def generate_plc_did() -> str:
+    """Generate a random PLCish DID.
+    
+    Returns:
+        A string like 'did:plc:abcdefghijklmn'
+    """
+    return f"did:plc:{generate_random_string(16)}"
+
+
 def generate_test_record() -> Dict:
     """Generate a single test firehose record.
     
     Returns:
         Dictionary containing a synthetic firehose record
     """
-    record_type = random.choice(RECORD_TYPES)
+    # Generate a random DID
+    did = generate_plc_did()
     
-    # Generate record content based on type
-    if record_type == "app.bsky.feed.post":
-        record_content = {
-            "$type": record_type,
-            "text": f"Test post {generate_random_string(50)}",
-            "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        }
-    elif record_type == "app.bsky.feed.like":
-        record_content = {
-            "$type": record_type,
-            "subject": {
-                "uri": f"at://user/{generate_random_string(10)}/app.bsky.feed.post/{generate_random_string(10)}",
-                "cid": f"cid://{generate_random_string(30)}"
+    # Generate a timestamp in microseconds
+    time_us = str(int(time.time() * 1000000))
+    
+    # Always use 'commit' for now, since that's what we're most interested in
+    kind = "commit"
+    
+    # Pick a random collection
+    collection = random.choice(COLLECTIONS)
+    
+    # Generate a commit object based on collection type
+    if collection == "app.bsky.feed.post":
+        commit_content = {
+            "rev": f"rev-{generate_random_string(8)}",
+            "operation": "create",
+            "collection": collection,
+            "rkey": f"rkey-{generate_random_string(8)}",
+            "record": {
+                "$type": collection,
+                "text": f"Test post {generate_random_string(50)}",
+                "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             },
-            "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "cid": f"cid://{uuid.uuid4().hex}"
+        }
+    elif collection == "app.bsky.feed.like":
+        commit_content = {
+            "rev": f"rev-{generate_random_string(8)}",
+            "operation": "create",
+            "collection": collection,
+            "rkey": f"rkey-{generate_random_string(8)}",
+            "record": {
+                "$type": collection,
+                "subject": {
+                    "uri": f"at://{generate_plc_did()}/app.bsky.feed.post/{generate_random_string(10)}",
+                    "cid": f"cid://{generate_random_string(30)}"
+                },
+                "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            },
+            "cid": f"cid://{uuid.uuid4().hex}"
         }
     else:  # app.bsky.graph.follow
-        record_content = {
-            "$type": record_type,
-            "subject": f"did:plc:{generate_random_string(10)}",
-            "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        commit_content = {
+            "rev": f"rev-{generate_random_string(8)}",
+            "operation": "create",
+            "collection": collection,
+            "rkey": f"rkey-{generate_random_string(8)}",
+            "record": {
+                "$type": collection,
+                "subject": generate_plc_did(),
+                "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            },
+            "cid": f"cid://{uuid.uuid4().hex}"
         }
     
     return {
-        "cid": f"cid://{uuid.uuid4().hex}",
-        "operation": random.choice(OPERATIONS),
-        "record": json.dumps(record_content),
-        "rev": f"rev-{generate_random_string(8)}",
-        "rkey": f"rkey-{generate_random_string(8)}",
+        "did": did,
+        "time_us": time_us,
+        "kind": kind,
+        "commit": json.dumps(commit_content),
+        "collection": collection,
     }
 
 
