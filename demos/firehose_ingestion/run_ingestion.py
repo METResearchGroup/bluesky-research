@@ -13,180 +13,195 @@ Example usage:
 import argparse
 import asyncio
 import json
+import os
+import sys
 import time
 from collections import Counter
+from datetime import datetime
+from pathlib import Path
 from pprint import pprint
-from typing import Union, Optional
+from typing import Dict, List, Optional, Set, Union
 
-from demos.firehose_ingestion.db import FirehoseDB
+# Add the project root to sys.path
+project_root = str(Path(os.path.abspath(__file__)).parent.parent.parent)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from demos.firehose_ingestion.db import FirehoseDB, FirehoseRecord
 from demos.firehose_ingestion.jetstream_connector import JetstreamConnector
+from lib.config.app_config import APP_CONFIG
+from lib.data.connections.jetstream import get_jetstream_connection
 from lib.log.logger import get_logger
 
 logger = get_logger(__file__)
 
 
-def analyze_collections(db: FirehoseDB, limit: int = 1000) -> dict:
+def analyze_collections(db: FirehoseDB) -> Dict:
     """Analyze the collections stored in the database.
     
     Args:
-        db: FirehoseDB instance to query
-        limit: Maximum number of records to analyze
+        db: FirehoseDB instance to analyze
         
     Returns:
-        Dictionary with collection statistics
+        Dictionary with statistics about collections
     """
-    records = db.get_records(limit=limit)
+    records = db.get_records(limit=10000)
+    total_records = len(records)
     
-    if not records:
+    if total_records == 0:
         return {"error": "No records found"}
     
-    # Analyze collections and types
-    collections = []
-    kinds = []
-    dids = set()
+    stats = {
+        "total_records": total_records,
+        "collections": {},
+        "kinds": {},
+        "unique_dids": set(),
+    }
     
     for record in records:
-        collections.append(record.collection)
-        kinds.append(record.kind)
-        dids.add(record.did)
+        # Track collections
+        if record.collection not in stats["collections"]:
+            stats["collections"][record.collection] = 0
+        stats["collections"][record.collection] += 1
+        
+        # Track kinds
+        if record.kind not in stats["kinds"]:
+            stats["kinds"][record.kind] = 0
+        stats["kinds"][record.kind] += 1
+        
+        # Track DIDs
+        stats["unique_dids"].add(record.did)
     
-    # Count frequencies
-    collection_counts = dict(Counter(collections))
-    kind_counts = dict(Counter(kinds))
+    # Convert set to count for JSON serialization
+    stats["unique_dids"] = len(stats["unique_dids"])
     
-    # Extract a sample commit
-    sample_commit = None
-    if records:
-        try:
-            sample_commit = json.loads(records[0].commit)
-        except json.JSONDecodeError:
-            sample_commit = {"error": "Failed to parse commit JSON"}
-    
-    return {
-        "record_counts": {
-            "total": len(records),
-            "by_collection": collection_counts,
-            "by_kind": kind_counts,
-            "unique_dids": len(dids)
-        },
-        "sample_commit": sample_commit
-    }
+    return stats
 
 
-def analyze_post_contents(db: FirehoseDB, limit: int = 100) -> dict:
-    """Analyze post contents for text length, mentions, URLs, etc.
+def analyze_post_contents(db: FirehoseDB) -> Dict:
+    """Analyze the contents of posts in the database.
     
     Args:
-        db: FirehoseDB instance to query
-        limit: Maximum number of posts to analyze
+        db: FirehoseDB instance to analyze
         
     Returns:
-        Dictionary with post content statistics
+        Dictionary with statistics about post contents
     """
-    # Get posts specifically
-    records = db.get_records(limit=limit, collection="app.bsky.feed.post")
+    # Get post records
+    records = db.get_records(collection="app.bsky.feed.post", limit=1000)
+    total_posts = len(records)
     
-    if not records:
+    if total_posts == 0:
         return {"error": "No post records found"}
     
-    posts = []
-    for record in records:
-        try:
-            commit_data = json.loads(record.commit)
-            if "record" in commit_data and "$type" in commit_data["record"]:
-                if commit_data["record"]["$type"] == "app.bsky.feed.post":
-                    posts.append(commit_data["record"])
-        except (json.JSONDecodeError, KeyError) as e:
-            logger.warning(f"Error parsing post record: {e}")
-    
-    if not posts:
-        return {"error": "No valid posts found in records"}
-    
-    # Analyze text lengths
-    text_lengths = [len(post.get("text", "")) for post in posts]
-    avg_length = sum(text_lengths) / len(text_lengths) if text_lengths else 0
-    
-    # Count mentions
-    mention_counts = []
-    for post in posts:
-        # A simple estimate - actual parsing would be more complex
-        mentions = post.get("text", "").count("@")
-        mention_counts.append(mentions)
-    
-    # Check for media
-    media_counts = []
-    for post in posts:
-        # Check for embed - this is a simplification
-        has_media = "embed" in post
-        media_counts.append(1 if has_media else 0)
-    
-    return {
-        "post_stats": {
-            "count": len(posts),
-            "text_length": {
-                "average": avg_length,
-                "min": min(text_lengths) if text_lengths else 0,
-                "max": max(text_lengths) if text_lengths else 0
-            },
-            "mentions": {
-                "total": sum(mention_counts),
-                "average": sum(mention_counts) / len(mention_counts) if mention_counts else 0
-            },
-            "media": {
-                "count": sum(media_counts),
-                "percentage": sum(media_counts) * 100 / len(posts) if posts else 0
-            }
-        },
-        "sample_post": posts[0] if posts else None
+    stats = {
+        "total_posts": total_posts,
+        "avg_text_length": 0,
+        "has_images": 0,
+        "has_links": 0,
+        "has_mentions": 0,
+        "unique_authors": set(),
+        "sample_posts": []
     }
+    
+    total_text_length = 0
+    for record in records:
+        # Parse commit data
+        commit_data = json.loads(record.commit_data)
+        post_data = commit_data.get("record", {})
+        
+        # Author tracking
+        stats["unique_authors"].add(record.did)
+        
+        # Text analysis
+        text = post_data.get("text", "")
+        total_text_length += len(text)
+        
+        # Check for images
+        if "embed" in post_data and "images" in str(post_data["embed"]):
+            stats["has_images"] += 1
+            
+        # Check for links
+        if "embed" in post_data and "external" in str(post_data["embed"]):
+            stats["has_links"] += 1
+            
+        # Check for mentions
+        if "@" in text:
+            stats["has_mentions"] += 1
+            
+        # Store sample posts (first 5)
+        if len(stats["sample_posts"]) < 5:
+            stats["sample_posts"].append({
+                "text": text[:100] + ("..." if len(text) > 100 else ""),
+                "author": record.did,
+                "created_at": post_data.get("createdAt", "unknown")
+            })
+    
+    if total_posts > 0:
+        stats["avg_text_length"] = total_text_length / total_posts
+    
+    # Convert set to count for JSON serialization
+    stats["unique_authors"] = len(stats["unique_authors"])
+    
+    return stats
 
 
-def analyze_likes(db: FirehoseDB, limit: int = 100) -> dict:
-    """Analyze like records to see which types of content are being liked.
+def analyze_likes(db: FirehoseDB) -> Dict:
+    """Analyze like records in the database.
     
     Args:
-        db: FirehoseDB instance to query
-        limit: Maximum number of like records to analyze
+        db: FirehoseDB instance to analyze
         
     Returns:
-        Dictionary with like statistics
+        Dictionary with statistics about likes
     """
-    records = db.get_records(limit=limit, collection="app.bsky.feed.like")
+    # Get like records
+    records = db.get_records(collection="app.bsky.feed.like", limit=1000)
+    total_likes = len(records)
     
-    if not records:
+    if total_likes == 0:
         return {"error": "No like records found"}
     
-    likes = []
-    for record in records:
-        try:
-            commit_data = json.loads(record.commit)
-            if "record" in commit_data and "$type" in commit_data["record"]:
-                if commit_data["record"]["$type"] == "app.bsky.feed.like":
-                    likes.append(commit_data["record"])
-        except (json.JSONDecodeError, KeyError) as e:
-            logger.warning(f"Error parsing like record: {e}")
-    
-    if not likes:
-        return {"error": "No valid likes found in records"}
-    
-    # Analyze which URIs are being liked
-    uri_counts = {}
-    for like in likes:
-        if "subject" in like and "uri" in like["subject"]:
-            uri = like["subject"]["uri"]
-            # Extract the collection from the URI
-            parts = uri.split("/")
-            if len(parts) >= 5:
-                collection = parts[4]
-                uri_counts[collection] = uri_counts.get(collection, 0) + 1
-    
-    return {
-        "like_stats": {
-            "count": len(likes),
-            "liked_collections": uri_counts
-        },
-        "sample_like": likes[0] if likes else None
+    stats = {
+        "total_likes": total_likes,
+        "liked_collections": {},
+        "unique_likers": set(),
+        "sample_likes": []
     }
+    
+    for record in records:
+        # Parse commit data
+        commit_data = json.loads(record.commit_data)
+        like_data = commit_data.get("record", {})
+        
+        # Liker tracking
+        stats["unique_likers"].add(record.did)
+        
+        # Get subject URI and parse the collection
+        subject = like_data.get("subject", {})
+        uri = subject.get("uri", "")
+        
+        # Extract collection from URI
+        if uri and isinstance(uri, str):
+            parts = uri.split('/')
+            if len(parts) >= 4:
+                collection = parts[-2]
+                if collection not in stats["liked_collections"]:
+                    stats["liked_collections"][collection] = 0
+                stats["liked_collections"][collection] += 1
+                
+        # Store sample likes (first 5)
+        if len(stats["sample_likes"]) < 5:
+            stats["sample_likes"].append({
+                "uri": uri,
+                "liker": record.did,
+                "created_at": like_data.get("createdAt", "unknown")
+            })
+    
+    # Convert set to count for JSON serialization
+    stats["unique_likers"] = len(stats["unique_likers"])
+    
+    return stats
 
 
 async def run_ingestion(

@@ -33,14 +33,14 @@ class FirehoseRecord(BaseModel):
         did: Repository DID identifier
         time_us: Timestamp in microseconds
         kind: Kind of event (commit, identity, account)
-        commit: JSON commit data
+        commit_data: JSON commit data
         collection: Collection type (e.g. app.bsky.feed.post)
         created_at: Timestamp when this record was added to the database
     """
     did: str
     time_us: str
     kind: str
-    commit: str  # JSONB (stored as string)
+    commit_data: str  # JSONB (stored as string)
     collection: str
     created_at: str = Field(
         default_factory=generate_current_datetime_str,
@@ -127,7 +127,7 @@ class FirehoseDB:
                     did TEXT NOT NULL,
                     time_us TEXT NOT NULL,
                     kind TEXT NOT NULL,
-                    commit TEXT NOT NULL,
+                    commit_data TEXT NOT NULL,
                     collection TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 )
@@ -211,14 +211,14 @@ class FirehoseDB:
                 conn.execute(
                     f"""
                     INSERT INTO {self.table_name} 
-                    (did, time_us, kind, commit, collection, created_at) 
+                    (did, time_us, kind, commit_data, collection, created_at) 
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (
                         record.did,
                         record.time_us,
                         record.kind,
-                        record.commit,
+                        record.commit_data,
                         record.collection,
                         generate_current_datetime_str(),
                     ),
@@ -266,7 +266,7 @@ class FirehoseDB:
                 record.did,
                 record.time_us,
                 record.kind,
-                record.commit,
+                record.commit_data,
                 record.collection,
                 generate_current_datetime_str(),
             ))
@@ -306,7 +306,7 @@ class FirehoseDB:
                     conn.executemany(
                         f"""
                         INSERT INTO {self.table_name} 
-                        (did, time_us, kind, commit, collection, created_at)
+                        (did, time_us, kind, commit_data, collection, created_at)
                         VALUES (?, ?, ?, ?, ?, ?)
                         """,
                         chunk,
@@ -349,7 +349,7 @@ class FirehoseDB:
         """
         with self._get_connection() as conn:
             query = f"""
-                SELECT id, did, time_us, kind, commit, collection, created_at 
+                SELECT id, did, time_us, kind, commit_data, collection, created_at 
                 FROM {self.table_name}
             """
             
@@ -402,7 +402,7 @@ class FirehoseDB:
                     did=row[1],
                     time_us=row[2],
                     kind=row[3],
-                    commit=row[4],
+                    commit_data=row[4],
                     collection=row[5],
                     created_at=row[6],
                 )
