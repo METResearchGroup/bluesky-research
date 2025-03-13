@@ -20,6 +20,7 @@ logger = get_logger(__file__)
 async def backfill_sync(
     wanted_dids: Optional[list[str]] = None,
     start_timestamp: Optional[str] = None,
+    end_timestamp: Optional[str] = None,
     wanted_collections: Optional[list[str]] = None,
     num_records: int = 10000,
     instance: str = PUBLIC_INSTANCES[0],
@@ -33,6 +34,7 @@ async def backfill_sync(
     Args:
         wanted_dids: Optional list of DIDs to filter for
         start_timestamp: Optional timestamp to start from (YYYY-MM-DD or YYYY-MM-DD-HH:MM:SS)
+        end_timestamp: Optional timestamp to stop at (YYYY-MM-DD or YYYY-MM-DD-HH:MM:SS)
         wanted_collections: Optional list of collection types to include
         num_records: Number of records to collect (default: 10000)
         instance: Jetstream instance to connect to
@@ -53,6 +55,10 @@ async def backfill_sync(
     if start_timestamp:
         cursor = str(timestamp_to_unix_microseconds(start_timestamp))
         logger.info(f"Using cursor: {cursor} (from timestamp: {start_timestamp})")
+
+    # Log end_timestamp if provided
+    if end_timestamp:
+        logger.info(f"Will stop at timestamp: {end_timestamp}")
 
     # Initialize JetstreamConnector
     connector = JetstreamConnector(queue_name=queue_name, batch_size=batch_size)
@@ -78,6 +84,7 @@ async def backfill_sync(
             max_time=max_time,
             cursor=cursor,
             wanted_dids=wanted_dids,
+            end_timestamp=end_timestamp,
         )
 
         # Log the results
@@ -92,6 +99,7 @@ async def backfill_sync(
 def run_backfill_sync(
     wanted_dids: Optional[list[str]] = None,
     start_timestamp: Optional[str] = None,
+    end_timestamp: Optional[str] = None,
     wanted_collections: Optional[list[str]] = None,
     num_records: int = 10000,
     instance: str = PUBLIC_INSTANCES[0],
@@ -113,6 +121,7 @@ def run_backfill_sync(
         backfill_sync(
             wanted_dids=wanted_dids,
             start_timestamp=start_timestamp,
+            end_timestamp=end_timestamp,
             wanted_collections=wanted_collections,
             num_records=num_records,
             instance=instance,

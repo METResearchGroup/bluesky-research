@@ -63,6 +63,32 @@ def timestamp_to_unix_microseconds(timestamp: str, format: Optional[str] = None)
         )
 
 
+def unix_microseconds_to_timestamp(unix_microseconds: int) -> str:
+    """Convert Unix microseconds to a timestamp string.
+
+    Args:
+        unix_microseconds: Unix microseconds since epoch
+
+    Returns:
+        Timestamp string in the format YYYY-MM-DD-HH:MM:SS
+    """
+    return datetime.fromtimestamp(unix_microseconds / 1_000_000).strftime(
+        timestamp_format
+    )
+
+
+def unix_microseconds_to_date(unix_microseconds: int) -> str:
+    """Convert Unix microseconds to a date string.
+
+    Args:
+        unix_microseconds: Unix microseconds since epoch
+
+    Returns:
+        Date string in the format YYYY-MM-DD
+    """
+    return datetime.fromtimestamp(unix_microseconds / 1_000_000).strftime("%Y-%m-%d")
+
+
 def validate_timestamp(
     ctx: Any, param: Any, value: Optional[str], format: Optional[str] = None
 ) -> Optional[str]:

@@ -15,6 +15,10 @@ import websockets
 
 from lib.db.queue import Queue
 from lib.log.logger import get_logger
+from services.sync.jetstream.helper import (
+    unix_microseconds_to_date,
+    timestamp_to_unix_microseconds,
+)
 from services.sync.jetstream.models import JetstreamRecord
 
 logger = get_logger(__file__)
@@ -50,6 +54,7 @@ class JetstreamConnector:
         self.start_time = None
         self.collections_seen: set[str] = set()
         self.pending_records: List[Dict[str, Any]] = []
+        self.current_date: Optional[str] = None
 
         logger.info(f"Initialized JetstreamConnector with queue: {queue_name}")
 
@@ -231,6 +236,7 @@ class JetstreamConnector:
         max_time: int = 300,
         cursor: Optional[str] = None,
         wanted_dids: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+        end_timestamp: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Listen to the firehose and store records until reaching a target count.
 
@@ -241,6 +247,7 @@ class JetstreamConnector:
             max_time: Maximum time to listen in seconds.
             cursor: Optional cursor for starting at a specific point.
             wanted_dids: Optional specific DIDs to filter for.
+            end_timestamp: Optional timestamp to stop at (YYYY-MM-DD or YYYY-MM-DD-HH:MM:SS).
 
         Returns:
             Dictionary with statistics about the ingestion process.
@@ -263,6 +270,13 @@ class JetstreamConnector:
         # Add optional cursor
         if cursor:
             params["cursor"] = cursor
+            # Initialize current_date based on starting cursor if available
+            try:
+                cursor_int = int(cursor)
+                self.current_date = unix_microseconds_to_date(cursor_int)
+                logger.info(f"Starting from date: {self.current_date}")
+            except (ValueError, TypeError):
+                self.current_date = None
 
         # Add optional DIDs
         if wanted_dids:
@@ -276,6 +290,14 @@ class JetstreamConnector:
                 wanted_dids = list(wanted_dids)
 
             params["wantedDids"] = wanted_dids
+
+        # Convert end_timestamp to unix microseconds if provided
+        end_cursor = None
+        if end_timestamp:
+            end_cursor = timestamp_to_unix_microseconds(end_timestamp)
+            logger.info(
+                f"Will stop at cursor: {end_cursor} (from timestamp: {end_timestamp})"
+            )
 
         # Generate URI
         uri = self.generate_uri(instance, params)
@@ -322,6 +344,22 @@ class JetstreamConnector:
                         if "time_us" in message:
                             latest_cursor = str(message["time_us"])
 
+                            # Check if we've reached or exceeded the end cursor
+                            if end_cursor and int(latest_cursor) >= end_cursor:
+                                logger.info(
+                                    f"Reached end timestamp cursor: {latest_cursor}"
+                                )
+                                break
+
+                            # Track date changes
+                            cursor_date = unix_microseconds_to_date(int(latest_cursor))
+                            if cursor_date != self.current_date:
+                                if self.current_date is not None:
+                                    logger.info(
+                                        f"Date change: {self.current_date} -> {cursor_date}"
+                                    )
+                                self.current_date = cursor_date
+
                         # Store the message
                         success = self.store_message(message)
 
@@ -359,6 +397,10 @@ class JetstreamConnector:
                     "target_reached": self.records_stored >= target_count,
                     "latest_cursor": latest_cursor,
                     "queue_length": queue_length,
+                    "current_date": self.current_date,
+                    "end_cursor_reached": end_cursor
+                    and latest_cursor
+                    and int(latest_cursor) >= end_cursor,
                 }
 
                 logger.info(

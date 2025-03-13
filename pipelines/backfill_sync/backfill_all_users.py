@@ -42,6 +42,7 @@ def chunk_list(items: list[Any], chunk_size: int) -> list[list[Any]]:
 def backfill_all_users(
     chunk_size: int = 100,
     start_timestamp: Optional[str] = DEFAULT_START_TIMESTAMP,
+    end_timestamp: Optional[str] = None,
     wanted_collections: Optional[list[str]] = None,
     num_records: int = 10000,
     max_time: int = 900,
@@ -57,6 +58,7 @@ def backfill_all_users(
         chunk_size: Number of DIDs to process in each backfill run
         start_timestamp: Optional timestamp to start from (YYYY-MM-DD or YYYY-MM-DD-HH:MM:SS)
                         Defaults to September 28th, 2024, at 12am
+        end_timestamp: Optional timestamp to stop at (YYYY-MM-DD or YYYY-MM-DD-HH:MM:SS)
         wanted_collections: Optional list of collection types to include
         num_records: Number of records to collect per backfill run
         max_time: Maximum time to run each backfill in seconds
@@ -103,10 +105,14 @@ def backfill_all_users(
         "dids",
         "collections",
         "start_timestamp",
+        "end_timestamp",
         "num_records",
         "max_time",
         "queue_name",
         "records_stored",
+        "latest_cursor",
+        "current_date",
+        "end_cursor_reached",
         "status",
     ]
 
@@ -129,6 +135,7 @@ def backfill_all_users(
                 "dids": ",".join(did_chunk[:5]) + ("..." if len(did_chunk) > 5 else ""),
                 "collections": ",".join(wanted_collections),
                 "start_timestamp": start_timestamp or "",
+                "end_timestamp": end_timestamp or "",
                 "num_records": num_records,
                 "max_time": max_time,
                 "queue_name": queue_name,
@@ -139,12 +146,17 @@ def backfill_all_users(
                 logger.info(f"  DIDs: {len(did_chunk)} DIDs")
                 logger.info(f"  Collections: {wanted_collections}")
                 logger.info(f"  Start timestamp: {start_timestamp}")
+                if end_timestamp:
+                    logger.info(f"  End timestamp: {end_timestamp}")
                 logger.info(f"  Num records: {num_records}")
                 logger.info(f"  Max time: {max_time}s")
                 row["status"] = "DRY_RUN"
                 row["end_time"] = row["start_time"]
                 row["duration_seconds"] = 0
                 row["records_stored"] = 0
+                row["latest_cursor"] = ""
+                row["current_date"] = ""
+                row["end_cursor_reached"] = False
             else:
                 # Run backfill sync
                 start_time = time.time()
@@ -152,6 +164,7 @@ def backfill_all_users(
                     stats = run_backfill_sync(
                         wanted_dids=did_chunk,
                         start_timestamp=start_timestamp,
+                        end_timestamp=end_timestamp,
                         wanted_collections=wanted_collections,
                         num_records=num_records,
                         max_time=max_time,
@@ -166,9 +179,16 @@ def backfill_all_users(
                     # Update CSV row with results
                     row["status"] = "SUCCESS"
                     row["records_stored"] = stats["records_stored"]
+                    row["latest_cursor"] = stats.get("latest_cursor", "")
+                    row["current_date"] = stats.get("current_date", "")
+                    row["end_cursor_reached"] = stats.get("end_cursor_reached", False)
+
                     logger.info(
                         f"Stored {stats['records_stored']} records in {duration:.2f}s"
                     )
+
+                    if stats.get("end_cursor_reached"):
+                        logger.info("Stopped because end timestamp was reached.")
 
                 except Exception as e:
                     end_time = time.time()
@@ -177,6 +197,9 @@ def backfill_all_users(
                     # Update CSV row with error
                     row["status"] = f"ERROR: {str(e)}"
                     row["records_stored"] = 0
+                    row["latest_cursor"] = ""
+                    row["current_date"] = ""
+                    row["end_cursor_reached"] = False
                     logger.error(f"Error processing chunk {chunk_id}: {e}")
 
                 row["end_time"] = datetime.now().strftime(timestamp_format)
@@ -208,6 +231,11 @@ def main():
         type=str,
         default=DEFAULT_START_TIMESTAMP,
         help=f"Start timestamp in YYYY-MM-DD or {timestamp_format} format",
+    )
+    parser.add_argument(
+        "--end-timestamp",
+        type=str,
+        help="End timestamp (optional, will stop when reached)",
     )
     parser.add_argument(
         "--collections",
@@ -268,6 +296,7 @@ def main():
         csv_path = backfill_all_users(
             chunk_size=args.chunk_size,
             start_timestamp=args.start_timestamp,
+            end_timestamp=args.end_timestamp,
             wanted_collections=collections,
             num_records=args.num_records,
             max_time=args.max_time,

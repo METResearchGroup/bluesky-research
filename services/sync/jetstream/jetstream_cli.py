@@ -58,6 +58,12 @@ def validate_flexible_timestamp(
     help=f"Start timestamp in YYYY-MM-DD or {timestamp_format} format",
 )
 @click.option(
+    "--end-timestamp",
+    "-e",
+    callback=validate_flexible_timestamp,
+    help=f"End timestamp in YYYY-MM-DD or {timestamp_format} format (stop when reaching this time)",
+)
+@click.option(
     "--num-records",
     "-n",
     type=int,
@@ -106,6 +112,7 @@ def stream_bluesky(
     wanted_collections: list[str],
     wanted_dids: list[str],
     start_timestamp: Optional[str],
+    end_timestamp: Optional[str],
     num_records: int,
     instance: str,
     max_time: int,
@@ -129,6 +136,9 @@ def stream_bluesky(
         # Stream 500 likes and follows from a specific date and time
         $ python -m services.sync.jetstream.jetstream_cli -c app.bsky.feed.like -c app.bsky.graph.follow -n 500 -s 2024-01-01-12:30:00
 
+        # Stream for a specific date range (will stop at end date)
+        $ python -m services.sync.jetstream.jetstream_cli -s 2024-01-01 -e 2024-01-07
+
         # Stream posts from specific DIDs
         $ python -m services.sync.jetstream.jetstream_cli -d did:plc:abcdef123456 -d did:plc:xyz789
 
@@ -144,6 +154,10 @@ def stream_bluesky(
         # Let the function automatically detect the format
         cursor = str(timestamp_to_unix_microseconds(start_timestamp))
         logger.info(f"Using cursor: {cursor} (from timestamp: {start_timestamp})")
+
+    # Log end_timestamp if provided
+    if end_timestamp:
+        logger.info(f"Will stop at timestamp: {end_timestamp}")
 
     # Initialize JetstreamConnector
     connector = JetstreamConnector(queue_name=queue_name, batch_size=batch_size)
@@ -181,6 +195,7 @@ def stream_bluesky(
                 max_time=max_time,
                 cursor=cursor,
                 wanted_dids=wanted_dids if wanted_dids else None,
+                end_timestamp=end_timestamp,
             )
         )
 
@@ -192,6 +207,12 @@ def stream_bluesky(
         logger.info(f"Time taken: {stats['total_time']:.2f} seconds")
         logger.info(f"Rate: {stats['records_per_second']:.2f} records/second")
         logger.info(f"Queue length: {stats['queue_length']} items")
+
+        if stats.get("current_date"):
+            logger.info(f"Current date: {stats['current_date']}")
+
+        if stats.get("end_cursor_reached"):
+            logger.info("Stopped because end timestamp was reached.")
 
         if stats.get("latest_cursor"):
             logger.info(f"\nLatest cursor: {stats['latest_cursor']}")

@@ -63,6 +63,12 @@ def validate_flexible_timestamp(ctx, param, value):
     help=f"Start timestamp in YYYY-MM-DD or {timestamp_format} format",
 )
 @click.option(
+    "--end-timestamp",
+    "-e",
+    callback=validate_flexible_timestamp,
+    help=f"End timestamp in YYYY-MM-DD or {timestamp_format} format (stop when reaching this time)",
+)
+@click.option(
     "--num-records",
     "-n",
     type=int,
@@ -111,6 +117,7 @@ def backfill_sync_cli(
     wanted_collections: tuple[str, ...],
     wanted_dids: Optional[list[str]],
     start_timestamp: Optional[str],
+    end_timestamp: Optional[str],
     num_records: int,
     instance: str,
     max_time: int,
@@ -132,8 +139,8 @@ def backfill_sync_cli(
         # Backfill 5000 likes and follows from a specific date
         $ python -m pipelines.backfill_sync.app -c app.bsky.feed.like -c app.bsky.graph.follow -n 5000 -s 2024-01-01
 
-        # Backfill 5000 likes and follows from a specific date and time
-        $ python -m pipelines.backfill_sync.app -c app.bsky.feed.like -c app.bsky.graph.follow -n 5000 -s 2024-01-01-12:30:00
+        # Backfill 5000 likes and follows from a specific date and time range
+        $ python -m pipelines.backfill_sync.app -c app.bsky.feed.like -c app.bsky.graph.follow -n 5000 -s 2024-01-01-12:30:00 -e 2024-01-02-12:30:00
 
         # Backfill posts from specific DIDs
         $ python -m pipelines.backfill_sync.app -d did:plc:abcdef123456,did:plc:xyz789
@@ -153,6 +160,7 @@ def backfill_sync_cli(
         stats = run_backfill_sync(
             wanted_dids=wanted_dids,
             start_timestamp=start_timestamp,
+            end_timestamp=end_timestamp,
             wanted_collections=list(wanted_collections),
             num_records=num_records,
             instance=instance,
@@ -170,6 +178,12 @@ def backfill_sync_cli(
         logger.info(f"Time taken: {stats['total_time']:.2f} seconds")
         logger.info(f"Rate: {stats['records_per_second']:.2f} records/second")
         logger.info(f"Queue length: {stats['queue_length']} items")
+
+        if stats.get("current_date"):
+            logger.info(f"Current date reached: {stats['current_date']}")
+
+        if stats.get("end_cursor_reached"):
+            logger.info("Stopped because end timestamp was reached.")
 
         if stats.get("latest_cursor"):
             logger.info(f"\nLatest cursor: {stats['latest_cursor']}")
