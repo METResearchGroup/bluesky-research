@@ -9,11 +9,15 @@ queue for further processing.
 import asyncio
 import click
 import sys
-from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from lib.log.logger import get_logger
 from services.sync.jetstream.constants import VALID_COLLECTIONS
+from services.sync.jetstream.helper import (
+    timestamp_to_unix_microseconds,
+    validate_timestamp,
+    parse_handles,
+)
 from services.sync.jetstream.jetstream_connector import (
     JetstreamConnector,
     PUBLIC_INSTANCES,
@@ -22,38 +26,12 @@ from services.sync.jetstream.jetstream_connector import (
 logger = get_logger(__file__)
 
 
-def timestamp_to_unix_microseconds(timestamp: str) -> int:
-    """Convert a timestamp string to Unix microseconds.
-
-    Args:
-        timestamp: Timestamp string in YYYY-MM-DD format
-
-    Returns:
-        Unix microseconds since epoch
-    """
-    # Convert YYYY-MM-DD to datetime at start of day (00:00:00)
-    dt = datetime.strptime(timestamp, "%Y-%m-%d")
-    # Return microseconds (seconds * 1_000_000)
-    return int(dt.timestamp() * 1_000_000)
-
-
-def validate_timestamp(ctx, param, value):
-    """Validate timestamp format (YYYY-MM-DD)."""
-    if value is None:
-        return None
-    try:
-        # Just validate the format, actual conversion happens later
-        datetime.strptime(value, "%Y-%m-%d")
-        return value
-    except ValueError:
-        raise click.BadParameter("Invalid date format. Please use YYYY-MM-DD format.")
-
-
-def parse_handles(ctx, param, value):
-    """Parse comma-separated list of handles into a list."""
-    if value is None:
-        return None
-    return [handle.strip() for handle in value.split(",") if handle.strip()]
+# Callback for timestamp validation with YYYY-MM-DD format
+def validate_date_format(
+    ctx: click.Context, param: click.Parameter, value: Optional[str]
+) -> Optional[str]:
+    """Click callback for validating date in YYYY-MM-DD format."""
+    return validate_timestamp(ctx, param, value, format="%Y-%m-%d")
 
 
 @click.command()
@@ -74,7 +52,7 @@ def parse_handles(ctx, param, value):
 @click.option(
     "--start-timestamp",
     "-s",
-    callback=validate_timestamp,
+    callback=validate_date_format,
     help="Start timestamp in YYYY-MM-DD format",
 )
 @click.option(
@@ -123,8 +101,8 @@ def parse_handles(ctx, param, value):
     help="List of Bluesky user handles to get data for (comma-separated)",
 )
 def stream_bluesky(
-    wanted_collections: List[str],
-    wanted_dids: List[str],
+    wanted_collections: list[str],
+    wanted_dids: list[str],
     start_timestamp: Optional[str],
     num_records: int,
     instance: str,
@@ -132,7 +110,7 @@ def stream_bluesky(
     queue_name: str,
     batch_size: int,
     compress: bool,
-    bluesky_user_handles: Optional[List[str]],
+    bluesky_user_handles: Optional[list[str]],
 ):
     """Stream data from the Bluesky firehose via Jetstream.
 
@@ -158,7 +136,7 @@ def stream_bluesky(
     # Convert start_timestamp to cursor if provided
     cursor = None
     if start_timestamp:
-        cursor = str(timestamp_to_unix_microseconds(start_timestamp))
+        cursor = str(timestamp_to_unix_microseconds(start_timestamp, format="%Y-%m-%d"))
         logger.info(f"Using cursor: {cursor} (from timestamp: {start_timestamp})")
 
     # Initialize JetstreamConnector
