@@ -17,8 +17,8 @@ def timestamp_to_unix_microseconds(timestamp: str, format: Optional[str] = None)
 
     Args:
         timestamp: Timestamp string in the format specified by format
-        format: Optional timestamp format string (default: uses lib.constants.timestamp_format)
-               If None and timestamp is in YYYY-MM-DD format, it will be parsed accordingly
+        format: Optional timestamp format string
+               If None, will try both YYYY-MM-DD and lib.constants.timestamp_format
 
     Returns:
         Unix microseconds since epoch
@@ -28,6 +28,10 @@ def timestamp_to_unix_microseconds(timestamp: str, format: Optional[str] = None)
     """
     if not isinstance(timestamp, str):
         raise ValueError(f"Expected string timestamp, got {type(timestamp)}")
+
+    # Special case for Unix epoch start (1970-01-01)
+    if timestamp == "1970-01-01":
+        return 0
 
     # If format is provided, use it
     if format is not None:
@@ -39,27 +43,23 @@ def timestamp_to_unix_microseconds(timestamp: str, format: Optional[str] = None)
                 f"Invalid timestamp format: {timestamp}. Expected format: {format}"
             )
 
-    # Special case for Unix epoch start (1970-01-01)
-    if timestamp == "1970-01-01":
-        return 0
-
-    # If no format provided but looks like YYYY-MM-DD, use that format
+    # Try YYYY-MM-DD format first (most common)
     if len(timestamp) == 10 and timestamp[4] == "-" and timestamp[7] == "-":
         try:
             dt = datetime.strptime(timestamp, "%Y-%m-%d")
             return int(dt.timestamp() * 1_000_000)
         except ValueError:
-            raise ValueError(
-                f"Invalid timestamp format: {timestamp}. Expected YYYY-MM-DD format."
-            )
+            # Let it fall through to the next format attempt
+            pass
 
-    # Otherwise, use the default timestamp format
+    # Try default timestamp format (YYYY-MM-DD-HH:MM:SS)
     try:
         dt = datetime.strptime(timestamp, timestamp_format)
         return int(dt.timestamp() * 1_000_000)
     except ValueError:
+        # If both formats fail, provide a helpful error message
         raise ValueError(
-            f"Invalid timestamp format: {timestamp}. Expected format: {timestamp_format}"
+            f"Invalid timestamp format: {timestamp}. Expected either YYYY-MM-DD or {timestamp_format}"
         )
 
 
@@ -75,8 +75,8 @@ def validate_timestamp(
         ctx: Click context
         param: Click parameter
         value: The timestamp value to validate
-        format: Optional timestamp format string (default: YYYY-MM-DD)
-               If None, validates against YYYY-MM-DD format
+        format: Optional timestamp format string
+               If None, will try both YYYY-MM-DD and lib.constants.timestamp_format
 
     Returns:
         The validated timestamp value or None if input is None
@@ -97,24 +97,23 @@ def validate_timestamp(
                 f"Invalid date format: {value}. Expected format: {format}"
             )
 
-    # Default validation for YYYY-MM-DD format
-    if (
-        not isinstance(value, str)
-        or len(value) != 10
-        or value[4] != "-"
-        or value[7] != "-"
-    ):
-        raise click.BadParameter(
-            f"Invalid date format: {value}. Please use YYYY-MM-DD format."
-        )
+    # Try YYYY-MM-DD format first
+    if len(value) == 10 and value[4] == "-" and value[7] == "-":
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+            return value
+        except ValueError:
+            # Fall through to try the next format
+            pass
 
+    # Try timestamp_format
     try:
-        # Just validate the format, actual conversion happens later
-        datetime.strptime(value, "%Y-%m-%d")
+        datetime.strptime(value, timestamp_format)
         return value
     except ValueError:
+        # If both formats fail, provide a helpful error message
         raise click.BadParameter(
-            f"Invalid date format: {value}. Please use YYYY-MM-DD format."
+            f"Invalid timestamp format: {value}. Expected either YYYY-MM-DD or {timestamp_format}"
         )
 
 

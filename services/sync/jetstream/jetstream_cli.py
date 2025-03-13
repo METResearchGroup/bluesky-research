@@ -11,6 +11,7 @@ import click
 import sys
 from typing import Optional
 
+from lib.constants import timestamp_format
 from lib.log.logger import get_logger
 from services.sync.jetstream.constants import VALID_COLLECTIONS
 from services.sync.jetstream.helper import (
@@ -26,12 +27,13 @@ from services.sync.jetstream.jetstream_connector import (
 logger = get_logger(__file__)
 
 
-# Callback for timestamp validation with YYYY-MM-DD format
-def validate_date_format(
+# Callback for flexible timestamp validation
+def validate_flexible_timestamp(
     ctx: click.Context, param: click.Parameter, value: Optional[str]
 ) -> Optional[str]:
-    """Click callback for validating date in YYYY-MM-DD format."""
-    return validate_timestamp(ctx, param, value, format="%Y-%m-%d")
+    """Click callback for validating timestamp in either YYYY-MM-DD or YYYY-MM-DD-HH:MM:SS format."""
+    # Pass None as format to try both formats
+    return validate_timestamp(ctx, param, value, format=None)
 
 
 @click.command()
@@ -52,8 +54,8 @@ def validate_date_format(
 @click.option(
     "--start-timestamp",
     "-s",
-    callback=validate_date_format,
-    help="Start timestamp in YYYY-MM-DD format",
+    callback=validate_flexible_timestamp,
+    help=f"Start timestamp in YYYY-MM-DD or {timestamp_format} format",
 )
 @click.option(
     "--num-records",
@@ -124,6 +126,9 @@ def stream_bluesky(
         # Stream 500 likes and follows from a specific date
         $ python -m services.sync.jetstream.jetstream_cli -c app.bsky.feed.like -c app.bsky.graph.follow -n 500 -s 2024-01-01
 
+        # Stream 500 likes and follows from a specific date and time
+        $ python -m services.sync.jetstream.jetstream_cli -c app.bsky.feed.like -c app.bsky.graph.follow -n 500 -s 2024-01-01-12:30:00
+
         # Stream posts from specific DIDs
         $ python -m services.sync.jetstream.jetstream_cli -d did:plc:abcdef123456 -d did:plc:xyz789
 
@@ -136,7 +141,8 @@ def stream_bluesky(
     # Convert start_timestamp to cursor if provided
     cursor = None
     if start_timestamp:
-        cursor = str(timestamp_to_unix_microseconds(start_timestamp, format="%Y-%m-%d"))
+        # Let the function automatically detect the format
+        cursor = str(timestamp_to_unix_microseconds(start_timestamp))
         logger.info(f"Using cursor: {cursor} (from timestamp: {start_timestamp})")
 
     # Initialize JetstreamConnector
