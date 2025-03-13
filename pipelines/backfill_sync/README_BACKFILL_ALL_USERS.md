@@ -22,6 +22,7 @@ The main purpose of this script is to efficiently backfill Bluesky firehose data
 
 ```bash
 # Backfill posts for all users in the system with default settings
+# (starts from September 28th, 2024, at 12am)
 python -m pipelines.backfill_sync.backfill_all_users
 
 # Backfill with a specific start date
@@ -52,7 +53,7 @@ python -m pipelines.backfill_sync.backfill_all_users --output-dir /path/to/outpu
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--chunk-size` | Number of DIDs to process in each backfill run | 100 |
-| `--start-timestamp` | Start timestamp (YYYY-MM-DD or YYYY-MM-DD-HH:MM:SS) | None |
+| `--start-timestamp` | Start timestamp (YYYY-MM-DD or YYYY-MM-DD-HH:MM:SS) | 2024-09-28-00:00:00 |
 | `--collections` | Comma-separated list of collections to include | app.bsky.feed.post |
 | `--num-records` | Number of records to collect per backfill run | 10000 |
 | `--max-time` | Maximum time to run each backfill in seconds | 900 |

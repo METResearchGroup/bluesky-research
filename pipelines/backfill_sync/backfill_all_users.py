@@ -20,6 +20,9 @@ from services.backfill.backfill_sync import run_backfill_sync
 from services.participant_data.helper import get_all_users
 from services.sync.jetstream.constants import VALID_COLLECTIONS
 
+# Default timestamp for backfill (September 28th, 2024, at 12am)
+DEFAULT_START_TIMESTAMP = "2024-09-28-00:00:00"
+
 logger = get_logger(__name__)
 
 
@@ -38,7 +41,7 @@ def chunk_list(items: list[Any], chunk_size: int) -> list[list[Any]]:
 
 def backfill_all_users(
     chunk_size: int = 100,
-    start_timestamp: Optional[str] = None,
+    start_timestamp: Optional[str] = DEFAULT_START_TIMESTAMP,
     wanted_collections: Optional[list[str]] = None,
     num_records: int = 10000,
     max_time: int = 900,
@@ -53,6 +56,7 @@ def backfill_all_users(
     Args:
         chunk_size: Number of DIDs to process in each backfill run
         start_timestamp: Optional timestamp to start from (YYYY-MM-DD or YYYY-MM-DD-HH:MM:SS)
+                        Defaults to September 28th, 2024, at 12am
         wanted_collections: Optional list of collection types to include
         num_records: Number of records to collect per backfill run
         max_time: Maximum time to run each backfill in seconds
@@ -202,7 +206,7 @@ def main():
     parser.add_argument(
         "--start-timestamp",
         type=str,
-        default=None,
+        default=DEFAULT_START_TIMESTAMP,
         help=f"Start timestamp in YYYY-MM-DD or {timestamp_format} format",
     )
     parser.add_argument(
