@@ -57,17 +57,18 @@ def load_feeds_from_local_storage(partition_date: str) -> pd.DataFrame:
 
 
 def get_posts_used_in_feeds(
-    feeds: list[list[dict]], partition_date: str
+    feeds: list[list[dict]], partition_date: str, silence_logs: bool = False
 ) -> pd.DataFrame:
     post_uris: list[str] = [post["item"] for feed in feeds for post in feed]
     deduped_post_uris: list[str] = list(set(post_uris))
     total_post_uris = len(post_uris)
     total_deduped_post_uris = len(deduped_post_uris)
     percentage_unique = total_deduped_post_uris / total_post_uris * 100
-    logger.info(
-        f"Found {total_deduped_post_uris} unique post URIs (out of {total_post_uris})."
-    )
-    logger.info(f"Found {percentage_unique:.2f}% unique post URIs.")
+    if not silence_logs:
+        logger.info(
+            f"Found {total_deduped_post_uris} unique post URIs (out of {total_post_uris})."
+        )
+        logger.info(f"Found {percentage_unique:.2f}% unique post URIs.")
 
     posts: list[PostInFeedModel] = [
         PostInFeedModel(uri=uri, partition_date=partition_date)

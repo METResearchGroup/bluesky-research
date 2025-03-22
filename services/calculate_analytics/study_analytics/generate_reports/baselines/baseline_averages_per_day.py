@@ -5,126 +5,23 @@ for which ones were sourced from the firehose or the most-liked posts.
 Then calculates the average of the labels for these posts.
 """
 
-import gc
 import os
-from typing import Literal
 
 import pandas as pd
 
-from lib.db.manage_local_data import load_data_from_local_storage
 from lib.helper import (
     calculate_start_end_date_for_lookback,
     generate_current_datetime_str,
     get_partition_dates,
 )
 from lib.log.logger import get_logger
-from services.backfill.posts_used_in_feeds.load_data import (
-    load_posts_used_in_feeds,
-)
 from services.calculate_analytics.study_analytics.load_data.load_data import (
     get_hydrated_posts_for_partition_date,
+    load_posts_used_in_feeds_by_source,
 )
 
 current_filedir = os.path.dirname(os.path.abspath(__file__))
 logger = get_logger(__file__)
-
-
-def load_preprocessed_posts_by_source(
-    partition_date: str,
-    lookback_start_date: str,
-    lookback_end_date: str,
-    source: Literal["firehose", "most_liked"],
-) -> pd.DataFrame:
-    """Load posts by source."""
-    table_columns = [
-        "uri",
-        "text",
-        "preprocessing_timestamp",
-        "partition_date",
-        "source",
-    ]
-    table_columns_str = ", ".join(table_columns)
-    query = f"""
-        SELECT {table_columns_str}
-        FROM preprocessed_posts
-        WHERE text IS NOT NULL
-        AND text != ''
-        AND partition_date = '{partition_date}'
-        AND source = '{source}'
-    """
-    df: pd.DataFrame = load_data_from_local_storage(
-        service="preprocessed_posts",
-        directory="cache",
-        export_format="duckdb",
-        duckdb_query=query,
-        query_metadata={
-            "tables": [{"name": "preprocessed_posts", "columns": table_columns}]
-        },
-        start_partition_date=lookback_start_date,
-        end_partition_date=lookback_end_date,
-        source_types=[source],
-    )
-    logger.info(
-        f"Loaded {len(df)} posts from cache for partition date {partition_date} and source {source}"
-    )
-    return df
-
-
-def load_posts_used_in_feeds_by_source(
-    partition_date: str,
-    lookback_start_date: str,
-    lookback_end_date: str,
-    source: Literal["firehose", "most_liked"],
-) -> pd.DataFrame:
-    """Load posts used in feeds by source."""
-    posts_used_in_feeds_df: pd.DataFrame = load_posts_used_in_feeds(partition_date)
-    base_pool_posts: pd.DataFrame = load_preprocessed_posts_by_source(
-        partition_date=partition_date,
-        lookback_start_date=lookback_start_date,
-        lookback_end_date=lookback_end_date,
-        source=source,
-    )
-
-    uris_of_posts_used_in_feeds: set[str] = set(posts_used_in_feeds_df["uri"].values)
-    total_unique_posts_used_in_feeds = len(uris_of_posts_used_in_feeds)
-    # Filter to only posts used in feeds and sort by preprocessing_timestamp
-    filtered_posts = base_pool_posts[
-        base_pool_posts["uri"].isin(uris_of_posts_used_in_feeds)
-    ]
-    filtered_posts = filtered_posts.sort_values(
-        "preprocessing_timestamp", ascending=True
-    )
-
-    result_df = filtered_posts.drop_duplicates(subset=["uri"], keep="first")
-
-    logger.info(f"Found {len(result_df)} posts used in feeds for {partition_date}.")
-
-    total_posts_used_in_feeds = len(posts_used_in_feeds_df)
-    total_posts_in_base_pool = len(base_pool_posts)
-    total_hydrated_posts_used_in_feeds = len(result_df)
-
-    logger.info(
-        f"Total posts used in feeds: {total_posts_used_in_feeds}\n"
-        f"Total posts in base pool: {total_posts_in_base_pool}\n"
-        f"Total unique posts used in feeds: {total_unique_posts_used_in_feeds}\n"
-        f"Total hydrated posts used in feeds: {total_hydrated_posts_used_in_feeds}\n"
-    )
-
-    if total_hydrated_posts_used_in_feeds < total_unique_posts_used_in_feeds:
-        logger.warning(
-            f"Found fewer hydrated posts ({total_hydrated_posts_used_in_feeds}) than "
-            f"unique posts used in feeds ({total_unique_posts_used_in_feeds}). "
-            "This means some posts used in feeds don't have corresponding records."
-            "We should investigate this, as this is OK but good to know why."
-        )
-
-    del posts_used_in_feeds_df
-    del filtered_posts
-    del uris_of_posts_used_in_feeds
-    del base_pool_posts
-    gc.collect()
-
-    return result_df
 
 
 def calculate_averages_for_hydrated_df(

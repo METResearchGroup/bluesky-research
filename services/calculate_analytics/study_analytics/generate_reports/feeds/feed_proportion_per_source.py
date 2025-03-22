@@ -1,8 +1,11 @@
 """For the feeds, calculates the proportion of posts that came from the "most-liked"
 source as compared to the firehose."""
 
+import gc
 import os
 from typing import Literal
+
+import numpy as np
 import pandas as pd
 
 from lib.helper import (
@@ -35,15 +38,29 @@ def load_feeds_by_conditions(
 
 def get_uris_for_feeds_by_conditions(
     partition_date: str, conditions: list[str]
-) -> set[str]:
+) -> dict:
+    """Gets the URIs for the feeds."""
     feeds_df: pd.DataFrame = load_feeds_by_conditions(partition_date, conditions)
-    feeds: list[str] = feeds_df["feed"].tolist()
-    loaded_feeds: list[list[dict]] = [load_feed_from_json_str(feed) for feed in feeds]
-    posts_used_in_feeds_df: pd.DataFrame = get_posts_used_in_feeds(
-        feeds=loaded_feeds, partition_date=partition_date
-    )
-    uris: set[str] = set(posts_used_in_feeds_df["uri"].tolist())
-    return uris
+    condition_to_feeds_dict = {}
+    for condition in conditions:
+        condition_to_feeds_dict[condition] = []
+
+    # for each feed, get the URIs.
+    for _, row in feeds_df.iterrows():
+        condition = row["condition"]
+        feed = row["feed"]
+        loaded_feed = load_feed_from_json_str(feed)
+        posts_used_in_feeds_df: pd.DataFrame = get_posts_used_in_feeds(
+            feeds=[loaded_feed], partition_date=partition_date, silence_logs=True
+        )
+        uris: set[str] = set(posts_used_in_feeds_df["uri"].tolist())
+        condition_to_feeds_dict[condition].append(uris)
+
+    for condition, feeds in condition_to_feeds_dict.items():
+        print(f"For date={partition_date}, condition={condition}:")
+        print(f"Total number of feeds: {len(feeds)}")
+
+    return condition_to_feeds_dict
 
 
 def calculate_posts_used_in_feeds_by_source(
@@ -54,17 +71,26 @@ def calculate_posts_used_in_feeds_by_source(
 ) -> dict:
     """Gets the posts from the engagement and treatment conditions and checks
     to see how many of them use posts from the "most-liked" source.
+
+    We're doing two things here:
+    - Getting base rates (how many total # of posts came from the most-liked
+    source versus firehose source)
+    - Per-feed rates (how many of each feed came from each source).
     """
     try:
-        uris_used_in_feeds: set[str] = get_uris_for_feeds_by_conditions(
+        uris_used_in_feeds: dict = get_uris_for_feeds_by_conditions(
             partition_date=partition_date,
             conditions=["engagement", "representative_diversification"],
         )
     except Exception as e:
         # should error out on 2024-10-08 due to server crash.
         logger.error(f"Error getting URIs for feeds by conditions: {e}")
-        uris_used_in_feeds = set()
-    total_posts_used_in_feeds = len(uris_used_in_feeds)
+        uris_used_in_feeds = {}
+    all_uris_used_in_feeds = set()
+    for condition, feeds in uris_used_in_feeds.items():
+        for feed in feeds:
+            all_uris_used_in_feeds.update(feed)
+    total_posts_used_in_feeds = len(all_uris_used_in_feeds)
     most_liked_posts: pd.DataFrame = load_preprocessed_posts_by_source(
         partition_date=partition_date,
         lookback_start_date=lookback_start_date,
@@ -72,28 +98,60 @@ def calculate_posts_used_in_feeds_by_source(
         source=source,
     )
     most_liked_posts_uris: set[str] = set(most_liked_posts["uri"].tolist())
+
+    # for each condition, it will have a list of feeds (the feeds from users
+    # in the condition), and for each feed, it will have a list of URIs (the
+    # URIs of the posts used in the feed). We want to find the proportion of
+    # URIs in each feed that come from the "most-liked" source.
+    condition_to_prop_most_liked_posts_used_in_feeds: dict[str, list[float]] = {}
+    for condition, feeds in uris_used_in_feeds.items():
+        condition_to_prop_most_liked_posts_used_in_feeds[condition] = []
+        for feed in feeds:
+            total_overlap_posts = len(most_liked_posts_uris.intersection(feed))
+            prop_most_liked_posts = total_overlap_posts / len(feed)
+            condition_to_prop_most_liked_posts_used_in_feeds[condition].append(
+                prop_most_liked_posts
+            )
+
+    # now we average out across every feed to get the average proportion of
+    # each feed that comes from the "most-liked" source.
+    proportions_most_liked_posts_per_feed = []
+    for condition, props in condition_to_prop_most_liked_posts_used_in_feeds.items():
+        proportions_most_liked_posts_per_feed.extend(props)
+
+    average_prop_most_liked_posts_per_feed = np.mean(
+        proportions_most_liked_posts_per_feed
+    )
+    average_prop_firehose_posts_per_feed = 1 - average_prop_most_liked_posts_per_feed
+
+    # we now add in base rate info: how many total posts (across all feeds)
+    # came from each source and how big was the base pool of posts used to
+    # generate feeds.
     most_liked_posts_uris_used_in_feeds: set[str] = most_liked_posts_uris.intersection(
-        uris_used_in_feeds
+        all_uris_used_in_feeds
     )
     total_most_liked_posts = len(most_liked_posts_uris_used_in_feeds)
     total_firehose_posts = total_posts_used_in_feeds - total_most_liked_posts
-    try:
-        prop_most_liked_posts = round(
-            total_most_liked_posts / total_posts_used_in_feeds, 2
-        )
-    except ZeroDivisionError:
-        # should error out on 2024-10-08 due to server crash, and
-        # possibly 2024-10-09 from the same reason.
-        prop_most_liked_posts = 0
-    prop_firehose_posts = 1 - prop_most_liked_posts
-    return {
+
+    del most_liked_posts_uris_used_in_feeds
+    del uris_used_in_feeds
+    del all_uris_used_in_feeds
+    del most_liked_posts
+    del most_liked_posts_uris
+    del condition_to_prop_most_liked_posts_used_in_feeds
+    del proportions_most_liked_posts_per_feed
+    gc.collect()
+
+    result = {
         "date": partition_date,
-        "total_firehose_posts": total_firehose_posts,
-        "total_most_liked_posts": total_most_liked_posts,
-        "total_posts_used_in_feeds": total_posts_used_in_feeds,
-        "prop_most_liked_posts": prop_most_liked_posts,
-        "prop_firehose_posts": prop_firehose_posts,
+        "Total firehose posts used across all feeds": total_firehose_posts,
+        "Total most-liked posts used across all feeds": total_most_liked_posts,
+        "Total posts used across all feeds": total_posts_used_in_feeds,
+        "Average proportion of most-liked posts per feed": average_prop_most_liked_posts_per_feed,
+        "Average proportion of firehose posts per feed": average_prop_firehose_posts_per_feed,
     }
+    print(f"Metrics for date={partition_date}: {result}")
+    return result
 
 
 def calculate_prop_most_liked_posts_per_day_for_study() -> pd.DataFrame:
