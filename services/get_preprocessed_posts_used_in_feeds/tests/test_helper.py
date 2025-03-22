@@ -43,12 +43,14 @@ class TestLoadPreprocessedPostsUsedInFeeds:
         mock_calc.assert_called_once_with(
             partition_date="2024-01-05",
             num_days_lookback=5,
-            min_lookback_date="2024-09-28"
+            min_lookback_date="2024-09-28",
+            table_columns=None
         )
         mock_load.assert_called_once_with(
             partition_date="2024-01-05",
             lookback_start_date="2024-01-01",
-            lookback_end_date="2024-01-05"
+            lookback_end_date="2024-01-05",
+            table_columns=None
         )
         assert len(result) == 2
         assert list(result["uri"]) == ["post1", "post2"]

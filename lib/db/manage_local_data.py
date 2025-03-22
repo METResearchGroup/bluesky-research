@@ -534,6 +534,7 @@ def _get_all_filenames_deprecated_format(
     service: str,
     directories: list[Literal["cache", "active"]] = ["active"],
     validate_pq_files: bool = False,
+    source_types: Optional[list[Literal["firehose", "most_liked"]]] = None,
 ) -> list[str]:
     """Gets all filenames for a given service.
 
@@ -569,9 +570,13 @@ def _get_all_filenames_deprecated_format(
 
     root_local_prefix = get_local_prefix_for_service(service)
 
+    if not source_types:
+        source_types = ["firehose", "most_liked"]
+    else:
+        logger.info(f"Loading {service} data for source types: {source_types}")
+
     local_prefixes = [
-        os.path.join(root_local_prefix, source_type)
-        for source_type in ["firehose", "most_liked"]
+        os.path.join(root_local_prefix, source_type) for source_type in source_types
     ]
 
     loaded_filepaths: list[str] = []
@@ -642,6 +647,7 @@ def list_filenames(
     start_partition_date: Optional[str] = None,
     end_partition_date: Optional[str] = None,
     override_local_prefix: Optional[str] = None,
+    source_types: Optional[list[Literal["firehose", "most_liked"]]] = None,
 ) -> list[str]:
     """List files in local storage for a given service."""
 
@@ -663,6 +669,7 @@ def list_filenames(
                 service=service,
                 directories=directories,
                 validate_pq_files=validate_pq_files,
+                source_types=source_types,
             )
         )
 
@@ -785,6 +792,7 @@ def load_data_from_local_storage(
     use_all_data: bool = False,
     validate_pq_files: bool = False,
     override_local_prefix: Optional[str] = None,
+    source_types: Optional[list[Literal["firehose", "most_liked"]]] = None,
 ) -> pd.DataFrame:
     """Load data from local storage.
 
@@ -801,6 +809,8 @@ def load_data_from_local_storage(
         use_all_data: Whether to load from both cache and active directories
         validate_pq_files: Whether to validate parquet files
         override_local_prefix: Optional override for the service's local prefix path
+        source_types: Optional list of source types to load.
+            Used for deprecated ["firehose", "most_liked"] format.
     """
     directories = [directory]
     if use_all_data:
@@ -814,6 +824,7 @@ def load_data_from_local_storage(
         start_partition_date=start_partition_date,
         end_partition_date=end_partition_date,
         override_local_prefix=override_local_prefix,
+        source_types=source_types,
     )
     if export_format == "jsonl":
         df = pd.read_json(filepaths, orient="records", lines=True)

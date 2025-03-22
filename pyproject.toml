@@ -63,6 +63,7 @@ testpaths = [
     "services/get_preprocessed_posts_used_in_feeds/tests",
     "services/repartition_service/tests",
     "services/calculate_analytics/tests",
+    "services/calculate_analytics/study_analytics/calculate_analytics/tests",
     "services/write_cache_buffers_to_db/tests",
     "pipelines/backfill_records_coordination/tests",
     "api/integrations_router/tests",
