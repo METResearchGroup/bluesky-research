@@ -56,7 +56,9 @@ def load_feeds_from_local_storage(partition_date: str) -> pd.DataFrame:
     return df
 
 
-def get_posts_used_in_feeds(feeds: list[dict], partition_date: str) -> pd.DataFrame:
+def get_posts_used_in_feeds(
+    feeds: list[list[dict]], partition_date: str
+) -> pd.DataFrame:
     post_uris: list[str] = [post["item"] for feed in feeds for post in feed]
     deduped_post_uris: list[str] = list(set(post_uris))
     total_post_uris = len(post_uris)
@@ -78,7 +80,7 @@ def get_posts_used_in_feeds(feeds: list[dict], partition_date: str) -> pd.DataFr
 def get_posts_used_in_feeds_for_partition_date(partition_date: str) -> pd.DataFrame:
     df = load_feeds_from_local_storage(partition_date)
     feeds: list[str] = df["feed"].tolist()
-    loaded_feeds: list[dict] = [load_feed_from_json_str(feed) for feed in feeds]
+    loaded_feeds: list[list[dict]] = [load_feed_from_json_str(feed) for feed in feeds]
     return get_posts_used_in_feeds(feeds=loaded_feeds, partition_date=partition_date)
 
 
