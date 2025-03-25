@@ -36,6 +36,7 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
     }
     transformed_session_metadata = RunExecutionMetadata(**session_metadata)
     write_backfill_metadata_to_db(backfill_metadata=transformed_session_metadata)
+    # TODO: write queues to DB. Should prob just do it here no? IDK.
     logger.info("Backfilling sync data complete")
     return transformed_session_metadata
 
