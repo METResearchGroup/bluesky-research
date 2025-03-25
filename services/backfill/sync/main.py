@@ -1,9 +1,12 @@
+"""Backfill sync data for a given set of users."""
+
 import json
 
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.wandb import log_run_to_wandb
+from services.backfill.session_metadata import write_backfill_metadata_to_db
 from services.backfill.sync.helper import do_backfills_for_users
 
 
@@ -32,6 +35,7 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
         "metadata": json.dumps(backfill_session_metadata),
     }
     transformed_session_metadata = RunExecutionMetadata(**session_metadata)
+    write_backfill_metadata_to_db(backfill_metadata=transformed_session_metadata)
     logger.info("Backfilling sync data complete")
     return transformed_session_metadata
 

@@ -13,6 +13,15 @@ from services.backfill.sync.constants import (
 logger = get_logger(__name__)
 
 
+def validate_dids(dids: list[str]) -> list[str]:
+    """Validates the DIDs.
+
+    Args:
+        dids: The list of DIDs to validate.
+    """
+    return dids
+
+
 @track_performance
 def do_backfills_for_users(
     dids: list[str],
@@ -20,28 +29,21 @@ def do_backfills_for_users(
     end_timestamp: Optional[str] = default_end_timestamp,
     event: Optional[dict] = None,
 ):
-    # TODO: load previous session (if applicable)
+    """Do backfills for a given set of users."""
 
-    # TODO: do validation based on previous session (if applicable)
-
-    valid_dids = []
-
-    # do backfills
-    backfills_map: dict[str, dict[str, dict]] = run_batched_backfill(dids=valid_dids)
-    print(backfills_map)
-    # write to DB
-
-    # record backfills metadata
+    valid_dids: list[str] = validate_dids(dids=dids)
+    backfill_metadata: dict = run_batched_backfill(
+        dids=valid_dids,
+        start_timestamp=start_timestamp,
+        end_timestamp=end_timestamp,
+    )
     timestamp = generate_current_datetime_str()
     backfill_session = {
         "backfill_timestamp": timestamp,
         "dids": valid_dids,
         "total_dids": len(valid_dids),
+        "total_batches": backfill_metadata["total_batches"],
+        "did_to_backfill_counts_map": backfill_metadata["did_to_backfill_counts_map"],
         "event": event,
     }
     return backfill_session
-
-
-def write_backfill_session_to_db(backfill_session: dict):
-    """Writes the backfill session to the database."""
-    pass
