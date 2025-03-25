@@ -8,7 +8,7 @@ logger = get_logger(__name__)
 
 
 def lambda_handler(event, context):
-    """AWS Lambda handler for migrating cache buffer queues to databases.
+    """Lambda handler for migrating cache buffer queues to databases.
 
     Args:
         event (dict): Lambda event containing configuration payload. Expected format:
