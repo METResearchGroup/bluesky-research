@@ -6,7 +6,7 @@ import requests
 from atproto import CAR
 
 from lib.constants import convert_bsky_dt_to_pipeline_dt
-from lib.helper import create_batches, track_performance
+from lib.helper import create_batches, track_performance, rate_limit
 from lib.log.logger import get_logger
 from services.backfill.sync.constants import (
     default_start_timestamp,
@@ -174,18 +174,15 @@ def transform_backfilled_records_for_export(
     return res
 
 
-# TODO: I should do this in batches and then do the writes, in case I get
-# rate-limited or throttled by the PDSes. I'll write this version first and then
-# do a batched version in a later iteration. I also need to look at my other
-# services to figure out how I handle this, e.g., ml_inference_perspective_api.
-
-
-# TODO: add appropriate rate limiting, so that I don't get throttled
-# by the PDSes. Need to check what this rate limit is.
+# TODO: still need to experiment to see what the rate limit is TBH.
+@rate_limit(delay_seconds=5)
 def do_backfill_for_users(
     dids: list[str],
 ) -> tuple[dict[str, dict[str, dict]], list[dict[str, dict]]]:
     """Performs the backfill for users.
+
+    This function is rate-limited and will pause for 5 seconds after execution
+    to avoid overwhelming the API.
 
     Returns:
         A tuple of two dictionaries. The first dictionary maps DIDs to the
@@ -235,7 +232,6 @@ def run_batched_backfill(
             type_to_record_maps=type_to_record_maps,
         )
         if transformed_records:
-            # TODO: can copy "write_posts_to_cache"
             write_records_to_cache(
                 records=transformed_records,
                 batch_size=batch_size,
