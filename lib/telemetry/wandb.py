@@ -2,8 +2,8 @@
 
 import wandb
 
-from api.integrations_router.models import RunExecutionMetadata
 from lib.helper import RUN_MODE
+from lib.metadata.models import RunExecutionMetadata
 
 
 def log_run_to_wandb(service_name: str):

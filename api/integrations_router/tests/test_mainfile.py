@@ -7,9 +7,9 @@ causes pytest to not run these tests (it can't discover this file?).
 import pytest
 from unittest.mock import Mock, patch
 
-from api.integrations_router.models import IntegrationRequest, RunExecutionMetadata
+from api.integrations_router.models import IntegrationRequest
 from api.integrations_router.main import parse_integration_request, route_and_run_integration_request
-
+from lib.metadata.models import RunExecutionMetadata
 
 @pytest.fixture
 def test_request_dict():

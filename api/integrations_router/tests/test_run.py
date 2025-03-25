@@ -3,15 +3,13 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from api.integrations_router.models import (
-    IntegrationRequest,
-    RunExecutionMetadata
-)
+from api.integrations_router.models import IntegrationRequest
 from api.integrations_router.run import (
     load_latest_run_metadata,
     run_integration_service,
     run_integration_request
 )
+from lib.metadata.models import RunExecutionMetadata
 
 
 class TestLoadLatestRunMetadata:

@@ -3,10 +3,11 @@
 from typing import Callable, Optional
 
 from api.integrations_router.map import get_handler
-from api.integrations_router.models import IntegrationRequest, RunExecutionMetadata
+from api.integrations_router.models import IntegrationRequest
 from lib.aws.dynamodb import DynamoDB
 from lib.helper import track_performance
 from lib.log.logger import get_logger
+from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.wandb import log_run_to_wandb
 from services.ml_inference.helper import dynamodb_table_name
 
