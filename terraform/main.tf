@@ -3364,6 +3364,32 @@ resource "aws_dynamodb_table" "integration_run_metadata" {
   }
 }
 
+resource "aws_dynamodb_table" "backfill_metadata" {
+  name           = "backfill_metadata"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "timestamp"
+
+  attribute {
+    name = "timestamp"
+    type = "S"
+  }
+
+  attribute {
+    name = "service"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "service-index"
+    hash_key           = "service"
+    projection_type    = "ALL"
+  }
+
+  tags = {
+    Name = "backfill_metadata"
+  }
+}
+
 
 resource "aws_dynamodb_table" "ml_inference_labeling_sessions" {
   name           = "ml_inference_labeling_sessions"
