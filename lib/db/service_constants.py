@@ -5,6 +5,9 @@ from lib.constants import root_local_data_directory
 import os
 
 MAP_SERVICE_TO_METADATA = {
+    "backfill_sync": {
+        "timestamp_field": "synctimestamp",
+    },  # managed by study_user_activity.
     "study_user_activity": {
         "local_prefix": os.path.join(root_local_data_directory, "study_user_activity"),
         "s3_prefix": "study_user_activity",

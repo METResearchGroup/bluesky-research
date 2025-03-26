@@ -256,9 +256,10 @@ def convert_timestamp(x, timestamp_format):
     try:
         dt = pd.to_datetime(x, format=timestamp_format)
         if dt.year < 2024:
-            logger.warning(
-                f"Timestamp year {dt.year} is before 2024, will try to coerce using {DEFAULT_ERROR_PARTITION_DATE}: {x}."
-            )
+            # a bit noisy, plus this is an OK default behavior.
+            # logger.warning(
+            #     f"Timestamp year {dt.year} is before 2024, will try to coerce using {DEFAULT_ERROR_PARTITION_DATE}: {x}."
+            # )
             pass
         else:
             return dt
@@ -411,9 +412,12 @@ def export_data_to_local_storage(
                         lookback_days=lookback_days,
                         custom_args={"record_type": record_type},
                     )
+                logger.info("Completed writing backfill sync data to local storage.")
+                return
             else:
-                # If no record_type column, use the default prefix
-                local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
+                raise ValueError(
+                    f"No record_type column found in dataframe for backfill service={service}."
+                )
         elif service == "study_user_activity":
             record_type = custom_args["record_type"]
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
