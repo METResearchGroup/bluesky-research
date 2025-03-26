@@ -133,10 +133,7 @@ def do_backfill_for_user(
             if record_type not in valid_types:
                 logger.info(f"Skipping record type {record_type} for user {did}")
                 continue
-            # validate date ranges of records. Exception for profiles,
-            # since it's good to have for record-keeping and we expect these
-            # to not have a timestamp.
-            if record_type != "profile" and not validate_record_timestamp(
+            if not validate_record_timestamp(
                 record=record,
                 start_timestamp=start_timestamp,
                 end_timestamp=end_timestamp,
@@ -170,6 +167,9 @@ def transform_backfilled_records_for_export(
         for record_type, records in type_to_record_map.items():
             for record in records:
                 record["record_type"] = record_type
+                record["synctimestamp"] = convert_bsky_dt_to_pipeline_dt(
+                    record["createdAt"]
+                )  # noqa
                 res.append(record)
     return res
 

@@ -7,10 +7,10 @@ default_end_timestamp = "2024-12-02-00:00:00"
 valid_types = [
     "block",
     "follow",
-    "generator",
+    # "generator", # no reason to have it ig.
     "like",
     "post",
-    "profile",
+    # "profile", # no reason to have it ig.
     "reply",
     "repost",
 ]

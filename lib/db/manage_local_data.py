@@ -396,7 +396,28 @@ def export_data_to_local_storage(
             # TODO: have custom logic for managing backfill syncs. Need
             # to split logic for "study_user_activity" accordingly.
             # TODO: move old "study_user_activity" data to an "old_study_user_activity" folder.
-            pass
+            # Group data by record_type
+            record_type_groups = {}
+            if "record_type" in chunk["data"].columns:
+                # Group dataframe by record_type
+                for record_type, group_df in chunk["data"].groupby("record_type"):
+                    record_type_groups[record_type] = group_df
+
+                # Process each record type separately
+                for record_type, group_df in record_type_groups.items():
+                    logger.info(
+                        f"Exporting {record_type} data for service={service} to local storage for study_user_activity..."
+                    )
+                    export_data_to_local_storage(
+                        service="study_user_activity",
+                        df=group_df,
+                        export_format=export_format,
+                        lookback_days=lookback_days,
+                        custom_args={"record_type": record_type},
+                    )
+            else:
+                # If no record_type column, use the default prefix
+                local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
         elif service == "study_user_activity":
             record_type = custom_args["record_type"]
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]

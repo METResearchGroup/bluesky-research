@@ -46,18 +46,30 @@ MAP_SERVICE_TO_METADATA = {
             "post": os.path.join(
                 root_local_data_directory, "study_user_activity", "create", "post"
             ),
-            "like_on_user_post": os.path.join(
-                root_local_data_directory,
-                "study_user_activity",
-                "create",
-                "like_on_user_post",
+            "follow": os.path.join(
+                root_local_data_directory, "study_user_activity", "create", "follow"
             ),
-            "reply_to_user_post": os.path.join(
-                root_local_data_directory,
-                "study_user_activity",
-                "create",
-                "reply_to_user_post",
+            "reply": os.path.join(
+                root_local_data_directory, "study_user_activity", "create", "reply"
             ),
+            "repost": os.path.join(
+                root_local_data_directory, "study_user_activity", "create", "repost"
+            ),
+            "block": os.path.join(
+                root_local_data_directory, "study_user_activity", "create", "block"
+            ),
+            # "like_on_user_post": os.path.join(
+            #     root_local_data_directory,
+            #     "study_user_activity",
+            #     "create",
+            #     "like_on_user_post",
+            # ),
+            # "reply_to_user_post": os.path.join(
+            #     root_local_data_directory,
+            #     "study_user_activity",
+            #     "create",
+            #     "reply_to_user_post",
+            # ),
         },
     },
     "study_user_likes": {
