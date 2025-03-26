@@ -75,7 +75,6 @@ def write_cache_buffer_queue_to_db(service: str, clear_queue: bool = True):
     latest_payloads: list[dict] = queue.load_dict_items_from_queue(
         limit=None, min_id=None, min_timestamp=None, status="pending"
     )
-    breakpoint()
     df = pd.DataFrame(latest_payloads)
     latest_queue_item_ids: list[str] = df["batch_id"].tolist()
 

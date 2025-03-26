@@ -1,105 +1,95 @@
-# Backfill Sync Module
+# Bluesky Backfill Sync Service
 
-This module provides functionality to backfill data from the Bluesky firehose via Jetstream, supporting filtering by DIDs and timestamps.
+## Overview
 
-## Purpose
+This service enables retrospective data collection from Bluesky social network users by accessing and processing their historical records. It retrieves user data through Bluesky's repository synchronization endpoints, validates and transforms the data, and exports it to a queue for further processing. The service is designed to efficiently handle batched operations with rate limiting to respect API constraints.
 
-The Backfill Sync module allows you to:
-1. Connect to the Bluesky firehose via Jetstream
-2. Filter events by specific DIDs, collections, and timestamps
-3. Process and store the data in a queue for further processing
-4. Backfill historical data or sync from a specific point in time
-5. Track and report date changes during processing
-6. Stop processing when a specified end timestamp is reached
+## Detailed Explanation
+
+The backfill sync service operates through the following process:
+
+### User Repository Access
+- The service accesses user repositories by their DIDs (Decentralized Identifiers) using the `com.atproto.sync.getRepo` endpoint
+- It resolves the user's PDS (Personal Data Server) endpoint by querying the PLC directory
+- Data is retrieved in CAR format (Content-Addressable Storage) and parsed into individual records
+
+### Data Filtering and Transformation
+- Records are filtered by type (post, like, follow, reply, repost, block)
+- Timestamps are validated against configurable time ranges (with defaults set for the study period)
+- Special handling is provided for records outside the study period by assigning standardized timestamps (15th or 1st of the month)
+- Records are enriched with metadata including record type and normalized timestamps
+
+### Batch Processing
+- Users can be processed in configurable batches to avoid memory issues
+- Rate limiting is applied to respect Bluesky API constraints
+- Garbage collection is performed between batches for resource optimization
+
+### Export Pipeline
+- Processed records are grouped by record type (post, like, follow, etc.)
+- Data is exported to type-specific queues for further processing
+- Metadata about processed records per user is tracked and returned
+
+### Core Components:
+1. **backfill.py**: Contains the main logic for fetching, validating, and transforming user records
+2. **export_data.py**: Manages exporting transformed records to queue storage
+3. **constants.py**: Defines key constants like timestamp formats, valid record types, and default parameters
+4. **main.py**: Entry point with handler functions for executing the backfill process
+5. **helper.py**: Utility functions for the backfill process
+
+## Functions in Detail
+
+The code is structured in a layered, composable way:
+
+1. **Low-level Functions**: 
+   - `get_plc_directory_doc()`: Resolves PDS endpoints from DIDs
+   - `identify_post_type()` & `identify_record_type()`: Classify record types
+   - `validate_record_timestamp()` & `validate_record_type()`: Filter valid records
+
+2. **Mid-level Functions**:
+   - `transform_backfilled_record()`: Enrich records with metadata
+   - `get_bsky_records_for_user()`: Fetch and parse user repositories
+   - `assign_default_backfill_synctimestamp()`: Normalize timestamps
+
+3. **High-level Functions**:
+   - `do_backfill_for_user()`: Process a single user's records
+   - `do_backfill_for_users()`: Process multiple users with rate limiting
+   - `run_batched_backfill()`: Orchestrate batch operations with resource management
 
 ## Usage
 
-### Basic Usage
+The service can be run either as a standalone script or imported and used as a module:
 
 ```python
-from services.backfill.backfill_sync import run_backfill_sync
+# As a script
+python -m services.backfill.sync.main --dids did1,did2,did3 --batch-size 50
 
-# Backfill data for specific DIDs
-stats = run_backfill_sync(
-    wanted_dids=["did:plc:abc123", "did:plc:def456"],
-    wanted_collections=["app.bsky.feed.post"],
-    num_records=10000
-)
+# As a module
+from services.backfill.sync.backfill import run_batched_backfill
 
-# Print the results
-print(f"Processed {stats['records_stored']} records")
-```
-
-### With Start Timestamp
-
-```python
-from services.backfill.backfill_sync import run_backfill_sync
-
-# Backfill data from a specific timestamp
-stats = run_backfill_sync(
-    start_timestamp="2024-01-01",  # or "2024-01-01-12:30:00" for more precision
-    wanted_collections=["app.bsky.feed.post", "app.bsky.feed.like"],
-    num_records=5000
+dids = ["did:plc:user1", "did:plc:user2", "did:plc:user3"]
+result = run_batched_backfill(
+    dids=dids,
+    batch_size=50,
+    start_timestamp="2024-09-27-00:00:00",
+    end_timestamp="2024-12-02-00:00:00"
 )
 ```
 
-### With Time Range
+## Testing Details
 
-```python
-from services.backfill.backfill_sync import run_backfill_sync
+Tests are located in the `tests/` directory and verify the functionality of each component:
 
-# Backfill data for a specific time range
-stats = run_backfill_sync(
-    start_timestamp="2024-01-01",
-    end_timestamp="2024-01-07",  # Will stop when reaching this date
-    wanted_collections=["app.bsky.feed.post"],
-    num_records=10000  # Will stop early if end_timestamp is reached before getting all records
-)
+- **test_backfill.py**: Comprehensive tests for all functions in backfill.py
+  - `TestGetPlcDirectoryDoc`: Tests PLC directory document retrieval
+  - `TestIdentifyPostType`: Tests post classification (standalone vs reply)
+  - `TestIdentifyRecordType`: Tests record type identification from $type field
+  - `TestValidateRecordTimestamp`: Tests timestamp validation against time ranges
+  - `TestValidateRecordType`: Tests filtering of valid record types
+  - `TestTransformBackfilledRecord`: Tests enrichment of records with metadata
+  - `TestGetBskyRecordsForUser`: Tests fetching and parsing of user repositories
+  - `TestDoBackfillForUser`: Tests processing of a single user's records
+  - `TestAssignDefaultBackfillSynctimestamp`: Tests timestamp normalization
+  - `TestDoBackfillForUsers`: Tests batch processing with rate limiting
+  - `TestRunBatchedBackfill`: Tests orchestration of batch operations
 
-# Check if we stopped due to reaching the end timestamp
-if stats.get("end_cursor_reached"):
-    print("Stopped because end timestamp was reached")
-```
-
-## Configuration Options
-
-The `run_backfill_sync` function accepts the following parameters:
-
-| Parameter | Type | Description | Default |
-|-----------|------|-------------|---------|
-| wanted_dids | list[str] | List of DIDs to filter for | None |
-| start_timestamp | str | Start timestamp (YYYY-MM-DD or YYYY-MM-DD-HH:MM:SS) | None |
-| end_timestamp | str | End timestamp to stop at (YYYY-MM-DD or YYYY-MM-DD-HH:MM:SS) | None |
-| wanted_collections | list[str] | List of collection types to include | ["app.bsky.feed.post"] |
-| num_records | int | Number of records to collect | 10000 |
-| instance | str | Jetstream instance to connect to | First public instance |
-| max_time | int | Maximum time to run in seconds | 900 (15 min) |
-| queue_name | str | Name for the queue | "jetstream_sync" |
-| batch_size | int | Number of records to batch for queue insertion | 100 |
-| compress | bool | Use zstd compression for the stream | False |
-
-## Return Value
-
-The function returns a dictionary with statistics about the ingestion process, including:
-
-| Field | Description |
-|-------|-------------|
-| records_stored | Number of records stored in the queue |
-| messages_received | Total number of messages received from Jetstream |
-| total_time | Total time taken for the operation in seconds |
-| records_per_second | Processing rate in records per second |
-| collections | List of collections seen during processing |
-| target_reached | Whether the target number of records was reached |
-| latest_cursor | Last cursor position (useful for resuming) |
-| queue_length | Current length of the queue |
-| current_date | The current date being processed (YYYY-MM-DD) |
-| end_cursor_reached | Whether processing stopped due to reaching the end timestamp |
-
-## Valid Collections
-
-The following collection types are supported:
-- app.bsky.feed.post
-- app.bsky.feed.like
-- app.bsky.feed.repost
-- app.bsky.graph.follow
-- app.bsky.graph.block 
+The tests use extensive mocking to avoid real API calls while verifying the logic of each function.
