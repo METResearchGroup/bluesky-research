@@ -15,4 +15,7 @@ valid_types = [
     "repost",
 ]
 
+service_name = "backfill_sync"
+queue_name = "output_backfill_sync"
+
 default_batch_size = 100

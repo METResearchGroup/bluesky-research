@@ -392,6 +392,11 @@ def export_data_to_local_storage(
         # processing specific for firehose
         if override_local_prefix:
             local_prefix = override_local_prefix
+        elif service == "backfill_sync":
+            # TODO: have custom logic for managing backfill syncs. Need
+            # to split logic for "study_user_activity" accordingly.
+            # TODO: move old "study_user_activity" data to an "old_study_user_activity" folder.
+            pass
         elif service == "study_user_activity":
             record_type = custom_args["record_type"]
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]

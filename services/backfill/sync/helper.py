@@ -28,7 +28,7 @@ def do_backfills_for_users(
     start_timestamp: Optional[str] = default_start_timestamp,
     end_timestamp: Optional[str] = default_end_timestamp,
     event: Optional[dict] = None,
-):
+) -> dict:
     """Do backfills for a given set of users."""
 
     valid_dids: list[str] = validate_dids(dids=dids)
