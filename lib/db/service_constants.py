@@ -7,6 +7,8 @@ import os
 MAP_SERVICE_TO_METADATA = {
     "backfill_sync": {
         "timestamp_field": "synctimestamp",
+        "skip_date_validation": True,  # we're OK having older records, this is true
+        # for stuff like follows where we want a full record of all their follows.
     },  # managed by study_user_activity.
     "study_user_activity": {
         "local_prefix": os.path.join(root_local_data_directory, "study_user_activity"),
@@ -16,6 +18,7 @@ MAP_SERVICE_TO_METADATA = {
         "timestamp_field": "synctimestamp",
         "skip_deduping": True,
         "pydantic_model": "",
+        "skip_date_validation": True,  # we're OK having older records.
         "dtypes_map": {  # only the dtypes map of the posts subpath is defined here
             "uri": "string",
             "cid": "string",

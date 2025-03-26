@@ -1,3 +1,4 @@
+from datetime import datetime
 import gc
 import os
 from pprint import pprint
@@ -6,7 +7,7 @@ import requests
 
 from atproto import CAR
 
-from lib.constants import convert_bsky_dt_to_pipeline_dt
+from lib.constants import convert_bsky_dt_to_pipeline_dt, timestamp_format
 from lib.helper import create_batches, track_performance, rate_limit
 from lib.log.logger import get_logger
 from services.backfill.sync.constants import (
@@ -104,21 +105,12 @@ def validate_record_timestamp(
     return True
 
 
-def validate_record_type(
-    record: dict,
-    record_type: str,
-    did: str,
-    start_timestamp: str = default_start_timestamp,
-    end_timestamp: str = default_end_timestamp,
-):
+def validate_record_type(record_type: str, did: str) -> bool:
     """Validate the type of a record.
 
     Args:
-        record: The record to validate
         record_type: The type of the record
         did: The DID of the user
-        start_timestamp: The start timestamp to filter by
-        end_timestamp: The end timestamp to filter by
 
     Returns:
         True if the record should be included, False otherwise
@@ -132,19 +124,77 @@ def validate_record_type(
     # course of the study. Yet let's keep all of this.
     if record_type == "follow":
         return True
-    is_valid_timestamp: bool = validate_record_timestamp(
+
+    # we actually want to keep all records for all users where possible.
+    # is_valid_timestamp: bool = validate_record_timestamp(
+    #     record=record,
+    #     start_timestamp=start_timestamp,
+    #     end_timestamp=end_timestamp,
+    # )
+    return True
+
+
+def transform_backfilled_record(
+    record: dict,
+    record_type: str,
+    start_timestamp: str,
+    end_timestamp: str,
+) -> dict:
+    """Transform a backfilled record.
+
+    Args:
+        record: The record to transform
+        record_type: The type of the record
+
+    Returns:
+        The transformed record
+    """
+    record["record_type"] = record_type
+    record["synctimestamp"] = convert_bsky_dt_to_pipeline_dt(record["createdAt"])  # noqa
+    # for old records, use a different synctimestamp that'll allow
+    # use to better partition the data.
+
+    # validate the synctimestamp and if it's not in the range,
+    # then set to a default timestamp.
+    record_falls_in_study_range: bool = validate_record_timestamp(
         record=record,
         start_timestamp=start_timestamp,
         end_timestamp=end_timestamp,
     )
-    return is_valid_timestamp
+    if not record_falls_in_study_range:
+        record["synctimestamp"] = assign_default_backfill_synctimestamp(
+            synctimestamp=record["synctimestamp"]
+        )
+    return record
+
+
+def get_bsky_records_for_user(did: str) -> list[dict]:
+    """Get the records for a user.
+
+    Args:
+        did: The DID of the user
+
+    Returns:
+        The records for the user
+    """
+    plc_doc = get_plc_directory_doc(did)
+    pds_endpoint = plc_doc["service"][0][
+        "serviceEndpoint"
+    ]  # TODO: verify if this will always work.
+    root_url = os.path.join(pds_endpoint, "xrpc")
+    joined_url = os.path.join(root_url, endpoint)
+    full_url = f"{joined_url}?did={did}"
+    res = requests.get(full_url)
+    car_file = CAR.from_bytes(res.content)
+    records: list[dict] = [obj for obj in car_file.blocks.values()]
+    return records
 
 
 def do_backfill_for_user(
     did: str,
     start_timestamp: str = default_start_timestamp,
     end_timestamp: str = default_end_timestamp,
-):
+) -> tuple[dict[str, int], dict[str, list[dict]]]:
     """
     Do backfill for a user.
 
@@ -159,38 +209,33 @@ def do_backfill_for_user(
 
     Returns:
         A tuple containing the count map and record map
+        - The count map contains the count of records for each type
+        - The record map contains the records for each type
     """
-    plc_doc = get_plc_directory_doc(did)
-    pds_endpoint = plc_doc["service"][0][
-        "serviceEndpoint"
-    ]  # TODO: verify if this will always work.
-    root_url = os.path.join(pds_endpoint, "xrpc")
-    joined_url = os.path.join(root_url, endpoint)
-    full_url = f"{joined_url}?did={did}"
-    res = requests.get(full_url)
-    car_file = CAR.from_bytes(res.content)
-    records: list[dict] = [obj for obj in car_file.blocks.values()]
     type_to_record_map: dict[str, list[dict]] = {}
     type_to_count_map = {}
     total_skipped_records = 0
+    records: list[dict] = get_bsky_records_for_user(did)
     for record in records:
         if "$type" in record:
             record_type = identify_record_type(record)
-            is_valid_record = validate_record_type(
-                record=record,
-                record_type=record_type,
-                did=did,
-                start_timestamp=start_timestamp,
-                end_timestamp=end_timestamp,
-            )
+            is_valid_record = validate_record_type(record_type=record_type, did=did)
             if not is_valid_record:
                 total_skipped_records += 1
                 continue
             type_to_count_map[record_type] = type_to_count_map.get(record_type, 0) + 1
+
+            transformed_record = transform_backfilled_record(
+                record=record,
+                record_type=record_type,
+                start_timestamp=start_timestamp,
+                end_timestamp=end_timestamp,
+            )
             if record_type in type_to_record_map:
-                type_to_record_map[record_type].append(record)
+                type_to_record_map[record_type].append(transformed_record)
             else:
-                type_to_record_map[record_type] = [record]
+                type_to_record_map[record_type] = [transformed_record]
+
     print(f"For user with did={did}, found the following record types and counts:")
     pprint(type_to_count_map)
     print(f"Total original records: {len(records)}")
@@ -199,29 +244,56 @@ def do_backfill_for_user(
     return type_to_count_map, type_to_record_map
 
 
-def transform_backfilled_records_for_export(
-    type_to_record_maps: list[dict[str, dict]],
-) -> list[dict]:
-    """Transforms the backfilled records for export.
+def assign_default_backfill_synctimestamp(synctimestamp: str) -> str:
+    """Assign a default synctimestamp to a record.
 
     Args:
-        type_to_record_maps: A list of dictionaries mapping record types to records.
+        synctimestamp: The synctimestamp to assign
 
     Returns:
-        A list of dictionaries, where each is a record that was synced. We add
-        the "record_type" field to each record, so that we can easilly know
-        what type of record it is.
+        The assigned synctimestamp
+
+    We'll assign the record the synctimestamp corresponding to the
+    1st or 15th of a given month, whichever is the earliest one that
+    comes after a synctimestamp.
+
+    For example, if a record is created on April 2nd, we assign it to April 15th,
+    and if it's created April 16th, we assign it to May 1st.
+
+    We also change the time to be 00:00:00.
     """
-    res = []
-    for type_to_record_map in type_to_record_maps:
-        for record_type, records in type_to_record_map.items():
-            for record in records:
-                record["record_type"] = record_type
-                record["synctimestamp"] = convert_bsky_dt_to_pipeline_dt(
-                    record["createdAt"]
-                )  # noqa
-                res.append(record)
-    return res
+    synctimestamp_dt = datetime.strptime(synctimestamp, timestamp_format)
+    new_hour = 0
+    new_minute = 0
+    new_second = 0
+    try:
+        if synctimestamp_dt.day <= 15:
+            new_ts = synctimestamp_dt.replace(
+                day=15,
+                hour=new_hour,
+                minute=new_minute,
+                second=new_second,
+            ).strftime(timestamp_format)
+        else:
+            current_month = synctimestamp_dt.month
+            new_month = current_month + 1
+            if new_month > 12:
+                new_month = 1
+                new_year = synctimestamp_dt.year + 1
+            else:
+                new_year = synctimestamp_dt.year
+            new_ts = synctimestamp_dt.replace(
+                year=new_year,
+                month=new_month,
+                day=1,
+                hour=new_hour,
+                minute=new_minute,
+                second=new_second,
+            ).strftime(timestamp_format)
+        return new_ts
+    except Exception as e:
+        logger.error(f"Error assigning default synctimestamp: {e}")
+        return synctimestamp
 
 
 # TODO: still need to experiment to see what the rate limit is TBH.
@@ -230,7 +302,7 @@ def do_backfill_for_users(
     dids: list[str],
     start_timestamp: Optional[str] = None,
     end_timestamp: Optional[str] = None,
-) -> tuple[dict[str, dict[str, dict]], list[dict[str, dict]]]:
+) -> tuple[dict[str, dict[str, dict]], dict[str, list[dict]]]:
     """Performs the backfill for users.
 
     Args:
@@ -241,21 +313,25 @@ def do_backfill_for_users(
     Returns:
         A tuple of two dictionaries. The first dictionary maps DIDs to the
         counts of records of each type that were backfilled. The second
-        dictionary maps DIDs to the records of each type that were backfilled.
+        dictionary maps record types to the records that were backfilled.
     """
     if not start_timestamp:
         start_timestamp = default_start_timestamp
     if not end_timestamp:
         end_timestamp = default_end_timestamp
     did_to_backfill_counts_map = {}
-    type_to_record_maps = []
+    type_to_record_full_map = {}
     for did in dids:
         type_to_count_map, type_to_record_map = do_backfill_for_user(
             did, start_timestamp=start_timestamp, end_timestamp=end_timestamp
         )
         did_to_backfill_counts_map[did] = type_to_count_map
-        type_to_record_maps.append(type_to_record_map)
-    return did_to_backfill_counts_map, type_to_record_maps
+        for record_type, records in type_to_record_map.items():
+            if record_type in type_to_record_full_map:
+                type_to_record_full_map[record_type].extend(records)
+            else:
+                type_to_record_full_map[record_type] = records
+    return did_to_backfill_counts_map, type_to_record_full_map
 
 
 @track_performance
@@ -288,17 +364,13 @@ def run_batched_backfill(
             f"Updating metadata with counts for this batch of {len(batch)} users. Now exporting to cache...."
         )
         did_to_backfill_counts_full_map.update(did_to_backfill_counts_map)
-        transformed_records: list[dict] = transform_backfilled_records_for_export(
-            type_to_record_maps=type_to_record_maps,
-        )
-        if transformed_records:
+        if type_to_record_maps:
             write_records_to_cache(
-                records=transformed_records,
+                type_to_record_maps=type_to_record_maps,
                 batch_size=batch_size,
             )
         del did_to_backfill_counts_map
         del type_to_record_maps
-        del transformed_records
         gc.collect()
 
     return {

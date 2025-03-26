@@ -16,6 +16,6 @@ valid_types = [
 ]
 
 service_name = "backfill_sync"
-queue_name = "output_backfill_sync"
+base_queue_name = "output_backfill_sync"
 
 default_batch_size = 100

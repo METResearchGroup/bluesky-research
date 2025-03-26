@@ -271,7 +271,10 @@ def convert_timestamp(x, timestamp_format):
 
 
 def partition_data_by_date(
-    df: pd.DataFrame, timestamp_field: str, timestamp_format: Optional[str] = None
+    df: pd.DataFrame,
+    timestamp_field: str,
+    timestamp_format: Optional[str] = None,
+    skip_date_validation: bool = False,
 ) -> list[dict]:
     """Partitions data by date.
 
@@ -285,6 +288,9 @@ def partition_data_by_date(
     Transforms the timestamp field to a datetime field and then partitions the
     data by date. Each day's data is stored in a separate dataframe.
     """
+    # TODO: need to fix column matching. Don't think these overlap correctly.
+    # should process each dtype correctly. Either need the same cols or need
+    # to process each dtype separately.
     if not timestamp_format:
         timestamp_format = DEFAULT_TIMESTAMP_FORMAT
 
@@ -298,7 +304,7 @@ def partition_data_by_date(
         )
         years = df[f"{timestamp_field}_datetime"].dt.year
         total_invalid_years = sum(1 for year in years if year < 2024)
-        if total_invalid_years > 0:
+        if total_invalid_years > 0 and not skip_date_validation:
             raise ValueError(
                 f"""
                 Some records have years before 2024. This is impossible and an 
@@ -386,10 +392,16 @@ def export_data_to_local_storage(
     # data is old vs. new
     timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
     timestamp_format = MAP_SERVICE_TO_METADATA[service].get("timestamp_format", None)
-    chunked_dfs: list[dict] = partition_data_by_date(
-        df=df, timestamp_field=timestamp_field, timestamp_format=timestamp_format
+    skip_date_validation = MAP_SERVICE_TO_METADATA[service].get(
+        "skip_date_validation", False
     )
-    for chunk in chunked_dfs:
+    chunks: list[dict] = partition_data_by_date(
+        df=df,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+        skip_date_validation=skip_date_validation,
+    )
+    for chunk in chunks:
         # processing specific for firehose
         if override_local_prefix:
             local_prefix = override_local_prefix
@@ -400,7 +412,13 @@ def export_data_to_local_storage(
                 for record_type, group_df in chunk["data"].groupby("record_type"):
                     record_type_groups[record_type] = group_df
 
-                # Process each record type separately
+                # Process each record type separately.
+                # NOTE: we expect that each df will only have one record_type,
+                # as we'll pull these from separate queues, but we keep this
+                # logic here for backwards compatibility. Should still work
+                # regardless. We use separate queues so that we can scale
+                # each queue separately and also to avoid coercing fields across
+                # different record types.
                 for record_type, group_df in record_type_groups.items():
                     logger.info(
                         f"Exporting {record_type} data for service={service} to local storage for study_user_activity..."
