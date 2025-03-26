@@ -1,6 +1,7 @@
 import gc
 import os
 from pprint import pprint
+from typing import Optional
 import requests
 
 from atproto import CAR
@@ -91,7 +92,7 @@ def validate_record_timestamp(
     record: dict,
     start_timestamp: str = default_start_timestamp,
     end_timestamp: str = default_end_timestamp,
-):
+) -> bool:
     """Get only the records within the range of the study."""
     record_timestamp = record["createdAt"]
     record_timestamp_pipeline_dt = convert_bsky_dt_to_pipeline_dt(record_timestamp)
@@ -101,6 +102,42 @@ def validate_record_timestamp(
     ):
         return False
     return True
+
+
+def validate_record_type(
+    record: dict,
+    record_type: str,
+    did: str,
+    start_timestamp: str = default_start_timestamp,
+    end_timestamp: str = default_end_timestamp,
+):
+    """Validate the type of a record.
+
+    Args:
+        record: The record to validate
+        record_type: The type of the record
+        did: The DID of the user
+        start_timestamp: The start timestamp to filter by
+        end_timestamp: The end timestamp to filter by
+
+    Returns:
+        True if the record should be included, False otherwise
+    """
+    if record_type not in valid_types:
+        logger.info(f"Skipping record type {record_type} for user {did}")
+        return False
+    # we want to keep all follows, since it's helpful to have a complete
+    # picture of a user's entire social network. However, for the sake
+    # of analysis, we'll only care about the delta in follows during the
+    # course of the study. Yet let's keep all of this.
+    if record_type == "follow":
+        return True
+    is_valid_timestamp: bool = validate_record_timestamp(
+        record=record,
+        start_timestamp=start_timestamp,
+        end_timestamp=end_timestamp,
+    )
+    return is_valid_timestamp
 
 
 def do_backfill_for_user(
@@ -114,6 +151,14 @@ def do_backfill_for_user(
     Params defined in https://github.com/MarshalX/atproto/blob/main/packages/atproto_client/models/com/atproto/sync/get_repo.py#L16
     - did: The DID of the repo.
     - since: The revision ('rev') of the repo to create a diff from.
+
+    Args:
+        did: The DID of the user to backfill
+        start_timestamp: The start timestamp to backfill from
+        end_timestamp: The end timestamp to backfill to
+
+    Returns:
+        A tuple containing the count map and record map
     """
     plc_doc = get_plc_directory_doc(did)
     pds_endpoint = plc_doc["service"][0][
@@ -127,17 +172,19 @@ def do_backfill_for_user(
     records: list[dict] = [obj for obj in car_file.blocks.values()]
     type_to_record_map: dict[str, list[dict]] = {}
     type_to_count_map = {}
+    total_skipped_records = 0
     for record in records:
         if "$type" in record:
             record_type = identify_record_type(record)
-            if record_type not in valid_types:
-                logger.info(f"Skipping record type {record_type} for user {did}")
-                continue
-            if not validate_record_timestamp(
+            is_valid_record = validate_record_type(
                 record=record,
+                record_type=record_type,
+                did=did,
                 start_timestamp=start_timestamp,
                 end_timestamp=end_timestamp,
-            ):
+            )
+            if not is_valid_record:
+                total_skipped_records += 1
                 continue
             type_to_count_map[record_type] = type_to_count_map.get(record_type, 0) + 1
             if record_type in type_to_record_map:
@@ -146,6 +193,9 @@ def do_backfill_for_user(
                 type_to_record_map[record_type] = [record]
     print(f"For user with did={did}, found the following record types and counts:")
     pprint(type_to_count_map)
+    print(f"Total original records: {len(records)}")
+    print(f"Total skipped records: {total_skipped_records}")
+    print(f"Total exported records: {len(records) - total_skipped_records}")
     return type_to_count_map, type_to_record_map
 
 
@@ -178,21 +228,31 @@ def transform_backfilled_records_for_export(
 @rate_limit(delay_seconds=5)
 def do_backfill_for_users(
     dids: list[str],
+    start_timestamp: Optional[str] = None,
+    end_timestamp: Optional[str] = None,
 ) -> tuple[dict[str, dict[str, dict]], list[dict[str, dict]]]:
     """Performs the backfill for users.
 
-    This function is rate-limited and will pause for 5 seconds after execution
-    to avoid overwhelming the API.
+    Args:
+        dids: The list of DIDs to backfill.
+        start_timestamp: The start timestamp to backfill from.
+        end_timestamp: The end timestamp to backfill to.
 
     Returns:
         A tuple of two dictionaries. The first dictionary maps DIDs to the
         counts of records of each type that were backfilled. The second
         dictionary maps DIDs to the records of each type that were backfilled.
     """
+    if not start_timestamp:
+        start_timestamp = default_start_timestamp
+    if not end_timestamp:
+        end_timestamp = default_end_timestamp
     did_to_backfill_counts_map = {}
     type_to_record_maps = []
     for did in dids:
-        type_to_count_map, type_to_record_map = do_backfill_for_user(did)
+        type_to_count_map, type_to_record_map = do_backfill_for_user(
+            did, start_timestamp=start_timestamp, end_timestamp=end_timestamp
+        )
         did_to_backfill_counts_map[did] = type_to_count_map
         type_to_record_maps.append(type_to_record_map)
     return did_to_backfill_counts_map, type_to_record_maps
@@ -202,8 +262,8 @@ def do_backfill_for_users(
 def run_batched_backfill(
     dids: list[str],
     batch_size: int = default_batch_size,
-    start_timestamp: str = default_start_timestamp,
-    end_timestamp: str = default_end_timestamp,
+    start_timestamp: Optional[str] = None,
+    end_timestamp: Optional[str] = None,
 ) -> dict:
     """Runs the backfill for a list of DIDs in batches.
 
@@ -256,4 +316,8 @@ if __name__ == "__main__":
         # "did:plc:fbnm4hjnzu4qwg3nfjfkdhay",
         # "did:plc:dsnypqaat7r5nw6phtfs6ixw",
     ]
-    backfills_map = do_backfill_for_users(dids)
+    backfills_map = do_backfill_for_users(
+        dids,
+        start_timestamp=default_start_timestamp,
+        end_timestamp=default_end_timestamp,
+    )

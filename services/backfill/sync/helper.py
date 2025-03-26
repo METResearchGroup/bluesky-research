@@ -5,10 +5,6 @@ from typing import Optional
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from services.backfill.sync.backfill import run_batched_backfill
-from services.backfill.sync.constants import (
-    default_start_timestamp,
-    default_end_timestamp,
-)
 
 logger = get_logger(__name__)
 
@@ -25,8 +21,8 @@ def validate_dids(dids: list[str]) -> list[str]:
 @track_performance
 def do_backfills_for_users(
     dids: list[str],
-    start_timestamp: Optional[str] = default_start_timestamp,
-    end_timestamp: Optional[str] = default_end_timestamp,
+    start_timestamp: Optional[str] = None,
+    end_timestamp: Optional[str] = None,
     event: Optional[dict] = None,
 ) -> dict:
     """Do backfills for a given set of users."""

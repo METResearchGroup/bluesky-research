@@ -6,8 +6,6 @@ import traceback
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
-from lib.telemetry.wandb import log_run_to_wandb
-from services.backfill.session_metadata import write_backfill_metadata_to_db
 from services.backfill.sync.constants import service_name
 from services.backfill.sync.helper import do_backfills_for_users
 from services.write_cache_buffers_to_db.main import write_cache_buffers_to_db
@@ -16,13 +14,13 @@ from services.write_cache_buffers_to_db.main import write_cache_buffers_to_db
 logger = get_logger(__name__)
 
 
-@log_run_to_wandb(service_name=service_name)
+# @log_run_to_wandb(service_name=service_name)
 @track_performance
 def backfill_sync(payload: dict) -> RunExecutionMetadata:
     logger.info("Backfilling sync data")
     dids = payload.get("dids", [])
-    start_timestamp = payload.get("start_timestamp", "")
-    end_timestamp = payload.get("end_timestamp", "")
+    start_timestamp = payload.get("start_timestamp", None)
+    end_timestamp = payload.get("end_timestamp", None)
     skip_backfill = payload.get("skip_backfill", False)
     try:
         if skip_backfill:
@@ -67,7 +65,7 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
             "metadata": json.dumps(traceback.format_exc()),
         }
     transformed_session_metadata = RunExecutionMetadata(**session_metadata)
-    write_backfill_metadata_to_db(backfill_metadata=transformed_session_metadata)
+    # write_backfill_metadata_to_db(backfill_metadata=transformed_session_metadata)
     logger.info("Backfilling sync data complete")
     return transformed_session_metadata
 
