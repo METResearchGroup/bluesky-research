@@ -393,11 +393,7 @@ def export_data_to_local_storage(
         if override_local_prefix:
             local_prefix = override_local_prefix
         elif service == "backfill_sync":
-            # TODO: have custom logic for managing backfill syncs. Need
-            # to split logic for "study_user_activity" accordingly.
-            # TODO: move old "study_user_activity" data to an "old_study_user_activity" folder.
-            # Group data by record_type
-            record_type_groups = {}
+            record_type_groups: dict[str, pd.DataFrame] = {}
             if "record_type" in chunk["data"].columns:
                 # Group dataframe by record_type
                 for record_type, group_df in chunk["data"].groupby("record_type"):

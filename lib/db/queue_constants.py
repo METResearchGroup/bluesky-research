@@ -12,4 +12,5 @@ NAME_TO_QUEUE_NAME_MAP = {
     "input_ml_inference_ime": "input_ml_inference_ime",
     "output_ml_inference_ime": "output_ml_inference_ime",
     "jetstream_sync": "jetstream_sync",
+    "output_backfill_sync": "output_backfill_sync",
 }

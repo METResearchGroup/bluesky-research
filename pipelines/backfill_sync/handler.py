@@ -70,4 +70,12 @@ def lambda_handler(event, context) -> dict:
 
 
 if __name__ == "__main__":
-    lambda_handler(None, None)
+    dids = [
+        "did:plc:w5mjarupsl6ihdrzwgnzdh4y",
+        "did:plc:e4itbqoxctxwrrfqgs2rauga",
+        "did:plc:gedsnv7yxi45a4g2gts37vyp",
+        "did:plc:fbnm4hjnzu4qwg3nfjfkdhay",
+    ]
+    event = {"dids": ",".join(dids)}
+    context = {}
+    lambda_handler(event, context)
