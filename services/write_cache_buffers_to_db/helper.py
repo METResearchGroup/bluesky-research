@@ -44,6 +44,7 @@ def write_backfill_sync_queues_to_db(clear_queue: bool = True):
             service="backfill_sync",
             df=df,
             export_format="parquet",
+            custom_args={"record_type": record_type},
         )
         logger.info(
             f"Finished exporting {len(df)} records to local storage for backfill sync record type {record_type}..."

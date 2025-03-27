@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import gc
 import os
 from pprint import pprint
@@ -8,6 +9,14 @@ import requests
 from atproto import CAR
 
 from lib.constants import convert_bsky_dt_to_pipeline_dt, timestamp_format
+from lib.db.bluesky_models.transformations import (
+    TransformedBlock,
+    TransformedFollow,
+    TransformedLike,
+    TransformedPost,
+    TransformedRepost,
+    TransformedReply,
+)
 from lib.helper import create_batches, track_performance, rate_limit
 from lib.log.logger import get_logger
 from services.backfill.sync.constants import (
@@ -165,7 +174,46 @@ def transform_backfilled_record(
         record["synctimestamp"] = assign_default_backfill_synctimestamp(
             synctimestamp=record["synctimestamp"]
         )
-    return record
+
+    # transform the formats of the fields to be consistent with each other
+    # for a given type (for optional fields, these show up only if the
+    # record has the field, but I want to enforce consistent schemas).
+    if record_type in ["post", "reply"]:
+        embed = record.get("embed", False)
+        record["embed"] = json.dumps(embed) if embed else None
+
+        entities = record.get("entities", False)
+        record["entities"] = json.dumps(entities) if entities else None
+
+        facets = record.get("facets", False)
+        record["facets"] = json.dumps(facets) if facets else None
+
+        langs = record.get("langs", False)
+        record["langs"] = ",".join(langs) if langs else None
+
+        tags = record.get("tags", False)
+        record["tags"] = ",".join(tags) if tags else None
+        if record_type == "post":
+            transformed_record = TransformedPost(**record)
+        elif record_type == "reply":
+            transformed_record = TransformedReply(**record)
+            transformed_record = transformed_record.model_dump()
+            transformed_record["reply"] = json.dumps(transformed_record["reply"])
+    elif record_type == "repost":
+        transformed_record = TransformedRepost(**record)
+        transformed_record = transformed_record.model_dump()
+        transformed_record["subject"] = json.dumps(transformed_record["subject"])
+    elif record_type == "like":
+        transformed_record = TransformedLike(**record)
+        transformed_record = transformed_record.model_dump()
+        transformed_record["subject"] = json.dumps(transformed_record["subject"])
+    elif record_type == "follow":
+        transformed_record = TransformedFollow(**record)
+    elif record_type == "block":
+        transformed_record = TransformedBlock(**record)
+    if not isinstance(transformed_record, dict):
+        return transformed_record.model_dump()
+    return transformed_record
 
 
 def get_bsky_records_for_user(did: str) -> list[dict]:
@@ -225,7 +273,7 @@ def do_backfill_for_user(
                 continue
             type_to_count_map[record_type] = type_to_count_map.get(record_type, 0) + 1
 
-            transformed_record = transform_backfilled_record(
+            transformed_record: dict = transform_backfilled_record(
                 record=record,
                 record_type=record_type,
                 start_timestamp=start_timestamp,

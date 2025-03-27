@@ -502,9 +502,17 @@ def export_data_to_local_storage(
         )  # noqa
 
 
-def get_local_prefix_for_service(service: str) -> str:
+def get_local_prefix_for_service(
+    service: str, record_type: Optional[str] = None
+) -> str:
     """Get the local prefix for a given service."""
-    return MAP_SERVICE_TO_METADATA[service]["local_prefix"]
+    if service == "study_user_activity":
+        if record_type:
+            return MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
+        else:
+            raise ValueError(f"Record type must be provided for service={service}.")
+    else:
+        return MAP_SERVICE_TO_METADATA[service]["local_prefix"]
 
 
 def get_local_prefixes_for_service(service: str) -> list[str]:
@@ -557,6 +565,7 @@ def _get_all_filenames(
     service: str,
     directories: list[Literal["cache", "active"]] = ["active"],
     validate_pq_files: bool = False,
+    record_type: Optional[str] = None,
 ) -> list[str]:
     """Gets all filenames for a given service.
 
@@ -570,7 +579,9 @@ def _get_all_filenames(
     - /projects/p32375/bluesky_research_data/ml_inference_perspective_api/
     cache/partition_date=2024-09-29/bbab32f2d9764d52a3d89a7aee014192-0.parquet
     """
-    root_local_prefix = get_local_prefix_for_service(service)
+    root_local_prefix = get_local_prefix_for_service(
+        service=service, record_type=record_type
+    )
 
     return _crawl_local_prefix(
         local_prefix=root_local_prefix,
@@ -647,6 +658,10 @@ def _validate_filepaths(
     """Validate filepaths."""
     filtered_filepaths: list[str] = []
 
+    if not start_partition_date and not end_partition_date and not partition_date:
+        logger.info("No date filters provided, returning all filepaths.")
+        return filepaths
+
     if (start_partition_date and not end_partition_date) or (
         end_partition_date and not start_partition_date
     ):
@@ -662,6 +677,7 @@ def _validate_filepaths(
             "Cannot use partition_date and start_partition_date or end_partition_date together."
         )
 
+    # partition date is given or start/end dates are provided.
     if partition_date or (start_partition_date and end_partition_date):
         print(
             f"Filtering {len(filepaths)} files in service={service}, "
@@ -691,18 +707,32 @@ def list_filenames(
     start_partition_date: Optional[str] = None,
     end_partition_date: Optional[str] = None,
     override_local_prefix: Optional[str] = None,
+    custom_args: Optional[dict] = None,
 ) -> list[str]:
     """List files in local storage for a given service."""
 
     loaded_filepaths: list[str] = []
 
+    if service == "study_user_activity":
+        record_type = custom_args["record_type"]
+        logger.info(
+            f"Getting study user activity data for record_type={record_type}..."
+        )
+        loaded_filepaths.extend(
+            _get_all_filenames(
+                service=service,
+                directories=directories,
+                validate_pq_files=validate_pq_files,
+                record_type=record_type,
+            )
+        )
+
     # get filenames from deprecated ["firehose", "most_liked"] format.
     # We want to add these in addition to files in the current format.
-    if service in [
+    elif service in [
         "preprocessed_posts",
         "ml_inference_perspective_api",
         "ml_inference_sociopolitical",
-        "study_user_activity",
     ]:
         logger.info(
             f"Getting all filenames for service={service} in deprecated format."
@@ -714,15 +744,15 @@ def list_filenames(
                 validate_pq_files=validate_pq_files,
             )
         )
-
-    logger.info(f"Getting all filenames for service={service} in current format.")
-    loaded_filepaths.extend(
-        _get_all_filenames(
-            service=service,
-            directories=directories,
-            validate_pq_files=validate_pq_files,
+    else:
+        logger.info(f"Getting all filenames for service={service} in current format.")
+        loaded_filepaths.extend(
+            _get_all_filenames(
+                service=service,
+                directories=directories,
+                validate_pq_files=validate_pq_files,
+            )
         )
-    )
 
     loaded_filepaths = _validate_filepaths(
         service=service,
@@ -805,8 +835,18 @@ def pd_type_to_pa_type(pd_type):
         return pa.string()
 
 
-def get_service_pa_schema(service: str) -> Optional[pa.Schema]:
+def get_service_pa_schema(
+    service: str, custom_args: Optional[dict] = None
+) -> Optional[pa.Schema]:
     dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", None)
+    if custom_args:
+        record_type = custom_args.get("record_type", None)
+        if record_type:
+            dtypes_map = (
+                MAP_SERVICE_TO_METADATA[service]
+                .get("dtypes_map", {})
+                .get(record_type, {})
+            )
     # we add this here since when we transform the initial loaded dicts to
     # df (prior to writes), we don't have partition_date yet. However, we
     # want this to exist on read.
@@ -834,6 +874,7 @@ def load_data_from_local_storage(
     use_all_data: bool = False,
     validate_pq_files: bool = False,
     override_local_prefix: Optional[str] = None,
+    custom_args: Optional[dict] = None,
 ) -> pd.DataFrame:
     """Load data from local storage.
 
@@ -850,6 +891,7 @@ def load_data_from_local_storage(
         use_all_data: Whether to load from both cache and active directories
         validate_pq_files: Whether to validate parquet files
         override_local_prefix: Optional override for the service's local prefix path
+        custom_args: Optional custom arguments for the service
     """
     directories = [directory]
     if use_all_data:
@@ -863,6 +905,7 @@ def load_data_from_local_storage(
         start_partition_date=start_partition_date,
         end_partition_date=end_partition_date,
         override_local_prefix=override_local_prefix,
+        custom_args=custom_args,
     )
     if export_format == "jsonl":
         df = pd.read_json(filepaths, orient="records", lines=True)
