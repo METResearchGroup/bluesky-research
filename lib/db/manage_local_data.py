@@ -928,7 +928,9 @@ def load_data_from_local_storage(
             filters = []
         kwargs = {"path": filepaths}
         columns: list[str] = load_service_cols(service)
-        schema: Optional[pa.Schema] = get_service_pa_schema(service)
+        schema: Optional[pa.Schema] = get_service_pa_schema(
+            service=service, custom_args=custom_args
+        )
         if columns:
             kwargs["columns"] = columns
         if schema:
@@ -938,7 +940,11 @@ def load_data_from_local_storage(
         df = pd.read_parquet(**kwargs)
         if schema:
             # attempt to convert dtypes after the fact, but only for columns that exist
-            dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", {})
+            if service == "study_user_activity":
+                record_type = custom_args["record_type"]
+                dtypes_map = MAP_SERVICE_TO_METADATA[service]["dtypes_map"][record_type]
+            else:
+                dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", {})
             for col, dtype in dtypes_map.items():
                 if col in df.columns:  # Only convert if column exists
                     try:
