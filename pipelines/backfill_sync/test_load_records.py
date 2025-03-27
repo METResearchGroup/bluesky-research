@@ -21,8 +21,7 @@ if __name__ == "__main__":
             custom_args=custom_args,
         )
         df = pd.concat([active_df, cache_df])
-        # TODO: check schemas.
-        breakpoint()
         print(
             f"Loaded {len(df)} records for {record_type} ({len(active_df)} active, {len(cache_df)} cache)."
         )
+        print(f"Data types: {df.dtypes}")
