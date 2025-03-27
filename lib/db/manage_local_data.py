@@ -431,7 +431,6 @@ def export_data_to_local_storage(
                         custom_args={"record_type": record_type},
                     )
                 logger.info("Completed writing backfill sync data to local storage.")
-                return
             else:
                 raise ValueError(
                     f"No record_type column found in dataframe for backfill service={service}."
@@ -451,6 +450,12 @@ def export_data_to_local_storage(
         else:
             # generic processing
             local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
+        if service == "backfill_sync":
+            # we manage the logic for "backfill_sync" above, by calling
+            # study_user_activity for each of the data types. Once that's done,
+            # we don't need to do anything else for this chunk, and can iterate
+            # to the next chunk.
+            continue
         start_timestamp: str = chunk["start_timestamp"]
         end_timestamp: str = chunk["end_timestamp"]
         chunk_df: pd.DataFrame = chunk["data"]

@@ -1043,6 +1043,16 @@ class TestExportDataToLocalStorage:
                     "firehose": "/data/preprocessed_posts/firehose",
                     "active": "/data/preprocessed_posts/active",
                 }
+            },
+            "backfill_sync": {
+                "local_prefix": "/data/backfill_sync",
+                "timestamp_field": "preprocessing_timestamp",
+                "partition_key": "preprocessing_timestamp",
+                "skip_date_validation": True,
+                "subpaths": {
+                    "study_user_activity": "/data/backfill_sync/study_user_activity",
+                    "active": "/data/backfill_sync/active",
+                }
             }
         }
         mocker.patch("lib.db.manage_local_data.MAP_SERVICE_TO_METADATA", mock_metadata)
@@ -1141,3 +1151,60 @@ class TestExportDataToLocalStorage:
             export_format="parquet"
         )
         mock_to_parquet.assert_called_once()
+        
+    def test_backfill_sync_service(self, mocker, mock_service_metadata, mock_df):
+        """Test export with backfill_sync service."""
+        # Mock the partition_data_by_date function
+        mock_partition = mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01", 
+            "end_timestamp": "2024-01-01",
+            "data": mock_df
+        }])
+        mocker.patch("os.makedirs")
+        mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
+        
+        # Export to the study_user_activity subdirectory
+        custom_args = {"source": "study_user_activity"}
+        export_data_to_local_storage(
+            service="backfill_sync",
+            df=mock_df,
+            custom_args=custom_args
+        )
+        
+        # Verify the export occurred to the correct path
+        mock_to_parquet.assert_called_once()
+        file_path = mock_to_parquet.call_args[1]['path']
+        assert '/data/backfill_sync/study_user_activity/' in file_path
+        
+        # Verify that partition_data_by_date was called
+        mock_partition.assert_called_once()
+        
+    def test_skip_date_validation(self, mocker, mock_service_metadata, mock_df):
+        """Test export with skip_date_validation=True from configuration."""
+        # Mock the date validation function to track if it's called
+        mock_partition = mocker.patch("lib.db.manage_local_data.partition_data_by_date")
+        mock_get_skip_validation = mocker.patch(
+            "lib.db.manage_local_data.get_service_metadata_field",
+            return_value=True  # Simulate skip_date_validation=True
+        )
+        mocker.patch("os.makedirs")
+        mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
+        
+        # Test export with backfill_sync service which has skip_date_validation=True
+        export_data_to_local_storage(
+            service="backfill_sync",
+            df=mock_df
+        )
+        
+        # Verify that partition_data_by_date was NOT called due to skipping validation
+        mock_partition.assert_not_called()
+        
+        # Verify the export still occurred
+        mock_to_parquet.assert_called_once()
+        
+        # Verify get_service_metadata_field was called for skip_date_validation
+        mock_get_skip_validation.assert_any_call(
+            service="backfill_sync", 
+            field="skip_date_validation", 
+            default=False
+        )
