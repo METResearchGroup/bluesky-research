@@ -19,6 +19,7 @@ MAP_SERVICE_TO_METADATA = {
         "skip_deduping": True,
         "pydantic_model": "",
         "skip_date_validation": True,  # we're OK having older records.
+        # NOTE: schemas are pyarrow schemas.
         "dtypes_map": {
             "post": {
                 "py_type": "string",

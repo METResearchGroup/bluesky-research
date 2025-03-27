@@ -6,6 +6,7 @@ import pandas as pd
 
 from lib.db.queue import Queue
 from lib.db.manage_local_data import export_data_to_local_storage
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
 from services.backfill.sync.constants import base_queue_name, valid_types
 
@@ -34,9 +35,25 @@ def write_backfill_sync_queues_to_db(clear_queue: bool = True):
         latest_payloads: list[dict] = queue.load_dict_items_from_queue(
             limit=None, min_id=None, min_timestamp=None, status="pending"
         )
-        df = pd.DataFrame(latest_payloads)
-        latest_queue_item_ids: list[str] = df["batch_id"].tolist()
-
+        if len(latest_payloads) == 0:
+            logger.warning(
+                f"No records to export for record type {record_type}. Skipping..."
+            )
+            continue
+        latest_queue_item_ids: list[str] = [
+            record["batch_id"] for record in latest_payloads
+        ]
+        # NOTE: everything is of type string. But this will cause bugs if there's anything
+        # that we actually care to not have as a string. Throwing this warning
+        # just in case, to deal with future cases.
+        schema = MAP_SERVICE_TO_METADATA["study_user_activity"]["dtypes_map"][
+            record_type
+        ]
+        if any([coltype != "string" for coltype in schema.values()]):
+            logger.warning(
+                f"Some columns are not of type string for record type {record_type}. This is unexpected."
+            )
+        df: pd.DataFrame = pd.DataFrame(data=latest_payloads, dtype="string")
         logger.info(
             f"Exporting {len(df)} records to local storage for backfill sync record type {record_type}..."
         )

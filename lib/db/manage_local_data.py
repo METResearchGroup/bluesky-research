@@ -495,7 +495,13 @@ def export_data_to_local_storage(
             logger.info(
                 f"[Service = {service}, Partition Date = {output_partition_date}] Exporting n={len(chunk_df)} records to {folder_path}..."
             )
-            chunk_df.to_parquet(folder_path, index=False, partition_cols=partition_cols)
+            try:
+                chunk_df.to_parquet(
+                    folder_path, index=False, partition_cols=partition_cols
+                )
+            except Exception as e:
+                logger.error(f"Error exporting data to local storage: {e}")
+                breakpoint()
         export_path = folder_path if export_format == "parquet" else local_export_fp
         logger.info(
             f"Successfully exported {service} data ({export_path}) as {export_format}"

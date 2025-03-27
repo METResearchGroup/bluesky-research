@@ -56,8 +56,10 @@ def lambda_handler(event, context) -> dict:
 
         logger.info(f"Processing {len(dids)} DIDs for sync.")
 
+        skip_backfill = event.get("skip_backfill", False)
+
         # Create payload for backfill_records
-        payload = {"record_type": "sync", "dids": dids}
+        payload = {"record_type": "sync", "dids": dids, "skip_backfill": skip_backfill}
 
         # Call backfill_records with the payload
         backfill_records(payload)
