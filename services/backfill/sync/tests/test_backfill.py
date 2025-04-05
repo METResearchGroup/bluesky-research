@@ -305,7 +305,7 @@ class TestTransformBackfilledRecord:
         Should add record_type and synctimestamp fields without modification.
         """
         mock_convert.return_value = "2024-10-15-12:00:00"
-        record = {"createdAt": "2024-10-15T12:00:00Z"}
+        record = {"createdAt": "2024-10-15T12:00:00Z", "text": "Test post."}
         record_type = "post"
         
         result = transform_backfilled_record(
@@ -332,7 +332,7 @@ class TestTransformBackfilledRecord:
         mock_validate.return_value = False
         mock_assign_default.return_value = "2024-08-15-00:00:00"
         
-        record = {"createdAt": "2024-08-15T12:00:00Z"}
+        record = {"createdAt": "2024-08-15T12:00:00Z", "text": "Test post."}
         record_type = "post"
         
         result = transform_backfilled_record(
