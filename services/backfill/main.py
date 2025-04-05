@@ -1,5 +1,6 @@
 from services.backfill.posts.main import backfill_posts
 from services.backfill.posts_used_in_feeds.main import backfill_posts_used_in_feeds
+from services.backfill.sync.main import backfill_sync
 
 
 def backfill_records(payload: dict):
@@ -36,5 +37,10 @@ def backfill_records(payload: dict):
         backfill_posts(payload)
     elif record_type == "posts_used_in_feeds":
         backfill_posts_used_in_feeds(payload)
+    elif record_type == "sync":
+        backfill_sync(payload)
+    elif record_type == "study_user_activity":
+        backfill_study_user_activity = lambda x: x  # stub function. # noqa
+        backfill_study_user_activity(payload)
     else:
         raise ValueError(f"Unsupported record type: {record_type}")

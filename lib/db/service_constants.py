@@ -5,6 +5,11 @@ from lib.constants import root_local_data_directory
 import os
 
 MAP_SERVICE_TO_METADATA = {
+    "backfill_sync": {
+        "timestamp_field": "synctimestamp",
+        "skip_date_validation": True,  # we're OK having older records, this is true
+        # for stuff like follows where we want a full record of all their follows.
+    },  # managed by study_user_activity.
     "study_user_activity": {
         "local_prefix": os.path.join(root_local_data_directory, "study_user_activity"),
         "s3_prefix": "study_user_activity",
@@ -13,31 +18,64 @@ MAP_SERVICE_TO_METADATA = {
         "timestamp_field": "synctimestamp",
         "skip_deduping": True,
         "pydantic_model": "",
-        "dtypes_map": {  # only the dtypes map of the posts subpath is defined here
-            "uri": "string",
-            "cid": "string",
-            "indexed_at": "string",
-            "author_did": "string",
-            "author_handle": "string",
-            "author_avatar": "string",
-            "author_display_name": "string",
-            "created_at": "string",
-            "text": "string",
-            "embed": "string",
-            "entities": "string",
-            "facets": "string",
-            "labels": "string",
-            "langs": "string",
-            "reply_parent": "string",
-            "reply_root": "string",
-            "tags": "string",
-            "synctimestamp": "string",
-            "url": "string",
-            "source": "string",
-            "like_count": "Int64",
-            "reply_count": "Int64",
-            "repost_count": "Int64",
-            "partition_date": "string",
+        "skip_date_validation": True,  # we're OK having older records.
+        # NOTE: schemas are pyarrow schemas.
+        "dtypes_map": {
+            "post": {
+                "py_type": "string",
+                "createdAt": "string",
+                "text": "string",
+                "embed": "string",
+                "entities": "string",
+                "facets": "string",
+                "labels": "string",
+                "langs": "string",
+                "tags": "string",
+                "record_type": "string",
+                "synctimestamp": "string",
+            },
+            "reply": {
+                "py_type": "string",
+                "createdAt": "string",
+                "text": "string",
+                "embed": "string",
+                "entities": "string",
+                "facets": "string",
+                "reply": "string",
+                "labels": "string",
+                "langs": "string",
+                "tags": "string",
+                "record_type": "string",
+                "synctimestamp": "string",
+            },
+            "repost": {
+                "py_type": "string",
+                "createdAt": "string",
+                "subject": "string",
+                "record_type": "string",
+                "synctimestamp": "string",
+            },
+            "like": {
+                "py_type": "string",
+                "createdAt": "string",
+                "subject": "string",
+                "record_type": "string",
+                "synctimestamp": "string",
+            },
+            "follow": {
+                "py_type": "string",
+                "createdAt": "string",
+                "subject": "string",
+                "record_type": "string",
+                "synctimestamp": "string",
+            },
+            "block": {
+                "py_type": "string",
+                "createdAt": "string",
+                "subject": "string",
+                "record_type": "string",
+                "synctimestamp": "string",
+            },
         },
         "subpaths": {
             "like": os.path.join(
@@ -46,18 +84,30 @@ MAP_SERVICE_TO_METADATA = {
             "post": os.path.join(
                 root_local_data_directory, "study_user_activity", "create", "post"
             ),
-            "like_on_user_post": os.path.join(
-                root_local_data_directory,
-                "study_user_activity",
-                "create",
-                "like_on_user_post",
+            "follow": os.path.join(
+                root_local_data_directory, "study_user_activity", "create", "follow"
             ),
-            "reply_to_user_post": os.path.join(
-                root_local_data_directory,
-                "study_user_activity",
-                "create",
-                "reply_to_user_post",
+            "reply": os.path.join(
+                root_local_data_directory, "study_user_activity", "create", "reply"
             ),
+            "repost": os.path.join(
+                root_local_data_directory, "study_user_activity", "create", "repost"
+            ),
+            "block": os.path.join(
+                root_local_data_directory, "study_user_activity", "create", "block"
+            ),
+            # "like_on_user_post": os.path.join(
+            #     root_local_data_directory,
+            #     "study_user_activity",
+            #     "create",
+            #     "like_on_user_post",
+            # ),
+            # "reply_to_user_post": os.path.join(
+            #     root_local_data_directory,
+            #     "study_user_activity",
+            #     "create",
+            #     "reply_to_user_post",
+            # ),
         },
     },
     "study_user_likes": {

@@ -1,7 +1,8 @@
 """Interface for routing integration requests to the appropriate integration service."""
 
-from api.integrations_router.models import IntegrationRequest, RunExecutionMetadata
+from api.integrations_router.models import IntegrationRequest
 from api.integrations_router.run import run_integration_request
+from lib.metadata.models import RunExecutionMetadata
 
 
 def parse_integration_request(request: dict) -> IntegrationRequest:

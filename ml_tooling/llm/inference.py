@@ -7,7 +7,6 @@ import litellm
 from litellm import acompletion, batch_completion, completion
 from litellm.integrations.opik.opik import OpikLogger
 from litellm.utils import ModelResponse
-import opik
 import tiktoken
 
 from services.ml_inference.models import LLMSociopoliticalLabelsModel
@@ -29,6 +28,8 @@ os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 os.environ["OPIK_PROJECT_NAME"] = "ml_inference_llm"
 
 if not RUN_MODE == "test":
+    import opik
+
     opik_logger = OpikLogger()
     opik.configure(use_local=False)
     litellm.callbacks = [opik_logger]
