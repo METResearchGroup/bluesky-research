@@ -694,7 +694,8 @@ class TestLoadDataFromLocalStorage:
             partition_date=None,
             start_partition_date=None,
             end_partition_date=None,
-            override_local_prefix=None
+            override_local_prefix=None,
+            custom_args=None
         )
 
     @pytest.mark.parametrize("export_format,mock_data", [
@@ -806,7 +807,8 @@ class TestLoadDataFromLocalStorage:
             partition_date=test_params["partition_date"],
             start_partition_date=None,
             end_partition_date=None,
-            override_local_prefix=None
+            override_local_prefix=None,
+            custom_args=None
         )
 
     @pytest.mark.parametrize("test_params", [
@@ -835,7 +837,8 @@ class TestLoadDataFromLocalStorage:
             partition_date=None,
             start_partition_date=test_params["start_date"],
             end_partition_date=test_params["end_date"],
-            override_local_prefix=None
+            override_local_prefix=None,
+            custom_args=None
         )
 
     def test_use_all_data(self, mocker, mock_service_metadata):
@@ -855,7 +858,8 @@ class TestLoadDataFromLocalStorage:
             partition_date=None,
             start_partition_date=None,
             end_partition_date=None,
-            override_local_prefix=None
+            override_local_prefix=None,
+            custom_args=None
         )
 
     def test_validate_pq_files(self, mocker, mock_service_metadata):
@@ -875,7 +879,8 @@ class TestLoadDataFromLocalStorage:
             partition_date=None,
             start_partition_date=None,
             end_partition_date=None,
-            override_local_prefix=None
+            override_local_prefix=None,
+            custom_args=None
         )
 
     def test_preprocessed_posts_validation(self, mocker):
@@ -1016,7 +1021,8 @@ class TestLoadDataFromLocalStorage:
             partition_date=None,
             start_partition_date=None,
             end_partition_date=None,
-            override_local_prefix=override_path
+            override_local_prefix=override_path,
+            custom_args=None
         )
 
 class TestExportDataToLocalStorage:
@@ -1064,7 +1070,8 @@ class TestExportDataToLocalStorage:
         return pd.DataFrame({
             "col1": [1, 2],
             "col2": ["a", "b"],
-            "preprocessing_timestamp": ["2024-01-01", "2024-01-01"]
+            "preprocessing_timestamp": ["2024-01-01", "2024-01-01"],
+            "record_type": ["post", "post"]
         })
 
     def test_basic_export(self, mocker, mock_service_metadata, mock_df, tmp_path):
@@ -1174,7 +1181,7 @@ class TestExportDataToLocalStorage:
         # Verify the export occurred to the correct path
         mock_to_parquet.assert_called_once()
         file_path = mock_to_parquet.call_args[1]['path']
-        assert '/data/backfill_sync/study_user_activity/' in file_path
+        assert file_path == '/data/backfill_sync/study_user_activity/cache'
         
         # Verify that partition_data_by_date was called
         mock_partition.assert_called_once()
@@ -1183,10 +1190,7 @@ class TestExportDataToLocalStorage:
         """Test export with skip_date_validation=True from configuration."""
         # Mock the date validation function to track if it's called
         mock_partition = mocker.patch("lib.db.manage_local_data.partition_data_by_date")
-        mock_get_skip_validation = mocker.patch(
-            "lib.db.manage_local_data.get_service_metadata_field",
-            return_value=True  # Simulate skip_date_validation=True
-        )
+        mocker.patch.dict("lib.db.manage_local_data.MAP_SERVICE_TO_METADATA", {"backfill_sync": {"skip_date_validation": True, "timestamp_field": "preprocessing_timestamp", "local_prefix": "/data/backfill_sync"}})
         mocker.patch("os.makedirs")
         mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
         
@@ -1201,10 +1205,3 @@ class TestExportDataToLocalStorage:
         
         # Verify the export still occurred
         mock_to_parquet.assert_called_once()
-        
-        # Verify get_service_metadata_field was called for skip_date_validation
-        mock_get_skip_validation.assert_any_call(
-            service="backfill_sync", 
-            field="skip_date_validation", 
-            default=False
-        )

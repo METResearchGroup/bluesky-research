@@ -395,46 +395,60 @@ def export_data_to_local_storage(
     skip_date_validation = MAP_SERVICE_TO_METADATA[service].get(
         "skip_date_validation", False
     )
-    chunks: list[dict] = partition_data_by_date(
-        df=df,
-        timestamp_field=timestamp_field,
-        timestamp_format=timestamp_format,
-        skip_date_validation=skip_date_validation,
-    )
+    # Override skip_date_validation for backfill_sync if custom_args provides a specific source
+    if service == "backfill_sync" and custom_args and "source" in custom_args:
+        skip_date_validation = False
+    if skip_date_validation:
+        chunks = [
+            {
+                "start_timestamp": generate_current_datetime_str(),
+                "end_timestamp": generate_current_datetime_str(),
+                "data": df,
+            }
+        ]
+    else:
+        chunks: list[dict] = partition_data_by_date(
+            df=df,
+            timestamp_field=timestamp_field,
+            timestamp_format=timestamp_format,
+            skip_date_validation=skip_date_validation,
+        )
     for chunk in chunks:
         # processing specific for firehose
         if override_local_prefix:
             local_prefix = override_local_prefix
         elif service == "backfill_sync":
-            record_type_groups: dict[str, pd.DataFrame] = {}
-            if "record_type" in chunk["data"].columns:
-                # Group dataframe by record_type
-                for record_type, group_df in chunk["data"].groupby("record_type"):
-                    record_type_groups[record_type] = group_df
-
-                # Process each record type separately.
-                # NOTE: we expect that each df will only have one record_type,
-                # as we'll pull these from separate queues, but we keep this
-                # logic here for backwards compatibility. Should still work
-                # regardless. We use separate queues so that we can scale
-                # each queue separately and also to avoid coercing fields across
-                # different record types.
-                for record_type, group_df in record_type_groups.items():
-                    logger.info(
-                        f"Exporting {record_type} data for service={service} to local storage for study_user_activity..."
-                    )
-                    export_data_to_local_storage(
-                        service="study_user_activity",
-                        df=group_df,
-                        export_format=export_format,
-                        lookback_days=lookback_days,
-                        custom_args={"record_type": record_type},
-                    )
-                logger.info("Completed writing backfill sync data to local storage.")
+            if custom_args and "source" in custom_args:
+                local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][
+                    custom_args["source"]
+                ]
+            elif skip_date_validation:
+                local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
             else:
-                raise ValueError(
-                    f"No record_type column found in dataframe for backfill service={service}."
-                )
+                if "record_type" in chunk["data"].columns:
+                    record_type_groups: dict[str, pd.DataFrame] = {}
+                    for record_type, group_df in chunk["data"].groupby("record_type"):
+                        record_type_groups[record_type] = group_df
+
+                    for record_type, group_df in record_type_groups.items():
+                        logger.info(
+                            f"Exporting {record_type} data for service={service} to local storage for study_user_activity..."
+                        )
+                        export_data_to_local_storage(
+                            service="study_user_activity",
+                            df=group_df,
+                            export_format=export_format,
+                            lookback_days=lookback_days,
+                            custom_args={"record_type": record_type},
+                        )
+                    logger.info(
+                        "Completed writing backfill sync data to local storage."
+                    )
+                    continue
+                else:
+                    raise ValueError(
+                        f"No record_type column found in dataframe for backfill service={service}."
+                    )
         elif service == "study_user_activity":
             record_type = custom_args["record_type"]
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
@@ -450,11 +464,9 @@ def export_data_to_local_storage(
         else:
             # generic processing
             local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
-        if service == "backfill_sync":
-            # we manage the logic for "backfill_sync" above, by calling
-            # study_user_activity for each of the data types. Once that's done,
-            # we don't need to do anything else for this chunk, and can iterate
-            # to the next chunk.
+        if service == "backfill_sync" and not (
+            skip_date_validation or (custom_args and "source" in custom_args)
+        ):
             continue
         start_timestamp: str = chunk["start_timestamp"]
         end_timestamp: str = chunk["end_timestamp"]
@@ -497,11 +509,10 @@ def export_data_to_local_storage(
             )
             try:
                 chunk_df.to_parquet(
-                    folder_path, index=False, partition_cols=partition_cols
+                    path=folder_path, index=False, partition_cols=partition_cols
                 )
             except Exception as e:
                 logger.error(f"Error exporting data to local storage: {e}")
-                breakpoint()
         export_path = folder_path if export_format == "parquet" else local_export_fp
         logger.info(
             f"Successfully exported {service} data ({export_path}) as {export_format}"
@@ -733,18 +744,23 @@ def list_filenames(
             )
         )
 
-    # get filenames from deprecated ["firehose", "most_liked"] format.
-    # We want to add these in addition to files in the current format.
     elif service in [
         "preprocessed_posts",
         "ml_inference_perspective_api",
         "ml_inference_sociopolitical",
     ]:
         logger.info(
-            f"Getting all filenames for service={service} in deprecated format."
+            f"Getting all filenames for service={service} in both current and deprecated formats."
         )
         loaded_filepaths.extend(
             _get_all_filenames_deprecated_format(
+                service=service,
+                directories=directories,
+                validate_pq_files=validate_pq_files,
+            )
+        )
+        loaded_filepaths.extend(
+            _get_all_filenames(
                 service=service,
                 directories=directories,
                 validate_pq_files=validate_pq_files,
