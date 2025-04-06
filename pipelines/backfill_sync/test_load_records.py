@@ -4,7 +4,7 @@ from lib.db.manage_local_data import load_data_from_local_storage
 from services.backfill.sync.constants import valid_types
 
 if __name__ == "__main__":
-    service = "study_user_activity"
+    service = "raw_sync"
     for record_type in valid_types:
         # if record_type != "post":
         #     continue

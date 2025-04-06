@@ -46,9 +46,7 @@ def write_backfill_sync_queues_to_db(clear_queue: bool = True):
         # NOTE: everything is of type string. But this will cause bugs if there's anything
         # that we actually care to not have as a string. Throwing this warning
         # just in case, to deal with future cases.
-        schema = MAP_SERVICE_TO_METADATA["study_user_activity"]["dtypes_map"][
-            record_type
-        ]
+        schema = MAP_SERVICE_TO_METADATA["raw_sync"]["dtypes_map"][record_type]
         if any([coltype != "string" for coltype in schema.values()]):
             logger.warning(
                 f"Some columns are not of type string for record type {record_type}. This is unexpected."

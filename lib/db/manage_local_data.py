@@ -44,7 +44,7 @@ services_list = [
     "consolidate_enrichment_integrations",
     "rank_score_feeds",
     "post_scores",
-    "study_user_activity",
+    "raw_sync",
 ]
 
 # there are some really weird records that come along and have "created_at"
@@ -432,10 +432,10 @@ def export_data_to_local_storage(
 
                     for record_type, group_df in record_type_groups.items():
                         logger.info(
-                            f"Exporting {record_type} data for service={service} to local storage for study_user_activity..."
+                            f"Exporting {record_type} data for service={service} to local storage for raw_sync..."
                         )
                         export_data_to_local_storage(
-                            service="study_user_activity",
+                            service="raw_sync",
                             df=group_df,
                             export_format=export_format,
                             lookback_days=lookback_days,
@@ -449,7 +449,7 @@ def export_data_to_local_storage(
                     raise ValueError(
                         f"No record_type column found in dataframe for backfill service={service}."
                     )
-        elif service == "study_user_activity":
+        elif service == "raw_sync":
             record_type = custom_args["record_type"]
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
         elif service == "preprocessed_posts":
@@ -523,7 +523,7 @@ def get_local_prefix_for_service(
     service: str, record_type: Optional[str] = None
 ) -> str:
     """Get the local prefix for a given service."""
-    if service == "study_user_activity":
+    if service == "raw_sync":
         if record_type:
             return MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
         else:
@@ -540,7 +540,7 @@ def get_local_prefixes_for_service(service: str) -> list[str]:
             local_prefixes.append(subpath)
     else:
         local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
-        if service == "study_user_activity":
+        if service == "raw_sync":
             record_type = "post"  # we only fetch the posts from study users.
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
         local_prefixes = [local_prefix]
@@ -640,7 +640,7 @@ def _get_all_filenames_deprecated_format(
         "preprocessed_posts",
         "ml_inference_perspective_api",
         "ml_inference_sociopolitical",
-        "study_user_activity",
+        "raw_sync",
     ]:
         raise ValueError(f"Service {service} is not supported for deprecated format.")
 
@@ -730,7 +730,7 @@ def list_filenames(
 
     loaded_filepaths: list[str] = []
 
-    if service == "study_user_activity":
+    if service == "raw_sync":
         record_type = custom_args["record_type"]
         logger.info(
             f"Getting study user activity data for record_type={record_type}..."
@@ -956,7 +956,7 @@ def load_data_from_local_storage(
         df = pd.read_parquet(**kwargs)
         if schema:
             # attempt to convert dtypes after the fact, but only for columns that exist
-            if service == "study_user_activity":
+            if service == "raw_sync":
                 record_type = custom_args["record_type"]
                 dtypes_map = MAP_SERVICE_TO_METADATA[service]["dtypes_map"][record_type]
             else:

@@ -9,11 +9,11 @@ MAP_SERVICE_TO_METADATA = {
         "timestamp_field": "synctimestamp",
         "skip_date_validation": True,  # we're OK having older records, this is true
         # for stuff like follows where we want a full record of all their follows.
-    },  # managed by study_user_activity.
-    "study_user_activity": {
-        "local_prefix": os.path.join(root_local_data_directory, "study_user_activity"),
-        "s3_prefix": "study_user_activity",
-        "glue_table_name": "study_user_activity",
+    },  # managed by raw_sync.
+    "raw_sync": {
+        "local_prefix": os.path.join(root_local_data_directory, "raw_sync"),
+        "s3_prefix": "raw_sync",
+        "glue_table_name": "raw_sync",
         "primary_key": "",
         "timestamp_field": "synctimestamp",
         "skip_deduping": True,
@@ -79,32 +79,32 @@ MAP_SERVICE_TO_METADATA = {
         },
         "subpaths": {
             "like": os.path.join(
-                root_local_data_directory, "study_user_activity", "create", "like"
+                root_local_data_directory, "raw_sync", "create", "like"
             ),
             "post": os.path.join(
-                root_local_data_directory, "study_user_activity", "create", "post"
+                root_local_data_directory, "raw_sync", "create", "post"
             ),
             "follow": os.path.join(
-                root_local_data_directory, "study_user_activity", "create", "follow"
+                root_local_data_directory, "raw_sync", "create", "follow"
             ),
             "reply": os.path.join(
-                root_local_data_directory, "study_user_activity", "create", "reply"
+                root_local_data_directory, "raw_sync", "create", "reply"
             ),
             "repost": os.path.join(
-                root_local_data_directory, "study_user_activity", "create", "repost"
+                root_local_data_directory, "raw_sync", "create", "repost"
             ),
             "block": os.path.join(
-                root_local_data_directory, "study_user_activity", "create", "block"
+                root_local_data_directory, "raw_sync", "create", "block"
             ),
             # "like_on_user_post": os.path.join(
             #     root_local_data_directory,
-            #     "study_user_activity",
+            #     "raw_sync",
             #     "create",
             #     "like_on_user_post",
             # ),
             # "reply_to_user_post": os.path.join(
             #     root_local_data_directory,
-            #     "study_user_activity",
+            #     "raw_sync",
             #     "create",
             #     "reply_to_user_post",
             # ),
@@ -112,7 +112,7 @@ MAP_SERVICE_TO_METADATA = {
     },
     "study_user_likes": {
         "local_prefix": os.path.join(
-            root_local_data_directory, "study_user_activity", "create", "like"
+            root_local_data_directory, "raw_sync", "create", "like"
         ),
         "primary_key": "uri",
         "timestamp_field": "synctimestamp",
@@ -130,7 +130,7 @@ MAP_SERVICE_TO_METADATA = {
     "study_user_like_on_user_post": {
         "local_prefix": os.path.join(
             root_local_data_directory,
-            "study_user_activity",
+            "raw_sync",
             "create",
             "like_on_user_post",
         ),
@@ -149,7 +149,7 @@ MAP_SERVICE_TO_METADATA = {
     "study_user_reply_to_user_post": {
         "local_prefix": os.path.join(
             root_local_data_directory,
-            "study_user_activity",
+            "raw_sync",
             "create",
             "reply_to_user_post",
         ),
