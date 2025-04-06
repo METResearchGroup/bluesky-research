@@ -7,7 +7,8 @@ from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.wandb import log_run_to_wandb
-from services.backfill.session_metadata import write_backfill_metadata_to_db
+from services.backfill.sync.models import UserBackfillMetadata
+from services.backfill.sync.session_metadata import write_backfill_metadata_to_db
 from services.backfill.sync.constants import service_name
 from services.backfill.sync.helper import do_backfills_for_users
 from services.write_cache_buffers_to_db.main import write_cache_buffers_to_db
@@ -43,6 +44,7 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
             backfill_session_metadata = {
                 "backfill_timestamp": generate_current_datetime_str(),
                 "event": payload,
+                "user_backfill_metadata": [],  # Empty list when skipping backfill
             }
         else:
             backfill_session_metadata: dict = do_backfills_for_users(
@@ -53,6 +55,13 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
             )
         export_payload = {"service": service_name, "clear_queue": True}
         write_cache_buffers_to_db(payload=export_payload)
+
+        # Extract user metadata list from session metadata
+        user_backfill_metadata: list[UserBackfillMetadata] = (
+            backfill_session_metadata.pop("user_backfill_metadata", [])
+        )
+
+        # Create session metadata object
         session_metadata = {
             "service": service_name,
             "timestamp": backfill_session_metadata["backfill_timestamp"],
@@ -61,6 +70,13 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
             "metadata_table_name": f"{service_name}_metadata",
             "metadata": json.dumps(backfill_session_metadata),
         }
+        transformed_session_metadata = RunExecutionMetadata(**session_metadata)
+
+        # Write both session and user metadata to DB
+        write_backfill_metadata_to_db(
+            session_backfill_metadata=transformed_session_metadata,
+            user_backfill_metadata=user_backfill_metadata,
+        )
     except Exception as e:
         logger.error(f"Error backfilling sync data: {e}")
         logger.error(traceback.format_exc())
@@ -72,8 +88,12 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
             "metadata_table_name": f"{service_name}_metadata",
             "metadata": json.dumps(traceback.format_exc()),
         }
-    transformed_session_metadata = RunExecutionMetadata(**session_metadata)
-    write_backfill_metadata_to_db(backfill_metadata=transformed_session_metadata)
+        transformed_session_metadata = RunExecutionMetadata(**session_metadata)
+        # Still try to write session metadata even if there was an error
+        write_backfill_metadata_to_db(
+            session_backfill_metadata=transformed_session_metadata,
+            user_backfill_metadata=[],  # Empty list on error
+        )
     logger.info("Backfilling sync data complete")
     return transformed_session_metadata
 

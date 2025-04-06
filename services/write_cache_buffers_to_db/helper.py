@@ -56,7 +56,7 @@ def write_backfill_sync_queues_to_db(clear_queue: bool = True):
             f"Exporting {len(df)} records to local storage for backfill sync record type {record_type}..."
         )
         export_data_to_local_storage(
-            service="backfill_sync",
+            service="raw_sync",
             df=df,
             export_format="parquet",
             custom_args={"record_type": record_type},
