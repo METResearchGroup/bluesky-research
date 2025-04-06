@@ -17,7 +17,12 @@ from lib.db.bluesky_models.transformations import (
     TransformedRepost,
     TransformedReply,
 )
-from lib.helper import create_batches, track_performance, rate_limit
+from lib.helper import (
+    create_batches,
+    track_performance,
+    rate_limit,
+    generate_current_datetime_str,
+)
 from lib.log.logger import get_logger
 from services.backfill.sync.constants import (
     default_start_timestamp,
@@ -27,6 +32,7 @@ from services.backfill.sync.constants import (
     default_batch_size,
 )
 from services.backfill.sync.export_data import write_records_to_cache
+from services.backfill.sync.models import UserBackfillMetadata
 
 logger = get_logger(__name__)
 
@@ -242,7 +248,7 @@ def do_backfill_for_user(
     did: str,
     start_timestamp: str = default_start_timestamp,
     end_timestamp: str = default_end_timestamp,
-) -> tuple[dict[str, int], dict[str, list[dict]]]:
+) -> tuple[dict[str, int], dict[str, list[dict]], UserBackfillMetadata]:
     """
     Do backfill for a user.
 
@@ -256,13 +262,27 @@ def do_backfill_for_user(
         end_timestamp: The end timestamp to backfill to
 
     Returns:
-        A tuple containing the count map and record map
-        - The count map contains the count of records for each type
-        - The record map contains the records for each type
+        A tuple containing:
+        - The count map containing the count of records for each type
+        - The record map containing the records for each type
+        - Metadata about the user's backfill operation
     """
     type_to_record_map: dict[str, list[dict]] = {}
     type_to_count_map = {}
     total_skipped_records = 0
+
+    # Get PLC document to extract handle and PDS endpoint
+    plc_doc = get_plc_directory_doc(did)
+    pds_endpoint = plc_doc["service"][0]["serviceEndpoint"]
+
+    # Extract handle from alsoKnownAs
+    bluesky_handle = ""
+    if "alsoKnownAs" in plc_doc:
+        for aka in plc_doc["alsoKnownAs"]:
+            if aka.startswith("at://"):
+                bluesky_handle = aka.replace("at://", "")
+                break
+
     records: list[dict] = get_bsky_records_for_user(did)
     for record in records:
         if "$type" in record:
@@ -289,7 +309,16 @@ def do_backfill_for_user(
     print(f"Total original records: {len(records)}")
     print(f"Total skipped records: {total_skipped_records}")
     print(f"Total exported records: {len(records) - total_skipped_records}")
-    return type_to_count_map, type_to_record_map
+
+    # Create metadata for the user's backfill operation
+    user_metadata = create_user_backfill_metadata(
+        did=did,
+        record_count_map=type_to_count_map,
+        bluesky_handle=bluesky_handle,
+        pds_service_endpoint=pds_endpoint,
+    )
+
+    return type_to_count_map, type_to_record_map, user_metadata
 
 
 def assign_default_backfill_synctimestamp(synctimestamp: str) -> str:
@@ -344,13 +373,14 @@ def assign_default_backfill_synctimestamp(synctimestamp: str) -> str:
         return synctimestamp
 
 
-# TODO: still need to experiment to see what the rate limit is TBH.
 @rate_limit(delay_seconds=5)
 def do_backfill_for_users(
     dids: list[str],
     start_timestamp: Optional[str] = None,
     end_timestamp: Optional[str] = None,
-) -> tuple[dict[str, dict[str, dict]], dict[str, list[dict]]]:
+) -> tuple[
+    dict[str, dict[str, dict]], dict[str, list[dict]], list[UserBackfillMetadata]
+]:
     """Performs the backfill for users.
 
     Args:
@@ -359,9 +389,10 @@ def do_backfill_for_users(
         end_timestamp: The end timestamp to backfill to.
 
     Returns:
-        A tuple of two dictionaries. The first dictionary maps DIDs to the
-        counts of records of each type that were backfilled. The second
-        dictionary maps record types to the records that were backfilled.
+        A tuple of three items:
+        1. Dictionary mapping DIDs to counts of records by type
+        2. Dictionary mapping record types to lists of records
+        3. List of UserBackfillMetadata objects for each user
     """
     if not start_timestamp:
         start_timestamp = default_start_timestamp
@@ -369,17 +400,26 @@ def do_backfill_for_users(
         end_timestamp = default_end_timestamp
     did_to_backfill_counts_map = {}
     type_to_record_full_map = {}
+    user_backfill_metadata_list = []
+
     for did in dids:
-        type_to_count_map, type_to_record_map = do_backfill_for_user(
+        type_to_count_map, type_to_record_map, user_metadata = do_backfill_for_user(
             did, start_timestamp=start_timestamp, end_timestamp=end_timestamp
         )
         did_to_backfill_counts_map[did] = type_to_count_map
+        user_backfill_metadata_list.append(user_metadata)
+
         for record_type, records in type_to_record_map.items():
             if record_type in type_to_record_full_map:
                 type_to_record_full_map[record_type].extend(records)
             else:
                 type_to_record_full_map[record_type] = records
-    return did_to_backfill_counts_map, type_to_record_full_map
+
+    return (
+        did_to_backfill_counts_map,
+        type_to_record_full_map,
+        user_backfill_metadata_list,
+    )
 
 
 @track_performance
@@ -396,22 +436,31 @@ def run_batched_backfill(
         batch_size: The number of DIDs to backfill in each batch.
         start_timestamp: The start timestamp to backfill from.
         end_timestamp: The end timestamp to backfill to.
+
+    Returns:
+        A dictionary containing information about the backfill run, including
+        counts, metadata, and status.
     """
     batches: list[list[str]] = create_batches(batch_list=dids, batch_size=batch_size)
     total_batches = len(batches)
     did_to_backfill_counts_full_map = {}
+    all_user_backfill_metadata = []
 
     for i, batch in enumerate(batches):
         logger.info(f"Processing batch {i}/{total_batches}")
-        did_to_backfill_counts_map, type_to_record_maps = do_backfill_for_users(
-            dids=batch,
-            start_timestamp=start_timestamp,
-            end_timestamp=end_timestamp,
+        did_to_backfill_counts_map, type_to_record_maps, user_metadata_list = (
+            do_backfill_for_users(
+                dids=batch,
+                start_timestamp=start_timestamp,
+                end_timestamp=end_timestamp,
+            )
         )
         logger.info(
             f"Updating metadata with counts for this batch of {len(batch)} users. Now exporting to cache...."
         )
         did_to_backfill_counts_full_map.update(did_to_backfill_counts_map)
+        all_user_backfill_metadata.extend(user_metadata_list)
+
         if type_to_record_maps:
             write_records_to_cache(
                 type_to_record_maps=type_to_record_maps,
@@ -421,10 +470,58 @@ def run_batched_backfill(
         del type_to_record_maps
         gc.collect()
 
+    # Calculate metadata statistics
+    total_users = len(dids)
+    processed_users = len(all_user_backfill_metadata)
+
     return {
         "total_batches": total_batches,
         "did_to_backfill_counts_map": did_to_backfill_counts_full_map,
+        "processed_users": processed_users,
+        "total_users": total_users,
+        "user_backfill_metadata": all_user_backfill_metadata,
     }
+
+
+def create_user_backfill_metadata(
+    did: str,
+    record_count_map: dict[str, int],
+    bluesky_handle: str,
+    pds_service_endpoint: str,
+) -> UserBackfillMetadata:
+    """Create metadata for a user's backfill operation.
+
+    Args:
+        did: The DID of the user
+        record_count_map: Dictionary mapping record types to counts
+        bluesky_handle: The Bluesky handle of the user
+        pds_service_endpoint: The PDS service endpoint for the user
+
+    Returns:
+        A UserBackfillMetadata object containing information about the backfill
+    """
+    # Calculate total records
+    total_records = sum(record_count_map.values())
+
+    # Generate a comma-separated list of record types
+    types = ",".join(sorted(record_count_map.keys()))
+
+    # Convert record_count_map to JSON string
+    total_records_by_type = json.dumps(record_count_map)
+
+    # Generate current timestamp
+    timestamp = generate_current_datetime_str()
+
+    # Create and return the metadata object
+    return UserBackfillMetadata(
+        did=did,
+        bluesky_handle=bluesky_handle,
+        types=types,
+        total_records=total_records,
+        total_records_by_type=total_records_by_type,
+        pds_service_endpoint=pds_service_endpoint,
+        timestamp=timestamp,
+    )
 
 
 if __name__ == "__main__":

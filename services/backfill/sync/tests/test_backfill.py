@@ -461,15 +461,32 @@ class TestDoBackfillForUser:
             mock.side_effect = side_effect
             yield mock
     
+    @pytest.fixture
+    def mock_plc_doc(self):
+        """Mock get_plc_directory_doc function."""
+        with patch("services.backfill.sync.backfill.get_plc_directory_doc") as mock:
+            mock.return_value = {
+                "alsoKnownAs": ["at://test.bsky.social"],
+                "service": [{"serviceEndpoint": "https://test-pds.bsky.app"}]
+            }
+            yield mock
+    
+    @pytest.fixture
+    def mock_create_metadata(self):
+        """Mock create_user_backfill_metadata function."""
+        with patch("services.backfill.sync.backfill.create_user_backfill_metadata") as mock:
+            mock.return_value = MagicMock()
+            yield mock
+    
     def test_do_backfill_for_user(
-        self, mock_get_records, mock_validate_type, mock_transform
+        self, mock_get_records, mock_validate_type, mock_transform, mock_plc_doc, mock_create_metadata
     ):
         """Test backfilling for a single user.
         
         Should fetch, validate, transform, and group records by type.
         """
         did = "did:plc:test"
-        counts, records = do_backfill_for_user(
+        counts, records, metadata = do_backfill_for_user(
             did,
             "2024-09-27-00:00:00",
             "2024-12-02-00:00:00"
@@ -477,6 +494,9 @@ class TestDoBackfillForUser:
         
         # Verify records were fetched
         mock_get_records.assert_called_once_with(did)
+        
+        # Verify PLC doc was fetched to get handle and PDS endpoint
+        mock_plc_doc.assert_called_once_with(did)
         
         # Verify count statistics
         assert counts == {"post": 1, "like": 1, "follow": 1, "reply": 1}
@@ -494,6 +514,15 @@ class TestDoBackfillForUser:
             for record in record_list:
                 assert "record_type" in record
                 assert "synctimestamp" in record
+        
+        # Verify metadata was created
+        mock_create_metadata.assert_called_once_with(
+            did=did,
+            record_count_map=counts,
+            bluesky_handle="test.bsky.social",
+            pds_service_endpoint="https://test-pds.bsky.app"
+        )
+        assert metadata == mock_create_metadata.return_value
 
 
 class TestAssignDefaultBackfillSynctimestamp:
@@ -557,13 +586,15 @@ class TestDoBackfillForUsers:
         with patch("services.backfill.sync.backfill.do_backfill_for_user") as mock:
             # Return different results for different users
             def side_effect(did, start_timestamp, end_timestamp):
+                metadata = MagicMock()
                 if did == "did:plc:user1":
                     return (
                         {"post": 2, "like": 1},
                         {
                             "post": [{"text": "Test post 1"}, {"text": "Test post 2"}],
                             "like": [{"uri": "test:like:1"}]
-                        }
+                        },
+                        metadata
                     )
                 else:
                     return (
@@ -571,7 +602,8 @@ class TestDoBackfillForUsers:
                         {
                             "post": [{"text": "Test post 3"}],
                             "follow": [{"subject": "did:plc:other"}]
-                        }
+                        },
+                        metadata
                     )
             mock.side_effect = side_effect
             yield mock
@@ -591,7 +623,7 @@ class TestDoBackfillForUsers:
         """
         dids = ["did:plc:user1", "did:plc:user2"]
         
-        counts_map, records_map = do_backfill_for_users(
+        counts_map, records_map, metadata_list = do_backfill_for_users(
             dids,
             "2024-09-27-00:00:00",
             "2024-12-02-00:00:00"
@@ -615,6 +647,9 @@ class TestDoBackfillForUsers:
         assert len(records_map["post"]) == 3
         assert len(records_map["like"]) == 1
         assert len(records_map["follow"]) == 1
+        
+        # Verify metadata list
+        assert len(metadata_list) == 2
     
     def test_do_backfill_for_users_default_timestamps(self, mock_do_backfill_for_user, mock_rate_limit):
         """Test backfilling with default timestamps.
@@ -659,6 +694,7 @@ class TestRunBatchedBackfill:
         with patch("services.backfill.sync.backfill.do_backfill_for_users") as mock:
             # Return different results for different batches
             def side_effect(dids, start_timestamp, end_timestamp):
+                user_metadata = [MagicMock() for _ in dids]
                 if "did:plc:user1" in dids:
                     return (
                         {
@@ -668,12 +704,14 @@ class TestRunBatchedBackfill:
                         {
                             "post": [{"text": "Post 1"}, {"text": "Post 2"}],
                             "like": [{"uri": "like:1"}]
-                        }
+                        },
+                        user_metadata
                     )
                 else:
                     return (
                         {"did:plc:user3": {"follow": 1}},
-                        {"follow": [{"subject": "other:user"}]}
+                        {"follow": [{"subject": "other:user"}]},
+                        user_metadata
                     )
             mock.side_effect = side_effect
             yield mock
@@ -774,6 +812,10 @@ class TestRunBatchedBackfill:
             "did:plc:user2": {"like": 1},
             "did:plc:user3": {"follow": 1}
         }
+        assert result["processed_users"] == 3
+        assert result["total_users"] == 3
+        assert "user_backfill_metadata" in result
+        assert len(result["user_backfill_metadata"]) == 3
     
     def test_run_batched_backfill_default_parameters(
         self,
@@ -790,14 +832,27 @@ class TestRunBatchedBackfill:
         """
         dids = ["did:plc:user1", "did:plc:user2", "did:plc:user3"]
         
-        run_batched_backfill(dids)
+        result = run_batched_backfill(dids)
         
-        # Verify default batch size was used
+        # Verify batches were created with default batch size
         mock_create_batches.assert_called_once_with(batch_list=dids, batch_size=default_batch_size)
         
-        # Verify default timestamps were used
-        mock_do_backfill_for_users.assert_any_call(
-            dids=mock_create_batches.return_value[0],
-            start_timestamp=None,
-            end_timestamp=None
-        ) 
+        # Verify backfill was performed for each batch with default timestamps
+        assert mock_do_backfill_for_users.call_count == 2
+        mock_do_backfill_for_users.assert_has_calls([
+            call(
+                dids=["did:plc:user1", "did:plc:user2"],
+                start_timestamp=None,
+                end_timestamp=None
+            ),
+            call(
+                dids=["did:plc:user3"],
+                start_timestamp=None,
+                end_timestamp=None
+            )
+        ])
+        
+        # Verify result structure includes new fields
+        assert "processed_users" in result
+        assert "total_users" in result
+        assert "user_backfill_metadata" in result 

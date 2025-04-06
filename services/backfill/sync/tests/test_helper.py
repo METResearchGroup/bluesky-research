@@ -59,7 +59,10 @@ class TestDoBackfillsForUsers:
         mock_generate_timestamp.return_value = "2024-03-26-12:00:00"
         mock_run_batched_backfill.return_value = {
             "total_batches": 0,
-            "did_to_backfill_counts_map": {}
+            "did_to_backfill_counts_map": {},
+            "processed_users": 0,
+            "total_users": 0,
+            "user_backfill_metadata": []
         }
         
         dids = []
@@ -78,6 +81,9 @@ class TestDoBackfillsForUsers:
         assert result["total_dids"] == 0
         assert result["total_batches"] == 0
         assert result["did_to_backfill_counts_map"] == {}
+        assert result["processed_users"] == 0
+        assert result["total_users"] == 0
+        assert result["user_backfill_metadata"] == []
         assert result["event"] is None
     
     @patch("services.backfill.sync.helper.run_batched_backfill")
@@ -90,6 +96,7 @@ class TestDoBackfillsForUsers:
         - Format the results correctly
         - Return a properly formatted metadata object with counts
         """
+        user_metadata = [MagicMock(), MagicMock()]
         mock_generate_timestamp.return_value = "2024-03-26-12:00:00"
         mock_run_batched_backfill.return_value = {
             "total_batches": 2,
@@ -102,7 +109,10 @@ class TestDoBackfillsForUsers:
                     "post": 3,
                     "follow": 7
                 }
-            }
+            },
+            "processed_users": 2,
+            "total_users": 2,
+            "user_backfill_metadata": user_metadata
         }
         
         dids = ["did:plc:user1", "did:plc:user2"]
@@ -139,4 +149,7 @@ class TestDoBackfillsForUsers:
                 "follow": 7
             }
         }
+        assert result["processed_users"] == 2
+        assert result["total_users"] == 2
+        assert result["user_backfill_metadata"] == user_metadata
         assert result["event"] == event 
