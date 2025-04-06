@@ -3,7 +3,7 @@ import os
 
 from services.sync.stream.data_filter import operations_callback
 from services.sync.stream.export_data import (
-    export_batch, export_study_user_activity_local_data, root_write_path
+    export_batch, export_raw_sync_local_data, root_write_path
 )
 from services.sync.stream.tests.conftest import (
     clean_path, mock_follow_records_fixture, mock_like_records_fixture,
@@ -13,17 +13,17 @@ from services.sync.stream.tests.conftest import (
 
 
 class TestExportStudyUserActivityLocalData:
-    """Tests the export_study_user_activity_local_data function.
+    """Tests the export_raw_sync_local_data function.
 
     Steps:
     1. Takes the mock data and writes it locally using the same logic as
     what runs in the firehose (i.e., using `operations_callback` to run
     `manage_posts`, `manage_likes`, and `manage_follows`).
-    2. Calls `export_study_user_activity_local_data` on the exported data.
+    2. Calls `export_raw_sync_local_data` on the exported data.
     3. Stubs the S3 call and checks to see if the correct data is uploaded.
     """
 
-    def test_export_study_user_activity_local_data(
+    def test_export_raw_sync_local_data(
         self, mock_follow_records_fixture, mock_like_records_fixture,
         mock_post_records_fixture, mock_s3_fixture, mock_study_user_manager
     ):
@@ -65,7 +65,7 @@ class TestExportStudyUserActivityLocalData:
 
         # check the stubbed writes to s3 and see what the keys were that
         # were written. Check that they match what we'd expect
-        export_study_user_activity_local_data()
+        export_raw_sync_local_data()
 
         actual_keys: set[str] = {
             call_args.kwargs['key']
@@ -75,17 +75,17 @@ class TestExportStudyUserActivityLocalData:
         expected_keys = set([
             ### did:plc:study-user-1 ###
             ## follows ##
-            "study_user_activity/did:plc:study-user-1/create/follow/followee/follower_did=did:plc:generic-user-1_followee_did=did:plc:study-user-1.json",
-            "study_user_activity/did:plc:study-user-1/create/follow/follower/follower_did=did:plc:study-user-1_followee_did=did:plc:generic-user-1.json",
+            "raw_sync/did:plc:study-user-1/create/follow/followee/follower_did=did:plc:generic-user-1_followee_did=did:plc:study-user-1.json",
+            "raw_sync/did:plc:study-user-1/create/follow/follower/follower_did=did:plc:study-user-1_followee_did=did:plc:generic-user-1.json",
             ## likes ##
-            "study_user_activity/did:plc:study-user-1/create/like/generic-post-uri-1/like_author_did=did:plc:study-user-1_like_uri_suffix=like-record-suffix-456.json",
+            "raw_sync/did:plc:study-user-1/create/like/generic-post-uri-1/like_author_did=did:plc:study-user-1_like_uri_suffix=like-record-suffix-456.json",
             ## post ##
-            "study_user_activity/did:plc:study-user-1/create/post/author_did=did:plc:study-user-1_post_uri_suffix=post-uri-1.json",
+            "raw_sync/did:plc:study-user-1/create/post/author_did=did:plc:study-user-1_post_uri_suffix=post-uri-1.json",
             ## reply_to_user_post ##
-            "study_user_activity/did:plc:study-user-1/create/reply_to_user_post/post-uri-1/author_did=did:plc:generic-user-1_post_uri_suffix=generic-post-uri-1.json",
+            "raw_sync/did:plc:study-user-1/create/reply_to_user_post/post-uri-1/author_did=did:plc:generic-user-1_post_uri_suffix=generic-post-uri-1.json",
             ### did:plc:study-user-2 ###
             ## like_on_user_post ##
-            "study_user_activity/did:plc:study-user-2/create/like_on_user_post/post-uri-2/like_author_did=did:plc:generic-user-1_like_uri_suffix=like-record-suffix-789.json"
+            "raw_sync/did:plc:study-user-2/create/like_on_user_post/post-uri-2/like_author_did=did:plc:generic-user-1_like_uri_suffix=like-record-suffix-789.json"
         ])
         assert actual_keys == expected_keys
 
@@ -173,27 +173,27 @@ class TestExportBatch():
         # Test 1b: check that `write_dict_json_to_s3`, which is used to
         # export the study user activity data, is called with the correct
         # arguments.
-        expected_study_user_activity_keys = set([
+        expected_raw_sync_keys = set([
             ### did:plc:study-user-1 ###
             ## follows ##
-            "study_user_activity/did:plc:study-user-1/create/follow/followee/follower_did=did:plc:generic-user-1_followee_did=did:plc:study-user-1.json",
-            "study_user_activity/did:plc:study-user-1/create/follow/follower/follower_did=did:plc:study-user-1_followee_did=did:plc:generic-user-1.json",
+            "raw_sync/did:plc:study-user-1/create/follow/followee/follower_did=did:plc:generic-user-1_followee_did=did:plc:study-user-1.json",
+            "raw_sync/did:plc:study-user-1/create/follow/follower/follower_did=did:plc:study-user-1_followee_did=did:plc:generic-user-1.json",
             ## likes ##
-            "study_user_activity/did:plc:study-user-1/create/like/generic-post-uri-1/like_author_did=did:plc:study-user-1_like_uri_suffix=like-record-suffix-456.json",
+            "raw_sync/did:plc:study-user-1/create/like/generic-post-uri-1/like_author_did=did:plc:study-user-1_like_uri_suffix=like-record-suffix-456.json",
             ## post ##
-            "study_user_activity/did:plc:study-user-1/create/post/author_did=did:plc:study-user-1_post_uri_suffix=post-uri-1.json",
+            "raw_sync/did:plc:study-user-1/create/post/author_did=did:plc:study-user-1_post_uri_suffix=post-uri-1.json",
             ## reply_to_user_post ##
-            "study_user_activity/did:plc:study-user-1/create/reply_to_user_post/post-uri-1/author_did=did:plc:generic-user-1_post_uri_suffix=generic-post-uri-1.json",
+            "raw_sync/did:plc:study-user-1/create/reply_to_user_post/post-uri-1/author_did=did:plc:generic-user-1_post_uri_suffix=generic-post-uri-1.json",
             ### did:plc:study-user-2 ###
             ## like_on_user_post ##
-            "study_user_activity/did:plc:study-user-2/create/like_on_user_post/post-uri-2/like_author_did=did:plc:generic-user-1_like_uri_suffix=like-record-suffix-789.json"
+            "raw_sync/did:plc:study-user-2/create/like_on_user_post/post-uri-2/like_author_did=did:plc:generic-user-1_like_uri_suffix=like-record-suffix-789.json"
         ])
-        actual_study_user_activity_keys: set[str] = {
+        actual_raw_sync_keys: set[str] = {
             call_args.kwargs['key']
             for call_args
             in mock_s3.write_dict_json_to_s3.call_args_list
         }
-        assert actual_study_user_activity_keys == expected_study_user_activity_keys  # noqa
+        assert actual_raw_sync_keys == expected_raw_sync_keys  # noqa
 
         ### Test 2: check that there are no more files in the cache. ###
         remaining_files = []
@@ -212,4 +212,4 @@ class TestExportBatch():
         assert os.path.exists(os.path.join(root_write_path, "delete", "post"))
         assert os.path.exists(os.path.join(root_write_path, "delete", "like"))
         assert os.path.exists(os.path.join(root_write_path, "delete", "follow"))  # noqa
-        assert os.path.exists(os.path.join(root_write_path, "study_user_activity"))  # noqa
+        assert os.path.exists(os.path.join(root_write_path, "raw_sync"))  # noqa

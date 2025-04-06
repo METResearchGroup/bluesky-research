@@ -1056,7 +1056,7 @@ class TestExportDataToLocalStorage:
                 "partition_key": "preprocessing_timestamp",
                 "skip_date_validation": True,
                 "subpaths": {
-                    "study_user_activity": "/data/backfill_sync/study_user_activity",
+                    "raw_sync": "/data/backfill_sync/raw_sync",
                     "active": "/data/backfill_sync/active",
                 }
             }
@@ -1170,8 +1170,8 @@ class TestExportDataToLocalStorage:
         mocker.patch("os.makedirs")
         mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
         
-        # Export to the study_user_activity subdirectory
-        custom_args = {"source": "study_user_activity"}
+        # Export to the raw_sync subdirectory
+        custom_args = {"source": "raw_sync"}
         export_data_to_local_storage(
             service="backfill_sync",
             df=mock_df,
@@ -1181,7 +1181,7 @@ class TestExportDataToLocalStorage:
         # Verify the export occurred to the correct path
         mock_to_parquet.assert_called_once()
         file_path = mock_to_parquet.call_args[1]['path']
-        assert file_path == '/data/backfill_sync/study_user_activity/cache'
+        assert file_path == '/data/backfill_sync/raw_sync/cache'
         
         # Verify that partition_data_by_date was called
         mock_partition.assert_called_once()
