@@ -7,6 +7,7 @@ from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.wandb import log_run_to_wandb
+from services.backfill.sync.models import UserBackfillMetadata
 from services.backfill.sync.session_metadata import write_backfill_metadata_to_db
 from services.backfill.sync.constants import service_name
 from services.backfill.sync.helper import do_backfills_for_users
@@ -56,8 +57,8 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
         write_cache_buffers_to_db(payload=export_payload)
 
         # Extract user metadata list from session metadata
-        user_backfill_metadata = backfill_session_metadata.get(
-            "user_backfill_metadata", []
+        user_backfill_metadata: list[UserBackfillMetadata] = (
+            backfill_session_metadata.pop("user_backfill_metadata", [])
         )
 
         # Create session metadata object

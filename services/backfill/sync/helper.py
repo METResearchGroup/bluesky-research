@@ -6,15 +6,19 @@ from typing import Optional
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from services.backfill.sync.backfill import run_batched_backfill
+from services.backfill.sync.session_metadata import load_latest_backfilled_users
 
 logger = get_logger(__name__)
 
 
-def validate_dids(dids: list[str]) -> list[str]:
+def validate_dids(
+    dids: list[str], exclude_previously_backfilled_users: bool = True
+) -> list[str]:
     """Validates the DIDs and ensures they meet required criteria.
 
     Args:
         dids: The list of DIDs to validate.
+        exclude_previously_backfilled_users: Whether to exclude DIDs that have already been backfilled.
 
     Returns:
         A list of valid, deduplicated DIDs that match the correct format.
@@ -24,6 +28,14 @@ def validate_dids(dids: list[str]) -> list[str]:
     2. Format validation: Ensures each DID follows the 'did:plc:[alphanumeric]' format
     3. Logs warning for any DIDs that don't match the expected format
     """
+
+    if exclude_previously_backfilled_users:
+        previously_backfilled_users: list[dict] = load_latest_backfilled_users()
+        set_backfilled_dids: set[str] = set(
+            [user["did"] for user in previously_backfilled_users]
+        )
+        dids = [did for did in dids if did not in set_backfilled_dids]
+
     # Store valid DIDs
     valid_dids = []
 
