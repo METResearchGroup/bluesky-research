@@ -1,5 +1,15 @@
 """Script to determine DIDs to backfill, based on the data that currently
-exist in the database."""
+exist in the database.
+
+Currently what we want is:
+- The DIDs of the posts that were reposted.
+- The DIDs of the posts that were responded to.
+- The DIDs of the posts that were liked.
+
+We also have stubbed methods here for if we want to backfill posts or follows.
+"""
+
+import json
 
 import pandas as pd
 
@@ -9,6 +19,7 @@ from lib.log.logger import get_logger
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.db.queue import Queue
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from transform.transform_raw_data import get_author_did_from_post_uri
 
 logger = get_logger(__name__)
 
@@ -18,20 +29,21 @@ queue = Queue(queue_name=queue_name, create_new_queue=True)
 subpaths: dict[str, str] = MAP_SERVICE_TO_METADATA["raw_sync"]["subpaths"]
 
 
-def get_dids(
+def get_records(
     record_type: str,
+    query: str,
+    columns: list[str],
     start_date_inclusive: str,
     end_date_inclusive: str,
-) -> set[str]:
-    """Get DIDs from raw_sync for a given record type."""
+) -> pd.DataFrame:
+    """Get records from raw_sync for a given record type."""
     custom_args = {"record_type": record_type}
-    query = "SELECT did FROM raw_sync"
     active_df = load_data_from_local_storage(
         service="raw_sync",
         directory="active",
         export_format="duckdb",
         duckdb_query=query,
-        query_metadata={"tables": [{"name": "raw_sync", "columns": ["did"]}]},
+        query_metadata={"tables": [{"name": "raw_sync", "columns": columns}]},
         custom_args=custom_args,
         start_partition_date=start_date_inclusive,
         end_partition_date=end_date_inclusive,
@@ -41,14 +53,13 @@ def get_dids(
         directory="cache",
         export_format="duckdb",
         duckdb_query=query,
-        query_metadata={"tables": [{"name": "raw_sync", "columns": ["did"]}]},
+        query_metadata={"tables": [{"name": "raw_sync", "columns": columns}]},
         custom_args=custom_args,
         start_partition_date=start_date_inclusive,
         end_partition_date=end_date_inclusive,
     )
-    df = pd.concat([active_df, cache_df])
-    dids = set(df["did"].unique())
-    return dids
+    df = pd.concat([active_df, cache_df]).reset_index()
+    return df
 
 
 def get_dids_from_posts(
@@ -56,13 +67,9 @@ def get_dids_from_posts(
     end_date_inclusive: str,
 ) -> set[str]:
     """Get DIDs from posts."""
-    dids_from_posts = get_dids(
-        record_type="post",
-        start_date_inclusive=start_date_inclusive,
-        end_date_inclusive=end_date_inclusive,
-    )
-    logger.info(f"Total number of DIDs from posts: {len(dids_from_posts)}")
-    return dids_from_posts
+    # NOTE: no need to implement yet, but stubbed here for future reference.
+    # (e.g., if we want to backfill posts in the future).
+    return set()
 
 
 def get_dids_from_reposts(
@@ -70,13 +77,28 @@ def get_dids_from_reposts(
     end_date_inclusive: str,
 ) -> set[str]:
     """Get DIDs from reposts."""
-    dids_from_reposts = get_dids(
+    query = "SELECT subject FROM raw_sync"
+    columns = ["subject"]
+    reposts_df = get_records(
         record_type="repost",
+        query=query,
+        columns=columns,
         start_date_inclusive=start_date_inclusive,
         end_date_inclusive=end_date_inclusive,
     )
-    logger.info(f"Total number of DIDs from reposts: {len(dids_from_reposts)}")
-    return dids_from_reposts
+
+    # JSON-dumped dicts of the actual posts that were liked.
+    reposted_posts: list[str] = reposts_df["subject"].unique()
+    uris_of_reposted_posts: list[str] = [
+        json.loads(reposted_post)["uri"] for reposted_post in reposted_posts
+    ]
+    dids_of_reposted_posts: list[str] = [
+        get_author_did_from_post_uri(post_uri) for post_uri in uris_of_reposted_posts
+    ]
+    dids_of_reposted_posts = set(dids_of_reposted_posts)
+    logger.info(f"Total number of DIDs from reposts: {len(dids_of_reposted_posts)}")
+
+    return dids_of_reposted_posts
 
 
 def get_dids_from_replies(
@@ -84,13 +106,39 @@ def get_dids_from_replies(
     end_date_inclusive: str,
 ) -> set[str]:
     """Get DIDs from replies."""
-    dids_from_replies = get_dids(
+    query = "SELECT reply FROM raw_sync"
+    columns = ["reply"]
+    replies_df = get_records(
         record_type="reply",
+        query=query,
+        columns=columns,
         start_date_inclusive=start_date_inclusive,
         end_date_inclusive=end_date_inclusive,
     )
-    logger.info(f"Total number of DIDs from replies: {len(dids_from_replies)}")
-    return dids_from_replies
+
+    # JSON-dumped dicts of the actual posts that were liked.
+    replies: list[str] = replies_df["reply"].unique()
+
+    # parent = post that a reply is replying to.
+    # root = first post in the thread.
+    # if a post is replying to one post, and that is the entire thread, then
+    # parent == root.
+    dids_of_parent_posts: set[str] = set()
+    dids_of_root_posts: set[str] = set()
+
+    for reply in replies:
+        reply_dict = json.loads(reply)
+        parent_post_uri = reply_dict["parent"]["uri"]
+        parent_post_did = get_author_did_from_post_uri(parent_post_uri)
+        root_post_uri = reply_dict["root"]["uri"]
+        root_post_did = get_author_did_from_post_uri(root_post_uri)
+        dids_of_parent_posts.add(parent_post_did)
+        dids_of_root_posts.add(root_post_did)
+
+    dids_of_posts_replied_to: set[str] = dids_of_parent_posts | dids_of_root_posts
+    logger.info(f"Total number of DIDs from replies: {len(dids_of_posts_replied_to)}")
+
+    return dids_of_posts_replied_to
 
 
 def get_dids_from_likes(
@@ -98,13 +146,28 @@ def get_dids_from_likes(
     end_date_inclusive: str,
 ) -> set[str]:
     """Get DIDs from likes."""
-    dids_from_likes = get_dids(
+    query = "SELECT subject FROM raw_sync"
+    columns = ["subject"]
+    likes_df = get_records(
         record_type="like",
+        query=query,
+        columns=columns,
         start_date_inclusive=start_date_inclusive,
         end_date_inclusive=end_date_inclusive,
     )
-    logger.info(f"Total number of DIDs from likes: {len(dids_from_likes)}")
-    return dids_from_likes
+
+    # JSON-dumped dicts of the actual posts that were liked.
+    liked_posts: list[str] = likes_df["subject"].unique()
+    uris_of_liked_posts: list[str] = [
+        json.loads(liked_post)["uri"] for liked_post in liked_posts
+    ]
+    dids_of_liked_posts: list[str] = [
+        get_author_did_from_post_uri(post_uri) for post_uri in uris_of_liked_posts
+    ]
+    dids_of_liked_posts = set(dids_of_liked_posts)
+    logger.info(f"Total number of DIDs from likes: {len(dids_of_liked_posts)}")
+
+    return dids_of_liked_posts
 
 
 def get_dids_from_follows(
@@ -112,13 +175,9 @@ def get_dids_from_follows(
     end_date_inclusive: str,
 ) -> set[str]:
     """Get DIDs from follows."""
-    dids_from_follows = get_dids(
-        record_type="follow",
-        start_date_inclusive=start_date_inclusive,
-        end_date_inclusive=end_date_inclusive,
-    )
-    logger.info(f"Total number of DIDs from follows: {len(dids_from_follows)}")
-    return dids_from_follows
+    # NOTE: no need to implement yet, but stubbed here for future reference.
+    # (e.g., if we want to backfill follows-of-follows in the future).
+    return set()
 
 
 def get_dids_to_backfill(
@@ -146,6 +205,7 @@ def get_dids_to_backfill(
         start_date_inclusive=start_date_inclusive,
         end_date_inclusive=end_date_inclusive,
     )
+
     dids_to_backfill: set[str] = (
         dids_from_posts
         | dids_from_reposts
@@ -153,6 +213,8 @@ def get_dids_to_backfill(
         | dids_from_likes
         | dids_from_follows
     )
+
+    logger.info(f"Total DIDs to backfill: {len(dids_to_backfill)}")
     return dids_to_backfill
 
 
@@ -164,6 +226,8 @@ def main(payload: dict):
     """
     start_date = payload.get("start_date", study_start_date)
     end_date = payload.get("end_date", study_end_date)
+
+    # TODO: uncomment.
     # previously_backfilled_dids: list[dict] = load_latest_backfilled_users()
     previously_backfilled_dids = []
     logger.info(
@@ -198,4 +262,8 @@ def main(payload: dict):
 
 
 if __name__ == "__main__":
-    main()
+    payload = {
+        "start_date": study_start_date,
+        "end_date": study_end_date,
+    }
+    main(payload=payload)
