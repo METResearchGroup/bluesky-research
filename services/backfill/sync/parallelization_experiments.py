@@ -35,6 +35,7 @@ from services.backfill.sync.backfill import (
     default_end_timestamp,
 )
 from lib.log.logger import get_logger
+from lib.helper import generate_current_datetime_str
 
 logger = get_logger(__name__)
 
@@ -97,20 +98,38 @@ def measure_performance(
 
 def sequential_backfill(dids: List[str]) -> Tuple[Dict, Dict, List]:
     """Run backfill sequentially for a list of DIDs."""
-    return do_backfill_for_users(
+    for i, did in enumerate(dids):
+        logger.info(f"[DID {i + 1}/{len(dids)}] Started processing {did}")
+    
+    result = do_backfill_for_users(
         dids=dids,
         start_timestamp=default_start_timestamp,
         end_timestamp=default_end_timestamp,
     )
+    
+    for i, did in enumerate(dids):
+        logger.info(f"[DID {i + 1}/{len(dids)}] Finished processing {did}")
+    
+    return result
 
 
-def process_batch(batch: List[str]) -> Tuple[Dict, Dict, List]:
+def process_batch(batch: List[str], total_dids: int, batch_start_idx: int) -> Tuple[Dict, Dict, List]:
     """Process a batch of DIDs for multiprocessing."""
-    return do_backfill_for_users(
+    for i, did in enumerate(batch):
+        current_idx = batch_start_idx + i
+        logger.info(f"[DID {current_idx + 1}/{total_dids}] Started processing {did}")
+    
+    result = do_backfill_for_users(
         dids=batch,
         start_timestamp=default_start_timestamp,
         end_timestamp=default_end_timestamp,
     )
+    
+    for i, did in enumerate(batch):
+        current_idx = batch_start_idx + i
+        logger.info(f"[DID {current_idx + 1}/{total_dids}] Finished processing {did}")
+    
+    return result
 
 
 def io_bound_parallel_backfill(
@@ -139,7 +158,11 @@ def io_bound_parallel_backfill(
     combined_metadata = []
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(process_batch, batch) for batch in batches]
+        # Create futures with batch start indices for progress tracking
+        futures = [
+            executor.submit(process_batch, batch, len(dids), i * batch_size) 
+            for i, batch in enumerate(batches)
+        ]
         
         for future in concurrent.futures.as_completed(futures):
             try:
@@ -162,13 +185,15 @@ def io_bound_parallel_backfill(
     return combined_did_counts, combined_type_records, combined_metadata
 
 
-def process_did(did: str) -> Tuple[str, Dict, Dict, Dict]:
+def process_did(did: str, total_dids: int, current_idx: int) -> Tuple[str, Dict, Dict, Dict]:
     """Process a single DID for multiprocessing."""
+    logger.info(f"[DID {current_idx + 1}/{total_dids}] Started processing {did}")
     counts, records, metadata = do_backfill_for_user(
         did=did,
         start_timestamp=default_start_timestamp,
         end_timestamp=default_end_timestamp,
     )
+    logger.info(f"[DID {current_idx + 1}/{total_dids}] Finished processing {did}")
     return did, counts, records, metadata
 
 
@@ -194,7 +219,8 @@ def compute_bound_parallel_backfill(
     combined_metadata = []
     
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(process_did, did) for did in dids]
+        # Create futures with enumerated DIDs for progress tracking
+        futures = [executor.submit(process_did, did, len(dids), i) for i, did in enumerate(dids)]
         
         for future in concurrent.futures.as_completed(futures):
             try:
@@ -300,7 +326,7 @@ def create_default_settings() -> Dict[str, Any]:
         "run_compute_bound": True,  # Whether to run compute bound experiments
         "io_bound_worker_counts": [2, 4, 8, 16],  # Number of threads to use for I/O bound
         "compute_bound_worker_counts": [2, 4, min(8, cpu_count), min(cpu_count, 16)],  # Number of processes for compute bound
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": generate_current_datetime_str(),
         "cpu_count": cpu_count,
         "system_info": {
             "platform": f"{os.name} {platform.system()} {platform.release()}",
@@ -389,10 +415,15 @@ def analyze_results(results: Dict[str, Any]) -> Dict[str, Any]:
 if __name__ == "__main__":
     import platform
     
+    # Get timestamp for file naming
+    timestamp = generate_current_datetime_str().replace(" ", "_").replace(":", "-")
+    settings_file = f"settings_{timestamp}.json"
+    results_file = f"results_{timestamp}.json"
+    
     # Create and save settings
     settings = create_default_settings()
-    save_json(settings, "settings.json")
-    logger.info(f"Saved settings to settings.json: {settings}")
+    save_json(settings, settings_file)
+    logger.info(f"Saved settings to {settings_file}: {settings}")
     
     # Run experiments
     logger.info("Starting parallelization experiments...")
@@ -403,8 +434,8 @@ if __name__ == "__main__":
     results["analysis"] = analysis
     
     # Save results
-    save_json(results, "results.json")
-    logger.info(f"Saved results to results.json")
+    save_json(results, results_file)
+    logger.info(f"Saved results to {results_file}")
     
     # Print conclusion
     print("\n" + "="*80)
@@ -423,4 +454,4 @@ if __name__ == "__main__":
         best_compute = min(results["compute_bound"].items(), key=lambda x: x[1]["execution_time_seconds"])
         print(f"Best compute bound configuration ({best_compute[0]}): {best_compute[1]['execution_time_seconds']:.2f} seconds")
     
-    print("\nFor detailed results, please check the results.json file.") 
+    print(f"\nFor detailed results, please check the {results_file} file.")
