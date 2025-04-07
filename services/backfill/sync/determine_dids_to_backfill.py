@@ -20,6 +20,7 @@ from lib.db.manage_local_data import load_data_from_local_storage
 from lib.db.queue import Queue
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from services.backfill.sync.constants import input_queue_name
+from services.backfill.sync.session_metadata import load_latest_backfilled_users
 from transform.transform_raw_data import get_author_did_from_post_uri
 
 logger = get_logger(__name__)
@@ -227,9 +228,8 @@ def main(payload: dict):
     start_date = payload.get("start_date", study_start_date)
     end_date = payload.get("end_date", study_end_date)
 
-    # TODO: uncomment.
-    # previously_backfilled_dids: list[dict] = load_latest_backfilled_users()
-    previously_backfilled_dids = []
+    previously_backfilled_dids: list[dict] = load_latest_backfilled_users()
+
     logger.info(
         f"Total number of previously backfilled DIDs: {len(previously_backfilled_dids)}"
     )

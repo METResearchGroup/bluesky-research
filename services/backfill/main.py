@@ -39,8 +39,5 @@ def backfill_records(payload: dict):
         backfill_posts_used_in_feeds(payload)
     elif record_type == "sync":
         backfill_sync(payload)
-    elif record_type == "raw_sync":
-        backfill_raw_sync = lambda x: x  # stub function. # noqa
-        backfill_raw_sync(payload)
     else:
         raise ValueError(f"Unsupported record type: {record_type}")
