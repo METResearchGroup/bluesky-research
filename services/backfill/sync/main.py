@@ -44,11 +44,11 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
     end_timestamp = payload.get("end_timestamp", None)
     skip_backfill = payload.get("skip_backfill", False)
 
-    if load_from_queue:
-        logger.info("Loading DIDs from queue instead of from payload.")
-        dids: list[str] = load_latest_dids_to_backfill_from_queue()
-
     try:
+        if load_from_queue:
+            logger.info("Loading DIDs from queue instead of from payload.")
+            dids: list[str] = load_latest_dids_to_backfill_from_queue()
+
         if skip_backfill:
             backfill_session_metadata = {
                 "backfill_timestamp": generate_current_datetime_str(),

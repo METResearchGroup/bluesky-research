@@ -1,7 +1,7 @@
 from lib.db.queue import Queue
 from services.backfill.sync.constants import input_queue_name
 
-queue = Queue(queue_name=input_queue_name)
+queue = Queue(queue_name=input_queue_name, create_new_queue=True)
 
 
 def load_latest_dids_to_backfill_from_queue() -> list[str]:
