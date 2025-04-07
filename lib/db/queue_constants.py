@@ -19,4 +19,5 @@ NAME_TO_QUEUE_NAME_MAP = {
     "output_backfill_sync_post": "output_backfill_sync_post",
     "output_backfill_sync_reply": "output_backfill_sync_reply",
     "output_backfill_sync_repost": "output_backfill_sync_repost",
+    "input_backfill_sync": "input_backfill_sync",
 }

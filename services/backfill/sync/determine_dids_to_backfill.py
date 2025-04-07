@@ -1,43 +1,85 @@
 """Script to determine DIDs to backfill, based on the data that currently
 exist in the database."""
 
+import pandas as pd
+
+from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
+from lib.db.manage_local_data import load_data_from_local_storage
+from lib.db.queue import Queue
+from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from services.backfill.sync.session_metadata import load_latest_backfilled_users
 
 logger = get_logger(__name__)
 
+queue_name = "input_backfill_sync"
+queue = Queue(queue_name=queue_name, create_new_queue=True)
+
+subpaths: dict[str, str] = MAP_SERVICE_TO_METADATA["raw_sync"]["subpaths"]
+
+
+def get_dids(record_type: str) -> set[str]:
+    """Get DIDs from raw_sync for a given record type."""
+    custom_args = {"record_type": record_type}
+    query = "SELECT did FROM raw_sync"
+    active_df = load_data_from_local_storage(
+        service="raw_sync",
+        directory="active",
+        export_format="duckdb",
+        duckdb_query=query,
+        query_metadata={"tables": [{"name": "raw_sync", "columns": ["did"]}]},
+        custom_args=custom_args,
+    )
+    cache_df = load_data_from_local_storage(
+        service="raw_sync",
+        directory="cache",
+        export_format="duckdb",
+        duckdb_query=query,
+        query_metadata={"tables": [{"name": "raw_sync", "columns": ["did"]}]},
+        custom_args=custom_args,
+    )
+    df = pd.concat([active_df, cache_df])
+    dids = set(df["did"].unique())
+    return dids
+
 
 def get_dids_from_posts() -> set[str]:
-    dids_from_posts = set()
+    """Get DIDs from posts."""
+    dids_from_posts = get_dids(record_type="post")
     logger.info(f"Total number of DIDs from posts: {len(dids_from_posts)}")
     return dids_from_posts
 
 
 def get_dids_from_reposts() -> set[str]:
-    dids_from_reposts = set()
+    """Get DIDs from reposts."""
+    dids_from_reposts = get_dids(record_type="repost")
     logger.info(f"Total number of DIDs from reposts: {len(dids_from_reposts)}")
     return dids_from_reposts
 
 
 def get_dids_from_replies() -> set[str]:
-    dids_from_replies = set()
+    """Get DIDs from replies."""
+    dids_from_replies = get_dids(record_type="reply")
     logger.info(f"Total number of DIDs from replies: {len(dids_from_replies)}")
     return dids_from_replies
 
 
 def get_dids_from_likes() -> set[str]:
-    dids_from_likes = set()
+    """Get DIDs from likes."""
+    dids_from_likes = get_dids(record_type="like")
     logger.info(f"Total number of DIDs from likes: {len(dids_from_likes)}")
     return dids_from_likes
 
 
 def get_dids_from_follows() -> set[str]:
-    dids_from_follows = set()
+    """Get DIDs from follows."""
+    dids_from_follows = get_dids(record_type="follow")
     logger.info(f"Total number of DIDs from follows: {len(dids_from_follows)}")
     return dids_from_follows
 
 
 def get_dids_to_backfill() -> set[str]:
+    """Get DIDs to backfill."""
     dids_from_posts: set[str] = get_dids_from_posts()
     dids_from_reposts: set[str] = get_dids_from_reposts()
     dids_from_replies: set[str] = get_dids_from_replies()
@@ -55,6 +97,11 @@ def get_dids_to_backfill() -> set[str]:
 
 
 def main():
+    """Main function to determine DIDs to backfill.
+
+    Loads previously backfilled users, loads all the DIDs in the database,
+    and then returns the DIDs that have not been backfilled yet.
+    """
     previously_backfilled_dids: list[dict] = load_latest_backfilled_users()
     logger.info(
         f"Total number of previously backfilled DIDs: {len(previously_backfilled_dids)}"
@@ -71,6 +118,17 @@ def main():
         dids_to_backfill - previously_backfilled_dids_set
     )
     logger.info(f"Total number of DIDs to backfill: {len(filtered_dids_to_backfill)}")
+
+    items = [{"did": did} for did in filtered_dids_to_backfill]
+    queue.batch_add_items_to_queue(items=items)
+
+    metadata = {
+        "total_dids_to_backfill": len(dids_to_backfill),
+        "timestamp": generate_current_datetime_str(),
+        "backfill_type": "sync",
+    }
+
+    logger.info(metadata)
 
 
 if __name__ == "__main__":
