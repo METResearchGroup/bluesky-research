@@ -87,6 +87,114 @@ class TestBackfillSync:
         with patch("services.backfill.sync.main.write_backfill_metadata_to_db") as mock:
             yield mock
     
+    @patch("services.backfill.sync.main.load_latest_dids_to_backfill_from_queue")
+    def test_backfill_sync_load_from_queue(self, mock_load_from_queue, mock_do_backfills_for_users, 
+                                          mock_write_cache_buffers_to_db, mock_logger, 
+                                          mock_write_backfill_metadata_to_db):
+        """Test backfill_sync when loading DIDs from queue.
+        
+        When load_from_queue is True, the function should:
+        - Call load_latest_dids_to_backfill_from_queue
+        - Use the returned DIDs instead of payload DIDs
+        - Process the backfill normally with the queue DIDs
+        """
+        # Set up mock for queue loading
+        queue_dids = ["did:plc:queue1", "did:plc:queue2"]
+        mock_load_from_queue.return_value = queue_dids
+        
+        # Set up mock for backfill processing
+        mock_do_backfills_for_users.return_value = {
+            "backfill_timestamp": "2024-03-26-12:00:00",
+            "dids": queue_dids,
+            "total_dids": 2,
+            "total_batches": 1,
+            "did_to_backfill_counts_map": {
+                "did:plc:queue1": {"post": 5},
+                "did:plc:queue2": {"post": 3}
+            },
+            "processed_users": 2,
+            "total_users": 2,
+            "user_backfill_metadata": [
+                {
+                    "did": "did:plc:queue1",
+                    "bluesky_handle": "queue1.bsky.social",
+                    "types": "post",
+                    "total_records": 5,
+                    "total_records_by_type": '{"post": 5}',
+                    "pds_service_endpoint": "https://bsky-pds.com",
+                    "timestamp": "2024-03-26-12:00:00"
+                },
+                {
+                    "did": "did:plc:queue2",
+                    "bluesky_handle": "queue2.bsky.social",
+                    "types": "post",
+                    "total_records": 3,
+                    "total_records_by_type": '{"post": 3}',
+                    "pds_service_endpoint": "https://bsky-pds.com",
+                    "timestamp": "2024-03-26-12:00:00"
+                }
+            ],
+            "event": None
+        }
+        
+        payload = {
+            "dids": ["did:plc:user1", "did:plc:user2"],  # These should be ignored
+            "load_from_queue": True
+        }
+        
+        result = backfill_sync(payload)
+        
+        # Verify queue loading was called
+        mock_load_from_queue.assert_called_once()
+        
+        # Verify do_backfills_for_users was called with queue DIDs
+        mock_do_backfills_for_users.assert_called_once_with(
+            dids=queue_dids,
+            start_timestamp=None,
+            end_timestamp=None,
+            event=payload
+        )
+        
+        # Verify successful completion
+        assert result.status_code == 200
+        
+        # Verify logger messages
+        mock_logger.info.assert_any_call("Loading DIDs from queue instead of from payload.")
+    
+    @patch("services.backfill.sync.main.load_latest_dids_to_backfill_from_queue")
+    def test_backfill_sync_load_from_queue_error(self, mock_load_from_queue, mock_do_backfills_for_users, 
+                                                mock_write_cache_buffers_to_db, mock_logger, 
+                                                mock_write_backfill_metadata_to_db):
+        """Test backfill_sync when queue loading fails.
+        
+        When load_from_queue is True but the queue loading fails, the function should:
+        - Handle the error appropriately
+        - Log the error
+        - Return error metadata
+        """
+        # Set up mock for queue loading to fail
+        mock_load_from_queue.side_effect = Exception("Queue loading error")
+        
+        payload = {
+            "dids": ["did:plc:user1", "did:plc:user2"],
+            "load_from_queue": True
+        }
+        
+        result = backfill_sync(payload)
+        
+        # Verify queue loading was attempted
+        mock_load_from_queue.assert_called_once()
+        
+        # Verify do_backfills_for_users was not called
+        mock_do_backfills_for_users.assert_not_called()
+        
+        # Verify error handling
+        assert result.status_code == 500
+        assert "Queue loading error" in result.body
+        
+        # Verify error was logged
+        mock_logger.error.assert_called()
+    
     def test_backfill_sync_skip_backfill(self, mock_do_backfills_for_users, mock_write_cache_buffers_to_db, 
                                          mock_logger, mock_generate_current_datetime_str,
                                          mock_write_backfill_metadata_to_db, mock_session_metadata_logger,
@@ -376,7 +484,8 @@ class TestBackfillSync:
         }
         
         payload = {
-            "dids": []
+            "dids": [],
+            "load_from_queue": False
         }
         
         result = backfill_sync(payload)
@@ -464,7 +573,8 @@ class TestBackfillSync:
         mock_write_cache_buffers_to_db.side_effect = Exception("Write cache error")
         
         payload = {
-            "dids": ["did:plc:user1", "did:plc:user2"]
+            "dids": ["did:plc:user1", "did:plc:user2"],
+            "load_from_queue": False
         }
         
         result = backfill_sync(payload)
@@ -542,7 +652,8 @@ class TestBackfillSync:
         ]
         
         payload = {
-            "dids": ["did:plc:user1", "did:plc:user2"]
+            "dids": ["did:plc:user1", "did:plc:user2"],
+            "load_from_queue": False
         }
         
         # Should not raise any exceptions despite the error

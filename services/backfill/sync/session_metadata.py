@@ -33,12 +33,12 @@ def load_latest_backfilled_users() -> list[dict]:
         WITH ranked_users AS (
             SELECT 
                 did, 
-                bluesky_user_handle,
+                bluesky_handle,
                 timestamp,
                 ROW_NUMBER() OVER (PARTITION BY did ORDER BY timestamp DESC) as row_num
             FROM backfill_metadata
         )
-        SELECT did, bluesky_user_handle 
+        SELECT did, bluesky_handle 
         FROM ranked_users
         WHERE row_num = 1
     """

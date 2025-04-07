@@ -20,6 +20,10 @@ bsky_timestamp_formats = [
     "%Y-%m-%dT%H:%M:%S.%fZ",  # e.g. "2024-10-20T18:36:54.5935595Z" (microseconds precision)
 ]
 
+study_start_date = (
+    "2024-09-29"  # think it's 09/30 but we offset by 1 for timezone-related edge cases
+)
+study_end_date = "2024-12-01"
 
 partition_date_format = "%Y-%m-%d"
 current_datetime = datetime.now(timezone.utc)
