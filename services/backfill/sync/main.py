@@ -11,6 +11,7 @@ from services.backfill.sync.models import UserBackfillMetadata
 from services.backfill.sync.session_metadata import write_backfill_metadata_to_db
 from services.backfill.sync.constants import service_name
 from services.backfill.sync.helper import do_backfills_for_users
+from services.backfill.sync.load_data import load_latest_dids_to_backfill_from_queue
 from services.write_cache_buffers_to_db.main import write_cache_buffers_to_db
 
 
@@ -25,6 +26,8 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
     Args:
         payload: A dictionary containing the following keys:
             - dids: A list of DIDs to backfill
+            - load_from_queue: A boolean indicating whether to load the DIDs from
+              the queue instead of the payload.
             - start_timestamp: The start timestamp for the backfill
             - end_timestamp: The end timestamp for the backfill
             - skip_backfill: A boolean indicating whether to skip the backfill
@@ -36,9 +39,15 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
     """
     logger.info("Backfilling sync data")
     dids = payload.get("dids", [])
+    load_from_queue = payload.get("load_from_queue", False)
     start_timestamp = payload.get("start_timestamp", None)
     end_timestamp = payload.get("end_timestamp", None)
     skip_backfill = payload.get("skip_backfill", False)
+
+    if load_from_queue:
+        logger.info("Loading DIDs from queue instead of from payload.")
+        dids: list[str] = load_latest_dids_to_backfill_from_queue()
+
     try:
         if skip_backfill:
             backfill_session_metadata = {
