@@ -1,0 +1,78 @@
+{
+  "settings": {
+    "target_did_count": 50,
+    "timestamp": "2025-04-08-03:39:31",
+    "system_info": {
+      "cpu_count": 12,
+      "platform": "posix Darwin 23.1.0",
+      "processor": "arm64",
+      "memory_gb": 36.0
+    }
+  },
+  "serial": {
+    "implementation": "Serial",
+    "execution_time_seconds": 164.06163620948792,
+    "average_time_per_did": 3.281232724189758,
+    "memory_usage": {
+      "start_mb": 277.671875,
+      "end_mb": 328.0,
+      "peak_increase_mb": 50.328125
+    },
+    "cpu_utilization": {
+      "start_percent": 9.8,
+      "end_percent": 0.0,
+      "average_percent": 4.9
+    },
+    "processing_stats": {
+      "total_dids": 50,
+      "total_records_processed": 978,
+      "records_per_second": 5.961174242777916,
+      "unique_record_types": [
+        "follow",
+        "reply",
+        "block",
+        "post",
+        "repost",
+        "like"
+      ]
+    }
+  },
+  "parallel": {
+    "implementation": "Parallel",
+    "execution_time_seconds": 19.985698223114014,
+    "average_time_per_did": 0.39971396446228025,
+    "memory_usage": {
+      "start_mb": 326.453125,
+      "end_mb": 289.21875,
+      "peak_increase_mb": -37.234375
+    },
+    "cpu_utilization": {
+      "start_percent": 5.9,
+      "end_percent": 8.0,
+      "average_percent": 6.95
+    },
+    "processing_stats": {
+      "total_dids": 50,
+      "total_records_processed": 978,
+      "records_per_second": 48.93499286749541,
+      "unique_record_types": [
+        "follow",
+        "reply",
+        "block",
+        "post",
+        "repost",
+        "like"
+      ]
+    }
+  },
+  "comparison": {
+    "speedup_factor": 8.208951940430387,
+    "time_reduction_percent": 87.81817694564829,
+    "memory_overhead_percent": -173.98323502018008,
+    "efficiency_summary": {
+      "better_performance": "parallel",
+      "memory_efficient": "parallel",
+      "cpu_efficient": "serial"
+    }
+  }
+}

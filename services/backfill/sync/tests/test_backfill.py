@@ -17,6 +17,7 @@ from services.backfill.sync.backfill import (
     do_backfill_for_user,
     assign_default_backfill_synctimestamp,
     do_backfill_for_users,
+    do_backfill_for_users_parallel,
     run_batched_backfill,
 )
 from services.backfill.sync.constants import (
@@ -668,6 +669,125 @@ class TestDoBackfillForUsers:
         )
 
 
+class TestDoBackfillForUsersParallel:
+    """Tests for do_backfill_for_users_parallel function.
+    
+    This class tests parallel backfilling for multiple users, verifying:
+    - Backfill is performed for each user in parallel
+    - Results are properly aggregated
+    - Proper error handling for failed tasks
+    """
+    
+    @pytest.fixture
+    def mock_do_backfill_for_user(self):
+        """Mock do_backfill_for_user function."""
+        with patch("services.backfill.sync.backfill.do_backfill_for_user") as mock:
+            # Return different results for different users
+            def side_effect(did, start_timestamp, end_timestamp):
+                metadata = MagicMock()
+                if did == "did:plc:user1":
+                    return (
+                        {"post": 2, "like": 1},
+                        {
+                            "post": [{"text": "Test post 1"}, {"text": "Test post 2"}],
+                            "like": [{"uri": "test:like:1"}]
+                        },
+                        metadata
+                    )
+                else:
+                    return (
+                        {"post": 1, "follow": 1},
+                        {
+                            "post": [{"text": "Test post 3"}],
+                            "follow": [{"subject": "did:plc:other"}]
+                        },
+                        metadata
+                    )
+            mock.side_effect = side_effect
+            yield mock
+    
+    @pytest.fixture
+    def mock_multiprocessing(self):
+        """Mock multiprocessing.cpu_count function."""
+        with patch("multiprocessing.cpu_count") as mock:
+            mock.return_value = 4
+            yield mock
+    
+    def test_do_backfill_for_users_parallel(self, mock_do_backfill_for_user, mock_multiprocessing):
+        """Test parallel backfilling for multiple users.
+        
+        Should process each user in parallel and aggregate results correctly.
+        """
+        dids = ["did:plc:user1", "did:plc:user2"]
+        
+        counts_map, records_map, metadata_list = do_backfill_for_users_parallel(
+            dids,
+            "2024-09-27-00:00:00",
+            "2024-12-02-00:00:00"
+        )
+        
+        # Verify backfill was performed for each user
+        assert mock_do_backfill_for_user.call_count == 2
+        mock_do_backfill_for_user.assert_has_calls([
+            call(
+                did="did:plc:user1",
+                start_timestamp="2024-09-27-00:00:00",
+                end_timestamp="2024-12-02-00:00:00"
+            ),
+            call(
+                did="did:plc:user2",
+                start_timestamp="2024-09-27-00:00:00",
+                end_timestamp="2024-12-02-00:00:00"
+            )
+        ], any_order=True)  # Order may vary due to parallel execution
+        
+        # Verify counts map
+        assert counts_map == {
+            "did:plc:user1": {"post": 2, "like": 1},
+            "did:plc:user2": {"post": 1, "follow": 1}
+        }
+        
+        # Verify records map
+        assert set(records_map.keys()) == {"post", "like", "follow"}
+        assert len(records_map["post"]) == 3
+        assert len(records_map["like"]) == 1
+        assert len(records_map["follow"]) == 1
+        
+        # Verify metadata list
+        assert len(metadata_list) == 2
+    
+    def test_do_backfill_for_users_parallel_error_handling(
+        self, mock_do_backfill_for_user, mock_multiprocessing
+    ):
+        """Test error handling in parallel backfill.
+        
+        Should continue processing even if some tasks fail.
+        """
+        def side_effect(did, start_timestamp, end_timestamp):
+            if did == "did:plc:user2":
+                raise Exception("Test error")
+            metadata = MagicMock()
+            return (
+                {"post": 2},
+                {"post": [{"text": "Test post"}]},
+                metadata
+            )
+        
+        mock_do_backfill_for_user.side_effect = side_effect
+        dids = ["did:plc:user1", "did:plc:user2"]
+        
+        counts_map, records_map, metadata_list = do_backfill_for_users_parallel(
+            dids,
+            "2024-09-27-00:00:00",
+            "2024-12-02-00:00:00"
+        )
+        
+        # Verify successful task was processed
+        assert "did:plc:user1" in counts_map
+        assert len(metadata_list) == 1
+        assert len(records_map["post"]) == 1
+
+
 class TestRunBatchedBackfill:
     """Tests for run_batched_backfill function.
     
@@ -855,4 +975,55 @@ class TestRunBatchedBackfill:
         # Verify result structure includes new fields
         assert "processed_users" in result
         assert "total_users" in result
-        assert "user_backfill_metadata" in result 
+        assert "user_backfill_metadata" in result
+    
+    def test_run_batched_backfill_with_parallel_flag(
+        self,
+        mock_create_batches,
+        mock_do_backfill_for_users,
+        mock_write_records,
+        mock_gc,
+        mock_logger,
+        mock_track_performance
+    ):
+        """Test batch processing with parallel flag.
+        
+        Should use appropriate function based on run_parallel flag.
+        """
+        dids = ["did:plc:user1", "did:plc:user2", "did:plc:user3"]
+        batch_size = 2
+        
+        # Test parallel execution
+        with patch("services.backfill.sync.backfill.do_backfill_for_users_parallel") as mock_parallel:
+            mock_parallel.return_value = (
+                {"did:plc:user1": {"post": 1}},
+                {"post": [{"text": "test"}]},
+                [MagicMock()]
+            )
+            
+            result_parallel = run_batched_backfill(
+                dids,
+                batch_size=batch_size,
+                start_timestamp="2024-09-27-00:00:00",
+                end_timestamp="2024-12-02-00:00:00",
+                run_parallel=True
+            )
+            
+            # Verify parallel function was used
+            assert mock_parallel.call_count > 0
+            assert mock_do_backfill_for_users.call_count == 0
+        
+        # Test sequential execution
+        mock_do_backfill_for_users.reset_mock()
+        with patch("services.backfill.sync.backfill.do_backfill_for_users_parallel") as mock_parallel:
+            result_sequential = run_batched_backfill(
+                dids,
+                batch_size=batch_size,
+                start_timestamp="2024-09-27-00:00:00",
+                end_timestamp="2024-12-02-00:00:00",
+                run_parallel=False
+            )
+            
+            # Verify sequential function was used
+            assert mock_parallel.call_count == 0
+            assert mock_do_backfill_for_users.call_count > 0 

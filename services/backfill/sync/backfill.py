@@ -5,6 +5,8 @@ import os
 from pprint import pprint
 from typing import Optional
 import requests
+import multiprocessing
+import concurrent.futures
 
 from atproto import CAR
 
@@ -381,7 +383,7 @@ def do_backfill_for_users(
 ) -> tuple[
     dict[str, dict[str, dict]], dict[str, list[dict]], list[UserBackfillMetadata]
 ]:
-    """Performs the backfill for users.
+    """Performs the backfill for users sequentially.
 
     Args:
         dids: The list of DIDs to backfill.
@@ -398,6 +400,7 @@ def do_backfill_for_users(
         start_timestamp = default_start_timestamp
     if not end_timestamp:
         end_timestamp = default_end_timestamp
+
     did_to_backfill_counts_map = {}
     type_to_record_full_map = {}
     user_backfill_metadata_list = []
@@ -422,12 +425,87 @@ def do_backfill_for_users(
     )
 
 
+def do_backfill_for_users_parallel(
+    dids: list[str],
+    start_timestamp: Optional[str] = None,
+    end_timestamp: Optional[str] = None,
+) -> tuple[
+    dict[str, dict[str, dict]], dict[str, list[dict]], list[UserBackfillMetadata]
+]:
+    """Performs the backfill for users in parallel using multiprocessing.
+
+    This is optimized for compute-bound operations, using ProcessPoolExecutor to
+    parallelize across CPU cores.
+
+    Args:
+        dids: The list of DIDs to backfill.
+        start_timestamp: The start timestamp to backfill from.
+        end_timestamp: The end timestamp to backfill to.
+
+    Returns:
+        A tuple of three items:
+        1. Dictionary mapping DIDs to counts of records by type
+        2. Dictionary mapping record types to lists of records
+        3. List of UserBackfillMetadata objects for each user
+    """
+    if not start_timestamp:
+        start_timestamp = default_start_timestamp
+    if not end_timestamp:
+        end_timestamp = default_end_timestamp
+
+    cpu_count = multiprocessing.cpu_count()
+    max_workers = min(cpu_count, len(dids))  # Don't use more processes than DIDs
+
+    did_to_backfill_counts_map = {}
+    type_to_record_full_map = {}
+    user_backfill_metadata_list = []
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        # Create futures with enumerated DIDs for progress tracking
+        futures = [
+            executor.submit(
+                do_backfill_for_user,
+                did=did,
+                start_timestamp=start_timestamp,
+                end_timestamp=end_timestamp,
+            )
+            for did in dids
+        ]
+
+        for i, future in enumerate(concurrent.futures.as_completed(futures)):
+            try:
+                type_to_count_map, type_to_record_map, user_metadata = future.result()
+
+                # Update counts map
+                did = dids[i]  # Get the DID that corresponds to this future
+                did_to_backfill_counts_map[did] = type_to_count_map
+                user_backfill_metadata_list.append(user_metadata)
+
+                # Update records map
+                for record_type, records in type_to_record_map.items():
+                    if record_type in type_to_record_full_map:
+                        type_to_record_full_map[record_type].extend(records)
+                    else:
+                        type_to_record_full_map[record_type] = records
+
+            except Exception as e:
+                logger.error(f"Error in parallel backfill for DID {dids[i]}: {e}")
+                continue
+
+    return (
+        did_to_backfill_counts_map,
+        type_to_record_full_map,
+        user_backfill_metadata_list,
+    )
+
+
 @track_performance
 def run_batched_backfill(
     dids: list[str],
     batch_size: int = default_batch_size,
     start_timestamp: Optional[str] = None,
     end_timestamp: Optional[str] = None,
+    run_parallel: bool = True,
 ) -> dict:
     """Runs the backfill for a list of DIDs in batches.
 
@@ -436,6 +514,7 @@ def run_batched_backfill(
         batch_size: The number of DIDs to backfill in each batch.
         start_timestamp: The start timestamp to backfill from.
         end_timestamp: The end timestamp to backfill to.
+        run_parallel: Whether to use parallel execution (default: True)
 
     Returns:
         A dictionary containing information about the backfill run, including
@@ -446,10 +525,14 @@ def run_batched_backfill(
     did_to_backfill_counts_full_map = {}
     all_user_backfill_metadata = []
 
+    backfill_func = (
+        do_backfill_for_users_parallel if run_parallel else do_backfill_for_users
+    )
+
     for i, batch in enumerate(batches):
         logger.info(f"Processing batch {i}/{total_batches}")
         did_to_backfill_counts_map, type_to_record_maps, user_metadata_list = (
-            do_backfill_for_users(
+            backfill_func(
                 dids=batch,
                 start_timestamp=start_timestamp,
                 end_timestamp=end_timestamp,
@@ -533,7 +616,7 @@ if __name__ == "__main__":
         # "did:plc:fbnm4hjnzu4qwg3nfjfkdhay",
         # "did:plc:dsnypqaat7r5nw6phtfs6ixw",
     ]
-    backfills_map = do_backfill_for_users(
+    backfills_map = do_backfill_for_users_parallel(
         dids,
         start_timestamp=default_start_timestamp,
         end_timestamp=default_end_timestamp,
