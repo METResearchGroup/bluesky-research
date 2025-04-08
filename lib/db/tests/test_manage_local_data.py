@@ -695,6 +695,7 @@ class TestLoadDataFromLocalStorage:
             start_partition_date=None,
             end_partition_date=None,
             override_local_prefix=None,
+            source_types=None,
             custom_args=None
         )
 
@@ -808,6 +809,7 @@ class TestLoadDataFromLocalStorage:
             start_partition_date=None,
             end_partition_date=None,
             override_local_prefix=None,
+            source_types=None,
             custom_args=None
         )
 
@@ -838,6 +840,7 @@ class TestLoadDataFromLocalStorage:
             start_partition_date=test_params["start_date"],
             end_partition_date=test_params["end_date"],
             override_local_prefix=None,
+            source_types=None,
             custom_args=None
         )
 
@@ -859,6 +862,7 @@ class TestLoadDataFromLocalStorage:
             start_partition_date=None,
             end_partition_date=None,
             override_local_prefix=None,
+            source_types=None,
             custom_args=None
         )
 
@@ -880,6 +884,7 @@ class TestLoadDataFromLocalStorage:
             start_partition_date=None,
             end_partition_date=None,
             override_local_prefix=None,
+            source_types=None,
             custom_args=None
         )
 
@@ -1022,6 +1027,7 @@ class TestLoadDataFromLocalStorage:
             start_partition_date=None,
             end_partition_date=None,
             override_local_prefix=override_path,
+            source_types=None,
             custom_args=None
         )
 
