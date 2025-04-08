@@ -9,7 +9,7 @@ from memory_profiler import memory_usage
 import os
 import threading
 import time
-from typing import Optional
+from typing import Optional, TypeVar, Callable, ParamSpec
 
 from atproto import Client
 import pandas as pd
@@ -274,3 +274,35 @@ def calculate_start_end_date_for_lookback(
     start_date = max(min_lookback_date, lookback_date)
     end_date = partition_date
     return start_date, end_date
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def rate_limit(delay_seconds: int = 5) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """
+    Simple rate limiter decorator that adds a delay after each function call.
+
+    Args:
+        delay_seconds: Number of seconds to wait after function execution (default: 5)
+
+    Returns:
+        A decorated function that will pause for the specified time after execution
+    """
+
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
+        @wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            # Execute the original function
+            result = func(*args, **kwargs)
+
+            # Wait for the specified delay
+            time.sleep(delay_seconds)
+
+            # Return the original result
+            return result
+
+        return wrapper
+
+    return decorator

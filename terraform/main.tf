@@ -1272,6 +1272,54 @@ resource "aws_glue_catalog_database" "default" {
   name = var.default_glue_database_name
 }
 
+# Glue table for tracking backfill metadata
+resource "aws_glue_catalog_table" "backfill_metadata" {
+  database_name = aws_glue_catalog_database.default.name
+  name          = "backfill_metadata"
+  
+  storage_descriptor {
+    columns {
+      name = "did"
+      type = "string"
+    }
+    columns {
+      name = "bluesky_handle"
+      type = "string"
+    }
+    columns {
+      name = "types"
+      type = "string"
+    }
+    columns {
+      name = "total_records"
+      type = "int"
+    }
+    columns {
+      name = "total_records_by_type"
+      type = "string"
+    }
+    columns {
+      name = "pds_service_endpoint"
+      type = "string"
+    }
+    columns {
+      name = "timestamp"
+      type = "string"
+    }
+
+    location      = "s3://${var.s3_root_bucket_name}/backfill_metadata/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "JsonSerDe"
+      serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+    }
+  }
+
+  table_type = "EXTERNAL_TABLE"
+}
+
 # Glue table for tracking daily posts (for superposter calculation)
 resource "aws_glue_catalog_table" "daily_posts" {
   database_name = aws_glue_catalog_database.default.name
@@ -3361,6 +3409,32 @@ resource "aws_dynamodb_table" "integration_run_metadata" {
 
   tags = {
     Name = "integration_run_metadata"
+  }
+}
+
+resource "aws_dynamodb_table" "backfill_metadata" {
+  name           = "backfill_metadata"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "timestamp"
+
+  attribute {
+    name = "timestamp"
+    type = "S"
+  }
+
+  attribute {
+    name = "service"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "service-index"
+    hash_key           = "service"
+    projection_type    = "ALL"
+  }
+
+  tags = {
+    Name = "backfill_metadata"
   }
 }
 

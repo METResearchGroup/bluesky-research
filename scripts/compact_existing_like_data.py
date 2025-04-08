@@ -13,11 +13,11 @@ import pyarrow as pa
 
 from lib.db.manage_local_data import load_data_from_local_storage
 
-filedir = "/projects/p32375/bluesky_research_data/study_user_activity/create/like/active"
-# filedir = "/projects/p32375/bluesky_research_data/study_user_activity/create/like_on_user_post/active"
-# filedir = "/Users/mark/Documents/work/bluesky_research_data/study_user_activity/create/like/active"
-# filedir = "/Users/mark/Documents/work/bluesky_research_data/study_user_activity/create/like/cache"
-# tmp_output_dir = "/projects/p32375/bluesky_research_data/study_user_activity/create/like/active"
+filedir = "/projects/p32375/bluesky_research_data/raw_sync/create/like/active"
+# filedir = "/projects/p32375/bluesky_research_data/raw_sync/create/like_on_user_post/active"
+# filedir = "/Users/mark/Documents/work/bluesky_research_data/raw_sync/create/like/active"
+# filedir = "/Users/mark/Documents/work/bluesky_research_data/raw_sync/create/like/cache"
+# tmp_output_dir = "/projects/p32375/bluesky_research_data/raw_sync/create/like/active"
 
 
 def delete_empty_directories(directory: str):

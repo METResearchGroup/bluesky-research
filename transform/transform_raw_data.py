@@ -630,3 +630,17 @@ def transform_feedview_posts(
         transform_feedview_post(post=post, enrichment_data=enrichment_data)
         for post in posts
     ]
+
+
+def get_author_did_from_post_uri(post_uri: str) -> str:
+    """Given a post URI, get the DID of the author.
+
+    Example:
+    - at://did:plc:hvf3v7yanltbsoz3buabv5ye/app.bsky.feed.post/3l76ctyodmd2a
+    - author DID = did:plc:hvf3v7yanltbsoz3buabv5ye
+    """
+    did = post_uri.split("/")[2]
+    assert did.startswith(
+        "did:plc:"
+    ), f"Invalid post URI, can't extract author DID: {post_uri}"
+    return did
