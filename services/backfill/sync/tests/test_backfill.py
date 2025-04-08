@@ -11,7 +11,6 @@ from services.backfill.sync.backfill import (
     identify_post_type,
     identify_record_type,
     validate_record_timestamp,
-    validate_record_type,
     transform_backfilled_record,
     get_bsky_records_for_user,
     do_backfill_for_user,
@@ -248,49 +247,6 @@ class TestValidateRecordTimestamp:
         assert result is True
 
 
-class TestValidateRecordType:
-    """Tests for validate_record_type function.
-    
-    This class tests validation of record types, verifying:
-    - Valid record types are accepted
-    - Invalid record types are rejected
-    - Special handling for "follow" records
-    """
-    
-    @pytest.fixture
-    def mock_logger(self):
-        """Mock logger."""
-        with patch("services.backfill.sync.backfill.logger") as mock:
-            yield mock
-    
-    def test_validate_record_type_valid(self, mock_logger):
-        """Test validation of valid record type.
-        
-        Should return True for valid record types.
-        """
-        result = validate_record_type("post", "did:plc:test")
-        assert result is True
-    
-    def test_validate_record_type_follow(self, mock_logger):
-        """Test validation of follow record type.
-        
-        Should always return True for follow records regardless of timestamp.
-        """
-        result = validate_record_type("follow", "did:plc:test")
-        assert result is True
-    
-    def test_validate_record_type_invalid(self, mock_logger):
-        """Test validation of invalid record type.
-        
-        Should return False and log a message for invalid record types.
-        """
-        result = validate_record_type("invalid_type", "did:plc:test")
-        assert result is False
-        mock_logger.info.assert_called_once_with(
-            "Skipping record type invalid_type for user did:plc:test"
-        )
-
-
 class TestTransformBackfilledRecord:
     """Tests for transform_backfilled_record function.
     
@@ -441,16 +397,6 @@ class TestDoBackfillForUser:
             yield mock
     
     @pytest.fixture
-    def mock_validate_type(self):
-        """Mock validate_record_type function."""
-        with patch("services.backfill.sync.backfill.validate_record_type") as mock:
-            # Only accept post, like, follow, and reply types
-            def side_effect(record_type, did):
-                return record_type in ["post", "like", "follow", "reply"]
-            mock.side_effect = side_effect
-            yield mock
-    
-    @pytest.fixture
     def mock_transform(self):
         """Mock transform_backfilled_record function."""
         with patch("services.backfill.sync.backfill.transform_backfilled_record") as mock:
@@ -480,7 +426,7 @@ class TestDoBackfillForUser:
             yield mock
     
     def test_do_backfill_for_user(
-        self, mock_get_records, mock_validate_type, mock_transform, mock_plc_doc, mock_create_metadata
+        self, mock_get_records, mock_transform, mock_plc_doc, mock_create_metadata
     ):
         """Test backfilling for a single user.
         
