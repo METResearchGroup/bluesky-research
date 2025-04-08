@@ -69,7 +69,6 @@ def get_posts_used_in_feeds(
             f"Found {total_deduped_post_uris} unique post URIs (out of {total_post_uris})."
         )
         logger.info(f"Found {percentage_unique:.2f}% unique post URIs.")
-
     posts: list[PostInFeedModel] = [
         PostInFeedModel(uri=uri, partition_date=partition_date)
         for uri in deduped_post_uris
