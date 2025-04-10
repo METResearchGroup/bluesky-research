@@ -305,7 +305,7 @@ def do_backfill_for_user(
             # lexicon record (as opposed to a custom record type)
             # example invalid record: {'$type': 'sh.tangled.graph.follow', 'subject': 'did:plc:iwhuynr6mm6xxuh25o4do2tx', 'createdAt': '2025-03-21T07:40:58Z', 'record_type': 'follow', 'synctimestamp': '2025-04-01-00:00:00'}
             is_valid_generic_bluesky_type = validate_is_valid_generic_bluesky_type(
-                record
+                record=record
             )
             if not is_valid_generic_bluesky_type:
                 logger.info(
@@ -585,7 +585,7 @@ def run_batched_backfill(
     return {
         "total_batches": total_batches,
         "did_to_backfill_counts_map": did_to_backfill_counts_full_map,
-        "processed_users": processed_users,
+        "total_processed_users": processed_users,
         "total_users": total_users,
         "user_backfill_metadata": all_user_backfill_metadata,
     }

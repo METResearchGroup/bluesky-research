@@ -396,7 +396,9 @@ def export_data_to_local_storage(
         "skip_date_validation", False
     )
     # Override skip_date_validation for backfill_sync if custom_args provides a specific source
-    if service == "backfill_sync" and custom_args and "source" in custom_args:
+    # NOTE: This is done because the output formatting for backfill syncs is slightly different
+    # from other parts of the pipeline. Should be consolidated at some point.
+    if service == "raw_sync" and custom_args and "record_type" in custom_args:
         skip_date_validation = False
     if skip_date_validation:
         chunks = [
