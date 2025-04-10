@@ -38,7 +38,10 @@ def lambda_handler(event, context) -> dict:
     """Lambda handler for backfill sync pipeline.
 
     Args:
-        event: Contains "dids" which can be "all" or a comma-separated list of DIDs
+        event: Contains:
+            - "mode": Either "backfill" or "determine_dids_to_backfill" (default: "backfill")
+            - "dids": Can be "all" or a comma-separated list of DIDs (for backfill mode)
+            - "start_date", "end_date": Date range for determining DIDs (for determine mode)
         context: AWS Lambda context
 
     Returns:
@@ -46,26 +49,57 @@ def lambda_handler(event, context) -> dict:
     """
     try:
         if not event:
-            event = {"dids": "all"}
+            event = {"mode": "backfill", "dids": "all"}
 
-        logger.info("Starting backfill sync pipeline.")
+        mode = event.get("mode", "backfill")
+        logger.info(f"Starting backfill sync pipeline in {mode} mode.")
 
-        # Process DIDs parameter
-        dids_param = event.get("dids", "all")
-        dids = process_dids(dids_param)
+        if mode == "backfill":
+            # Process DIDs parameter
+            dids_param = event.get("dids", "all")
+            dids = process_dids(dids_param)
 
-        logger.info(f"Processing {len(dids)} DIDs for sync.")
+            logger.info(f"Processing {len(dids)} DIDs for sync.")
 
-        skip_backfill = event.get("skip_backfill", False)
+            skip_backfill = event.get("skip_backfill", False)
 
-        # Create payload for backfill_records
-        payload = {"record_type": "sync", "dids": dids, "skip_backfill": skip_backfill}
+            # Create payload for backfill_records
+            payload = {
+                "record_type": "sync",
+                "dids": dids,
+                "skip_backfill": skip_backfill,
+            }
 
-        # Call backfill_records with the payload
-        backfill_records(payload)
+            # Call backfill_records with the payload
+            backfill_records(payload)
 
-        logger.info("Completed backfill sync operation.")
+            logger.info("Completed backfill sync operation.")
+
+        elif mode == "determine_dids_to_backfill":
+            from services.backfill.sync.determine_dids_to_backfill import (
+                main as determine_dids_main,
+            )
+
+            # Create payload for determine_dids_to_backfill
+            payload = {
+                "start_date": event.get("start_date"),
+                "end_date": event.get("end_date"),
+            }
+
+            # Call determine_dids_to_backfill with the payload
+            determine_dids_main(payload=payload)
+
+            logger.info("Completed determining DIDs to backfill.")
+
+        else:
+            logger.error(
+                f"Invalid mode: {mode}. Must be 'backfill' or 'determine_dids_to_backfill'."
+            )
+            return {"status": "error", "message": f"Invalid mode: {mode}"}
+
+        return {"status": "success", "mode": mode}
 
     except Exception as e:
         logger.error(f"Error in backfill sync: {e}")
         logger.error(traceback.format_exc())
+        return {"status": "error", "message": str(e)}
