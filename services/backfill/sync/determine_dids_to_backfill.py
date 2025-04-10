@@ -89,6 +89,7 @@ def get_dids_from_reposts(
     )
 
     # JSON-dumped dicts of the actual posts that were liked.
+    logger.info(f"Total number of reposts loaded: {len(reposts_df)}")
     reposted_posts: list[str] = reposts_df["subject"].unique()
     uris_of_reposted_posts: list[str] = [
         json.loads(reposted_post)["uri"] for reposted_post in reposted_posts
@@ -97,7 +98,9 @@ def get_dids_from_reposts(
         get_author_did_from_post_uri(post_uri) for post_uri in uris_of_reposted_posts
     ]
     dids_of_reposted_posts = set(dids_of_reposted_posts)
-    logger.info(f"Total number of DIDs from reposts: {len(dids_of_reposted_posts)}")
+    logger.info(
+        f"Total number of unique DIDs from posts that were reposted: {len(dids_of_reposted_posts)}"
+    )
 
     return dids_of_reposted_posts
 
@@ -118,6 +121,7 @@ def get_dids_from_replies(
     )
 
     # JSON-dumped dicts of the actual posts that were liked.
+    logger.info(f"Total number of replies loaded: {len(replies_df)}")
     replies: list[str] = replies_df["reply"].unique()
 
     # parent = post that a reply is replying to.
@@ -137,7 +141,9 @@ def get_dids_from_replies(
         dids_of_root_posts.add(root_post_did)
 
     dids_of_posts_replied_to: set[str] = dids_of_parent_posts | dids_of_root_posts
-    logger.info(f"Total number of DIDs from replies: {len(dids_of_posts_replied_to)}")
+    logger.info(
+        f"Total number of unique DIDs from posts that were replied to: {len(dids_of_posts_replied_to)}"
+    )
 
     return dids_of_posts_replied_to
 
@@ -158,6 +164,7 @@ def get_dids_from_likes(
     )
 
     # JSON-dumped dicts of the actual posts that were liked.
+    logger.info(f"Total number of likes loaded: {len(likes_df)}")
     liked_posts: list[str] = likes_df["subject"].unique()
     uris_of_liked_posts: list[str] = [
         json.loads(liked_post)["uri"] for liked_post in liked_posts
@@ -166,7 +173,9 @@ def get_dids_from_likes(
         get_author_did_from_post_uri(post_uri) for post_uri in uris_of_liked_posts
     ]
     dids_of_liked_posts = set(dids_of_liked_posts)
-    logger.info(f"Total number of DIDs from likes: {len(dids_of_liked_posts)}")
+    logger.info(
+        f"Total number of unique DIDs from posts that were liked: {len(dids_of_liked_posts)}"
+    )
 
     return dids_of_liked_posts
 
@@ -250,6 +259,9 @@ def main(payload: dict):
     logger.info(f"Total number of DIDs to backfill: {len(filtered_dids_to_backfill)}")
 
     items = [{"did": did} for did in filtered_dids_to_backfill]
+
+    breakpoint()
+
     queue.batch_add_items_to_queue(items=items)
 
     metadata = {
