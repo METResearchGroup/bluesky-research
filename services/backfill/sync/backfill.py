@@ -1,10 +1,14 @@
+"""Backfilling the sync records for users."""
+
 from datetime import datetime
 import json
 import gc
 import os
-from pprint import pprint
 from typing import Optional
 import requests
+import multiprocessing
+import concurrent.futures
+import traceback
 
 from atproto import CAR
 
@@ -20,7 +24,6 @@ from lib.db.bluesky_models.transformations import (
 from lib.helper import (
     create_batches,
     track_performance,
-    rate_limit,
     generate_current_datetime_str,
 )
 from lib.log.logger import get_logger
@@ -28,8 +31,8 @@ from services.backfill.sync.constants import (
     default_start_timestamp,
     default_end_timestamp,
     endpoint,
-    valid_types,
     default_batch_size,
+    valid_generic_bluesky_types,
 )
 from services.backfill.sync.export_data import write_records_to_cache
 from services.backfill.sync.models import UserBackfillMetadata
@@ -120,33 +123,23 @@ def validate_record_timestamp(
     return True
 
 
-def validate_record_type(record_type: str, did: str) -> bool:
-    """Validate the type of a record.
+def validate_is_valid_generic_bluesky_type(record: dict) -> bool:
+    """Checks to see if the record is one of the expected generic Bluesky
+    types. If not (e.g., if it's a custom record from another PDS), then
+    we'll skip the record.
 
     Args:
-        record_type: The type of the record
-        did: The DID of the user
+        record: The record to validate
 
     Returns:
-        True if the record should be included, False otherwise
-    """
-    if record_type not in valid_types:
-        logger.info(f"Skipping record type {record_type} for user {did}")
-        return False
-    # we want to keep all follows, since it's helpful to have a complete
-    # picture of a user's entire social network. However, for the sake
-    # of analysis, we'll only care about the delta in follows during the
-    # course of the study. Yet let's keep all of this.
-    if record_type == "follow":
-        return True
+        True if the record is a valid generic Bluesky type, False otherwise
 
-    # we actually want to keep all records for all users where possible.
-    # is_valid_timestamp: bool = validate_record_timestamp(
-    #     record=record,
-    #     start_timestamp=start_timestamp,
-    #     end_timestamp=end_timestamp,
-    # )
-    return True
+    NOTE: we only check the type of the record itself, we don't check the
+    typing of subrecords (e.g., the type of the 'reply' field in a reply
+    record), since I've seen that there's sometimes inconsistencies here
+    because of Bluesky schema evolution over time.
+    """
+    return record["$type"] in valid_generic_bluesky_types
 
 
 def transform_backfilled_record(
@@ -184,42 +177,52 @@ def transform_backfilled_record(
     # transform the formats of the fields to be consistent with each other
     # for a given type (for optional fields, these show up only if the
     # record has the field, but I want to enforce consistent schemas).
-    if record_type in ["post", "reply"]:
-        embed = record.get("embed", False)
-        record["embed"] = json.dumps(embed) if embed else None
+    try:
+        if record_type in ["post", "reply"]:
+            embed = record.get("embed", False)
+            record["embed"] = json.dumps(embed) if embed else None
 
-        entities = record.get("entities", False)
-        record["entities"] = json.dumps(entities) if entities else None
+            entities = record.get("entities", False)
+            record["entities"] = json.dumps(entities) if entities else None
 
-        facets = record.get("facets", False)
-        record["facets"] = json.dumps(facets) if facets else None
+            facets = record.get("facets", False)
+            record["facets"] = json.dumps(facets) if facets else None
 
-        langs = record.get("langs", False)
-        record["langs"] = ",".join(langs) if langs else None
+            langs = record.get("langs", False)
+            record["langs"] = ",".join(langs) if langs else None
 
-        tags = record.get("tags", False)
-        record["tags"] = ",".join(tags) if tags else None
-        if record_type == "post":
-            transformed_record = TransformedPost(**record)
-        elif record_type == "reply":
-            transformed_record = TransformedReply(**record)
+            tags = record.get("tags", False)
+            record["tags"] = ",".join(tags) if tags else None
+
+            labels = record.get("labels", False)
+            record["labels"] = json.dumps(labels) if labels else None
+
+            if record_type == "post":
+                transformed_record = TransformedPost(**record)
+            elif record_type == "reply":
+                transformed_record = TransformedReply(**record)
+                transformed_record = transformed_record.model_dump()
+                transformed_record["reply"] = json.dumps(transformed_record["reply"])
+        elif record_type == "repost":
+            transformed_record = TransformedRepost(**record)
             transformed_record = transformed_record.model_dump()
-            transformed_record["reply"] = json.dumps(transformed_record["reply"])
-    elif record_type == "repost":
-        transformed_record = TransformedRepost(**record)
-        transformed_record = transformed_record.model_dump()
-        transformed_record["subject"] = json.dumps(transformed_record["subject"])
-    elif record_type == "like":
-        transformed_record = TransformedLike(**record)
-        transformed_record = transformed_record.model_dump()
-        transformed_record["subject"] = json.dumps(transformed_record["subject"])
-    elif record_type == "follow":
-        transformed_record = TransformedFollow(**record)
-    elif record_type == "block":
-        transformed_record = TransformedBlock(**record)
-    if not isinstance(transformed_record, dict):
-        return transformed_record.model_dump()
-    return transformed_record
+            transformed_record["subject"] = json.dumps(transformed_record["subject"])
+        elif record_type == "like":
+            transformed_record = TransformedLike(**record)
+            transformed_record = transformed_record.model_dump()
+            transformed_record["subject"] = json.dumps(transformed_record["subject"])
+        elif record_type == "follow":
+            transformed_record = TransformedFollow(**record)
+        elif record_type == "block":
+            transformed_record = TransformedBlock(**record)
+        if not isinstance(transformed_record, dict):
+            return transformed_record.model_dump()
+        return transformed_record
+    except Exception as e:
+        logger.error(f"Error transforming record: {e}")
+        logger.error(traceback.format_exc())
+        logger.info(f"Record: {record}")
+        return record
 
 
 def get_bsky_records_for_user(did: str) -> list[dict]:
@@ -239,8 +242,20 @@ def get_bsky_records_for_user(did: str) -> list[dict]:
     joined_url = os.path.join(root_url, endpoint)
     full_url = f"{joined_url}?did={did}"
     res = requests.get(full_url)
-    car_file = CAR.from_bytes(res.content)
-    records: list[dict] = [obj for obj in car_file.blocks.values()]
+    if res.status_code != 200:
+        logger.error(f"Error getting CAR file for user {did}: {res.status_code}")
+        logger.info(f"res.headers: {res.headers}")
+        logger.info(f"res.content: {res.content}")
+        logger.info("Returning no records for user.")
+        records = []
+    else:
+        try:
+            car_file = CAR.from_bytes(res.content)
+            records: list[dict] = [obj for obj in car_file.blocks.values()]
+        except Exception as e:
+            logger.error(f"Error parsing CAR file for user {did}: {e}")
+            logger.info("Returning no records for user.")
+            records = []
     return records
 
 
@@ -286,11 +301,22 @@ def do_backfill_for_user(
     records: list[dict] = get_bsky_records_for_user(did)
     for record in records:
         if "$type" in record:
-            record_type = identify_record_type(record)
-            is_valid_record = validate_record_type(record_type=record_type, did=did)
-            if not is_valid_record:
+            # validate the record type (checking if it's a valid generic Bluesky
+            # lexicon record (as opposed to a custom record type)
+            # example invalid record: {'$type': 'sh.tangled.graph.follow', 'subject': 'did:plc:iwhuynr6mm6xxuh25o4do2tx', 'createdAt': '2025-03-21T07:40:58Z', 'record_type': 'follow', 'synctimestamp': '2025-04-01-00:00:00'}
+            is_valid_generic_bluesky_type = validate_is_valid_generic_bluesky_type(
+                record=record
+            )
+            if not is_valid_generic_bluesky_type:
+                logger.info(
+                    f"Skipping record type {record['$type']} for user {did} (not a generic Bluesky type): {record}"
+                )
                 total_skipped_records += 1
                 continue
+
+            # validate the record type (assuming that it's a valid Bluesky lexicon record)
+            record_type = identify_record_type(record)
+
             type_to_count_map[record_type] = type_to_count_map.get(record_type, 0) + 1
 
             transformed_record: dict = transform_backfilled_record(
@@ -304,11 +330,12 @@ def do_backfill_for_user(
             else:
                 type_to_record_map[record_type] = [transformed_record]
 
-    print(f"For user with did={did}, found the following record types and counts:")
-    pprint(type_to_count_map)
-    print(f"Total original records: {len(records)}")
-    print(f"Total skipped records: {total_skipped_records}")
-    print(f"Total exported records: {len(records) - total_skipped_records}")
+    logger.info(
+        f"For user with did={did}, found the following record types and counts: {type_to_count_map}"
+    )
+    logger.info(
+        f"Total records:\t Original: {len(records)}\t Skipped: {total_skipped_records}\t Exported: {len(records) - total_skipped_records}"
+    )
 
     # Create metadata for the user's backfill operation
     user_metadata = create_user_backfill_metadata(
@@ -373,7 +400,6 @@ def assign_default_backfill_synctimestamp(synctimestamp: str) -> str:
         return synctimestamp
 
 
-@rate_limit(delay_seconds=5)
 def do_backfill_for_users(
     dids: list[str],
     start_timestamp: Optional[str] = None,
@@ -381,7 +407,7 @@ def do_backfill_for_users(
 ) -> tuple[
     dict[str, dict[str, dict]], dict[str, list[dict]], list[UserBackfillMetadata]
 ]:
-    """Performs the backfill for users.
+    """Performs the backfill for users sequentially.
 
     Args:
         dids: The list of DIDs to backfill.
@@ -398,6 +424,7 @@ def do_backfill_for_users(
         start_timestamp = default_start_timestamp
     if not end_timestamp:
         end_timestamp = default_end_timestamp
+
     did_to_backfill_counts_map = {}
     type_to_record_full_map = {}
     user_backfill_metadata_list = []
@@ -422,12 +449,88 @@ def do_backfill_for_users(
     )
 
 
+def do_backfill_for_users_parallel(
+    dids: list[str],
+    start_timestamp: Optional[str] = None,
+    end_timestamp: Optional[str] = None,
+) -> tuple[
+    dict[str, dict[str, dict]], dict[str, list[dict]], list[UserBackfillMetadata]
+]:
+    """Performs the backfill for users in parallel using multiprocessing.
+
+    This is optimized for compute-bound operations, using ProcessPoolExecutor to
+    parallelize across CPU cores.
+
+    Args:
+        dids: The list of DIDs to backfill.
+        start_timestamp: The start timestamp to backfill from.
+        end_timestamp: The end timestamp to backfill to.
+
+    Returns:
+        A tuple of three items:
+        1. Dictionary mapping DIDs to counts of records by type
+        2. Dictionary mapping record types to lists of records
+        3. List of UserBackfillMetadata objects for each user
+    """
+    if not start_timestamp:
+        start_timestamp = default_start_timestamp
+    if not end_timestamp:
+        end_timestamp = default_end_timestamp
+
+    cpu_count = multiprocessing.cpu_count()
+    max_workers = min(cpu_count, len(dids))  # Don't use more processes than DIDs
+
+    did_to_backfill_counts_map = {}
+    type_to_record_full_map = {}
+    user_backfill_metadata_list = []
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        # Create futures with enumerated DIDs for progress tracking
+        futures = [
+            executor.submit(
+                do_backfill_for_user,
+                did=did,
+                start_timestamp=start_timestamp,
+                end_timestamp=end_timestamp,
+            )
+            for did in dids
+        ]
+
+        for i, future in enumerate(concurrent.futures.as_completed(futures)):
+            try:
+                type_to_count_map, type_to_record_map, user_metadata = future.result()
+
+                # Update counts map
+                did = dids[i]  # Get the DID that corresponds to this future
+                did_to_backfill_counts_map[did] = type_to_count_map
+                user_backfill_metadata_list.append(user_metadata)
+
+                # Update records map
+                for record_type, records in type_to_record_map.items():
+                    if record_type in type_to_record_full_map:
+                        type_to_record_full_map[record_type].extend(records)
+                    else:
+                        type_to_record_full_map[record_type] = records
+
+            except Exception as e:
+                logger.error(f"Error in parallel backfill for DID {dids[i]}: {e}")
+                logger.error(traceback.format_exc())
+                continue
+
+    return (
+        did_to_backfill_counts_map,
+        type_to_record_full_map,
+        user_backfill_metadata_list,
+    )
+
+
 @track_performance
 def run_batched_backfill(
     dids: list[str],
     batch_size: int = default_batch_size,
     start_timestamp: Optional[str] = None,
     end_timestamp: Optional[str] = None,
+    run_parallel: bool = True,
 ) -> dict:
     """Runs the backfill for a list of DIDs in batches.
 
@@ -436,6 +539,7 @@ def run_batched_backfill(
         batch_size: The number of DIDs to backfill in each batch.
         start_timestamp: The start timestamp to backfill from.
         end_timestamp: The end timestamp to backfill to.
+        run_parallel: Whether to use parallel execution (default: True)
 
     Returns:
         A dictionary containing information about the backfill run, including
@@ -446,10 +550,14 @@ def run_batched_backfill(
     did_to_backfill_counts_full_map = {}
     all_user_backfill_metadata = []
 
+    backfill_func = (
+        do_backfill_for_users_parallel if run_parallel else do_backfill_for_users
+    )
+
     for i, batch in enumerate(batches):
         logger.info(f"Processing batch {i}/{total_batches}")
         did_to_backfill_counts_map, type_to_record_maps, user_metadata_list = (
-            do_backfill_for_users(
+            backfill_func(
                 dids=batch,
                 start_timestamp=start_timestamp,
                 end_timestamp=end_timestamp,
@@ -477,7 +585,7 @@ def run_batched_backfill(
     return {
         "total_batches": total_batches,
         "did_to_backfill_counts_map": did_to_backfill_counts_full_map,
-        "processed_users": processed_users,
+        "total_processed_users": processed_users,
         "total_users": total_users,
         "user_backfill_metadata": all_user_backfill_metadata,
     }
@@ -533,7 +641,7 @@ if __name__ == "__main__":
         # "did:plc:fbnm4hjnzu4qwg3nfjfkdhay",
         # "did:plc:dsnypqaat7r5nw6phtfs6ixw",
     ]
-    backfills_map = do_backfill_for_users(
+    backfills_map = do_backfill_for_users_parallel(
         dids,
         start_timestamp=default_start_timestamp,
         end_timestamp=default_end_timestamp,

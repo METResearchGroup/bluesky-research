@@ -208,7 +208,7 @@ class TestDoBackfillsForUsers:
         mock_run_batched_backfill.return_value = {
             "total_batches": 0,
             "did_to_backfill_counts_map": {},
-            "processed_users": 0,
+            "total_processed_users": 0,
             "total_users": 0,
             "user_backfill_metadata": []
         }
@@ -234,7 +234,7 @@ class TestDoBackfillsForUsers:
         assert result["total_dids"] == 0
         assert result["total_batches"] == 0
         assert result["did_to_backfill_counts_map"] == {}
-        assert result["processed_users"] == 0
+        assert result["total_processed_users"] == 0
         assert result["total_users"] == 0
         assert result["user_backfill_metadata"] == []
         assert result["event"] is None
@@ -272,7 +272,7 @@ class TestDoBackfillsForUsers:
                     "follow": 7
                 }
             },
-            "processed_users": 2,
+            "total_processed_users": 2,
             "total_users": 2,
             "user_backfill_metadata": user_metadata
         }
@@ -311,7 +311,7 @@ class TestDoBackfillsForUsers:
                 "follow": 7
             }
         }
-        assert result["processed_users"] == 2
+        assert result["total_processed_users"] == 2
         assert result["total_users"] == 2
         assert result["user_backfill_metadata"] == user_metadata
         assert result["event"] == event
@@ -346,7 +346,7 @@ class TestDoBackfillsForUsers:
                 "did:plc:user2": {"post": 3},
                 "did:plc:user4": {"post": 5}
             },
-            "processed_users": 2,
+            "total_processed_users": 2,
             "total_users": 2,
             "user_backfill_metadata": [MagicMock(), MagicMock()]
         }
@@ -368,7 +368,7 @@ class TestDoBackfillsForUsers:
         
         # Verify other metadata is correct
         assert result["total_batches"] == 1
-        assert result["processed_users"] == 2
+        assert result["total_processed_users"] == 2
         assert result["total_users"] == 2
         assert len(result["user_backfill_metadata"]) == 2
     
@@ -397,7 +397,7 @@ class TestDoBackfillsForUsers:
         mock_run_batched_backfill.return_value = {
             "total_batches": 1,
             "did_to_backfill_counts_map": {},
-            "processed_users": 2,
+            "total_processed_users": 2,
             "total_users": 2,
             "user_backfill_metadata": []
         }
@@ -406,4 +406,4 @@ class TestDoBackfillsForUsers:
         do_backfills_for_users(dids=dids)
         
         # Verify validate_dids was called with just the dids parameter
-        mock_validate_dids.assert_called_once_with(dids=dids) 
+        mock_validate_dids.assert_called_once_with(dids=dids)

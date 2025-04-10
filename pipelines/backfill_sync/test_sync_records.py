@@ -7,10 +7,11 @@ if __name__ == "__main__":
         "did:plc:gedsnv7yxi45a4g2gts37vyp",
         "did:plc:fbnm4hjnzu4qwg3nfjfkdhay",
     ]
-    event = {
-        "dids": ",".join(dids),
-        "skip_backfill": False,
-        "load_from_queue": True,
-    }
+    # event = {
+    #     "dids": ",".join(dids),
+    #     "skip_backfill": False,
+    #     "load_from_queue": True,
+    # }
+    event = {"dids": "all", "skip_backfill": False, "load_from_queue": False}
     context = {}
     lambda_handler(event, context)

@@ -1,6 +1,5 @@
 """Models for raw Bluesky records."""
 
-import typing_extensions as te
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -64,7 +63,9 @@ class RawPostReference(BaseModel):
 
     cid: str = Field(..., description="The CID of the post.")
     uri: str = Field(..., description="The URI of the post.")
-    py_type: te.Literal["com.atproto.repo.strongRef"] = Field(
+    # for backwards compatibility, keep as string. Some old posts
+    # (e.g., from 2023) use app.bsky.feed.post as the type instead of strongRef.
+    py_type: str = Field(
         default="com.atproto.repo.strongRef", alias="$type", frozen=True
     )  # noqa
 
@@ -84,7 +85,7 @@ class RawReplyRef(BaseModel):
     root: RawPostReference = Field(
         ..., description="The root post that is being replied to."
     )  # noqa
-    py_type: te.Literal["app.bsky.feed.defs#replyRef"] = Field(
+    py_type: str = Field(
         default="app.bsky.feed.defs#replyRef", alias="$type", frozen=True
     )  # noqa
 
@@ -96,9 +97,7 @@ class RawReply(RawPostRecord):
     """
 
     reply: RawReplyRef = Field(..., description="The reply reference.")
-    py_type: te.Literal["app.bsky.feed.post"] = Field(
-        default="app.bsky.feed.post", alias="$type", frozen=True
-    )  # noqa
+    py_type: str = Field(default="app.bsky.feed.post", alias="$type", frozen=True)  # noqa
 
 
 class RawRepost(BaseModel):
@@ -113,9 +112,7 @@ class RawRepost(BaseModel):
     subject: RawPostReference = Field(
         ..., description="Reference to the post being reposted."
     )
-    py_type: te.Literal["app.bsky.feed.repost"] = Field(
-        default="app.bsky.feed.repost", alias="$type", frozen=True
-    )
+    py_type: str = Field(default="app.bsky.feed.repost", alias="$type", frozen=True)
 
 
 class RawLikeRecord(BaseModel):
@@ -142,9 +139,7 @@ class RawLikeRecord(BaseModel):
     subject: RawPostReference = Field(
         ..., description="The actual post record that was liked."
     )  # noqa
-    py_type: te.Literal["app.bsky.feed.like"] = Field(
-        default="app.bsky.feed.like", alias="$type", frozen=True
-    )  # noqa
+    py_type: str = Field(default="app.bsky.feed.like", alias="$type", frozen=True)  # noqa
 
 
 class RawLike(BaseModel):
@@ -191,9 +186,9 @@ class RawFollowRecord(BaseModel):
         ..., description="The timestamp of when the record was created on Bluesky."
     )  # noqa
     subject: str = Field(..., description="The DID of the user being followed.")  # noqa
-    py_type: te.Literal["app.bsky.graph.follow"] = Field(
-        default="app.bsky.graph.follow", alias="$type", frozen=True
-    )  # noqa
+    # for backwards compatibility, keep as string. Some old posts
+    # (e.g., from 2023) use app.bsky.feed.post as the type instead of strongRef.
+    py_type: str = Field(default="app.bsky.graph.follow", alias="$type", frozen=True)  # noqa
 
 
 class RawFollow(BaseModel):
@@ -244,9 +239,7 @@ class RawBlock(BaseModel):
         ..., description="The timestamp of when the block was created."
     )
     subject: str = Field(..., description="The DID of the user being blocked.")
-    py_type: te.Literal["app.bsky.graph.block"] = Field(
-        default="app.bsky.graph.block", alias="$type", frozen=True
-    )
+    py_type: str = Field(default="app.bsky.graph.block", alias="$type", frozen=True)
 
 
 class FirehoseSubscriptionStateCursorModel(BaseModel):

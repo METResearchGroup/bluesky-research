@@ -5,18 +5,19 @@ import json
 import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch, MagicMock, call
+import multiprocessing
 
 from services.backfill.sync.backfill import (
     get_plc_directory_doc,
     identify_post_type,
     identify_record_type,
     validate_record_timestamp,
-    validate_record_type,
     transform_backfilled_record,
     get_bsky_records_for_user,
     do_backfill_for_user,
     assign_default_backfill_synctimestamp,
     do_backfill_for_users,
+    do_backfill_for_users_parallel,
     run_batched_backfill,
 )
 from services.backfill.sync.constants import (
@@ -247,49 +248,6 @@ class TestValidateRecordTimestamp:
         assert result is True
 
 
-class TestValidateRecordType:
-    """Tests for validate_record_type function.
-    
-    This class tests validation of record types, verifying:
-    - Valid record types are accepted
-    - Invalid record types are rejected
-    - Special handling for "follow" records
-    """
-    
-    @pytest.fixture
-    def mock_logger(self):
-        """Mock logger."""
-        with patch("services.backfill.sync.backfill.logger") as mock:
-            yield mock
-    
-    def test_validate_record_type_valid(self, mock_logger):
-        """Test validation of valid record type.
-        
-        Should return True for valid record types.
-        """
-        result = validate_record_type("post", "did:plc:test")
-        assert result is True
-    
-    def test_validate_record_type_follow(self, mock_logger):
-        """Test validation of follow record type.
-        
-        Should always return True for follow records regardless of timestamp.
-        """
-        result = validate_record_type("follow", "did:plc:test")
-        assert result is True
-    
-    def test_validate_record_type_invalid(self, mock_logger):
-        """Test validation of invalid record type.
-        
-        Should return False and log a message for invalid record types.
-        """
-        result = validate_record_type("invalid_type", "did:plc:test")
-        assert result is False
-        mock_logger.info.assert_called_once_with(
-            "Skipping record type invalid_type for user did:plc:test"
-        )
-
-
 class TestTransformBackfilledRecord:
     """Tests for transform_backfilled_record function.
     
@@ -354,6 +312,7 @@ class TestGetBskyRecordsForUser:
     This class tests fetching Bluesky records for a user, verifying:
     - Proper construction of API request URL
     - Processing of CAR file content
+    - Handling of error responses
     """
     
     @pytest.fixture
@@ -375,6 +334,7 @@ class TestGetBskyRecordsForUser:
         with patch("requests.get") as mock:
             mock_response = Mock()
             mock_response.content = b"mock_content"
+            mock_response.status_code = 200
             mock.return_value = mock_response
             yield mock
     
@@ -400,7 +360,7 @@ class TestGetBskyRecordsForUser:
         
         # Verify PLC document was fetched
         mock_plc_doc.assert_called_once_with(did)
-        
+
         # Verify request was made with correct URL
         expected_url = "https://puffball.us-east.host.bsky.network/xrpc/com.atproto.sync.getRepo?did=did:plc:test"
         mock_requests_get.assert_called_once_with(expected_url)
@@ -411,6 +371,33 @@ class TestGetBskyRecordsForUser:
         # Verify result
         assert len(result) == 2
         assert all(isinstance(item, dict) for item in result)
+    
+    def test_get_bsky_records_for_user_error_response(self, mock_plc_doc, mock_requests_get, mock_car, caplog):
+        """Test handling of error response when fetching Bluesky records.
+        
+        Should log error details and return empty list when status code is not 200.
+        """
+        # Configure mock to return a 400 error
+        mock_response = Mock()
+        mock_response.status_code = 400
+        mock_response.headers = {"Content-Type": "application/json"}
+        mock_response.content = b'{"error": "Bad Request"}'
+        mock_requests_get.return_value = mock_response
+        
+        did = "did:plc:test"
+        result = get_bsky_records_for_user(did)
+        
+        # Verify PLC document was fetched
+        mock_plc_doc.assert_called_once_with(did)
+        
+        # Verify request was made
+        mock_requests_get.assert_called_once()
+        
+        # Verify CAR.from_bytes was not called
+        mock_car.assert_not_called()
+
+        # Verify empty list was returned
+        assert result == []
 
 
 class TestDoBackfillForUser:
@@ -429,7 +416,7 @@ class TestDoBackfillForUser:
             mock.return_value = [
                 {"$type": "app.bsky.feed.post", "createdAt": "2024-10-15T12:00:00Z"},
                 {"$type": "app.bsky.feed.like", "createdAt": "2024-10-16T12:00:00Z"},
-                {"$type": "app.bsky.feed.follow", "createdAt": "2024-08-01T12:00:00Z"},
+                {"$type": "app.bsky.graph.follow", "createdAt": "2024-08-01T12:00:00Z"},
                 {"$type": "app.bsky.generator", "createdAt": "2024-10-17T12:00:00Z"},
                 {
                     "$type": "app.bsky.feed.post",
@@ -437,16 +424,6 @@ class TestDoBackfillForUser:
                     "createdAt": "2024-10-18T12:00:00Z"
                 }
             ]
-            yield mock
-    
-    @pytest.fixture
-    def mock_validate_type(self):
-        """Mock validate_record_type function."""
-        with patch("services.backfill.sync.backfill.validate_record_type") as mock:
-            # Only accept post, like, follow, and reply types
-            def side_effect(record_type, did):
-                return record_type in ["post", "like", "follow", "reply"]
-            mock.side_effect = side_effect
             yield mock
     
     @pytest.fixture
@@ -479,7 +456,7 @@ class TestDoBackfillForUser:
             yield mock
     
     def test_do_backfill_for_user(
-        self, mock_get_records, mock_validate_type, mock_transform, mock_plc_doc, mock_create_metadata
+        self, mock_get_records, mock_transform, mock_plc_doc, mock_create_metadata
     ):
         """Test backfilling for a single user.
         
@@ -608,15 +585,7 @@ class TestDoBackfillForUsers:
             mock.side_effect = side_effect
             yield mock
     
-    @pytest.fixture
-    def mock_rate_limit(self):
-        """Mock rate_limit decorator."""
-        with patch("services.backfill.sync.backfill.rate_limit") as mock:
-            # Make rate_limit decorator a no-op
-            mock.return_value = lambda f: f
-            yield mock
-    
-    def test_do_backfill_for_users(self, mock_do_backfill_for_user, mock_rate_limit):
+    def test_do_backfill_for_users(self, mock_do_backfill_for_user):
         """Test backfilling for multiple users.
         
         Should process each user and aggregate results correctly.
@@ -651,7 +620,7 @@ class TestDoBackfillForUsers:
         # Verify metadata list
         assert len(metadata_list) == 2
     
-    def test_do_backfill_for_users_default_timestamps(self, mock_do_backfill_for_user, mock_rate_limit):
+    def test_do_backfill_for_users_default_timestamps(self, mock_do_backfill_for_user):
         """Test backfilling with default timestamps.
         
         Should use default constants when no timestamps are specified.
@@ -762,9 +731,10 @@ class TestRunBatchedBackfill:
             dids,
             batch_size,
             "2024-09-27-00:00:00",
-            "2024-12-02-00:00:00"
+            "2024-12-02-00:00:00",
+            run_parallel=False # parallel runs work in prod, but unit testing is annoyingly hard, so we skip that.
         )
-        
+
         # Verify batches were created
         mock_create_batches.assert_called_once_with(batch_list=dids, batch_size=batch_size)
         
@@ -804,7 +774,7 @@ class TestRunBatchedBackfill:
         
         # Verify logging
         assert mock_logger.info.call_count >= 2
-        
+
         # Verify result structure
         assert result["total_batches"] == 2
         assert result["did_to_backfill_counts_map"] == {
@@ -812,7 +782,7 @@ class TestRunBatchedBackfill:
             "did:plc:user2": {"like": 1},
             "did:plc:user3": {"follow": 1}
         }
-        assert result["processed_users"] == 3
+        assert result["total_processed_users"] == 3
         assert result["total_users"] == 3
         assert "user_backfill_metadata" in result
         assert len(result["user_backfill_metadata"]) == 3
@@ -832,11 +802,14 @@ class TestRunBatchedBackfill:
         """
         dids = ["did:plc:user1", "did:plc:user2", "did:plc:user3"]
         
-        result = run_batched_backfill(dids)
-        
+        result = run_batched_backfill(
+            dids,
+            run_parallel=False # parallel runs work in prod, but unit testing is annoyingly hard, so we skip that.
+        )
+
         # Verify batches were created with default batch size
         mock_create_batches.assert_called_once_with(batch_list=dids, batch_size=default_batch_size)
-        
+
         # Verify backfill was performed for each batch with default timestamps
         assert mock_do_backfill_for_users.call_count == 2
         mock_do_backfill_for_users.assert_has_calls([
@@ -853,6 +826,57 @@ class TestRunBatchedBackfill:
         ])
         
         # Verify result structure includes new fields
-        assert "processed_users" in result
+        assert "total_processed_users" in result
         assert "total_users" in result
-        assert "user_backfill_metadata" in result 
+        assert "user_backfill_metadata" in result
+    
+    def test_run_batched_backfill_with_parallel_flag(
+        self,
+        mock_create_batches,
+        mock_do_backfill_for_users,
+        mock_write_records,
+        mock_gc,
+        mock_logger,
+        mock_track_performance
+    ):
+        """Test batch processing with parallel flag.
+        
+        Should use appropriate function based on run_parallel flag.
+        """
+        dids = ["did:plc:user1", "did:plc:user2", "did:plc:user3"]
+        batch_size = 2
+        
+        # Test parallel execution
+        with patch("services.backfill.sync.backfill.do_backfill_for_users_parallel") as mock_parallel:
+            mock_parallel.return_value = (
+                {"did:plc:user1": {"post": 1}},
+                {"post": [{"text": "test"}]},
+                [MagicMock()]
+            )
+            
+            result_parallel = run_batched_backfill(
+                dids,
+                batch_size=batch_size,
+                start_timestamp="2024-09-27-00:00:00",
+                end_timestamp="2024-12-02-00:00:00",
+                run_parallel=True
+            )
+            
+            # Verify parallel function was used
+            assert mock_parallel.call_count > 0
+            assert mock_do_backfill_for_users.call_count == 0
+        
+        # Test sequential execution
+        mock_do_backfill_for_users.reset_mock()
+        with patch("services.backfill.sync.backfill.do_backfill_for_users_parallel") as mock_parallel:
+            result_sequential = run_batched_backfill(
+                dids,
+                batch_size=batch_size,
+                start_timestamp="2024-09-27-00:00:00",
+                end_timestamp="2024-12-02-00:00:00",
+                run_parallel=False
+            )
+            
+            # Verify sequential function was used
+            assert mock_parallel.call_count == 0
+            assert mock_do_backfill_for_users.call_count > 0 

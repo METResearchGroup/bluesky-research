@@ -48,12 +48,14 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
         if load_from_queue:
             logger.info("Loading DIDs from queue instead of from payload.")
             dids: list[str] = load_latest_dids_to_backfill_from_queue()
+            logger.info(f"Loaded {len(dids)} DIDs from queue.")
 
         if skip_backfill:
             backfill_session_metadata = {
                 "backfill_timestamp": generate_current_datetime_str(),
                 "event": payload,
                 "user_backfill_metadata": [],  # Empty list when skipping backfill
+                "did_to_backfill_counts_map": {},  # Empty map when skipping backfill
             }
         else:
             backfill_session_metadata: dict = do_backfills_for_users(
@@ -62,6 +64,7 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
                 end_timestamp=end_timestamp,
                 event=payload,
             )
+
         export_payload = {"service": service_name, "clear_queue": True}
         write_cache_buffers_to_db(payload=export_payload)
 
@@ -69,6 +72,10 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
         user_backfill_metadata: list[UserBackfillMetadata] = (
             backfill_session_metadata.pop("user_backfill_metadata", [])
         )
+        # we pop this, we want to keep it for some logging stuff but
+        # it ends up being too big to insert into DynamoDB
+        # (apparently a max 400kb limit on item size).
+        backfill_session_metadata.pop("did_to_backfill_counts_map")
 
         # Create session metadata object
         session_metadata = {
@@ -77,7 +84,7 @@ def backfill_sync(payload: dict) -> RunExecutionMetadata:
             "status_code": 200,
             "body": json.dumps(backfill_session_metadata),
             "metadata_table_name": f"{service_name}_metadata",
-            "metadata": json.dumps(backfill_session_metadata),
+            "metadata": "",
         }
         transformed_session_metadata = RunExecutionMetadata(**session_metadata)
 

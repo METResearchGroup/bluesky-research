@@ -1056,14 +1056,18 @@ class TestExportDataToLocalStorage:
                     "active": "/data/preprocessed_posts/active",
                 }
             },
-            "backfill_sync": {
-                "local_prefix": "/data/backfill_sync",
+            "raw_sync": {
+                "local_prefix": "/data/raw_sync",
                 "timestamp_field": "preprocessing_timestamp",
                 "partition_key": "preprocessing_timestamp",
                 "skip_date_validation": True,
                 "subpaths": {
-                    "raw_sync": "/data/backfill_sync/raw_sync",
-                    "active": "/data/backfill_sync/active",
+                    "post": "/data/raw_sync/create/post",
+                    "like": "/data/raw_sync/create/like",
+                    "follow": "/data/raw_sync/create/follow",
+                    "reply": "/data/raw_sync/create/reply",
+                    "repost": "/data/raw_sync/create/repost",
+                    "block": "/data/raw_sync/create/block"
                 }
             }
         }
@@ -1165,8 +1169,8 @@ class TestExportDataToLocalStorage:
         )
         mock_to_parquet.assert_called_once()
         
-    def test_backfill_sync_service(self, mocker, mock_service_metadata, mock_df):
-        """Test export with backfill_sync service."""
+    def test_raw_sync_service(self, mocker, mock_service_metadata, mock_df):
+        """Test export with raw sync service."""
         # Mock the partition_data_by_date function
         mock_partition = mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
             "start_timestamp": "2024-01-01", 
@@ -1177,9 +1181,9 @@ class TestExportDataToLocalStorage:
         mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
         
         # Export to the raw_sync subdirectory
-        custom_args = {"source": "raw_sync"}
+        custom_args = {"record_type": "post"}
         export_data_to_local_storage(
-            service="backfill_sync",
+            service="raw_sync",
             df=mock_df,
             custom_args=custom_args
         )
@@ -1187,7 +1191,7 @@ class TestExportDataToLocalStorage:
         # Verify the export occurred to the correct path
         mock_to_parquet.assert_called_once()
         file_path = mock_to_parquet.call_args[1]['path']
-        assert file_path == '/data/backfill_sync/raw_sync/cache'
+        assert file_path == '/data/raw_sync/create/post/cache'
         
         # Verify that partition_data_by_date was called
         mock_partition.assert_called_once()
@@ -1196,7 +1200,17 @@ class TestExportDataToLocalStorage:
         """Test export with skip_date_validation=True from configuration."""
         # Mock the date validation function to track if it's called
         mock_partition = mocker.patch("lib.db.manage_local_data.partition_data_by_date")
-        mocker.patch.dict("lib.db.manage_local_data.MAP_SERVICE_TO_METADATA", {"backfill_sync": {"skip_date_validation": True, "timestamp_field": "preprocessing_timestamp", "local_prefix": "/data/backfill_sync"}})
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"backfill_sync": {
+                "skip_date_validation": True, 
+                "timestamp_field": "preprocessing_timestamp", 
+                "local_prefix": "/data/backfill_sync",
+                "subpaths": {
+                    "post": "/data/raw_sync/create/post"
+                }
+            }}
+        )
         mocker.patch("os.makedirs")
         mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
         

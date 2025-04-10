@@ -103,7 +103,7 @@ def do_backfills_for_users(
         "total_dids": len(valid_dids),
         "total_batches": backfill_metadata["total_batches"],
         "did_to_backfill_counts_map": backfill_metadata["did_to_backfill_counts_map"],
-        "processed_users": backfill_metadata["processed_users"],
+        "total_processed_users": backfill_metadata["total_processed_users"],
         "total_users": backfill_metadata["total_users"],
         "user_backfill_metadata": backfill_metadata["user_backfill_metadata"],
         "event": event,

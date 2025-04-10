@@ -15,6 +15,14 @@ valid_types = [
     "repost",
 ]
 
+valid_generic_bluesky_types = [
+    "app.bsky.graph.block",
+    "app.bsky.graph.follow",
+    "app.bsky.feed.like",
+    "app.bsky.feed.repost",
+    "app.bsky.feed.post",  # both 'post' and 'reply' are of type 'app.bsky.feed.post'
+]
+
 service_name = "backfill_sync"
 base_queue_name = "output_backfill_sync"
 

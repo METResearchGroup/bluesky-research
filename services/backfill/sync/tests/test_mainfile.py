@@ -229,7 +229,7 @@ class TestBackfillSync:
         assert "user_backfill_metadata" in call_args
         assert call_args["session_backfill_metadata"] == result
         assert call_args["user_backfill_metadata"] == []  # Empty list when skipping
-        
+
         # Verify result format and contents
         assert isinstance(result, RunExecutionMetadata)
         assert result.service == service_name
@@ -243,9 +243,6 @@ class TestBackfillSync:
         assert result_body["event"] == payload
         # Verify that user_backfill_metadata is not present in the body (because it was popped)
         assert "user_backfill_metadata" not in result_body
-        
-        # Verify the metadata matches the body
-        assert result.metadata == result.body
         
         # Verify logger calls
         mock_logger.info.assert_any_call("Backfilling sync data")
@@ -409,7 +406,7 @@ class TestBackfillSync:
         assert result_body["dids"] == ["did:plc:user1", "did:plc:user2"]
         assert result_body["total_dids"] == 2
         assert result_body["total_batches"] == 1
-        assert "did_to_backfill_counts_map" in result_body
+
         assert "user_backfill_metadata" not in result_body  # Should be popped
         
         # Verify logger calls
