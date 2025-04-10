@@ -36,6 +36,15 @@ The backfill sync service operates through the following process:
 4. **main.py**: Entry point with handler functions for executing the backfill process
 5. **helper.py**: Utility functions for the backfill process
 
+## Additional Components
+
+### Determine DIDs to Backfill
+- The `determine_dids_to_backfill.py` script is responsible for identifying which DIDs need to be backfilled. It analyzes existing data to determine the DIDs of posts that were reposted, responded to, or liked, and prepares a list of DIDs that require backfilling.
+
+### Experimental Scripts
+- **Serial vs Parallel Comparison**: The `experiment_compare_serial_parallel.py` script compares the performance of serial and parallel implementations of the backfill process. It measures execution time, memory usage, and CPU utilization to determine the most efficient approach.
+- **Parallelization Experiments**: The `parallelization_experiments.py` script explores different parallelization strategies, such as threading and multiprocessing, to optimize the backfill process. It evaluates the I/O and compute-bound nature of the process and identifies the optimal number of workers for each strategy.
+
 ## Functions in Detail
 
 The code is structured in a layered, composable way:
@@ -77,19 +86,4 @@ result = run_batched_backfill(
 
 ## Testing Details
 
-Tests are located in the `tests/` directory and verify the functionality of each component:
-
-- **test_backfill.py**: Comprehensive tests for all functions in backfill.py
-  - `TestGetPlcDirectoryDoc`: Tests PLC directory document retrieval
-  - `TestIdentifyPostType`: Tests post classification (standalone vs reply)
-  - `TestIdentifyRecordType`: Tests record type identification from $type field
-  - `TestValidateRecordTimestamp`: Tests timestamp validation against time ranges
-  - `TestValidateRecordType`: Tests filtering of valid record types
-  - `TestTransformBackfilledRecord`: Tests enrichment of records with metadata
-  - `TestGetBskyRecordsForUser`: Tests fetching and parsing of user repositories
-  - `TestDoBackfillForUser`: Tests processing of a single user's records
-  - `TestAssignDefaultBackfillSynctimestamp`: Tests timestamp normalization
-  - `TestDoBackfillForUsers`: Tests batch processing with rate limiting
-  - `TestRunBatchedBackfill`: Tests orchestration of batch operations
-
-The tests use extensive mocking to avoid real API calls while verifying the logic of each function.
+Tests are located in the `tests/` directory.

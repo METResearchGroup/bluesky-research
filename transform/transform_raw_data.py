@@ -641,6 +641,6 @@ def get_author_did_from_post_uri(post_uri: str) -> str:
     """
     did = post_uri.split("/")[2]
     assert did.startswith(
-        "did:plc:"
+        "did:"  # two common ones are did:plc and did:web.
     ), f"Invalid post URI, can't extract author DID: {post_uri}"
     return did
