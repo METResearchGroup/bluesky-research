@@ -72,7 +72,7 @@ def plot_firehose_label_baseline_time_series(
             plt.plot(
                 smoothed_dates,
                 smoothed[:, 1],
-                label="Smoothed",
+                label="Firehose baseline proportion",
                 color="blue",
                 linewidth=2.5,
             )
@@ -88,8 +88,7 @@ def plot_firehose_label_baseline_time_series(
         plt.tight_layout()
 
         # Save the plot
-        timestamp = generate_current_datetime_str()
-        output_filename = f"firehose_label_baselines_{timestamp}.png"
+        output_filename = f"{metric}.png"
         output_path = os.path.join(output_dir, output_filename)
         plt.savefig(output_path)
         plt.close()
@@ -112,7 +111,7 @@ def main():
         "study_analytics",
         "generate_reports",
         "baselines",
-        "firehose_label_baseline_proportions_per_day_2025-03-21-00:55:19.csv",
+        "firehose_label_baseline_proportions_per_day_2025-04-10-06:48:48.csv",
     )
 
     output_dir = os.path.join(
