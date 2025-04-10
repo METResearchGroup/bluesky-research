@@ -8,8 +8,8 @@
 #SBATCH --mem=25G
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
-#SBATCH --job-name=firehose_baseline_averages_%j
-#SBATCH --output=/projects/p32375/bluesky-research/lib/log/study_analytics/firehose_baseline_averages_per_day-%j.log
+#SBATCH --job-name=firehose_label_baseline_averages_%j
+#SBATCH --output=/projects/p32375/bluesky-research/lib/log/study_analytics/firehose_label_baseline_averages_per_day-%j.log
 
 # load conda env
 CONDA_PATH="/hpc/software/mamba/23.1.0/etc/profile.d/conda.sh"
@@ -18,13 +18,13 @@ CONDA_PATH="/hpc/software/mamba/23.1.0/etc/profile.d/conda.sh"
 PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 
 # Build python command
-PYTHON_CMD="/projects/p32375/bluesky-research/services/calculate_analytics/study_analytics/generate_reports/firehose_baseline_averages_per_day.py"
+PYTHON_CMD="/projects/p32375/bluesky-research/services/calculate_analytics/study_analytics/generate_reports/baselines/firehose_label_baseline_averages_per_day.py"
 
 echo "Running python command: $PYTHON_CMD"
 
-# Run the firehose baseline averages analysis
+# Run the firehose label baseline averages analysis
 source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
-echo "Starting slurm job for firehose baseline averages analysis"
+echo "Starting slurm job for firehose label baseline averages analysis"
 python $PYTHON_CMD
 exit_code=$?
 echo "Python script exited with code $exit_code"
