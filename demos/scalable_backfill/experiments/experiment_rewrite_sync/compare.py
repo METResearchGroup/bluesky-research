@@ -157,22 +157,30 @@ def setup_argument_parser() -> argparse.ArgumentParser:
 
 def load_dids_from_file(filename: str, sample_count: int = 0) -> List[str]:
     """Load DIDs from a file.
-    
+
+    If the file is JSON (ends with .json), it will load the "dids" key.
+    Otherwise, it loads the file line by line.
+
     Args:
-        filename: Path to file containing DIDs (one per line)
+        filename: Path to file containing DIDs or JSON with key "dids"
         sample_count: Number of DIDs to sample (0 for all)
-        
+
     Returns:
         List of DIDs
     """
-    with open(filename, 'r') as f:
-        dids = [line.strip() for line in f.readlines() if line.strip()]
-    
+    if filename.endswith('.json'):
+        with open(filename, 'r') as f:
+            data = json.load(f)
+            dids = data.get("dids", [])
+    else:
+        with open(filename, 'r') as f:
+            dids = [line.strip() for line in f.readlines() if line.strip()]
+
     # Sample if requested
     if sample_count > 0 and sample_count < len(dids):
         np.random.seed(42)  # For reproducibility
         dids = np.random.choice(dids, sample_count, replace=False).tolist()
-        
+
     return dids
 
 
@@ -212,7 +220,7 @@ def measure_python_implementation(dids: List[str],
     event = {
         "mode": "backfill",
         "dids": dids,
-        "skip_backfill": True,  # Don't actually write to DB for benchmarking
+        "skip_write_to_db": True,  # Don't actually write to DB for benchmarking
         "concurrency": concurrency,
         "batch_size": batch_size,
     }
