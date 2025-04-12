@@ -1,0 +1,33 @@
+flowchart TD
+    A[Split records into batches] --> B[Kick off workers<br/>(for initial batches and retries)]
+    B --> C[Worker 1 ... Worker n]
+    C --> D[task_1.sqlite<br/>task_n.sqlite]
+    D --> E[job-{job_id}.parquet]
+
+    A --> F[Write read-only copy of batches]
+    F --> G[S3]
+    F --> H[DynamoDB]
+
+    subgraph Coordinator
+        A
+        F
+        I[Update batches]
+        J[Update job status]
+    end
+
+    subgraph Workers
+        C
+        K[Write data to /scratch<br/>job-{job_id}/task-{task_id}]
+    end
+
+    subgraph Aggregator
+        E
+        L[Logging]
+        M[Monitoring]
+        N[Observability]
+    end
+
+    C --> K
+    J --> H
+    I --> H
+    C --> H[Rate limit tokens]
