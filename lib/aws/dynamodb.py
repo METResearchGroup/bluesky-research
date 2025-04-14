@@ -2,7 +2,6 @@
 
 from typing import Optional
 
-import boto3
 from boto3.dynamodb.types import TypeSerializer
 
 from lib.aws.helper import create_client, retry_on_aws_rate_limit
@@ -15,7 +14,6 @@ class DynamoDB:
 
     def __init__(self):
         self.client = create_client("dynamodb")
-        self.resource = boto3.resource("dynamodb")
 
     def __getattr__(self, name):
         """Delegate attribute access to the DynamoDB client."""
@@ -47,6 +45,28 @@ class DynamoDB:
             raise e
 
     @retry_on_aws_rate_limit
+    def update_item_in_table(
+        self, key: dict, fields_to_update: dict, table_name: str
+    ) -> None:
+        """Updates an item in a table.
+
+        Requires 'fields_to_update' to be a dictionary of the form:
+        {
+            "field_name": "value"
+        }
+
+        First reads the item from the table, updates the fields, and then
+        writes the item back to the table. Done this way to verify that the
+        item exists.
+        """
+        item = self.get_item_from_table(key, table_name)
+        if item is None:
+            raise ValueError(f"Item with key {key} not found in table {table_name}")
+        for field, value in fields_to_update.items():
+            item[field] = value
+        self.insert_item_into_table(item, table_name)
+
+    @retry_on_aws_rate_limit
     def get_item_from_table(self, key: dict, table_name: str) -> Optional[dict]:  # noqa
         """Gets an item from a table. If item doesn't exist, return None."""
         try:
@@ -55,6 +75,14 @@ class DynamoDB:
         except Exception as e:
             print(f"Failure in getting item from DynamoDB: {e}")
             raise e
+
+    def verify_item_exists(self, key: dict, table_name: str) -> bool:
+        """Verifies if an item exists in a table."""
+        try:
+            self.get_item_from_table(key, table_name)
+            return True
+        except Exception:
+            return False
 
     @retry_on_aws_rate_limit
     def get_all_items_from_table(self, table_name: str) -> list[dict]:

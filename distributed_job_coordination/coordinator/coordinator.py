@@ -31,6 +31,8 @@ from lib.log.logger import get_logger
 
 logger = get_logger(__name__)
 s3_utils = S3Utils()
+job_state_store = JobStateStore()
+task_state_store = TaskStateStore()
 
 
 class Coordinator:
@@ -80,11 +82,10 @@ class Coordinator:
 
         # Initialize job state
         self.job_state = self._initialize_job_state()
-        self._persist_job_state()
 
         # Execute the coordinator workflow
         self.load_records_into_batches()
-        self.update_states_to_aws("start")
+        self.update_states("start")
 
         self.write_batches()
         map_batch_id_to_slurm_id = self.start_downstream_workers()
@@ -92,7 +93,7 @@ class Coordinator:
             map_batch_id_to_slurm_id=map_batch_id_to_slurm_id
         )
         self.write_manifests()
-        self.update_states_to_aws("running")
+        self.update_states("update")
 
         # Start monitoring in background thread
         self._start_monitoring()
@@ -285,20 +286,32 @@ class Coordinator:
         ]
         return task_manifests
 
-    def update_states_to_aws(self, status: str) -> None:
-        job_state = JobStateStore()
-        task_state = TaskStateStore()
-        print(f"Job state store: {job_state}")
-        print(f"Task state store: {task_state}")
-
+    def update_states(self, status: str) -> None:
+        """Updates the job and task states in DynamoDB."""
         if status == "start":
-            pass
+            logger.info(
+                f"Inserting into DynamoDB the job state and task states for job {self.job_id}"
+            )
+            job_state_store.insert_job_state(self.job_state)
+            for task in self.task_states:
+                task_state_store.insert_task_state(task)
+            logger.info(
+                f"Finished inserting into DynamoDB the job state and task states for job {self.job_id}"
+            )
 
-        elif status == "running":
-            pass
+        elif status == "update":
+            logger.info(
+                f"Updating the job state and task states in DynamoDB for job {self.job_id}"
+            )
+            job_state_store.update_job_state(self.job_state)
+            for task in self.task_states:
+                task_state_store.update_task_state(task)
+            logger.info(
+                f"Finished updating the job state and task states in DynamoDB for job {self.job_id}"
+            )
 
         else:
-            # TODO: I know this'll get flagged. This is intentional. I've
+            # NOTE: I know this'll get flagged. This is intentional. I've
             # not thought of how to refactor this function correctly yet.
             raise ValueError(f"Invalid status: {status}")
 
