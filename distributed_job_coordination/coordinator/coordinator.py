@@ -165,7 +165,9 @@ class Coordinator:
         the correct worker IDs.
         """
         logger.info(f"Starting downstream workers for job {self.job_id}")
-        map_batch_id_to_slurm_id: dict = self.dispatch.submit_batch_to_slurm()
+        map_batch_id_to_slurm_id: dict = self.dispatch.submit_batch_to_slurm(
+            compute_config=self.config.compute, task_states=self.task_states
+        )
         return map_batch_id_to_slurm_id
 
     def update_job_and_task_states_after_kickoff(
