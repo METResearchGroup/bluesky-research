@@ -5,7 +5,8 @@ Manages I/O to/from local scratch directory.
 
 import os
 
-from distributed_job_coordination.coordinator.constants import (
+from distributed_job_coordination.aggregator.constants import aggregation_dir
+from distributed_job_coordination.lib.constants import (
     root_job_export_key,
     root_scratch_dir,
 )
@@ -99,3 +100,11 @@ class StorageManager:
         )
         items = queue.load_dict_items_from_queue()
         return items
+
+    def get_scratch_path_for_aggregation(self, job_name: str, job_id: str) -> str:
+        """Returns the scratch path for aggregation."""
+        return os.path.join(
+            self.root_scratch_dir,
+            root_job_export_key.format(job_name=job_name, job_id=job_id),
+            aggregation_dir,
+        )

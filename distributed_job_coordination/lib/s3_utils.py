@@ -8,7 +8,7 @@ including storing and retrieving job manifests, task configs, and results.
 import os
 from typing import Any
 
-from distributed_job_coordination.coordinator.constants import root_job_export_key
+from distributed_job_coordination.lib.constants import root_job_export_key
 from lib.aws.s3 import S3
 from lib.log.logger import get_logger
 

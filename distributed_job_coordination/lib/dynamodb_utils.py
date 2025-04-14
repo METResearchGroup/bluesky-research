@@ -52,6 +52,12 @@ class JobStateStore:
         self.dynamodb.update_item_in_table(key, fields_to_update, self.table_name)
         logger.info(f"Finished updating job state for job {job_id}")
 
+    def load_job_state(self, job_id: str) -> JobState:
+        """Load a job state from the store."""
+        key = {"job_id": {"S": job_id}}
+        job_state_dict = self.dynamodb.get_item_from_table(key, self.table_name)
+        return JobState(**job_state_dict)
+
 
 class TaskStateStore:
     def __init__(self):
@@ -105,3 +111,15 @@ class TaskStateStore:
         key = {"task_id": {"S": task_id}}
         task_state_dict = self.dynamodb.get_item_from_table(key, self.table_name)
         return TaskState(**task_state_dict)
+
+    def load_task_states_for_job(self, job_id: str) -> list[TaskState]:
+        """Load all task states for a job."""
+        # TODO: check if I can do this filtering directly in DynamoDB.
+        # I know that I couldn't figure this out before when fetching multiple
+        # items so I just generally load all the items and then filter locally.
+        task_states = self.dynamodb.get_all_items_from_table(self.table_name)
+        return [
+            TaskState(**task_state)
+            for task_state in task_states
+            if task_state["job_id"] == job_id
+        ]
