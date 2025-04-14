@@ -34,7 +34,6 @@ logger = get_logger(__name__)
 s3_utils = S3Utils()
 job_state_store = JobStateStore()
 task_state_store = TaskStateStore()
-storage_manager = StorageManager()
 
 
 class Coordinator:
@@ -64,6 +63,7 @@ class Coordinator:
         self.monitoring_active = False
         self._executor = None
         self.dispatch = Dispatch()
+        self.storage_manager = None
 
     def start_job(self) -> str:
         """
@@ -150,9 +150,11 @@ class Coordinator:
     def write_batches(self) -> None:
         """Write batch records to storage."""
         logger.info(f"Writing batch data for job {self.job_id}")
-        storage_manager.export_batches_to_scratch(
-            job_name=self.config.name,
+        self.storage_manager = StorageManager(
             job_id=self.job_id,
+            job_name=self.config.name,
+        )
+        self.storage_manager.export_batches_to_scratch(
             task_states=self.task_states,
             batches=self.batches,
             filename_prefix="insert_batch",

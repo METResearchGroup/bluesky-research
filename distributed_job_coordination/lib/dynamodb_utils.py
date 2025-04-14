@@ -96,3 +96,12 @@ class TaskStateStore:
         )
         self.dynamodb.update_item_in_table(key, fields_to_update, self.table_name)
         logger.info(f"Finished updating task state for task {task_id}")
+
+    def load_task_state(self, task_id: str) -> TaskState:
+        """Load a task state from the store.
+
+        Task states are unique across jobs (they include the job ID within them).
+        """
+        key = {"task_id": {"S": task_id}}
+        task_state_dict = self.dynamodb.get_item_from_table(key, self.table_name)
+        return TaskState(**task_state_dict)

@@ -5,11 +5,15 @@ Triggered by a Slurm script run by the dispatch component.
 
 import argparse
 import importlib
+from typing import Optional
 
-from distributed_job_coordination.lib.job_state import TaskState
+from distributed_job_coordination.coordinator.storage import StorageManager
+from distributed_job_coordination.lib.job_state import TaskState, TaskStatus
+from distributed_job_coordination.lib.dynamodb_utils import TaskStateStore
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)
+task_state_store = TaskStateStore()
 
 
 class TaskWorker:
@@ -20,39 +24,57 @@ class TaskWorker:
     """
 
     def __init__(self, task_state: TaskState):
-        pass
+        self.task_state = task_state
+        self.task_items = self.load_task_data()
+        self.storage_manager = StorageManager(
+            job_id=self.task_state.job_id,
+            job_name=self.task_state.job_name,
+        )
 
-    # TODO: load from scratch path SQLite queue.
     def load_task_data(self) -> list[dict]:
         """Load in the data for the task."""
-        pass
+        items = self.storage_manager.load_batch_from_scratch(
+            task_id=self.task_state.id,
+            filename_prefix="insert_batch",
+        )
+        logger.info(
+            f"Loaded {len(items)} items for task {self.task_state.id} from input scratch queue."
+        )
+        return items
 
-    # TODO: should probably load data here and then pass it to the handlers
-    # themselves, instead of having handlers load in the data themselves.
     def run(self):
         handler = importlib.import_module(self.task_state.handler)
         try:
-            handler.handler(self.task_state)
-        except Exception:
-            pass
-        pass
+            # TODO: get the actual args that the handler needs (probably
+            # could import from configuration). Pending actually designing
+            # the handler API.
+            event = {
+                "items": self.task_items,
+                "task_state": self.task_state.model_dump(),
+            }
+            handler.handler(event)
+            self.update_task_state(status=TaskStatus.COMPLETED)
+        except Exception as e:
+            logger.error(f"Error running task {self.task_state.id}: {e}")
+            self.update_task_state(status=TaskStatus.FAILED, error=str(e))
+            raise e
 
-    def stop(self):
-        pass
+    def update_task_state(self, status: TaskStatus, error: Optional[str] = None):
+        """Updates the state of the task."""
+        fields_to_update = {"status": status.value}
+        if error:
+            fields_to_update["error"] = error
+        task_state_store.update_task_state(self.task_state.id, fields_to_update)
+        logger.info(
+            f"Updated task state for task {self.task_state.id} to {status.value}."
+        )
 
-    def _handle_shutdown_signal(self, signum, frame):
-        pass
 
-
-# NOTE: maybe dispatch can kick off the slurm script, and the slurm script
-# can run kickoff_task_worker with the CLI args.
-# NOTE: I can't kick this off with a bash script, since the args will change
-# e.g. partition, number of nodes, etc., based on configuration, so the dispatch
-# needs to generate that slurm script and then run it.
-def kickoff_task_worker(job_name: str, job_id: str, task_id: str):
-    # TODO: load task state from DynamoDB
-    # TODO run task worker.
-    pass
+def kickoff_task_worker(task_id: str):
+    """Kicks off a task worker. Loads the task state and runs the task."""
+    task_state = task_state_store.load_task_state(task_id=task_id)
+    task_worker = TaskWorker(task_state=task_state)
+    task_worker.run()
 
 
 if __name__ == "__main__":
