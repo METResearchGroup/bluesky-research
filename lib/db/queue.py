@@ -92,21 +92,37 @@ class QueueItem(BaseModel):
 
 
 class Queue:
-    def __init__(self, queue_name: str, create_new_queue: bool = False):
+    def __init__(
+        self,
+        queue_name: str,
+        create_new_queue: bool = False,
+        temp_queue: bool = False,
+        temp_queue_path: str = None,
+    ):
         """Initialize a Queue instance.
 
         Args:
             queue_name: Name of the queue
             create_new_queue: If True, creates a new queue if it doesn't exist
+            temp_queue: If True, the queue is meant to be a temporary queue so
+            we don't validate the DB path or name.
+            temp_queue_path: If provided, the queue is meant to be a temporary
+            queue so we don't validate the DB path or name.
         """
         # Special handling for test queues
         if queue_name.startswith("test_"):
+            self.queue_name = queue_name
+        elif temp_queue:
             self.queue_name = queue_name
         else:
             self.queue_name = NAME_TO_QUEUE_NAME_MAP[queue_name]
 
         self.queue_table_name = "queue"
-        self.db_path = os.path.join(root_db_path, f"{queue_name}.db")
+
+        if temp_queue and temp_queue_path:
+            self.db_path = temp_queue_path
+        else:
+            self.db_path = os.path.join(root_db_path, f"{queue_name}.db")
 
         if os.path.exists(self.db_path) and create_new_queue:
             logger.info(

@@ -10,6 +10,7 @@ for all aspects of the job lifecycle.
 from concurrent.futures import ThreadPoolExecutor
 import json
 
+from distributed_job_coordination.coordinator.storage import StorageManager
 from distributed_job_coordination.lib.dynamodb_utils import (
     JobStateStore,
     TaskStateStore,
@@ -33,6 +34,7 @@ logger = get_logger(__name__)
 s3_utils = S3Utils()
 job_state_store = JobStateStore()
 task_state_store = TaskStateStore()
+storage_manager = StorageManager()
 
 
 class Coordinator:
@@ -146,64 +148,16 @@ class Coordinator:
         logger.info(f"Created {len(self.batches)} batches for job {self.job_id}")
 
     def write_batches(self) -> None:
-        """
-        Write batch records to storage.
-
-        This step writes:
-        1. Read-only copy of batches to S3
-        2. Write-friendly batch data to DynamoDB
-        """
+        """Write batch records to storage."""
         logger.info(f"Writing batch data for job {self.job_id}")
-
-        # Write to S3 (read-only copies)
-        self._write_readonly_copies_to_s3()
-
-        # Write to DynamoDB (write-friendly batches)
-        self._write_batches_to_dynamodb()
-
+        storage_manager.export_batches_to_scratch(
+            job_name=self.config.name,
+            job_id=self.job_id,
+            task_states=self.task_states,
+            batches=self.batches,
+            filename_prefix="insert_batch",
+        )
         logger.info(f"Batch data written for job {self.job_id}")
-
-    def _write_readonly_copies_to_s3(self) -> None:
-        """Write read-only copies of batches to S3."""
-        logger.info(f"Writing read-only batch copies to S3 for job {self.job_id}")
-
-        # Get storage path from input configuration
-        input_type = self.config.input.type
-        print(f"Input type: {input_type}")
-
-        # TODO: put in s3_utils.py
-        # Example implementation - replace with actual S3 code
-        # s3 = boto3.client('s3')
-        # for batch in self.batches:
-        #     s3.put_object(
-        #         Bucket=bucket_name,
-        #         Key=f"{self.job_id}/batches/{batch.batch_id}.json",
-        #         Body=json.dumps(batch.data)
-        #     )
-
-        # For now, just log
-        logger.info(f"Read-only copies written to S3 for {len(self.batches)} batches")
-
-    def _write_batches_to_dynamodb(self) -> None:
-        """Write write-friendly batch data to DynamoDB."""
-        logger.info(f"Writing batch data to DynamoDB for job {self.job_id}")
-
-        # Example implementation - replace with actual DynamoDB code
-        # dynamodb = boto3.resource('dynamodb')
-        # table = dynamodb.Table('JobBatches')
-        # with table.batch_writer() as batch:
-        #     for batch_state in self.batches:
-        #         batch.put_item(Item=batch_state.dict())
-
-        # Write task states to DynamoDB
-        # table = dynamodb.Table('TaskStates')
-        # with table.batch_writer() as batch:
-        #     for task in self.task_states:
-        #         batch.put_item(Item=task.dict())
-
-        # TODO: put in dynamo_utils.py
-        # For now, just log
-        logger.info(f"Batch data written to DynamoDB for {len(self.batches)} batches")
 
     def start_downstream_workers(self) -> dict:
         """
