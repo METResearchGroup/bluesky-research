@@ -8,6 +8,7 @@ for all aspects of the job lifecycle.
 """
 
 from concurrent.futures import ThreadPoolExecutor
+import json
 
 from distributed_job_coordination.lib.dynamodb_utils import (
     JobStateStore,
@@ -23,10 +24,13 @@ from distributed_job_coordination.lib.job_state import (
 from distributed_job_coordination.coordinator.dataloader import DataLoader
 from distributed_job_coordination.coordinator.dispatch import Dispatch
 from distributed_job_coordination.coordinator.monitor import JobMonitor
+from distributed_job_coordination.lib.manifest import ManifestWriter
+from distributed_job_coordination.lib.s3_utils import S3Utils
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)
+s3_utils = S3Utils()
 
 
 class Coordinator:
@@ -118,8 +122,12 @@ class Coordinator:
 
             task_state = TaskState(
                 id=task_id,
+                job_name=self.config.name,
+                job_id=self.job_id,
                 status=TaskStatus.PENDING,
                 batch_id=batch_id,
+                task_group="initial_batch",
+                role="worker",
                 worker_id=None,
                 started_at=None,
                 completed_at=None,
@@ -216,25 +224,66 @@ class Coordinator:
             task.status = TaskStatus.RUNNING
             task.started_at = current_timestamp
 
-        # TOOD: update job state.
         self.job_state.status = JobStatus.RUNNING
         self.job_state.started_at = current_timestamp
+        logger.info(
+            f"Job state updated to {self.job_state.status} for job {self.job_id}. Task states also updated to {self.task_states[0].status}."
+        )
 
     def write_manifests(self) -> None:
+        """Write job/task manifests to S3."""
         logger.info(f"Writing manifests for job {self.job_id}")
-        self._write_job_manifest()
-        self._write_task_manifests()
-        logger.info(f"Manifests written for job {self.job_id}")
+        job_manifest: dict = self._generate_job_manifest()
+        task_manifests: list[dict] = self._generate_task_manifests()
+        manifests_by_type = {
+            "job": [job_manifest],
+            "task": task_manifests,
+        }
+        manifest_writer = ManifestWriter(manifests_by_type=manifests_by_type)
+        manifest_writer.write_manifests()
+        logger.info(f"Manifests written and exported for job {self.job_id}")
 
-    def _write_job_manifest(self) -> None:
-        pass
+    def _generate_job_manifest(self) -> None:
+        config_key: str = s3_utils.get_job_config_key(
+            job_name=self.config.name, job_id=self.job_id
+        )
+        job_manifest: dict = {
+            "job_id": self.job_id,
+            "job_name": self.config.name,
+            "handler": self.config.handler,
+            "git_commit": self.config.git_commit,
+            "config_file": config_key,
+            "input_file": self.config.input.path,
+            "max_partitions": self.config.input.max_partitions,
+            "batch_size": self.config.input.batch_size,
+            "task_count": len(self.task_states),
+            "submitted_at": self.job_state.created_at,
+            "submitted_by": self.config.contact_email,
+            "status": self.job_state.status,
+        }
+        return job_manifest
 
-    def _write_task_manifest(self, task_state: TaskState) -> None:
-        pass
+    def _generate_task_manifest(self, task_state: TaskState) -> None:
+        task_manifest: dict = {
+            "task_id": task_state.id,
+            "job_name": self.config.name,
+            "job_id": self.job_id,
+            "batch_id": task_state.batch_id,
+            "role": task_state.role,
+            "worker_id": task_state.worker_id,
+            "started_at": task_state.started_at,
+            "completed_at": task_state.completed_at,
+            "error": task_state.error,
+            "attempt": task_state.attempt,
+            "metadata": task_state.metadata,
+        }
+        return task_manifest
 
-    def _write_task_manifests(self) -> None:
-        for task_state in self.task_states:
-            self._write_task_manifest(task_state)
+    def _generate_task_manifests(self) -> None:
+        task_manifests: list[dict] = [
+            self._generate_task_manifest(task_state) for task_state in self.task_states
+        ]
+        return task_manifests
 
     def update_states_to_aws(self, status: str) -> None:
         job_state = JobStateStore()
@@ -276,7 +325,7 @@ class Coordinator:
             failed_worker_tasks=0,
             batch_ids=None,
             task_ids=None,
-            metadata={},
+            metadata=json.dumps({}),
         )
 
     def _start_monitoring(self) -> None:

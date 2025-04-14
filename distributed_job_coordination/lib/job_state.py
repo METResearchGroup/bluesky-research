@@ -41,8 +41,14 @@ class TaskState(BaseModel):
 
     Attributes:
         id: Unique identifier for the task within the job
+        job_name: Name of the job this task belongs to
+        job_id: Unique identifier for the job that this task belongs to
         status: Current status of the task
         batch_id: Identifier for the batch this task belongs to
+        task_group: Identifier for the task group this task belongs to
+        role: Identifier for the role of the task
+            - Either "worker" or "system". "Worker" tasks perform the computation,
+            while "system" tasks manage things like coordination and aggregation.
         worker_id: Identifier for the worker processing this task (if assigned)
             Will be assigned by looking at the Slurm ID of the given task.
         started_at: When the task started processing
@@ -53,14 +59,18 @@ class TaskState(BaseModel):
     """
 
     id: str
+    job_name: str
+    job_id: str
     status: TaskStatus = TaskStatus.PENDING
     batch_id: str
+    task_group: str
+    role: str
     worker_id: Optional[str] = None
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
     error: Optional[str] = None
     attempt: int = 0
-    metadata: Dict[str, Union[str, int, float, bool]] = Field(default_factory=dict)
+    metadata: str
 
     def mark_running(self, worker_id: str) -> None:
         """Mark the task as running."""
