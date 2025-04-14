@@ -14,7 +14,9 @@ from distributed_job_coordination.lib.dynamodb_utils import (
     JobStateStore,
     TaskStateStore,
 )
+from distributed_job_coordination.lib.job_config import JobConfig
 from distributed_job_coordination.lib.job_state import TaskState
+from distributed_job_coordination.lib.s3_utils import S3Utils
 from lib.helper import create_batches
 from lib.log.logger import get_logger
 
@@ -24,23 +26,24 @@ aggregation_scratch_path = os.path.join(
 )
 
 logger = get_logger(__name__)
+s3_utils = S3Utils()
 
 
 class Aggregator:
     def __init__(self, job_id: str):
         self.job_id = job_id
-
-        # TODO: load job state
         self.job_state_store = JobStateStore()
         self.job_state = self.job_state_store.load_job_state(self.job_id)
         self.job_name = self.job_state.name
 
-        # TODO: load job config. This'll have the location where the output
-        # should be stored, for example. By default, I'll write these as
-        # optimized parquet files.
-        # Fields include: partition_key, output_location, output_format (default parquet),
-        # TODO: add to config.
-        # TODO: load task states
+        self.job_config: JobConfig = s3_utils.download_job_config(
+            job_name=self.job_name,
+            job_id=self.job_id,
+        )
+        self.output_format = self.job_config.output.format
+        self.output_compression = self.job_config.output.compression
+        self.output_location = self.job_config.output.output_location
+        self.output_partition_keys = self.job_config.output.partition_keys
 
         self.task_state_store = TaskStateStore()
         self.task_states = self.task_state_store.load_task_states_for_job(self.job_id)

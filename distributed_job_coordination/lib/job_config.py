@@ -92,6 +92,12 @@ class OutputConfig(BaseModel):
     format: str = Field(default="parquet", description="Output format")
     compression: str = Field(default="snappy", description="Compression algorithm")
     write_mode: str = Field(default="overwrite", description="Write mode")
+    output_location: str = Field(
+        description="Output location. Must be a root directory in which files are to be written."
+    )
+    partition_keys: list[str] = Field(
+        description="Keys to partition on, in order of partitioning."
+    )
 
     @validator("write_mode")
     def validate_write_mode(cls, v):

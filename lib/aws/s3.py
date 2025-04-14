@@ -7,6 +7,7 @@ import os
 import threading
 import time
 from typing import Literal, Optional
+import yaml
 
 import botocore
 import pandas as pd
@@ -69,6 +70,14 @@ class S3:
                 key = f"{key}.gz"
             json_body_bytes = gzip.compress(json_body_bytes)
         self.write_to_s3(blob=json_body_bytes, bucket=bucket, key=key)
+
+    def write_yaml_to_s3(self, data: dict, key: str, bucket: str = ROOT_BUCKET) -> None:
+        """Writes dictionary as YAML to S3."""
+        if not key.endswith(".yaml"):
+            key = f"{key}.yaml"
+        yaml_body = yaml.dump(data)
+        yaml_body_bytes = bytes(yaml_body, "utf-8")
+        self.write_to_s3(blob=yaml_body_bytes, bucket=bucket, key=key)
 
     def write_dicts_jsonl_to_s3(
         self, data: list[dict], key: str, bucket: str = ROOT_BUCKET
@@ -178,6 +187,13 @@ class S3:
         else:
             jsons = blob.decode("utf-8").split("\n")
         return [json.loads(j) for j in jsons if j]
+
+    def read_yaml_from_s3(self, key: str, bucket: str = ROOT_BUCKET) -> Optional[dict]:
+        """Reads YAML from S3."""
+        blob = self.read_from_s3(bucket=bucket, key=key)
+        if not blob:
+            return None
+        return yaml.safe_load(blob)
 
     def list_keys(self):
         """Lists keys in S3."""

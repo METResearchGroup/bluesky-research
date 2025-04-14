@@ -9,6 +9,7 @@ import os
 from typing import Any
 
 from distributed_job_coordination.lib.constants import root_job_export_key
+from distributed_job_coordination.lib.job_config import JobConfig
 from lib.aws.s3 import S3
 from lib.log.logger import get_logger
 
@@ -83,33 +84,28 @@ class S3Utils:
             logger.error(f"Error downloading task manifest from {s3_key}: {e}")
             raise e
 
-    def upload_job_config(
-        self, job_name: str, job_id: str, config: dict[str, Any]
-    ) -> None:
+    def upload_job_config(self, job_name: str, job_id: str, config: JobConfig) -> None:
         """Upload a job config to S3."""
-        s3_key = os.path.join(
-            root_job_export_key.format(job_name=job_name, job_id=job_id),
-            "config.json",
-        )
-        self.s3.write_dict_json_to_s3(config, s3_key)
+        s3_key = self.get_job_config_key(job_name, job_id)
+        self.s3.write_yaml_to_s3(config.model_dump(), s3_key)
         logger.info(f"Uploaded job config to {s3_key}")
 
     def get_job_config_key(self, job_name: str, job_id: str) -> str:
         """Get the S3 key for a job config."""
         return os.path.join(
             root_job_export_key.format(job_name=job_name, job_id=job_id),
-            "config.json",
+            "config.yaml",
         )
 
-    def download_job_config(self, job_name: str, job_id: str) -> dict[str, Any]:
+    def download_job_config(self, job_name: str, job_id: str) -> JobConfig:
         """Download a job config from S3."""
         s3_key = self.get_job_config_key(job_name, job_id)
         try:
-            result = self.s3.read_json_from_s3(s3_key)
+            result: dict = self.s3.read_yaml_from_s3(s3_key)
             if not result:
                 raise ValueError(
                     f"No config found for job name {job_name} and job id {job_id}."
                 )
-            return result
+            return JobConfig(**result)
         except Exception as e:
             logger.error(f"Error downloading job config from {s3_key}: {e}")
