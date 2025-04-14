@@ -5,6 +5,8 @@ Manages I/O to/from local scratch directory.
 
 import os
 
+import pandas as pd
+
 from distributed_job_coordination.aggregator.constants import aggregation_dir
 from distributed_job_coordination.lib.constants import (
     root_job_export_key,
@@ -101,6 +103,33 @@ class StorageManager:
         items = queue.load_dict_items_from_queue()
         return items
 
+    def return_temp_task_output_queue(
+        self,
+        task_id: str,
+        task_output_queue_prefix: str,
+        create_new_queue: bool = True,
+    ) -> Queue:
+        """Creates a temporary task output queue."""
+        queue_name = f"{task_output_queue_prefix}_{task_id}"
+        return Queue(
+            queue_name=queue_name,
+            create_new_queue=create_new_queue,
+            temp_queue=True,
+            temp_queue_path=self.job_scratch_path,
+        )
+
+    def load_task_results_from_scratch(
+        self, task_id: str, task_output_queue_prefix: str
+    ) -> list[dict]:
+        """Loads task results from scratch."""
+        queue = self.return_temp_task_output_queue(
+            task_id=task_id,
+            task_output_queue_prefix=task_output_queue_prefix,
+            create_new_queue=False,
+        )
+        items = queue.load_dict_items_from_queue()
+        return items
+
     def get_scratch_path_for_aggregation(self, job_name: str, job_id: str) -> str:
         """Returns the scratch path for aggregation."""
         return os.path.join(
@@ -108,3 +137,15 @@ class StorageManager:
             root_job_export_key.format(job_name=job_name, job_id=job_id),
             aggregation_dir,
         )
+
+    def write_aggregation_results_to_scratch(
+        self,
+        results: pd.DataFrame,
+        results_prefix: str,
+    ) -> str:
+        """Writes the aggregation results to scratch."""
+        scratch_path = self.get_scratch_path_for_aggregation(self.job_name, self.job_id)
+        self.create_directory(scratch_path)
+        output_path = os.path.join(scratch_path, results_prefix)
+        results.to_parquet(output_path, index=False)
+        return output_path

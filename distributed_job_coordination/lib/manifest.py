@@ -49,6 +49,17 @@ class TaskManifest(BaseModel):
     metadata: str
 
 
+class AggregationManifest(BaseModel):
+    job_id: str
+    job_name: str
+    output_service_name: str
+    output_format: str
+    output_compression: str
+    output_partition_keys: list[str]
+    completed_at: str
+    metadata: str
+
+
 class ManifestWriter:
     """Class for writing manifests to S3."""
 
@@ -79,3 +90,6 @@ class ManifestWriter:
 
     def _generate_task_manifest(self, manifest: dict) -> dict:
         return TaskManifest(**manifest).model_dump()
+
+    def _generate_aggregation_manifest(self, manifest: dict) -> dict:
+        return AggregationManifest(**manifest).model_dump()

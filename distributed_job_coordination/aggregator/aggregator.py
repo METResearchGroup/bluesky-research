@@ -1,6 +1,9 @@
 """Aggregates the results of a job across the various tasks."""
 
+import gc
+import json
 import os
+import shutil
 
 import pandas as pd
 
@@ -16,8 +19,10 @@ from distributed_job_coordination.lib.dynamodb_utils import (
 )
 from distributed_job_coordination.lib.job_config import JobConfig
 from distributed_job_coordination.lib.job_state import TaskState
+from distributed_job_coordination.lib.manifest import ManifestWriter
 from distributed_job_coordination.lib.s3_utils import S3Utils
-from lib.helper import create_batches
+from lib.db.manage_local_data import export_data_to_local_storage
+from lib.helper import create_batches, generate_current_datetime_str
 from lib.log.logger import get_logger
 
 aggregation_scratch_path = os.path.join(
@@ -44,6 +49,18 @@ class Aggregator:
         self.output_compression = self.job_config.output.compression
         self.output_location = self.job_config.output.output_location
         self.output_partition_keys = self.job_config.output.partition_keys
+        self.output_service_name = self.job_config.output.output_service_name
+        self.task_output_queue_prefix = self.job_config.output.task_output_queue_prefix
+
+        if self.output_service_name:
+            logger.info(
+                f"""
+                    Service {self.output_service_name} is being used for output.
+                    The aggregator will write to the service's configuration as
+                    defined in `service_constants.py` and ignore this config's
+                    `output_location` and `partition_keys`.
+                """,
+            )
 
         self.task_state_store = TaskStateStore()
         self.task_states = self.task_state_store.load_task_states_for_job(self.job_id)
@@ -63,25 +80,31 @@ class Aggregator:
 
     def load_task_output(self, task_id: str) -> list[dict]:
         """Loads the output for a task."""
-        # TODO: need a new method, something like "load_task_results_from_scratch"
-        # that has the "results.parquet" file.
-        return self.storage_manager.load_batch_from_scratch(
+        return self.storage_manager.load_task_results_from_scratch(
             task_id=task_id,
-            filename_prefix=self.job_name,
+            task_output_queue_prefix=self.task_output_queue_prefix,
         )
 
     def validate_task_outputs(self, task_outputs: list[dict]) -> list[dict]:
         """Validates the task outputs."""
         return task_outputs
 
-    # NOTE: should have an interface with StorageManager.
-    # NOTE: using the same interface for both the regular batch and the
-    # intermediate aggregation batches.
-    def export_aggregated_batch_result(self, task_outputs: list[dict]):
+    def export_aggregated_batch_result(
+        self, task_outputs: list[dict], results_prefix: str
+    ):
         """Exports the aggregated batch result."""
-        return None
+        # NOTE: check if pandas is the most efficient way to do this. Likely not.
+        df = pd.DataFrame(task_outputs)
+        output_path = self.storage_manager.write_aggregation_results_to_scratch(
+            results=df,
+            results_prefix=results_prefix,
+        )
+        del df
+        gc.collect()
+        logger.info(f"Exported aggregated batch results to {output_path}.")
+        return output_path
 
-    def aggregate_single_batch(self, batch: list[TaskState]) -> str:
+    def aggregate_single_batch(self, batch: list[TaskState], batch_idx: int) -> str:
         """Aggregates a single batch of task states.
 
         Writes the results to a temporary location.
@@ -92,7 +115,11 @@ class Aggregator:
 
         validated_task_outputs: list[dict] = self.validate_task_outputs(task_outputs)
         # NOTE: might also help to include deduplication here?
-        tmp_output_fp = self.export_aggregated_batch_result(validated_task_outputs)
+        results_prefix = f"{self.job_name}-{self.job_id}-{batch_idx}"
+        tmp_output_fp = self.export_aggregated_batch_result(
+            task_outputs=validated_task_outputs,
+            results_prefix=results_prefix,
+        )
         logger.info(f"Exported outputs from {len(batch)} tasks to {tmp_output_fp}.")
 
         return tmp_output_fp
@@ -102,12 +129,16 @@ class Aggregator:
 
         Returns the final aggregated filepath.
         """
+        # list of dicts might not be optimally efficient TBH. Should consider
+        # something like Polars soon.
         task_outputs: list[dict] = []
         for fpath in batch_fpaths:
             # NOTE: check if this is the most efficient way to do this.
             # TODO: try other ways to do this that could be more efficient.
             df = pd.read_parquet(fpath)
             task_outputs.extend(df.to_dict(orient="records"))
+            del df
+            gc.collect()
 
         validated_task_outputs: list[dict] = self.validate_task_outputs(task_outputs)
         tmp_output_fp = self.export_aggregated_batch_result(validated_task_outputs)
@@ -132,8 +163,6 @@ class Aggregator:
             output_batch_fpaths.append(tmp_output_fp)
         return output_batch_fpaths
 
-    # TODO: can do this in an intermediate scratch location,
-    # something like /job_name=<job_name>/job_id=<job_id>/aggregation/
     def run_hierarchical_aggregation(self):
         """Runs hierarchical aggregation on the task states.
 
@@ -160,15 +189,64 @@ class Aggregator:
         # write the final aggregated results.
         self.write_aggregated_results(batch_fpaths[0])
 
-    # TODO: can just copy/move final file from aggregation into the
-    # final location.
-    def write_aggregated_results(self):
+    def write_aggregated_results(self, fpath: str):
         """Writes the aggregated results to the output location."""
-        pass
+        # TODO: check if this is the most efficient way to do this.
+        if self.output_service_name:
+            df = pd.read_parquet(fpath)
+            export_data_to_local_storage(
+                service=self.output_service_name,
+                df=df,
+                export_format=self.output_format,
+            )
+            del df
+            gc.collect()
+        else:
+            if not os.path.exists(self.output_location):
+                os.makedirs(self.output_location)
+            output_path = os.path.join(
+                self.output_location,
+                f"{self.job_name}-{self.job_id}.parquet",
+            )
+            if self.output_compression:
+                df = pd.read_parquet(fpath)
+                df.to_parquet(
+                    output_path,
+                    compression=self.output_compression,
+                    index=False,
+                    partition_cols=self.output_partition_keys
+                    if self.output_partition_keys
+                    else None,
+                )
+                del df
+                gc.collect()
+                logger.info(
+                    f"Compressed and wrote aggregated results to {output_path} with {self.output_compression} compression"
+                )
+            else:
+                shutil.copy2(fpath, output_path)
 
     def write_manifest(self):
         """Writes the manifest for the aggregated results."""
-        pass
+        aggregation_manifest: dict = self._generate_aggregation_manifest()
+        manifests_by_type = {
+            "aggregation": [aggregation_manifest],
+        }
+        manifest_writer = ManifestWriter(manifests_by_type=manifests_by_type)
+        manifest_writer.write_manifests()
+        logger.info(f"Wrote manifest for aggregated results for job {self.job_id}.")
+
+    def _generate_aggregation_manifest(self) -> dict:
+        return {
+            "job_id": self.job_id,
+            "job_name": self.job_name,
+            "output_service_name": self.output_service_name,
+            "output_format": self.output_format,
+            "output_compression": self.output_compression,
+            "output_partition_keys": self.output_partition_keys,
+            "completed_at": generate_current_datetime_str(),
+            "metadata": json.dumps({}),
+        }
 
     def aggregate(self):
         """Aggregates the results of a job across the various tasks."""

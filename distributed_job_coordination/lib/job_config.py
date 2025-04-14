@@ -92,11 +92,27 @@ class OutputConfig(BaseModel):
     format: str = Field(default="parquet", description="Output format")
     compression: str = Field(default="snappy", description="Compression algorithm")
     write_mode: str = Field(default="overwrite", description="Write mode")
+    task_output_queue_prefix: str = Field(
+        default="task_output",
+        description="""
+            Prefix for task output queues. The task output queues will have the naming
+            convention of `[task_output_queue_prefix]_[task_id]`. This is also
+            what the aggregator expects when reading the outputs from each task.
+        """,
+    )
     output_location: str = Field(
         description="Output location. Must be a root directory in which files are to be written."
     )
     partition_keys: list[str] = Field(
         description="Keys to partition on, in order of partitioning."
+    )
+    output_service_name: Optional[str] = Field(
+        default=None,
+        description="""
+            Name of the service to write to. If provided, will write to the service's
+            configuration as defined in `service_constants.py` and ignore this config's
+            `output_location` and `partition_keys`.
+        """,
     )
 
     @validator("write_mode")
@@ -141,7 +157,10 @@ class JobConfig(BaseModel):
     name: str = Field(..., description="Job name")
     description: str = Field(default="", description="Job description")
     priority: Priority = Field(default=Priority.MEDIUM, description="Job priority")
-
+    handler_kwargs: dict = Field(
+        default_factory=dict,
+        description="Handler kwargs, to be passed into each task's handler.",
+    )
     input: InputConfig = Field(..., description="Input data configuration")
     compute: ComputeConfig = Field(
         default_factory=ComputeConfig, description="Compute resource configuration"

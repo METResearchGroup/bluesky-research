@@ -8,8 +8,11 @@ import importlib
 from typing import Optional
 
 from distributed_job_coordination.coordinator.storage import StorageManager
+from distributed_job_coordination.lib import s3_utils
+from distributed_job_coordination.lib.job_config import JobConfig
 from distributed_job_coordination.lib.job_state import TaskState, TaskStatus
 from distributed_job_coordination.lib.dynamodb_utils import TaskStateStore
+from lib.db.queue import Queue
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)
@@ -30,6 +33,12 @@ class TaskWorker:
             job_id=self.task_state.job_id,
             job_name=self.task_state.job_name,
         )
+        self.config: JobConfig = s3_utils.download_job_config(
+            job_name=self.task_state.job_name,
+            job_id=self.task_state.job_id,
+        )
+        self.handler_kwargs = self.config.handler_kwargs
+        self.task_output_queue_prefix = self.config.output.task_output_queue_prefix
 
     def load_task_data(self) -> list[dict]:
         """Load in the data for the task."""
@@ -44,13 +53,17 @@ class TaskWorker:
 
     def run(self):
         handler = importlib.import_module(self.task_state.handler)
+        task_output_queue: Queue = self.storage_manager.return_temp_task_output_queue(
+            task_id=self.task_state.id,
+            task_output_queue_prefix=self.task_output_queue_prefix,
+            create_new_queue=True,
+        )
         try:
-            # TODO: get the actual args that the handler needs (probably
-            # could import from configuration). Pending actually designing
-            # the handler API.
             event = {
                 "items": self.task_items,
                 "task_state": self.task_state.model_dump(),
+                "task_output_queue": task_output_queue,
+                **self.handler_kwargs,
             }
             handler.handler(event)
             self.update_task_state(status=TaskStatus.COMPLETED)
