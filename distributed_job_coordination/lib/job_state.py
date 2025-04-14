@@ -44,6 +44,7 @@ class TaskState(BaseModel):
         status: Current status of the task
         batch_id: Identifier for the batch this task belongs to
         worker_id: Identifier for the worker processing this task (if assigned)
+            Will be assigned by looking at the Slurm ID of the given task.
         started_at: When the task started processing
         completed_at: When the task completed processing
         error: Error message if the task failed
@@ -129,8 +130,8 @@ class JobState(BaseModel):
             the aggregation of the results).
         completed_worker_tasks: Number of completed worker tasks
         failed_worker_tasks: Number of failed worker tasks
-        batches: Map of batch IDs to batch states
-        tasks: Map of task IDs to task states
+        batch_ids: Comma-separated list of batch IDs.
+        task_ids: Comma-separated list of task IDs.
         metadata: Additional job metadata
     """
 
@@ -139,13 +140,14 @@ class JobState(BaseModel):
     status: JobStatus = JobStatus.PENDING
     created_at: str = Field(default_factory=generate_current_datetime_str)
     updated_at: str = Field(default_factory=generate_current_datetime_str)
+    started_at: Optional[str] = None
     completed_at: Optional[str] = None
     error: Optional[str] = None
     total_worker_tasks: int = 0
     completed_worker_tasks: int = 0
     failed_worker_tasks: int = 0
-    batches: Dict[str, BatchState] = Field(default_factory=dict)
-    tasks: Dict[str, TaskState] = Field(default_factory=dict)
+    batch_ids: Optional[str] = None  # comma-separated list of batch IDs.
+    task_ids: Optional[str] = None  # comma-separated list of task IDs.
     metadata: Dict[str, Union[str, int, float, bool]] = Field(default_factory=dict)
 
     def update_status(self) -> None:
