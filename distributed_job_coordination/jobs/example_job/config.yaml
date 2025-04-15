@@ -1,0 +1,45 @@
+name: Example Job
+description: Example job that demonstrates the distributed processing.
+priority: medium
+handler_path: "distributed_job_coordination.jobs.example_job.handler"
+handler_kwargs: {}
+
+# Input configuration
+input:
+  type: local
+  path: ./jobs/example_job/example.jsonl # relative paths are relative to '/distributed_job_coordination'
+  file_pattern: "*.jsonl"
+  format: jsonl
+  max_tasks: 10 # max # of tasks/nodes to trigger in parallel at once.
+  batch_size: 1000 # max # of records per task/node.
+
+# Compute configuration
+compute:
+  partition: 'short'
+  nodes: 1
+  ntasks_per_node: 1
+  memory_gb: 5
+  max_runtime: "00:30:00"
+  account: "p32375"
+  job_name: "example_job"
+  output_log_path: "/projects/p32375/bluesky-research/lib/log/{job_name}/{job_name}-%j.log"
+  mail_type: "FAIL"
+  mail_user: "markptorres1@gmail.com"
+
+output:
+  format: parquet
+  compression: snappy
+  write_mode: overwrite
+  task_output_queue_prefix: "example_job_output"
+  output_location: "./data/example_job/output"
+  partition_keys: ["group_id"]
+  output_service_name: "example_job_output"
+
+advanced:
+  checkpoint_interval_minutes: 30
+  retry_failed_tasks: true
+  max_retries: 3
+  backoff_strategy: "exponential"
+  task_timeout_minutes: 30
+
+contact_email: "markptorres1@gmail.com"
