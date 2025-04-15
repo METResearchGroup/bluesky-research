@@ -27,7 +27,7 @@ class JobManifest(BaseModel):
     git_commit: str
     config_file: str
     input_file: str
-    max_partitions: int
+    max_tasks: int
     batch_size: int
     task_count: int
     submitted_at: str

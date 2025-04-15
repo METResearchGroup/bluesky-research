@@ -37,6 +37,7 @@ class TaskWorker:
             job_name=self.task_state.job_name,
             job_id=self.task_state.job_id,
         )
+        self.handler_path = self.config.handler_path
         self.handler_kwargs = self.config.handler_kwargs
         self.task_output_queue_prefix = self.config.output.task_output_queue_prefix
 
@@ -52,7 +53,7 @@ class TaskWorker:
         return items
 
     def run(self):
-        handler = importlib.import_module(self.task_state.handler)
+        handler = importlib.import_module(self.handler_path)
         task_output_queue: Queue = self.storage_manager.return_temp_task_output_queue(
             task_id=self.task_state.id,
             task_output_queue_prefix=self.task_output_queue_prefix,

@@ -117,7 +117,7 @@ Job configurations are specified in YAML format. A basic configuration includes:
 - **notification**: Notification settings (optional)
 - **advanced**: Advanced settings like batch size, timeout, etc.
 
-See `examples/example_job.yaml` for a detailed example.
+See `jobs/example_job/config.yaml` for a detailed example.
 
 ## Development
 

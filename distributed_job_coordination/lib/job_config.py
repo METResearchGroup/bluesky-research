@@ -7,6 +7,7 @@ files in YAML format.
 
 from enum import Enum
 from pathlib import Path
+import re
 from typing import Optional, Union
 import yaml
 from pydantic import BaseModel, Field, validator
@@ -26,8 +27,8 @@ class InputConfig(BaseModel):
     type: str = Field(..., description="Storage type (e.g., 's3', 'local')")
     path: str = Field(..., description="Path to input data")
     format: str = Field(..., description="Data format (e.g., 'parquet', 'csv')")
-    max_partitions: int = Field(
-        default=1, description="Maximum number of partitions for parallel processing"
+    max_tasks: int = Field(
+        default=1, description="Maximum number of tasks for parallel processing"
     )
     batch_size: int = Field(default=1000, description="Number of records per batch")
 
@@ -83,6 +84,37 @@ class ComputeConfig(BaseModel):
                 "When using 'gengpu' partition, gpu_count and gpu_type must be specified"
             )
 
+        return v
+
+    @validator("max_runtime")
+    def validate_max_runtime(cls, v, values):
+        """Validate max_runtime based on the selected partition."""
+        partition = values.get("partition")
+
+        # Validate format is HH:MM:SS
+        if not re.match(r"^\d{1,2}:\d{2}:\d{2}$", v):
+            raise ValueError("max_runtime must be in format 'HH:MM:SS'")
+
+        # Validate based on partition
+        if partition == "short" and v > "04:00:00":
+            raise ValueError("short partition has a maximum runtime of 04:00:00")
+        elif partition == "normal" and v > "48:00:00":
+            raise ValueError("normal partition has a maximum runtime of 48:00:00")
+        elif partition == "long" and v > "168:00:00":
+            raise ValueError("long partition has a maximum runtime of 168:00:00")
+        elif partition == "gengpu" and v > "48:00:00":
+            raise ValueError("gengpu partition has a maximum runtime of 48:00:00")
+        elif partition == "genoml" and v > "48:00:00":
+            raise ValueError("genoml partition has a maximum runtime of 48:00:00")
+
+        return v
+
+    @validator("partition")
+    def validate_partition(cls, v):
+        """Validate that the partition is one of the allowed values."""
+        valid_partitions = ["short", "normal", "long", "gengpu", "genoml"]
+        if v not in valid_partitions:
+            raise ValueError(f"partition must be one of {valid_partitions}")
         return v
 
 
@@ -157,6 +189,7 @@ class JobConfig(BaseModel):
     name: str = Field(..., description="Job name")
     description: str = Field(default="", description="Job description")
     priority: Priority = Field(default=Priority.MEDIUM, description="Job priority")
+    handler_path: str = Field(..., description="Handler path")
     handler_kwargs: dict = Field(
         default_factory=dict,
         description="Handler kwargs, to be passed into each task's handler.",

@@ -213,7 +213,7 @@ class Coordinator:
             "git_commit": self.config.git_commit,
             "config_file": config_key,
             "input_file": self.config.input.path,
-            "max_partitions": self.config.input.max_partitions,
+            "max_tasks": self.config.input.max_tasks,
             "batch_size": self.config.input.batch_size,
             "task_count": len(self.task_states),
             "submitted_at": self.job_state.created_at,
