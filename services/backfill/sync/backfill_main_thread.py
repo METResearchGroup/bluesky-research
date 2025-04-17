@@ -19,6 +19,7 @@ from services.backfill.sync.determine_dids_to_backfill import (
 
 did_plc_sqlite_db_path = os.path.join(current_dir, "did_plc.sqlite")
 default_plc_requests_per_second = 25
+default_plc_backfill_batch_size = 250
 
 logger = get_logger(__name__)
 
@@ -58,8 +59,12 @@ def load_did_to_plc_endpoint_map() -> dict[str, str]:
     """Loads the DID to PLC endpoint map from the database."""
     conn = sqlite3.connect(did_plc_sqlite_db_path)
     cursor = conn.cursor()
-    cursor.execute("SELECT did, plc_endpoint FROM did_plc")
-    did_to_plc_endpoint_map = {row[0]: row[1] for row in cursor.fetchall()}
+    try:
+        cursor.execute("SELECT did, plc_endpoint FROM did_plc")
+        did_to_plc_endpoint_map = {row[0]: row[1] for row in cursor.fetchall()}
+    except sqlite3.OperationalError:
+        # table doesn't exist yet.
+        did_to_plc_endpoint_map = {}
     conn.close()
     return did_to_plc_endpoint_map
 
@@ -122,11 +127,20 @@ def single_batch_backfill_missing_did_to_plc_endpoints(
 ) -> dict[str, str]:
     """Single batch backfills missing DID to PLC endpoint mappings."""
     did_to_plc_endpoint_map: dict[str, str] = {}
-    for did in dids:
+    logger.info(f"\tFetching PLC endpoints for {len(dids)} DIDs")
+    minibatch_size = 25
+    for i, did in enumerate(dids):
+        if i % minibatch_size == 0:
+            logger.info(f"\t\tFetching PLC endpoint for {i}/{len(dids)} DIDs in batch")
         plc_directory_doc = get_plc_directory_doc(did)
         service_endpoint = plc_directory_doc["service"][0]["serviceEndpoint"]
         did_to_plc_endpoint_map[did] = service_endpoint
         run_rate_limit_jitter(num_requests_per_second=default_plc_requests_per_second)
+        if i % minibatch_size == minibatch_size - 1:
+            logger.info(
+                f"\t\tCompleted fetching PLC endpoints for {i+1}/{len(dids)} DIDs in batch"
+            )
+    logger.info(f"\tCompleted fetching PLC endpoints for {len(dids)} DIDs")
     export_did_to_plc_endpoint_map_to_local_db(did_to_plc_endpoint_map)
     return did_to_plc_endpoint_map
 
@@ -135,14 +149,23 @@ def batch_backfill_missing_did_to_plc_endpoints(dids: list[str]) -> dict[str, st
     """Batch backfills missing DID to PLC endpoint mappings."""
     did_to_plc_endpoint_map: dict[str, str] = {}
     dids_batches: list[list[str]] = create_batches(
-        batch_list=dids,
-        batch_size=500,
+        batch_list=dids, batch_size=default_plc_backfill_batch_size
     )
-    for dids_batch in dids_batches:
+    logger.info(
+        f"Fetching PLC endpoints for {len(dids_batches)} batches of DIDs ({len(dids)} DIDs total)"
+    )
+    for i, dids_batch in enumerate(dids_batches):
+        logger.info(f"Fetching PLC endpoints for batch {i+1}/{len(dids_batches)}")
         batch_did_to_plc_endpoint_map = (
             single_batch_backfill_missing_did_to_plc_endpoints(dids=dids_batch)
         )
         did_to_plc_endpoint_map.update(batch_did_to_plc_endpoint_map)
+        logger.info(
+            f"Completed fetching PLC endpoints for batch {i+1}/{len(dids_batches)}"
+        )
+    logger.info(
+        f"Completed fetching and exporting PLC endpoints for {len(dids_batches)} batches of DIDs ({len(dids)} DIDs total)"
+    )
     return did_to_plc_endpoint_map
 
 
@@ -155,7 +178,9 @@ def backfill_did_to_plc_endpoint_map(
     if len(missing_dids) == 0:
         logger.info("No missing DIDs, returning current map.")
         return current_did_to_plc_endpoint_map
-
+    logger.info(
+        f"Backfilling the PLC endpoints for {len(missing_dids)}/{len(dids)} missing DIDs"
+    )
     missing_dids_to_plc_endpoint_map = batch_backfill_missing_did_to_plc_endpoints(
         dids=missing_dids
     )
@@ -175,22 +200,22 @@ def run_backfills(
         plc_endpoint_to_dids_map: dict[str, list[str]] = load_plc_endpoint_to_dids_map()
     else:
         did_to_plc_endpoint_map: dict[str, str] = load_did_to_plc_endpoint_map()
-        breakpoint()
         did_to_plc_endpoint_map: dict[str, str] = backfill_did_to_plc_endpoint_map(
-            dids,
-            did_to_plc_endpoint_map,
+            dids=dids,
+            current_did_to_plc_endpoint_map=did_to_plc_endpoint_map,
         )
-        export_did_to_plc_endpoint_map_to_local_db(did_to_plc_endpoint_map)
         plc_endpoint_to_dids_map: dict[str, list[str]] = (
             generate_plc_endpoint_to_dids_map(
                 did_to_plc_endpoint_map=did_to_plc_endpoint_map,
             )
         )
         export_plc_endpoint_to_dids_map_to_local_db(plc_endpoint_to_dids_map)
+
     for plc_endpoint in plc_endpoint_to_dids_map.keys():
         logger.info(
             f"Number of records for PLC endpoint {plc_endpoint}: {len(plc_endpoint_to_dids_map[plc_endpoint])}"
         )
+    breakpoint()
 
     for plc_endpoint in plc_endpoint_to_dids_map.keys():
         logger.info(
@@ -209,6 +234,11 @@ def run_backfills(
 
 def main():
     dids: list[str] = load_dids_from_local_db()
+
+    # TODO: first start with loading a small # of DIDs (e.g., 2,000).
+    # Continue a phased rollout: 2,000 -> 10,000 -> 20,000 -> 50,000 -> 100,000
+    dids = dids[:2000]
+
     run_backfills(
         dids=dids,
         load_existing_endpoints_to_dids_map=False,
