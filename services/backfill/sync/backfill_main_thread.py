@@ -1,5 +1,6 @@
 """Threaded application for running PDS backfill sync."""
 
+from concurrent.futures import ThreadPoolExecutor
 import os
 import random
 import sqlite3
@@ -41,6 +42,7 @@ plc_endpoint_to_dids_db = Queue(
 default_plc_requests_per_second = 50
 default_plc_backfill_batch_size = 250
 logging_minibatch_size = 25
+max_plc_threads = 4
 
 logger = get_logger(__name__)
 
@@ -122,23 +124,53 @@ def run_rate_limit_jitter(num_requests_per_second: int) -> None:
     time.sleep(1 / num_requests_per_second + random.uniform(0, 0.05))
 
 
+def parallelize_plc_directory_requests(minibatch_dids: list[str]) -> dict[str, str]:
+    """Parallelizes requests to the PLC directory."""
+    with ThreadPoolExecutor(max_workers=max_plc_threads) as executor:
+        futures = [
+            executor.submit(get_plc_directory_doc, did) for did in minibatch_dids
+        ]
+        results = [future.result() for future in futures]
+    return results
+
+
 def single_batch_backfill_missing_did_to_plc_endpoints(
     dids: list[str],
 ) -> dict[str, str]:
     """Single batch backfills missing DID to PLC endpoint mappings."""
     did_to_plc_endpoint_map: dict[str, str] = {}
     logger.info(f"\tFetching PLC endpoints for {len(dids)} DIDs")
-    for i, did in enumerate(dids):
+
+    # parallelize the requests to the PLC directory
+    minibatch_dids_batches: list[list[str]] = create_batches(
+        batch_list=dids, batch_size=max_plc_threads
+    )
+
+    logger.info(
+        f"\tFetching PLC endpoints for {len(dids)} DIDs. Splitting into {len(minibatch_dids_batches)} minibatches batches of {max_plc_threads} DIDs each."
+    )
+    for i, minibatch_dids_batch in enumerate(minibatch_dids_batches):
         if i % logging_minibatch_size == 0:
             logger.info(f"\t\tFetching PLC endpoint for {i}/{len(dids)} DIDs in batch")
-        plc_directory_doc = get_plc_directory_doc(did)
-        service_endpoint = plc_directory_doc["service"][0]["serviceEndpoint"]
-        did_to_plc_endpoint_map[did] = service_endpoint
+        minibatch_plc_directory_docs: list[dict] = parallelize_plc_directory_requests(
+            minibatch_dids=minibatch_dids_batch
+        )
+        service_endpoints = [
+            doc["service"][0]["serviceEndpoint"] for doc in minibatch_plc_directory_docs
+        ]
+        dids_to_service_endpoints = dict(zip(minibatch_dids_batch, service_endpoints))
+        did_to_plc_endpoint_map.update(dids_to_service_endpoints)
+
+        # NOTE: running it without the rate limit jitter still seems to be baseline slow,
+        # i.e., 25 requests in 18-20 seconds, so seems like there's some delay and latency
+        # already affecting this process anyways (unsure if it is my own network latency)
+        # or if it is the API's latency.
         run_rate_limit_jitter(num_requests_per_second=default_plc_requests_per_second)
         if i % logging_minibatch_size == 0:
             logger.info(
                 f"\t\tCompleted fetching PLC endpoints for {i}/{len(dids)} DIDs in batch"
             )
+
     logger.info(f"\tCompleted fetching PLC endpoints for {len(dids)} DIDs")
     export_did_to_plc_endpoint_map_to_local_db(did_to_plc_endpoint_map)
     return did_to_plc_endpoint_map

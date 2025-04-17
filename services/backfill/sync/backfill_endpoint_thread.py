@@ -33,8 +33,9 @@ def filter_previously_processed_dids(
     """Load previous results from queues and filter out DIDs that have already been processed."""
     query_results = results_db.load_dict_items_from_queue()
     query_deadletter = deadletter_db.load_dict_items_from_queue()
-    breakpoint()  # TODO: need to check the outputs and get just the DIDs.
-    previously_processed_dids = set(query_results) | set(query_deadletter)
+    query_result_dids = [result["did"] for result in query_results]
+    query_deadletter_dids = [deadletter["did"] for deadletter in query_deadletter]
+    previously_processed_dids = set(query_result_dids) | set(query_deadletter_dids)
     filtered_dids = [did for did in dids if did not in previously_processed_dids]
     total_original_dids = len(dids)
     total_remaining_dids = len(filtered_dids)
