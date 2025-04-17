@@ -32,12 +32,12 @@ did_plc_db = Queue(
 )
 
 
-plc_endpoint_to_dids_db_path = os.path.join(current_dir, "plc_endpoint_to_dids.sqlite")
-plc_endpoint_to_dids_db = Queue(
-    queue_name="plc_endpoint_to_dids",
+pds_endpoint_to_dids_db_path = os.path.join(current_dir, "pds_endpoint_to_dids.sqlite")
+pds_endpoint_to_dids_db = Queue(
+    queue_name="pds_endpoint_to_dids",
     create_new_queue=True,
     temp_queue=True,
-    temp_queue_path=plc_endpoint_to_dids_db_path,
+    temp_queue_path=pds_endpoint_to_dids_db_path,
 )
 
 default_plc_requests_per_second = 50
@@ -45,6 +45,8 @@ default_plc_backfill_batch_size = 250
 logging_minibatch_size = 25
 # max_plc_threads = 4
 max_plc_threads = 64
+# max PDS endpoints to sync at once.
+max_pds_endpoints_to_sync = 32
 
 logger = get_logger(__name__)
 
@@ -59,14 +61,14 @@ def load_dids_from_local_db() -> list[str]:
     return [did[0] for did in dids]
 
 
-def export_did_to_plc_endpoint_map_to_local_db(
-    did_to_plc_endpoint_map: dict[str, str],
+def export_did_to_pds_endpoint_map_to_local_db(
+    did_to_pds_endpoint_map: dict[str, str],
 ) -> None:
     """Exports the DID to PLC endpoint map to the local SQLite database."""
     did_plc_db.batch_add_items_to_queue(
         items=[
-            {"did": did, "plc_endpoint": plc_endpoint}
-            for did, plc_endpoint in did_to_plc_endpoint_map.items()
+            {"did": did, "pds_endpoint": pds_endpoint}
+            for did, pds_endpoint in did_to_pds_endpoint_map.items()
         ]
     )
     logger.info(
@@ -74,50 +76,50 @@ def export_did_to_plc_endpoint_map_to_local_db(
     )
 
 
-def load_did_to_plc_endpoint_map() -> dict[str, str]:
+def load_did_to_pds_endpoint_map() -> dict[str, str]:
     """Loads the DID to PLC endpoint map from the database."""
     results = did_plc_db.load_dict_items_from_queue()
-    did_to_plc_endpoint_map = {row["did"]: row["plc_endpoint"] for row in results}
-    return did_to_plc_endpoint_map
+    did_to_pds_endpoint_map = {row["did"]: row["pds_endpoint"] for row in results}
+    return did_to_pds_endpoint_map
 
 
-def generate_plc_endpoint_to_dids_map(
-    did_to_plc_endpoint_map: dict[str, str],
+def generate_pds_endpoint_to_dids_map(
+    did_to_pds_endpoint_map: dict[str, str],
 ) -> dict[str, list[str]]:
     """Generates the PLC endpoint to DIDs map."""
-    plc_endpoint_to_dids_map: dict[str, list[str]] = {}
-    for did, plc_endpoint in did_to_plc_endpoint_map.items():
-        if plc_endpoint not in plc_endpoint_to_dids_map:
-            plc_endpoint_to_dids_map[plc_endpoint] = []
-        plc_endpoint_to_dids_map[plc_endpoint].append(did)
-    return plc_endpoint_to_dids_map
+    pds_endpoint_to_dids_map: dict[str, list[str]] = {}
+    for did, pds_endpoint in did_to_pds_endpoint_map.items():
+        if pds_endpoint not in pds_endpoint_to_dids_map:
+            pds_endpoint_to_dids_map[pds_endpoint] = []
+        pds_endpoint_to_dids_map[pds_endpoint].append(did)
+    return pds_endpoint_to_dids_map
 
 
-def export_plc_endpoint_to_dids_map_to_local_db(
-    plc_endpoint_to_dids_map: dict[str, list[str]],
+def export_pds_endpoint_to_dids_map_to_local_db(
+    pds_endpoint_to_dids_map: dict[str, list[str]],
 ) -> None:
     """Exports the PLC endpoint to DIDs map to the local SQLite database."""
-    plc_endpoint_to_dids_db.batch_add_items_to_queue(
+    pds_endpoint_to_dids_db.batch_add_items_to_queue(
         items=[
-            {"plc_endpoint": plc_endpoint, "dids": ",".join(dids)}
-            for plc_endpoint, dids in plc_endpoint_to_dids_map.items()
+            {"pds_endpoint": pds_endpoint, "dids": ",".join(dids)}
+            for pds_endpoint, dids in pds_endpoint_to_dids_map.items()
         ]
     )
     logger.info(
-        f"Exported PLC endpoint to DIDs map to local database at {plc_endpoint_to_dids_db_path}"
+        f"Exported PLC endpoint to DIDs map to local database at {pds_endpoint_to_dids_db_path}"
     )
 
 
-def load_plc_endpoint_to_dids_map() -> dict[str, list[str]]:
+def load_pds_endpoint_to_dids_map() -> dict[str, list[str]]:
     """Loads the PLC endpoint to DIDs map from the database."""
-    results = plc_endpoint_to_dids_db.load_dict_items_from_queue()
-    plc_endpoint_to_dids_map = {
-        row["plc_endpoint"]: row["dids"].split(",") for row in results
+    results = pds_endpoint_to_dids_db.load_dict_items_from_queue()
+    pds_endpoint_to_dids_map = {
+        row["pds_endpoint"]: row["dids"].split(",") for row in results
     }
     logger.info(
-        f"Loaded PLC endpoint to DIDs map from local database at {plc_endpoint_to_dids_db_path}"
+        f"Loaded PLC endpoint to DIDs map from local database at {pds_endpoint_to_dids_db_path}"
     )
-    return plc_endpoint_to_dids_map
+    return pds_endpoint_to_dids_map
 
 
 def run_rate_limit_jitter(num_requests_per_second: int) -> None:
@@ -136,11 +138,11 @@ def parallelize_plc_directory_requests(minibatch_dids: list[str]) -> dict[str, s
     return results
 
 
-def single_batch_backfill_missing_did_to_plc_endpoints(
+def single_batch_backfill_missing_did_to_pds_endpoints(
     dids: list[str],
 ) -> dict[str, str]:
     """Single batch backfills missing DID to PLC endpoint mappings."""
-    did_to_plc_endpoint_map: dict[str, str] = {}
+    did_to_pds_endpoint_map: dict[str, str] = {}
     logger.info(f"\tFetching PLC endpoints for {len(dids)} DIDs")
 
     # parallelize the requests to the PLC directory
@@ -165,20 +167,19 @@ def single_batch_backfill_missing_did_to_plc_endpoints(
                 doc["service"][0]["serviceEndpoint"]
                 for doc in minibatch_plc_directory_docs
             ]
-        except Exception as e:
+        except Exception:
             # example failed doc: [{'message': 'DID not registered: did:web:witchy.mom'}]
             service_endpoints = []
+            num_invalid_docs = 0
             for doc in minibatch_plc_directory_docs:
                 if "service" in doc:
                     service_endpoints.append(doc["service"][0]["serviceEndpoint"])
                 else:
                     service_endpoints.append("invalid_doc")
-            logger.error(f"Error fetching PLC endpoints for batch {i}: {e}")
-            logger.error(f"Error details: {minibatch_plc_directory_docs}")
-            breakpoint()
-            raise e
+            if num_invalid_docs > 0:
+                logger.info(f"Found {num_invalid_docs} invalid docs for batch {i}")
         dids_to_service_endpoints = dict(zip(minibatch_dids_batch, service_endpoints))
-        did_to_plc_endpoint_map.update(dids_to_service_endpoints)
+        did_to_pds_endpoint_map.update(dids_to_service_endpoints)
 
         # NOTE: running it without the rate limit jitter still seems to be baseline slow,
         # i.e., 25 requests in 18-20 seconds, so seems like there's some delay and latency
@@ -191,13 +192,13 @@ def single_batch_backfill_missing_did_to_plc_endpoints(
             )
 
     logger.info(f"\tCompleted fetching PLC endpoints for {len(dids)} DIDs")
-    export_did_to_plc_endpoint_map_to_local_db(did_to_plc_endpoint_map)
-    return did_to_plc_endpoint_map
+    export_did_to_pds_endpoint_map_to_local_db(did_to_pds_endpoint_map)
+    return did_to_pds_endpoint_map
 
 
-def batch_backfill_missing_did_to_plc_endpoints(dids: list[str]) -> dict[str, str]:
+def batch_backfill_missing_did_to_pds_endpoints(dids: list[str]) -> dict[str, str]:
     """Batch backfills missing DID to PLC endpoint mappings."""
-    did_to_plc_endpoint_map: dict[str, str] = {}
+    did_to_pds_endpoint_map: dict[str, str] = {}
     dids_batches: list[list[str]] = create_batches(
         batch_list=dids, batch_size=default_plc_backfill_batch_size
     )
@@ -207,10 +208,10 @@ def batch_backfill_missing_did_to_plc_endpoints(dids: list[str]) -> dict[str, st
     time_start = time.time()
     for i, dids_batch in enumerate(dids_batches):
         logger.info(f"Fetching PLC endpoints for batch {i+1}/{len(dids_batches)}")
-        batch_did_to_plc_endpoint_map = (
-            single_batch_backfill_missing_did_to_plc_endpoints(dids=dids_batch)
+        batch_did_to_pds_endpoint_map = (
+            single_batch_backfill_missing_did_to_pds_endpoints(dids=dids_batch)
         )
-        did_to_plc_endpoint_map.update(batch_did_to_plc_endpoint_map)
+        did_to_pds_endpoint_map.update(batch_did_to_pds_endpoint_map)
         logger.info(
             f"Completed fetching PLC endpoints for batch {i+1}/{len(dids_batches)}"
         )
@@ -223,28 +224,28 @@ def batch_backfill_missing_did_to_plc_endpoints(dids: list[str]) -> dict[str, st
     logger.info(
         f"Time for PLC endpoint backfill of {len(dids)} DIDs: {total_time_minutes} minutes"
     )
-    return did_to_plc_endpoint_map
+    return did_to_pds_endpoint_map
 
 
-def backfill_did_to_plc_endpoint_map(
+def backfill_did_to_pds_endpoint_map(
     dids: list[str],
-    current_did_to_plc_endpoint_map: dict[str, str],
+    current_did_to_pds_endpoint_map: dict[str, str],
 ) -> dict[str, str]:
-    """Backfills the DID to PLC endpoint map to include any missing DIDs."""
-    missing_dids = [did for did in dids if did not in current_did_to_plc_endpoint_map]
+    """Backfills the DID to PDS endpoint map to include any missing DIDs."""
+    missing_dids = [did for did in dids if did not in current_did_to_pds_endpoint_map]
     if len(missing_dids) == 0:
         logger.info("No missing DIDs, returning current map.")
-        return current_did_to_plc_endpoint_map
+        return current_did_to_pds_endpoint_map
     logger.info(
-        f"Backfilling the PLC endpoints for {len(missing_dids)}/{len(dids)} missing DIDs"
+        f"Backfilling the PDS endpoints for {len(missing_dids)}/{len(dids)} missing DIDs"
     )
-    missing_dids_to_plc_endpoint_map = batch_backfill_missing_did_to_plc_endpoints(
+    missing_dids_to_pds_endpoint_map = batch_backfill_missing_did_to_pds_endpoints(
         dids=missing_dids
     )
 
     return {
-        **current_did_to_plc_endpoint_map,
-        **missing_dids_to_plc_endpoint_map,
+        **current_did_to_pds_endpoint_map,
+        **missing_dids_to_pds_endpoint_map,
     }
 
 
@@ -252,6 +253,8 @@ def run_backfills(
     dids: list[str],
     load_existing_endpoints_to_dids_map: bool = False,
     plc_backfill_only: bool = False,
+    skip_completed_pds_endpoints: bool = False,
+    max_pds_endpoints_to_sync: int = max_pds_endpoints_to_sync,
 ) -> None:
     """Runs backfills for a list of DIDs.
 
@@ -260,66 +263,147 @@ def run_backfills(
         load_existing_endpoints_to_dids_map: bool - Whether to load the existing PLC endpoint to DIDs map from the local database.
         plc_backfill_only: bool - Whether to only run the PLC endpoint backfill, as opposed to doing the PLC
             endpoint backfill and then the PDS endpoint backfill.
+        skip_completed_pds_endpoints: bool - Whether to skip completed PDS endpoint backfills.
+        max_pds_endpoints_to_sync: int - The maximum number of PDS endpoints to sync at once.
     """
     if load_existing_endpoints_to_dids_map:
-        plc_endpoint_to_dids_map: dict[str, list[str]] = load_plc_endpoint_to_dids_map()
+        pds_endpoint_to_dids_map: dict[str, list[str]] = load_pds_endpoint_to_dids_map()
     else:
-        did_to_plc_endpoint_map: dict[str, str] = load_did_to_plc_endpoint_map()
-        did_to_plc_endpoint_map: dict[str, str] = backfill_did_to_plc_endpoint_map(
+        did_to_pds_endpoint_map: dict[str, str] = load_did_to_pds_endpoint_map()
+        did_to_pds_endpoint_map: dict[str, str] = backfill_did_to_pds_endpoint_map(
             dids=dids,
-            current_did_to_plc_endpoint_map=did_to_plc_endpoint_map,
+            current_did_to_pds_endpoint_map=did_to_pds_endpoint_map,
         )
-        plc_endpoint_to_dids_map: dict[str, list[str]] = (
-            generate_plc_endpoint_to_dids_map(
-                did_to_plc_endpoint_map=did_to_plc_endpoint_map,
+        pds_endpoint_to_dids_map: dict[str, list[str]] = (
+            generate_pds_endpoint_to_dids_map(
+                did_to_pds_endpoint_map=did_to_pds_endpoint_map,
             )
         )
-        export_plc_endpoint_to_dids_map_to_local_db(plc_endpoint_to_dids_map)
+        export_pds_endpoint_to_dids_map_to_local_db(pds_endpoint_to_dids_map)
 
-    logger.info("Sorted PLC endpoints by number of DIDs (descending order)")
+    logger.info("Sorted PDS endpoints by number of DIDs (descending order)")
 
-    plc_endpoint_to_did_count = {
-        endpoint: len(dids) for endpoint, dids in plc_endpoint_to_dids_map.items()
+    pds_endpoint_to_did_count = {
+        endpoint: len(dids) for endpoint, dids in pds_endpoint_to_dids_map.items()
     }
 
     # Sort the endpoints by number of DIDs in descending order
     sorted_endpoints = sorted(
-        plc_endpoint_to_did_count.items(), key=lambda item: item[1], reverse=True
+        pds_endpoint_to_did_count.items(), key=lambda item: item[1], reverse=True
     )
 
     # Log the top endpoints
-    logger.info("Top PLC endpoints by number of DIDs:")
+    logger.info("Top PDS endpoints by number of DIDs:")
     for endpoint, count in sorted_endpoints[:10]:  # Show top 10
         logger.info(f"  {endpoint}: {count} DIDs")
 
-    # Export the PLC endpoint counts.
-    plc_endpoint_to_did_count_path = os.path.join(
-        current_dir, "plc_endpoint_to_did_count.json"
+    # Export the PDS endpoint counts.
+    pds_endpoint_to_did_count_path = os.path.join(
+        current_dir, "pds_endpoint_to_did_count.json"
     )
-    with open(plc_endpoint_to_did_count_path, "w") as f:
-        json.dump(plc_endpoint_to_did_count, f, indent=2)
+    with open(pds_endpoint_to_did_count_path, "w") as f:
+        json.dump(pds_endpoint_to_did_count, f, indent=2)
 
     logger.info(
-        f"Exported PLC endpoint to DID count map to {plc_endpoint_to_did_count_path}"
+        f"Exported PDS endpoint to DID count map to {pds_endpoint_to_did_count_path}"
     )
 
     if plc_backfill_only:
         logger.info("Backfilling only PLC endpoints, skipping PDS endpoint backfill.")
         return
 
-    for plc_endpoint in plc_endpoint_to_dids_map.keys():
+    if skip_completed_pds_endpoints:
+        pds_endpoints_to_skip = calculate_pds_endpoints_to_skip(
+            pds_endpoint_to_did_count=pds_endpoint_to_did_count
+        )
         logger.info(
-            f"Running backfill for PLC endpoint {plc_endpoint} for {len(plc_endpoint_to_dids_map[plc_endpoint])} DIDs"
+            f"Skipping {len(pds_endpoints_to_skip)} PDS endpoints since their backfills are already completed."
+        )
+        for pds_endpoint in pds_endpoints_to_skip:
+            pds_endpoint_to_dids_map.pop(pds_endpoint)
+
+    if max_pds_endpoints_to_sync is not None:
+        # sort PDS endpoints by number of DIDs in descending order.
+        # We recalculate and exclude the ones that have already been backfilled.
+        sorted_endpoints = sorted(
+            pds_endpoint_to_did_count.items(), key=lambda item: item[1], reverse=True
+        )
+        # We only want to sync the top N PDS endpoints.
+        sorted_endpoints = sorted_endpoints[:max_pds_endpoints_to_sync]
+        sorted_endpoints = [endpoint for endpoint, _ in sorted_endpoints]
+        pds_endpoint_to_dids_map = {
+            endpoint: dids
+            for endpoint, dids in pds_endpoint_to_dids_map.items()
+            if endpoint in sorted_endpoints
+        }
+        logger.info(f"Only sorting the top {max_pds_endpoints_to_sync} PDS endpoints.")
+
+    for pds_endpoint in pds_endpoint_to_dids_map.keys():
+        logger.info(
+            f"Running backfill for PDS endpoint {pds_endpoint} for {len(pds_endpoint_to_dids_map[pds_endpoint])} DIDs"
         )
         threading.Thread(
             target=run_backfill_for_pds_endpoint,
             kwargs={
-                "plc_endpoint": plc_endpoint,
-                "dids": plc_endpoint_to_dids_map[plc_endpoint],
+                "pds_endpoint": pds_endpoint,
+                "dids": pds_endpoint_to_dids_map[pds_endpoint],
             },
         ).start()
 
     logger.info("Backfills started")
+
+
+def check_if_pds_endpoint_backfill_completed(
+    pds_endpoint: str, expected_total: int
+) -> bool:
+    """Checks if the PDS endpoint backfill is completed."""
+    output_results_db_path = os.path.join(current_dir, f"results_{pds_endpoint}.db")
+    output_deadletter_db_path = os.path.join(
+        current_dir, f"deadletter_{pds_endpoint}.db"
+    )
+    output_results_queue = Queue(
+        queue_name=f"results_{pds_endpoint}",
+        create_new_queue=True,
+        temp_queue=True,
+        temp_queue_path=output_results_db_path,
+    )
+    output_deadletter_queue = Queue(
+        queue_name=f"deadletter_{pds_endpoint}",
+        create_new_queue=True,
+        temp_queue=True,
+        temp_queue_path=output_deadletter_db_path,
+    )
+    results = output_results_queue.load_dict_items_from_queue()
+    deadletter = output_deadletter_queue.load_dict_items_from_queue()
+    total_processed = len(results) + len(deadletter)
+    return total_processed == expected_total
+
+
+def calculate_completed_pds_endpoint_backfills(
+    pds_endpoint_to_did_count: dict[str, int],
+) -> list[str]:
+    """Iterate through the PDS endpoints and check to see which ones
+    are likely already completed, and send a list of these."""
+    completed_pds_endpoints = []
+    for pds_endpoint, did_count in pds_endpoint_to_did_count.items():
+        if check_if_pds_endpoint_backfill_completed(
+            pds_endpoint=pds_endpoint, expected_total=did_count
+        ):
+            completed_pds_endpoints.append(pds_endpoint)
+    return completed_pds_endpoints
+
+
+def calculate_pds_endpoints_to_skip(
+    pds_endpoint_to_did_count: dict[str, int],
+) -> list[str]:
+    """Calculates the PDS endpoints to skip based on checking which ones
+    are already completed."""
+    pds_endpoints_to_skip = ["invalid_doc"]
+    completed_pds_endpoint_backfills = calculate_completed_pds_endpoint_backfills(
+        pds_endpoint_to_did_count=pds_endpoint_to_did_count
+    )
+    pds_endpoints_to_skip.extend(completed_pds_endpoint_backfills)
+    return pds_endpoints_to_skip
 
 
 def main():
@@ -329,12 +413,15 @@ def main():
     # Continue a phased rollout: 2,000 -> 10,000 -> 20,000 -> 50,000 -> 100,000
     # dids = dids[:2000]
     # dids = dids[2000:4000]
-    dids = dids[4000:20000]
+    # dids = dids[4000:20000]
+    dids = dids[20000:50000]
 
     run_backfills(
         dids=dids,
         load_existing_endpoints_to_dids_map=False,
         plc_backfill_only=True,
+        skip_completed_pds_endpoints=True,
+        max_pds_endpoints_to_sync=max_pds_endpoints_to_sync,
     )
 
 
