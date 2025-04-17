@@ -62,10 +62,10 @@ def flush_queues(
     current_results = []
     current_deadletter = []
 
-    while not results_db.empty():
+    while not temp_results_queue.empty():
         current_results.append(results_db.get())
 
-    while not deadletter_db.empty():
+    while not temp_deadletter_queue.empty():
         current_deadletter.append(deadletter_db.get())
 
     total_current_results = len(current_results)
