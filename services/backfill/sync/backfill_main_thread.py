@@ -1,7 +1,12 @@
+"""Threaded application for running PDS backfill sync."""
+
 import os
+import random
 import sqlite3
+import time
 import threading
 
+from lib.helper import create_batches
 from lib.log.logger import get_logger
 from services.backfill.sync.backfill import get_plc_directory_doc
 from services.backfill.sync.backfill_endpoint_thread import (
@@ -13,6 +18,7 @@ from services.backfill.sync.determine_dids_to_backfill import (
 )
 
 did_plc_sqlite_db_path = os.path.join(current_dir, "did_plc.sqlite")
+default_plc_requests_per_second = 25
 
 logger = get_logger(__name__)
 
@@ -105,6 +111,41 @@ def load_plc_endpoint_to_dids_map() -> dict[str, list[str]]:
     return plc_endpoint_to_dids_map
 
 
+def run_rate_limit_jitter(num_requests_per_second: int) -> None:
+    """Runs a rate limit with jitter. Aims to send the desired # of requests
+    per second, with some noise."""
+    time.sleep(1 / num_requests_per_second + random.uniform(0, 0.05))
+
+
+def single_batch_backfill_missing_did_to_plc_endpoints(
+    dids: list[str],
+) -> dict[str, str]:
+    """Single batch backfills missing DID to PLC endpoint mappings."""
+    did_to_plc_endpoint_map: dict[str, str] = {}
+    for did in dids:
+        plc_directory_doc = get_plc_directory_doc(did)
+        service_endpoint = plc_directory_doc["service"][0]["serviceEndpoint"]
+        did_to_plc_endpoint_map[did] = service_endpoint
+        run_rate_limit_jitter(num_requests_per_second=default_plc_requests_per_second)
+    export_did_to_plc_endpoint_map_to_local_db(did_to_plc_endpoint_map)
+    return did_to_plc_endpoint_map
+
+
+def batch_backfill_missing_did_to_plc_endpoints(dids: list[str]) -> dict[str, str]:
+    """Batch backfills missing DID to PLC endpoint mappings."""
+    did_to_plc_endpoint_map: dict[str, str] = {}
+    dids_batches: list[list[str]] = create_batches(
+        batch_list=dids,
+        batch_size=500,
+    )
+    for dids_batch in dids_batches:
+        batch_did_to_plc_endpoint_map = (
+            single_batch_backfill_missing_did_to_plc_endpoints(dids=dids_batch)
+        )
+        did_to_plc_endpoint_map.update(batch_did_to_plc_endpoint_map)
+    return did_to_plc_endpoint_map
+
+
 def backfill_did_to_plc_endpoint_map(
     dids: list[str],
     current_did_to_plc_endpoint_map: dict[str, str],
@@ -115,14 +156,10 @@ def backfill_did_to_plc_endpoint_map(
         logger.info("No missing DIDs, returning current map.")
         return current_did_to_plc_endpoint_map
 
-    missing_dids_to_plc_endpoint_map = {}
+    missing_dids_to_plc_endpoint_map = batch_backfill_missing_did_to_plc_endpoints(
+        dids=missing_dids
+    )
 
-    for did in missing_dids:
-        plc_directory_doc = get_plc_directory_doc(did)
-        service_endpoint = plc_directory_doc["service"][0]["serviceEndpoint"]
-        if not service_endpoint:
-            raise ValueError(f"No service endpoint found for DID {did}")
-        missing_dids_to_plc_endpoint_map[did] = service_endpoint
     return {
         **current_did_to_plc_endpoint_map,
         **missing_dids_to_plc_endpoint_map,
@@ -138,6 +175,7 @@ def run_backfills(
         plc_endpoint_to_dids_map: dict[str, list[str]] = load_plc_endpoint_to_dids_map()
     else:
         did_to_plc_endpoint_map: dict[str, str] = load_did_to_plc_endpoint_map()
+        breakpoint()
         did_to_plc_endpoint_map: dict[str, str] = backfill_did_to_plc_endpoint_map(
             dids,
             did_to_plc_endpoint_map,
