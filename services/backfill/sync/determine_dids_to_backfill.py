@@ -10,6 +10,8 @@ We also have stubbed methods here for if we want to backfill posts or follows.
 """
 
 import json
+import os
+import sqlite3
 
 import pandas as pd
 
@@ -28,6 +30,9 @@ logger = get_logger(__name__)
 queue = Queue(queue_name=input_queue_name, create_new_queue=True)
 
 subpaths: dict[str, str] = MAP_SERVICE_TO_METADATA["raw_sync"]["subpaths"]
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sqlite_db_path = os.path.join(current_dir, "dids_to_backfill.sqlite")
 
 
 def get_records(
@@ -228,6 +233,32 @@ def get_dids_to_backfill(
     return dids_to_backfill
 
 
+def write_dids_to_local_db(dids: set[str]):
+    """Write DIDs to local DB.
+
+    Args:
+        dids: Set of DIDs to write to the local SQLite database.
+    """
+    # Get the current directory and create the full path to the database
+
+    # Connect to the SQLite database
+    conn = sqlite3.connect(sqlite_db_path)
+    cursor = conn.cursor()
+
+    # Create the table if it doesn't exist
+    cursor.execute("CREATE TABLE IF NOT EXISTS dids (did TEXT PRIMARY KEY)")
+
+    # Insert the DIDs
+    for did in dids:
+        cursor.execute("INSERT OR REPLACE INTO dids (did) VALUES (?)", (did,))
+
+    # Commit the changes and close the connection
+    conn.commit()
+    conn.close()
+
+    logger.info(f"Wrote {len(dids)} DIDs to local database at {sqlite_db_path}")
+
+
 def main(payload: dict):
     """Main function to determine DIDs to backfill.
 
@@ -260,7 +291,7 @@ def main(payload: dict):
 
     items = [{"did": did} for did in filtered_dids_to_backfill]
 
-    breakpoint()
+    write_dids_to_local_db(dids=filtered_dids_to_backfill)
 
     queue.batch_add_items_to_queue(items=items)
 
