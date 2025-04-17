@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import json
 import os
+from pprint import pprint
 import random
 import sqlite3
 import time
@@ -14,6 +15,7 @@ from lib.log.logger import get_logger
 from services.backfill.sync.backfill import get_plc_directory_doc
 from services.backfill.sync.backfill_endpoint_thread import (
     run_backfill_for_pds_endpoint,
+    get_write_queues,
 )
 from services.backfill.sync.constants import current_dir
 from services.backfill.sync.determine_dids_to_backfill import (
@@ -312,6 +314,10 @@ def run_backfills(
         logger.info("Backfilling only PLC endpoints, skipping PDS endpoint backfill.")
         return
 
+    logger.info(
+        f"Total number of possible PDS endpoints to sync: {len(pds_endpoint_to_dids_map)}"
+    )
+
     if skip_completed_pds_endpoints:
         pds_endpoints_to_skip = calculate_pds_endpoints_to_skip(
             pds_endpoint_to_did_count=pds_endpoint_to_did_count
@@ -331,14 +337,15 @@ def run_backfills(
         # We only want to sync the top N PDS endpoints.
         sorted_endpoints = sorted_endpoints[:max_pds_endpoints_to_sync]
         sorted_endpoints = [endpoint for endpoint, _ in sorted_endpoints]
+        sorted_dict = {key: pds_endpoint_to_did_count[key] for key in sorted_endpoints}
+        logger.info("Sorted PDS endpoints by number of DIDs (descending order):")
+        pprint(sorted_dict)
         pds_endpoint_to_dids_map = {
             endpoint: dids
             for endpoint, dids in pds_endpoint_to_dids_map.items()
             if endpoint in sorted_endpoints
         }
         logger.info(f"Only sorting the top {max_pds_endpoints_to_sync} PDS endpoints.")
-
-    breakpoint()
 
     for pds_endpoint in pds_endpoint_to_dids_map.keys():
         logger.info(
@@ -359,22 +366,10 @@ def check_if_pds_endpoint_backfill_completed(
     pds_endpoint: str, expected_total: int
 ) -> bool:
     """Checks if the PDS endpoint backfill is completed."""
-    output_results_db_path = os.path.join(current_dir, f"results_{pds_endpoint}.db")
-    output_deadletter_db_path = os.path.join(
-        current_dir, f"deadletter_{pds_endpoint}.db"
-    )
-    output_results_queue = Queue(
-        queue_name=f"results_{pds_endpoint}",
-        create_new_queue=True,
-        temp_queue=True,
-        temp_queue_path=output_results_db_path,
-    )
-    output_deadletter_queue = Queue(
-        queue_name=f"deadletter_{pds_endpoint}",
-        create_new_queue=True,
-        temp_queue=True,
-        temp_queue_path=output_deadletter_db_path,
-    )
+    write_queues: dict[str, Queue] = get_write_queues(pds_endpoint=pds_endpoint)
+    output_results_queue: Queue = write_queues["output_results_queue"]
+    output_deadletter_queue: Queue = write_queues["output_deadletter_queue"]
+
     results = output_results_queue.load_dict_items_from_queue()
     deadletter = output_deadletter_queue.load_dict_items_from_queue()
     total_processed = len(results) + len(deadletter)
