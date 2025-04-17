@@ -338,6 +338,8 @@ def run_backfills(
         }
         logger.info(f"Only sorting the top {max_pds_endpoints_to_sync} PDS endpoints.")
 
+    breakpoint()
+
     for pds_endpoint in pds_endpoint_to_dids_map.keys():
         logger.info(
             f"Running backfill for PDS endpoint {pds_endpoint} for {len(pds_endpoint_to_dids_map[pds_endpoint])} DIDs"
@@ -414,12 +416,14 @@ def main():
     # dids = dids[:2000]
     # dids = dids[2000:4000]
     # dids = dids[4000:20000]
-    dids = dids[20000:50000]
+    # dids = dids[20000:50000]
+    # dids = dids[50000:80000]
+    # dids = dids[:50000]
 
     run_backfills(
         dids=dids,
-        load_existing_endpoints_to_dids_map=False,
-        plc_backfill_only=True,
+        load_existing_endpoints_to_dids_map=True,
+        plc_backfill_only=False,
         skip_completed_pds_endpoints=True,
         max_pds_endpoints_to_sync=max_pds_endpoints_to_sync,
     )
