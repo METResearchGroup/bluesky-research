@@ -5,7 +5,7 @@ import threading
 from lib.log.logger import get_logger
 from services.backfill.sync.backfill import get_plc_directory_doc
 from services.backfill.sync.backfill_endpoint_thread import (
-    run_backfill_for_plc_endpoint,
+    run_backfill_for_pds_endpoint,
 )
 from services.backfill.sync.determine_dids_to_backfill import (
     current_dir,
@@ -159,7 +159,7 @@ def run_backfills(
             f"Running backfill for PLC endpoint {plc_endpoint} for {len(plc_endpoint_to_dids_map[plc_endpoint])} DIDs"
         )
         threading.Thread(
-            target=run_backfill_for_plc_endpoint,
+            target=run_backfill_for_pds_endpoint,
             kwargs={
                 "plc_endpoint": plc_endpoint,
                 "dids": plc_endpoint_to_dids_map[plc_endpoint],

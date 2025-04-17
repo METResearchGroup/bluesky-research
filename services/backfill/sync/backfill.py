@@ -225,6 +225,22 @@ def transform_backfilled_record(
         return record
 
 
+def send_request_to_pds(did: str, pds_endpoint: str) -> requests.Response:
+    """Send a request to the PDS endpoint.
+
+    Args:
+        did: The DID of the user
+        pds_endpoint: The PDS endpoint to send the request to
+
+    Returns:
+        The response object from the request
+    """
+    root_url = os.path.join(pds_endpoint, "xrpc")
+    joined_url = os.path.join(root_url, endpoint)
+    full_url = f"{joined_url}?did={did}"
+    return requests.get(full_url)
+
+
 def get_bsky_records_for_user(did: str) -> list[dict]:
     """Get the records for a user.
 
@@ -238,10 +254,7 @@ def get_bsky_records_for_user(did: str) -> list[dict]:
     pds_endpoint = plc_doc["service"][0][
         "serviceEndpoint"
     ]  # TODO: verify if this will always work.
-    root_url = os.path.join(pds_endpoint, "xrpc")
-    joined_url = os.path.join(root_url, endpoint)
-    full_url = f"{joined_url}?did={did}"
-    res = requests.get(full_url)
+    res = send_request_to_pds(did=did, pds_endpoint=pds_endpoint)
     if res.status_code != 200:
         logger.error(f"Error getting CAR file for user {did}: {res.status_code}")
         logger.info(f"res.headers: {res.headers}")
