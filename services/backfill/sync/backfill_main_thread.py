@@ -1,6 +1,7 @@
 """Threaded application for running PDS backfill sync."""
 
 from concurrent.futures import ThreadPoolExecutor
+import json
 import os
 import random
 import sqlite3
@@ -42,7 +43,8 @@ plc_endpoint_to_dids_db = Queue(
 default_plc_requests_per_second = 50
 default_plc_backfill_batch_size = 250
 logging_minibatch_size = 25
-max_plc_threads = 4
+# max_plc_threads = 4
+max_plc_threads = 64
 
 logger = get_logger(__name__)
 
@@ -142,22 +144,39 @@ def single_batch_backfill_missing_did_to_plc_endpoints(
     logger.info(f"\tFetching PLC endpoints for {len(dids)} DIDs")
 
     # parallelize the requests to the PLC directory
+    minibatch_did_size = max_plc_threads
     minibatch_dids_batches: list[list[str]] = create_batches(
-        batch_list=dids, batch_size=max_plc_threads
+        batch_list=dids, batch_size=minibatch_did_size
     )
 
     logger.info(
-        f"\tFetching PLC endpoints for {len(dids)} DIDs. Splitting into {len(minibatch_dids_batches)} minibatches batches of {max_plc_threads} DIDs each."
+        f"\tFetching PLC endpoints for {len(dids)} DIDs. Splitting into {len(minibatch_dids_batches)} minibatches batches of {minibatch_did_size} DIDs each."
     )
     for i, minibatch_dids_batch in enumerate(minibatch_dids_batches):
         if i % logging_minibatch_size == 0:
-            logger.info(f"\t\tFetching PLC endpoint for {i}/{len(dids)} DIDs in batch")
+            logger.info(
+                f"\t\tFetching PLC endpoint for {i*minibatch_did_size}/{len(dids)} DIDs in batch"
+            )
         minibatch_plc_directory_docs: list[dict] = parallelize_plc_directory_requests(
             minibatch_dids=minibatch_dids_batch
         )
-        service_endpoints = [
-            doc["service"][0]["serviceEndpoint"] for doc in minibatch_plc_directory_docs
-        ]
+        try:
+            service_endpoints = [
+                doc["service"][0]["serviceEndpoint"]
+                for doc in minibatch_plc_directory_docs
+            ]
+        except Exception as e:
+            # example failed doc: [{'message': 'DID not registered: did:web:witchy.mom'}]
+            service_endpoints = []
+            for doc in minibatch_plc_directory_docs:
+                if "service" in doc:
+                    service_endpoints.append(doc["service"][0]["serviceEndpoint"])
+                else:
+                    service_endpoints.append("invalid_doc")
+            logger.error(f"Error fetching PLC endpoints for batch {i}: {e}")
+            logger.error(f"Error details: {minibatch_plc_directory_docs}")
+            breakpoint()
+            raise e
         dids_to_service_endpoints = dict(zip(minibatch_dids_batch, service_endpoints))
         did_to_plc_endpoint_map.update(dids_to_service_endpoints)
 
@@ -168,7 +187,7 @@ def single_batch_backfill_missing_did_to_plc_endpoints(
         run_rate_limit_jitter(num_requests_per_second=default_plc_requests_per_second)
         if i % logging_minibatch_size == 0:
             logger.info(
-                f"\t\tCompleted fetching PLC endpoints for {i}/{len(dids)} DIDs in batch"
+                f"\t\tCompleted fetching PLC endpoints for {i*minibatch_did_size}/{len(dids)} DIDs in batch"
             )
 
     logger.info(f"\tCompleted fetching PLC endpoints for {len(dids)} DIDs")
@@ -257,10 +276,32 @@ def run_backfills(
         )
         export_plc_endpoint_to_dids_map_to_local_db(plc_endpoint_to_dids_map)
 
-    for plc_endpoint in plc_endpoint_to_dids_map.keys():
-        logger.info(
-            f"Number of records for PLC endpoint {plc_endpoint}: {len(plc_endpoint_to_dids_map[plc_endpoint])}"
-        )
+    logger.info("Sorted PLC endpoints by number of DIDs (descending order)")
+
+    plc_endpoint_to_did_count = {
+        endpoint: len(dids) for endpoint, dids in plc_endpoint_to_dids_map.items()
+    }
+
+    # Sort the endpoints by number of DIDs in descending order
+    sorted_endpoints = sorted(
+        plc_endpoint_to_did_count.items(), key=lambda item: item[1], reverse=True
+    )
+
+    # Log the top endpoints
+    logger.info("Top PLC endpoints by number of DIDs:")
+    for endpoint, count in sorted_endpoints[:10]:  # Show top 10
+        logger.info(f"  {endpoint}: {count} DIDs")
+
+    # Export the PLC endpoint counts.
+    plc_endpoint_to_did_count_path = os.path.join(
+        current_dir, "plc_endpoint_to_did_count.json"
+    )
+    with open(plc_endpoint_to_did_count_path, "w") as f:
+        json.dump(plc_endpoint_to_did_count, f, indent=2)
+
+    logger.info(
+        f"Exported PLC endpoint to DID count map to {plc_endpoint_to_did_count_path}"
+    )
 
     if plc_backfill_only:
         logger.info("Backfilling only PLC endpoints, skipping PDS endpoint backfill.")
@@ -286,7 +327,9 @@ def main():
 
     # TODO: first start with loading a small # of DIDs (e.g., 2,000).
     # Continue a phased rollout: 2,000 -> 10,000 -> 20,000 -> 50,000 -> 100,000
-    dids = dids[:2000]
+    # dids = dids[:2000]
+    # dids = dids[2000:4000]
+    dids = dids[4000:20000]
 
     run_backfills(
         dids=dids,

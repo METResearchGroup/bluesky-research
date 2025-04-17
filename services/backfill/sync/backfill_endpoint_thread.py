@@ -149,45 +149,53 @@ def run_backfill_for_pds_endpoint(pds_endpoint: str, dids: list[str]):
         if total_processed_dids_counter % 100 == 0:
             logger.info(f"Processing DID {did} of {len(filtered_dids)}")
         total_processed_dids_counter += 1
-        response = send_request_to_pds(did=did, pds_endpoint=pds_endpoint)
-        if response.status_code == 200:
-            temp_results_queue.put({"did": did, "content": response.content})
+        if pds_endpoint == "invalid_doc":
+            logger.info(
+                "Processing the DIDs that had invalid PLC docs. These will all go to deadletter queues."
+            )
+            temp_deadletter_queue.put({"did": did, "content": ""})
         else:
-            if response.status_code == 429:
-                logger.info("Rate limit hit for PDS. Flushing queue and sleeping.")
-                time_start = time.time()
-                flush_queues(
-                    results_db=output_results_queue,
-                    deadletter_db=output_deadletter_queue,
-                )
-                time_end = time.time()
-                logger.info(
-                    f"Time taken to flush queue: {time_end - time_start} seconds"
-                )
-                reset_time = response.headers["ratelimit-reset"]
-                reset_timestamp = datetime.fromtimestamp(
-                    reset_time, timezone.utc
-                ).strftime(timestamp_format)
-                current_time = int(time.time())
-                wait_time = reset_time - current_time
-                logger.info(f"Reset timestamp: {reset_timestamp}")
-                logger.info(f"Seconds to wait: {wait_time}")
-                utc_time_str = time.strftime(timestamp_format, time.gmtime(reset_time))
-                logger.info(f"Reset will occur at: {utc_time_str} UTC")
-                time.sleep(wait_time)
-                logger.info("Waking up from sleep.")
+            response = send_request_to_pds(did=did, pds_endpoint=pds_endpoint)
+            if response.status_code == 200:
+                temp_results_queue.put({"did": did, "content": response.content})
             else:
-                logger.error(
-                    f"Error getting CAR file for user {did}: {response.status_code}"
-                )
-                logger.info(f"response.headers: {response.headers}")
-                logger.info(f"response.content: {response.content}")
-                logger.info("Adding user to deadletter queue.")
-                temp_deadletter_queue.put({"did": did, "content": ""})
-        request_count += 1
-        request_count = enforce_manual_rate_limit(request_count=request_count)
-        if request_count == 0:
-            logger.info("Starting with a clean slate of requests.")
+                if response.status_code == 429:
+                    logger.info("Rate limit hit for PDS. Flushing queue and sleeping.")
+                    time_start = time.time()
+                    flush_queues(
+                        results_db=output_results_queue,
+                        deadletter_db=output_deadletter_queue,
+                    )
+                    time_end = time.time()
+                    logger.info(
+                        f"Time taken to flush queue: {time_end - time_start} seconds"
+                    )
+                    reset_time = response.headers["ratelimit-reset"]
+                    reset_timestamp = datetime.fromtimestamp(
+                        reset_time, timezone.utc
+                    ).strftime(timestamp_format)
+                    current_time = int(time.time())
+                    wait_time = reset_time - current_time
+                    logger.info(f"Reset timestamp: {reset_timestamp}")
+                    logger.info(f"Seconds to wait: {wait_time}")
+                    utc_time_str = time.strftime(
+                        timestamp_format, time.gmtime(reset_time)
+                    )
+                    logger.info(f"Reset will occur at: {utc_time_str} UTC")
+                    time.sleep(wait_time)
+                    logger.info("Waking up from sleep.")
+                else:
+                    logger.error(
+                        f"Error getting CAR file for user {did}: {response.status_code}"
+                    )
+                    logger.info(f"response.headers: {response.headers}")
+                    logger.info(f"response.content: {response.content}")
+                    logger.info("Adding user to deadletter queue.")
+                    temp_deadletter_queue.put({"did": did, "content": ""})
+            request_count += 1
+            request_count = enforce_manual_rate_limit(request_count=request_count)
+            if request_count == 0:
+                logger.info("Starting with a clean slate of requests.")
 
     flush_queues(
         results_db=output_results_queue,
