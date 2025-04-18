@@ -175,13 +175,15 @@ class PDSEndpointWorker:
             results_db=self.output_results_queue,
             deadletter_db=self.output_deadletter_queue,
         )
-        for did in self.dids:
-            self.temp_work_queue.put(did)
 
         self.session = session
         self.cpu_pool = cpu_pool
         self._batch_size = batch_size
         self._writer_task: asyncio.Task | None = None
+
+    async def _init_worker_queue(self):
+        for did in self.dids:
+            await self.temp_work_queue.put(did)
 
     async def _process_did(
         self, did: str, session: aiohttp.ClientSession, max_retries: int = None
@@ -201,9 +203,9 @@ class PDSEndpointWorker:
         retry_count = 0
         while retry_count < max_retries:
             try:
+                content = None
                 await self.token_bucket._acquire()
                 async with self.semaphore:
-                    content = None
                     response = await async_send_request_to_pds(
                         did=did, pds_endpoint=self.pds_endpoint, session=session
                     )
@@ -220,8 +222,11 @@ class PDSEndpointWorker:
                             {"did": did, "content": ""}
                         )
                         return
+
                 if content:
                     # offload CPU portion to thread pool.
+                    # keeping outside of semaphore to avoid blocking the semaphore
+                    # with the extra CPU operations.
                     loop = asyncio.get_running_loop()
                     records: list[dict] = await loop.run_in_executor(
                         self.cpu_pool, get_records_from_pds_bytes, content
@@ -250,11 +255,14 @@ class PDSEndpointWorker:
 
     async def start(self):
         """Starts the backfill for a single PDS endpoint."""
-        # background DB writer.
+        # initialize the worker queue.
+        await self._init_worker_queue()
+
+        # start the background DB writer.
         self._writer_task = asyncio.create_task(self._writer())
 
         # create worker tasks. These worker tasks will pull DIDs from the
-        # worker queue and process them.
+        # worker queue and process them. Fixed relative to desired QPS.
         num_workers = self.qps
         producer_tasks = [
             asyncio.create_task(self._worker_loop()) for _ in range(num_workers)
@@ -288,9 +296,6 @@ class PDSEndpointWorker:
         """Waits for the backfill to finish."""
         # wait for the work queue to be empty
         await self.temp_work_queue.join()
-
-        # signal worker to stop
-        self._should_stop = True
 
         # wait for all producers to finish.
         await self._producer_group
