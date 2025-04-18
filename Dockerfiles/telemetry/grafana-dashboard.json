@@ -14,6 +14,39 @@
       },
       {
         "type": "graph",
+        "title": "Success Ratio",
+        "targets": [
+          {
+            "expr": "backfill_endpoint_success_ratio",
+            "legendFormat": "{{endpoint}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "graph",
+        "title": "Network Errors Per Second (by type)",
+        "targets": [
+          {
+            "expr": "rate(backfill_endpoint_network_errors_total[1m])",
+            "legendFormat": "{{endpoint}} - {{error_type}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "graph",
+        "title": "Retries Per Second",
+        "targets": [
+          {
+            "expr": "rate(backfill_endpoint_retries_total[1m])",
+            "legendFormat": "{{endpoint}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "graph",
         "title": "Errors Per Second (by endpoint)",
         "targets": [
           {
@@ -28,7 +61,7 @@
         "title": "95th Percentile Latency (s)",
         "targets": [
           {
-            "expr": "histogram_quantile(0.95, rate(service_request_latency_seconds_bucket[5m]))",
+            "expr": "histogram_quantile(0.95, sum(rate(backfill_endpoint_request_latency_histogram_bucket[5m])) by (endpoint, le))",
             "legendFormat": "{{endpoint}}",
             "refId": "C"
           }
@@ -47,12 +80,45 @@
       },
       {
         "type": "graph",
-        "title": "Decode Queue Size",
+        "title": "Queue Sizes by Type",
         "targets": [
           {
-            "expr": "backfill_endpoint_queue_size",
-            "legendFormat": "{{endpoint}}",
+            "expr": "backfill_endpoint_queue_sizes",
+            "legendFormat": "{{endpoint}} - {{queue_type}}",
             "refId": "E"
+          }
+        ]
+      },
+      {
+        "type": "graph",
+        "title": "Processing Time by Operation (95th percentile)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(backfill_endpoint_processing_seconds_bucket[5m])) by (endpoint, operation_type, le))",
+            "legendFormat": "{{endpoint}} - {{operation_type}}",
+            "refId": "F"
+          }
+        ]
+      },
+      {
+        "type": "graph",
+        "title": "DID Processing Status",
+        "targets": [
+          {
+            "expr": "rate(backfill_endpoint_did_status_total[5m])",
+            "legendFormat": "{{endpoint}} - {{status}}",
+            "refId": "G"
+          }
+        ]
+      },
+      {
+        "type": "graph",
+        "title": "Remaining Rate Limit Tokens",
+        "targets": [
+          {
+            "expr": "backfill_endpoint_tokens_remaining",
+            "legendFormat": "{{endpoint}}",
+            "refId": "H"
           }
         ]
       }

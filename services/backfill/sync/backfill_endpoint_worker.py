@@ -11,6 +11,7 @@ from lib.constants import timestamp_format
 from lib.db.queue import Queue
 from lib.db.rate_limiter import AsyncTokenBucket
 from lib.log.logger import get_logger
+from lib.telemetry.prometheus.service import pds_backfill_metrics as pdm
 from services.backfill.sync.backfill import (
     get_records_from_pds_bytes,
     async_send_request_to_pds,
@@ -23,7 +24,9 @@ default_qps = 10  # assume 10 QPS max = 600/minute = 3000/5 minutes
 GLOBAL_RATE_LIMIT = (
     3000  # rate limit, I think, is 3000/5 minutes, we can put our own cap.
 )
-MANUAL_RATE_LIMIT = 0.9 * GLOBAL_RATE_LIMIT  # we can put our own cap.
+MANUAL_RATE_LIMIT = (
+    0.9 * GLOBAL_RATE_LIMIT
+)  # we can put conservatively to avoid max rate limit.
 
 start_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
 
@@ -80,7 +83,7 @@ def log_progress(
     total_dids: int,
     total_filtered_dids: int,
     total_records_flushed: int,
-    total_requests_made: int,
+    total_requests_made: int = 0,
 ):
     """Logs the following:
     1. Total DIDs for this PDS endpoint.
@@ -146,6 +149,10 @@ class PDSEndpointWorker:
         self.qps = qps
         self.semaphore = asyncio.Semaphore(qps)
 
+        # Counters for metrics
+        self.total_requests = 0
+        self.total_successes = 0
+
         self.max_retries = 3  # number of times to retry a failed DID before adding to deadletter queue.
 
         # token bucket, for managing rate limits.
@@ -181,9 +188,26 @@ class PDSEndpointWorker:
         self._batch_size = batch_size
         self._writer_task: asyncio.Task | None = None
 
+        # Initialize queue size metrics
+        pdm.BACKFILL_QUEUE_SIZES.labels(
+            endpoint=self.pds_endpoint, queue_type="work"
+        ).set(0)
+        pdm.BACKFILL_QUEUE_SIZES.labels(
+            endpoint=self.pds_endpoint, queue_type="results"
+        ).set(0)
+        pdm.BACKFILL_QUEUE_SIZES.labels(
+            endpoint=self.pds_endpoint, queue_type="deadletter"
+        ).set(0)
+
     async def _init_worker_queue(self):
         for did in self.dids:
             await self.temp_work_queue.put(did)
+        # Update queue size metric
+        queue_size = self.temp_work_queue.qsize()
+        pdm.BACKFILL_QUEUE_SIZES.labels(
+            endpoint=self.pds_endpoint, queue_type="work"
+        ).set(queue_size)
+        pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(queue_size)
 
     async def _process_did(
         self, did: str, session: aiohttp.ClientSession, max_retries: int = None
@@ -201,10 +225,20 @@ class PDSEndpointWorker:
         if not max_retries:
             max_retries = self.max_retries
         retry_count = 0
+
+        self.total_requests += 1
+
         while retry_count < max_retries:
             try:
                 content = None
+                pdm.BACKFILL_REQUESTS.labels(endpoint=self.pds_endpoint).inc()
+                pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).inc()
                 await self.token_bucket._acquire()
+                pdm.BACKFILL_TOKENS_LEFT.labels(endpoint=self.pds_endpoint).set(
+                    self.token_bucket._tokens
+                )
+
+                start = time.perf_counter()
                 async with self.semaphore:
                     response = await async_send_request_to_pds(
                         did=did, pds_endpoint=self.pds_endpoint, session=session
@@ -215,35 +249,85 @@ class PDSEndpointWorker:
                         # Rate limited, put back in queue
                         await asyncio.sleep(1 * (2**retry_count))  # Exponential backoff
                         await self.temp_work_queue.put(did)
+                        pdm.BACKFILL_QUEUE_SIZES.labels(
+                            endpoint=self.pds_endpoint, queue_type="work"
+                        ).set(self.temp_work_queue.qsize())
                         return
                     else:
                         # Error case
                         await self.temp_deadletter_queue.put(
                             {"did": did, "content": ""}
                         )
+                        pdm.BACKFILL_DID_STATUS.labels(
+                            endpoint=self.pds_endpoint, status="http_error"
+                        ).inc()
+                        pdm.BACKFILL_QUEUE_SIZES.labels(
+                            endpoint=self.pds_endpoint, queue_type="deadletter"
+                        ).set(self.temp_deadletter_queue.qsize())
                         return
+
                 if content:
                     # offload CPU portion to thread pool.
                     # keeping outside of semaphore to avoid blocking the semaphore
                     # with the extra CPU operations.
                     loop = asyncio.get_running_loop()
+                    processing_start = time.perf_counter()
                     records: list[dict] = await loop.run_in_executor(
                         self.cpu_pool, get_records_from_pds_bytes, content
                     )
+                    processing_time = time.perf_counter() - processing_start
+                    pdm.BACKFILL_PROCESSING_SECONDS.labels(
+                        endpoint=self.pds_endpoint, operation_type="parse_records"
+                    ).observe(processing_time)
+
                     logger.info(
                         f"(PDS endpoint: {self.pds_endpoint}): Adding to queue the processed DID {did} with {len(records)} records."
                     )
                     await self.temp_results_queue.put({"did": did, "content": records})
+
+                    # Update DID status and success metrics
+                    pdm.BACKFILL_DID_STATUS.labels(
+                        endpoint=self.pds_endpoint, status="success"
+                    ).inc()
+                    self.total_successes += 1
+
+                    # Update success ratio
+                    if self.total_requests > 0:
+                        success_ratio = self.total_successes / self.total_requests
+                        pdm.BACKFILL_SUCCESS_RATIO.labels(
+                            endpoint=self.pds_endpoint
+                        ).set(success_ratio)
+
                     logger.info(
                         f"(PDS endpoint: {self.pds_endpoint}): Processed DID {did} with {len(records)} records and added to temp results queue."
                     )
+
+                    # Update queue size metrics
                     current_results_queue_size = self.temp_results_queue.qsize()
                     logger.info(
                         f"(PDS endpoint: {self.pds_endpoint}): Current results queue size: {current_results_queue_size}"
                     )
+                    pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(
+                        current_results_queue_size
+                    )
+                    pdm.BACKFILL_QUEUE_SIZES.labels(
+                        endpoint=self.pds_endpoint, queue_type="results"
+                    ).set(current_results_queue_size)
                     return
+
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                # Track network errors specifically
+                error_type = (
+                    "timeout" if isinstance(e, asyncio.TimeoutError) else "connection"
+                )
+                pdm.BACKFILL_NETWORK_ERRORS.labels(
+                    endpoint=self.pds_endpoint, error_type=error_type
+                ).inc()
+
                 retry_count += 1
+                # Increment retry counter
+                pdm.BACKFILL_RETRIES.labels(endpoint=self.pds_endpoint).inc()
+
                 if retry_count < max_retries:
                     # log and retry with backoff
                     logger.warning(
@@ -256,13 +340,37 @@ class PDSEndpointWorker:
                         f"(PDS endpoint: {self.pds_endpoint}): Failed processing DID {did} after {max_retries} retries: {e}"
                     )
                     await self.temp_deadletter_queue.put({"did": did, "content": ""})
+                    pdm.BACKFILL_DID_STATUS.labels(
+                        endpoint=self.pds_endpoint, status="network_error"
+                    ).inc()
+                    pdm.BACKFILL_QUEUE_SIZES.labels(
+                        endpoint=self.pds_endpoint, queue_type="deadletter"
+                    ).set(self.temp_deadletter_queue.qsize())
             except Exception as e:
+                pdm.BACKFILL_ERRORS.labels(endpoint=self.pds_endpoint).inc()
                 # Other unexpected errors
                 logger.error(
                     f"(PDS endpoint: {self.pds_endpoint}): Unexpected error processing DID {did}: {e}"
                 )
                 await self.temp_deadletter_queue.put({"did": did, "content": ""})
+                pdm.BACKFILL_DID_STATUS.labels(
+                    endpoint=self.pds_endpoint, status="unexpected_error"
+                ).inc()
+                pdm.BACKFILL_QUEUE_SIZES.labels(
+                    endpoint=self.pds_endpoint, queue_type="deadletter"
+                ).set(self.temp_deadletter_queue.qsize())
                 return
+            finally:
+                pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).dec()
+
+                # Track both the summary and histogram for latency
+                request_latency = time.perf_counter() - start
+                pdm.BACKFILL_LATENCY_SECONDS.labels(endpoint=self.pds_endpoint).observe(
+                    request_latency
+                )
+                pdm.BACKFILL_LATENCY_HISTOGRAM.labels(
+                    endpoint=self.pds_endpoint
+                ).observe(request_latency)
 
     async def start(self):
         """Starts the backfill for a single PDS endpoint."""
@@ -290,6 +398,10 @@ class PDSEndpointWorker:
             # get DID from the queue.
             try:
                 did = await asyncio.wait_for(self.temp_work_queue.get(), timeout=1.0)
+                # Update work queue size metric
+                pdm.BACKFILL_QUEUE_SIZES.labels(
+                    endpoint=self.pds_endpoint, queue_type="work"
+                ).set(self.temp_work_queue.qsize())
             except asyncio.TimeoutError:
                 # if queue is empty, check if work is done.
                 if self.temp_work_queue.empty():
@@ -332,9 +444,20 @@ class PDSEndpointWorker:
             while not self.temp_results_queue.empty():
                 result: dict = await self.temp_results_queue.get()
                 result_buffer.append(result)
+                self.temp_results_queue.task_done()
+                # Update queue size metric
+                pdm.BACKFILL_QUEUE_SIZES.labels(
+                    endpoint=self.pds_endpoint, queue_type="results"
+                ).set(self.temp_results_queue.qsize())
+
             while not self.temp_deadletter_queue.empty():
                 deadletter: dict = await self.temp_deadletter_queue.get()
                 deadletter_buffer.append(deadletter)
+                self.temp_deadletter_queue.task_done()
+                # Update queue size metric
+                pdm.BACKFILL_QUEUE_SIZES.labels(
+                    endpoint=self.pds_endpoint, queue_type="deadletter"
+                ).set(self.temp_deadletter_queue.qsize())
 
             total_result_buffer_size = len(result_buffer)
             total_deadletter_buffer_size = len(deadletter_buffer)
@@ -349,9 +472,12 @@ class PDSEndpointWorker:
                 previous_buffer_size = total_buffer_size
 
             if total_buffer_size >= self._batch_size:
-                await self._async_flush_buffers(
-                    result_buffer=result_buffer, deadletter_buffer=deadletter_buffer
-                )
+                with pdm.BACKFILL_DB_FLUSH_SECONDS.labels(
+                    endpoint=self.pds_endpoint
+                ).time():
+                    await self._async_flush_buffers(
+                        result_buffer=result_buffer, deadletter_buffer=deadletter_buffer
+                    )
                 global_total_records_flushed += total_buffer_size
                 result_buffer = []
                 deadletter_buffer = []
@@ -360,7 +486,12 @@ class PDSEndpointWorker:
                     total_dids=len(self.dids),
                     total_filtered_dids=len(self.dids) - len(self.temp_work_queue),
                     total_records_flushed=global_total_records_flushed,
+                    total_requests_made=self.total_requests,
                 )
+
+            # Avoid tight loop if both queues are empty
+            if self.temp_results_queue.empty() and self.temp_deadletter_queue.empty():
+                await asyncio.sleep(0.1)
 
     async def _async_flush_buffers(
         self,
@@ -375,12 +506,21 @@ class PDSEndpointWorker:
             f"(PDS endpoint: {self.pds_endpoint}): Flushing {total_results_buffer} results and {total_deadletter_buffer} deadletters to permanent storage. Total: {total_buffer}."
         )
         current_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
+
+        flush_start = time.perf_counter()
+
         await self.output_results_queue.async_batch_add_items_to_queue(
             items=result_buffer, metadata={"timestamp": current_timestamp}
         )
         await self.output_deadletter_queue.async_batch_add_items_to_queue(
             items=deadletter_buffer, metadata={"timestamp": current_timestamp}
         )
+
+        flush_time = time.perf_counter() - flush_start
+        pdm.BACKFILL_PROCESSING_SECONDS.labels(
+            endpoint=self.pds_endpoint, operation_type="db_flush"
+        ).observe(flush_time)
+
         logger.info(
             f"(PDS endpoint: {self.pds_endpoint}): Finished flushing {total_results_buffer} results and {total_deadletter_buffer} deadletters to permanent storage. Total: {total_buffer}."
         )
