@@ -312,6 +312,9 @@ async def run_pds_backfills(
     async with aiohttp.ClientSession() as session:
         workers = []
         for pds_endpoint, dids in pds_endpoint_to_dids_map.items():
+            logger.info(
+                f"Starting PDS backfill for {pds_endpoint} with {len(dids)} DIDs."
+            )
             worker = PDSEndpointWorker(
                 pds_endpoint=pds_endpoint,
                 dids=dids,
@@ -320,11 +323,14 @@ async def run_pds_backfills(
             )
             workers.append(worker)
 
-        await asyncio.gather(*[worker.run() for worker in workers])
+        await asyncio.gather(*[worker.start() for worker in workers])
 
         await asyncio.gather(*[worker.wait_done() for worker in workers])
 
         await asyncio.gather(*[worker.shutdown() for worker in workers])
+
+    cpu_pool.shutdown(wait=True)
+    logger.info("All PDS backfills completed.")
 
 
 def run_backfills(
