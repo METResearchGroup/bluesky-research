@@ -1,0 +1,155 @@
+{
+    "annotations": { "list": [] },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": null,
+    "links": [],
+    "liveNow": false,
+    "panels": [
+      {
+        "type": "graph",
+        "title": "Requests Per Second (by endpoint)",
+        "targets": [
+          {
+            "expr": "rate(backfill_endpoint_requests_total[1m])",
+            "legendFormat": "{{endpoint}}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+      },
+      {
+        "type": "graph",
+        "title": "Success Ratio",
+        "targets": [
+          {
+            "expr": "backfill_endpoint_success_ratio",
+            "legendFormat": "{{endpoint}}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+      },
+      {
+        "type": "graph",
+        "title": "Network Errors Per Second (by type)",
+        "targets": [
+          {
+            "expr": "rate(backfill_endpoint_network_errors_total[1m])",
+            "legendFormat": "{{endpoint}} - {{error_type}}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 }
+      },
+      {
+        "type": "graph",
+        "title": "Retries Per Second",
+        "targets": [
+          {
+            "expr": "rate(backfill_endpoint_retries_total[1m])",
+            "legendFormat": "{{endpoint}}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 }
+      },
+      {
+        "type": "graph",
+        "title": "Errors Per Second (by endpoint)",
+        "targets": [
+          {
+            "expr": "rate(backfill_endpoint_request_errors_total[1m])",
+            "legendFormat": "{{endpoint}}",
+            "refId": "B"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 }
+      },
+      {
+        "type": "graph",
+        "title": "95th Percentile Latency (s)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(backfill_endpoint_request_latency_histogram_bucket[5m])) by (endpoint, le))",
+            "legendFormat": "{{endpoint}}",
+            "refId": "C"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 }
+      },
+      {
+        "type": "graph",
+        "title": "In-Flight Requests",
+        "targets": [
+          {
+            "expr": "backfill_endpoint_inflight_requests",
+            "legendFormat": "{{endpoint}}",
+            "refId": "D"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
+      },
+      {
+        "type": "graph",
+        "title": "Queue Sizes by Type",
+        "targets": [
+          {
+            "expr": "backfill_endpoint_queue_sizes",
+            "legendFormat": "{{endpoint}} - {{queue_type}}",
+            "refId": "E"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 }
+      },
+      {
+        "type": "graph",
+        "title": "Processing Time by Operation (95th percentile)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(backfill_endpoint_processing_seconds_bucket[5m])) by (endpoint, operation_type, le))",
+            "legendFormat": "{{endpoint}} - {{operation_type}}",
+            "refId": "F"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 }
+      },
+      {
+        "type": "graph",
+        "title": "DID Processing Status",
+        "targets": [
+          {
+            "expr": "rate(backfill_endpoint_did_status_total[5m])",
+            "legendFormat": "{{endpoint}} - {{status}}",
+            "refId": "G"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 }
+      },
+      {
+        "type": "graph",
+        "title": "Remaining Rate Limit Tokens",
+        "targets": [
+          {
+            "expr": "backfill_endpoint_tokens_remaining",
+            "legendFormat": "{{endpoint}}",
+            "refId": "H"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 }
+      }
+    ],
+    "refresh": "10s",
+    "schemaVersion": 37,
+    "style": "dark",
+    "tags": [],
+    "templating": {"list": []},
+    "time": { "from": "now-30m", "to": "now" },
+    "timepicker": {},
+    "timezone": "",
+    "title": "Backfill Service Overview",
+    "uid": "backfill-overview",
+    "version": 1,
+    "weekStart": ""
+  } 

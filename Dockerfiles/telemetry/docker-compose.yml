@@ -16,5 +16,9 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=default # OK since it is local.
     volumes:
-      - ./grafana-dashboard.json:/etc/grafana/provisioning/dashboards/default-dashboard.json
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
     restart: unless-stopped
+    depends_on:
+      - prometheus
