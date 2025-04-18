@@ -14,6 +14,7 @@ import time
 from lib.db.queue import Queue
 from lib.helper import create_batches
 from lib.log.logger import get_logger
+from lib.telemetry.prometheus.server import start_metrics_server
 from services.backfill.sync.backfill import get_plc_directory_doc
 from services.backfill.sync.backfill_endpoint_worker import (
     get_write_queues,
@@ -22,6 +23,8 @@ from services.backfill.sync.backfill_endpoint_worker import (
 from services.backfill.sync.constants import current_dir
 from services.backfill.sync.determine_dids_to_backfill import sqlite_db_path
 
+# this is backfilled from `determine_dids_to_backfill.py`, which is triggered
+# in the handler.py file.
 did_plc_sqlite_db_path = os.path.join(current_dir, "did_plc.sqlite")
 
 # I already optimized SQLite writes as a part of this `Queue` class so I'll
@@ -51,6 +54,9 @@ max_plc_threads = 64
 max_pds_endpoints_to_sync = 32
 
 logger = get_logger(__name__)
+
+# start Prometheus server for tracking.
+start_metrics_server(port=8000)
 
 
 def load_dids_from_local_db() -> list[str]:

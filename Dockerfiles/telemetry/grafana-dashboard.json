@@ -1,0 +1,63 @@
+{
+    "annotations": { "list": [] },
+    "panels": [
+      {
+        "type": "graph",
+        "title": "Requests Per Second (by endpoint)",
+        "targets": [
+          {
+            "expr": "rate(backfill_endpoint_requests_total[1m])",
+            "legendFormat": "{{endpoint}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "graph",
+        "title": "Errors Per Second (by endpoint)",
+        "targets": [
+          {
+            "expr": "rate(backfill_endpoint_request_errors_total[1m])",
+            "legendFormat": "{{endpoint}}",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "type": "graph",
+        "title": "95th Percentile Latency (s)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(service_request_latency_seconds_bucket[5m]))",
+            "legendFormat": "{{endpoint}}",
+            "refId": "C"
+          }
+        ]
+      },
+      {
+        "type": "graph",
+        "title": "In-Flight Requests",
+        "targets": [
+          {
+            "expr": "backfill_endpoint_inflight_requests",
+            "legendFormat": "{{endpoint}}",
+            "refId": "D"
+          }
+        ]
+      },
+      {
+        "type": "graph",
+        "title": "Decode Queue Size",
+        "targets": [
+          {
+            "expr": "backfill_endpoint_queue_size",
+            "legendFormat": "{{endpoint}}",
+            "refId": "E"
+          }
+        ]
+      }
+    ],
+    "title": "Backfill Service Overview",
+    "time": { "from": "now-30m", "to": "now" }
+  }
+  

@@ -7,6 +7,9 @@ This package provides telemetry and metrics collection tools for monitoring appl
 The telemetry package includes:
 - Base metrics collection framework using OpenTelemetry
 - DuckDB-specific metrics collection
+- Prometheus-based monitoring for real-time dashboards
+- Grafana visualizations for backfill jobs
+- CometML integration for ML experiment tracking
 - Extensible design for adding new metrics collectors
 
 ## Components
@@ -27,49 +30,53 @@ DuckDB-specific metrics:
 - Query profiling
 - Memory usage during queries
 
-## Usage
+### prometheus.py
+Prometheus metrics for job monitoring:
+- Request rates and response codes
+- Queue sizes
+- Processing times
+- Rate limit hits
+- Retry counts
+- Batch sizes
+- Backfill progress tracking
 
-### Basic Metrics Collection
+### grafana.py
+Grafana dashboard utilities:
+- API client for Grafana integration
+- Dashboard provisioning
+- Datasource configuration
+- Dashboard template loading
 
-To start collecting basic metrics, initialize the metrics collector and enable the necessary spans:
-
-```python
-from telemetry.metrics import MetricsCollector
-
-collector = MetricsCollector()
-collector.start()
-```
-
-## Additional Metrics to Consider
-
-1. Query-specific metrics:
-   - Query compilation time
-   - Query optimization time
-   - Cache hit/miss rates
-   - Number of table scans
-
-2. Resource metrics:
-   - Disk I/O rates
-   - Network bandwidth usage
-   - Thread utilization
-   - Memory fragmentation
-
-3. Data quality metrics:
-   - NULL value counts
-   - Distinct value counts
-   - Data type distribution
-   - Value distribution statistics
+### cometml.py
+CometML integration for ML experiment tracking:
+- Histogram plotting
+- Label frequency visualization
+- Metric logging
+- Run metadata tracking
 
 ## Configuration
 
 The telemetry tools can be configured through environment variables:
+
 - `OTEL_EXPORTER_OTLP_ENDPOINT`: OpenTelemetry collector endpoint
 - `OTEL_SERVICE_NAME`: Service name for metrics
 - `OTEL_RESOURCE_ATTRIBUTES`: Additional resource attributes
+- `COMET_API_KEY`: API key for CometML integration
+
+## Using with Docker
+
+To use the monitoring with Docker-based deployments:
+
+1. Make sure the monitoring infrastructure is running
+2. Configure your application to expose metrics on port 8000
+3. Update the Prometheus configuration to include your service's endpoint
+
+For using Prometheus + Grafana, see `Dockerfiles/telemetry/`.
 
 ## Extension
 
 To add new metrics collectors:
+
 1. Inherit from `MetricsCollector`
 2. Define new metrics using `self.meter.create_*`
 3. Implement collection logic
@@ -86,11 +93,17 @@ To add new metrics collectors:
 ## Dependencies
 
 - OpenTelemetry
+- prometheus-client
+- requests (for Grafana API)
 - psutil
 - DuckDB (for DuckDB metrics)
+- comet_ml (for ML experiment tracking)
+- Docker and Docker Compose (for monitoring infrastructure)
 
 ## Installation
 
 ```bash
 pip install -r requirements.txt
 ```
+
+For using Prometheus + Grafana, see `Dockerfiles/telemetry/`.
