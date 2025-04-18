@@ -53,6 +53,10 @@ max_plc_threads = 64
 # max PDS endpoints to sync at once.
 max_pds_endpoints_to_sync = 32
 
+# I want to focus on the big PDS endpoints as opposed to custom PDSes, so I'll
+# set a minimum # of DIDs that a PDS endpoint must have before it is synced.
+min_dids_per_pds_endpoint = 50
+
 logger = get_logger(__name__)
 
 # start Prometheus server for tracking.
@@ -414,6 +418,13 @@ def run_backfills(
         )
         for pds_endpoint in pds_endpoints_to_skip:
             pds_endpoint_to_dids_map.pop(pds_endpoint)
+
+    # filter out PDS endpoints that have less than `min_dids_per_pds_endpoint` DIDs.
+    pds_endpoint_to_dids_map = {
+        endpoint: dids
+        for endpoint, dids in pds_endpoint_to_dids_map.items()
+        if len(dids) >= min_dids_per_pds_endpoint
+    }
 
     if max_pds_endpoints_to_sync is not None:
         # sort PDS endpoints by number of DIDs in descending order.
