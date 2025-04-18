@@ -222,7 +222,6 @@ class PDSEndpointWorker:
                             {"did": did, "content": ""}
                         )
                         return
-
                 if content:
                     # offload CPU portion to thread pool.
                     # keeping outside of semaphore to avoid blocking the semaphore
@@ -231,25 +230,37 @@ class PDSEndpointWorker:
                     records: list[dict] = await loop.run_in_executor(
                         self.cpu_pool, get_records_from_pds_bytes, content
                     )
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Adding to queue the processed DID {did} with {len(records)} records."
+                    )
                     await self.temp_results_queue.put({"did": did, "content": records})
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Processed DID {did} with {len(records)} records and added to temp results queue."
+                    )
+                    current_results_queue_size = self.temp_results_queue.qsize()
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Current results queue size: {current_results_queue_size}"
+                    )
                     return
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 retry_count += 1
                 if retry_count < max_retries:
                     # log and retry with backoff
                     logger.warning(
-                        f"Connection error for DID {did}, retry {retry_count}: {e}"
+                        f"(PDS endpoint: {self.pds_endpoint}): Connection error for DID {did}, retry {retry_count}: {e}"
                     )
                     await asyncio.sleep(1 * (2**retry_count))  # Exponential backoff
                 else:
                     # max retries already reached, move to deadletter.
                     logger.error(
-                        f"Failed processing DID {did} after {max_retries} retries: {e}"
+                        f"(PDS endpoint: {self.pds_endpoint}): Failed processing DID {did} after {max_retries} retries: {e}"
                     )
                     await self.temp_deadletter_queue.put({"did": did, "content": ""})
             except Exception as e:
                 # Other unexpected errors
-                logger.error(f"Unexpected error processing DID {did}: {e}")
+                logger.error(
+                    f"(PDS endpoint: {self.pds_endpoint}): Unexpected error processing DID {did}: {e}"
+                )
                 await self.temp_deadletter_queue.put({"did": did, "content": ""})
                 return
 
@@ -316,15 +327,26 @@ class PDSEndpointWorker:
         result_buffer: list[dict] = []
         deadletter_buffer: list[dict] = []
         global_total_records_flushed = 0
+        previous_buffer_size = 0
         while True:
-            result: dict = await self.temp_results_queue.get()
-            deadletter: dict = await self.temp_deadletter_queue.get()
-            result_buffer.append(result)
-            deadletter_buffer.append(deadletter)
+            while not self.temp_results_queue.empty():
+                result: dict = await self.temp_results_queue.get()
+                result_buffer.append(result)
+            while not self.temp_deadletter_queue.empty():
+                deadletter: dict = await self.temp_deadletter_queue.get()
+                deadletter_buffer.append(deadletter)
 
             total_result_buffer_size = len(result_buffer)
             total_deadletter_buffer_size = len(deadletter_buffer)
             total_buffer_size = total_result_buffer_size + total_deadletter_buffer_size
+
+            # NOTE: here for debugging purposes, to see if the buffer size ever changes.
+            # NOTE: looks like no?
+            if total_buffer_size != previous_buffer_size:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Current total buffer size: {total_buffer_size}"
+                )
+                previous_buffer_size = total_buffer_size
 
             if total_buffer_size >= self._batch_size:
                 await self._async_flush_buffers(
