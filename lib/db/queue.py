@@ -6,6 +6,7 @@ Each queue will have their own SQLite instance in order to scale
 each queue independently.
 """
 
+import aiosqlite3
 import json
 import os
 import sqlite3
@@ -195,6 +196,18 @@ class Queue:
 
         return conn
 
+    async def _async_get_connection(self) -> sqlite3.Connection:
+        """Get an optimized SQLite connection with retry logic."""
+        conn = await aiosqlite3.connect(self.db_path)
+
+        # Configure connection for optimal performance
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA busy_timeout=30000")
+        conn.execute("PRAGMA cache_size=-64000")
+        conn.execute("PRAGMA mmap_size=268435456")
+        conn.execute("PRAGMA temp_store=MEMORY")
+
     def get_queue_length(self) -> int:
         """Get total number of items in queue with retry logic."""
         max_retries = 3
@@ -327,6 +340,62 @@ class Queue:
                     batch_chunk,
                 )
             conn.commit()
+
+    async def async_batch_add_items_to_queue(
+        self,
+        items: list[dict],
+        metadata: Optional[dict] = None,
+        batch_size: Optional[int] = DEFAULT_BATCH_CHUNK_SIZE,
+        batch_write_size: Optional[int] = DEFAULT_BATCH_WRITE_SIZE,
+    ) -> None:
+        """Add multiple items to queue, processing in chunks for memory
+        efficiency.
+
+        Split chunks into further batches. e.g., with batch_size = 1000,
+        batch_write_size = 25, then if we have 50,000 items, it will be split
+        into 50 minibatches of 1,000 items each, and then it will be split into
+        2 batches of 25 minibatches each.
+
+        See https://markptorres.com/research/2025-01-31-effectiveness-of-sqlite
+        for writeup.
+        """
+        if metadata is None:
+            metadata = {}
+        chunks: list[list[dict]] = [
+            items[i : i + batch_size] for i in range(0, len(items), batch_size)
+        ]
+        minibatch_chunks: list[tuple[str, str, str, str]] = self._create_batched_chunks(
+            chunks=chunks, batch_size=batch_size, metadata=metadata
+        )
+
+        batch_chunks: list[list[tuple[str, str, str, str]]] = [
+            minibatch_chunks[i : i + batch_write_size]
+            for i in range(0, len(minibatch_chunks), batch_write_size)
+        ]
+
+        total_items = len(items)
+        total_batches = len(batch_chunks)
+        total_minibatches = len(minibatch_chunks)
+
+        logger.info(
+            f"Writing {total_items} items as {total_minibatches} minibatches to DB."
+        )
+        logger.info(
+            f"Writing {total_minibatches} minibatches to DB as {total_batches} batches..."
+        )
+
+        for i, batch_chunk in enumerate(batch_chunks):
+            if i % 10 == 0:
+                logger.info(f"Processing batch {i + 1}/{total_batches}...")
+            async with await self._async_get_connection() as conn:
+                await conn.executemany(
+                    f"""
+                    INSERT INTO {self.queue_table_name} (payload, metadata, created_at, status)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    batch_chunk,
+                )
+                await conn.commit()
 
     def remove_item_from_queue(self) -> Optional[QueueItem]:
         """Remove and return the next available item from the queue.

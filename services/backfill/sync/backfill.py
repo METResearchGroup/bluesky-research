@@ -1,5 +1,6 @@
 """Backfilling the sync records for users."""
 
+import aiohttp
 from datetime import datetime
 import json
 import gc
@@ -225,6 +226,21 @@ def transform_backfilled_record(
         return record
 
 
+async def async_send_request_to_pds(
+    did: str, pds_endpoint: str, session: aiohttp.ClientSession
+) -> requests.Response:
+    """Send a request to the PDS endpoint.
+
+    Args:
+        did: The DID of the user
+        pds_endpoint: The PDS endpoint to send the request to
+    """
+    root_url = os.path.join(pds_endpoint, "xrpc")
+    joined_url = os.path.join(root_url, endpoint)
+    full_url = f"{joined_url}?did={did}"
+    return await session.get(full_url)
+
+
 def send_request_to_pds(did: str, pds_endpoint: str) -> requests.Response:
     """Send a request to the PDS endpoint.
 
@@ -239,6 +255,20 @@ def send_request_to_pds(did: str, pds_endpoint: str) -> requests.Response:
     joined_url = os.path.join(root_url, endpoint)
     full_url = f"{joined_url}?did={did}"
     return requests.get(full_url)
+
+
+def get_records_from_pds_bytes(pds_bytes: bytes) -> list[dict]:
+    """Get the records from the PDS bytes.
+
+    Args:
+        pds_bytes: The bytes of the PDS
+
+    Returns:
+        The records from the PDS
+    """
+    car_file = CAR.from_bytes(pds_bytes)
+    records: list[dict] = [obj for obj in car_file.blocks.values()]
+    return records
 
 
 def get_bsky_records_for_user(did: str) -> list[dict]:
@@ -263,8 +293,7 @@ def get_bsky_records_for_user(did: str) -> list[dict]:
         records = []
     else:
         try:
-            car_file = CAR.from_bytes(res.content)
-            records: list[dict] = [obj for obj in car_file.blocks.values()]
+            records: list[dict] = get_records_from_pds_bytes(res.content)
         except Exception as e:
             logger.error(f"Error parsing CAR file for user {did}: {e}")
             logger.info("Returning no records for user.")
