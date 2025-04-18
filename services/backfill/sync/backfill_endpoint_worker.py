@@ -33,6 +33,7 @@ start_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
 logger = get_logger(__name__)
 
 default_worker_threads = 5
+default_write_batch_size = 100
 
 
 def filter_previously_processed_dids(
@@ -126,7 +127,7 @@ class PDSEndpointWorker:
         session: aiohttp.ClientSession,
         cpu_pool,
         qps: int = default_qps,
-        batch_size: int = 500,
+        batch_size: int = default_write_batch_size,
     ):
         self.pds_endpoint = pds_endpoint
         self.dids = dids
@@ -436,9 +437,6 @@ class PDSEndpointWorker:
             total_buffer_size = total_result_buffer_size + total_deadletter_buffer_size
 
             if total_buffer_size >= self._batch_size:
-                logger.info(
-                    f"(PDS endpoint: {self.pds_endpoint}): Flushing {total_buffer_size} records to permanent storage."
-                )
                 with pdm.BACKFILL_DB_FLUSH_SECONDS.labels(
                     endpoint=self.pds_endpoint
                 ).time():
@@ -470,17 +468,26 @@ class PDSEndpointWorker:
         total_deadletter_buffer = len(deadletter_buffer)
         total_buffer = total_results_buffer + total_deadletter_buffer
         logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Flushing {total_results_buffer} results and {total_deadletter_buffer} deadletters to permanent storage. Total: {total_buffer}."
+            f"(PDS endpoint: {self.pds_endpoint}): Flushing {total_buffer} results: {total_results_buffer} records and {total_deadletter_buffer} deadletters to permanent storage."
         )
         current_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
 
         flush_start = time.perf_counter()
 
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Starting flush to results queue..."
+        )
         await self.output_results_queue.async_batch_add_items_to_queue(
             items=result_buffer, metadata={"timestamp": current_timestamp}
         )
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Finished flushing results queue, starting deadletter flush..."
+        )
         await self.output_deadletter_queue.async_batch_add_items_to_queue(
             items=deadletter_buffer, metadata={"timestamp": current_timestamp}
+        )
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Finished flushing both results and deadletter queues."
         )
 
         flush_time = time.perf_counter() - flush_start
@@ -489,5 +496,29 @@ class PDSEndpointWorker:
         ).observe(flush_time)
 
         logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Finished flushing {total_results_buffer} results and {total_deadletter_buffer} deadletters to permanent storage. Total: {total_buffer}."
+            f"(PDS endpoint: {self.pds_endpoint}): Finished flushing {total_buffer} results: {total_results_buffer} records and {total_deadletter_buffer} deadletters to permanent storage."
         )
+
+
+async def dummy_aiosqlite_write():
+    """Testing aiosqlite writes."""
+    queue_fp = os.path.join(current_dir, "test_queue.db")
+    queue = Queue(
+        queue_name="test_queue",
+        create_new_queue=True,
+        temp_queue=True,
+        temp_queue_path=queue_fp,
+    )
+    items = [{"test": "test"} for _ in range(100)]
+    await queue.async_batch_add_items_to_queue(items=items)
+    total_items_in_queue = queue.get_queue_length()
+    logger.info(f"Total items in queue: {total_items_in_queue}")
+
+
+def _test():
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(dummy_aiosqlite_write())
+
+
+if __name__ == "__main__":
+    _test()

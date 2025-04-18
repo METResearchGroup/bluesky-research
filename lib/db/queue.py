@@ -208,6 +208,8 @@ class Queue:
         conn.execute("PRAGMA mmap_size=268435456")
         conn.execute("PRAGMA temp_store=MEMORY")
 
+        return conn
+
     def get_queue_length(self) -> int:
         """Get total number of items in queue with retry logic."""
         max_retries = 3
@@ -348,7 +350,7 @@ class Queue:
         batch_size: Optional[int] = DEFAULT_BATCH_CHUNK_SIZE,
         batch_write_size: Optional[int] = DEFAULT_BATCH_WRITE_SIZE,
     ) -> None:
-        """Add multiple items to queue, processing in chunks for memory
+        """(Async) add multiple items to queue, processing in chunks for memory
         efficiency.
 
         Split chunks into further batches. e.g., with batch_size = 1000,
@@ -387,7 +389,8 @@ class Queue:
         for i, batch_chunk in enumerate(batch_chunks):
             if i % 10 == 0:
                 logger.info(f"Processing batch {i + 1}/{total_batches}...")
-            async with await self._async_get_connection() as conn:
+            conn = await self._async_get_connection()
+            try:
                 await conn.executemany(
                     f"""
                     INSERT INTO {self.queue_table_name} (payload, metadata, created_at, status)
@@ -396,6 +399,8 @@ class Queue:
                     batch_chunk,
                 )
                 await conn.commit()
+            finally:
+                await conn.close()
 
     def remove_item_from_queue(self) -> Optional[QueueItem]:
         """Remove and return the next available item from the queue.
