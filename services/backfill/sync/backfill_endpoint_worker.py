@@ -62,22 +62,6 @@ def filter_previously_processed_dids(
     return filtered_dids
 
 
-def enforce_manual_rate_limit():
-    """Enforces the manual rate limit and returns the updated new request count."""
-    time_start = time.time()
-    total_minutes_sleep = 5
-    total_seconds_sleep = total_minutes_sleep * 60
-    logger.info(f"Rate limit hit. Sleeping for {total_seconds_sleep} seconds.")
-    current_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
-    logger.info(f"Current timestamp: {current_timestamp}")
-    time.sleep(total_seconds_sleep)
-    time_end = time.time()
-    logger.info(f"Time taken to sleep: {time_end - time_start} seconds")
-    logger.info(
-        f"New timestamp: {datetime.now(timezone.utc).strftime(timestamp_format)}"
-    )
-
-
 def log_progress(
     pds_endpoint: str,
     total_dids: int,
@@ -279,10 +263,6 @@ class PDSEndpointWorker:
                     pdm.BACKFILL_PROCESSING_SECONDS.labels(
                         endpoint=self.pds_endpoint, operation_type="parse_records"
                     ).observe(processing_time)
-
-                    logger.info(
-                        f"(PDS endpoint: {self.pds_endpoint}): Adding to queue the processed DID {did} with {len(records)} records."
-                    )
                     await self.temp_results_queue.put({"did": did, "content": records})
 
                     # Update DID status and success metrics
@@ -298,15 +278,8 @@ class PDSEndpointWorker:
                             endpoint=self.pds_endpoint
                         ).set(success_ratio)
 
-                    logger.info(
-                        f"(PDS endpoint: {self.pds_endpoint}): Processed DID {did} with {len(records)} records and added to temp results queue."
-                    )
-
                     # Update queue size metrics
                     current_results_queue_size = self.temp_results_queue.qsize()
-                    logger.info(
-                        f"(PDS endpoint: {self.pds_endpoint}): Current results queue size: {current_results_queue_size}"
-                    )
                     pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(
                         current_results_queue_size
                     )
@@ -439,7 +412,6 @@ class PDSEndpointWorker:
         result_buffer: list[dict] = []
         deadletter_buffer: list[dict] = []
         global_total_records_flushed = 0
-        previous_buffer_size = 0
         while True:
             while not self.temp_results_queue.empty():
                 result: dict = await self.temp_results_queue.get()
@@ -463,15 +435,10 @@ class PDSEndpointWorker:
             total_deadletter_buffer_size = len(deadletter_buffer)
             total_buffer_size = total_result_buffer_size + total_deadletter_buffer_size
 
-            # NOTE: here for debugging purposes, to see if the buffer size ever changes.
-            # NOTE: looks like no?
-            if total_buffer_size != previous_buffer_size:
-                logger.info(
-                    f"(PDS endpoint: {self.pds_endpoint}): Current total buffer size: {total_buffer_size}"
-                )
-                previous_buffer_size = total_buffer_size
-
             if total_buffer_size >= self._batch_size:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Flushing {total_buffer_size} records to permanent storage."
+                )
                 with pdm.BACKFILL_DB_FLUSH_SECONDS.labels(
                     endpoint=self.pds_endpoint
                 ).time():
