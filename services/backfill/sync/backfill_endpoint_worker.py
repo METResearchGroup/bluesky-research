@@ -6,6 +6,7 @@ import contextlib
 from datetime import datetime, timezone
 import os
 import time
+import collections
 
 from lib.constants import timestamp_format
 from lib.db.queue import Queue
@@ -184,6 +185,13 @@ class PDSEndpointWorker:
             endpoint=self.pds_endpoint, queue_type="deadletter"
         ).set(0)
 
+        # add backoff factor to avoid overloading the PDS endpoint
+        # with burst requests.
+        self.backoff_factor = 1.0  # 1 second backoff.
+
+        # Track a rolling window of response times
+        self.response_times = collections.deque(maxlen=20)
+
     async def _init_worker_queue(self):
         for did in self.dids:
             await self.temp_work_queue.put(did)
@@ -287,6 +295,24 @@ class PDSEndpointWorker:
                     pdm.BACKFILL_QUEUE_SIZES.labels(
                         endpoint=self.pds_endpoint, queue_type="results"
                     ).set(current_results_queue_size)
+
+                    # After successful fast responses:
+                    if processing_time < 1.0:
+                        self.backoff_factor = max(
+                            self.backoff_factor * 0.8, 1.0
+                        )  # Decrease backoff
+
+                    # Track a rolling window of response times
+                    self.response_times.append(processing_time)
+                    avg_response_time = sum(self.response_times) / len(
+                        self.response_times
+                    )
+
+                    # Dynamically adjust concurrency based on average response time
+                    if avg_response_time > 3.0:  # If responses are getting slow
+                        # Reduce effective concurrency temporarily
+                        await asyncio.sleep(avg_response_time / 2)
+
                     return
 
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
@@ -333,7 +359,6 @@ class PDSEndpointWorker:
                 pdm.BACKFILL_QUEUE_SIZES.labels(
                     endpoint=self.pds_endpoint, queue_type="deadletter"
                 ).set(self.temp_deadletter_queue.qsize())
-                return
             finally:
                 pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).dec()
 
@@ -356,7 +381,7 @@ class PDSEndpointWorker:
 
         # create worker tasks. These worker tasks will pull DIDs from the
         # worker queue and process them. Fixed relative to desired QPS.
-        num_workers = self.qps
+        num_workers = min(self.qps * 2, len(self.dids))
         producer_tasks = [
             asyncio.create_task(self._worker_loop()) for _ in range(num_workers)
         ]
@@ -515,9 +540,144 @@ async def dummy_aiosqlite_write():
     logger.info(f"Total items in queue: {total_items_in_queue}")
 
 
+async def diagnose_qps_issue():
+    """Test to diagnose slow QPS problem. We're only seeing max 1 QPS per
+    endpoint, so trying to understand why that could be the case."""
+    # Test 1: Measure token bucket replenishment rate
+    token_bucket = AsyncTokenBucket(max_tokens=MANUAL_RATE_LIMIT, window_seconds=300)
+    start_time = time.perf_counter()
+    acquired_tokens = 0
+    for _ in range(100):
+        await token_bucket._acquire()
+        acquired_tokens += 1
+        if acquired_tokens % 10 == 0:
+            elapsed = time.perf_counter() - start_time
+            logger.info(
+                f"Acquired {acquired_tokens} tokens in {elapsed:.2f}s = {acquired_tokens/elapsed:.2f} tokens/sec"
+            )
+
+    # Test 2: Measure HTTP request time without processing
+    async with aiohttp.ClientSession() as session:
+        pds_endpoint = "https://puffball.us-east.host.bsky.network"
+        did = "did:plc:w5mjarupsl6ihdrzwgnzdh4y"
+        times = []
+        for _ in range(10):
+            start = time.perf_counter()
+            await async_send_request_to_pds(
+                did=did,
+                pds_endpoint=pds_endpoint,
+                session=session,
+            )
+            times.append(time.perf_counter() - start)
+        logger.info(f"Average HTTP request time: {sum(times)/len(times):.3f}s")
+
+
+async def parallel_request_test():
+    """Test HTTP request parallelism to diagnose QPS issues.
+
+    I am seeing only 1 QPS per endpoint, so trying to understand why that
+    could be the case. Since there are 10 tasks per endpoint, I expect 10
+    QPS.
+    """
+
+    TEST_DIDS = ["did:plc:w5mjarupsl6ihdrzwgnzdh4y"] * 50  # 50 DIDs to process
+    TEST_PDS_ENDPOINT = "https://puffball.us-east.host.bsky.network"
+    CONCURRENCY = 10
+    TOTAL_REQUESTS = 50
+
+    # Stats tracking
+    start_time = time.time()
+    completed_requests = 0
+    in_flight = 0
+    max_in_flight = 0
+    request_times = []
+
+    # Create token bucket similar to your worker
+    token_bucket = AsyncTokenBucket(max_tokens=3000 * 0.9, window_seconds=300)
+
+    # Track in-flight requests
+    in_flight_gauge = asyncio.Semaphore(CONCURRENCY)
+
+    async def process_did(did, session):
+        nonlocal completed_requests, in_flight, max_in_flight
+
+        try:
+            # Track in-flight requests
+            in_flight += 1
+            max_in_flight = max(max_in_flight, in_flight)
+            logger.info(f"Starting request for {did}. In-flight: {in_flight}")
+
+            # Acquire token and time
+            token_start = time.perf_counter()
+            await token_bucket._acquire()
+            token_time = time.perf_counter() - token_start
+
+            # Make the request and time
+            request_start = time.perf_counter()
+            async with in_flight_gauge:
+                response = await async_send_request_to_pds(
+                    did=did, pds_endpoint=TEST_PDS_ENDPOINT, session=session
+                )
+                _ = await response.read()  # Read the content
+            request_time = time.perf_counter() - request_start
+
+            # Record stats
+            request_times.append(request_time)
+            completed_requests += 1
+
+            # Log detailed timing
+            total_time = time.perf_counter() - token_start
+            logger.info(
+                f"Completed {did}: Token wait={token_time:.3f}s, Request={request_time:.3f}s, Total={total_time:.3f}s"
+            )
+
+            # Calculate and log current QPS
+            elapsed = time.time() - start_time
+            current_qps = completed_requests / elapsed
+            logger.info(
+                f"Current stats: {completed_requests}/{TOTAL_REQUESTS} completed, QPS={current_qps:.2f}"
+            )
+
+        finally:
+            in_flight -= 1
+
+    # Create a session pool
+    conn = aiohttp.TCPConnector(limit=CONCURRENCY, limit_per_host=CONCURRENCY)
+    timeout = aiohttp.ClientTimeout(total=30, connect=5, sock_connect=5, sock_read=15)
+    async with aiohttp.ClientSession(connector=conn, timeout=timeout) as session:
+        # Create a semaphore to limit concurrent tasks
+        semaphore = asyncio.Semaphore(CONCURRENCY)
+
+        async def limited_process(did):
+            async with semaphore:  # Only allow CONCURRENCY concurrent requests
+                await process_did(did, session)
+
+        # Process DIDs with enforced concurrency limit
+        tasks = [limited_process(did) for did in TEST_DIDS[:TOTAL_REQUESTS]]
+        await asyncio.gather(*tasks)
+
+    # Log final stats
+    elapsed = time.time() - start_time
+    final_qps = completed_requests / elapsed
+    avg_request_time = sum(request_times) / len(request_times) if request_times else 0
+
+    logger.info("=== TEST RESULTS ===")
+    logger.info(f"Total requests: {completed_requests}")
+    logger.info(f"Time elapsed: {elapsed:.2f} seconds")
+    logger.info(f"Average QPS: {final_qps:.2f}")
+    logger.info(f"Average request time: {avg_request_time:.3f} seconds")
+    logger.info(f"Max in-flight requests: {max_in_flight}")
+
+    # Analyze token bucket behavior
+    logger.info(f"Token bucket initial capacity: {token_bucket._max_tokens}")
+    logger.info(f"Token bucket final tokens: {token_bucket._tokens}")
+
+
 def _test():
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(dummy_aiosqlite_write())
+    # loop.run_until_complete(dummy_aiosqlite_write())
+    # loop.run_until_complete(diagnose_qps_issue())
+    loop.run_until_complete(parallel_request_test())
 
 
 if __name__ == "__main__":
