@@ -1,4 +1,4 @@
-"""Backfill a single PLC endpoint in a separate thread."""
+"""Worker class for managing the backfill for a single PDS endpoint."""
 
 import aiohttp
 import asyncio
@@ -146,6 +146,8 @@ class PDSEndpointWorker:
         self.qps = qps
         self.semaphore = asyncio.Semaphore(qps)
 
+        self.max_retries = 3  # number of times to retry a failed DID before adding to deadletter queue.
+
         # token bucket, for managing rate limits.
         self.token_reset_minutes = 5  # 5 minutes, as per the rate limit spec.
         self.token_reset_seconds = self.token_reset_minutes * 60
@@ -181,7 +183,9 @@ class PDSEndpointWorker:
         self._batch_size = batch_size
         self._writer_task: asyncio.Task | None = None
 
-    async def _process_did(self, did: str, session: aiohttp.ClientSession):
+    async def _process_did(
+        self, did: str, session: aiohttp.ClientSession, max_retries: int = None
+    ):
         """Processes a DID and adds the results to the temporary queues.
 
         Args:
@@ -192,50 +196,102 @@ class PDSEndpointWorker:
         concurrent requests is managed by the semaphore. CPU-intensive work
         is offloaded to the thread pool.
         """
-        await self.token_bucket._acquire()
-        async with self.semaphore:
-            content = None
+        if not max_retries:
+            max_retries = self.max_retries
+        retry_count = 0
+        while retry_count < max_retries:
             try:
-                response = await async_send_request_to_pds(
-                    did=did, pds_endpoint=self.pds_endpoint, session=session
-                )
-                if response.status == 200:
-                    content: bytes = await response.read()
-                elif response.status == 429:
-                    # Rate limited, put back in queue
-                    await self.temp_work_queue.put(did)
+                await self.token_bucket._acquire()
+                async with self.semaphore:
+                    content = None
+                    response = await async_send_request_to_pds(
+                        did=did, pds_endpoint=self.pds_endpoint, session=session
+                    )
+                    if response.status == 200:
+                        content: bytes = await response.read()
+                    elif response.status == 429:
+                        # Rate limited, put back in queue
+                        await asyncio.sleep(1 * (2**retry_count))  # Exponential backoff
+                        await self.temp_work_queue.put(did)
+                        return
+                    else:
+                        # Error case
+                        await self.temp_deadletter_queue.put(
+                            {"did": did, "content": ""}
+                        )
+                        return
+                if content:
+                    # offload CPU portion to thread pool.
+                    loop = asyncio.get_running_loop()
+                    records: list[dict] = await loop.run_in_executor(
+                        self.cpu_pool, get_records_from_pds_bytes, content
+                    )
+                    await self.temp_results_queue.put({"did": did, "content": records})
+                    return
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                retry_count += 1
+                if retry_count < max_retries:
+                    # log and retry with backoff
+                    logger.warning(
+                        f"Connection error for DID {did}, retry {retry_count}: {e}"
+                    )
+                    await asyncio.sleep(1 * (2**retry_count))  # Exponential backoff
                 else:
-                    # Error case
+                    # max retries already reached, move to deadletter.
+                    logger.error(
+                        f"Failed processing DID {did} after {max_retries} retries: {e}"
+                    )
                     await self.temp_deadletter_queue.put({"did": did, "content": ""})
             except Exception as e:
-                logger.error(f"Error processing DID {did}: {e}")
+                # Other unexpected errors
+                logger.error(f"Unexpected error processing DID {did}: {e}")
                 await self.temp_deadletter_queue.put({"did": did, "content": ""})
-
-        if content:
-            # offload CPU portion to thread pool.
-            loop = asyncio.get_running_loop()
-            records: list[dict] = await loop.run_in_executor(
-                self.cpu_pool, get_records_from_pds_bytes, content
-            )
-            await self.temp_results_queue.put({"did": did, "content": records})
+                return
 
     async def start(self):
         """Starts the backfill for a single PDS endpoint."""
         # background DB writer.
-        self._writer_task = asyncio.create_task(self._writer_task())
+        self._writer_task = asyncio.create_task(self._writer())
 
-        # spawn producers for DIDs.
-        # TODO: should get DIDs from work queue, so that we can
-        # always spawn tasks as needed while the work queue is not empty.
-        # NOTE: is this true? Unsure.
+        # create worker tasks. These worker tasks will pull DIDs from the
+        # worker queue and process them.
+        num_workers = self.qps
         producer_tasks = [
-            asyncio.create_task(self._process_did(did, self.session))
-            for did in self.dids
+            asyncio.create_task(self._worker_loop()) for _ in range(num_workers)
         ]
         self._producer_group = asyncio.gather(*producer_tasks)
 
+    async def _worker_loop(self):
+        """Worker loop that processes DIDs from the queue until it's empty.
+
+        Allows us to manage DIDs by pulling from the temp worker queues and
+        processing them instead of defining a fixed number of tasks.
+        """
+        while True:
+            # get DID from the queue.
+            try:
+                did = await asyncio.wait_for(self.temp_work_queue.get(), timeout=1.0)
+            except asyncio.TimeoutError:
+                # if queue is empty, check if work is done.
+                if self.temp_work_queue.empty():
+                    break
+                continue
+
+            # process DID
+            try:
+                await self._process_did(did=did, session=self.session)
+            finally:
+                # mark task as done even if it failed.
+                self.temp_work_queue.task_done()
+
     async def wait_done(self):
         """Waits for the backfill to finish."""
+        # wait for the work queue to be empty
+        await self.temp_work_queue.join()
+
+        # signal worker to stop
+        self._should_stop = True
+
         # wait for all producers to finish.
         await self._producer_group
 

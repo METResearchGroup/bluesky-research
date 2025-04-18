@@ -1,4 +1,5 @@
-"""Threaded application for running PDS backfill sync."""
+"""Manager class for running PDS backfill sync across multiple DIDs and PDS
+endpoints."""
 
 import aiohttp
 import asyncio
@@ -19,9 +20,7 @@ from services.backfill.sync.backfill_endpoint_worker import (
     PDSEndpointWorker,
 )
 from services.backfill.sync.constants import current_dir
-from services.backfill.sync.determine_dids_to_backfill import (
-    sqlite_db_path,
-)
+from services.backfill.sync.determine_dids_to_backfill import sqlite_db_path
 
 did_plc_sqlite_db_path = os.path.join(current_dir, "did_plc.sqlite")
 
@@ -308,7 +307,7 @@ async def run_pds_backfills(
     """
     # TODO: figure out optimal # of threads to use. Just used default from
     # ChatGPT.
-    cpu_pool = ThreadPoolExecutor(max_workers=2 * (asyncio.cpu_count() or 4))
+    cpu_pool = ThreadPoolExecutor(max_workers=2 * (os.cpu_count() or 4))
     async with aiohttp.ClientSession() as session:
         workers = []
         for pds_endpoint, dids in pds_endpoint_to_dids_map.items():
