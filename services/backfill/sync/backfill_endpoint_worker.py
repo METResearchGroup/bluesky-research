@@ -16,11 +16,14 @@ from lib.telemetry.prometheus.service import pds_backfill_metrics as pdm
 from services.backfill.sync.backfill import (
     get_records_from_pds_bytes,
     async_send_request_to_pds,
+    validate_is_valid_bsky_type,
 )
 from services.backfill.sync.constants import current_dir
 
 
-default_qps = 10  # assume 10 QPS max = 600/minute = 3000/5 minutes
+# default_qps = 10  # assume 10 QPS max = 600/minute = 3000/5 minutes
+default_qps = 2  # 2 QPS max = 120/minute = 600/5 minutes
+# default_qps = 1 # simplest implementation.
 
 GLOBAL_RATE_LIMIT = (
     3000  # rate limit, I think, is 3000/5 minutes, we can put our own cap.
@@ -33,7 +36,6 @@ start_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
 
 logger = get_logger(__name__)
 
-default_worker_threads = 5
 default_write_batch_size = 100
 
 
@@ -268,6 +270,15 @@ class PDSEndpointWorker:
                     records: list[dict] = await loop.run_in_executor(
                         self.cpu_pool, get_records_from_pds_bytes, content
                     )
+                    records: list[dict] = await loop.run_in_executor(
+                        self.cpu_pool,
+                        lambda x: [
+                            record
+                            for record in x
+                            if validate_is_valid_bsky_type(record)
+                        ],
+                        records,
+                    )
                     processing_time = time.perf_counter() - processing_start
                     pdm.BACKFILL_PROCESSING_SECONDS.labels(
                         endpoint=self.pds_endpoint, operation_type="parse_records"
@@ -462,12 +473,14 @@ class PDSEndpointWorker:
             total_buffer_size = total_result_buffer_size + total_deadletter_buffer_size
 
             if total_buffer_size >= self._batch_size:
-                with pdm.BACKFILL_DB_FLUSH_SECONDS.labels(
+                flush_start = time.perf_counter()
+                await self._async_flush_buffers(
+                    result_buffer=result_buffer, deadletter_buffer=deadletter_buffer
+                )
+                flush_time = time.perf_counter() - flush_start
+                pdm.BACKFILL_DB_FLUSH_SECONDS.labels(
                     endpoint=self.pds_endpoint
-                ).time():
-                    await self._async_flush_buffers(
-                        result_buffer=result_buffer, deadletter_buffer=deadletter_buffer
-                    )
+                ).observe(flush_time)
                 global_total_records_flushed += total_buffer_size
                 result_buffer = []
                 deadletter_buffer = []
@@ -502,18 +515,31 @@ class PDSEndpointWorker:
         logger.info(
             f"(PDS endpoint: {self.pds_endpoint}): Starting flush to results queue..."
         )
-        await self.output_results_queue.async_batch_add_items_to_queue(
-            items=result_buffer, metadata={"timestamp": current_timestamp}
-        )
+        try:
+            await self.output_results_queue.async_batch_add_items_to_queue(
+                items=result_buffer, metadata={"timestamp": current_timestamp}
+            )
+        except Exception as e:
+            logger.error(f"SQLite operation failed: {e}", exc_info=True)
+            raise
         logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Finished flushing results queue, starting deadletter flush..."
+            f"(PDS endpoint: {self.pds_endpoint}): Finished flushing results queue."
         )
-        await self.output_deadletter_queue.async_batch_add_items_to_queue(
-            items=deadletter_buffer, metadata={"timestamp": current_timestamp}
-        )
-        logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Finished flushing both results and deadletter queues."
-        )
+        total_deadletter_buffer = len(deadletter_buffer)
+        if total_deadletter_buffer > 0:
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Flushing {total_deadletter_buffer} deadletters to permanent storage."
+            )
+            await self.output_deadletter_queue.async_batch_add_items_to_queue(
+                items=deadletter_buffer, metadata={"timestamp": current_timestamp}
+            )
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Finished flushing deadletter queue."
+            )
+        else:
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): No deadletters to flush."
+            )
 
         flush_time = time.perf_counter() - flush_start
         pdm.BACKFILL_PROCESSING_SECONDS.labels(

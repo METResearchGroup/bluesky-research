@@ -143,6 +143,10 @@ def validate_is_valid_generic_bluesky_type(record: dict) -> bool:
     return record["$type"] in valid_generic_bluesky_types
 
 
+def validate_is_valid_bsky_type(record: dict) -> bool:
+    return "$type" in record and record["$type"] in valid_generic_bluesky_types
+
+
 def transform_backfilled_record(
     record: dict,
     record_type: str,
