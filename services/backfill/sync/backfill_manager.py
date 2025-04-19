@@ -11,18 +11,14 @@ from pprint import pprint
 import random
 import sqlite3
 import time
-import threading
-import sys
 
 from lib.db.queue import Queue
 from lib.helper import create_batches
 from lib.log.logger import get_logger
-from lib.telemetry.prometheus.server import start_metrics_server
 from services.backfill.sync.backfill import get_plc_directory_doc
 from services.backfill.sync.backfill_endpoint_worker import (
     get_write_queues,
     PDSEndpointWorker,
-    PDSEndpointWorkerSynchronous,
 )
 from services.backfill.sync.constants import current_dir
 from services.backfill.sync.determine_dids_to_backfill import sqlite_db_path
@@ -64,7 +60,7 @@ min_dids_per_pds_endpoint = 50
 logger = get_logger(__name__)
 
 # start Prometheus server for tracking.
-start_metrics_server(port=8000)
+# start_metrics_server(port=8000)
 
 
 def load_dids_from_local_db() -> list[str]:
@@ -463,13 +459,36 @@ def run_backfills(
     #     )
     # )
     # logger.info("Async PDS backfills completed.")
+    # loop = asyncio.get_event_loop()
     for pds_endpoint, dids in pds_endpoint_to_dids_map.items():
-        logger.info(f"Processing {len(dids)} DIDs for {pds_endpoint}...")
-        endpoint_worker = PDSEndpointWorkerSynchronous(
-            pds_endpoint=pds_endpoint, dids=dids
+        if pds_endpoint != "https://morel.us-east.host.bsky.network":
+            continue
+        loop = asyncio.get_event_loop()
+        from services.backfill.sync.backfill_endpoint_worker import (
+            PDSEndpointWorkerAsynchronous,
         )
-        endpoint_worker.run()
-        logger.info(f"Completed processing {len(dids)} DIDs for {pds_endpoint}.")
+
+        endpoint_worker = PDSEndpointWorkerAsynchronous(
+            pds_endpoint=pds_endpoint,
+            dids=dids,
+        )
+        loop.run_until_complete(endpoint_worker.run())
+    logger.info("Async PDS backfills completed.")
+
+    # for pds_endpoint, dids in pds_endpoint_to_dids_map.items():
+    #     if pds_endpoint != "https://morel.us-east.host.bsky.network":
+    #         continue
+    #     logger.info(f"Processing {len(dids)} DIDs for {pds_endpoint}...")
+    #     endpoint_worker = PDSEndpointWorkerSynchronous(
+    #         pds_endpoint=pds_endpoint, dids=dids
+    #     )
+    #     endpoint_worker.run()
+    #     logger.info(f"Completed processing {len(dids)} DIDs for {pds_endpoint}.")
+    # did_to_pds_endpoint_map = load_did_to_pds_endpoint_map()
+    # endpoint_worker = PDSEndpointWorkerSynchronous(
+    #     did_to_pds_endpoint_map=did_to_pds_endpoint_map
+    # )
+    # endpoint_worker.run()
     logger.info("All PDS backfills completed.")
 
 
@@ -486,27 +505,34 @@ def main():
     # dids = dids[:50000]
 
     # Set a 3-hour time limit
-    def exit_after_timeout():
-        logger.info("3-hour time limit reached. Exiting process...")
-        sys.exit(0)
+    # def exit_after_timeout():
+    #     logger.info("3-hour time limit reached. Exiting process...")
+    #     sys.exit(0)
 
-    hours = 1
-    seconds = hours * 60 * 60
-    timer = threading.Timer(seconds, exit_after_timeout)
-    timer.daemon = True
-    timer.start()
+    # hours = 1
+    # seconds = hours * 60 * 60
+    # timer = threading.Timer(seconds, exit_after_timeout)
+    # timer.daemon = True
+    # timer.start()
 
-    try:
-        run_backfills(
-            dids=dids,
-            load_existing_endpoints_to_dids_map=True,
-            plc_backfill_only=False,
-            skip_completed_pds_endpoints=True,
-            max_pds_endpoints_to_sync=max_pds_endpoints_to_sync,
-        )
-    finally:
-        # Cancel the timer if backfill completes before timeout
-        timer.cancel()
+    # try:
+    #     run_backfills(
+    #         dids=dids,
+    #         load_existing_endpoints_to_dids_map=True,
+    #         plc_backfill_only=False,
+    #         skip_completed_pds_endpoints=True,
+    #         max_pds_endpoints_to_sync=max_pds_endpoints_to_sync,
+    #     )
+    # finally:
+    #     # Cancel the timer if backfill completes before timeout
+    #     timer.cancel()
+    run_backfills(
+        dids=dids,
+        load_existing_endpoints_to_dids_map=True,
+        plc_backfill_only=False,
+        skip_completed_pds_endpoints=True,
+        max_pds_endpoints_to_sync=max_pds_endpoints_to_sync,
+    )
 
 
 if __name__ == "__main__":
