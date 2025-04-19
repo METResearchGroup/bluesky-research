@@ -4,12 +4,15 @@ endpoints."""
 import aiohttp
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import gc
 import json
 import os
 from pprint import pprint
 import random
 import sqlite3
 import time
+import threading
+import sys
 
 from lib.db.queue import Queue
 from lib.helper import create_batches
@@ -19,6 +22,7 @@ from services.backfill.sync.backfill import get_plc_directory_doc
 from services.backfill.sync.backfill_endpoint_worker import (
     get_write_queues,
     PDSEndpointWorker,
+    PDSEndpointWorkerSynchronous,
 )
 from services.backfill.sync.constants import current_dir
 from services.backfill.sync.determine_dids_to_backfill import sqlite_db_path
@@ -272,6 +276,10 @@ def check_if_pds_endpoint_backfill_completed(
     results = output_results_queue.load_dict_items_from_queue()
     deadletter = output_deadletter_queue.load_dict_items_from_queue()
     total_processed = len(results) + len(deadletter)
+    del write_queues
+    del output_results_queue
+    del output_deadletter_queue
+    gc.collect()
     return total_processed == expected_total
 
 
@@ -409,22 +417,23 @@ def run_backfills(
         f"Total number of possible PDS endpoints to sync: {len(pds_endpoint_to_dids_map)}"
     )
 
-    if skip_completed_pds_endpoints:
-        pds_endpoints_to_skip = calculate_pds_endpoints_to_skip(
-            pds_endpoint_to_did_count=pds_endpoint_to_did_count
-        )
-        logger.info(
-            f"Skipping {len(pds_endpoints_to_skip)} PDS endpoints since their backfills are already completed."
-        )
-        for pds_endpoint in pds_endpoints_to_skip:
-            pds_endpoint_to_dids_map.pop(pds_endpoint)
-
     # filter out PDS endpoints that have less than `min_dids_per_pds_endpoint` DIDs.
     pds_endpoint_to_dids_map = {
         endpoint: dids
         for endpoint, dids in pds_endpoint_to_dids_map.items()
         if len(dids) >= min_dids_per_pds_endpoint
     }
+
+    # TODO: un-comment later.
+    # if skip_completed_pds_endpoints:
+    #     pds_endpoints_to_skip = calculate_pds_endpoints_to_skip(
+    #         pds_endpoint_to_did_count=pds_endpoint_to_did_count
+    #     )
+    #     logger.info(
+    #         f"Skipping {len(pds_endpoints_to_skip)} PDS endpoints since their backfills are already completed."
+    #     )
+    #     for pds_endpoint in pds_endpoints_to_skip:
+    #         pds_endpoint_to_dids_map.pop(pds_endpoint)
 
     if max_pds_endpoints_to_sync is not None:
         # sort PDS endpoints by number of DIDs in descending order.
@@ -445,15 +454,23 @@ def run_backfills(
         }
         logger.info(f"Only sorting the top {max_pds_endpoints_to_sync} PDS endpoints.")
 
-    logger.info("Triggering async PDS backfills...")
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(
-        run_pds_backfills(
-            dids=dids,
-            pds_endpoint_to_dids_map=pds_endpoint_to_dids_map,
+    # logger.info("Triggering async PDS backfills...")
+    # loop = asyncio.get_event_loop()
+    # loop.run_until_complete(
+    #     run_pds_backfills(
+    #         dids=dids,
+    #         pds_endpoint_to_dids_map=pds_endpoint_to_dids_map,
+    #     )
+    # )
+    # logger.info("Async PDS backfills completed.")
+    for pds_endpoint, dids in pds_endpoint_to_dids_map.items():
+        logger.info(f"Processing {len(dids)} DIDs for {pds_endpoint}...")
+        endpoint_worker = PDSEndpointWorkerSynchronous(
+            pds_endpoint=pds_endpoint, dids=dids
         )
-    )
-    logger.info("Async PDS backfills completed.")
+        endpoint_worker.run()
+        logger.info(f"Completed processing {len(dids)} DIDs for {pds_endpoint}.")
+    logger.info("All PDS backfills completed.")
 
 
 def main():
@@ -468,13 +485,28 @@ def main():
     # dids = dids[50000:80000]
     # dids = dids[:50000]
 
-    run_backfills(
-        dids=dids,
-        load_existing_endpoints_to_dids_map=True,
-        plc_backfill_only=False,
-        skip_completed_pds_endpoints=True,
-        max_pds_endpoints_to_sync=max_pds_endpoints_to_sync,
-    )
+    # Set a 3-hour time limit
+    def exit_after_timeout():
+        logger.info("3-hour time limit reached. Exiting process...")
+        sys.exit(0)
+
+    hours = 1
+    seconds = hours * 60 * 60
+    timer = threading.Timer(seconds, exit_after_timeout)
+    timer.daemon = True
+    timer.start()
+
+    try:
+        run_backfills(
+            dids=dids,
+            load_existing_endpoints_to_dids_map=True,
+            plc_backfill_only=False,
+            skip_completed_pds_endpoints=True,
+            max_pds_endpoints_to_sync=max_pds_endpoints_to_sync,
+        )
+    finally:
+        # Cancel the timer if backfill completes before timeout
+        timer.cancel()
 
 
 if __name__ == "__main__":

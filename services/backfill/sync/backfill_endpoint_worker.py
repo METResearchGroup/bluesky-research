@@ -2,9 +2,12 @@
 
 import aiohttp
 import asyncio
+import concurrent.futures
 import contextlib
 from datetime import datetime, timezone
 import os
+import queue
+import requests
 import time
 import collections
 
@@ -16,6 +19,7 @@ from lib.telemetry.prometheus.service import pds_backfill_metrics as pdm
 from services.backfill.sync.backfill import (
     get_records_from_pds_bytes,
     async_send_request_to_pds,
+    send_request_to_pds,
     validate_is_valid_bsky_type,
 )
 from services.backfill.sync.constants import current_dir
@@ -551,6 +555,319 @@ class PDSEndpointWorker:
         )
 
 
+class TokenBucket:
+    """Synchronous implementation of a token bucket rate limiter."""
+
+    def __init__(self, max_tokens: int, window_seconds: int):
+        """Initialize the token bucket.
+
+        Args:
+            max_tokens: int, the maximum number of tokens in the bucket.
+            window_seconds: int, the time window in seconds over which the tokens are refilled.
+        """
+        self._max_tokens = max_tokens
+        self._window_seconds = window_seconds
+        self._tokens = max_tokens
+        self._token_rate = self._max_tokens / self._window_seconds
+        self._last_refill = time.perf_counter()
+
+    def _acquire(self) -> None:
+        """Acquires a token from the bucket.
+
+        Blocks until a token is available. Refills tokens based on elapsed time.
+        """
+        while True:
+            now = time.perf_counter()
+            time_since_last_refill = now - self._last_refill
+            self._tokens = min(
+                self._tokens + (time_since_last_refill * self._token_rate),
+                self._max_tokens,
+            )
+            self._last_refill = now
+
+            if self._tokens >= 1:
+                self._tokens -= 1
+                return
+            else:
+                # Sleep for a short time before checking again
+                time.sleep(0.05)
+
+
+class PDSEndpointWorkerSynchronous:
+    """Synchronous version of PDSEndpointWorker."""
+
+    def __init__(self, pds_endpoint: str, dids: list[str]):
+        self.pds_endpoint = pds_endpoint
+        self.dids = dids
+
+        # Counters for metrics
+        self.total_requests = 0
+        self.total_successes = 0
+
+        self.max_retries = 3  # number of times to retry a failed DID before adding to deadletter queue.
+
+        # token bucket, for managing rate limits.
+        self.token_reset_minutes = 5  # 5 minutes, as per the rate limit spec.
+        self.token_reset_seconds = self.token_reset_minutes * 60
+        self.max_tokens = (
+            MANUAL_RATE_LIMIT  # set conservatively to avoid max rate limit.
+        )
+        self.token_bucket = TokenBucket(
+            max_tokens=self.max_tokens, window_seconds=self.token_reset_seconds
+        )
+
+        # permanent storage queues.
+        self.write_queues = get_write_queues(pds_endpoint=pds_endpoint)
+        self.output_results_queue: Queue = self.write_queues["output_results_queue"]
+        self.output_deadletter_queue: Queue = self.write_queues[
+            "output_deadletter_queue"
+        ]
+
+        # temporary queues.
+        self.temp_results_queue = queue.Queue()
+        self.temp_deadletter_queue = queue.Queue()
+        self.temp_work_queue = queue.Queue()
+
+        self.dids = filter_previously_processed_dids(
+            pds_endpoint=self.pds_endpoint,
+            dids=self.dids,
+            results_db=self.output_results_queue,
+            deadletter_db=self.output_deadletter_queue,
+        )
+
+        # add backoff factor to avoid overloading the PDS endpoint
+        # with burst requests.
+        self.backoff_factor = 1.0  # 1 second backoff.
+
+        # Track a rolling window of response times
+        self.response_times = collections.deque(maxlen=20)
+
+    def _process_did(self, did: str):
+        retry_count = 0
+        max_retries = self.max_retries
+        self.total_requests += 1
+        start = time.perf_counter()
+        while retry_count < max_retries:
+            try:
+                content = None
+                pdm.BACKFILL_REQUESTS.labels(endpoint=self.pds_endpoint).inc()
+                pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).inc()
+                self.token_bucket._acquire()
+                pdm.BACKFILL_TOKENS_LEFT.labels(endpoint=self.pds_endpoint).set(
+                    self.token_bucket._tokens
+                )
+                response = send_request_to_pds(did=did, pds_endpoint=self.pds_endpoint)
+                content = None
+                if response.status_code == 200:
+                    content: bytes = response.content
+                elif response.status_code == 429:
+                    # Rate limited, put back in queue
+                    time.sleep(1 * (2**retry_count))  # Exponential backoff
+                    self.temp_work_queue.put(did)
+                    pdm.BACKFILL_QUEUE_SIZES.labels(
+                        endpoint=self.pds_endpoint, queue_type="work"
+                    ).set(self.temp_work_queue.qsize())
+                    return
+                else:
+                    # Error case
+                    self.temp_deadletter_queue.put({"did": did, "content": ""})
+                    pdm.BACKFILL_DID_STATUS.labels(
+                        endpoint=self.pds_endpoint, status="http_error"
+                    ).inc()
+                    pdm.BACKFILL_QUEUE_SIZES.labels(
+                        endpoint=self.pds_endpoint, queue_type="deadletter"
+                    ).set(self.temp_deadletter_queue.qsize())
+                    return
+
+                if content:
+                    # offload CPU portion to thread pool.
+                    # keeping outside of semaphore to avoid blocking the semaphore
+                    # with the extra CPU operations.
+                    processing_start = time.perf_counter()
+                    records = get_records_from_pds_bytes(content)
+                    records = [
+                        record
+                        for record in records
+                        if validate_is_valid_bsky_type(record)
+                    ]
+                    processing_time = time.perf_counter() - processing_start
+                    pdm.BACKFILL_PROCESSING_SECONDS.labels(
+                        endpoint=self.pds_endpoint, operation_type="parse_records"
+                    ).observe(processing_time)
+                    self.temp_results_queue.put({"did": did, "content": records})
+
+                    # Update DID status and success metrics
+                    pdm.BACKFILL_DID_STATUS.labels(
+                        endpoint=self.pds_endpoint, status="success"
+                    ).inc()
+                    self.total_successes += 1
+
+                    # Update success ratio
+                    if self.total_requests > 0:
+                        success_ratio = self.total_successes / self.total_requests
+                        pdm.BACKFILL_SUCCESS_RATIO.labels(
+                            endpoint=self.pds_endpoint
+                        ).set(success_ratio)
+
+                    # Update queue size metrics
+                    current_results_queue_size = self.temp_results_queue.qsize()
+                    pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(
+                        current_results_queue_size
+                    )
+                    pdm.BACKFILL_QUEUE_SIZES.labels(
+                        endpoint=self.pds_endpoint, queue_type="results"
+                    ).set(current_results_queue_size)
+
+                    # After successful fast responses:
+                    if processing_time < 1.0:
+                        self.backoff_factor = max(
+                            self.backoff_factor * 0.8, 1.0
+                        )  # Decrease backoff
+
+                    # Track a rolling window of response times
+                    self.response_times.append(processing_time)
+                    avg_response_time = sum(self.response_times) / len(
+                        self.response_times
+                    )
+
+                    # Dynamically adjust concurrency based on average response time
+                    if avg_response_time > 3.0:  # If responses are getting slow
+                        # Reduce effective concurrency temporarily
+                        time.sleep(avg_response_time / 2)
+
+                    return
+
+            except (requests.RequestException, requests.Timeout) as e:
+                # Track network errors specifically
+                error_type = (
+                    "timeout" if isinstance(e, requests.Timeout) else "connection"
+                )
+                pdm.BACKFILL_NETWORK_ERRORS.labels(
+                    endpoint=self.pds_endpoint, error_type=error_type
+                ).inc()
+
+                retry_count += 1
+                # Increment retry counter
+                pdm.BACKFILL_RETRIES.labels(endpoint=self.pds_endpoint).inc()
+
+                if retry_count < max_retries:
+                    # log and retry with backoff
+                    logger.warning(
+                        f"(PDS endpoint: {self.pds_endpoint}): Connection error for DID {did}, retry {retry_count}: {e}"
+                    )
+                    time.sleep(1 * (2**retry_count))  # Exponential backoff
+                else:
+                    # max retries already reached, move to deadletter.
+                    logger.error(
+                        f"(PDS endpoint: {self.pds_endpoint}): Failed processing DID {did} after {max_retries} retries: {e}"
+                    )
+                    self.temp_deadletter_queue.put({"did": did, "content": ""})
+                    pdm.BACKFILL_DID_STATUS.labels(
+                        endpoint=self.pds_endpoint, status="network_error"
+                    ).inc()
+                    pdm.BACKFILL_QUEUE_SIZES.labels(
+                        endpoint=self.pds_endpoint, queue_type="deadletter"
+                    ).set(self.temp_deadletter_queue.qsize())
+            except Exception as e:
+                pdm.BACKFILL_ERRORS.labels(endpoint=self.pds_endpoint).inc()
+                # Other unexpected errors
+                logger.error(
+                    f"(PDS endpoint: {self.pds_endpoint}): Unexpected error processing DID {did}: {e}"
+                )
+                self.temp_deadletter_queue.put({"did": did, "content": ""})
+                pdm.BACKFILL_DID_STATUS.labels(
+                    endpoint=self.pds_endpoint, status="unexpected_error"
+                ).inc()
+                pdm.BACKFILL_QUEUE_SIZES.labels(
+                    endpoint=self.pds_endpoint, queue_type="deadletter"
+                ).set(self.temp_deadletter_queue.qsize())
+            finally:
+                pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).dec()
+
+                # Track both the summary and histogram for latency
+                request_latency = time.perf_counter() - start
+                pdm.BACKFILL_LATENCY_SECONDS.labels(endpoint=self.pds_endpoint).observe(
+                    request_latency
+                )
+                pdm.BACKFILL_LATENCY_HISTOGRAM.labels(
+                    endpoint=self.pds_endpoint
+                ).observe(request_latency)
+
+    def flush_to_db(self):
+        results = []
+        deadletters = []
+        current_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
+        while not self.temp_results_queue.empty():
+            results.append(self.temp_results_queue.get())
+        while not self.temp_deadletter_queue.empty():
+            deadletters.append(self.temp_deadletter_queue.get())
+        logger.info(
+            f"Flushing {len(results)} results and {len(deadletters)} deadletters to DB..."
+        )
+        if len(results) > 0:
+            self.output_results_queue.batch_add_items_to_queue(
+                items=results, metadata={"timestamp": current_timestamp}
+            )
+        if len(deadletters) > 0:
+            self.output_deadletter_queue.batch_add_items_to_queue(
+                items=deadletters, metadata={"timestamp": current_timestamp}
+            )
+
+    def run(self):
+        for did in self.dids:
+            self.temp_work_queue.put(did)
+        logger.info(f"Processing {len(self.dids)} DIDs for {self.pds_endpoint}...")
+        current_idx = 0
+        log_batch_interval = 50
+        total_dids = len(self.dids)
+
+        total_threads = 8
+        latest_batch = []
+
+        total_dids_processed = 0
+
+        while not self.temp_work_queue.empty():
+            latest_batch = []
+            # Get a batch of DIDs to process
+            for _ in range(total_threads):
+                if not self.temp_work_queue.empty():
+                    latest_batch.append(self.temp_work_queue.get())
+                    total_dids_processed += 1
+                else:
+                    break
+
+            if current_idx % log_batch_interval == 0:
+                logger.info(f"Processing DID {current_idx}/{total_dids}...")
+
+            # Process DIDs in parallel using ThreadPoolExecutor
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=total_threads
+            ) as executor:
+                futures = [
+                    executor.submit(self._process_did, did) for did in latest_batch
+                ]
+                # Wait for all threads to complete
+                concurrent.futures.wait(futures)
+
+            if (
+                total_dids_processed > 0
+                and total_dids_processed % default_write_batch_size == 0
+            ):
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Total DIDs processed so far: {total_dids_processed}. Flushing to DB."
+                )
+                self.flush_to_db()
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Total DIDs processed so far: {total_dids_processed}. Flushed to DB."
+                )
+
+            if current_idx % log_batch_interval == 0:
+                logger.info(f"Completed processing {current_idx}/{total_dids} DIDs...")
+            current_idx += 1
+
+        logger.info(f"Finished processing all DIDs for {self.pds_endpoint}")
+
+
 async def dummy_aiosqlite_write():
     """Testing aiosqlite writes."""
     queue_fp = os.path.join(current_dir, "test_queue.db")
@@ -702,7 +1019,7 @@ async def parallel_request_test():
 def _test():
     loop = asyncio.get_event_loop()
     # loop.run_until_complete(dummy_aiosqlite_write())
-    # loop.run_until_complete(diagnose_qps_issue())
+    loop.run_until_complete(diagnose_qps_issue())
     loop.run_until_complete(parallel_request_test())
 
 
