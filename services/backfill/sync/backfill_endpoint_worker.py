@@ -6,6 +6,7 @@ import asyncio
 import concurrent.futures
 import contextlib
 from datetime import datetime, timezone
+import json
 import os
 import time
 import collections
@@ -20,7 +21,7 @@ from services.backfill.sync.atp_agent import AtpAgent
 from services.backfill.sync.backfill import (
     get_records_from_pds_bytes,
     async_send_request_to_pds,
-    validate_is_valid_bsky_type,
+    filter_only_valid_bsky_posts,
 )
 from services.backfill.sync.constants import current_dir
 
@@ -51,11 +52,22 @@ def filter_previously_processed_dids(
     deadletter_db: Queue,
 ) -> list[str]:
     """Load previous results from queues and filter out DIDs that have already been processed."""
-    query_results = results_db.load_dict_items_from_queue()
-    query_deadletter = deadletter_db.load_dict_items_from_queue()
-    query_result_dids = [result["did"] for result in query_results]
-    query_deadletter_dids = [deadletter["did"] for deadletter in query_deadletter]
-    previously_processed_dids = set(query_result_dids) | set(query_deadletter_dids)
+    results_metadata = results_db.load_dict_items_metadata_from_queue()
+    deadletter_metadata = deadletter_db.load_dict_items_metadata_from_queue()
+    query_result_dids: set[str] = set()
+    query_deadletter_dids: set[str] = set()
+
+    for metadata in results_metadata:
+        did_json_str = json.loads(metadata)["dids"]
+        did_json = json.loads(did_json_str)
+        query_result_dids.update(did_json)
+
+    for metadata in deadletter_metadata:
+        did_json_str = json.loads(metadata)["dids"]
+        did_json = json.loads(did_json_str)
+        query_deadletter_dids.update(did_json)
+
+    previously_processed_dids = query_result_dids | query_deadletter_dids
     filtered_dids = [did for did in dids if did not in previously_processed_dids]
     total_original_dids = len(dids)
     total_remaining_dids = len(filtered_dids)
@@ -283,6 +295,9 @@ class PDSEndpointWorker:
                         pdm.BACKFILL_QUEUE_SIZES.labels(
                             endpoint=self.pds_endpoint, queue_type="work"
                         ).set(self.temp_work_queue.qsize())
+                        logger.info(
+                            f"Sleep time finished for {did}, continuing backfill."
+                        )
                         return
                     elif response.status == 400 and response.reason == "Bad Request":
                         # unclear why, but API sometimes returns a 400 for no reason.
@@ -322,7 +337,7 @@ class PDSEndpointWorker:
                         lambda x: [
                             record
                             for record in x
-                            if validate_is_valid_bsky_type(record)
+                            if filter_only_valid_bsky_posts(record)
                         ],
                         records,
                     )
@@ -567,7 +582,12 @@ class PDSEndpointWorker:
         )
         try:
             await self.output_results_queue.async_batch_add_items_to_queue(
-                items=result_buffer, metadata={"timestamp": current_timestamp}
+                items=result_buffer,
+                metadata={
+                    "timestamp": current_timestamp,
+                    "total_records": len(result_buffer),
+                    "dids": [item["did"] for item in result_buffer],
+                },
             )
         except Exception as e:
             logger.error(f"SQLite operation failed: {e}", exc_info=True)
@@ -581,7 +601,12 @@ class PDSEndpointWorker:
                 f"(PDS endpoint: {self.pds_endpoint}): Flushing {total_deadletter_buffer} deadletters to permanent storage."
             )
             await self.output_deadletter_queue.async_batch_add_items_to_queue(
-                items=deadletter_buffer, metadata={"timestamp": current_timestamp}
+                items=deadletter_buffer,
+                metadata={
+                    "timestamp": current_timestamp,
+                    "total_records": len(deadletter_buffer),
+                    "dids": [item["did"] for item in deadletter_buffer],
+                },
             )
             logger.info(
                 f"(PDS endpoint: {self.pds_endpoint}): Finished flushing deadletter queue."

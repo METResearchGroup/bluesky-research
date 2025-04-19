@@ -545,6 +545,13 @@ class Queue:
 
             return items
 
+    def load_dict_items_metadata_from_queue(self) -> list[dict]:
+        """Load the metadata from the queue."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("SELECT id, metadata FROM queue")
+            rows = cursor.fetchall()
+            return [row[1] for row in rows]
+
     def load_dict_items_from_queue(
         self,
         limit: Optional[int] = None,

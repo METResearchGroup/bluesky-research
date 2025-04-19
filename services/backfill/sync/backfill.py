@@ -147,6 +147,13 @@ def validate_is_valid_bsky_type(record: dict) -> bool:
     return "$type" in record and record["$type"] in valid_generic_bluesky_types
 
 
+def filter_only_valid_bsky_posts(record: dict) -> bool:
+    """Get only Bluesky posts."""
+    return (
+        validate_is_valid_bsky_type(record) and record["$type"] == "app.bsky.feed.post"
+    )
+
+
 def transform_backfilled_record(
     record: dict,
     record_type: str,

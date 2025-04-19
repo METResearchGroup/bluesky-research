@@ -436,9 +436,11 @@ def run_backfills(
     }
 
     if skip_completed_pds_endpoints:
-        pds_endpoints_to_skip = calculate_pds_endpoints_to_skip(
-            pds_endpoint_to_dids_map=pds_endpoint_to_dids_map
-        )
+        # TODO: this needs to be re-done.
+        # pds_endpoints_to_skip = calculate_pds_endpoints_to_skip(
+        #     pds_endpoint_to_dids_map=pds_endpoint_to_dids_map
+        # )
+        pds_endpoints_to_skip = []
         logger.info(
             f"Skipping {len(pds_endpoints_to_skip)} PDS endpoints since their backfills are already completed."
         )
