@@ -1,3 +1,4 @@
+import aiohttp
 import os
 import requests
 import time
@@ -73,6 +74,17 @@ class AtpAgent:
         response = requests.get(full_url, headers=self.headers)
         # return response.json()
         return response  # TODO: can't do .json(). Need to get .content.
+
+    async def async_get_repo(self, did: str, session: aiohttp.ClientSession):
+        """Gets a repo from the PDS.
+
+        https://github.com/bluesky-social/atproto/blob/main/lexicons/com/atproto/sync/getRepo.json#L3
+        """
+        root_url = os.path.join(self.service, "xrpc")
+        joined_url = os.path.join(root_url, "com.atproto.sync.getRepo")
+        full_url = f"{joined_url}?did={did}"
+        response = await session.get(full_url, headers=self.headers)
+        return response
 
     def get_repos(self, dids: list[str]):
         """Gets repos from the PDS.

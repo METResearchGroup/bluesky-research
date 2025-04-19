@@ -15,9 +15,10 @@ import time
 from lib.db.queue import Queue
 from lib.helper import create_batches
 from lib.log.logger import get_logger
+from lib.telemetry.prometheus.server import start_metrics_server
 from services.backfill.sync.backfill import get_plc_directory_doc
 from services.backfill.sync.backfill_endpoint_worker import (
-    get_write_queues,
+    get_single_write_queues,
     PDSEndpointWorker,
 )
 from services.backfill.sync.constants import current_dir
@@ -60,7 +61,7 @@ min_dids_per_pds_endpoint = 50
 logger = get_logger(__name__)
 
 # start Prometheus server for tracking.
-# start_metrics_server(port=8000)
+start_metrics_server(port=8000)
 
 
 def load_dids_from_local_db() -> list[str]:
@@ -265,7 +266,7 @@ def check_if_pds_endpoint_backfill_completed(
     pds_endpoint: str, expected_total: int
 ) -> bool:
     """Checks if the PDS endpoint backfill is completed."""
-    write_queues: dict[str, Queue] = get_write_queues(pds_endpoint=pds_endpoint)
+    write_queues: dict[str, Queue] = get_single_write_queues(pds_endpoint=pds_endpoint)
     output_results_queue: Queue = write_queues["output_results_queue"]
     output_deadletter_queue: Queue = write_queues["output_deadletter_queue"]
 
@@ -280,27 +281,39 @@ def check_if_pds_endpoint_backfill_completed(
 
 
 def calculate_completed_pds_endpoint_backfills(
-    pds_endpoint_to_did_count: dict[str, int],
+    pds_endpoint_to_dids_map: dict[str, list[str]],
 ) -> list[str]:
     """Iterate through the PDS endpoints and check to see which ones
-    are likely already completed, and send a list of these."""
+    are already completely backfilled, and send a list of these."""
     completed_pds_endpoints = []
-    for pds_endpoint, did_count in pds_endpoint_to_did_count.items():
-        if check_if_pds_endpoint_backfill_completed(
-            pds_endpoint=pds_endpoint, expected_total=did_count
-        ):
+    write_queues: dict[str, Queue] = get_single_write_queues()
+    output_results_queue: Queue = write_queues["output_results_queue"]
+    output_deadletter_queue: Queue = write_queues["output_deadletter_queue"]
+
+    results = output_results_queue.load_dict_items_from_queue()
+    deadletter = output_deadletter_queue.load_dict_items_from_queue()
+    completed_dids: set[str] = set(
+        [result["did"] for result in results]
+        + [deadletter["did"] for deadletter in deadletter]
+    )
+    for pds_endpoint, dids in pds_endpoint_to_dids_map.items():
+        if set(dids).issubset(completed_dids):
             completed_pds_endpoints.append(pds_endpoint)
+    if len(completed_pds_endpoints) > 0:
+        logger.info(
+            f"Completed backfills for {len(completed_pds_endpoints)} PDS endpoints: {completed_pds_endpoints}"
+        )
     return completed_pds_endpoints
 
 
 def calculate_pds_endpoints_to_skip(
-    pds_endpoint_to_did_count: dict[str, int],
+    pds_endpoint_to_dids_map: dict[str, list[str]],
 ) -> list[str]:
     """Calculates the PDS endpoints to skip based on checking which ones
     are already completed."""
     pds_endpoints_to_skip = ["invalid_doc"]
     completed_pds_endpoint_backfills = calculate_completed_pds_endpoint_backfills(
-        pds_endpoint_to_did_count=pds_endpoint_to_did_count
+        pds_endpoint_to_dids_map=pds_endpoint_to_dids_map
     )
     pds_endpoints_to_skip.extend(completed_pds_endpoint_backfills)
     return pds_endpoints_to_skip
@@ -323,24 +336,26 @@ async def run_pds_backfills(
     # ChatGPT.
     cpu_pool = ThreadPoolExecutor(max_workers=2 * (os.cpu_count() or 4))
     async with aiohttp.ClientSession() as session:
-        workers = []
         for pds_endpoint, dids in pds_endpoint_to_dids_map.items():
             logger.info(
                 f"Starting PDS backfill for {pds_endpoint} with {len(dids)} DIDs."
             )
+            # worker = PDSEndpointWorker(
+            #     pds_endpoint=default_pds_endpoint,
+            #     dids=dids,
+            #     session=session,
+            #     cpu_pool=cpu_pool,
+            # )
             worker = PDSEndpointWorker(
                 pds_endpoint=pds_endpoint,
                 dids=dids,
                 session=session,
                 cpu_pool=cpu_pool,
             )
-            workers.append(worker)
 
-        await asyncio.gather(*[worker.start() for worker in workers])
-
-        await asyncio.gather(*[worker.wait_done() for worker in workers])
-
-        await asyncio.gather(*[worker.shutdown() for worker in workers])
+            await worker.start()
+            await worker.wait_done()
+            await worker.shutdown()
 
     cpu_pool.shutdown(wait=True)
     logger.info("All PDS backfills completed.")
@@ -420,16 +435,16 @@ def run_backfills(
         if len(dids) >= min_dids_per_pds_endpoint
     }
 
-    # TODO: un-comment later.
-    # if skip_completed_pds_endpoints:
-    #     pds_endpoints_to_skip = calculate_pds_endpoints_to_skip(
-    #         pds_endpoint_to_did_count=pds_endpoint_to_did_count
-    #     )
-    #     logger.info(
-    #         f"Skipping {len(pds_endpoints_to_skip)} PDS endpoints since their backfills are already completed."
-    #     )
-    #     for pds_endpoint in pds_endpoints_to_skip:
-    #         pds_endpoint_to_dids_map.pop(pds_endpoint)
+    if skip_completed_pds_endpoints:
+        pds_endpoints_to_skip = calculate_pds_endpoints_to_skip(
+            pds_endpoint_to_dids_map=pds_endpoint_to_dids_map
+        )
+        logger.info(
+            f"Skipping {len(pds_endpoints_to_skip)} PDS endpoints since their backfills are already completed."
+        )
+        for pds_endpoint in pds_endpoints_to_skip:
+            if pds_endpoint in pds_endpoint_to_dids_map:
+                pds_endpoint_to_dids_map.pop(pds_endpoint)
 
     if max_pds_endpoints_to_sync is not None:
         # sort PDS endpoints by number of DIDs in descending order.
@@ -450,46 +465,16 @@ def run_backfills(
         }
         logger.info(f"Only sorting the top {max_pds_endpoints_to_sync} PDS endpoints.")
 
-    # logger.info("Triggering async PDS backfills...")
-    # loop = asyncio.get_event_loop()
-    # loop.run_until_complete(
-    #     run_pds_backfills(
-    #         dids=dids,
-    #         pds_endpoint_to_dids_map=pds_endpoint_to_dids_map,
-    #     )
-    # )
-    # logger.info("Async PDS backfills completed.")
-    # loop = asyncio.get_event_loop()
-    for pds_endpoint, dids in pds_endpoint_to_dids_map.items():
-        if pds_endpoint != "https://morel.us-east.host.bsky.network":
-            continue
-        loop = asyncio.get_event_loop()
-        from services.backfill.sync.backfill_endpoint_worker import (
-            PDSEndpointWorkerAsynchronous,
-        )
-
-        endpoint_worker = PDSEndpointWorkerAsynchronous(
-            pds_endpoint=pds_endpoint,
+    logger.info("Triggering async PDS backfills...")
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(
+        run_pds_backfills(
             dids=dids,
+            pds_endpoint_to_dids_map=pds_endpoint_to_dids_map,
         )
-        loop.run_until_complete(endpoint_worker.run())
+    )
     logger.info("Async PDS backfills completed.")
-
-    # for pds_endpoint, dids in pds_endpoint_to_dids_map.items():
-    #     if pds_endpoint != "https://morel.us-east.host.bsky.network":
-    #         continue
-    #     logger.info(f"Processing {len(dids)} DIDs for {pds_endpoint}...")
-    #     endpoint_worker = PDSEndpointWorkerSynchronous(
-    #         pds_endpoint=pds_endpoint, dids=dids
-    #     )
-    #     endpoint_worker.run()
-    #     logger.info(f"Completed processing {len(dids)} DIDs for {pds_endpoint}.")
-    # did_to_pds_endpoint_map = load_did_to_pds_endpoint_map()
-    # endpoint_worker = PDSEndpointWorkerSynchronous(
-    #     did_to_pds_endpoint_map=did_to_pds_endpoint_map
-    # )
-    # endpoint_worker.run()
-    logger.info("All PDS backfills completed.")
+    loop = asyncio.get_event_loop()
 
 
 def main():
