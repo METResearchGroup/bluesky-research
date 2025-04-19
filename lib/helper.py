@@ -191,18 +191,18 @@ def add_rate_limit(rate_limit: float):
 
 
 class ThreadSafeCounter:
-    def __init__(self):
-        self.counter = 0
+    def __init__(self, initial_value=0):
+        self.counter = initial_value
         self.lock = threading.Lock()
 
-    def increment(self):
+    def increment(self, delta=1):
         with self.lock:
-            self.counter += 1
+            self.counter += delta
             return self.counter
 
-    def reset(self):
+    def reset(self, value=0):
         with self.lock:
-            self.counter = 0
+            self.counter = value
 
     def get_value(self):
         with self.lock:

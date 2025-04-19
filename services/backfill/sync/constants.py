@@ -1,3 +1,5 @@
+import os
+
 endpoint = "com.atproto.sync.getRepo"
 
 # default backfill range to be during the study period.
@@ -29,3 +31,5 @@ base_queue_name = "output_backfill_sync"
 input_queue_name = "input_backfill_sync"
 
 default_batch_size = 100
+
+current_dir = os.path.dirname(os.path.abspath(__file__))

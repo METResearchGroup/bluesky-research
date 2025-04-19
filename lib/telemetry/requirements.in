@@ -1,3 +1,5 @@
 comet-ml==3.47.1
+grafana-client==4.3.2
 opentelemetry-api==1.29.0
+prometheus-client==0.19.0
 wandb==0.18.5
