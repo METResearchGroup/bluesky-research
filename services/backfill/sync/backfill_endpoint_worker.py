@@ -532,6 +532,10 @@ class PDSEndpointWorker:
         # wait for all producers to finish.
         await self._producer_group
 
+        # Signal to the writer task to flush any remaining items
+        # by adding a special flag item to the results queue
+        await self.temp_results_queue.put({"final_flush": True})
+
         # wait until writer consumes everything in queues.
         await self.temp_results_queue.join()
         await self.temp_deadletter_queue.join()
@@ -543,15 +547,28 @@ class PDSEndpointWorker:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._writer_task
 
-    async def _writer(self) -> None:
+    async def _writer(self, batch_size: Optional[int] = None) -> None:
         """Background task to flush temp queues to permanent storage in batches."""
         result_buffer: list[dict] = []
         deadletter_buffer: list[dict] = []
         global_total_records_flushed = 0
+        if not batch_size:
+            batch_size = self._batch_size
         try:
             while True:
+                final_flush_signal = False
+
+                # Process results queue
                 while not self.temp_results_queue.empty():
                     result: dict = await self.temp_results_queue.get()
+
+                    # Check for the special flag item
+                    if result.get("final_flush"):
+                        final_flush_signal = True
+                        self.temp_results_queue.task_done()
+                        continue
+
+                    # Normal processing
                     result_buffer.append(result)
                     self.temp_results_queue.task_done()
                     # Update queue size metric
@@ -559,6 +576,7 @@ class PDSEndpointWorker:
                         endpoint=self.pds_endpoint, queue_type="results"
                     ).set(self.temp_results_queue.qsize())
 
+                # Process deadletter queue
                 while not self.temp_deadletter_queue.empty():
                     deadletter: dict = await self.temp_deadletter_queue.get()
                     deadletter_buffer.append(deadletter)
@@ -574,7 +592,17 @@ class PDSEndpointWorker:
                     total_result_buffer_size + total_deadletter_buffer_size
                 )
 
-                if total_buffer_size >= self._batch_size:
+                # If we received final flush signal, flush remaining buffers regardless of size
+                if final_flush_signal:
+                    if result_buffer or deadletter_buffer:
+                        await self._async_flush_buffers(
+                            result_buffer=result_buffer,
+                            deadletter_buffer=deadletter_buffer,
+                        )
+                    return  # Exit the writer task
+
+                # Regular batch flush check
+                if total_buffer_size >= batch_size:
                     flush_start = time.perf_counter()
                     await self._async_flush_buffers(
                         result_buffer=result_buffer, deadletter_buffer=deadletter_buffer
@@ -605,6 +633,7 @@ class PDSEndpointWorker:
             logger.error(f"Error in writer: {e}", exc_info=True)
             raise
         finally:
+            logger.info("No more queued tasks. Doing one last flush.")
             logger.info(f"Writer task for {self.pds_endpoint} finished.")
 
     async def _async_flush_buffers(
