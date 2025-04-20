@@ -821,3 +821,22 @@
 #         "output_deadletter_queue": output_deadletter_queue,
 #     }
 
+# def get_single_write_queues():
+#     output_results_db_path = os.path.join(current_dir, "results_all.db")
+#     output_deadletter_db_path = os.path.join(current_dir, "deadletter_all.db")
+#     output_results_queue = Queue(
+#         queue_name="results_all",
+#         create_new_queue=True,
+#         temp_queue=True,
+#         temp_queue_path=output_results_db_path,
+#     )
+#     output_deadletter_queue = Queue(
+#         queue_name="deadletter_all",
+#         create_new_queue=True,
+#         temp_queue=True,
+#         temp_queue_path=output_deadletter_db_path,
+#     )
+#     return {
+#         "output_results_queue": output_results_queue,
+#         "output_deadletter_queue": output_deadletter_queue,
+#     }

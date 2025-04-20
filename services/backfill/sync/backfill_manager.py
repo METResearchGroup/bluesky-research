@@ -18,7 +18,8 @@ from lib.log.logger import get_logger
 from lib.telemetry.prometheus.server import start_metrics_server
 from services.backfill.sync.backfill import get_plc_directory_doc
 from services.backfill.sync.backfill_endpoint_worker import (
-    get_single_write_queues,
+    get_write_queues,
+    get_previously_processed_dids,
     PDSEndpointWorker,
 )
 from services.backfill.sync.constants import current_dir
@@ -266,18 +267,20 @@ def check_if_pds_endpoint_backfill_completed(
     pds_endpoint: str, expected_total: int
 ) -> bool:
     """Checks if the PDS endpoint backfill is completed."""
-    write_queues: dict[str, Queue] = get_single_write_queues(pds_endpoint=pds_endpoint)
+    write_queues = get_write_queues(pds_endpoint=pds_endpoint)
     output_results_queue: Queue = write_queues["output_results_queue"]
     output_deadletter_queue: Queue = write_queues["output_deadletter_queue"]
 
-    results = output_results_queue.load_dict_items_from_queue()
-    deadletter = output_deadletter_queue.load_dict_items_from_queue()
-    total_processed = len(results) + len(deadletter)
+    previously_processed_dids: set[str] = get_previously_processed_dids(
+        results_db=output_results_queue,
+        deadletter_db=output_deadletter_queue,
+    )
+
     del write_queues
     del output_results_queue
     del output_deadletter_queue
     gc.collect()
-    return total_processed == expected_total
+    return len(previously_processed_dids) == expected_total
 
 
 def calculate_completed_pds_endpoint_backfills(
@@ -285,25 +288,13 @@ def calculate_completed_pds_endpoint_backfills(
 ) -> list[str]:
     """Iterate through the PDS endpoints and check to see which ones
     are already completely backfilled, and send a list of these."""
-    completed_pds_endpoints = []
-    write_queues: dict[str, Queue] = get_single_write_queues()
-    output_results_queue: Queue = write_queues["output_results_queue"]
-    output_deadletter_queue: Queue = write_queues["output_deadletter_queue"]
-
-    results = output_results_queue.load_dict_items_from_queue()
-    deadletter = output_deadletter_queue.load_dict_items_from_queue()
-    completed_dids: set[str] = set(
-        [result["did"] for result in results]
-        + [deadletter["did"] for deadletter in deadletter]
-    )
+    completed_pds_endpoint_backfills = []
     for pds_endpoint, dids in pds_endpoint_to_dids_map.items():
-        if set(dids).issubset(completed_dids):
-            completed_pds_endpoints.append(pds_endpoint)
-    if len(completed_pds_endpoints) > 0:
-        logger.info(
-            f"Completed backfills for {len(completed_pds_endpoints)} PDS endpoints: {completed_pds_endpoints}"
-        )
-    return completed_pds_endpoints
+        if check_if_pds_endpoint_backfill_completed(
+            pds_endpoint=pds_endpoint, expected_total=len(dids)
+        ):
+            completed_pds_endpoint_backfills.append(pds_endpoint)
+    return completed_pds_endpoint_backfills
 
 
 def calculate_pds_endpoints_to_skip(
@@ -340,19 +331,12 @@ async def run_pds_backfills(
             logger.info(
                 f"Starting PDS backfill for {pds_endpoint} with {len(dids)} DIDs."
             )
-            # worker = PDSEndpointWorker(
-            #     pds_endpoint=default_pds_endpoint,
-            #     dids=dids,
-            #     session=session,
-            #     cpu_pool=cpu_pool,
-            # )
             worker = PDSEndpointWorker(
                 pds_endpoint=pds_endpoint,
                 dids=dids,
                 session=session,
                 cpu_pool=cpu_pool,
             )
-
             await worker.start()
             await worker.wait_done()
             await worker.shutdown()
@@ -395,6 +379,12 @@ def run_backfills(
 
     logger.info("Sorted PDS endpoints by number of DIDs (descending order)")
 
+    # dedupe DIDs in each PDS endpoint, if necessary.
+    pds_endpoint_to_dids_map = {
+        pds_endpoint: list(set(dids))
+        for pds_endpoint, dids in pds_endpoint_to_dids_map.items()
+    }
+
     pds_endpoint_to_did_count = {
         endpoint: len(dids) for endpoint, dids in pds_endpoint_to_dids_map.items()
     }
@@ -436,10 +426,9 @@ def run_backfills(
     }
 
     if skip_completed_pds_endpoints:
-        # TODO: this needs to be re-done.
-        # pds_endpoints_to_skip = calculate_pds_endpoints_to_skip(
-        #     pds_endpoint_to_dids_map=pds_endpoint_to_dids_map
-        # )
+        pds_endpoints_to_skip = calculate_pds_endpoints_to_skip(
+            pds_endpoint_to_dids_map=pds_endpoint_to_dids_map
+        )
         pds_endpoints_to_skip = []
         logger.info(
             f"Skipping {len(pds_endpoints_to_skip)} PDS endpoints since their backfills are already completed."

@@ -45,12 +45,10 @@ default_write_batch_size = 100
 default_pds_endpoint = "https://bsky.social"
 
 
-def filter_previously_processed_dids(
-    pds_endpoint: str,
-    dids: list[str],
+def get_previously_processed_dids(
     results_db: Queue,
     deadletter_db: Queue,
-) -> list[str]:
+) -> set[str]:
     """Load previous results from queues and filter out DIDs that have already been processed."""
     results_metadata = results_db.load_dict_items_metadata_from_queue()
     deadletter_metadata = deadletter_db.load_dict_items_metadata_from_queue()
@@ -68,6 +66,21 @@ def filter_previously_processed_dids(
         query_deadletter_dids.update(did_json)
 
     previously_processed_dids = query_result_dids | query_deadletter_dids
+    return previously_processed_dids
+
+
+def filter_previously_processed_dids(
+    pds_endpoint: str,
+    dids: list[str],
+    results_db: Queue,
+    deadletter_db: Queue,
+) -> list[str]:
+    """Load previous results from queues and filter out DIDs that have already been processed."""
+    previously_processed_dids = get_previously_processed_dids(
+        results_db=results_db,
+        deadletter_db=deadletter_db,
+    )
+
     filtered_dids = [did for did in dids if did not in previously_processed_dids]
     total_original_dids = len(dids)
     total_remaining_dids = len(filtered_dids)
@@ -110,17 +123,27 @@ def log_progress(
     logger.info(f"=== End of progress for PDS endpoint {pds_endpoint} ===")
 
 
-def get_single_write_queues():
-    output_results_db_path = os.path.join(current_dir, "results_all.db")
-    output_deadletter_db_path = os.path.join(current_dir, "deadletter_all.db")
+def get_write_queues(pds_endpoint: str):
+    # Extract the hostname from the PDS endpoint URL
+    # eg., https://lepista.us-west.host.bsky.network.db -> lepista.us-west.host.bsky.network.db
+    pds_hostname = (
+        pds_endpoint.replace("https://", "").replace("http://", "").replace("/", "")
+    )
+    logger.info(f"Instantiating queues for PDS hostname: {pds_hostname}")
+
+    output_results_db_path = os.path.join(current_dir, f"results_{pds_hostname}.db")
+    output_deadletter_db_path = os.path.join(
+        current_dir, f"deadletter_{pds_hostname}.db"
+    )
+
     output_results_queue = Queue(
-        queue_name="results_all",
+        queue_name=f"results_{pds_hostname}",
         create_new_queue=True,
         temp_queue=True,
         temp_queue_path=output_results_db_path,
     )
     output_deadletter_queue = Queue(
-        queue_name="deadletter_all",
+        queue_name=f"deadletter_{pds_hostname}",
         create_new_queue=True,
         temp_queue=True,
         temp_queue_path=output_deadletter_db_path,
@@ -174,7 +197,7 @@ class PDSEndpointWorker:
         )
 
         # permanent storage queues.
-        self.write_queues = get_single_write_queues()
+        self.write_queues = get_write_queues(pds_endpoint=pds_endpoint)
         self.output_results_queue: Queue = self.write_queues["output_results_queue"]
         self.output_deadletter_queue: Queue = self.write_queues[
             "output_deadletter_queue"
