@@ -54,15 +54,20 @@ def get_previously_processed_dids(
     deadletter_metadata = deadletter_db.load_dict_items_metadata_from_queue()
     query_result_dids: set[str] = set()
     query_deadletter_dids: set[str] = set()
+    total_results_metadata = len(results_metadata)
+    total_deadletter_metadata = len(deadletter_metadata)
+
+    if len(results_metadata) > 0 or len(deadletter_metadata) > 0:
+        logger.info(
+            f"Loaded {total_results_metadata} results metadata and {total_deadletter_metadata} deadletter metadata."
+        )
 
     for metadata in results_metadata:
-        did_json_str = json.loads(metadata)["dids"]
-        did_json = json.loads(did_json_str)
+        did_json = json.loads(metadata)["dids"]
         query_result_dids.update(did_json)
 
     for metadata in deadletter_metadata:
-        did_json_str = json.loads(metadata)["dids"]
-        did_json = json.loads(did_json_str)
+        did_json = json.loads(metadata)["dids"]
         query_deadletter_dids.update(did_json)
 
     previously_processed_dids = query_result_dids | query_deadletter_dids
@@ -242,7 +247,7 @@ class PDSEndpointWorker:
 
     async def _init_worker_queue(self):
         for did in self.dids:
-            await self.temp_work_queue.put(did)
+            await self.temp_work_queue.put({"did": did})
         # Update queue size metric
         queue_size = self.temp_work_queue.qsize()
         pdm.BACKFILL_QUEUE_SIZES.labels(
@@ -251,7 +256,11 @@ class PDSEndpointWorker:
         pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(queue_size)
 
     async def _process_did(
-        self, did: str, session: aiohttp.ClientSession, max_retries: int = None
+        self,
+        did: str,
+        session: aiohttp.ClientSession,
+        max_retries: int = None,
+        retry_count: int = 0,
     ):
         """Processes a DID and adds the results to the temporary queues.
 
@@ -265,9 +274,17 @@ class PDSEndpointWorker:
         """
         if not max_retries:
             max_retries = self.max_retries
-        retry_count = 0
 
-        while retry_count < max_retries:
+        if retry_count > max_retries:
+            logger.info(
+                f"Failed to process DID {did} after {max_retries} retries. Adding to deadletter queue."
+            )
+            await self.temp_deadletter_queue.put({"did": did, "content": ""})
+            pdm.BACKFILL_QUEUE_SIZES.labels(
+                endpoint=self.pds_endpoint, queue_type="deadletter"
+            ).set(self.temp_deadletter_queue.qsize())
+            return
+        else:
             self.total_requests += 1
             try:
                 content = None
@@ -277,7 +294,6 @@ class PDSEndpointWorker:
                 pdm.BACKFILL_TOKENS_LEFT.labels(endpoint=self.pds_endpoint).set(
                     self.token_bucket._tokens
                 )
-
                 start = time.perf_counter()
                 async with self.semaphore:
                     atp_agent = AtpAgent(service=self.pds_endpoint)
@@ -314,25 +330,35 @@ class PDSEndpointWorker:
                             f"(PDS endpoint: {self.pds_endpoint}): Rate limited, putting DID {did} back in queue."
                         )
                         await asyncio.sleep(1 * (2**retry_count))  # Exponential backoff
-                        await self.temp_work_queue.put(did)
+                        retry_count += 1
+                        await self.temp_work_queue.put(
+                            {"did": did, "retry_count": retry_count}
+                        )
                         pdm.BACKFILL_QUEUE_SIZES.labels(
                             endpoint=self.pds_endpoint, queue_type="work"
                         ).set(self.temp_work_queue.qsize())
                         logger.info(
                             f"Sleep time finished for {did}, continuing backfill."
                         )
+                        # TODO: see the behavior when a rate limit is hit.
+                        # TODO: also check the token bucket, as 429s shouldn't
+                        # really happen if the token buckets are working.
+                        breakpoint()
                         return
                     elif response.status == 400 and response.reason == "Bad Request":
                         # unclear why, but API sometimes returns a 400 for no reason.
                         #  we just add this back to the queue. I've verified that
                         # the DIDs are valid.
-                        await self.temp_work_queue.put(did)
+                        retry_count += 1
+                        await self.temp_work_queue.put(
+                            {"did": did, "retry_count": retry_count}
+                        )
                         pdm.BACKFILL_QUEUE_SIZES.labels(
                             endpoint=self.pds_endpoint, queue_type="work"
                         ).set(self.temp_work_queue.qsize())
                         return
                     else:
-                        # Error case
+                        # For unexpected status codes, we don't retry.
                         logger.error(
                             f"(PDS endpoint: {self.pds_endpoint}): Unexpected status code ({response.status}) and reason ({response.reason}) for DID {did}"
                         )
@@ -345,6 +371,7 @@ class PDSEndpointWorker:
                         pdm.BACKFILL_QUEUE_SIZES.labels(
                             endpoint=self.pds_endpoint, queue_type="deadletter"
                         ).set(self.temp_deadletter_queue.qsize())
+                        breakpoint()
                         return
                 if content:
                     # offload CPU portion to thread pool.
@@ -412,7 +439,8 @@ class PDSEndpointWorker:
                     return
 
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                # Track network errors specifically
+                # Track network errors specifically. For network errors,
+                # we want to retry.
                 error_type = (
                     "timeout" if isinstance(e, asyncio.TimeoutError) else "connection"
                 )
@@ -420,32 +448,28 @@ class PDSEndpointWorker:
                     endpoint=self.pds_endpoint, error_type=error_type
                 ).inc()
 
+                logger.info("NETWORK ERROR.")
+                breakpoint()
+                logger.warning(
+                    f"(PDS endpoint: {self.pds_endpoint}): Connection error for DID {did}, retry {retry_count}: {e}"
+                )
+                await asyncio.sleep(1 * (2**retry_count))  # Exponential backoff
+
                 retry_count += 1
                 # Increment retry counter
                 pdm.BACKFILL_RETRIES.labels(endpoint=self.pds_endpoint).inc()
+                await self.temp_work_queue.put({"did": did, "retry_count": retry_count})
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Putting DID {did} back in queue. Current retry count: {retry_count}/{max_retries}."
+                )
 
-                if retry_count < max_retries:
-                    # log and retry with backoff
-                    logger.warning(
-                        f"(PDS endpoint: {self.pds_endpoint}): Connection error for DID {did}, retry {retry_count}: {e}"
-                    )
-                    await asyncio.sleep(1 * (2**retry_count))  # Exponential backoff
-                else:
-                    # max retries already reached, move to deadletter.
-                    logger.error(
-                        f"(PDS endpoint: {self.pds_endpoint}): Failed processing DID {did} after {max_retries} retries: {e}"
-                    )
-                    await self.temp_deadletter_queue.put({"did": did, "content": ""})
-                    pdm.BACKFILL_DID_STATUS.labels(
-                        endpoint=self.pds_endpoint, status="network_error"
-                    ).inc()
-                    pdm.BACKFILL_QUEUE_SIZES.labels(
-                        endpoint=self.pds_endpoint, queue_type="deadletter"
-                    ).set(self.temp_deadletter_queue.qsize())
-                    return
             except Exception as e:
+                # for unexpected errors, we don't re-try them. These shouldn't
+                # happen, and if we do, we want to monitor these and NOT retry.
                 pdm.BACKFILL_ERRORS.labels(endpoint=self.pds_endpoint).inc()
                 # Other unexpected errors
+                logger.info("UNEXPECTED ERROR.")
+                breakpoint()
                 logger.error(
                     f"(PDS endpoint: {self.pds_endpoint}): Unexpected error processing DID {did}: {e}"
                 )
@@ -483,7 +507,12 @@ class PDSEndpointWorker:
         while True:
             # get DID from the queue.
             try:
-                did = await asyncio.wait_for(self.temp_work_queue.get(), timeout=1.0)
+                did_item = await asyncio.wait_for(
+                    self.temp_work_queue.get(), timeout=1.0
+                )
+                did = did_item["did"]
+                # should only have a retry_count if it's been re-inserted into the queue.
+                retry_count = did_item.get("retry_count", 0)
                 # Update work queue size metric
                 pdm.BACKFILL_QUEUE_SIZES.labels(
                     endpoint=self.pds_endpoint, queue_type="work"
@@ -496,7 +525,11 @@ class PDSEndpointWorker:
 
             # process DID
             try:
-                await self._process_did(did=did, session=self.session)
+                await self._process_did(
+                    did=did,
+                    session=self.session,
+                    retry_count=retry_count,
+                )
             finally:
                 # mark task as done even if it failed.
                 self.temp_work_queue.task_done()
@@ -639,14 +672,18 @@ class PDSEndpointWorker:
                 f"(PDS endpoint: {self.pds_endpoint}): No deadletters to flush."
             )
 
-        flush_time = time.perf_counter() - flush_start
-        pdm.BACKFILL_PROCESSING_SECONDS.labels(
-            endpoint=self.pds_endpoint, operation_type="db_flush"
-        ).observe(flush_time)
+        try:
+            flush_time = time.perf_counter() - flush_start
+            pdm.BACKFILL_PROCESSING_SECONDS.labels(
+                endpoint=self.pds_endpoint, operation_type="db_flush"
+            ).observe(flush_time)
 
-        logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Finished flushing {total_buffer} results: {total_results_buffer} records and {total_deadletter_buffer} deadletters to permanent storage."
-        )
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Finished flushing {total_buffer} results: {total_results_buffer} records and {total_deadletter_buffer} deadletters to permanent storage in {flush_time:.2f}s."
+            )
+        except Exception as e:
+            logger.error(f"Error in _async_flush_buffers: {e}", exc_info=True)
+            raise
 
 
 async def dummy_aiosqlite_write():

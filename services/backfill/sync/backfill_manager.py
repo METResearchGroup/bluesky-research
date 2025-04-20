@@ -340,6 +340,11 @@ async def run_pds_backfills(
             await worker.start()
             await worker.wait_done()
             await worker.shutdown()
+            logger.info(f"Completed PDS backfill for {pds_endpoint}.")
+            # TODO: remove break. Only here for experimental purposes, verify
+            # that it works for a single PDS endpoint and then distribute to
+            # other PDS endpoints in parallel (e.g., with multithreading).
+            break
 
     cpu_pool.shutdown(wait=True)
     logger.info("All PDS backfills completed.")
