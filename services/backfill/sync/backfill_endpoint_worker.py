@@ -259,8 +259,8 @@ class PDSEndpointWorker:
         self,
         did: str,
         session: aiohttp.ClientSession,
+        retry_count: int,
         max_retries: int = None,
-        retry_count: int = 0,
     ):
         """Processes a DID and adds the results to the temporary queues.
 
@@ -297,12 +297,8 @@ class PDSEndpointWorker:
                 start = time.perf_counter()
                 async with self.semaphore:
                     atp_agent = AtpAgent(service=self.pds_endpoint)
-                    # response = await async_send_request_to_pds(
-                    #     did=did, pds_endpoint=self.pds_endpoint, session=session
-                    # )
                     response = await atp_agent.async_get_repo(did=did, session=session)
                     pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).dec()
-
                     # Track both the summary and histogram for latency
                     request_latency = time.perf_counter() - start
                     pdm.BACKFILL_LATENCY_SECONDS.labels(
@@ -340,22 +336,23 @@ class PDSEndpointWorker:
                         logger.info(
                             f"Sleep time finished for {did}, continuing backfill."
                         )
-                        # TODO: see the behavior when a rate limit is hit.
-                        # TODO: also check the token bucket, as 429s shouldn't
-                        # really happen if the token buckets are working.
-                        breakpoint()
                         return
                     elif response.status == 400 and response.reason == "Bad Request":
-                        # unclear why, but API sometimes returns a 400 for no reason.
-                        #  we just add this back to the queue. I've verified that
-                        # the DIDs are valid.
-                        retry_count += 1
-                        await self.temp_work_queue.put(
-                            {"did": did, "retry_count": retry_count}
+                        # API returning 400 means the account is deleted/suspended.
+                        # The PLC doc might exist, but if you look at Bluesky, their
+                        # account won't exist.
+                        logger.error(
+                            f"(PDS endpoint: {self.pds_endpoint}): Account {did} is deleted/suspended. Adding to deadletter queue."
                         )
+                        await self.temp_deadletter_queue.put(
+                            {"did": did, "content": ""}
+                        )
+                        pdm.BACKFILL_DID_STATUS.labels(
+                            endpoint=self.pds_endpoint, status="account_deleted"
+                        ).inc()
                         pdm.BACKFILL_QUEUE_SIZES.labels(
-                            endpoint=self.pds_endpoint, queue_type="work"
-                        ).set(self.temp_work_queue.qsize())
+                            endpoint=self.pds_endpoint, queue_type="deadletter"
+                        ).set(self.temp_deadletter_queue.qsize())
                         return
                     else:
                         # For unexpected status codes, we don't retry.
@@ -371,7 +368,6 @@ class PDSEndpointWorker:
                         pdm.BACKFILL_QUEUE_SIZES.labels(
                             endpoint=self.pds_endpoint, queue_type="deadletter"
                         ).set(self.temp_deadletter_queue.qsize())
-                        breakpoint()
                         return
                 if content:
                     # offload CPU portion to thread pool.
@@ -447,9 +443,6 @@ class PDSEndpointWorker:
                 pdm.BACKFILL_NETWORK_ERRORS.labels(
                     endpoint=self.pds_endpoint, error_type=error_type
                 ).inc()
-
-                logger.info("NETWORK ERROR.")
-                breakpoint()
                 logger.warning(
                     f"(PDS endpoint: {self.pds_endpoint}): Connection error for DID {did}, retry {retry_count}: {e}"
                 )
@@ -467,9 +460,6 @@ class PDSEndpointWorker:
                 # for unexpected errors, we don't re-try them. These shouldn't
                 # happen, and if we do, we want to monitor these and NOT retry.
                 pdm.BACKFILL_ERRORS.labels(endpoint=self.pds_endpoint).inc()
-                # Other unexpected errors
-                logger.info("UNEXPECTED ERROR.")
-                breakpoint()
                 logger.error(
                     f"(PDS endpoint: {self.pds_endpoint}): Unexpected error processing DID {did}: {e}"
                 )
