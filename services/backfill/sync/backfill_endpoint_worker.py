@@ -22,6 +22,7 @@ from services.backfill.sync.backfill import (
     get_records_from_pds_bytes,
     async_send_request_to_pds,
     filter_only_valid_bsky_posts,
+    validate_time_range_record,
 )
 from services.backfill.sync.constants import current_dir
 
@@ -255,6 +256,15 @@ class PDSEndpointWorker:
         ).set(queue_size)
         pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(queue_size)
 
+    def _filter_records(records: list[dict]) -> list[dict]:
+        """Filter for only posts/reposts in the date range of interest."""
+        return [
+            record
+            for record in records
+            if filter_only_valid_bsky_posts(record)
+            and validate_time_range_record(record)
+        ]
+
     async def _process_did(
         self,
         did: str,
@@ -380,11 +390,7 @@ class PDSEndpointWorker:
                     )
                     records: list[dict] = await loop.run_in_executor(
                         self.cpu_pool,
-                        lambda x: [
-                            record
-                            for record in x
-                            if filter_only_valid_bsky_posts(record)
-                        ],
+                        self._filter_records,
                         records,
                     )
                     processing_time = time.perf_counter() - processing_start

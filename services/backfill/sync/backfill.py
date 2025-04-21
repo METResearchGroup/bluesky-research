@@ -147,6 +147,29 @@ def validate_is_valid_bsky_type(record: dict) -> bool:
     return "$type" in record and record["$type"] in valid_generic_bluesky_types
 
 
+def validate_time_range_record(
+    record: dict,
+    start_timestamp: Optional[str] = None,
+    end_timestamp: Optional[str] = None,
+) -> bool:
+    """Validate that the record is within the time range.
+
+    For our use case, we'll currently just look at the range from September 1st,
+    2024, to December 2nd, 2024, as this'll encompass the range of posts that are
+    most likely to have user engagement related to the study.
+    """
+    if not start_timestamp:
+        start_timestamp = "2024-09-01-00:00:00"
+    if not end_timestamp:
+        end_timestamp = "2024-12-02-00:00:00"
+    record_timestamp = record["createdAt"]
+    record_timestamp_pipeline_dt = convert_bsky_dt_to_pipeline_dt(record_timestamp)
+    return (
+        record_timestamp_pipeline_dt >= start_timestamp
+        and record_timestamp_pipeline_dt <= end_timestamp
+    )
+
+
 def filter_only_valid_bsky_posts(record: dict) -> bool:
     """Get only Bluesky posts."""
     return validate_is_valid_bsky_type(record) and record["$type"] in [
