@@ -530,8 +530,10 @@ class PDSEndpointWorker:
         logger.info(
             f"(PDS endpoint {self.pds_endpoint}): Completed syncs and SQLite writes. Now persisting to DB and exporting metadata."
         )
-        self.persist_to_db()
-        self.write_backfill_metadata_to_db()
+        user_to_total_per_record_type_map = self.persist_to_db()
+        self.write_backfill_metadata_to_db(
+            user_to_total_per_record_type_map=user_to_total_per_record_type_map
+        )
         logger.info(
             f"(PDS endpoint {self.pds_endpoint}): Completed persisting to DB and exporting metadata."
         )

@@ -1,0 +1,25 @@
+"""One-off script to write a queue DB to the database and export metadata (if relevant)."""
+
+from services.backfill.sync.backfill_endpoint_worker import PDSEndpointWorker
+
+
+def write_pds_queue_to_db(pds_endpoint: str) -> None:
+    """Writes a PDS queue to DB and then exports metadata."""
+    print(f"Writing PDS queue to DB for {pds_endpoint}...")
+    worker = PDSEndpointWorker(
+        pds_endpoint=pds_endpoint,
+        dids=[],
+        session=None,
+        cpu_pool=None,
+    )
+    user_to_total_per_record_type_map = worker.persist_to_db()
+    print(f"Writing backfill metadata to DB for {pds_endpoint}...")
+    worker.write_backfill_metadata_to_db(
+        user_to_total_per_record_type_map=user_to_total_per_record_type_map
+    )
+    print(f"Completed writing PDS queue to DB for {pds_endpoint}.")
+
+
+if __name__ == "__main__":
+    pds_endpoint = "https://meadown.us-east.host.bsky.network"
+    write_pds_queue_to_db(pds_endpoint=pds_endpoint)
