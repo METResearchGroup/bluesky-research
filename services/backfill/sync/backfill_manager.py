@@ -4,7 +4,6 @@ endpoints."""
 import aiohttp
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-import gc
 import json
 import os
 from pprint import pprint
@@ -18,7 +17,6 @@ from lib.log.logger import get_logger
 from lib.telemetry.prometheus.server import start_metrics_server
 from services.backfill.sync.backfill import get_plc_directory_doc
 from services.backfill.sync.backfill_endpoint_worker import (
-    get_write_queues,
     get_previously_processed_dids,
     PDSEndpointWorker,
 )
@@ -267,19 +265,13 @@ def check_if_pds_endpoint_backfill_completed(
     pds_endpoint: str, expected_total: int
 ) -> bool:
     """Checks if the PDS endpoint backfill is completed."""
-    write_queues = get_write_queues(pds_endpoint=pds_endpoint)
-    output_results_queue: Queue = write_queues["output_results_queue"]
-    output_deadletter_queue: Queue = write_queues["output_deadletter_queue"]
-
     previously_processed_dids: set[str] = get_previously_processed_dids(
-        results_db=output_results_queue,
-        deadletter_db=output_deadletter_queue,
+        pds_endpoint=pds_endpoint
     )
-
-    del write_queues
-    del output_results_queue
-    del output_deadletter_queue
-    gc.collect()
+    if previously_processed_dids:
+        logger.info(
+            f"(PDS endpoint: {pds_endpoint}): {len(previously_processed_dids)} DIDs backfilled. Expected {expected_total} total DIDs."
+        )
     return len(previously_processed_dids) == expected_total
 
 
