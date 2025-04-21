@@ -1,6 +1,8 @@
 """Worker class for managing the backfill for a single PDS endpoint."""
 
 from typing import Optional
+
+import pandas as pd
 import aiohttp
 import asyncio
 import concurrent.futures
@@ -14,6 +16,7 @@ import collections
 
 from lib.constants import timestamp_format
 from lib.db.queue import Queue
+from lib.db.manage_local_data import export_data_to_local_storage
 from lib.db.rate_limiter import AsyncTokenBucket
 from lib.log.logger import get_logger
 from lib.telemetry.prometheus.service import pds_backfill_metrics as pdm
@@ -549,6 +552,8 @@ class PDSEndpointWorker:
         await self.temp_deadletter_queue.join()
         await asyncio.sleep(2.0)  # give pending DB operations time to complete.
 
+        self.persist_to_db()
+
     async def shutdown(self):
         """Gracefully shuts down the backfill for a single PDS endpoint."""
         if self._writer_task:
@@ -734,7 +739,60 @@ class PDSEndpointWorker:
 
     def persist_to_db(self):
         """Writes records to permanent .parquet storage."""
-        pass
+
+        logger.info("Persisting SQLite queue records to permanent storage...")
+        service = "raw_sync"
+
+        items: list[dict] = self.output_results_queue.load_dict_items_from_queue()
+
+        posts: list[dict] = []
+        replies: list[dict] = []
+        reposts: list[dict] = []
+
+        for item in items:
+            record_type = item["record_type"]
+            if record_type == "post":
+                posts.append(item)
+            elif record_type == "repost":
+                reposts.append(item)
+            elif record_type == "reply":
+                replies.append(item)
+            else:
+                raise ValueError(
+                    f"Unknown record type for item being written to DB: {record_type}"
+                )
+
+        posts_df: pd.DataFrame = pd.DataFrame(posts)
+        reposts_df: pd.DataFrame = pd.DataFrame(reposts)
+        replies_df: pd.DataFrame = pd.DataFrame(replies)
+
+        total_posts = len(posts_df)
+        total_reposts = len(reposts_df)
+        total_replies = len(replies_df)
+
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage..."
+        )
+
+        export_data_to_local_storage(
+            service=service,
+            df=posts_df,
+            custom_args={"record_type": "post"},
+        )
+        export_data_to_local_storage(
+            service=service,
+            df=reposts_df,
+            custom_args={"record_type": "repost"},
+        )
+        export_data_to_local_storage(
+            service=service,
+            df=replies_df,
+            custom_args={"record_type": "reply"},
+        )
+
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Finished persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage."
+        )
 
 
 async def dummy_aiosqlite_write():
