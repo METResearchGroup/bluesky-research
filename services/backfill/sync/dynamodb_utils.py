@@ -12,10 +12,18 @@ HANDLE_INDEX = "bluesky_handle-index"
 dynamodb_client = DynamoDB()
 
 
+def create_did_timestamp_key(did: str, timestamp: str) -> str:
+    """Create a composite key from DID and timestamp."""
+    return f"{did}#{timestamp}"
+
+
 def serialize_user_metadata(metadata: UserBackfillMetadata) -> dict:
     """Convert UserBackfillMetadata to DynamoDB item format."""
     return {
         "pds_service_endpoint": {"S": metadata.pds_service_endpoint},
+        "did_timestamp": {
+            "S": create_did_timestamp_key(metadata.did, metadata.timestamp)
+        },
         "did": {"S": metadata.did},
         "bluesky_handle": {"S": metadata.bluesky_handle},
         "types": {"S": metadata.types},
@@ -90,11 +98,29 @@ def get_user_metadata_by_handle(handle: str) -> Optional[UserBackfillMetadata]:
 
 
 def get_dids_by_pds_endpoint(pds_endpoint: str) -> List[str]:
-    """Get all DIDs for a specific PDS endpoint."""
+    """Get all DIDs for a specific PDS endpoint (most recent backfill only)."""
     response = dynamodb_client.client.query(
         TableName=TABLE_NAME,
         KeyConditionExpression="pds_service_endpoint = :value",
         ExpressionAttributeValues={":value": {"S": pds_endpoint}},
         ProjectionExpression="did",
     )
-    return [item["did"]["S"] for item in response.get("Items", [])]
+    # Get unique DIDs since we might have multiple records per DID
+    return list(set(item["did"]["S"] for item in response.get("Items", [])))
+
+
+def get_backfill_history_for_did(did: str) -> List[UserBackfillMetadata]:
+    """Get all backfill history for a specific DID."""
+    items = dynamodb_client.query_items_by_index(TABLE_NAME, DID_INDEX, "did", did)
+    return [deserialize_user_metadata(item) for item in items]
+
+
+def get_latest_backfill_for_did(did: str) -> Optional[UserBackfillMetadata]:
+    """Get the most recent backfill for a specific DID."""
+    items = dynamodb_client.query_items_by_index(TABLE_NAME, DID_INDEX, "did", did)
+    if not items:
+        return None
+
+    # Sort by timestamp (newest first) and return the first item
+    sorted_items = sorted(items, key=lambda x: x["timestamp"]["S"], reverse=True)
+    return deserialize_user_metadata(sorted_items[0])

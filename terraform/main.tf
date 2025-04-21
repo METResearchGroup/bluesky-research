@@ -3390,11 +3390,16 @@ resource "aws_dynamodb_table" "backfill_user_metadata" {
   name             = "backfill_user_metadata"
   billing_mode     = "PAY_PER_REQUEST"
   hash_key         = "pds_service_endpoint"
-  range_key        = "did"
+  range_key        = "did_timestamp"  # Composite sort key
 
   attribute {
     name = "pds_service_endpoint"
     type = "S"
+  }
+
+  attribute {
+    name = "did_timestamp"
+    type = "S"  # Format: "did#timestamp"
   }
 
   attribute {
