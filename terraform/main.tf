@@ -3386,6 +3386,49 @@ resource "aws_dynamodb_table" "users_whose_social_network_has_been_fetched" {
   }
 }
 
+resource "aws_dynamodb_table" "backfill_user_metadata" {
+  name             = "backfill_user_metadata"
+  billing_mode     = "PAY_PER_REQUEST"
+  hash_key         = "pds_service_endpoint"
+  range_key        = "did"
+
+  attribute {
+    name = "pds_service_endpoint"
+    type = "S"
+  }
+
+  attribute {
+    name = "did"
+    type = "S"
+  }
+
+  attribute {
+    name = "bluesky_handle"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "did-index"
+    hash_key           = "did"
+    projection_type    = "ALL"
+  }
+
+  global_secondary_index {
+    name               = "bluesky_handle-index"
+    hash_key           = "bluesky_handle"
+    projection_type    = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  tags = {
+    Name        = "backfill_user_metadata"
+    Environment = "production"
+  }
+}
+
 resource "aws_dynamodb_table" "integration_run_metadata" {
   name           = "integration_run_metadata"
   billing_mode   = "PAY_PER_REQUEST"
