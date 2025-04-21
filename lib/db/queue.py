@@ -399,6 +399,10 @@ class Queue:
                     batch_chunk,
                 )
                 await conn.commit()
+            except Exception as e:
+                logger.error(f"Failed to write batch {i+1}/{total_batches}: {e}")
+                # Consider whether to re-raise or continue with next batch
+                raise  # Re-raising will abort the entire operation
             finally:
                 await conn.close()
 
@@ -707,3 +711,15 @@ class Queue:
         except sqlite3.Error as e:
             logger.error(f"Database error executing query: {e}")
             raise
+
+    async def close(self) -> None:
+        """Close the queue.
+
+        This method is a placeholder to provide a consistent API.
+        Since we don't maintain persistent connections in this class,
+        this method is a no-op.
+
+        We sometimes run into an edge case during garbage collection when
+        Python is cleaning up objects. Having this API here helps with it.
+        """
+        pass

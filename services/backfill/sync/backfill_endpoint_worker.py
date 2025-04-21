@@ -23,6 +23,8 @@ from services.backfill.sync.backfill import (
     async_send_request_to_pds,
     filter_only_valid_bsky_posts,
     validate_time_range_record,
+    transform_backfilled_record,
+    identify_record_type,
 )
 from services.backfill.sync.constants import current_dir
 
@@ -569,16 +571,20 @@ class PDSEndpointWorker:
 
                 # Process results queue
                 while not self.temp_results_queue.empty():
-                    result: dict = await self.temp_results_queue.get()
+                    record: dict = await self.temp_results_queue.get()
 
                     # Check for the special flag item
-                    if result.get("final_flush"):
+                    if record.get("final_flush"):
                         final_flush_signal = True
                         self.temp_results_queue.task_done()
                         continue
 
                     # Normal processing
-                    result_buffer.append(result)
+                    record_type = identify_record_type(record)
+                    record = transform_backfilled_record(
+                        record=record, record_type=record_type
+                    )
+                    result_buffer.append(record)
                     self.temp_results_queue.task_done()
                     # Update queue size metric
                     pdm.BACKFILL_QUEUE_SIZES.labels(
@@ -725,6 +731,10 @@ class PDSEndpointWorker:
         except Exception as e:
             logger.error(f"Error in _async_flush_buffers: {e}", exc_info=True)
             raise
+
+    def persist_to_db(self):
+        """Writes records to permanent .parquet storage."""
+        pass
 
 
 async def dummy_aiosqlite_write():

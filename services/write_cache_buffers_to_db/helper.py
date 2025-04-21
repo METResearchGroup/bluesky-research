@@ -2,6 +2,8 @@
 Helper functions for the write_cache_buffers_to_db service.
 """
 
+from typing import Optional
+
 import pandas as pd
 
 from lib.db.queue import Queue
@@ -75,7 +77,11 @@ def write_backfill_sync_queues_to_db(clear_queue: bool = True):
             )
 
 
-def write_cache_buffer_queue_to_db(service: str, clear_queue: bool = True):
+def write_cache_buffer_queue_to_db(
+    service: str,
+    clear_queue: bool = True,
+    queue: Optional[Queue] = None,
+):
     """Writes the cache buffer queue to the database.
 
     Takes the output queue for the given service/integration (which should
@@ -86,7 +92,10 @@ def write_cache_buffer_queue_to_db(service: str, clear_queue: bool = True):
         write_backfill_sync_queues_to_db(clear_queue=clear_queue)
         return
 
-    queue = Queue(queue_name=f"output_{service}")
+    if queue:
+        logger.info(f"Using provided queue for service {service}: {queue}...")
+    else:
+        queue = Queue(queue_name=f"output_{service}")
 
     latest_payloads: list[dict] = queue.load_dict_items_from_queue(
         limit=None, min_id=None, min_timestamp=None, status="pending"
