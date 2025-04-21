@@ -539,6 +539,7 @@ class PDSEndpointWorker:
         # wait until writer consumes everything in queues.
         await self.temp_results_queue.join()
         await self.temp_deadletter_queue.join()
+        await asyncio.sleep(2.0)  # give pending DB operations time to complete.
 
     async def shutdown(self):
         """Gracefully shuts down the backfill for a single PDS endpoint."""
@@ -546,6 +547,8 @@ class PDSEndpointWorker:
             self._writer_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._writer_task
+        await self.output_results_queue.close()
+        await self.output_deadletter_queue.close()
 
     async def _writer(self, batch_size: Optional[int] = None) -> None:
         """Background task to flush temp queues to permanent storage in batches."""
@@ -594,10 +597,16 @@ class PDSEndpointWorker:
 
                 # If we received final flush signal, flush remaining buffers regardless of size
                 if final_flush_signal:
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Received final flush signal. Flushing remaining buffers: {total_buffer_size} records ({total_result_buffer_size} results and {total_deadletter_buffer_size} deadletters)."
+                    )
                     if result_buffer or deadletter_buffer:
                         await self._async_flush_buffers(
                             result_buffer=result_buffer,
                             deadletter_buffer=deadletter_buffer,
+                        )
+                        logger.info(
+                            f"(PDS endpoint: {self.pds_endpoint}): Final flush completed successfully."
                         )
                     return  # Exit the writer task
 
@@ -633,7 +642,6 @@ class PDSEndpointWorker:
             logger.error(f"Error in writer: {e}", exc_info=True)
             raise
         finally:
-            logger.info("No more queued tasks. Doing one last flush.")
             logger.info(f"Writer task for {self.pds_endpoint} finished.")
 
     async def _async_flush_buffers(
@@ -665,7 +673,9 @@ class PDSEndpointWorker:
                 },
             )
         except Exception as e:
-            logger.error(f"SQLite operation failed: {e}", exc_info=True)
+            logger.error(
+                f"SQLite operation failed for results flush: {e}", exc_info=True
+            )
             raise
         logger.info(
             f"(PDS endpoint: {self.pds_endpoint}): Finished flushing results queue."
@@ -675,14 +685,20 @@ class PDSEndpointWorker:
             logger.info(
                 f"(PDS endpoint: {self.pds_endpoint}): Flushing {total_deadletter_buffer} deadletters to permanent storage."
             )
-            await self.output_deadletter_queue.async_batch_add_items_to_queue(
-                items=deadletter_buffer,
-                metadata={
-                    "timestamp": current_timestamp,
-                    "total_records": len(deadletter_buffer),
-                    "dids": [item["did"] for item in deadletter_buffer],
-                },
-            )
+            try:
+                await self.output_deadletter_queue.async_batch_add_items_to_queue(
+                    items=deadletter_buffer,
+                    metadata={
+                        "timestamp": current_timestamp,
+                        "total_records": len(deadletter_buffer),
+                        "dids": [item["did"] for item in deadletter_buffer],
+                    },
+                )
+            except Exception as e:
+                logger.error(
+                    f"SQLite operation failed for deadletter flush: {e}", exc_info=True
+                )
+                raise
             logger.info(
                 f"(PDS endpoint: {self.pds_endpoint}): Finished flushing deadletter queue."
             )

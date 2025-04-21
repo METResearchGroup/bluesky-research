@@ -341,9 +341,6 @@ async def run_pds_backfills(
             await worker.wait_done()
             await worker.shutdown()
             logger.info(f"Completed PDS backfill for {pds_endpoint}.")
-            # TODO: remove break. Only here for experimental purposes, verify
-            # that it works for a single PDS endpoint and then distribute to
-            # other PDS endpoints in parallel (e.g., with multithreading).
             break
 
     cpu_pool.shutdown(wait=True)
@@ -434,13 +431,15 @@ def run_backfills(
         pds_endpoints_to_skip = calculate_pds_endpoints_to_skip(
             pds_endpoint_to_dids_map=pds_endpoint_to_dids_map
         )
-        pds_endpoints_to_skip = []
         logger.info(
             f"Skipping {len(pds_endpoints_to_skip)} PDS endpoints since their backfills are already completed."
         )
         for pds_endpoint in pds_endpoints_to_skip:
             if pds_endpoint in pds_endpoint_to_dids_map:
                 pds_endpoint_to_dids_map.pop(pds_endpoint)
+        if len(pds_endpoint_to_dids_map) == 0:
+            logger.info("No PDS endpoints to sync, exiting.")
+            return
 
     if max_pds_endpoints_to_sync is not None:
         # sort PDS endpoints by number of DIDs in descending order.
