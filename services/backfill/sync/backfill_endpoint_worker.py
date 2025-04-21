@@ -18,9 +18,12 @@ from lib.constants import timestamp_format
 from lib.db.queue import Queue
 from lib.db.manage_local_data import export_data_to_local_storage
 from lib.db.rate_limiter import AsyncTokenBucket
+from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
+from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.prometheus.service import pds_backfill_metrics as pdm
 from services.backfill.sync.atp_agent import AtpAgent
+from services.backfill.sync.constants import service_name
 from services.backfill.sync.backfill import (
     get_records_from_pds_bytes,
     async_send_request_to_pds,
@@ -30,6 +33,8 @@ from services.backfill.sync.backfill import (
     identify_record_type,
 )
 from services.backfill.sync.constants import current_dir
+from services.backfill.sync.models import UserBackfillMetadata
+from services.backfill.sync.session_metadata import write_backfill_metadata_to_db
 
 
 default_qps = 10  # assume 10 QPS max = 600/minute = 3000/5 minutes
@@ -552,7 +557,14 @@ class PDSEndpointWorker:
         await self.temp_deadletter_queue.join()
         await asyncio.sleep(2.0)  # give pending DB operations time to complete.
 
+        logger.info(
+            f"(PDS endpoint {self.pds_endpoint}): Completed syncs and SQLite writes. Now persisting to DB and exporting metadata."
+        )
         self.persist_to_db()
+        self.write_backfill_metadata_to_db()
+        logger.info(
+            f"(PDS endpoint {self.pds_endpoint}): Completed persisting to DB and exporting metadata."
+        )
 
     async def shutdown(self):
         """Gracefully shuts down the backfill for a single PDS endpoint."""
@@ -737,8 +749,18 @@ class PDSEndpointWorker:
             logger.error(f"Error in _async_flush_buffers: {e}", exc_info=True)
             raise
 
-    def persist_to_db(self):
-        """Writes records to permanent .parquet storage."""
+    def persist_to_db(self) -> dict:
+        """Writes records to permanent .parquet storage.
+
+        Returns counts of users per record type, in the form:
+        {
+            "<did>": {
+                "post": 10,
+                "repost": 5,
+                "reply": 2,
+            }
+        }
+        """
 
         logger.info("Persisting SQLite queue records to permanent storage...")
         service = "raw_sync"
@@ -749,14 +771,26 @@ class PDSEndpointWorker:
         replies: list[dict] = []
         reposts: list[dict] = []
 
+        user_to_total_per_record_type_map: dict[str, dict[str, int]] = {}
+
         for item in items:
             record_type = item["record_type"]
+            user_did = item["did"]
+            if user_did not in user_to_total_per_record_type_map:
+                user_to_total_per_record_type_map[user_did] = {
+                    "post": 0,
+                    "repost": 0,
+                    "reply": 0,
+                }
             if record_type == "post":
                 posts.append(item)
+                user_to_total_per_record_type_map[user_did]["post"] += 1
             elif record_type == "repost":
                 reposts.append(item)
+                user_to_total_per_record_type_map[user_did]["repost"] += 1
             elif record_type == "reply":
                 replies.append(item)
+                user_to_total_per_record_type_map[user_did]["reply"] += 1
             else:
                 raise ValueError(
                     f"Unknown record type for item being written to DB: {record_type}"
@@ -792,6 +826,66 @@ class PDSEndpointWorker:
 
         logger.info(
             f"(PDS endpoint: {self.pds_endpoint}): Finished persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage."
+        )
+
+        return user_to_total_per_record_type_map
+
+    def write_backfill_metadata_to_db(
+        self,
+        user_to_total_per_record_type_map: dict[str, dict[str, int]],
+    ) -> None:
+        """Writes backfill metadata to the database."""
+        session_metadata_body = {}
+        session_metadata = {
+            "service": service_name,
+            "timestamp": generate_current_datetime_str(),
+            "status_code": 200,
+            "body": json.dumps(session_metadata_body),
+            "metadata_table_name": f"{service_name}_metadata",
+            "metadata": "",
+        }
+        transformed_session_metadata = RunExecutionMetadata(**session_metadata)
+        user_backfill_metadata = []
+
+        # load records from deadletter queue and add their counts to the metadata.
+        deadletter_items: list[dict] = (
+            self.output_deadletter_queue.load_dict_items_from_queue()
+        )
+        for item in deadletter_items:
+            did = item["did"]
+            if did not in user_to_total_per_record_type_map:
+                user_to_total_per_record_type_map[did] = {
+                    "post": 0,
+                    "repost": 0,
+                    "reply": 0,
+                }
+
+        for user, total_per_record_type in user_to_total_per_record_type_map.items():
+            user_backfill_metadata.append(
+                UserBackfillMetadata(
+                    did=user,
+                    bluesky_handle="",  # TODO: I wish I got this from the PLC doc. This'll be available there. Will need to revisit.
+                    types=",".join(total_per_record_type.keys()),
+                    total_records=sum(total_per_record_type.values()),
+                    total_records_by_type=json.dumps(total_per_record_type),
+                    pds_service_endpoint=self.pds_endpoint,
+                    timestamp=generate_current_datetime_str(),
+                )
+            )
+
+        logger.info(
+            f"Writing {len(user_backfill_metadata)} user backfill metadata to DB..."
+        )
+
+        # TODO: update backfill metadata export so that user backfill metadata
+        # is exported to DynamoDB instead of S3+Athena.
+        write_backfill_metadata_to_db(
+            session_backfill_metadata=transformed_session_metadata,
+            user_backfill_metadata=user_backfill_metadata,
+        )
+
+        logger.info(
+            f"(PDS endpoint {self.pds_endpoint}): Completed writing backfill metadata to DB."
         )
 
 
