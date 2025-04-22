@@ -193,7 +193,7 @@ def main():
     )
 
     # export to csv
-    joined_user_to_daily_logins_df.to_csv(
+    weekly_user_logins_df.to_csv(
         os.path.join(current_dir, "weekly_user_logins.csv"), index=False
     )
 
