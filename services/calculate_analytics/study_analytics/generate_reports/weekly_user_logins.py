@@ -71,24 +71,39 @@ def main():
         f"Expected number of user to daily logins after join: {len(sorted_daily_logins)}"
     )
 
+    # get the users who logged in and match them with their demographic info.
+    # since this is a left join, this excludes users who have not logged in.
     user_to_daily_logins_df = sorted_daily_logins.merge(
         user_demographics,
         left_on="user_did",
         right_on="bluesky_user_did",
-        how="right",
+        how="left",
     )
-
-    # TODO: figure out why 'condition' is NaN... should be no NaNs.
-    breakpoint()
 
     print(
         f"Actual number of user to daily logins after join: {len(user_to_daily_logins_df)}"
     )
     print(f"Number of NaNs per column: {user_to_daily_logins_df.isna().sum()}")
 
+    # Remove rows where bluesky_handle is NaN. These are NaN because those
+    # users have been deleted from the study (hence, their data isn't in
+    # DynamoDB).
+    user_to_daily_logins_df = user_to_daily_logins_df.dropna(subset=["bluesky_handle"])
+    print(
+        f"Number of rows after removing NaN bluesky_handles: {len(user_to_daily_logins_df)}"
+    )
+    print(
+        f"Number of NaNs per column after removing NaN bluesky_handles: {user_to_daily_logins_df.isna().sum()}"
+    )
+
     user_to_daily_logins_df = user_to_daily_logins_df[
         ["bluesky_handle", "date", "logins", "condition"]
     ]
+
+    # Sort the dataframe by bluesky_handle and date in ascending order
+    user_to_daily_logins_df = user_to_daily_logins_df.sort_values(
+        by=["bluesky_handle", "date"], ascending=[True, True]
+    )
 
     # join against user date to weeks map.
     user_date_to_week_df = load_user_date_to_week_df()
@@ -99,48 +114,81 @@ def main():
         f"Expected number of user to daily logins after join: {len(user_date_to_week_df)}"
     )
 
+    user_to_daily_logins_df["date"] = user_to_daily_logins_df["date"].astype(str)
+    user_date_to_week_df["date"] = user_date_to_week_df["date"].astype(str)
+
+    # remove 'user_date_to_week_df' rows with bluesky_handle not in
+    # 'user_to_daily_logins_df'
+    user_date_to_week_df = user_date_to_week_df[
+        user_date_to_week_df["bluesky_handle"].isin(
+            user_to_daily_logins_df["bluesky_handle"]
+        )
+    ]
+
     # Join against user date to weeks map.
-    user_to_daily_logins_df = user_to_daily_logins_df.merge(
+    joined_user_to_daily_logins_df = user_to_daily_logins_df.merge(
         user_date_to_week_df,
         left_on=["bluesky_handle", "date"],
         right_on=["bluesky_handle", "date"],
         how="right",
     )
+
     print(
-        f"Actual number of user to daily logins after join: {len(user_to_daily_logins_df)}"
+        f"Actual number of user to daily logins after join: {len(joined_user_to_daily_logins_df)}"
     )
-    print(f"Number of NaNs per column: {user_to_daily_logins_df.isna().sum()}")
+
+    # Impute the "condition" for any missing "condition" values. This'll be
+    # missing for the dates where the user has not logged in.
+    map_handle_to_condition = dict(
+        zip(user_demographics["bluesky_handle"], user_demographics["condition"])
+    )
+
+    def impute_condition(row):
+        if pd.isna(row["condition"]):
+            return map_handle_to_condition[row["bluesky_handle"]]
+        else:
+            return row["condition"]
+
+    joined_user_to_daily_logins_df["condition"] = joined_user_to_daily_logins_df.apply(
+        impute_condition, axis=1
+    )
+
+    print(
+        f"After imputing condition NaNs, number of NaNs per column: {joined_user_to_daily_logins_df.isna().sum()}"
+    )
 
     # impute missing values for a date with 0
-    user_to_daily_logins_df["logins"] = user_to_daily_logins_df["logins"].fillna(0)
+    joined_user_to_daily_logins_df["logins"] = joined_user_to_daily_logins_df[
+        "logins"
+    ].fillna(0)
+
     print(
-        f"Number of NaNs per column after imputation: {user_to_daily_logins_df.isna().sum()}"
+        f"Number of NaNs per column after imputing missing logins: {joined_user_to_daily_logins_df.isna().sum()}"
     )
 
-    user_to_daily_logins_df = user_to_daily_logins_df[
+    joined_user_to_daily_logins_df = joined_user_to_daily_logins_df[
         ["bluesky_handle", "condition", "logins", "week"]
     ]
 
     # Get value_counts by "user_did" per "week".
-    user_week_to_logins_df = (
-        sorted_daily_logins.groupby(["user_did", "week"])
-        .size()
-        .reset_index(name="logins")
+    weekly_user_logins_df = (
+        joined_user_to_daily_logins_df.groupby(["bluesky_handle", "week"])
+        .agg(
+            logins=("logins", "sum"),
+            condition=("condition", "first"),
+        )
+        .reset_index()
     )  # type: ignore # noqa
-    print(
-        f"(Expected: 0): Number of NaNs per column after imputation: {user_week_to_logins_df.isna().sum()}"
-    )
-    print(f"{user_week_to_logins_df.head()=}")
 
-    # order by user_did desc, week ascending
-    user_week_to_logins_df = user_week_to_logins_df.sort_values(
-        by=["user_did", "week"], ascending=[False, True]
-    )
+    print(f"{weekly_user_logins_df.head()}")
 
-    breakpoint()
+    # order by bluesky_handle desc, week ascending
+    weekly_user_logins_df = weekly_user_logins_df.sort_values(
+        by=["bluesky_handle", "week"], ascending=[False, True]
+    )
 
     # export to csv
-    user_week_to_logins_df.to_csv(
+    joined_user_to_daily_logins_df.to_csv(
         os.path.join(current_dir, "weekly_user_logins.csv"), index=False
     )
 
