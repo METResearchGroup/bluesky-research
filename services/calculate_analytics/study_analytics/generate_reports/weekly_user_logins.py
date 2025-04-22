@@ -170,6 +170,11 @@ def main():
         ["bluesky_handle", "condition", "logins", "week"]
     ]
 
+    # remove weeks with NaN.
+    joined_user_to_daily_logins_df = joined_user_to_daily_logins_df[
+        joined_user_to_daily_logins_df["week"].notna()
+    ]
+
     # Get value_counts by "user_did" per "week".
     weekly_user_logins_df = (
         joined_user_to_daily_logins_df.groupby(["bluesky_handle", "week"])
