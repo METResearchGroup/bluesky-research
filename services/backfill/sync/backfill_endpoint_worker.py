@@ -537,6 +537,10 @@ class PDSEndpointWorker:
         logger.info(
             f"(PDS endpoint {self.pds_endpoint}): Completed persisting to DB and exporting metadata."
         )
+        logger.info(f"(PDS endpoint {self.pds_endpoint}): Deleting queues...")
+        self.output_results_queue.delete_queue()
+        self.output_deadletter_queue.delete_queue()
+        logger.info(f"(PDS endpoint {self.pds_endpoint}): Queues deleted.")
 
     async def shutdown(self):
         """Gracefully shuts down the backfill for a single PDS endpoint."""
