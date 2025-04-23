@@ -261,6 +261,39 @@ def transform_backfilled_record(
         return record
 
 
+def stub_unnecessary_fields(record: dict) -> dict:
+    """Add stubs for fields whose data we don't need, if those fields exist.
+
+    For example, we currently don't need the 'Embed' field in posts. We may
+    in the future, but for now, we'll just add a stub value."""
+    stub_value = "<removed>"
+
+    if "embed" in record and record["embed"] is not None:
+        record["embed"] = stub_value
+    if "entities" in record and record["entities"] is not None:
+        record["entities"] = stub_value
+    if "facets" in record and record["facets"] is not None:
+        record["facets"] = stub_value
+    return record
+
+
+def postprocess_backfilled_record(record: dict) -> dict:
+    """Postprocess a backfilled record.
+
+    Args:
+        record: The record to postprocess
+
+    Returns:
+        The postprocessed record
+
+    We separate this out of 'transform_backfilled_record' because there are
+    steps in the postprocessing process that we might want to reconsider or
+    remove in the future.
+    """
+    record = stub_unnecessary_fields(record)
+    return record
+
+
 async def async_send_request_to_pds(
     did: str, pds_endpoint: str, session: aiohttp.ClientSession
 ) -> requests.Response:

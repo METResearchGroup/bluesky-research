@@ -723,3 +723,8 @@ class Queue:
         Python is cleaning up objects. Having this API here helps with it.
         """
         pass
+
+    def delete_queue(self):
+        """Delete the queue."""
+        os.remove(self.db_path)
+        logger.info(f"Deleted queue {self.queue_name} at {self.db_path}")

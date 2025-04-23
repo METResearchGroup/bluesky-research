@@ -10,6 +10,7 @@ import contextlib
 from datetime import datetime, timezone
 import json
 import os
+import tempfile
 import time
 import collections
 
@@ -31,6 +32,7 @@ from services.backfill.sync.backfill import (
     validate_time_range_record,
     transform_backfilled_record,
     identify_record_type,
+    postprocess_backfilled_record,
 )
 from services.backfill.sync.constants import current_dir
 from services.backfill.sync.dynamodb_utils import get_dids_by_pds_endpoint
@@ -195,10 +197,7 @@ class PDSEndpointWorker:
 
         self.original_total_dids = len(dids)
         self.dids: list[str] = filter_previously_processed_dids(
-            pds_endpoint=pds_endpoint,
-            dids=dids,
-            results_db=self.output_results_queue,
-            deadletter_db=self.output_deadletter_queue,
+            pds_endpoint=pds_endpoint, dids=dids
         )
         self.total_dids_post_filter = len(self.dids)
         self.dids_filtered_out = self.original_total_dids - self.total_dids_post_filter
@@ -236,6 +235,7 @@ class PDSEndpointWorker:
         ).set(queue_size)
         pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(queue_size)
 
+    @staticmethod
     def _filter_records(records: list[dict]) -> list[dict]:
         """Filter for only posts/reposts in the date range of interest."""
         return [
@@ -370,7 +370,7 @@ class PDSEndpointWorker:
                     )
                     records: list[dict] = await loop.run_in_executor(
                         self.cpu_pool,
-                        self._filter_records,
+                        PDSEndpointWorker._filter_records,
                         records,
                     )
                     processing_time = time.perf_counter() - processing_start
@@ -573,6 +573,7 @@ class PDSEndpointWorker:
                     record = transform_backfilled_record(
                         record=record, record_type=record_type
                     )
+                    record = postprocess_backfilled_record(record)
                     result_buffer.append(record)
                     self.temp_results_queue.task_done()
                     # Update queue size metric
@@ -721,6 +722,25 @@ class PDSEndpointWorker:
             logger.error(f"Error in _async_flush_buffers: {e}", exc_info=True)
             raise
 
+    def _estimate_parquet_write_size(
+        self,
+        record_type: str,
+        sample_df: pd.DataFrame,
+        sample_size: int,
+        total_rows: int,
+    ) -> float:
+        """Writes a sample of the items to a temp file and returns the estimated size, in MB."""
+        with tempfile.NamedTemporaryFile(suffix=".parquet") as tmp:
+            sample_df.to_parquet(tmp.name)
+            parquet_sample_size = os.path.getsize(tmp.name)
+            parquet_sample_size_mb = parquet_sample_size / (1024 * 1024)
+            parquet_total_size_mb = parquet_sample_size_mb * (total_rows / sample_size)
+            logger.info(f"""
+                Estimated {record_type} parquet size: {parquet_total_size_mb:.2f} MB
+                (based on {sample_size} sample of {total_rows} rows, where the sample was {parquet_sample_size_mb:.2f} MB)
+            """)
+            return parquet_total_size_mb
+
     def persist_to_db(self) -> dict:
         """Writes records to permanent .parquet storage.
 
@@ -745,28 +765,60 @@ class PDSEndpointWorker:
 
         user_to_total_per_record_type_map: dict[str, dict[str, int]] = {}
 
-        for item in items:
-            record_type = item["record_type"]
-            user_did = item["did"]
-            if user_did not in user_to_total_per_record_type_map:
-                user_to_total_per_record_type_map[user_did] = {
-                    "post": 0,
-                    "repost": 0,
-                    "reply": 0,
-                }
-            if record_type == "post":
-                posts.append(item)
-                user_to_total_per_record_type_map[user_did]["post"] += 1
-            elif record_type == "repost":
-                reposts.append(item)
-                user_to_total_per_record_type_map[user_did]["repost"] += 1
-            elif record_type == "reply":
-                replies.append(item)
-                user_to_total_per_record_type_map[user_did]["reply"] += 1
-            else:
-                raise ValueError(
-                    f"Unknown record type for item being written to DB: {record_type}"
-                )
+        total_items: int = len(items)
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Persisting {total_items} items to DB..."
+        )
+
+        try:
+            for i, item in enumerate(items):
+                if i % 100 == 0:
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Persisting {i}/{total_items} items to DB..."
+                    )
+                records = item["content"]
+                user_did = item["did"]
+                # TODO: remove later on, this should already be handled upstream.
+                # Just doing this now for backwards compatibility.
+                records = PDSEndpointWorker._filter_records(records=records)
+                for record in records:
+                    record_type: str = record.get(
+                        "record_type", identify_record_type(record)
+                    )
+                    # TODO: delete later on, as this should already be handled upstream.
+                    # But some records currently don't have this.
+                    # Just doing this now for backwards compatibility.
+                    # NOTE: these timestamps are the same as in `validate_time_range_record`.
+                    record = transform_backfilled_record(
+                        record=record,
+                        record_type=record_type,
+                        start_timestamp="2024-09-01-00:00:00",
+                        end_timestamp="2024-12-02-00:00:00",
+                    )
+                    record = postprocess_backfilled_record(record)
+                    if user_did not in user_to_total_per_record_type_map:
+                        user_to_total_per_record_type_map[user_did] = {
+                            "post": 0,
+                            "repost": 0,
+                            "reply": 0,
+                        }
+                    if record_type == "post":
+                        posts.append(record)
+                        user_to_total_per_record_type_map[user_did]["post"] += 1
+                    elif record_type == "repost":
+                        reposts.append(record)
+                        user_to_total_per_record_type_map[user_did]["repost"] += 1
+                    elif record_type == "reply":
+                        replies.append(record)
+                        user_to_total_per_record_type_map[user_did]["reply"] += 1
+                    else:
+                        raise ValueError(
+                            f"Unknown record type for item being written to DB: {record_type}"
+                        )
+        except Exception as e:
+            logger.error(f"Error persisting to DB: {e}", exc_info=True)
+            breakpoint()
+            raise
 
         posts_df: pd.DataFrame = pd.DataFrame(posts)
         reposts_df: pd.DataFrame = pd.DataFrame(reposts)
@@ -780,15 +832,68 @@ class PDSEndpointWorker:
             f"(PDS endpoint: {self.pds_endpoint}): Persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage..."
         )
 
+        # get baseline measures of write size.
+        sample_factor = 0.01  # 1% of total rows.
+        posts_sample_size = int(total_posts * sample_factor)
+        reposts_sample_size = int(total_reposts * sample_factor)
+        replies_sample_size = int(total_replies * sample_factor)
+
+        posts_sample_df = posts_df.sample(n=posts_sample_size)
+        reposts_sample_df = reposts_df.sample(n=reposts_sample_size)
+        replies_sample_df = replies_df.sample(n=replies_sample_size)
+
+        posts_parquet_size = self._estimate_parquet_write_size(
+            record_type="post",
+            sample_df=posts_sample_df,
+            sample_size=posts_sample_size,
+            total_rows=total_posts,
+        )
+
+        reposts_parquet_size = self._estimate_parquet_write_size(
+            record_type="repost",
+            sample_df=reposts_sample_df,
+            sample_size=reposts_sample_size,
+            total_rows=total_reposts,
+        )
+
+        replies_parquet_size = self._estimate_parquet_write_size(
+            record_type="reply",
+            sample_df=replies_sample_df,
+            sample_size=replies_sample_size,
+            total_rows=total_replies,
+        )
+
+        logger.info(f"""
+            Estimated parquet sizes:
+            - posts: {posts_parquet_size:.2f} MB
+            - reposts: {reposts_parquet_size:.2f} MB
+            - replies: {replies_parquet_size:.2f} MB
+        """)
+
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Exporting posts to local storage..."
+        )
         export_data_to_local_storage(
             service=service,
             df=posts_df,
             custom_args={"record_type": "post"},
         )
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Exported posts to local storage."
+        )
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Exporting reposts to local storage..."
+        )
         export_data_to_local_storage(
             service=service,
             df=reposts_df,
             custom_args={"record_type": "repost"},
+        )
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Exported reposts to local storage."
+        )
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Exporting replies to local storage..."
         )
         export_data_to_local_storage(
             service=service,
@@ -859,6 +964,13 @@ class PDSEndpointWorker:
         logger.info(
             f"(PDS endpoint {self.pds_endpoint}): Completed writing backfill metadata to DB."
         )
+
+    def delete_queues(self):
+        """Deletes the queues for the given PDS endpoint."""
+        logger.info(f"(PDS endpoint {self.pds_endpoint}): Deleting queues...")
+        self.output_results_queue.delete_queue()
+        self.output_deadletter_queue.delete_queue()
+        logger.info(f"(PDS endpoint {self.pds_endpoint}): Queues deleted.")
 
 
 async def dummy_aiosqlite_write():
