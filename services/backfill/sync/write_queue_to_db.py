@@ -14,7 +14,6 @@ def write_pds_queue_to_db(pds_endpoint: str) -> None:
     )
     user_to_total_per_record_type_map = worker.persist_to_db()
     print("Finished persisting to DB. Now exporting metadata...")
-    breakpoint()
     print(f"Writing backfill metadata to DB for {pds_endpoint}...")
     worker.write_backfill_metadata_to_db(
         user_to_total_per_record_type_map=user_to_total_per_record_type_map

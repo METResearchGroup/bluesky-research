@@ -16,8 +16,8 @@ import collections
 
 
 from lib.constants import timestamp_format
-from lib.db.queue import Queue
 from lib.db.manage_local_data import export_data_to_local_storage
+from lib.db.queue import Queue
 from lib.db.rate_limiter import AsyncTokenBucket
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
@@ -755,7 +755,6 @@ class PDSEndpointWorker:
         """
 
         logger.info("Persisting SQLite queue records to permanent storage...")
-        service = "raw_sync"
 
         items: list[dict] = self.output_results_queue.load_dict_items_from_queue()
 
@@ -772,7 +771,7 @@ class PDSEndpointWorker:
 
         try:
             for i, item in enumerate(items):
-                if i % 100 == 0:
+                if i % 250 == 0:
                     logger.info(
                         f"(PDS endpoint: {self.pds_endpoint}): Persisting {i}/{total_items} items to DB..."
                     )
@@ -869,7 +868,7 @@ class PDSEndpointWorker:
             - reposts: {reposts_parquet_size:.2f} MB
             - replies: {replies_parquet_size:.2f} MB
         """)
-
+        service = "raw_sync"
         logger.info(
             f"(PDS endpoint: {self.pds_endpoint}): Exporting posts to local storage..."
         )
@@ -924,9 +923,15 @@ class PDSEndpointWorker:
         transformed_session_metadata = RunExecutionMetadata(**session_metadata)
         user_backfill_metadata = []
 
+        logger.info(
+            f"Total user records to export as metadata: {len(user_to_total_per_record_type_map)}"
+        )
         # load records from deadletter queue and add their counts to the metadata.
         deadletter_items: list[dict] = (
             self.output_deadletter_queue.load_dict_items_from_queue()
+        )
+        logger.info(
+            f"Loaded {len(deadletter_items)} deadletter items from queue for {self.pds_endpoint}..."
         )
         for item in deadletter_items:
             did = item["did"]
@@ -936,7 +941,11 @@ class PDSEndpointWorker:
                     "repost": 0,
                     "reply": 0,
                 }
+        logger.info(
+            f"Total user records to export as metadata (after adding deadletter items): {len(user_to_total_per_record_type_map)}"
+        )
 
+        timestamp = generate_current_datetime_str()
         for user, total_per_record_type in user_to_total_per_record_type_map.items():
             user_backfill_metadata.append(
                 UserBackfillMetadata(
@@ -946,7 +955,7 @@ class PDSEndpointWorker:
                     total_records=sum(total_per_record_type.values()),
                     total_records_by_type=json.dumps(total_per_record_type),
                     pds_service_endpoint=self.pds_endpoint,
-                    timestamp=generate_current_datetime_str(),
+                    timestamp=timestamp,
                 )
             )
 
@@ -954,8 +963,6 @@ class PDSEndpointWorker:
             f"Writing {len(user_backfill_metadata)} user backfill metadata to DB..."
         )
 
-        # TODO: update backfill metadata export so that user backfill metadata
-        # is exported to DynamoDB instead of S3+Athena.
         write_backfill_metadata_to_db(
             session_backfill_metadata=transformed_session_metadata,
             user_backfill_metadata=user_backfill_metadata,

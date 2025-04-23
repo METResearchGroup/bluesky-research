@@ -1,8 +1,9 @@
 """Utilities for interacting with DynamoDB for backfill metadata."""
 
-from typing import List, Optional
+from typing import Optional
 
 from lib.aws.dynamodb import DynamoDB
+from lib.log.logger import get_logger
 from services.backfill.sync.models import UserBackfillMetadata
 
 TABLE_NAME = "backfill_user_metadata"
@@ -10,6 +11,8 @@ DID_INDEX = "did-index"
 HANDLE_INDEX = "bluesky_handle-index"
 
 dynamodb_client = DynamoDB()
+
+logger = get_logger(__name__)
 
 
 def create_did_timestamp_key(did: str, timestamp: str) -> str:
@@ -52,19 +55,51 @@ def save_user_metadata(metadata: UserBackfillMetadata) -> None:
     dynamodb_client.insert_item_into_table(item, TABLE_NAME)
 
 
-def batch_save_user_metadata(metadata_list: List[UserBackfillMetadata]) -> None:
+def batch_save_user_metadata(metadata_list: list[UserBackfillMetadata]) -> None:
     """Save multiple UserBackfillMetadata items efficiently."""
-    # DynamoDB batch writes are limited to 25 items
-    batch_size = 25
-    for i in range(0, len(metadata_list), batch_size):
-        batch = metadata_list[i : i + batch_size]
-        request_items = {
-            TABLE_NAME: [
-                {"PutRequest": {"Item": serialize_user_metadata(metadata)}}
-                for metadata in batch
-            ]
-        }
-        dynamodb_client.client.batch_write_item(RequestItems=request_items)
+    total_metadata = len(metadata_list)
+    try:
+        resource = dynamodb_client.resource
+        table = resource.Table(TABLE_NAME)
+
+        # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/dynamodb/table/batch_writer.html
+        with table.batch_writer() as batch:
+            for i, metadata in enumerate(metadata_list):
+                if i > 0 and i % 100 == 0:
+                    logger.info(f"Processed {i}/{total_metadata} items...")
+
+                # Create the composite sort key
+                did_timestamp = f"{metadata.did}#{metadata.timestamp}"
+
+                # we add a default "<unknown>" Bluesky handle for the records
+                # that we don't have a handle for. We should've grabbed this
+                # from the PLC doc, but we didn't.  Eventually we'll want the
+                # ability to query by handle though, and DynamoDB doesn't support
+                # empty strings as index keys.
+                bluesky_handle = metadata.bluesky_handle
+                if not bluesky_handle:
+                    bluesky_handle = "<unknown>"
+
+                # Serialize the metadata
+                item = {
+                    "pds_service_endpoint": metadata.pds_service_endpoint,
+                    "did_timestamp": did_timestamp,
+                    "did": metadata.did,
+                    "bluesky_handle": bluesky_handle,
+                    "types": metadata.types,
+                    "total_records": metadata.total_records,
+                    "total_records_by_type": metadata.total_records_by_type,
+                    "timestamp": metadata.timestamp,
+                }
+
+                # Add the item to the batch
+                batch.put_item(Item=item)
+
+        logger.info(f"Successfully saved {total_metadata} user metadata.")
+
+    except Exception as e:
+        logger.error(f"Error saving user metadata to DynamoDB: {e}")
+        raise
 
 
 def did_exists(did: str) -> bool:
@@ -97,7 +132,7 @@ def get_user_metadata_by_handle(handle: str) -> Optional[UserBackfillMetadata]:
     return deserialize_user_metadata(items[0])
 
 
-def get_dids_by_pds_endpoint(pds_endpoint: str) -> List[str]:
+def get_dids_by_pds_endpoint(pds_endpoint: str) -> list[str]:
     """Get all DIDs for a specific PDS endpoint (most recent backfill only)."""
     response = dynamodb_client.client.query(
         TableName=TABLE_NAME,
@@ -109,7 +144,7 @@ def get_dids_by_pds_endpoint(pds_endpoint: str) -> List[str]:
     return list(set(item["did"]["S"] for item in response.get("Items", [])))
 
 
-def get_backfill_history_for_did(did: str) -> List[UserBackfillMetadata]:
+def get_backfill_history_for_did(did: str) -> list[UserBackfillMetadata]:
     """Get all backfill history for a specific DID."""
     items = dynamodb_client.query_items_by_index(TABLE_NAME, DID_INDEX, "did", did)
     return [deserialize_user_metadata(item) for item in items]
