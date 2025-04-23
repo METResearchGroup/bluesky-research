@@ -424,7 +424,7 @@ def run_backfills(
             pds_endpoint_to_dids_map=pds_endpoint_to_dids_map
         )
         logger.info(
-            f"Skipping {len(pds_endpoints_to_skip)} PDS endpoints since their backfills are already completed."
+            f"Skipping {len(pds_endpoints_to_skip)} PDS endpoints since their backfills are already completed: {pds_endpoints_to_skip}"
         )
         for pds_endpoint in pds_endpoints_to_skip:
             if pds_endpoint in pds_endpoint_to_dids_map:
