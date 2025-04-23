@@ -767,6 +767,7 @@ class PDSEndpointWorker:
 
         def process_batch(
             batch: list[dict],
+            idx: int,
         ) -> tuple[list[dict], list[dict], list[dict], dict]:
             """Process a batch of items and return categorized records and user counts."""
             batch_posts = []
@@ -818,10 +819,28 @@ class PDSEndpointWorker:
                             f"Unknown record type for item being written to DB: {record_type}"
                         )
 
-            return (batch_posts, batch_replies, batch_reposts, batch_user_counts)
+            total_batch_posts = len(batch_posts)
+            total_batch_replies = len(batch_replies)
+            total_batch_reposts = len(batch_reposts)
+            logger.info(
+                f"Batch {idx} has {total_batch_posts} posts, {total_batch_replies} replies, and {total_batch_reposts} reposts."
+            )
+
+            return (
+                batch_posts,
+                batch_replies,
+                batch_reposts,
+                batch_user_counts,
+                total_batch_posts,
+                total_batch_replies,
+                total_batch_reposts,
+            )
 
         try:
-            batch_size = max(1, min(500, total_items // (os.cpu_count() * 2)))
+            num_threads = (
+                4  # no need to have too many, this shouldn't be an intense computation.
+            )
+            batch_size = len(items) // num_threads
             batches = create_batches(items, batch_size)
             num_batches = len(batches)
             logger.info(
@@ -830,8 +849,8 @@ class PDSEndpointWorker:
 
             loop = asyncio.get_event_loop()
             futures = []
-            for batch in batches:
-                future = loop.run_in_executor(self.cpu_pool, process_batch, batch)
+            for i, batch in enumerate(batches):
+                future = loop.run_in_executor(self.cpu_pool, process_batch, batch, i)
                 futures.append(future)
 
             results = await asyncio.gather(*futures)
@@ -840,7 +859,15 @@ class PDSEndpointWorker:
             posts, replies, reposts = [], [], []
             user_to_total_per_record_type_map = {}
 
+            # TODO: check # of futures, if they finished, etc.
+            breakpoint()
+
+            # TODO: run one last time to create DB, and then just run the
+            # write_to_db script (so I avoid duplicate writes to the SQLite
+            # queue DB).
+
             for batch_posts, batch_replies, batch_reposts, batch_user_counts in results:
+                breakpoint()
                 posts.extend(batch_posts)
                 replies.extend(batch_replies)
                 reposts.extend(batch_reposts)
@@ -873,6 +900,9 @@ class PDSEndpointWorker:
             reposts_df = pd.DataFrame(reposts)
             replies_df = pd.DataFrame(replies)
 
+            # TODO: check columns.
+            breakpoint()
+
             total_posts = len(posts_df)
             total_reposts = len(reposts_df)
             total_replies = len(replies_df)
@@ -883,34 +913,48 @@ class PDSEndpointWorker:
 
             # get baseline measures of write size.
             sample_factor = 0.01  # 1% of total rows.
-            posts_sample_size = int(total_posts * sample_factor)
-            reposts_sample_size = int(total_reposts * sample_factor)
-            replies_sample_size = int(total_replies * sample_factor)
 
-            posts_sample_df = posts_df.sample(n=posts_sample_size)
-            reposts_sample_df = reposts_df.sample(n=reposts_sample_size)
-            replies_sample_df = replies_df.sample(n=replies_sample_size)
+            if total_posts > 0:
+                posts_sample_size = int(total_posts * sample_factor)
+                if posts_sample_size == 0:
+                    posts_sample_size = 1
+                posts_sample_df = posts_df.sample(n=posts_sample_size)
+                posts_parquet_size = self._estimate_parquet_write_size(
+                    record_type="post",
+                    sample_df=posts_sample_df,
+                    sample_size=posts_sample_size,
+                    total_rows=total_posts,
+                )
+            else:
+                posts_parquet_size = 0
 
-            posts_parquet_size = self._estimate_parquet_write_size(
-                record_type="post",
-                sample_df=posts_sample_df,
-                sample_size=posts_sample_size,
-                total_rows=total_posts,
-            )
+            if total_reposts > 0:
+                reposts_sample_size = int(total_reposts * sample_factor)
+                if reposts_sample_size == 0:
+                    reposts_sample_size = 1
+                reposts_sample_df = reposts_df.sample(n=reposts_sample_size)
+                reposts_parquet_size = self._estimate_parquet_write_size(
+                    record_type="repost",
+                    sample_df=reposts_sample_df,
+                    sample_size=reposts_sample_size,
+                    total_rows=total_reposts,
+                )
+            else:
+                reposts_parquet_size = 0
 
-            reposts_parquet_size = self._estimate_parquet_write_size(
-                record_type="repost",
-                sample_df=reposts_sample_df,
-                sample_size=reposts_sample_size,
-                total_rows=total_reposts,
-            )
-
-            replies_parquet_size = self._estimate_parquet_write_size(
-                record_type="reply",
-                sample_df=replies_sample_df,
-                sample_size=replies_sample_size,
-                total_rows=total_replies,
-            )
+            if total_replies > 0:
+                replies_sample_size = int(total_replies * sample_factor)
+                if replies_sample_size == 0:
+                    replies_sample_size = 1
+                replies_sample_df = replies_df.sample(n=replies_sample_size)
+                replies_parquet_size = self._estimate_parquet_write_size(
+                    record_type="reply",
+                    sample_df=replies_sample_df,
+                    sample_size=replies_sample_size,
+                    total_rows=total_replies,
+                )
+            else:
+                replies_parquet_size = 0
 
             logger.info(f"""
                 Estimated parquet sizes:
@@ -920,36 +964,55 @@ class PDSEndpointWorker:
             """)
 
             service = "raw_sync"
-            logger.info(
-                f"(PDS endpoint: {self.pds_endpoint}): Exporting posts to local storage..."
-            )
-            export_data_to_local_storage(
-                service=service,
-                df=posts_df,
-                custom_args={"record_type": "post"},
-            )
-            logger.info(
-                f"(PDS endpoint: {self.pds_endpoint}): Exported posts to local storage."
-            )
-            logger.info(
-                f"(PDS endpoint: {self.pds_endpoint}): Exporting reposts to local storage..."
-            )
-            export_data_to_local_storage(
-                service=service,
-                df=reposts_df,
-                custom_args={"record_type": "repost"},
-            )
-            logger.info(
-                f"(PDS endpoint: {self.pds_endpoint}): Exported reposts to local storage."
-            )
-            logger.info(
-                f"(PDS endpoint: {self.pds_endpoint}): Exporting replies to local storage..."
-            )
-            export_data_to_local_storage(
-                service=service,
-                df=replies_df,
-                custom_args={"record_type": "reply"},
-            )
+
+            if total_posts > 0:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Exporting posts to local storage..."
+                )
+                export_data_to_local_storage(
+                    service=service,
+                    df=posts_df,
+                    custom_args={"record_type": "post"},
+                )
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Exported posts to local storage."
+                )
+            else:
+                logger.info(f"(PDS endpoint: {self.pds_endpoint}): No posts to export.")
+
+            if total_reposts > 0:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Exporting reposts to local storage..."
+                )
+                export_data_to_local_storage(
+                    service=service,
+                    df=reposts_df,
+                    custom_args={"record_type": "repost"},
+                )
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Exported reposts to local storage."
+                )
+            else:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): No reposts to export."
+                )
+
+            if total_replies > 0:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Exporting replies to local storage..."
+                )
+                export_data_to_local_storage(
+                    service=service,
+                    df=replies_df,
+                    custom_args={"record_type": "reply"},
+                )
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Exported replies to local storage."
+                )
+            else:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): No replies to export."
+                )
 
             logger.info(
                 f"(PDS endpoint: {self.pds_endpoint}): Finished persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage."
