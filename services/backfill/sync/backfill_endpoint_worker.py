@@ -60,15 +60,18 @@ default_pds_endpoint = "https://bsky.social"
 
 
 def get_dids_from_queues(pds_endpoint: str) -> list[str]:
-    """Get previous DIDs from SQLite queues (if they exist)."""
-    queues = get_write_queues(pds_endpoint)
-    output_results_queue = queues["output_results_queue"]
-    output_deadletter_queue = queues["output_deadletter_queue"]
+    """Get previous DIDs from SQLite queues (if they exist).
+
+    If they don't exist, we don't want to create new queues."""
+    queues = get_write_queues(pds_endpoint, skip_if_queue_not_found=True)
+    output_results_queue: Optional[Queue] = queues["output_results_queue"]
+    output_deadletter_queue: Optional[Queue] = queues["output_deadletter_queue"]
     dids = []
     for queue in [output_results_queue, output_deadletter_queue]:
-        items = queue.load_dict_items_from_queue()
-        queue_dids = [item["did"] for item in items]
-        dids.extend(queue_dids)
+        if queue:
+            items = queue.load_dict_items_from_queue()
+            queue_dids = [item["did"] for item in items]
+            dids.extend(queue_dids)
     return dids
 
 
@@ -131,7 +134,16 @@ def log_progress(
     logger.info(f"=== End of progress for PDS endpoint {pds_endpoint} ===")
 
 
-def get_write_queues(pds_endpoint: str):
+def get_write_queues(
+    pds_endpoint: str,
+    skip_if_queue_not_found: bool = False,
+):
+    """Get the write queues for the backfill.
+
+    Optional to skip if the queues don't exist. We use this when we do queue
+    reads, since if a backfill is 100% done, the DIDs will be in DynamoDB
+    instead of in the queues, and the queues will be deleted. We don't want
+    to create new queues if they don't exist, so we skip in that case."""
     # Extract the hostname from the PDS endpoint URL
     # eg., https://lepista.us-west.host.bsky.network.db -> lepista.us-west.host.bsky.network.db
     pds_hostname = (
@@ -144,18 +156,38 @@ def get_write_queues(pds_endpoint: str):
         current_dir, f"deadletter_{pds_hostname}.db"
     )
 
-    output_results_queue = Queue(
-        queue_name=f"results_{pds_hostname}",
-        create_new_queue=True,
-        temp_queue=True,
-        temp_queue_path=output_results_db_path,
-    )
-    output_deadletter_queue = Queue(
-        queue_name=f"deadletter_{pds_hostname}",
-        create_new_queue=True,
-        temp_queue=True,
-        temp_queue_path=output_deadletter_db_path,
-    )
+    if skip_if_queue_not_found:
+        if os.path.exists(output_results_db_path):
+            output_results_queue = Queue(
+                queue_name=f"results_{pds_hostname}",
+                create_new_queue=True,
+                temp_queue=True,
+                temp_queue_path=output_results_db_path,
+            )
+        else:
+            output_results_queue = None
+        if os.path.exists(output_deadletter_db_path):
+            output_deadletter_queue = Queue(
+                queue_name=f"deadletter_{pds_hostname}",
+                create_new_queue=True,
+                temp_queue=True,
+                temp_queue_path=output_deadletter_db_path,
+            )
+        else:
+            output_deadletter_queue = None
+    else:
+        output_results_queue = Queue(
+            queue_name=f"results_{pds_hostname}",
+            create_new_queue=True,
+            temp_queue=True,
+            temp_queue_path=output_results_db_path,
+        )
+        output_deadletter_queue = Queue(
+            queue_name=f"deadletter_{pds_hostname}",
+            create_new_queue=True,
+            temp_queue=True,
+            temp_queue_path=output_deadletter_db_path,
+        )
     return {
         "output_results_queue": output_results_queue,
         "output_deadletter_queue": output_deadletter_queue,
@@ -802,6 +834,15 @@ class PDSEndpointWorker:
                 # Filter records
                 records = PDSEndpointWorker._filter_records(records=records)
 
+                # Initialize user counts if needed. Done outside the 'records'
+                # loop in case there are 0 records for a user.
+                if user_did not in batch_user_counts:
+                    batch_user_counts[user_did] = {
+                        "post": 0,
+                        "repost": 0,
+                        "reply": 0,
+                    }
+
                 for record in records:
                     record_type: str = record.get(
                         "record_type", identify_record_type(record)
@@ -815,14 +856,6 @@ class PDSEndpointWorker:
                         end_timestamp="2024-12-02-00:00:00",
                     )
                     record = postprocess_backfilled_record(record)
-
-                    # Initialize user counts if needed
-                    if user_did not in batch_user_counts:
-                        batch_user_counts[user_did] = {
-                            "post": 0,
-                            "repost": 0,
-                            "reply": 0,
-                        }
 
                     # Categorize by record type
                     if record_type == "post":
@@ -842,10 +875,10 @@ class PDSEndpointWorker:
             total_batch_posts = len(batch_posts)
             total_batch_replies = len(batch_replies)
             total_batch_reposts = len(batch_reposts)
+            total_users = len(batch_user_counts)
             logger.info(
-                f"Batch {idx} has {total_batch_posts} posts, {total_batch_replies} replies, and {total_batch_reposts} reposts."
+                f"Batch {idx} has {total_users} total users, {total_batch_posts} posts, {total_batch_replies} replies, and {total_batch_reposts} reposts."
             )
-
             return (batch_posts, batch_replies, batch_reposts, batch_user_counts)
 
         try:
