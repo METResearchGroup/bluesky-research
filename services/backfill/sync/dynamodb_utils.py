@@ -133,15 +133,41 @@ def get_user_metadata_by_handle(handle: str) -> Optional[UserBackfillMetadata]:
 
 
 def get_dids_by_pds_endpoint(pds_endpoint: str) -> list[str]:
-    """Get all DIDs for a specific PDS endpoint (most recent backfill only)."""
-    response = dynamodb_client.client.query(
-        TableName=TABLE_NAME,
-        KeyConditionExpression="pds_service_endpoint = :value",
-        ExpressionAttributeValues={":value": {"S": pds_endpoint}},
-        ProjectionExpression="did",
+    """Get all DIDs for a specific PDS endpoint (most recent backfill only).
+
+    Uses a paginated query to get all DIDs for a specific PDS endpoint.
+    """
+    unique_dids = set()
+    last_evaluated_key = None
+
+    while True:
+        query_params = {
+            "TableName": TABLE_NAME,
+            "KeyConditionExpression": "pds_service_endpoint = :value",
+            "ExpressionAttributeValues": {":value": {"S": pds_endpoint}},
+            "ProjectionExpression": "did",
+        }
+
+        if last_evaluated_key:
+            query_params["ExclusiveStartKey"] = last_evaluated_key
+
+        response = dynamodb_client.client.query(**query_params)
+
+        # Add DIDs from this page to our set
+        for item in response.get("Items", []):
+            unique_dids.add(item["did"]["S"])
+
+        last_evaluated_key = response.get("LastEvaluatedKey")
+        if not last_evaluated_key:
+            break
+        print(f"Processed {len(unique_dids)} unique DIDs so far...")
+        print(f"Last evaluated key: {last_evaluated_key}")
+
+    logger.info(
+        f"(PDS endpoint: {pds_endpoint}): Loaded {len(unique_dids)} unique DIDs that were previously backfilled."
     )
-    # Get unique DIDs since we might have multiple records per DID
-    return list(set(item["did"]["S"] for item in response.get("Items", [])))
+
+    return list(unique_dids)
 
 
 def get_backfill_history_for_did(did: str) -> list[UserBackfillMetadata]:

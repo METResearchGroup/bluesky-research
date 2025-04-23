@@ -816,7 +816,6 @@ class PDSEndpointWorker:
                         )
         except Exception as e:
             logger.error(f"Error persisting to DB: {e}", exc_info=True)
-            breakpoint()
             raise
 
         posts_df: pd.DataFrame = pd.DataFrame(posts)
@@ -868,6 +867,7 @@ class PDSEndpointWorker:
             - reposts: {reposts_parquet_size:.2f} MB
             - replies: {replies_parquet_size:.2f} MB
         """)
+
         service = "raw_sync"
         logger.info(
             f"(PDS endpoint: {self.pds_endpoint}): Exporting posts to local storage..."
@@ -911,7 +911,18 @@ class PDSEndpointWorker:
         user_to_total_per_record_type_map: dict[str, dict[str, int]],
     ) -> None:
         """Writes backfill metadata to the database."""
-        session_metadata_body = {}
+        total_records = 0
+        total_users = 0
+        for user, total_per_record_type in user_to_total_per_record_type_map.items():
+            for count in total_per_record_type.values():
+                total_records += count
+            total_users += 1
+
+        session_metadata_body = {
+            "pds_endpoint": self.pds_endpoint,
+            "total_records": total_records,
+            "total_users": total_users,
+        }
         session_metadata = {
             "service": service_name,
             "timestamp": generate_current_datetime_str(),
