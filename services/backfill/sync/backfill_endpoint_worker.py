@@ -59,10 +59,30 @@ default_write_batch_size = 100
 default_pds_endpoint = "https://bsky.social"
 
 
+def get_dids_from_queues(pds_endpoint: str) -> list[str]:
+    """Get previous DIDs from SQLite queues (if they exist)."""
+    queues = get_write_queues(pds_endpoint)
+    output_results_queue = queues["output_results_queue"]
+    output_deadletter_queue = queues["output_deadletter_queue"]
+    dids = []
+    for queue in [output_results_queue, output_deadletter_queue]:
+        items = queue.load_dict_items_from_queue()
+        queue_dids = [item["did"] for item in items]
+        dids.extend(queue_dids)
+    return dids
+
+
 def get_previously_processed_dids(pds_endpoint: str) -> set[str]:
-    """Load previous results from DynamoDB and filter out DIDs that have already been processed."""
-    previously_processed_dids = get_dids_by_pds_endpoint(pds_endpoint)
-    return previously_processed_dids
+    """Load previously processed DIDs from both DynamoDB (if the backfill
+    is already 100% completed) and from the queues (if the backfill is
+    not yet 100% completed, and thus the DIDs haven't been written to
+    DynamoDB yet)."""
+    dynamodb_previously_processed_dids = get_dids_by_pds_endpoint(pds_endpoint)
+    queue_previously_processed_dids = get_dids_from_queues(pds_endpoint)
+
+    return set(dynamodb_previously_processed_dids) | set(
+        queue_previously_processed_dids
+    )
 
 
 def filter_previously_processed_dids(pds_endpoint: str, dids: list[str]) -> list[str]:
