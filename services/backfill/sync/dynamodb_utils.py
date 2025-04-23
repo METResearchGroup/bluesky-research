@@ -160,8 +160,6 @@ def get_dids_by_pds_endpoint(pds_endpoint: str) -> list[str]:
         last_evaluated_key = response.get("LastEvaluatedKey")
         if not last_evaluated_key:
             break
-        print(f"Processed {len(unique_dids)} unique DIDs so far...")
-        print(f"Last evaluated key: {last_evaluated_key}")
 
     logger.info(
         f"(PDS endpoint: {pds_endpoint}): Loaded {len(unique_dids)} unique DIDs that were previously backfilled."

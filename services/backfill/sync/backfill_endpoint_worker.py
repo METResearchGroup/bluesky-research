@@ -19,7 +19,7 @@ from lib.constants import timestamp_format
 from lib.db.manage_local_data import export_data_to_local_storage
 from lib.db.queue import Queue
 from lib.db.rate_limiter import AsyncTokenBucket
-from lib.helper import generate_current_datetime_str
+from lib.helper import generate_current_datetime_str, create_batches
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.prometheus.service import pds_backfill_metrics as pdm
@@ -377,6 +377,9 @@ class PDSEndpointWorker:
                     pdm.BACKFILL_PROCESSING_SECONDS.labels(
                         endpoint=self.pds_endpoint, operation_type="parse_records"
                     ).observe(processing_time)
+
+                    # NOTE: possible to have 0 records (e.g., if the records
+                    # are filtered out as per our criteria above).
                     await self.temp_results_queue.put({"did": did, "content": records})
 
                     # Update DID status and success metrics
@@ -530,7 +533,7 @@ class PDSEndpointWorker:
         logger.info(
             f"(PDS endpoint {self.pds_endpoint}): Completed syncs and SQLite writes. Now persisting to DB and exporting metadata."
         )
-        user_to_total_per_record_type_map = self.persist_to_db()
+        user_to_total_per_record_type_map = await self.persist_to_db()
         self.write_backfill_metadata_to_db(
             user_to_total_per_record_type_map=user_to_total_per_record_type_map
         )
@@ -564,6 +567,9 @@ class PDSEndpointWorker:
 
                 # Process results queue
                 while not self.temp_results_queue.empty():
+                    # Format: {'did': '<DID>', 'content': [<List of records>]}.
+                    # Unless it's final flush signal, in which case the
+                    # format is {'final_flush': True}.
                     record: dict = await self.temp_results_queue.get()
 
                     # Check for the special flag item
@@ -571,13 +577,6 @@ class PDSEndpointWorker:
                         final_flush_signal = True
                         self.temp_results_queue.task_done()
                         continue
-
-                    # Normal processing
-                    record_type = identify_record_type(record)
-                    record = transform_backfilled_record(
-                        record=record, record_type=record_type
-                    )
-                    record = postprocess_backfilled_record(record)
                     result_buffer.append(record)
                     self.temp_results_queue.task_done()
                     # Update queue size metric
@@ -745,7 +744,7 @@ class PDSEndpointWorker:
             """)
             return parquet_total_size_mb
 
-    def persist_to_db(self) -> dict:
+    async def persist_to_db(self) -> dict:
         """Writes records to permanent .parquet storage.
 
         Returns counts of users per record type, in the form:
@@ -761,37 +760,33 @@ class PDSEndpointWorker:
         logger.info("Persisting SQLite queue records to permanent storage...")
 
         items: list[dict] = self.output_results_queue.load_dict_items_from_queue()
-
-        posts: list[dict] = []
-        replies: list[dict] = []
-        reposts: list[dict] = []
-
-        user_to_total_per_record_type_map: dict[str, dict[str, int]] = {}
-
         total_items: int = len(items)
         logger.info(
             f"(PDS endpoint: {self.pds_endpoint}): Persisting {total_items} items to DB..."
         )
 
-        try:
-            for i, item in enumerate(items):
-                if i % 250 == 0:
-                    logger.info(
-                        f"(PDS endpoint: {self.pds_endpoint}): Persisting {i}/{total_items} items to DB..."
-                    )
+        def process_batch(
+            batch: list[dict],
+        ) -> tuple[list[dict], list[dict], list[dict], dict]:
+            """Process a batch of items and return categorized records and user counts."""
+            batch_posts = []
+            batch_replies = []
+            batch_reposts = []
+            batch_user_counts = {}
+
+            for item in batch:
                 records = item["content"]
                 user_did = item["did"]
-                # TODO: remove later on, this should already be handled upstream.
-                # Just doing this now for backwards compatibility.
+
+                # Filter records
                 records = PDSEndpointWorker._filter_records(records=records)
+
                 for record in records:
                     record_type: str = record.get(
                         "record_type", identify_record_type(record)
                     )
-                    # TODO: delete later on, as this should already be handled upstream.
-                    # But some records currently don't have this.
-                    # Just doing this now for backwards compatibility.
-                    # NOTE: these timestamps are the same as in `validate_time_range_record`.
+
+                    # Transform and postprocess
                     record = transform_backfilled_record(
                         record=record,
                         record_type=record_type,
@@ -799,116 +794,172 @@ class PDSEndpointWorker:
                         end_timestamp="2024-12-02-00:00:00",
                     )
                     record = postprocess_backfilled_record(record)
+
+                    # Initialize user counts if needed
+                    if user_did not in batch_user_counts:
+                        batch_user_counts[user_did] = {
+                            "post": 0,
+                            "repost": 0,
+                            "reply": 0,
+                        }
+
+                    # Categorize by record type
+                    if record_type == "post":
+                        batch_posts.append(record)
+                        batch_user_counts[user_did]["post"] += 1
+                    elif record_type == "repost":
+                        batch_reposts.append(record)
+                        batch_user_counts[user_did]["repost"] += 1
+                    elif record_type == "reply":
+                        batch_replies.append(record)
+                        batch_user_counts[user_did]["reply"] += 1
+                    else:
+                        raise ValueError(
+                            f"Unknown record type for item being written to DB: {record_type}"
+                        )
+
+            return (batch_posts, batch_replies, batch_reposts, batch_user_counts)
+
+        try:
+            batch_size = max(1, min(500, total_items // (os.cpu_count() * 2)))
+            batches = create_batches(items, batch_size)
+            num_batches = len(batches)
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Processing {num_batches} batches of {batch_size} items each (total {total_items} items)..."
+            )
+
+            loop = asyncio.get_event_loop()
+            futures = []
+            for batch in batches:
+                future = loop.run_in_executor(self.cpu_pool, process_batch, batch)
+                futures.append(future)
+
+            results = await asyncio.gather(*futures)
+
+            # Combine results
+            posts, replies, reposts = [], [], []
+            user_to_total_per_record_type_map = {}
+
+            for batch_posts, batch_replies, batch_reposts, batch_user_counts in results:
+                posts.extend(batch_posts)
+                replies.extend(batch_replies)
+                reposts.extend(batch_reposts)
+
+                # Merge user counts
+                for user_did, counts in batch_user_counts.items():
                     if user_did not in user_to_total_per_record_type_map:
                         user_to_total_per_record_type_map[user_did] = {
                             "post": 0,
                             "repost": 0,
                             "reply": 0,
                         }
-                    if record_type == "post":
-                        posts.append(record)
-                        user_to_total_per_record_type_map[user_did]["post"] += 1
-                    elif record_type == "repost":
-                        reposts.append(record)
-                        user_to_total_per_record_type_map[user_did]["repost"] += 1
-                    elif record_type == "reply":
-                        replies.append(record)
-                        user_to_total_per_record_type_map[user_did]["reply"] += 1
-                    else:
-                        raise ValueError(
-                            f"Unknown record type for item being written to DB: {record_type}"
-                        )
+
+                    user_to_total_per_record_type_map[user_did]["post"] += counts[
+                        "post"
+                    ]
+                    user_to_total_per_record_type_map[user_did]["repost"] += counts[
+                        "repost"
+                    ]
+                    user_to_total_per_record_type_map[user_did]["reply"] += counts[
+                        "reply"
+                    ]
+
+            logger.info(
+                f"Parallel processing complete: {len(posts)} posts, {len(reposts)} reposts, {len(replies)} replies"
+            )
+
+            # Create DataFrames
+            posts_df = pd.DataFrame(posts)
+            reposts_df = pd.DataFrame(reposts)
+            replies_df = pd.DataFrame(replies)
+
+            total_posts = len(posts_df)
+            total_reposts = len(reposts_df)
+            total_replies = len(replies_df)
+
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage..."
+            )
+
+            # get baseline measures of write size.
+            sample_factor = 0.01  # 1% of total rows.
+            posts_sample_size = int(total_posts * sample_factor)
+            reposts_sample_size = int(total_reposts * sample_factor)
+            replies_sample_size = int(total_replies * sample_factor)
+
+            posts_sample_df = posts_df.sample(n=posts_sample_size)
+            reposts_sample_df = reposts_df.sample(n=reposts_sample_size)
+            replies_sample_df = replies_df.sample(n=replies_sample_size)
+
+            posts_parquet_size = self._estimate_parquet_write_size(
+                record_type="post",
+                sample_df=posts_sample_df,
+                sample_size=posts_sample_size,
+                total_rows=total_posts,
+            )
+
+            reposts_parquet_size = self._estimate_parquet_write_size(
+                record_type="repost",
+                sample_df=reposts_sample_df,
+                sample_size=reposts_sample_size,
+                total_rows=total_reposts,
+            )
+
+            replies_parquet_size = self._estimate_parquet_write_size(
+                record_type="reply",
+                sample_df=replies_sample_df,
+                sample_size=replies_sample_size,
+                total_rows=total_replies,
+            )
+
+            logger.info(f"""
+                Estimated parquet sizes:
+                - posts: {posts_parquet_size:.2f} MB
+                - reposts: {reposts_parquet_size:.2f} MB
+                - replies: {replies_parquet_size:.2f} MB
+            """)
+
+            service = "raw_sync"
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Exporting posts to local storage..."
+            )
+            export_data_to_local_storage(
+                service=service,
+                df=posts_df,
+                custom_args={"record_type": "post"},
+            )
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Exported posts to local storage."
+            )
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Exporting reposts to local storage..."
+            )
+            export_data_to_local_storage(
+                service=service,
+                df=reposts_df,
+                custom_args={"record_type": "repost"},
+            )
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Exported reposts to local storage."
+            )
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Exporting replies to local storage..."
+            )
+            export_data_to_local_storage(
+                service=service,
+                df=replies_df,
+                custom_args={"record_type": "reply"},
+            )
+
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Finished persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage."
+            )
+
+            return user_to_total_per_record_type_map
+
         except Exception as e:
             logger.error(f"Error persisting to DB: {e}", exc_info=True)
             raise
-
-        posts_df: pd.DataFrame = pd.DataFrame(posts)
-        reposts_df: pd.DataFrame = pd.DataFrame(reposts)
-        replies_df: pd.DataFrame = pd.DataFrame(replies)
-
-        total_posts = len(posts_df)
-        total_reposts = len(reposts_df)
-        total_replies = len(replies_df)
-
-        logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage..."
-        )
-
-        # get baseline measures of write size.
-        sample_factor = 0.01  # 1% of total rows.
-        posts_sample_size = int(total_posts * sample_factor)
-        reposts_sample_size = int(total_reposts * sample_factor)
-        replies_sample_size = int(total_replies * sample_factor)
-
-        posts_sample_df = posts_df.sample(n=posts_sample_size)
-        reposts_sample_df = reposts_df.sample(n=reposts_sample_size)
-        replies_sample_df = replies_df.sample(n=replies_sample_size)
-
-        posts_parquet_size = self._estimate_parquet_write_size(
-            record_type="post",
-            sample_df=posts_sample_df,
-            sample_size=posts_sample_size,
-            total_rows=total_posts,
-        )
-
-        reposts_parquet_size = self._estimate_parquet_write_size(
-            record_type="repost",
-            sample_df=reposts_sample_df,
-            sample_size=reposts_sample_size,
-            total_rows=total_reposts,
-        )
-
-        replies_parquet_size = self._estimate_parquet_write_size(
-            record_type="reply",
-            sample_df=replies_sample_df,
-            sample_size=replies_sample_size,
-            total_rows=total_replies,
-        )
-
-        logger.info(f"""
-            Estimated parquet sizes:
-            - posts: {posts_parquet_size:.2f} MB
-            - reposts: {reposts_parquet_size:.2f} MB
-            - replies: {replies_parquet_size:.2f} MB
-        """)
-
-        service = "raw_sync"
-        logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Exporting posts to local storage..."
-        )
-        export_data_to_local_storage(
-            service=service,
-            df=posts_df,
-            custom_args={"record_type": "post"},
-        )
-        logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Exported posts to local storage."
-        )
-        logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Exporting reposts to local storage..."
-        )
-        export_data_to_local_storage(
-            service=service,
-            df=reposts_df,
-            custom_args={"record_type": "repost"},
-        )
-        logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Exported reposts to local storage."
-        )
-        logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Exporting replies to local storage..."
-        )
-        export_data_to_local_storage(
-            service=service,
-            df=replies_df,
-            custom_args={"record_type": "reply"},
-        )
-
-        logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Finished persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage."
-        )
-
-        return user_to_total_per_record_type_map
 
     def write_backfill_metadata_to_db(
         self,
