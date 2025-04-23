@@ -365,13 +365,13 @@ class PDSEndpointWorker:
                     # with the extra CPU operations.
                     loop = asyncio.get_running_loop()
                     processing_start = time.perf_counter()
-                    records: list[dict] = await loop.run_in_executor(
+                    raw_records: list[dict] = await loop.run_in_executor(
                         self.cpu_pool, get_records_from_pds_bytes, content
                     )
                     records: list[dict] = await loop.run_in_executor(
                         self.cpu_pool,
                         PDSEndpointWorker._filter_records,
-                        records,
+                        raw_records,
                     )
                     processing_time = time.perf_counter() - processing_start
                     pdm.BACKFILL_PROCESSING_SECONDS.labels(
@@ -826,15 +826,7 @@ class PDSEndpointWorker:
                 f"Batch {idx} has {total_batch_posts} posts, {total_batch_replies} replies, and {total_batch_reposts} reposts."
             )
 
-            return (
-                batch_posts,
-                batch_replies,
-                batch_reposts,
-                batch_user_counts,
-                total_batch_posts,
-                total_batch_replies,
-                total_batch_reposts,
-            )
+            return (batch_posts, batch_replies, batch_reposts, batch_user_counts)
 
         try:
             num_threads = (
@@ -859,15 +851,7 @@ class PDSEndpointWorker:
             posts, replies, reposts = [], [], []
             user_to_total_per_record_type_map = {}
 
-            # TODO: check # of futures, if they finished, etc.
-            breakpoint()
-
-            # TODO: run one last time to create DB, and then just run the
-            # write_to_db script (so I avoid duplicate writes to the SQLite
-            # queue DB).
-
             for batch_posts, batch_replies, batch_reposts, batch_user_counts in results:
-                breakpoint()
                 posts.extend(batch_posts)
                 replies.extend(batch_replies)
                 reposts.extend(batch_reposts)
@@ -899,9 +883,6 @@ class PDSEndpointWorker:
             posts_df = pd.DataFrame(posts)
             reposts_df = pd.DataFrame(reposts)
             replies_df = pd.DataFrame(replies)
-
-            # TODO: check columns.
-            breakpoint()
 
             total_posts = len(posts_df)
             total_reposts = len(reposts_df)
