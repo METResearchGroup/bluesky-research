@@ -517,23 +517,42 @@ class PDSEndpointWorker:
 
     async def start(self):
         """Starts the backfill for a single PDS endpoint."""
-        # initialize the worker queue.
-        await self._init_worker_queue()
+        logger.info(f"(PDS endpoint: {self.pds_endpoint}): Start method ENTERED")
 
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Initializing worker queue..."
+        )
+        await self._init_worker_queue()
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Worker queue initialized with {self.temp_work_queue.qsize()} items"
+        )
+
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Starting backfill with {len(self.dids)} DIDs."
+        )
+
+        logger.info(f"(PDS endpoint: {self.pds_endpoint}): Starting writer tasks...")
         # start the background writer to write to SQLite queues.
-        self._writer_task = asyncio.create_task(self._writer())
+        # self._writer_task = asyncio.create_task(self._writer())
 
         # start the background writer to write SQLite queues to persistent
         # DB storage.
-        self._db_task = asyncio.create_task(self.write_queue_to_db())
+        self._db_task = asyncio.create_task(self._write_queue_to_db())
 
         # create worker tasks. These worker tasks will pull DIDs from the
         # worker queue and process them. Fixed relative to desired QPS.
         num_workers = min(self.qps * 2, len(self.dids))
+
         producer_tasks = [
             asyncio.create_task(self._worker_loop()) for _ in range(num_workers)
         ]
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Starting {num_workers} worker tasks..."
+        )
         self._producer_group = asyncio.gather(*producer_tasks)
+
+        # give control back to the event loop without blocking.
+        await asyncio.sleep(1.0)
 
     async def _worker_loop(self):
         """Worker loop that processes DIDs from the queue until it's empty.
@@ -541,35 +560,44 @@ class PDSEndpointWorker:
         Allows us to manage DIDs by pulling from the temp worker queues and
         processing them instead of defining a fixed number of tasks.
         """
-        while True:
-            # get DID from the queue.
-            try:
-                did_item = await asyncio.wait_for(
-                    self.temp_work_queue.get(), timeout=1.0
-                )
-                did = did_item["did"]
-                # should only have a retry_count if it's been re-inserted into the queue.
-                retry_count = did_item.get("retry_count", 0)
-                # Update work queue size metric
-                pdm.BACKFILL_QUEUE_SIZES.labels(
-                    endpoint=self.pds_endpoint, queue_type="work"
-                ).set(self.temp_work_queue.qsize())
-            except asyncio.TimeoutError:
-                # if queue is empty, check if work is done.
-                if self.temp_work_queue.empty():
-                    break
-                continue
+        try:
+            while True:
+                # get DID from the queue.
+                try:
+                    did_item = await asyncio.wait_for(
+                        self.temp_work_queue.get(), timeout=1.0
+                    )
+                    did = did_item["did"]
+                    # should only have a retry_count if it's been re-inserted into the queue.
+                    retry_count = did_item.get("retry_count", 0)
+                    # Update work queue size metric
+                    pdm.BACKFILL_QUEUE_SIZES.labels(
+                        endpoint=self.pds_endpoint, queue_type="work"
+                    ).set(self.temp_work_queue.qsize())
+                except asyncio.TimeoutError:
+                    # if queue is empty, check if work is done.
+                    if self.temp_work_queue.empty():
+                        break
+                    continue
 
-            # process DID
-            try:
-                await self._process_did(
-                    did=did,
-                    session=self.session,
-                    retry_count=retry_count,
-                )
-            finally:
-                # mark task as done even if it failed.
-                self.temp_work_queue.task_done()
+                # process DID
+                try:
+                    await self._process_did(
+                        did=did,
+                        session=self.session,
+                        retry_count=retry_count,
+                    )
+                finally:
+                    # mark task as done even if it failed.
+                    self.temp_work_queue.task_done()
+            logger.info(f"(PDS endpoint: {self.pds_endpoint}): Worker loop finished.")
+        except Exception as e:
+            logger.error(
+                f"(PDS endpoint: {self.pds_endpoint}): Worker loop ERROR: {e}",
+                exc_info=True,
+            )
+        finally:
+            logger.info(f"(PDS endpoint: {self.pds_endpoint}): Worker loop EXITED")
 
     async def wait_done(self):
         """Waits for the backfill to finish."""
@@ -708,7 +736,11 @@ class PDSEndpointWorker:
                     self.temp_results_queue.empty()
                     and self.temp_deadletter_queue.empty()
                 ):
-                    await asyncio.sleep(0.1)
+                    # make for a more flexible wait. This doesn't have to waste
+                    # too many CPU cycles checking queues too frequently. It
+                    # can wait a while and check again.
+                    # await asyncio.sleep(0.1)
+                    await asyncio.sleep(30)
         except Exception as e:
             logger.error(f"Error in writer: {e}", exc_info=True)
             raise
@@ -1188,7 +1220,7 @@ class PDSEndpointWorker:
         self.output_deadletter_queue.delete_queue()
         logger.info(f"(PDS endpoint {self.pds_endpoint}): Queues deleted.")
 
-    async def write_queue_to_db(self):
+    async def _write_queue_to_db(self):
         """Background task that writes the records in the SQLite queues to the
         DB."""
         total_queued_results: int = self.output_results_queue.get_queue_length()
@@ -1217,6 +1249,13 @@ class PDSEndpointWorker:
                     logger.info(
                         f"(PDS endpoint: {self.pds_endpoint}) Completed writing metadata to DB."
                     )
+                else:
+                    # add to prevent a tight loop that doesn't yield to other
+                    # tasks. Without the await, the task will run continuously
+                    # and consume CPU and prevent other tasks from running.
+                    # This isn't urgent and can wait a while, so we set the
+                    # sleep to be quite generous (60 seconds)
+                    await asyncio.sleep(60)
 
         except Exception as e:
             logger.error(
@@ -1225,6 +1264,8 @@ class PDSEndpointWorker:
             )
             traceback.print_exc()
             raise
+        finally:
+            logger.info(f"Writer task for {self.pds_endpoint} finished.")
 
 
 async def dummy_aiosqlite_write():
