@@ -1,5 +1,6 @@
 """Worker class for managing the backfill for a single PDS endpoint."""
 
+import traceback
 from typing import Optional
 
 import pandas as pd
@@ -585,7 +586,11 @@ class PDSEndpointWorker:
         logger.info(
             f"(PDS endpoint {self.pds_endpoint}): Completed syncs and SQLite writes. Now persisting to DB and exporting metadata."
         )
-        user_to_total_per_record_type_map = await self.persist_to_db()
+        # we don't delete rows from the queue here because we delete the
+        # queue later on anyways.
+        user_to_total_per_record_type_map = await self.persist_to_db(
+            delete_rows_from_queue=False
+        )
         self.write_backfill_metadata_to_db(
             user_to_total_per_record_type_map=user_to_total_per_record_type_map
         )
@@ -607,7 +612,7 @@ class PDSEndpointWorker:
         await self.output_deadletter_queue.close()
 
     async def _writer(self, batch_size: Optional[int] = None) -> None:
-        """Background task to flush temp queues to permanent storage in batches."""
+        """Background task to flush temp queues to persistent queues in batches."""
         result_buffer: list[dict] = []
         deadletter_buffer: list[dict] = []
         global_total_records_flushed = 0
@@ -796,7 +801,7 @@ class PDSEndpointWorker:
             """)
             return parquet_total_size_mb
 
-    async def persist_to_db(self) -> dict:
+    async def persist_to_db(self, delete_rows_from_queue: bool = True) -> dict:
         """Writes records to permanent .parquet storage.
 
         Returns counts of users per record type, in the form:
@@ -807,11 +812,15 @@ class PDSEndpointWorker:
                 "reply": 2,
             }
         }
+
+        Takes as an optional argument whether to delete the rows from the queue.
         """
 
         logger.info("Persisting SQLite queue records to permanent storage...")
 
         items: list[dict] = self.output_results_queue.load_dict_items_from_queue()
+        batch_ids: list[str] = [item["batch_id"] for item in items]
+
         total_items: int = len(items)
         logger.info(
             f"(PDS endpoint: {self.pds_endpoint}): Persisting {total_items} items to DB..."
@@ -1052,6 +1061,51 @@ class PDSEndpointWorker:
                 f"(PDS endpoint: {self.pds_endpoint}): Finished persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage."
             )
 
+            # add deadletter queue records to counts.
+            deadletter_items: list[dict] = (
+                self.output_deadletter_queue.load_dict_items_from_queue()
+            )
+            deadletter_batch_ids: list[str] = [
+                item["batch_id"] for item in deadletter_items
+            ]
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Loaded {len(deadletter_items)} deadletter items from queue..."
+            )
+            for item in deadletter_items:
+                did = item["did"]
+                if did not in user_to_total_per_record_type_map:
+                    user_to_total_per_record_type_map[did] = {
+                        "post": 0,
+                        "repost": 0,
+                        "reply": 0,
+                    }
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Total user records to export as metadata (after adding deadletter items): {len(user_to_total_per_record_type_map)}"
+            )
+
+            # delete rows from queue, if relevant.
+            if delete_rows_from_queue:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Deleting rows from queues..."
+                )
+                if len(batch_ids) > 0:
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Deleting {len(batch_ids)} rows from queue..."
+                    )
+                    self.output_results_queue.batch_delete_items_by_ids(batch_ids)
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Deleted {len(batch_ids)} rows from queue."
+                    )
+                if len(deadletter_batch_ids) > 0:
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Deleting {len(deadletter_batch_ids)} rows from deadletter queue..."
+                    )
+                    self.output_deadletter_queue.batch_delete_items_by_ids(
+                        deadletter_batch_ids
+                    )
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Deleted {len(deadletter_batch_ids)} rows from deadletter queue."
+                    )
             return user_to_total_per_record_type_map
 
         except Exception as e:
@@ -1087,25 +1141,7 @@ class PDSEndpointWorker:
         user_backfill_metadata = []
 
         logger.info(
-            f"Total user records to export as metadata: {len(user_to_total_per_record_type_map)}"
-        )
-        # load records from deadletter queue and add their counts to the metadata.
-        deadletter_items: list[dict] = (
-            self.output_deadletter_queue.load_dict_items_from_queue()
-        )
-        logger.info(
-            f"Loaded {len(deadletter_items)} deadletter items from queue for {self.pds_endpoint}..."
-        )
-        for item in deadletter_items:
-            did = item["did"]
-            if did not in user_to_total_per_record_type_map:
-                user_to_total_per_record_type_map[did] = {
-                    "post": 0,
-                    "repost": 0,
-                    "reply": 0,
-                }
-        logger.info(
-            f"Total user records to export as metadata (after adding deadletter items): {len(user_to_total_per_record_type_map)}"
+            f"(PDS endpoint: {self.pds_endpoint}): Total user records to export as metadata: {len(user_to_total_per_record_type_map)}"
         )
 
         timestamp = generate_current_datetime_str()
@@ -1141,6 +1177,44 @@ class PDSEndpointWorker:
         self.output_results_queue.delete_queue()
         self.output_deadletter_queue.delete_queue()
         logger.info(f"(PDS endpoint {self.pds_endpoint}): Queues deleted.")
+
+    async def write_queue_to_db(self):
+        """Background task that writes the records in the SQLite queues to the
+        DB."""
+        total_queued_results: int = self.output_results_queue.get_queue_length()
+        total_queued_deadletters: int = self.output_deadletter_queue.get_queue_length()
+
+        total_queued = total_queued_results + total_queued_deadletters
+        # since these are batched, with a default batch size of 100 DIDs
+        # per row, this threshold is actually * 100 DIDs.
+        threshold_total_queued_result = 50
+
+        try:
+            while True:
+                if total_queued > threshold_total_queued_result:
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}) Total queued records: {total_queued} (results: {total_queued_results}, deadletters: {total_queued_deadletters}) > threshold of {threshold_total_queued_result}, writing to DB..."
+                    )
+                    user_to_total_per_record_type_map = await self.persist_to_db(
+                        delete_rows_from_queue=True
+                    )
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}) Completed writing queues to .parquet and DynamoDB as well as deleting queue records. Writing metadata to DB..."
+                    )
+                    await self.write_backfill_metadata_to_db(
+                        user_to_total_per_record_type_map
+                    )
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}) Completed writing metadata to DB."
+                    )
+
+        except Exception as e:
+            logger.error(
+                f"(PDS endpoint: {self.pds_endpoint}) Error writing queues to .parquet and DynamoDB: {e}",
+                exc_info=True,
+            )
+            traceback.print_exc()
+            raise
 
 
 async def dummy_aiosqlite_write():
