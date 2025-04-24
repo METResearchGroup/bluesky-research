@@ -11,7 +11,7 @@ import json
 import os
 import sqlite3
 import time
-from typing import Optional
+from typing import Iterable, Optional
 import re
 
 from pydantic import BaseModel, Field, field_validator
@@ -459,7 +459,7 @@ class Queue:
             items.append(item)
         return items
 
-    def batch_delete_items_by_ids(self, ids: list[int]) -> int:
+    def batch_delete_items_by_ids(self, ids: Iterable[int]) -> int:
         """Delete multiple items from queue by their ids.
 
         Args:

@@ -828,7 +828,7 @@ class PDSEndpointWorker:
         logger.info("Persisting SQLite queue records to permanent storage...")
 
         items: list[dict] = self.output_results_queue.load_dict_items_from_queue()
-        batch_ids: list[str] = [item["batch_id"] for item in items]
+        batch_ids: set[str] = {item["batch_id"] for item in items}
 
         total_items: int = len(items)
         logger.info(
@@ -1074,9 +1074,9 @@ class PDSEndpointWorker:
             deadletter_items: list[dict] = (
                 self.output_deadletter_queue.load_dict_items_from_queue()
             )
-            deadletter_batch_ids: list[str] = [
+            deadletter_batch_ids: set[str] = {
                 item["batch_id"] for item in deadletter_items
-            ]
+            }
             logger.info(
                 f"(PDS endpoint: {self.pds_endpoint}): Loaded {len(deadletter_items)} deadletter items from queue..."
             )
