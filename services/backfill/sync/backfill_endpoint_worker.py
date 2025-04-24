@@ -123,16 +123,16 @@ def log_progress(
     4. Total DIDs processed so far in this run.
     5. Total requests made so far in this run.
     """
-    logger.info(f"=== Progress for PDS endpoint {pds_endpoint} ===")
-    logger.info(f"\tTotal DIDs for endpoint: {total_dids}")
-    logger.info(f"\tTotal DIDs previously processed {total_dids - total_filtered_dids}")
-    logger.info(f"\tTotal DIDs to be processed in this session: {total_filtered_dids}")
     logger.info(
-        f"\tTotal DIDS remaining in queue: {total_queued_dids}/{total_filtered_dids}"
+        f"=== Progress for PDS endpoint {pds_endpoint} ===\n"
+        f"\tTotal DIDs for endpoint: {total_dids}\n"
+        f"\tTotal DIDs previously processed {total_dids - total_filtered_dids}\n"
+        f"\tTotal DIDs to be processed in this session: {total_filtered_dids}\n"
+        f"\tTotal DIDS remaining in queue: {total_queued_dids}/{total_filtered_dids}\n"
+        f"\tTotal DIDs processed in this session: {total_records_flushed}\n"
+        f"\tTotal requests made in this session: {total_requests_made}\n"
+        f"=== End of progress for PDS endpoint {pds_endpoint} ==="
     )
-    logger.info(f"\tTotal DIDs processed in this session: {total_records_flushed}")
-    logger.info(f"\tTotal requests made in this session: {total_requests_made}")
-    logger.info(f"=== End of progress for PDS endpoint {pds_endpoint} ===")
 
 
 def get_write_queues(
@@ -321,7 +321,7 @@ class PDSEndpointWorker:
 
         if retry_count > max_retries:
             logger.info(
-                f"Failed to process DID {did} after {max_retries} retries. Adding to deadletter queue."
+                f"(PDS endpoint: {self.pds_endpoint}): Failed to process DID {did} after {max_retries} retries. Adding to deadletter queue."
             )
             await self.temp_deadletter_queue.put({"did": did, "content": ""})
             pdm.BACKFILL_QUEUE_SIZES.labels(
@@ -895,7 +895,7 @@ class PDSEndpointWorker:
             total_batch_reposts = len(batch_reposts)
             total_users = len(batch_user_counts)
             logger.info(
-                f"Batch {idx} has {total_users} total users, {total_batch_posts} posts, {total_batch_replies} replies, and {total_batch_reposts} reposts."
+                f"(PDS endpoint: {self.pds_endpoint}) :Batch {idx} has {total_users} total users, {total_batch_posts} posts, {total_batch_replies} replies, and {total_batch_reposts} reposts."
             )
             return (batch_posts, batch_replies, batch_reposts, batch_user_counts)
 
@@ -1009,6 +1009,7 @@ class PDSEndpointWorker:
                 replies_parquet_size = 0
 
             logger.info(f"""
+                (PDS endpoint: {self.pds_endpoint})
                 Estimated parquet sizes:
                 - posts: {posts_parquet_size:.2f} MB
                 - reposts: {reposts_parquet_size:.2f} MB
@@ -1168,7 +1169,7 @@ class PDSEndpointWorker:
             )
 
         logger.info(
-            f"Writing {len(user_backfill_metadata)} user backfill metadata to DB..."
+            f"(PDS endpoint: {self.pds_endpoint}): Writing {len(user_backfill_metadata)} user backfill metadata to DB..."
         )
 
         write_backfill_metadata_to_db(
