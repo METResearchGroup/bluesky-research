@@ -259,6 +259,7 @@ class PDSEndpointWorker:
         self.cpu_pool = cpu_pool
         self._batch_size = batch_size
         self._writer_task: asyncio.Task | None = None
+        self._db_task: asyncio.Task | None = None
 
         # Initialize queue size metrics
         pdm.BACKFILL_QUEUE_SIZES.labels(
@@ -519,8 +520,12 @@ class PDSEndpointWorker:
         # initialize the worker queue.
         await self._init_worker_queue()
 
-        # start the background DB writer.
+        # start the background writer to write to SQLite queues.
         self._writer_task = asyncio.create_task(self._writer())
+
+        # start the background writer to write SQLite queues to persistent
+        # DB storage.
+        self._db_task = asyncio.create_task(self.write_queue_to_db())
 
         # create worker tasks. These worker tasks will pull DIDs from the
         # worker queue and process them. Fixed relative to desired QPS.
@@ -608,6 +613,10 @@ class PDSEndpointWorker:
             self._writer_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._writer_task
+        if self._db_task:
+            self._db_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._db_task
         await self.output_results_queue.close()
         await self.output_deadletter_queue.close()
 
