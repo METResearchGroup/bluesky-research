@@ -1,6 +1,6 @@
 """Worker class for managing the backfill for a single PDS endpoint."""
 
-import traceback
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 import pandas as pd
@@ -17,7 +17,10 @@ import collections
 
 
 from lib.constants import timestamp_format
-from lib.db.manage_local_data import export_data_to_local_storage
+from lib.db.manage_local_data import (
+    export_data_to_local_storage,
+    load_data_from_local_storage,
+)
 from lib.db.queue import Queue
 from lib.db.rate_limiter import AsyncTokenBucket
 from lib.helper import generate_current_datetime_str, create_batches
@@ -36,7 +39,6 @@ from services.backfill.sync.backfill import (
     postprocess_backfilled_record,
 )
 from services.backfill.sync.constants import current_dir
-from services.backfill.sync.dynamodb_utils import get_dids_by_pds_endpoint
 from services.backfill.sync.models import UserBackfillMetadata
 from services.backfill.sync.session_metadata import write_backfill_metadata_to_db
 
@@ -76,13 +78,36 @@ def get_dids_from_queues(pds_endpoint: str) -> list[str]:
     return dids
 
 
+def load_previously_liked_post_uris() -> set[str]:
+    """Load the URIs of posts that have been liked by study users."""
+    active_df = load_data_from_local_storage(
+        service="raw_sync",
+        directory="active",
+        custom_args={"record_type": "like"},
+    )
+    cache_df = load_data_from_local_storage(
+        service="raw_sync",
+        directory="cache",
+        custom_args={"record_type": "like"},
+    )
+    df = pd.concat([active_df, cache_df])
+    liked_post_uris = set(df["uri"])
+    logger.info(f"Loaded {len(liked_post_uris)} liked post URIs")
+    return liked_post_uris
+
+
 def get_previously_processed_dids(pds_endpoint: str) -> set[str]:
     """Load previously processed DIDs from both DynamoDB (if the backfill
     is already 100% completed) and from the queues (if the backfill is
     not yet 100% completed, and thus the DIDs haven't been written to
     DynamoDB yet)."""
-    dynamodb_previously_processed_dids = get_dids_by_pds_endpoint(pds_endpoint)
-    queue_previously_processed_dids = get_dids_from_queues(pds_endpoint)
+
+    # TODO: uncomment this.
+    # dynamodb_previously_processed_dids = get_dids_by_pds_endpoint(pds_endpoint)
+    # queue_previously_processed_dids = get_dids_from_queues(pds_endpoint)
+
+    dynamodb_previously_processed_dids = set()
+    queue_previously_processed_dids = set()
 
     return set(dynamodb_previously_processed_dids) | set(
         queue_previously_processed_dids
@@ -279,6 +304,8 @@ class PDSEndpointWorker:
         # Track a rolling window of response times
         self.response_times = collections.deque(maxlen=20)
 
+        self.liked_post_uris = load_previously_liked_post_uris()
+
     async def _init_worker_queue(self):
         for did in self.dids:
             await self.temp_work_queue.put({"did": did})
@@ -289,14 +316,18 @@ class PDSEndpointWorker:
         ).set(queue_size)
         pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(queue_size)
 
-    @staticmethod
-    def _filter_records(records: list[dict]) -> list[dict]:
+    def _check_if_record_has_liked_uri(self, record: dict) -> bool:
+        """Check if the record has a liked URI."""
+        return record["uri"] in self.liked_post_uris
+
+    def _filter_records(self, records: list[dict]) -> list[dict]:
         """Filter for only posts/reposts in the date range of interest."""
         return [
             record
             for record in records
             if filter_only_valid_bsky_posts(record)
             and validate_time_range_record(record)
+            and self._check_if_record_has_liked_uri(record)
         ]
 
     async def _process_did(
@@ -424,7 +455,7 @@ class PDSEndpointWorker:
                     )
                     records: list[dict] = await loop.run_in_executor(
                         self.cpu_pool,
-                        PDSEndpointWorker._filter_records,
+                        self._filter_records,
                         raw_records,
                     )
                     processing_time = time.perf_counter() - processing_start
@@ -533,7 +564,7 @@ class PDSEndpointWorker:
 
         logger.info(f"(PDS endpoint: {self.pds_endpoint}): Starting writer tasks...")
         # start the background writer to write to SQLite queues.
-        # self._writer_task = asyncio.create_task(self._writer())
+        self._writer_task = asyncio.create_task(self._writer())
 
         # start the background writer to write SQLite queues to persistent
         # DB storage.
@@ -621,11 +652,14 @@ class PDSEndpointWorker:
         )
         # we don't delete rows from the queue here because we delete the
         # queue later on anyways.
-        user_to_total_per_record_type_map = await self.persist_to_db(
-            delete_rows_from_queue=False
+        loop = asyncio.get_running_loop()
+        user_to_total_per_record_type_map = await loop.run_in_executor(
+            self.cpu_pool, self._sync_persist_to_db, False
         )
-        self.write_backfill_metadata_to_db(
-            user_to_total_per_record_type_map=user_to_total_per_record_type_map
+        await loop.run_in_executor(
+            self.cpu_pool,
+            self.write_backfill_metadata_to_db,
+            user_to_total_per_record_type_map,
         )
         logger.info(
             f"(PDS endpoint {self.pds_endpoint}): Completed persisting to DB and exporting metadata."
@@ -688,86 +722,66 @@ class PDSEndpointWorker:
                         endpoint=self.pds_endpoint, queue_type="deadletter"
                     ).set(self.temp_deadletter_queue.qsize())
 
-                total_result_buffer_size = len(result_buffer)
-                total_deadletter_buffer_size = len(deadletter_buffer)
-                total_buffer_size = (
-                    total_result_buffer_size + total_deadletter_buffer_size
-                )
+                total_buffer_size = len(result_buffer) + len(deadletter_buffer)
 
-                # If we received final flush signal, flush remaining buffers regardless of size
-                if final_flush_signal:
-                    logger.info(
-                        f"(PDS endpoint: {self.pds_endpoint}): Received final flush signal. Flushing remaining buffers: {total_buffer_size} records ({total_result_buffer_size} results and {total_deadletter_buffer_size} deadletters)."
-                    )
+                # If we received final flush signal or batch size reached
+                if final_flush_signal or total_buffer_size >= batch_size:
                     if result_buffer or deadletter_buffer:
-                        await self._async_flush_buffers(
-                            result_buffer=result_buffer,
-                            deadletter_buffer=deadletter_buffer,
-                        )
-                        logger.info(
-                            f"(PDS endpoint: {self.pds_endpoint}): Final flush completed successfully."
-                        )
-                    return  # Exit the writer task
+                        # Create copies of buffers for processing
+                        results_to_process = result_buffer.copy()
+                        deadletters_to_process = deadletter_buffer.copy()
 
-                # Regular batch flush check
-                if total_buffer_size >= batch_size:
-                    flush_start = time.perf_counter()
-                    await self._async_flush_buffers(
-                        result_buffer=result_buffer, deadletter_buffer=deadletter_buffer
-                    )
-                    flush_time = time.perf_counter() - flush_start
-                    pdm.BACKFILL_DB_FLUSH_SECONDS.labels(
-                        endpoint=self.pds_endpoint
-                    ).observe(flush_time)
-                    global_total_records_flushed += total_buffer_size
-                    result_buffer = []
-                    deadletter_buffer = []
-                    log_progress(
-                        pds_endpoint=self.pds_endpoint,
-                        total_dids=self.original_total_dids,
-                        total_filtered_dids=self.total_dids_post_filter,
-                        total_queued_dids=self.temp_work_queue.qsize(),
-                        total_records_flushed=global_total_records_flushed,
-                        total_requests_made=self.total_requests,
-                    )
+                        # Clear buffers immediately so we can continue collecting
+                        if not final_flush_signal:
+                            result_buffer = []
+                            deadletter_buffer = []
 
-                # Avoid tight loop if both queues are empty
+                        # Offload CPU-intensive flush to thread pool
+                        loop = asyncio.get_running_loop()
+                        await loop.run_in_executor(
+                            self.cpu_pool,
+                            self._sync_flush_buffers,
+                            results_to_process,
+                            deadletters_to_process,
+                        )
+
+                        global_total_records_flushed += total_buffer_size
+
+                        # Log progress after work is done
+                        log_progress(
+                            pds_endpoint=self.pds_endpoint,
+                            total_dids=self.original_total_dids,
+                            total_filtered_dids=self.total_dids_post_filter,
+                            total_queued_dids=self.temp_work_queue.qsize(),
+                            total_records_flushed=global_total_records_flushed,
+                            total_requests_made=self.total_requests,
+                        )
+
+                    if final_flush_signal:
+                        return  # Exit the writer task
+
+                # Yield control when queues are empty
                 if (
                     self.temp_results_queue.empty()
                     and self.temp_deadletter_queue.empty()
                 ):
-                    # make for a more flexible wait. This doesn't have to waste
-                    # too many CPU cycles checking queues too frequently. It
-                    # can wait a while and check again.
-                    # await asyncio.sleep(0.1)
-                    await asyncio.sleep(30)
+                    await asyncio.sleep(1.0)  # 1 second is a good balance
         except Exception as e:
             logger.error(f"Error in writer: {e}", exc_info=True)
             raise
         finally:
             logger.info(f"Writer task for {self.pds_endpoint} finished.")
 
-    async def _async_flush_buffers(
-        self,
-        result_buffer: list[dict],
-        deadletter_buffer: list[dict],
+    def _sync_flush_buffers(
+        self, result_buffer: list[dict], deadletter_buffer: list[dict]
     ) -> None:
-        """Helper to flush buffers to permanent storage."""
-        total_results_buffer = len(result_buffer)
-        total_deadletter_buffer = len(deadletter_buffer)
-        total_buffer = total_results_buffer + total_deadletter_buffer
-        logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Flushing {total_buffer} results: {total_results_buffer} records and {total_deadletter_buffer} deadletters to permanent storage."
-        )
-        current_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
-
+        """Synchronous version of flush operation for thread pool execution."""
         flush_start = time.perf_counter()
 
-        logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Starting flush to results queue..."
-        )
-        try:
-            await self.output_results_queue.async_batch_add_items_to_queue(
+        current_timestamp = generate_current_datetime_str()
+
+        if result_buffer:
+            self.output_results_queue.batch_add_items_to_queue(
                 items=result_buffer,
                 metadata={
                     "timestamp": current_timestamp,
@@ -775,53 +789,25 @@ class PDSEndpointWorker:
                     "dids": [item["did"] for item in result_buffer],
                 },
             )
-        except Exception as e:
-            logger.error(
-                f"SQLite operation failed for results flush: {e}", exc_info=True
+
+        if deadletter_buffer:
+            self.output_deadletter_queue.batch_add_items_to_queue(
+                items=deadletter_buffer,
+                metadata={
+                    "timestamp": current_timestamp,
+                    "total_records": len(deadletter_buffer),
+                    "dids": [item["did"] for item in deadletter_buffer],
+                },
             )
-            raise
+
+        flush_time = time.perf_counter() - flush_start
+        pdm.BACKFILL_PROCESSING_SECONDS.labels(
+            endpoint=self.pds_endpoint, operation_type="db_flush"
+        ).observe(flush_time)
+
         logger.info(
-            f"(PDS endpoint: {self.pds_endpoint}): Finished flushing results queue."
+            f"(PDS endpoint: {self.pds_endpoint}): Finished flushing {len(result_buffer)} results and {len(deadletter_buffer)} deadletters to storage in {flush_time:.2f}s."
         )
-        total_deadletter_buffer = len(deadletter_buffer)
-        if total_deadletter_buffer > 0:
-            logger.info(
-                f"(PDS endpoint: {self.pds_endpoint}): Flushing {total_deadletter_buffer} deadletters to permanent storage."
-            )
-            try:
-                await self.output_deadletter_queue.async_batch_add_items_to_queue(
-                    items=deadletter_buffer,
-                    metadata={
-                        "timestamp": current_timestamp,
-                        "total_records": len(deadletter_buffer),
-                        "dids": [item["did"] for item in deadletter_buffer],
-                    },
-                )
-            except Exception as e:
-                logger.error(
-                    f"SQLite operation failed for deadletter flush: {e}", exc_info=True
-                )
-                raise
-            logger.info(
-                f"(PDS endpoint: {self.pds_endpoint}): Finished flushing deadletter queue."
-            )
-        else:
-            logger.info(
-                f"(PDS endpoint: {self.pds_endpoint}): No deadletters to flush."
-            )
-
-        try:
-            flush_time = time.perf_counter() - flush_start
-            pdm.BACKFILL_PROCESSING_SECONDS.labels(
-                endpoint=self.pds_endpoint, operation_type="db_flush"
-            ).observe(flush_time)
-
-            logger.info(
-                f"(PDS endpoint: {self.pds_endpoint}): Finished flushing {total_buffer} results: {total_results_buffer} records and {total_deadletter_buffer} deadletters to permanent storage in {flush_time:.2f}s."
-            )
-        except Exception as e:
-            logger.error(f"Error in _async_flush_buffers: {e}", exc_info=True)
-            raise
 
     def _estimate_parquet_write_size(
         self,
@@ -861,6 +847,16 @@ class PDSEndpointWorker:
 
         items: list[dict] = self.output_results_queue.load_dict_items_from_queue()
         batch_ids: set[str] = {item["batch_id"] for item in items}
+        deadletter_items: list[dict] = (
+            self.output_deadletter_queue.load_dict_items_from_queue()
+        )
+        deadletter_batch_ids: set[str] = {item["batch_id"] for item in deadletter_items}
+
+        if len(items) == 0 and len(deadletter_items) == 0:
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): No items to persist to DB."
+            )
+            return {}
 
         total_items: int = len(items)
         logger.info(
@@ -882,7 +878,7 @@ class PDSEndpointWorker:
                 user_did = item["did"]
 
                 # Filter records
-                records = PDSEndpointWorker._filter_records(records=records)
+                records = self._filter_records(records=records)
 
                 # Initialize user counts if needed. Done outside the 'records'
                 # loop in case there are 0 records for a user.
@@ -1104,12 +1100,6 @@ class PDSEndpointWorker:
             )
 
             # add deadletter queue records to counts.
-            deadletter_items: list[dict] = (
-                self.output_deadletter_queue.load_dict_items_from_queue()
-            )
-            deadletter_batch_ids: set[str] = {
-                item["batch_id"] for item in deadletter_items
-            }
             logger.info(
                 f"(PDS endpoint: {self.pds_endpoint}): Loaded {len(deadletter_items)} deadletter items from queue..."
             )
@@ -1221,51 +1211,343 @@ class PDSEndpointWorker:
         logger.info(f"(PDS endpoint {self.pds_endpoint}): Queues deleted.")
 
     async def _write_queue_to_db(self):
-        """Background task that writes the records in the SQLite queues to the
-        DB."""
-        total_queued_results: int = self.output_results_queue.get_queue_length()
-        total_queued_deadletters: int = self.output_deadletter_queue.get_queue_length()
-
-        total_queued = total_queued_results + total_queued_deadletters
-        # since these are batched, with a default batch size of 100 DIDs
-        # per row, this threshold is actually * 100 DIDs.
-        threshold_total_queued_result = 50
-
+        """Background task that writes the records in the SQLite queues to the DB."""
         try:
             while True:
+                total_queued_results = self.output_results_queue.get_queue_length()
+                total_queued_deadletters = (
+                    self.output_deadletter_queue.get_queue_length()
+                )
+                total_queued = total_queued_results + total_queued_deadletters
+                threshold_total_queued_result = 50
+
                 if total_queued > threshold_total_queued_result:
                     logger.info(
-                        f"(PDS endpoint: {self.pds_endpoint}) Total queued records: {total_queued} (results: {total_queued_results}, deadletters: {total_queued_deadletters}) > threshold of {threshold_total_queued_result}, writing to DB..."
+                        f"(PDS endpoint: {self.pds_endpoint}) Total queued records: {total_queued} > threshold, writing to DB..."
                     )
-                    user_to_total_per_record_type_map = await self.persist_to_db(
-                        delete_rows_from_queue=True
+
+                    # Offload CPU-intensive persist_to_db to thread pool
+                    loop = asyncio.get_running_loop()
+                    user_to_total_per_record_type_map = await loop.run_in_executor(
+                        self.cpu_pool, self._sync_persist_to_db
                     )
+
+                    # Metadata writing can also be intensive, offload it too
+                    await loop.run_in_executor(
+                        self.cpu_pool,
+                        self.write_backfill_metadata_to_db,
+                        user_to_total_per_record_type_map,
+                    )
+
                     logger.info(
-                        f"(PDS endpoint: {self.pds_endpoint}) Completed writing queues to .parquet and DynamoDB as well as deleting queue records. Writing metadata to DB..."
-                    )
-                    await self.write_backfill_metadata_to_db(
-                        user_to_total_per_record_type_map
-                    )
-                    logger.info(
-                        f"(PDS endpoint: {self.pds_endpoint}) Completed writing metadata to DB."
+                        f"(PDS endpoint: {self.pds_endpoint}) Completed DB operations."
                     )
                 else:
-                    # add to prevent a tight loop that doesn't yield to other
-                    # tasks. Without the await, the task will run continuously
-                    # and consume CPU and prevent other tasks from running.
-                    # This isn't urgent and can wait a while, so we set the
-                    # sleep to be quite generous (60 seconds)
-                    await asyncio.sleep(60)
-
+                    # More generous sleep when nothing to do
+                    await asyncio.sleep(10)
         except Exception as e:
-            logger.error(
-                f"(PDS endpoint: {self.pds_endpoint}) Error writing queues to .parquet and DynamoDB: {e}",
-                exc_info=True,
-            )
-            traceback.print_exc()
+            logger.error(f"Error in _write_queue_to_db: {e}", exc_info=True)
             raise
         finally:
-            logger.info(f"Writer task for {self.pds_endpoint} finished.")
+            logger.info(f"DB writer task for {self.pds_endpoint} finished.")
+
+    def _sync_persist_to_db(self, delete_rows_from_queue: bool = True) -> dict:
+        """Synchronous version of persist_to_db for thread pool execution.
+
+        Writes records to permanent .parquet storage without blocking the event loop.
+
+        Args:
+            delete_rows_from_queue: Whether to delete processed items from the queue
+
+        Returns:
+            Dictionary mapping user DIDs to their record counts by type
+        """
+        logger.info("Persisting SQLite queue records to permanent storage...")
+
+        items: list[dict] = self.output_results_queue.load_dict_items_from_queue()
+        batch_ids: set[str] = {item["batch_id"] for item in items}
+
+        total_items: int = len(items)
+        logger.info(
+            f"(PDS endpoint: {self.pds_endpoint}): Persisting {total_items} items to DB..."
+        )
+
+        def process_batch(
+            batch: list[dict],
+            idx: int,
+        ) -> tuple[list[dict], list[dict], list[dict], dict]:
+            """Process a batch of items and return categorized records and user counts."""
+            batch_posts = []
+            batch_replies = []
+            batch_reposts = []
+            batch_user_counts = {}
+
+            for item in batch:
+                records = item["content"]
+                user_did = item["did"]
+
+                # Filter records
+                records = self._filter_records(records=records)
+
+                # Initialize user counts if needed
+                if user_did not in batch_user_counts:
+                    batch_user_counts[user_did] = {
+                        "post": 0,
+                        "repost": 0,
+                        "reply": 0,
+                    }
+
+                for record in records:
+                    record_type: str = record.get(
+                        "record_type", identify_record_type(record)
+                    )
+
+                    # Transform and postprocess
+                    record = transform_backfilled_record(
+                        record=record,
+                        record_type=record_type,
+                        start_timestamp="2024-09-01-00:00:00",
+                        end_timestamp="2024-12-02-00:00:00",
+                    )
+                    record = postprocess_backfilled_record(record)
+
+                    # Categorize by record type
+                    if record_type == "post":
+                        batch_posts.append(record)
+                        batch_user_counts[user_did]["post"] += 1
+                    elif record_type == "repost":
+                        batch_reposts.append(record)
+                        batch_user_counts[user_did]["repost"] += 1
+                    elif record_type == "reply":
+                        batch_replies.append(record)
+                        batch_user_counts[user_did]["reply"] += 1
+                    else:
+                        raise ValueError(
+                            f"Unknown record type for item being written to DB: {record_type}"
+                        )
+
+            total_batch_posts = len(batch_posts)
+            total_batch_replies = len(batch_replies)
+            total_batch_reposts = len(batch_reposts)
+            total_users = len(batch_user_counts)
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}) :Batch {idx} has {total_users} total users, {total_batch_posts} posts, {total_batch_replies} replies, and {total_batch_reposts} reposts."
+            )
+            return (batch_posts, batch_replies, batch_reposts, batch_user_counts)
+
+        try:
+            num_threads = 4
+            batch_size = max(1, len(items) // num_threads)
+            batches = create_batches(items, batch_size)
+            num_batches = len(batches)
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Processing {num_batches} batches of {batch_size} items each (total {total_items} items)..."
+            )
+            results = []
+            with ThreadPoolExecutor(max_workers=num_threads) as executor:
+                futures = [
+                    executor.submit(process_batch, batch, i)
+                    for i, batch in enumerate(batches)
+                ]
+                # Wait for all futures to complete and collect results
+                for future in futures:
+                    results.append(future.result())
+
+            # Combine results
+            posts, replies, reposts = [], [], []
+            user_to_total_per_record_type_map = {}
+
+            for batch_posts, batch_replies, batch_reposts, batch_user_counts in results:
+                posts.extend(batch_posts)
+                replies.extend(batch_replies)
+                reposts.extend(batch_reposts)
+
+                # Merge user counts
+                for user_did, counts in batch_user_counts.items():
+                    if user_did not in user_to_total_per_record_type_map:
+                        user_to_total_per_record_type_map[user_did] = {
+                            "post": 0,
+                            "repost": 0,
+                            "reply": 0,
+                        }
+
+                    user_to_total_per_record_type_map[user_did]["post"] += counts[
+                        "post"
+                    ]
+                    user_to_total_per_record_type_map[user_did]["repost"] += counts[
+                        "repost"
+                    ]
+                    user_to_total_per_record_type_map[user_did]["reply"] += counts[
+                        "reply"
+                    ]
+
+            logger.info(
+                f"Parallel processing complete: {len(posts)} posts, {len(reposts)} reposts, {len(replies)} replies"
+            )
+
+            # Create DataFrames - same as before
+            posts_df = pd.DataFrame(posts) if posts else pd.DataFrame()
+            reposts_df = pd.DataFrame(reposts) if reposts else pd.DataFrame()
+            replies_df = pd.DataFrame(replies) if replies else pd.DataFrame()
+
+            total_posts = len(posts_df)
+            total_reposts = len(reposts_df)
+            total_replies = len(replies_df)
+
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage..."
+            )
+
+            # Get baseline measures of write size - same as before
+            sample_factor = 0.01  # 1% of total rows.
+            posts_parquet_size = 0
+            reposts_parquet_size = 0
+            replies_parquet_size = 0
+
+            if total_posts > 0:
+                posts_sample_size = max(1, int(total_posts * sample_factor))
+                posts_sample_df = posts_df.sample(n=posts_sample_size)
+                posts_parquet_size = self._estimate_parquet_write_size(
+                    record_type="post",
+                    sample_df=posts_sample_df,
+                    sample_size=posts_sample_size,
+                    total_rows=total_posts,
+                )
+
+            if total_reposts > 0:
+                reposts_sample_size = max(1, int(total_reposts * sample_factor))
+                reposts_sample_df = reposts_df.sample(n=reposts_sample_size)
+                reposts_parquet_size = self._estimate_parquet_write_size(
+                    record_type="repost",
+                    sample_df=reposts_sample_df,
+                    sample_size=reposts_sample_size,
+                    total_rows=total_reposts,
+                )
+
+            if total_replies > 0:
+                replies_sample_size = max(1, int(total_replies * sample_factor))
+                replies_sample_df = replies_df.sample(n=replies_sample_size)
+                replies_parquet_size = self._estimate_parquet_write_size(
+                    record_type="reply",
+                    sample_df=replies_sample_df,
+                    sample_size=replies_sample_size,
+                    total_rows=total_replies,
+                )
+
+            logger.info(f"""
+                (PDS endpoint: {self.pds_endpoint})
+                Estimated parquet sizes:
+                - posts: {posts_parquet_size:.2f} MB
+                - reposts: {reposts_parquet_size:.2f} MB
+                - replies: {replies_parquet_size:.2f} MB
+            """)
+
+            service = "raw_sync"
+
+            # Export data to storage - same as before
+            if total_posts > 0:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Exporting posts to local storage..."
+                )
+                export_data_to_local_storage(
+                    service=service,
+                    df=posts_df,
+                    custom_args={"record_type": "post"},
+                )
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Exported posts to local storage."
+                )
+            else:
+                logger.info(f"(PDS endpoint: {self.pds_endpoint}): No posts to export.")
+
+            if total_reposts > 0:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Exporting reposts to local storage..."
+                )
+                export_data_to_local_storage(
+                    service=service,
+                    df=reposts_df,
+                    custom_args={"record_type": "repost"},
+                )
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Exported reposts to local storage."
+                )
+            else:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): No reposts to export."
+                )
+
+            if total_replies > 0:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Exporting replies to local storage..."
+                )
+                export_data_to_local_storage(
+                    service=service,
+                    df=replies_df,
+                    custom_args={"record_type": "reply"},
+                )
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Exported replies to local storage."
+                )
+            else:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): No replies to export."
+                )
+
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Finished persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage."
+            )
+
+            # Handle deadletter queue - same as before
+            deadletter_items = self.output_deadletter_queue.load_dict_items_from_queue()
+            deadletter_batch_ids = {item["batch_id"] for item in deadletter_items}
+
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Loaded {len(deadletter_items)} deadletter items from queue..."
+            )
+
+            for item in deadletter_items:
+                did = item["did"]
+                if did not in user_to_total_per_record_type_map:
+                    user_to_total_per_record_type_map[did] = {
+                        "post": 0,
+                        "repost": 0,
+                        "reply": 0,
+                    }
+
+            logger.info(
+                f"(PDS endpoint: {self.pds_endpoint}): Total user records to export as metadata (after adding deadletter items): {len(user_to_total_per_record_type_map)}"
+            )
+
+            # Delete rows from queue if requested
+            if delete_rows_from_queue:
+                logger.info(
+                    f"(PDS endpoint: {self.pds_endpoint}): Deleting rows from queues..."
+                )
+                if batch_ids:
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Deleting {len(batch_ids)} rows from queue..."
+                    )
+                    self.output_results_queue.batch_delete_items_by_ids(batch_ids)
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Deleted {len(batch_ids)} rows from queue."
+                    )
+                if deadletter_batch_ids:
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Deleting {len(deadletter_batch_ids)} rows from deadletter queue..."
+                    )
+                    self.output_deadletter_queue.batch_delete_items_by_ids(
+                        deadletter_batch_ids
+                    )
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Deleted {len(deadletter_batch_ids)} rows from deadletter queue."
+                    )
+
+            return user_to_total_per_record_type_map
+
+        except Exception as e:
+            logger.error(f"Error persisting to DB: {e}", exc_info=True)
+            raise
 
 
 async def dummy_aiosqlite_write():
