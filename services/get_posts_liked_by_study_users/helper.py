@@ -115,6 +115,26 @@ def load_likes_for_partition_date(partition_date: str):
     return df
 
 
+def load_likes_for_lookback_range(lookback_start_date: str, lookback_end_date: str):
+    """Load the likes for a given lookback range."""
+    active_df = load_data_from_local_storage(
+        service="raw_sync",
+        directory="active",
+        custom_args={"record_type": "like"},
+        start_partition_date=lookback_start_date,
+        end_partition_date=lookback_end_date,
+    )
+    cache_df = load_data_from_local_storage(
+        service="raw_sync",
+        directory="cache",
+        custom_args={"record_type": "like"},
+        start_partition_date=lookback_start_date,
+        end_partition_date=lookback_end_date,
+    )
+    df = pd.concat([active_df, cache_df])
+    return df
+
+
 def load_raw_posts_for_likes_from_partition_date(partition_date: str):
     """Load the raw posts, replies, and reposts to check against likes from a
     given partition date."""
@@ -212,3 +232,13 @@ def get_and_export_liked_posts_for_partition_dates(
     )
     for partition_date in partition_dates:
         get_and_export_liked_posts_for_partition_date(partition_date)
+
+
+if __name__ == "__main__":
+    likes = load_likes_for_lookback_range(
+        lookback_start_date="2024-09-28",
+        lookback_end_date="2024-12-01",
+    )
+    # TODO: get the URIs and export, then load these into `backfill_endpoint_worker`
+    # and then use that to filter the records.
+    breakpoint()

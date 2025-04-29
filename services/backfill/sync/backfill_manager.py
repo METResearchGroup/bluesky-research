@@ -1,10 +1,10 @@
 """Manager class for running PDS backfill sync across multiple DIDs and PDS
 endpoints."""
 
+from typing import Optional
 import aiohttp
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-import json
 import os
 from pprint import pprint
 import random
@@ -18,10 +18,12 @@ from lib.telemetry.prometheus.server import start_metrics_server
 from services.backfill.sync.backfill import get_plc_directory_doc
 from services.backfill.sync.backfill_endpoint_worker import (
     get_previously_processed_dids,
+    get_write_queues,
     PDSEndpointWorker,
 )
 from services.backfill.sync.constants import current_dir
 from services.backfill.sync.determine_dids_to_backfill import sqlite_db_path
+from services.backfill.sync.write_queue_to_db import write_pds_queue_to_db
 
 # this is backfilled from `determine_dids_to_backfill.py`, which is triggered
 # in the handler.py file.
@@ -51,7 +53,8 @@ logging_minibatch_size = 25
 # max_plc_threads = 4
 max_plc_threads = 64
 # max PDS endpoints to sync at once.
-max_pds_endpoints_to_sync = 32
+# max_pds_endpoints_to_sync = 32
+max_pds_endpoints_to_sync = 200  # top 200 PDS endpoints.
 
 # I want to focus on the big PDS endpoints as opposed to custom PDSes, so I'll
 # set a minimum # of DIDs that a PDS endpoint must have before it is synced.
@@ -289,19 +292,6 @@ def calculate_completed_pds_endpoint_backfills(
     return completed_pds_endpoint_backfills
 
 
-def calculate_pds_endpoints_to_skip(
-    pds_endpoint_to_dids_map: dict[str, list[str]],
-) -> list[str]:
-    """Calculates the PDS endpoints to skip based on checking which ones
-    are already completed."""
-    pds_endpoints_to_skip = ["invalid_doc"]
-    completed_pds_endpoint_backfills = calculate_completed_pds_endpoint_backfills(
-        pds_endpoint_to_dids_map=pds_endpoint_to_dids_map
-    )
-    pds_endpoints_to_skip.extend(completed_pds_endpoint_backfills)
-    return pds_endpoints_to_skip
-
-
 async def run_pds_backfills(
     dids: list[str],
     pds_endpoint_to_dids_map: dict[str, list[str]],
@@ -317,9 +307,28 @@ async def run_pds_backfills(
     """
     # TODO: figure out optimal # of threads to use. Just used default from
     # ChatGPT.
-    cpu_pool = ThreadPoolExecutor(max_workers=2 * (os.cpu_count() or 4))
-    async with aiohttp.ClientSession() as session:
-        for pds_endpoint, dids in pds_endpoint_to_dids_map.items():
+
+    max_threads = 6
+    max_workers_per_thread = 4
+
+    # TODO: this shouldn't be necessary? Unsure why. I suppose it's because I
+    # create a separate instance of `PDSEndpointWorker` for each PDS endpoint,
+    # I'm not sure how this is managed across threads. Maybe not enough threads
+    # to go around?
+    pds_endpoints_to_sync = list(pds_endpoint_to_dids_map.keys())[:max_threads]
+    pds_endpoint_to_dids_map = {
+        pds_endpoint: pds_endpoint_to_dids_map[pds_endpoint]
+        for pds_endpoint in pds_endpoints_to_sync
+    }
+    logger.info(
+        f"Syncing {len(pds_endpoints_to_sync)} PDS endpoints: {pds_endpoints_to_sync}"
+    )
+
+    semaphore = asyncio.Semaphore(max_threads)
+
+    async def run_single_pds_backfill(pds_endpoint: str, dids: list[str]) -> None:
+        cpu_pool = ThreadPoolExecutor(max_workers=max_workers_per_thread)
+        async with aiohttp.ClientSession() as session:
             logger.info(
                 f"Starting PDS backfill for {pds_endpoint} with {len(dids)} DIDs."
             )
@@ -330,12 +339,25 @@ async def run_pds_backfills(
                 cpu_pool=cpu_pool,
             )
             await worker.start()
+            logger.info(f"Worker started for {pds_endpoint}, waiting for completion...")
             await worker.wait_done()
             await worker.shutdown()
             logger.info(f"Completed PDS backfill for {pds_endpoint}.")
-            break
+        cpu_pool.shutdown(wait=True)
 
-    cpu_pool.shutdown(wait=True)
+    async def limited_backfill(pds_endpoint: str, dids: list[str]) -> None:
+        async with semaphore:
+            await run_single_pds_backfill(pds_endpoint, dids)
+
+    # Create a list of coroutines instead of ThreadPoolExecutor futures
+    tasks = [
+        limited_backfill(pds_endpoint, endpoint_dids)
+        for pds_endpoint, endpoint_dids in pds_endpoint_to_dids_map.items()
+    ]
+
+    # Run them concurrently using asyncio
+    await asyncio.gather(*tasks)
+
     logger.info("All PDS backfills completed.")
 
 
@@ -390,19 +412,19 @@ def run_backfills(
 
     # Log the top endpoints
     logger.info("Top PDS endpoints by number of DIDs:")
-    for endpoint, count in sorted_endpoints[:10]:  # Show top 10
+    for endpoint, count in sorted_endpoints[:20]:  # Show top 20
         logger.info(f"  {endpoint}: {count} DIDs")
 
     # Export the PDS endpoint counts.
-    pds_endpoint_to_did_count_path = os.path.join(
-        current_dir, "pds_endpoint_to_did_count.json"
-    )
-    with open(pds_endpoint_to_did_count_path, "w") as f:
-        json.dump(pds_endpoint_to_did_count, f, indent=2)
+    # pds_endpoint_to_did_count_path = os.path.join(
+    #     current_dir, "pds_endpoint_to_did_count.json"
+    # )
+    # with open(pds_endpoint_to_did_count_path, "w") as f:
+    #     json.dump(pds_endpoint_to_did_count, f, indent=2)
 
-    logger.info(
-        f"Exported PDS endpoint to DID count map to {pds_endpoint_to_did_count_path}"
-    )
+    # logger.info(
+    #     f"Exported PDS endpoint to DID count map to {pds_endpoint_to_did_count_path}"
+    # )
 
     if plc_backfill_only:
         logger.info("Backfilling only PLC endpoints, skipping PDS endpoint backfill.")
@@ -419,10 +441,31 @@ def run_backfills(
         if len(dids) >= min_dids_per_pds_endpoint
     }
 
+    completed_pds_endpoint_backfills = calculate_completed_pds_endpoint_backfills(
+        pds_endpoint_to_dids_map=pds_endpoint_to_dids_map
+    )
+
+    # TODO: can just do this functionality with `write_queue_to_db.py`?
+    # check if any of the PDS endpoints are completed but still have queues
+    # that need to be flushed.
+    for pds_endpoint in completed_pds_endpoint_backfills:
+        queues = get_write_queues(pds_endpoint, skip_if_queue_not_found=True)
+        output_results_queue: Optional[Queue] = queues["output_results_queue"]
+        output_deadletter_queue: Optional[Queue] = queues["output_deadletter_queue"]
+
+        if output_results_queue or output_deadletter_queue:
+            logger.info(
+                f"PDS endpoint {pds_endpoint} is completed but still has queues that need to be flushed. Flushing them..."
+            )
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(write_pds_queue_to_db(pds_endpoint=pds_endpoint))
+            output_results_queue.delete_queue()
+            output_deadletter_queue.delete_queue()
+            logger.info(f"Flushed queues for PDS endpoint {pds_endpoint}.")
+
     if skip_completed_pds_endpoints:
-        pds_endpoints_to_skip = calculate_pds_endpoints_to_skip(
-            pds_endpoint_to_dids_map=pds_endpoint_to_dids_map
-        )
+        pds_endpoints_to_skip = ["invalid_doc"]
+        pds_endpoints_to_skip.extend(completed_pds_endpoint_backfills)
         logger.info(
             f"Skipping {len(pds_endpoints_to_skip)} PDS endpoints since their backfills are already completed: {pds_endpoints_to_skip}"
         )
