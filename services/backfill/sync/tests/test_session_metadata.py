@@ -116,8 +116,6 @@ class TestLoadLatestBackfilledUsers:
         assert result[0]["extra_col"] == "value1"
         assert result[1]["extra_col"] == "value2"
 
-
-class TestWriteUserSessionBackfillMetadataToDB:
     """Tests for write_user_session_backfill_metadata_to_db function.
     
     This test class verifies that the function correctly:
