@@ -6,11 +6,12 @@ Each queue will have their own SQLite instance in order to scale
 each queue independently.
 """
 
+import aiosqlite3
 import json
 import os
 import sqlite3
 import time
-from typing import Optional
+from typing import Iterable, Optional
 import re
 
 from pydantic import BaseModel, Field, field_validator
@@ -195,6 +196,20 @@ class Queue:
 
         return conn
 
+    async def _async_get_connection(self) -> sqlite3.Connection:
+        """Get an optimized SQLite connection with retry logic."""
+        conn = await aiosqlite3.connect(self.db_path)
+
+        # Configure connection for optimal performance
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA busy_timeout=30000")
+        conn.execute("PRAGMA cache_size=-64000")
+        conn.execute("PRAGMA mmap_size=268435456")
+        conn.execute("PRAGMA temp_store=MEMORY")
+
+        return conn
+
     def get_queue_length(self) -> int:
         """Get total number of items in queue with retry logic."""
         max_retries = 3
@@ -328,6 +343,69 @@ class Queue:
                 )
             conn.commit()
 
+    async def async_batch_add_items_to_queue(
+        self,
+        items: list[dict],
+        metadata: Optional[dict] = None,
+        batch_size: Optional[int] = DEFAULT_BATCH_CHUNK_SIZE,
+        batch_write_size: Optional[int] = DEFAULT_BATCH_WRITE_SIZE,
+    ) -> None:
+        """(Async) add multiple items to queue, processing in chunks for memory
+        efficiency.
+
+        Split chunks into further batches. e.g., with batch_size = 1000,
+        batch_write_size = 25, then if we have 50,000 items, it will be split
+        into 50 minibatches of 1,000 items each, and then it will be split into
+        2 batches of 25 minibatches each.
+
+        See https://markptorres.com/research/2025-01-31-effectiveness-of-sqlite
+        for writeup.
+        """
+        if metadata is None:
+            metadata = {}
+        chunks: list[list[dict]] = [
+            items[i : i + batch_size] for i in range(0, len(items), batch_size)
+        ]
+        minibatch_chunks: list[tuple[str, str, str, str]] = self._create_batched_chunks(
+            chunks=chunks, batch_size=batch_size, metadata=metadata
+        )
+
+        batch_chunks: list[list[tuple[str, str, str, str]]] = [
+            minibatch_chunks[i : i + batch_write_size]
+            for i in range(0, len(minibatch_chunks), batch_write_size)
+        ]
+
+        total_items = len(items)
+        total_batches = len(batch_chunks)
+        total_minibatches = len(minibatch_chunks)
+
+        logger.info(
+            f"Writing {total_items} items as {total_minibatches} minibatches to DB."
+        )
+        logger.info(
+            f"Writing {total_minibatches} minibatches to DB as {total_batches} batches..."
+        )
+
+        for i, batch_chunk in enumerate(batch_chunks):
+            if i % 10 == 0:
+                logger.info(f"Processing batch {i + 1}/{total_batches}...")
+            conn = await self._async_get_connection()
+            try:
+                await conn.executemany(
+                    f"""
+                    INSERT INTO {self.queue_table_name} (payload, metadata, created_at, status)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    batch_chunk,
+                )
+                await conn.commit()
+            except Exception as e:
+                logger.error(f"Failed to write batch {i+1}/{total_batches}: {e}")
+                # Consider whether to re-raise or continue with next batch
+                raise  # Re-raising will abort the entire operation
+            finally:
+                await conn.close()
+
     def remove_item_from_queue(self) -> Optional[QueueItem]:
         """Remove and return the next available item from the queue.
 
@@ -381,7 +459,7 @@ class Queue:
             items.append(item)
         return items
 
-    def batch_delete_items_by_ids(self, ids: list[int]) -> int:
+    def batch_delete_items_by_ids(self, ids: Iterable[int]) -> int:
         """Delete multiple items from queue by their ids.
 
         Args:
@@ -470,6 +548,13 @@ class Queue:
                 items.append(item)
 
             return items
+
+    def load_dict_items_metadata_from_queue(self) -> list[dict]:
+        """Load the metadata from the queue."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("SELECT id, metadata FROM queue")
+            rows = cursor.fetchall()
+            return [row[1] for row in rows]
 
     def load_dict_items_from_queue(
         self,
@@ -626,3 +711,20 @@ class Queue:
         except sqlite3.Error as e:
             logger.error(f"Database error executing query: {e}")
             raise
+
+    async def close(self) -> None:
+        """Close the queue.
+
+        This method is a placeholder to provide a consistent API.
+        Since we don't maintain persistent connections in this class,
+        this method is a no-op.
+
+        We sometimes run into an edge case during garbage collection when
+        Python is cleaning up objects. Having this API here helps with it.
+        """
+        pass
+
+    def delete_queue(self):
+        """Delete the queue."""
+        os.remove(self.db_path)
+        logger.info(f"Deleted queue {self.queue_name} at {self.db_path}")

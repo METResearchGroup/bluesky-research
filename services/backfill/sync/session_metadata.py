@@ -5,14 +5,12 @@ metadata for integrations instead of backfills (though TBH there's an argument
 for refactoring that to make it more consistent).
 """
 
-import os
-
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
-from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
+from services.backfill.sync.dynamodb_utils import batch_save_user_metadata
 from services.backfill.sync.models import UserBackfillMetadata
 
 athena = Athena()
@@ -52,11 +50,11 @@ def write_session_backfill_job_metadata_to_db(
     """Writes metadata of the backfill job to the database."""
     try:
         dynamodb.insert_item_into_table(
-            item=session_backfill_metadata.dict(),
+            item=session_backfill_metadata.model_dump(),
             table_name=dynamodb_table_name,
         )
         logger.info(
-            f"Successfully inserted session backfill metadata: {session_backfill_metadata.dict()}"
+            f"Successfully inserted session backfill metadata: {session_backfill_metadata.model_dump()}"
         )
     except Exception as e:
         logger.error(f"Error writing session backfill metadata to DynamoDB: {e}")
@@ -67,17 +65,10 @@ def write_user_session_backfill_metadata_to_db(
     user_backfill_metadata: list[UserBackfillMetadata],
 ) -> None:
     """Writes metadata for the users backfilled during a backfill job."""
-    user_backfill_metadata_dicts: list[dict] = [
-        user_backfill_metadata.model_dump()
-        for user_backfill_metadata in user_backfill_metadata
-    ]
-    if len(user_backfill_metadata_dicts) == 0:
-        logger.warning("No user backfill metadata to write to S3.")
-        return
-    timestamp = generate_current_datetime_str()
-    key = os.path.join("backfill_metadata", f"user_backfill_metadata_{timestamp}.jsonl")
-    s3.write_dicts_jsonl_to_s3(data=user_backfill_metadata_dicts, key=key)
-    logger.info(f"Successfully wrote user backfill metadata to S3: {key}")
+    batch_save_user_metadata(user_backfill_metadata)
+    logger.info(
+        f"Successfully wrote user backfill metadata to DynamoDB: {len(user_backfill_metadata)} users."
+    )
 
 
 def write_backfill_metadata_to_db(

@@ -16,6 +16,8 @@ class RawPostRecord(BaseModel):
     """
 
     py_type: str = Field(default="app.bsky.feed.post", alias="$type", frozen=True)
+    uri: str = Field(..., description="The URI of the post.")
+    cid: str = Field(..., description="The CID of the post.")
     createdAt: str = Field(
         ...,
         description="Client-declared timestamp when this post was originally created.",

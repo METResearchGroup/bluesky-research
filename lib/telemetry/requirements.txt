@@ -13,7 +13,9 @@ certifi==2024.12.14
     #   requests
     #   sentry-sdk
 charset-normalizer==3.4.1
-    # via requests
+    # via
+    #   niquests
+    #   requests
 click==8.1.8
     # via wandb
 comet-ml==3.47.1
@@ -34,10 +36,16 @@ gitdb==4.0.12
     # via gitpython
 gitpython==3.1.44
     # via wandb
+grafana-client==4.3.2
+    # via -r requirements.in
+h11==0.14.0
+    # via urllib3-future
 idna==3.10
     # via requests
 importlib-metadata==8.5.0
     # via opentelemetry-api
+jh2==5.0.8
+    # via urllib3-future
 jsonschema==4.23.0
     # via comet-ml
 jsonschema-specifications==2024.10.1
@@ -46,10 +54,14 @@ markdown-it-py==3.0.0
     # via rich
 mdurl==0.1.2
     # via markdown-it-py
+niquests==3.14.0
+    # via grafana-client
 opentelemetry-api==1.29.0
     # via -r requirements.in
 platformdirs==4.3.6
     # via wandb
+prometheus-client==0.19.0
+    # via -r requirements.in
 protobuf==5.29.3
     # via wandb
 psutil==6.1.1
@@ -62,6 +74,8 @@ python-box==6.1.0
     # via comet-ml
 pyyaml==6.0.2
     # via wandb
+qh3==1.4.5
+    # via urllib3-future
 referencing==0.36.2
     # via
     #   jsonschema
@@ -104,8 +118,14 @@ urllib3==2.3.0
     #   dulwich
     #   requests
     #   sentry-sdk
+urllib3-future==2.12.917
+    # via niquests
+verlib2==0.3.1
+    # via grafana-client
 wandb==0.18.5
     # via -r requirements.in
+wassima==1.2.2
+    # via niquests
 wrapt==1.17.2
     # via
     #   comet-ml
