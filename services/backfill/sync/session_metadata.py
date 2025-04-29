@@ -50,11 +50,11 @@ def write_session_backfill_job_metadata_to_db(
     """Writes metadata of the backfill job to the database."""
     try:
         dynamodb.insert_item_into_table(
-            item=session_backfill_metadata.dict(),
+            item=session_backfill_metadata.model_dump(),
             table_name=dynamodb_table_name,
         )
         logger.info(
-            f"Successfully inserted session backfill metadata: {session_backfill_metadata.dict()}"
+            f"Successfully inserted session backfill metadata: {session_backfill_metadata.model_dump()}"
         )
     except Exception as e:
         logger.error(f"Error writing session backfill metadata to DynamoDB: {e}")
