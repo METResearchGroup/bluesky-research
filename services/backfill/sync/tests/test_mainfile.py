@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import patch, MagicMock, Mock
 
 from lib.metadata.models import RunExecutionMetadata
-from services.backfill.sync.constants import service_name
+from services.backfill.core.constants import service_name
 from services.backfill.sync.main import backfill_sync
 
 

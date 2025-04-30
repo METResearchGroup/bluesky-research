@@ -2,7 +2,7 @@ from typing import Optional
 
 from lib.db.queue import Queue
 from lib.log.logger import get_logger
-from services.backfill.sync.constants import base_queue_name
+from services.backfill.core.constants import base_queue_name
 
 logger = get_logger(__name__)
 
