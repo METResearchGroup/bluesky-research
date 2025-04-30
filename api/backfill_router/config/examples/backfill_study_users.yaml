@@ -8,6 +8,7 @@ backfill:
   plc_storage:
     type: "sqlite"
     path: "/api/backfill_router/backfill_study_users/backfill_study_users_plc.sqlite"
+    metadata: str
   record_types:
     - "app.bsky.feed.post"
     - "app.bsky.feed.like"

@@ -116,3 +116,18 @@ def write_records_to_cache(
             records=records,
             batch_size=batch_size,
         )
+
+
+def load_existing_did_to_pds_endpoint_map(plc_storage_db_path: str) -> dict[str, str]:
+    """Gets the existing DID to PDS endpoint map from the local SQLite database."""
+    did_plc_db = Queue(
+        queue_name="did_plc",
+        create_new_queue=False,
+        temp_queue=False,
+        temp_queue_path=plc_storage_db_path,
+    )
+    items = did_plc_db.load_dict_items_from_queue()
+    did_to_pds_endpoint_map = {}
+    for item in items:
+        did_to_pds_endpoint_map[item["did"]] = item["pds_endpoint"]
+    return did_to_pds_endpoint_map
