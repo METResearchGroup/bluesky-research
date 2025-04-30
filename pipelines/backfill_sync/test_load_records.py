@@ -1,7 +1,7 @@
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
-from services.backfill.sync.constants import valid_types
+from services.backfill.core.constants import valid_types
 
 if __name__ == "__main__":
     service = "raw_sync"
