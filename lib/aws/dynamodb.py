@@ -129,3 +129,38 @@ class DynamoDB:
         except Exception as e:
             print(f"Failure in querying items from DynamoDB: {e}")
             raise e
+
+    @retry_on_aws_rate_limit
+    def query_items_by_index(
+        self, table_name: str, index_name: str, key_name: str, key_value: str
+    ) -> list[dict]:
+        """Query items using a GSI."""
+        try:
+            response = self.client.query(
+                TableName=table_name,
+                IndexName=index_name,
+                KeyConditionExpression=f"{key_name} = :value",
+                ExpressionAttributeValues={":value": {"S": key_value}},
+            )
+            return response.get("Items", [])
+        except Exception as e:
+            print(f"Failure in querying items from DynamoDB using index: {e}")
+            raise e
+
+    @retry_on_aws_rate_limit
+    def check_item_exists_by_index(
+        self, table_name: str, index_name: str, key_name: str, key_value: str
+    ) -> bool:
+        """Check if item exists by querying a GSI."""
+        try:
+            response = self.client.query(
+                TableName=table_name,
+                IndexName=index_name,
+                KeyConditionExpression=f"{key_name} = :value",
+                ExpressionAttributeValues={":value": {"S": key_value}},
+                Limit=1,
+            )
+            return len(response.get("Items", [])) > 0
+        except Exception as e:
+            print(f"Failure checking item existence in DynamoDB: {e}")
+            raise e

@@ -1,5 +1,6 @@
 """Backfilling the sync records for users."""
 
+import aiohttp
 from datetime import datetime
 import json
 import gc
@@ -142,6 +143,41 @@ def validate_is_valid_generic_bluesky_type(record: dict) -> bool:
     return record["$type"] in valid_generic_bluesky_types
 
 
+def validate_is_valid_bsky_type(record: dict) -> bool:
+    return "$type" in record and record["$type"] in valid_generic_bluesky_types
+
+
+def validate_time_range_record(
+    record: dict,
+    start_timestamp: Optional[str] = None,
+    end_timestamp: Optional[str] = None,
+) -> bool:
+    """Validate that the record is within the time range.
+
+    For our use case, we'll currently just look at the range from September 1st,
+    2024, to December 2nd, 2024, as this'll encompass the range of posts that are
+    most likely to have user engagement related to the study.
+    """
+    if not start_timestamp:
+        start_timestamp = "2024-09-01-00:00:00"
+    if not end_timestamp:
+        end_timestamp = "2024-12-02-00:00:00"
+    record_timestamp = record["createdAt"]
+    record_timestamp_pipeline_dt = convert_bsky_dt_to_pipeline_dt(record_timestamp)
+    return (
+        record_timestamp_pipeline_dt >= start_timestamp
+        and record_timestamp_pipeline_dt <= end_timestamp
+    )
+
+
+def filter_only_valid_bsky_posts(record: dict) -> bool:
+    """Get only Bluesky posts."""
+    return validate_is_valid_bsky_type(record) and record["$type"] in [
+        "app.bsky.feed.post",
+        "app.bsky.feed.repost",
+    ]
+
+
 def transform_backfilled_record(
     record: dict,
     record_type: str,
@@ -225,6 +261,84 @@ def transform_backfilled_record(
         return record
 
 
+def stub_unnecessary_fields(record: dict) -> dict:
+    """Add stubs for fields whose data we don't need, if those fields exist.
+
+    For example, we currently don't need the 'Embed' field in posts. We may
+    in the future, but for now, we'll just add a stub value."""
+    stub_value = "<removed>"
+
+    if "embed" in record and record["embed"] is not None:
+        record["embed"] = stub_value
+    if "entities" in record and record["entities"] is not None:
+        record["entities"] = stub_value
+    if "facets" in record and record["facets"] is not None:
+        record["facets"] = stub_value
+    return record
+
+
+def postprocess_backfilled_record(record: dict) -> dict:
+    """Postprocess a backfilled record.
+
+    Args:
+        record: The record to postprocess
+
+    Returns:
+        The postprocessed record
+
+    We separate this out of 'transform_backfilled_record' because there are
+    steps in the postprocessing process that we might want to reconsider or
+    remove in the future.
+    """
+    record = stub_unnecessary_fields(record)
+    return record
+
+
+async def async_send_request_to_pds(
+    did: str, pds_endpoint: str, session: aiohttp.ClientSession
+) -> requests.Response:
+    """Send a request to the PDS endpoint.
+
+    Args:
+        did: The DID of the user
+        pds_endpoint: The PDS endpoint to send the request to
+    """
+    root_url = os.path.join(pds_endpoint, "xrpc")
+    joined_url = os.path.join(root_url, endpoint)
+    full_url = f"{joined_url}?did={did}"
+    return await session.get(full_url)
+
+
+def send_request_to_pds(did: str, pds_endpoint: str) -> requests.Response:
+    """Send a request to the PDS endpoint.
+
+    Args:
+        did: The DID of the user
+        pds_endpoint: The PDS endpoint to send the request to
+
+    Returns:
+        The response object from the request
+    """
+    root_url = os.path.join(pds_endpoint, "xrpc")
+    joined_url = os.path.join(root_url, endpoint)
+    full_url = f"{joined_url}?did={did}"
+    return requests.get(full_url)
+
+
+def get_records_from_pds_bytes(pds_bytes: bytes) -> list[dict]:
+    """Get the records from the PDS bytes.
+
+    Args:
+        pds_bytes: The bytes of the PDS
+
+    Returns:
+        The records from the PDS
+    """
+    car_file = CAR.from_bytes(pds_bytes)
+    records: list[dict] = [obj for obj in car_file.blocks.values()]
+    return records
+
+
 def get_bsky_records_for_user(did: str) -> list[dict]:
     """Get the records for a user.
 
@@ -238,10 +352,7 @@ def get_bsky_records_for_user(did: str) -> list[dict]:
     pds_endpoint = plc_doc["service"][0][
         "serviceEndpoint"
     ]  # TODO: verify if this will always work.
-    root_url = os.path.join(pds_endpoint, "xrpc")
-    joined_url = os.path.join(root_url, endpoint)
-    full_url = f"{joined_url}?did={did}"
-    res = requests.get(full_url)
+    res = send_request_to_pds(did=did, pds_endpoint=pds_endpoint)
     if res.status_code != 200:
         logger.error(f"Error getting CAR file for user {did}: {res.status_code}")
         logger.info(f"res.headers: {res.headers}")
@@ -250,8 +361,7 @@ def get_bsky_records_for_user(did: str) -> list[dict]:
         records = []
     else:
         try:
-            car_file = CAR.from_bytes(res.content)
-            records: list[dict] = [obj for obj in car_file.blocks.values()]
+            records: list[dict] = get_records_from_pds_bytes(res.content)
         except Exception as e:
             logger.error(f"Error parsing CAR file for user {did}: {e}")
             logger.info("Returning no records for user.")
