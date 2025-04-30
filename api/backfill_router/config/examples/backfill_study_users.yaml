@@ -3,16 +3,21 @@ backfill:
   version: "1.0"
   source:
     type: "sqlite"
-    path: "/api/backfill_router/backfill_study_users/backfill_study_users.sqlite",
+    path: "/api/backfill_router/backfill_study_users/backfill_study_users.sqlite"
+    metadata: str
+  plc_storage:
+    type: "sqlite"
+    path: "/api/backfill_router/backfill_study_users/backfill_study_users_plc.sqlite"
   record_types:
     - "app.bsky.feed.post"
     - "app.bsky.feed.like"
     - "app.bsky.feed.repost"
+    - "app.bsky.graph.follow"
+    - "app.bsky.graph.block"
   time_range:
     start_date: "2025-01-01"
     end_date: "2025-02-01"
-  storage:
-    type: "dynamodb"
-    table_name: "backfill_study_users_results"
-    region: "us-east-1" 
-  
+  sync_storage:
+    type: "parquet"
+    path: "", # not required if stored in Parquet. `manage_local_data.py` will manage.
+    metadata: "" # not required if stored in Parquet. `manage_local_data.py` will manage.

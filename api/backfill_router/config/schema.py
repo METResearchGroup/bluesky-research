@@ -3,25 +3,41 @@ from typing import Optional
 
 
 class SourceConfig(BaseModel):
-    """Source configuration for the backfill."""
+    """Source configuration for the backfill. Location of the source DIDs."""
 
     type: str
     path: str
-    query: Optional[str]
+    metadata: str
+
+
+class PlcStorageConfig(BaseModel):
+    """PLC storage configuration for the backfill. Location of the results
+    stored from querying the PLC endpoint with the DIDs in order to get the
+    PDS endpoint information for the DIDs.
+    """
+
+    type: str
+    path: str
+    metadata: str
 
 
 class TimeRangeConfig(BaseModel):
-    """Time range to get records from for each DID."""
+    """Time range to get records from for each DID when querying the PDS endpoint."""
 
     start_date: str
     end_date: Optional[str]
 
 
-class StorageConfig(BaseModel):
-    """Storage configuration for the backfill."""
+class SyncStorageConfig(BaseModel):
+    """Storage configuration for the backfill. Location of the results
+    stored from querying the PDS endpoint with the DIDs in order to get the
+    records. By default, should be stored to Parquet, in which the other
+    information is optional (since `manage_local_data.py` will manage the
+    Parquet files itself).
+    """
 
     type: str
-    table_name: str
+    path: str
     metadata: str
 
 
@@ -31,6 +47,7 @@ class BackfillConfigSchema(BaseModel):
     name: str
     version: str
     source: SourceConfig
+    plc_storage: PlcStorageConfig
     record_types: list[str]
     time_range: TimeRangeConfig
-    storage: StorageConfig
+    sync_storage: SyncStorageConfig
