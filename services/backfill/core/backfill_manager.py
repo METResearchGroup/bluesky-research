@@ -21,7 +21,7 @@ from services.backfill.sync.backfill_endpoint_worker import (
     get_write_queues,
     PDSEndpointWorker,
 )
-from services.backfill.sync.constants import current_dir
+from services.backfill.core.constants import current_dir
 from services.backfill.sync.determine_dids_to_backfill import sqlite_db_path
 from services.backfill.sync.write_queue_to_db import write_pds_queue_to_db
 

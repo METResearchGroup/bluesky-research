@@ -28,7 +28,7 @@ from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.prometheus.service import pds_backfill_metrics as pdm
 from services.backfill.sync.atp_agent import AtpAgent
-from services.backfill.sync.constants import service_name
+from services.backfill.core.constants import service_name
 from services.backfill.sync.backfill import (
     get_records_from_pds_bytes,
     async_send_request_to_pds,
@@ -38,7 +38,7 @@ from services.backfill.sync.backfill import (
     identify_record_type,
     postprocess_backfilled_record,
 )
-from services.backfill.sync.constants import current_dir
+from services.backfill.core.constants import current_dir
 from services.backfill.sync.models import UserBackfillMetadata
 from services.backfill.sync.session_metadata import write_backfill_metadata_to_db
 

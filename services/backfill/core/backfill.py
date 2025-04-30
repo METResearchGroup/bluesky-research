@@ -28,7 +28,7 @@ from lib.helper import (
     generate_current_datetime_str,
 )
 from lib.log.logger import get_logger
-from services.backfill.sync.constants import (
+from services.backfill.core.constants import (
     default_start_timestamp,
     default_end_timestamp,
     endpoint,

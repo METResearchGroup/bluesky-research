@@ -10,7 +10,7 @@ from lib.db.queue import Queue
 from lib.db.manage_local_data import export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
-from services.backfill.sync.constants import base_queue_name, valid_types
+from services.backfill.core.constants import base_queue_name, valid_types
 
 logger = get_logger(__name__)
 

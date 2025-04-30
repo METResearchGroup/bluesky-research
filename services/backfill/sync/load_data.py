@@ -1,5 +1,5 @@
 from lib.db.queue import Queue
-from services.backfill.sync.constants import input_queue_name
+from services.backfill.core.constants import input_queue_name
 
 queue = Queue(queue_name=input_queue_name, create_new_queue=True)
 
