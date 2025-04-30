@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock, patch
 
 from lib.db.queue import Queue
-from services.backfill.storage.queue_utils import (
+from services.backfill.storage.utils.queue_utils import (
     write_record_type_to_cache,
     write_records_to_cache,
 )

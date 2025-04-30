@@ -24,7 +24,7 @@ from services.backfill.core.constants import (
     endpoint,
     default_batch_size,
 )
-from services.backfill.sync.export_data import write_records_to_cache
+from services.backfill.storage.queue_utils import write_records_to_cache
 from services.backfill.core.models import UserBackfillMetadata
 from services.backfill.core.validate import (
     identify_record_type,

@@ -11,7 +11,7 @@ from lib.aws.s3 import S3
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
 from services.backfill.storage.dynamodb_utils import batch_save_user_metadata
-from services.backfill.sync.models import UserBackfillMetadata
+from services.backfill.core.models import UserBackfillMetadata
 
 athena = Athena()
 dynamodb = DynamoDB()

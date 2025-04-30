@@ -1,0 +1,18 @@
+backfill:
+  name: "backfill_study_users"
+  version: "1.0"
+  source:
+    type: "s3"
+    path: "s3://your-bucket/study_users.csv"
+    query: null  # Not used for S3
+  record_types:
+    - "app.bsky.feed.post"
+    - "app.bsky.feed.like"
+    - "app.bsky.feed.repost"
+  time_range:
+    start_date: "2025-01-01"
+    end_date: "2025-02-01"
+  storage:
+    type: "dynamodb"
+    table_name: "backfill_study_users_results"
+    region: "us-east-1" 
