@@ -1,6 +1,6 @@
 from services.backfill.posts.main import backfill_posts
 from services.backfill.posts_used_in_feeds.main import backfill_posts_used_in_feeds
-from services.backfill.sync.main import backfill_sync
+from services.backfill.core.main import backfill_sync
 
 
 def backfill_records(payload: dict):

@@ -33,3 +33,19 @@ input_queue_name = "input_backfill_sync"
 default_batch_size = 100
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
+
+default_write_batch_size = 100
+default_pds_endpoint = "https://bsky.social"
+
+# constants for rate limiting the APIs.
+
+default_qps = 10  # assume 10 QPS max = 600/minute = 3000/5 minutes
+# default_qps = 2  # 2 QPS max = 120/minute = 600/5 minutes
+# default_qps = 1 # simplest implementation.
+
+GLOBAL_RATE_LIMIT = (
+    3000  # rate limit, I think, is 3000/5 minutes, we can put our own cap.
+)
+MANUAL_RATE_LIMIT = (
+    0.9 * GLOBAL_RATE_LIMIT
+)  # we can put conservatively to avoid max rate limit.

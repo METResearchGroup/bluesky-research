@@ -15,15 +15,15 @@ from lib.db.queue import Queue
 from lib.helper import create_batches
 from lib.log.logger import get_logger
 from lib.telemetry.prometheus.server import start_metrics_server
-from services.backfill.sync.backfill import get_plc_directory_doc
-from services.backfill.sync.backfill_endpoint_worker import (
+from services.backfill.core.backfill import get_plc_directory_doc
+from services.backfill.core.worker import (
     get_previously_processed_dids,
     get_write_queues,
     PDSEndpointWorker,
 )
 from services.backfill.core.constants import current_dir
-from services.backfill.sync.determine_dids_to_backfill import sqlite_db_path
-from services.backfill.sync.write_queue_to_db import write_pds_queue_to_db
+from services.backfill.scripts.determine_dids_to_backfill import sqlite_db_path
+from services.backfill.storage.write_queue_to_db import write_pds_queue_to_db
 
 # this is backfilled from `determine_dids_to_backfill.py`, which is triggered
 # in the handler.py file.

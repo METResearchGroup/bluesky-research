@@ -1,0 +1,25 @@
+{
+  "target_did_count": 50,
+  "run_sequential": true,
+  "run_io_bound": true,
+  "run_compute_bound": true,
+  "io_bound_worker_counts": [
+    2,
+    4,
+    8,
+    16
+  ],
+  "compute_bound_worker_counts": [
+    2,
+    4,
+    8,
+    12
+  ],
+  "timestamp": "2025-04-08-03:05:05",
+  "cpu_count": 12,
+  "system_info": {
+    "platform": "posix Darwin 23.1.0",
+    "processor": "arm",
+    "memory_gb": 36.0
+  }
+}

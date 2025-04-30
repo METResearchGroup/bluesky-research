@@ -6,7 +6,6 @@ from typing import Optional
 import pandas as pd
 import aiohttp
 import asyncio
-import concurrent.futures
 import contextlib
 from datetime import datetime, timezone
 import json
@@ -19,7 +18,6 @@ import collections
 from lib.constants import timestamp_format
 from lib.db.manage_local_data import (
     export_data_to_local_storage,
-    load_data_from_local_storage,
 )
 from lib.db.queue import Queue
 from lib.db.rate_limiter import AsyncTokenBucket
@@ -27,91 +25,35 @@ from lib.helper import generate_current_datetime_str, create_batches
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.prometheus.service import pds_backfill_metrics as pdm
-from services.backfill.sync.atp_agent import AtpAgent
-from services.backfill.core.constants import service_name
-from services.backfill.sync.backfill import (
+from services.backfill.core.atp_agent import AtpAgent
+from services.backfill.core.backfill import (
     get_records_from_pds_bytes,
-    async_send_request_to_pds,
+    transform_backfilled_record,
+)
+from services.backfill.core.constants import (
+    default_pds_endpoint,
+    default_qps,
+    default_write_batch_size,
+    MANUAL_RATE_LIMIT,
+    service_name,
+)
+from services.backfill.core.models import UserBackfillMetadata
+from services.backfill.core.transform import postprocess_backfilled_record
+from services.backfill.core.validate import (
+    identify_record_type,
     filter_only_valid_bsky_posts,
     validate_time_range_record,
-    transform_backfilled_record,
-    identify_record_type,
-    postprocess_backfilled_record,
 )
-from services.backfill.core.constants import current_dir
-from services.backfill.sync.models import UserBackfillMetadata
-from services.backfill.sync.session_metadata import write_backfill_metadata_to_db
-
-
-default_qps = 10  # assume 10 QPS max = 600/minute = 3000/5 minutes
-# default_qps = 2  # 2 QPS max = 120/minute = 600/5 minutes
-# default_qps = 1 # simplest implementation.
-
-GLOBAL_RATE_LIMIT = (
-    3000  # rate limit, I think, is 3000/5 minutes, we can put our own cap.
+from services.backfill.storage.load_data import (
+    load_previously_liked_post_uris,
+    get_previously_processed_dids,
 )
-MANUAL_RATE_LIMIT = (
-    0.9 * GLOBAL_RATE_LIMIT
-)  # we can put conservatively to avoid max rate limit.
+from services.backfill.storage.queue_utils import get_write_queues
+from services.backfill.storage.session_metadata import write_backfill_metadata_to_db
 
 start_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
 
 logger = get_logger(__name__)
-
-default_write_batch_size = 100
-default_pds_endpoint = "https://bsky.social"
-
-
-def get_dids_from_queues(pds_endpoint: str) -> list[str]:
-    """Get previous DIDs from SQLite queues (if they exist).
-
-    If they don't exist, we don't want to create new queues."""
-    queues = get_write_queues(pds_endpoint, skip_if_queue_not_found=True)
-    output_results_queue: Optional[Queue] = queues["output_results_queue"]
-    output_deadletter_queue: Optional[Queue] = queues["output_deadletter_queue"]
-    dids = []
-    for queue in [output_results_queue, output_deadletter_queue]:
-        if queue:
-            items = queue.load_dict_items_from_queue()
-            queue_dids = [item["did"] for item in items]
-            dids.extend(queue_dids)
-    return dids
-
-
-def load_previously_liked_post_uris() -> set[str]:
-    """Load the URIs of posts that have been liked by study users."""
-    active_df = load_data_from_local_storage(
-        service="raw_sync",
-        directory="active",
-        custom_args={"record_type": "like"},
-    )
-    cache_df = load_data_from_local_storage(
-        service="raw_sync",
-        directory="cache",
-        custom_args={"record_type": "like"},
-    )
-    df = pd.concat([active_df, cache_df])
-    liked_post_uris = set(df["uri"])
-    logger.info(f"Loaded {len(liked_post_uris)} liked post URIs")
-    return liked_post_uris
-
-
-def get_previously_processed_dids(pds_endpoint: str) -> set[str]:
-    """Load previously processed DIDs from both DynamoDB (if the backfill
-    is already 100% completed) and from the queues (if the backfill is
-    not yet 100% completed, and thus the DIDs haven't been written to
-    DynamoDB yet)."""
-
-    # TODO: uncomment this.
-    # dynamodb_previously_processed_dids = get_dids_by_pds_endpoint(pds_endpoint)
-    # queue_previously_processed_dids = get_dids_from_queues(pds_endpoint)
-
-    dynamodb_previously_processed_dids = set()
-    queue_previously_processed_dids = set()
-
-    return set(dynamodb_previously_processed_dids) | set(
-        queue_previously_processed_dids
-    )
 
 
 def filter_previously_processed_dids(pds_endpoint: str, dids: list[str]) -> list[str]:
@@ -160,66 +102,6 @@ def log_progress(
     )
 
 
-def get_write_queues(
-    pds_endpoint: str,
-    skip_if_queue_not_found: bool = False,
-):
-    """Get the write queues for the backfill.
-
-    Optional to skip if the queues don't exist. We use this when we do queue
-    reads, since if a backfill is 100% done, the DIDs will be in DynamoDB
-    instead of in the queues, and the queues will be deleted. We don't want
-    to create new queues if they don't exist, so we skip in that case."""
-    # Extract the hostname from the PDS endpoint URL
-    # eg., https://lepista.us-west.host.bsky.network.db -> lepista.us-west.host.bsky.network.db
-    pds_hostname = (
-        pds_endpoint.replace("https://", "").replace("http://", "").replace("/", "")
-    )
-    logger.info(f"Instantiating queues for PDS hostname: {pds_hostname}")
-
-    output_results_db_path = os.path.join(current_dir, f"results_{pds_hostname}.db")
-    output_deadletter_db_path = os.path.join(
-        current_dir, f"deadletter_{pds_hostname}.db"
-    )
-
-    if skip_if_queue_not_found:
-        if os.path.exists(output_results_db_path):
-            output_results_queue = Queue(
-                queue_name=f"results_{pds_hostname}",
-                create_new_queue=True,
-                temp_queue=True,
-                temp_queue_path=output_results_db_path,
-            )
-        else:
-            output_results_queue = None
-        if os.path.exists(output_deadletter_db_path):
-            output_deadletter_queue = Queue(
-                queue_name=f"deadletter_{pds_hostname}",
-                create_new_queue=True,
-                temp_queue=True,
-                temp_queue_path=output_deadletter_db_path,
-            )
-        else:
-            output_deadletter_queue = None
-    else:
-        output_results_queue = Queue(
-            queue_name=f"results_{pds_hostname}",
-            create_new_queue=True,
-            temp_queue=True,
-            temp_queue_path=output_results_db_path,
-        )
-        output_deadletter_queue = Queue(
-            queue_name=f"deadletter_{pds_hostname}",
-            create_new_queue=True,
-            temp_queue=True,
-            temp_queue_path=output_deadletter_db_path,
-        )
-    return {
-        "output_results_queue": output_results_queue,
-        "output_deadletter_queue": output_deadletter_queue,
-    }
-
-
 class PDSEndpointWorker:
     """Wrapper class for managing the backfills for a single PDS endpoint.
 
@@ -255,9 +137,7 @@ class PDSEndpointWorker:
         # token bucket, for managing rate limits.
         self.token_reset_minutes = 5  # 5 minutes, as per the rate limit spec.
         self.token_reset_seconds = self.token_reset_minutes * 60
-        self.max_tokens = (
-            MANUAL_RATE_LIMIT  # set conservatively to avoid max rate limit.
-        )
+        self.max_tokens = MANUAL_RATE_LIMIT
         self.token_bucket = AsyncTokenBucket(
             max_tokens=self.max_tokens, window_seconds=self.token_reset_seconds
         )
@@ -1548,390 +1428,3 @@ class PDSEndpointWorker:
         except Exception as e:
             logger.error(f"Error persisting to DB: {e}", exc_info=True)
             raise
-
-
-async def dummy_aiosqlite_write():
-    """Testing aiosqlite writes."""
-    queue_fp = os.path.join(current_dir, "test_queue.db")
-    queue = Queue(
-        queue_name="test_queue",
-        create_new_queue=True,
-        temp_queue=True,
-        temp_queue_path=queue_fp,
-    )
-    items = [{"test": "test"} for _ in range(100)]
-    await queue.async_batch_add_items_to_queue(items=items)
-    total_items_in_queue = queue.get_queue_length()
-    logger.info(f"Total items in queue: {total_items_in_queue}")
-
-
-async def diagnose_qps_issue():
-    """Test to diagnose slow QPS problem. We're only seeing max 1 QPS per
-    endpoint, so trying to understand why that could be the case."""
-    # Test 1: Measure token bucket replenishment rate
-    token_bucket = AsyncTokenBucket(max_tokens=MANUAL_RATE_LIMIT, window_seconds=300)
-    start_time = time.perf_counter()
-    acquired_tokens = 0
-    for _ in range(100):
-        await token_bucket._acquire()
-        acquired_tokens += 1
-        if acquired_tokens % 10 == 0:
-            elapsed = time.perf_counter() - start_time
-            logger.info(
-                f"Acquired {acquired_tokens} tokens in {elapsed:.2f}s = {acquired_tokens/elapsed:.2f} tokens/sec"
-            )
-
-    # Test 2: Measure HTTP request time without processing
-    async with aiohttp.ClientSession() as session:
-        pds_endpoint = "https://puffball.us-east.host.bsky.network"
-        did = "did:plc:w5mjarupsl6ihdrzwgnzdh4y"
-        times = []
-        for _ in range(10):
-            start = time.perf_counter()
-            await async_send_request_to_pds(
-                did=did,
-                pds_endpoint=pds_endpoint,
-                session=session,
-            )
-            times.append(time.perf_counter() - start)
-        logger.info(f"Average HTTP request time: {sum(times)/len(times):.3f}s")
-
-
-async def run_backfill_for_dids(pds_endpoint: str, dids: list[str]):
-    # TEST_DIDS = ["did:plc:4rlh46czb2ix4azam3cfyzys"] * 50
-    # TEST_PDS_ENDPOINT = "https://morel.us-east.host.bsky.network"
-    TEST_DIDS = dids
-    TEST_PDS_ENDPOINT = pds_endpoint
-    logger.info(f"Running backfill for {len(TEST_DIDS)} DIDs on {TEST_PDS_ENDPOINT}...")
-
-    CONCURRENCY = 10
-    TOTAL_REQUESTS = 50
-
-    # Stats tracking
-    start_time = time.time()
-    completed_requests = 0
-    in_flight = 0
-    max_in_flight = 0
-    request_times = []
-
-    # Create token bucket similar to your worker
-    token_bucket = AsyncTokenBucket(max_tokens=3000 * 0.9, window_seconds=300)
-
-    # Track in-flight requests
-    in_flight_gauge = asyncio.Semaphore(CONCURRENCY)
-
-    async def process_did(did, session):
-        nonlocal completed_requests, in_flight, max_in_flight
-
-        try:
-            # Track in-flight requests
-            in_flight += 1
-            max_in_flight = max(max_in_flight, in_flight)
-            logger.info(f"Starting request for {did}. In-flight: {in_flight}")
-
-            # Acquire token and time
-            token_start = time.perf_counter()
-            await token_bucket._acquire()
-            token_time = time.perf_counter() - token_start
-
-            # Make the request and time
-            request_start = time.perf_counter()
-            async with in_flight_gauge:
-                response = await async_send_request_to_pds(
-                    did=did, pds_endpoint=TEST_PDS_ENDPOINT, session=session
-                )
-                _ = await response.read()  # Read the content
-            request_time = time.perf_counter() - request_start
-
-            # Record stats
-            request_times.append(request_time)
-            completed_requests += 1
-
-            # Log detailed timing
-            total_time = time.perf_counter() - token_start
-            logger.info(
-                f"Completed {did}: Token wait={token_time:.3f}s, Request={request_time:.3f}s, Total={total_time:.3f}s"
-            )
-
-            # Calculate and log current QPS
-            elapsed = time.time() - start_time
-            current_qps = completed_requests / elapsed
-            logger.info(
-                f"Current stats: {completed_requests}/{TOTAL_REQUESTS} completed, QPS={current_qps:.2f}"
-            )
-
-        finally:
-            in_flight -= 1
-
-    # Create a session pool
-    conn = aiohttp.TCPConnector(limit=CONCURRENCY, limit_per_host=CONCURRENCY)
-    # timeout = aiohttp.ClientTimeout(total=30, connect=5, sock_connect=5, sock_read=15)
-    # async with aiohttp.ClientSession(connector=conn, timeout=timeout) as session:
-    async with aiohttp.ClientSession(connector=conn) as session:
-        # Create a semaphore to limit concurrent tasks
-        semaphore = asyncio.Semaphore(CONCURRENCY)
-
-        async def limited_process(did):
-            async with semaphore:  # Only allow CONCURRENCY concurrent requests
-                await process_did(did, session)
-
-        # Process DIDs with enforced concurrency limit
-        tasks = [limited_process(did) for did in TEST_DIDS[:TOTAL_REQUESTS]]
-        await asyncio.gather(*tasks)
-
-    # Log final stats
-    elapsed = time.time() - start_time
-    final_qps = completed_requests / elapsed
-    avg_request_time = sum(request_times) / len(request_times) if request_times else 0
-
-    logger.info("=== TEST RESULTS ===")
-    logger.info(f"Total requests: {completed_requests}")
-    logger.info(f"Time elapsed: {elapsed:.2f} seconds")
-    logger.info(f"Average QPS: {final_qps:.2f}")
-    logger.info(f"Average request time: {avg_request_time:.3f} seconds")
-    logger.info(f"Max in-flight requests: {max_in_flight}")
-
-    # Analyze token bucket behavior
-    logger.info(f"Token bucket initial capacity: {token_bucket._max_tokens}")
-    logger.info(f"Token bucket final tokens: {token_bucket._tokens}")
-
-
-async def multithreaded_run_backfill_for_dids(pds_endpoint: str, dids: list[str]):
-    """Run backfill for DIDs in parallel using multiple threads.
-
-    This function processes DIDs in parallel using a combination of asyncio for I/O operations
-    and a thread pool for CPU-bound tasks. It uses 32 threads with a semaphore limit of 50
-    to control concurrency.
-
-    Args:
-        pds_endpoint: The PDS endpoint URL to send requests to
-        dids: List of DIDs to process
-    """
-    TEST_DIDS = dids
-    TEST_PDS_ENDPOINT = pds_endpoint
-    logger.info(
-        f"Running multithreaded backfill for {len(TEST_DIDS)} DIDs on {TEST_PDS_ENDPOINT}..."
-    )
-
-    # max_dids = 100
-    max_dids = 500
-    TEST_DIDS = TEST_DIDS[:max_dids]
-
-    # Configuration
-    THREAD_COUNT = 32
-    CONCURRENCY = 50
-    TOTAL_REQUESTS = len(TEST_DIDS)
-
-    # Stats tracking
-    start_time = time.time()
-    completed_requests = 0
-    in_flight = 0
-    max_in_flight = 0
-    request_times = []
-
-    # Create token bucket for rate limiting
-    token_bucket = AsyncTokenBucket(max_tokens=3000 * 0.9, window_seconds=300)
-
-    # Create thread pool
-    thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=THREAD_COUNT)
-
-    async def process_did(did, session):
-        nonlocal completed_requests, in_flight, max_in_flight
-
-        try:
-            # Track in-flight requests
-            in_flight += 1
-            max_in_flight = max(max_in_flight, in_flight)
-            logger.info(f"Starting request for {did}. In-flight: {in_flight}")
-
-            # Acquire token and time
-            token_start = time.perf_counter()
-            await token_bucket._acquire()
-
-            # Make the request and time
-            request_start = time.perf_counter()
-
-            # Use thread pool for CPU-bound operations
-            loop = asyncio.get_running_loop()
-            response = await loop.run_in_executor(
-                thread_pool,
-                lambda: asyncio.run_coroutine_threadsafe(
-                    async_send_request_to_pds(
-                        did=did, pds_endpoint=TEST_PDS_ENDPOINT, session=session
-                    ),
-                    loop,
-                ).result(),
-            )
-            rate_limit_remaining = response.headers.get("ratelimit-remaining")
-            # logger.info(f"Rate limit remaining: {rate_limit_remaining}")
-            _ = await response.read()  # Read the content
-            request_time = time.perf_counter() - request_start
-
-            # Record stats
-            request_times.append(request_time)
-            completed_requests += 1
-
-            # Log detailed timing
-            total_time = time.perf_counter() - token_start
-            # Calculate and log current QPS
-            elapsed = time.time() - start_time
-            current_qps = completed_requests / elapsed
-            logger.info(
-                f"Completed {did}: Rate limit remaining={rate_limit_remaining}, Request={request_time:.3f}s, Total={total_time:.3f}s\tCurrent stats: {completed_requests}/{TOTAL_REQUESTS} completed, QPS={current_qps:.2f}"
-            )
-
-        finally:
-            in_flight -= 1
-
-    # Create a session pool
-    conn = aiohttp.TCPConnector(limit=CONCURRENCY, limit_per_host=CONCURRENCY)
-
-    async with aiohttp.ClientSession(connector=conn) as session:
-        # Create a semaphore to limit concurrent tasks
-        semaphore = asyncio.Semaphore(CONCURRENCY)
-
-        async def limited_process(did):
-            async with semaphore:  # Only allow CONCURRENCY concurrent requests
-                await process_did(did, session)
-
-        # Process DIDs with enforced concurrency limit
-        tasks = [limited_process(did) for did in TEST_DIDS]
-        await asyncio.gather(*tasks)
-
-    # Shutdown thread pool
-    thread_pool.shutdown(wait=True)
-
-    # Log final stats
-    elapsed = time.time() - start_time
-    final_qps = completed_requests / elapsed
-    avg_request_time = sum(request_times) / len(request_times) if request_times else 0
-
-    logger.info("=== MULTITHREADED TEST RESULTS ===")
-    logger.info(f"Total requests: {completed_requests}")
-    logger.info(f"Time elapsed: {elapsed:.2f} seconds")
-    logger.info(f"Average QPS: {final_qps:.2f}")
-    logger.info(f"Average request time: {avg_request_time:.3f} seconds")
-    logger.info(f"Max in-flight requests: {max_in_flight}")
-    logger.info(f"Thread count: {THREAD_COUNT}")
-    logger.info(f"Concurrency limit: {CONCURRENCY}")
-
-    # Analyze token bucket behavior
-    logger.info(f"Token bucket initial capacity: {token_bucket._max_tokens}")
-    logger.info(f"Token bucket final tokens: {token_bucket._tokens}")
-
-
-async def parallel_request_test():
-    """Test HTTP request parallelism to diagnose QPS issues.
-
-    I am seeing only 1 QPS per endpoint, so trying to understand why that
-    could be the case. Since there are 10 tasks per endpoint, I expect 10
-    QPS.
-    """
-
-    # TEST_DIDS = ["did:plc:w5mjarupsl6ihdrzwgnzdh4y"] * 50  # 50 DIDs to process
-    # TEST_PDS_ENDPOINT = "https://puffball.us-east.host.bsky.network"
-
-    # this combination works slowly during my sync...
-    TEST_DIDS = ["did:plc:4rlh46czb2ix4azam3cfyzys"] * 50
-    TEST_PDS_ENDPOINT = "https://morel.us-east.host.bsky.network"
-
-    CONCURRENCY = 10
-    TOTAL_REQUESTS = 50
-
-    # Stats tracking
-    start_time = time.time()
-    completed_requests = 0
-    in_flight = 0
-    max_in_flight = 0
-    request_times = []
-
-    # Create token bucket similar to your worker
-    token_bucket = AsyncTokenBucket(max_tokens=3000 * 0.9, window_seconds=300)
-
-    # Track in-flight requests
-    in_flight_gauge = asyncio.Semaphore(CONCURRENCY)
-
-    async def process_did(did, session):
-        nonlocal completed_requests, in_flight, max_in_flight
-
-        try:
-            # Track in-flight requests
-            in_flight += 1
-            max_in_flight = max(max_in_flight, in_flight)
-            logger.info(f"Starting request for {did}. In-flight: {in_flight}")
-
-            # Acquire token and time
-            token_start = time.perf_counter()
-            await token_bucket._acquire()
-            token_time = time.perf_counter() - token_start
-
-            # Make the request and time
-            request_start = time.perf_counter()
-            async with in_flight_gauge:
-                response = await async_send_request_to_pds(
-                    did=did, pds_endpoint=TEST_PDS_ENDPOINT, session=session
-                )
-                _ = await response.read()  # Read the content
-            request_time = time.perf_counter() - request_start
-
-            # Record stats
-            request_times.append(request_time)
-            completed_requests += 1
-
-            # Log detailed timing
-            total_time = time.perf_counter() - token_start
-            logger.info(
-                f"Completed {did}: Token wait={token_time:.3f}s, Request={request_time:.3f}s, Total={total_time:.3f}s"
-            )
-
-            # Calculate and log current QPS
-            elapsed = time.time() - start_time
-            current_qps = completed_requests / elapsed
-            logger.info(
-                f"Current stats: {completed_requests}/{TOTAL_REQUESTS} completed, QPS={current_qps:.2f}"
-            )
-
-        finally:
-            in_flight -= 1
-
-    # Create a session pool
-    conn = aiohttp.TCPConnector(limit=CONCURRENCY, limit_per_host=CONCURRENCY)
-    timeout = aiohttp.ClientTimeout(total=30, connect=5, sock_connect=5, sock_read=15)
-    async with aiohttp.ClientSession(connector=conn, timeout=timeout) as session:
-        # Create a semaphore to limit concurrent tasks
-        semaphore = asyncio.Semaphore(CONCURRENCY)
-
-        async def limited_process(did):
-            async with semaphore:  # Only allow CONCURRENCY concurrent requests
-                await process_did(did, session)
-
-        # Process DIDs with enforced concurrency limit
-        tasks = [limited_process(did) for did in TEST_DIDS[:TOTAL_REQUESTS]]
-        await asyncio.gather(*tasks)
-
-    # Log final stats
-    elapsed = time.time() - start_time
-    final_qps = completed_requests / elapsed
-    avg_request_time = sum(request_times) / len(request_times) if request_times else 0
-
-    logger.info("=== TEST RESULTS ===")
-    logger.info(f"Total requests: {completed_requests}")
-    logger.info(f"Time elapsed: {elapsed:.2f} seconds")
-    logger.info(f"Average QPS: {final_qps:.2f}")
-    logger.info(f"Average request time: {avg_request_time:.3f} seconds")
-    logger.info(f"Max in-flight requests: {max_in_flight}")
-
-    # Analyze token bucket behavior
-    logger.info(f"Token bucket initial capacity: {token_bucket._max_tokens}")
-    logger.info(f"Token bucket final tokens: {token_bucket._tokens}")
-
-
-def _test():
-    loop = asyncio.get_event_loop()
-    # loop.run_until_complete(dummy_aiosqlite_write())
-    loop.run_until_complete(diagnose_qps_issue())
-    loop.run_until_complete(parallel_request_test())
-
-
-if __name__ == "__main__":
-    _test()

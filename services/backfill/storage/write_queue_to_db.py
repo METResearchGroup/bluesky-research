@@ -2,7 +2,7 @@
 
 import asyncio
 
-from services.backfill.sync.backfill_endpoint_worker import PDSEndpointWorker
+from services.backfill.core.worker import PDSEndpointWorker
 
 
 async def write_pds_queue_to_db(pds_endpoint: str) -> None:
