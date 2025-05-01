@@ -10,6 +10,7 @@ import json
 import os
 import tempfile
 import time
+import traceback
 from typing import Optional
 
 import pandas as pd
@@ -27,7 +28,6 @@ from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.prometheus.service import pds_backfill_metrics as pdm
 from services.backfill.core.atp_agent import AtpAgent
 from services.backfill.core.backfill import (
-    get_records_from_pds_bytes,
     transform_backfilled_record,
 )
 from services.backfill.core.constants import (
@@ -41,7 +41,7 @@ from services.backfill.core.models import UserBackfillMetadata
 from services.backfill.core.transform import postprocess_backfilled_record
 from services.backfill.core.validate import (
     identify_record_type,
-    filter_only_valid_bsky_posts,
+    filter_only_valid_bsky_records,
     validate_time_range_record,
 )
 from services.backfill.storage.load_data import (
@@ -202,7 +202,7 @@ class PDSEndpointWorker:
         return [
             record
             for record in records
-            if filter_only_valid_bsky_posts(
+            if filter_only_valid_bsky_records(
                 record=record,
                 types_to_sync=self.config.record_types,
             )
@@ -243,9 +243,8 @@ class PDSEndpointWorker:
             ).set(self.temp_deadletter_queue.qsize())
             return
         else:
-            self.total_requests += 1
+            # self.total_requests += 1
             try:
-                content = None
                 pdm.BACKFILL_REQUESTS.labels(endpoint=self.pds_endpoint).inc()
                 pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).inc()
                 await self.token_bucket._acquire()
@@ -253,101 +252,111 @@ class PDSEndpointWorker:
                     self.token_bucket._tokens
                 )
                 start = time.perf_counter()
+
                 async with self.semaphore:
                     atp_agent = AtpAgent(service=self.pds_endpoint)
-                    response = await atp_agent.async_get_repo(did=did, session=session)
-                    pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).dec()
-                    # Track both the summary and histogram for latency
-                    request_latency = time.perf_counter() - start
-                    pdm.BACKFILL_LATENCY_SECONDS.labels(
-                        endpoint=self.pds_endpoint
-                    ).observe(request_latency)
-                    pdm.BACKFILL_LATENCY_HISTOGRAM.labels(
-                        endpoint=self.pds_endpoint
-                    ).observe(request_latency)
-                    tokens_remaining: int = int(
-                        response.headers.get("ratelimit-remaining")
-                    )
-                    if tokens_remaining < self.token_bucket.get_tokens():
-                        token_buffer_size = 50  # have some conservative bucket buffer.
-                        logger.info(
-                            f"(PDS endpoint: {self.pds_endpoint}): Tokens remaining from headers {tokens_remaining} < bucket tokens {self.token_bucket.get_tokens()}, setting bucket tokens to {tokens_remaining}."
+                    temp_did_queue = asyncio.Queue()
+                    for record_type in self.config.record_types:
+                        response = await atp_agent.async_list_records(
+                            repo=did, collection=record_type, session=session
                         )
-                        self.token_bucket.set_tokens(
-                            tokens_remaining - token_buffer_size
+                        self.total_requests += 1
+                        pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).dec()
+
+                        # Track both the summary and histogram for latency
+                        request_latency = time.perf_counter() - start
+                        pdm.BACKFILL_LATENCY_SECONDS.labels(
+                            endpoint=self.pds_endpoint
+                        ).observe(request_latency)
+                        tokens_remaining: int = int(
+                            response.headers.get("ratelimit-remaining")
                         )
-                    if response.status == 200:
-                        content: bytes = await response.read()
-                    elif response.status == 429:
-                        # Rate limited, put back in queue
-                        logger.info(
-                            f"(PDS endpoint: {self.pds_endpoint}): Rate limited, putting DID {did} back in queue."
-                        )
-                        await asyncio.sleep(1 * (2**retry_count))  # Exponential backoff
-                        retry_count += 1
-                        await self.temp_work_queue.put(
-                            {"did": did, "retry_count": retry_count}
-                        )
-                        pdm.BACKFILL_QUEUE_SIZES.labels(
-                            endpoint=self.pds_endpoint, queue_type="work"
-                        ).set(self.temp_work_queue.qsize())
-                        logger.info(
-                            f"Sleep time finished for {did}, continuing backfill."
-                        )
-                        return
-                    elif response.status == 400 and response.reason == "Bad Request":
-                        # API returning 400 means the account is deleted/suspended.
-                        # The PLC doc might exist, but if you look at Bluesky, their
-                        # account won't exist.
-                        logger.error(
-                            f"(PDS endpoint: {self.pds_endpoint}): Account {did} is deleted/suspended. Adding to deadletter queue."
-                        )
-                        await self.temp_deadletter_queue.put(
-                            {"did": did, "content": ""}
-                        )
-                        pdm.BACKFILL_DID_STATUS.labels(
-                            endpoint=self.pds_endpoint, status="account_deleted"
-                        ).inc()
-                        pdm.BACKFILL_QUEUE_SIZES.labels(
-                            endpoint=self.pds_endpoint, queue_type="deadletter"
-                        ).set(self.temp_deadletter_queue.qsize())
-                        return
-                    else:
-                        # For unexpected status codes, we don't retry.
-                        logger.error(
-                            f"(PDS endpoint: {self.pds_endpoint}): Unexpected status code ({response.status}) and reason ({response.reason}) for DID {did}"
-                        )
-                        await self.temp_deadletter_queue.put(
-                            {"did": did, "content": ""}
-                        )
-                        pdm.BACKFILL_DID_STATUS.labels(
-                            endpoint=self.pds_endpoint, status="http_error"
-                        ).inc()
-                        pdm.BACKFILL_QUEUE_SIZES.labels(
-                            endpoint=self.pds_endpoint, queue_type="deadletter"
-                        ).set(self.temp_deadletter_queue.qsize())
-                        return
-                if content:
-                    # offload CPU portion to thread pool.
-                    # keeping outside of semaphore to avoid blocking the semaphore
-                    # with the extra CPU operations.
+                        if tokens_remaining < self.token_bucket.get_tokens():
+                            token_buffer_size = (
+                                50  # have some conservative bucket buffer.
+                            )
+                            logger.info(
+                                f"(PDS endpoint: {self.pds_endpoint}): Tokens remaining from headers {tokens_remaining} < bucket tokens {self.token_bucket.get_tokens()}, setting bucket tokens to {tokens_remaining}."
+                            )
+                            self.token_bucket.set_tokens(
+                                tokens_remaining - token_buffer_size
+                            )
+                        if response.status == 200:
+                            response_dict = await response.json()
+                            records: list[dict] = response_dict["records"]
+                            await temp_did_queue.put({"did": did, "content": records})
+                        elif response.status == 429:
+                            # Rate limited, put back in queue
+                            logger.info(
+                                f"(PDS endpoint: {self.pds_endpoint}): Rate limited, putting DID {did} back in queue."
+                            )
+                            await asyncio.sleep(
+                                1 * (2**retry_count)
+                            )  # Exponential backoff
+                            retry_count += 1
+                            await self.temp_work_queue.put(
+                                {"did": did, "retry_count": retry_count}
+                            )
+                            pdm.BACKFILL_QUEUE_SIZES.labels(
+                                endpoint=self.pds_endpoint, queue_type="work"
+                            ).set(self.temp_work_queue.qsize())
+                            logger.info(
+                                f"Sleep time finished for {did}, continuing backfill."
+                            )
+                            return
+                        elif (
+                            response.status == 400 and response.reason == "Bad Request"
+                        ):
+                            # API returning 400 means the account is deleted/suspended.
+                            # The PLC doc might exist, but if you look at Bluesky, their
+                            # account won't exist.
+                            logger.error(
+                                f"(PDS endpoint: {self.pds_endpoint}): Account {did} is deleted/suspended. Adding to deadletter queue."
+                            )
+                            await self.temp_deadletter_queue.put(
+                                {"did": did, "content": ""}
+                            )
+                            pdm.BACKFILL_DID_STATUS.labels(
+                                endpoint=self.pds_endpoint, status="account_deleted"
+                            ).inc()
+                            pdm.BACKFILL_QUEUE_SIZES.labels(
+                                endpoint=self.pds_endpoint, queue_type="deadletter"
+                            ).set(self.temp_deadletter_queue.qsize())
+                            return
+                        else:
+                            # For unexpected status codes, we don't retry.
+                            logger.error(
+                                f"(PDS endpoint: {self.pds_endpoint}): Unexpected status code ({response.status}) and reason ({response.reason}) for DID {did}"
+                            )
+                            await self.temp_deadletter_queue.put(
+                                {"did": did, "content": ""}
+                            )
+                            pdm.BACKFILL_DID_STATUS.labels(
+                                endpoint=self.pds_endpoint, status="http_error"
+                            ).inc()
+                            pdm.BACKFILL_QUEUE_SIZES.labels(
+                                endpoint=self.pds_endpoint, queue_type="deadletter"
+                            ).set(self.temp_deadletter_queue.qsize())
+                            return
+
+                if not temp_did_queue.empty():
                     loop = asyncio.get_running_loop()
                     processing_start = time.perf_counter()
-                    raw_records: list[dict] = await loop.run_in_executor(
-                        self.cpu_pool, get_records_from_pds_bytes, content
-                    )
+                    records: list[dict] = []
+                    while not temp_did_queue.empty():
+                        # { "did": did, "content": records }
+                        temp_result = await temp_did_queue.get()
+                        records.extend(temp_result["content"])
                     records: list[dict] = await loop.run_in_executor(
                         self.cpu_pool,
                         self._filter_records,
-                        raw_records,
+                        records,
                     )
                     processing_time = time.perf_counter() - processing_start
                     pdm.BACKFILL_PROCESSING_SECONDS.labels(
                         endpoint=self.pds_endpoint, operation_type="parse_records"
                     ).observe(processing_time)
 
-                    # NOTE: possible to have 0 records (e.g., if the records
-                    # are filtered out as per our criteria above).
                     await self.temp_results_queue.put({"did": did, "content": records})
 
                     # Update DID status and success metrics
@@ -419,6 +428,9 @@ class PDSEndpointWorker:
                 pdm.BACKFILL_ERRORS.labels(endpoint=self.pds_endpoint).inc()
                 logger.error(
                     f"(PDS endpoint: {self.pds_endpoint}): Unexpected error processing DID {did}: {e}"
+                )
+                logger.error(
+                    f"Traceback for unexpected error: {traceback.format_exc()}"
                 )
                 await self.temp_deadletter_queue.put({"did": did, "content": ""})
                 pdm.BACKFILL_DID_STATUS.labels(
@@ -504,14 +516,11 @@ class PDSEndpointWorker:
                 finally:
                     # mark task as done even if it failed.
                     self.temp_work_queue.task_done()
-            logger.info(f"(PDS endpoint: {self.pds_endpoint}): Worker loop finished.")
         except Exception as e:
             logger.error(
                 f"(PDS endpoint: {self.pds_endpoint}): Worker loop ERROR: {e}",
                 exc_info=True,
             )
-        finally:
-            logger.info(f"(PDS endpoint: {self.pds_endpoint}): Worker loop EXITED")
 
     async def wait_done(self):
         """Waits for the backfill to finish."""

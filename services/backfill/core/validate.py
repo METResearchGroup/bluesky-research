@@ -38,12 +38,11 @@ def identify_record_type(record: dict):
 
 
 def validate_record_timestamp(
-    record: dict,
+    record_timestamp: str,
     start_timestamp: str = default_start_timestamp,
     end_timestamp: str = default_end_timestamp,
 ) -> bool:
     """Get only the records within the range of the study."""
-    record_timestamp = record["createdAt"]
     record_timestamp_pipeline_dt = convert_bsky_dt_to_pipeline_dt(record_timestamp)
     if (
         record_timestamp_pipeline_dt < start_timestamp
@@ -99,8 +98,8 @@ def validate_time_range_record(
     )
 
 
-def filter_only_valid_bsky_posts(record: dict, types_to_sync: list[str]) -> bool:
-    """Get only Bluesky posts."""
+def filter_only_valid_bsky_records(record: dict, types_to_sync: list[str]) -> bool:
+    """Get only Bluesky records."""
     return validate_is_valid_bsky_type(record) and record["$type"] in types_to_sync
 
 

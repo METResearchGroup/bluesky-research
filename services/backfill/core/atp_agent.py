@@ -60,6 +60,42 @@ class AtpAgent:
         response = requests.get(url, headers=self.headers, params=params)
         return response
 
+    async def async_list_records(
+        self,
+        repo: str,
+        collection: str,
+        session: aiohttp.ClientSession,
+        limit: int = 100,
+        cursor: str = None,
+    ):
+        """Lists records from a collection asynchronously.
+
+        https://github.com/bluesky-social/atproto/blob/main/lexicons/com/atproto/repo/listRecords.json
+
+        Args:
+            repo: The repository (DID) to list records from.
+            collection: The collection to list records from.
+            session: The aiohttp ClientSession to use for the request.
+            limit: Maximum number of records to return.
+            cursor: Pagination cursor from previous response.
+
+        Returns:
+            aiohttp.ClientResponse: The response from the API.
+        """
+        params = {
+            "repo": repo,
+            "collection": collection,
+            "limit": limit,
+        }
+        if cursor is not None:
+            # only add cursor if not None, due to aiohttp not being able to
+            # handle None values.
+            params["cursor"] = cursor
+
+        url = f"{self.service}/xrpc/com.atproto.repo.listRecords"
+        response = await session.get(url, headers=self.headers, params=params)
+        return response
+
     def get_repo(self, did: str):
         """Gets a repo from the PDS.
 
@@ -106,6 +142,32 @@ class AtpAgent:
         print(f"Average request time: {sum(request_times) / len(request_times)}")
         print(f"Total time: {end_time - start_time}\tTotal requests: {total_dids}")
         return results
+
+    async def sync_records_by_type(
+        self, did: str, record_type: str, session: aiohttp.ClientSession
+    ):
+        """Syncs records by type.
+
+        Args:
+            record_type: The type of record to sync.
+            session: The aiohttp ClientSession to use for the request.
+        """
+        if record_type in ["app.bsky.feed.post", "app.bsky.feed.repost"]:
+            return await self.async_list_records(
+                repo=did,
+                collection=record_type,
+                session=session,
+            )
+        elif record_type in [
+            "app.bsky.feed.like",
+            "app.bsky.graph.follow",
+            "app.bsky.graph.block",
+        ]:
+            return await self.async_list_records(
+                repo=did,
+                collection=record_type,
+                session=session,
+            )
 
 
 if __name__ == "__main__":
