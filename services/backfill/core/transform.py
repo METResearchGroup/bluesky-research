@@ -72,6 +72,7 @@ def assign_default_backfill_synctimestamp(synctimestamp: str) -> str:
 
 
 def transform_backfilled_record(
+    did: str,
     record: dict,
     record_type: str,
     start_timestamp: str,
@@ -86,15 +87,19 @@ def transform_backfilled_record(
     Returns:
         The transformed record
     """
+    record["author"] = did
     record["record_type"] = record_type
-    record["synctimestamp"] = convert_bsky_dt_to_pipeline_dt(record["createdAt"])  # noqa
+
+    record_value = record.pop("value")
+
+    record["synctimestamp"] = convert_bsky_dt_to_pipeline_dt(record_value["createdAt"])  # noqa
     # for old records, use a different synctimestamp that'll allow
     # use to better partition the data.
 
     # validate the synctimestamp and if it's not in the range,
     # then set to a default timestamp.
     record_falls_in_study_range: bool = validate_record_timestamp(
-        record=record,
+        record_timestamp=record_value["createdAt"],
         start_timestamp=start_timestamp,
         end_timestamp=end_timestamp,
     )
@@ -108,22 +113,25 @@ def transform_backfilled_record(
     # record has the field, but I want to enforce consistent schemas).
     try:
         if record_type in ["post", "reply"]:
-            embed = record.get("embed", False)
+            # records from querying the PDS don't have their URIs for some reason,
+            # and I can't get around that it seems?
+
+            embed = record_value.get("embed", False)
             record["embed"] = json.dumps(embed) if embed else None
 
-            entities = record.get("entities", False)
+            entities = record_value.get("entities", False)
             record["entities"] = json.dumps(entities) if entities else None
 
-            facets = record.get("facets", False)
+            facets = record_value.get("facets", False)
             record["facets"] = json.dumps(facets) if facets else None
 
-            langs = record.get("langs", False)
+            langs = record_value.get("langs", False)
             record["langs"] = ",".join(langs) if langs else None
 
-            tags = record.get("tags", False)
+            tags = record_value.get("tags", False)
             record["tags"] = ",".join(tags) if tags else None
 
-            labels = record.get("labels", False)
+            labels = record_value.get("labels", False)
             record["labels"] = json.dumps(labels) if labels else None
 
             if record_type == "post":
@@ -133,16 +141,24 @@ def transform_backfilled_record(
                 transformed_record = transformed_record.model_dump()
                 transformed_record["reply"] = json.dumps(transformed_record["reply"])
         elif record_type == "repost":
+            record["created_at"] = record_value["createdAt"]
+            record["subject"] = record_value["subject"]
             transformed_record = TransformedRepost(**record)
             transformed_record = transformed_record.model_dump()
             transformed_record["subject"] = json.dumps(transformed_record["subject"])
         elif record_type == "like":
+            record["created_at"] = record_value["createdAt"]
+            record["subject"] = record_value["subject"]
             transformed_record = TransformedLike(**record)
             transformed_record = transformed_record.model_dump()
             transformed_record["subject"] = json.dumps(transformed_record["subject"])
         elif record_type == "follow":
+            record["created_at"] = record_value["createdAt"]
+            record["subject"] = record_value["subject"]
             transformed_record = TransformedFollow(**record)
         elif record_type == "block":
+            record["created_at"] = record_value["createdAt"]
+            record["subject"] = record_value["subject"]
             transformed_record = TransformedBlock(**record)
         if not isinstance(transformed_record, dict):
             return transformed_record.model_dump()
