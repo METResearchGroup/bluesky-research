@@ -208,3 +208,6 @@ class PdsEndpointManager:
         """Runs backfills for a list of DIDs."""
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.run_pds_backfills())
+        logger.info(
+            f"PDS backfills completed for {len(self.pds_endpoints_to_sync)} endpoints and {len(self.plc_docs)} DIDs."
+        )

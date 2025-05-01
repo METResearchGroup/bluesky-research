@@ -22,7 +22,7 @@ def identify_post_type(post: dict):
     and not part of a thread (we count those as replies). Both standalone and
     threaded posts are obviously written by the user.
     """
-    post_type = "reply" if "reply" in post else "post"
+    post_type = "reply" if "reply" in post["value"] else "post"
     return post_type
 
 

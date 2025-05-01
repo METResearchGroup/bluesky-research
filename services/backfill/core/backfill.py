@@ -30,9 +30,7 @@ from services.backfill.core.validate import (
     identify_record_type,
     validate_is_valid_generic_bluesky_type,
 )
-from services.backfill.core.transform import (
-    transform_backfilled_record,
-)
+from services.backfill.core.transform import transform_backfilled_record
 
 logger = get_logger(__name__)
 
