@@ -5,7 +5,7 @@ from api.backfill_router.config.schema import BackfillConfigSchema
 from lib.constants import project_home_directory
 from lib.log.logger import get_logger
 from services.backfill.core.query_plc_endpoint import query_plc_endpoint
-# from services.backfill.core.pds_endpoint_backfill import run_pds_backfill  # Uncomment and implement when ready
+from services.backfill.core.run_pds_backfill import run_pds_backfill
 
 logger = get_logger(__name__)
 
@@ -26,8 +26,4 @@ def run_query_plc(config_path: str) -> None:
 
 def run_pds_backfill_api(config_path: str) -> None:
     config = load_config(config_path)
-    # run_pds_backfill(config=config)  # Uncomment and implement when ready
-    print(
-        "[STUB] PDS endpoint backfill not yet implemented. Would run with config:",
-        config,
-    )
+    run_pds_backfill(config=config)  # Uncomment and implement when ready
