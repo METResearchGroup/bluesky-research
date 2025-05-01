@@ -4,7 +4,7 @@ from api.backfill_router.config.schema import BackfillConfigSchema
 from lib.constants import project_home_directory
 from lib.log.logger import get_logger
 from services.backfill.core.manager import PdsEndpointManager
-from services.backfill.storage.utils.queue_utils import (
+from services.backfill.storage.utils.main import (
     load_dids_to_query,
     load_existing_plc_results,
 )

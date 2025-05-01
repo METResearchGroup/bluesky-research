@@ -1,20 +1,20 @@
 """Worker class for managing the backfill for a single PDS endpoint."""
 
-from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
-
-import pandas as pd
 import aiohttp
 import asyncio
+import collections
+from concurrent.futures import ThreadPoolExecutor
 import contextlib
 from datetime import datetime, timezone
 import json
 import os
 import tempfile
 import time
-import collections
+from typing import Optional
 
+import pandas as pd
 
+from api.backfill_router.config.schema import BackfillConfigSchema
 from lib.constants import timestamp_format
 from lib.db.manage_local_data import (
     export_data_to_local_storage,
@@ -45,10 +45,9 @@ from services.backfill.core.validate import (
     validate_time_range_record,
 )
 from services.backfill.storage.load_data import (
-    load_previously_liked_post_uris,
     get_previously_processed_dids,
 )
-from services.backfill.storage.queue_utils import get_write_queues
+from services.backfill.storage.utils.queue_utils import get_write_queues
 from services.backfill.storage.session_metadata import write_backfill_metadata_to_db
 
 start_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
@@ -119,6 +118,7 @@ class PDSEndpointWorker:
         dids: list[str],
         session: aiohttp.ClientSession,
         cpu_pool,
+        config: BackfillConfigSchema,
         pds_endpoint: Optional[str] = default_pds_endpoint,
         qps: int = default_qps,
         batch_size: int = default_write_batch_size,
@@ -184,7 +184,7 @@ class PDSEndpointWorker:
         # Track a rolling window of response times
         self.response_times = collections.deque(maxlen=20)
 
-        self.liked_post_uris = load_previously_liked_post_uris()
+        # add other metadata.
 
     async def _init_worker_queue(self):
         for did in self.dids:
@@ -196,18 +196,20 @@ class PDSEndpointWorker:
         ).set(queue_size)
         pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(queue_size)
 
-    def _check_if_record_has_liked_uri(self, record: dict) -> bool:
-        """Check if the record has a liked URI."""
-        return record["uri"] in self.liked_post_uris
-
     def _filter_records(self, records: list[dict]) -> list[dict]:
         """Filter for only posts/reposts in the date range of interest."""
         return [
             record
             for record in records
-            if filter_only_valid_bsky_posts(record)
-            and validate_time_range_record(record)
-            and self._check_if_record_has_liked_uri(record)
+            if filter_only_valid_bsky_posts(
+                record=record,
+                types_to_sync=self.config.record_types,
+            )
+            and validate_time_range_record(
+                record=record,
+                start_timestamp=self.config.time_range.start_date,
+                end_timestamp=self.config.time_range.end_date,
+            )
         ]
 
     async def _process_did(

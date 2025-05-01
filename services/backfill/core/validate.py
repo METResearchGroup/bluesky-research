@@ -99,12 +99,9 @@ def validate_time_range_record(
     )
 
 
-def filter_only_valid_bsky_posts(record: dict) -> bool:
+def filter_only_valid_bsky_posts(record: dict, types_to_sync: list[str]) -> bool:
     """Get only Bluesky posts."""
-    return validate_is_valid_bsky_type(record) and record["$type"] in [
-        "app.bsky.feed.post",
-        "app.bsky.feed.repost",
-    ]
+    return validate_is_valid_bsky_type(record) and record["$type"] in types_to_sync
 
 
 def validate_dids(

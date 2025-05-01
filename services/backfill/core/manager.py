@@ -4,9 +4,11 @@ endpoints."""
 import aiohttp
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from pprint import pprint
 import time
 from typing import Iterable
 
+from api.backfill_router.config.schema import BackfillConfigSchema
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.telemetry.prometheus.server import start_metrics_server
@@ -24,7 +26,11 @@ start_metrics_server(port=8000)
 class PdsEndpointManager:
     """Manages threaded PDS endpoint backfills."""
 
-    def __init__(self, plc_docs: list[dict]):
+    def __init__(self, config: BackfillConfigSchema, plc_docs: list[dict]):
+        self.config = config
+        print("Config for PDS backfill:")
+        pprint(self.config.model_dump())
+        breakpoint()
         self.plc_docs = plc_docs
         self.pds_endpoint_to_dids_map = self.generate_pds_endpoint_to_dids_map()
         self.max_threads = 6
@@ -170,6 +176,7 @@ class PdsEndpointManager:
                     dids=dids,
                     session=session,
                     cpu_pool=cpu_pool,
+                    config=self.config,
                 )
                 await worker.start()
                 logger.info(

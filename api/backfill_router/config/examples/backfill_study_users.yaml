@@ -16,8 +16,8 @@ backfill:
     - "app.bsky.graph.follow"
     - "app.bsky.graph.block"
   time_range:
-    start_date: "2025-01-01"
-    end_date: "2025-02-01"
+    start_date: "2024-09-28-00:00:00"
+    end_date: "2024-12-01-00:00:00"
   sync_storage:
     type: "parquet"
     path: ""  # not required if stored in Parquet. `manage_local_data.py` will manage.

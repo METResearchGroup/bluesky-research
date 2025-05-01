@@ -5,7 +5,7 @@ import pandas as pd
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.db.queue import Queue
 from lib.log.logger import get_logger
-from services.backfill.storage.queue_utils import get_write_queues
+from services.backfill.storage.utils.queue_utils import get_write_queues
 
 logger = get_logger(__name__)
 
