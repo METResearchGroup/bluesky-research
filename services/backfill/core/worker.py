@@ -1355,6 +1355,9 @@ class PDSEndpointWorker:
             posts_parquet_size = 0
             reposts_parquet_size = 0
             replies_parquet_size = 0
+            follows_parquet_size = 0
+            likes_parquet_size = 0
+            blocks_parquet_size = 0
 
             if total_posts > 0:
                 posts_sample_size = max(1, int(total_posts * sample_factor))

@@ -129,7 +129,8 @@ class PdsEndpointManager:
             if endpoint not in self.completed_pds_endpoint_backfills
         ]
 
-        filtered_endpoints = filtered_endpoints[: self.max_endpoints_to_sync]
+        # TODO: just sync all endpoints for now.
+        # filtered_endpoints = filtered_endpoints[: self.max_endpoints_to_sync]
 
         logger.info(f"Filtered down to {len(filtered_endpoints)} PDS endpoints to sync")
 
