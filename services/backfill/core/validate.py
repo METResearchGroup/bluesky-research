@@ -31,7 +31,7 @@ def identify_record_type(record: dict):
 
     The record type is the last part of the record's $type field.
     """
-    record_type = record["$type"].split(".")[-1]
+    record_type = record["value"]["$type"].split(".")[-1]
     if record_type == "post":
         record_type = identify_post_type(record)
     return record_type
@@ -68,11 +68,7 @@ def validate_is_valid_generic_bluesky_type(record: dict) -> bool:
     record), since I've seen that there's sometimes inconsistencies here
     because of Bluesky schema evolution over time.
     """
-    return record["$type"] in valid_generic_bluesky_types
-
-
-def validate_is_valid_bsky_type(record: dict) -> bool:
-    return "$type" in record and record["$type"] in valid_generic_bluesky_types
+    return record["value"]["$type"] in valid_generic_bluesky_types
 
 
 def validate_time_range_record(
@@ -90,7 +86,7 @@ def validate_time_range_record(
         start_timestamp = "2024-09-01-00:00:00"
     if not end_timestamp:
         end_timestamp = "2024-12-02-00:00:00"
-    record_timestamp = record["createdAt"]
+    record_timestamp = record["value"]["createdAt"]
     record_timestamp_pipeline_dt = convert_bsky_dt_to_pipeline_dt(record_timestamp)
     return (
         record_timestamp_pipeline_dt >= start_timestamp
@@ -100,7 +96,7 @@ def validate_time_range_record(
 
 def filter_only_valid_bsky_records(record: dict, types_to_sync: list[str]) -> bool:
     """Get only Bluesky records."""
-    return validate_is_valid_bsky_type(record) and record["$type"] in types_to_sync
+    return record["value"]["$type"] in types_to_sync
 
 
 def validate_dids(

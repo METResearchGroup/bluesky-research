@@ -199,7 +199,7 @@ class PDSEndpointWorker:
 
     def _filter_records(self, records: list[dict]) -> list[dict]:
         """Filter for only posts/reposts in the date range of interest."""
-        return [
+        filtered_records = [
             record
             for record in records
             if filter_only_valid_bsky_records(
@@ -212,6 +212,7 @@ class PDSEndpointWorker:
                 end_timestamp=self.config.time_range.end_date,
             )
         ]
+        return filtered_records
 
     async def _process_did(
         self,
@@ -342,22 +343,24 @@ class PDSEndpointWorker:
                 if not temp_did_queue.empty():
                     loop = asyncio.get_running_loop()
                     processing_start = time.perf_counter()
-                    records: list[dict] = []
+                    dequeued_records: list[dict] = []
                     while not temp_did_queue.empty():
                         # { "did": did, "content": records }
                         temp_result = await temp_did_queue.get()
-                        records.extend(temp_result["content"])
-                    records: list[dict] = await loop.run_in_executor(
+                        dequeued_records.extend(temp_result["content"])
+                    filtered_records: list[dict] = await loop.run_in_executor(
                         self.cpu_pool,
                         self._filter_records,
-                        records,
+                        dequeued_records,
                     )
                     processing_time = time.perf_counter() - processing_start
                     pdm.BACKFILL_PROCESSING_SECONDS.labels(
                         endpoint=self.pds_endpoint, operation_type="parse_records"
                     ).observe(processing_time)
 
-                    await self.temp_results_queue.put({"did": did, "content": records})
+                    await self.temp_results_queue.put(
+                        {"did": did, "content": filtered_records}
+                    )
 
                     # Update DID status and success metrics
                     pdm.BACKFILL_DID_STATUS.labels(
@@ -788,6 +791,7 @@ class PDSEndpointWorker:
 
                     # Transform and postprocess
                     record = transform_backfilled_record(
+                        did=user_did,
                         record=record,
                         record_type=record_type,
                         start_timestamp="2024-09-01-00:00:00",
@@ -1172,6 +1176,9 @@ class PDSEndpointWorker:
             batch_posts = []
             batch_replies = []
             batch_reposts = []
+            batch_follows = []
+            batch_likes = []
+            batch_blocks = []
             batch_user_counts = {}
 
             for item in batch:
@@ -1187,6 +1194,9 @@ class PDSEndpointWorker:
                         "post": 0,
                         "repost": 0,
                         "reply": 0,
+                        "follow": 0,
+                        "like": 0,
+                        "block": 0,
                     }
 
                 for record in records:
@@ -1196,6 +1206,7 @@ class PDSEndpointWorker:
 
                     # Transform and postprocess
                     record = transform_backfilled_record(
+                        did=user_did,
                         record=record,
                         record_type=record_type,
                         start_timestamp="2024-09-01-00:00:00",
@@ -1213,6 +1224,15 @@ class PDSEndpointWorker:
                     elif record_type == "reply":
                         batch_replies.append(record)
                         batch_user_counts[user_did]["reply"] += 1
+                    elif record_type == "follow":
+                        batch_follows.append(record)
+                        batch_user_counts[user_did]["follow"] += 1
+                    elif record_type == "like":
+                        batch_likes.append(record)
+                        batch_user_counts[user_did]["like"] += 1
+                    elif record_type == "block":
+                        batch_blocks.append(record)
+                        batch_user_counts[user_did]["block"] += 1
                     else:
                         raise ValueError(
                             f"Unknown record type for item being written to DB: {record_type}"
@@ -1221,11 +1241,22 @@ class PDSEndpointWorker:
             total_batch_posts = len(batch_posts)
             total_batch_replies = len(batch_replies)
             total_batch_reposts = len(batch_reposts)
+            total_batch_follows = len(batch_follows)
+            total_batch_likes = len(batch_likes)
+            total_batch_blocks = len(batch_blocks)
             total_users = len(batch_user_counts)
             logger.info(
-                f"(PDS endpoint: {self.pds_endpoint}) :Batch {idx} has {total_users} total users, {total_batch_posts} posts, {total_batch_replies} replies, and {total_batch_reposts} reposts."
+                f"(PDS endpoint: {self.pds_endpoint}) :Batch {idx} has {total_users} total users, {total_batch_posts} posts, {total_batch_replies} replies, {total_batch_reposts} reposts, {total_batch_follows} follows, {total_batch_likes} likes, and {total_batch_blocks} blocks."
             )
-            return (batch_posts, batch_replies, batch_reposts, batch_user_counts)
+            return (
+                batch_posts,
+                batch_replies,
+                batch_reposts,
+                batch_follows,
+                batch_likes,
+                batch_blocks,
+                batch_user_counts,
+            )
 
         try:
             num_threads = 4
@@ -1246,13 +1277,24 @@ class PDSEndpointWorker:
                     results.append(future.result())
 
             # Combine results
-            posts, replies, reposts = [], [], []
+            posts, replies, reposts, follows, likes, blocks = [], [], [], [], [], []
             user_to_total_per_record_type_map = {}
 
-            for batch_posts, batch_replies, batch_reposts, batch_user_counts in results:
+            for (
+                batch_posts,
+                batch_replies,
+                batch_reposts,
+                batch_follows,
+                batch_likes,
+                batch_blocks,
+                batch_user_counts,
+            ) in results:
                 posts.extend(batch_posts)
                 replies.extend(batch_replies)
                 reposts.extend(batch_reposts)
+                follows.extend(batch_follows)
+                likes.extend(batch_likes)
+                blocks.extend(batch_blocks)
 
                 # Merge user counts
                 for user_did, counts in batch_user_counts.items():
@@ -1261,6 +1303,9 @@ class PDSEndpointWorker:
                             "post": 0,
                             "repost": 0,
                             "reply": 0,
+                            "follow": 0,
+                            "like": 0,
+                            "block": 0,
                         }
 
                     user_to_total_per_record_type_map[user_did]["post"] += counts[
@@ -1272,19 +1317,34 @@ class PDSEndpointWorker:
                     user_to_total_per_record_type_map[user_did]["reply"] += counts[
                         "reply"
                     ]
+                    user_to_total_per_record_type_map[user_did]["follow"] += counts[
+                        "follow"
+                    ]
+                    user_to_total_per_record_type_map[user_did]["like"] += counts[
+                        "like"
+                    ]
+                    user_to_total_per_record_type_map[user_did]["block"] += counts[
+                        "block"
+                    ]
 
             logger.info(
-                f"Parallel processing complete: {len(posts)} posts, {len(reposts)} reposts, {len(replies)} replies"
+                f"Parallel processing complete: {len(posts)} posts, {len(reposts)} reposts, {len(replies)} replies, {len(follows)} follows, {len(likes)} likes, and {len(blocks)} blocks"
             )
 
             # Create DataFrames - same as before
             posts_df = pd.DataFrame(posts) if posts else pd.DataFrame()
             reposts_df = pd.DataFrame(reposts) if reposts else pd.DataFrame()
             replies_df = pd.DataFrame(replies) if replies else pd.DataFrame()
+            follows_df = pd.DataFrame(follows) if follows else pd.DataFrame()
+            likes_df = pd.DataFrame(likes) if likes else pd.DataFrame()
+            blocks_df = pd.DataFrame(blocks) if blocks else pd.DataFrame()
 
             total_posts = len(posts_df)
             total_reposts = len(reposts_df)
             total_replies = len(replies_df)
+            total_follows = len(follows_df)
+            total_likes = len(likes_df)
+            total_blocks = len(blocks_df)
 
             logger.info(
                 f"(PDS endpoint: {self.pds_endpoint}): Persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage..."
@@ -1326,65 +1386,78 @@ class PDSEndpointWorker:
                     total_rows=total_replies,
                 )
 
+            if total_follows > 0:
+                follows_sample_size = max(1, int(total_follows * sample_factor))
+                follows_sample_df = follows_df.sample(n=follows_sample_size)
+                follows_parquet_size = self._estimate_parquet_write_size(
+                    record_type="follow",
+                    sample_df=follows_sample_df,
+                    sample_size=follows_sample_size,
+                    total_rows=total_follows,
+                )
+
+            if total_likes > 0:
+                likes_sample_size = max(1, int(total_likes * sample_factor))
+                likes_sample_df = likes_df.sample(n=likes_sample_size)
+                likes_parquet_size = self._estimate_parquet_write_size(
+                    record_type="like",
+                    sample_df=likes_sample_df,
+                    sample_size=likes_sample_size,
+                    total_rows=total_likes,
+                )
+
+            if total_blocks > 0:
+                blocks_sample_size = max(1, int(total_blocks * sample_factor))
+                blocks_sample_df = blocks_df.sample(n=blocks_sample_size)
+                blocks_parquet_size = self._estimate_parquet_write_size(
+                    record_type="block",
+                    sample_df=blocks_sample_df,
+                    sample_size=blocks_sample_size,
+                    total_rows=total_blocks,
+                )
+
             logger.info(f"""
                 (PDS endpoint: {self.pds_endpoint})
                 Estimated parquet sizes:
                 - posts: {posts_parquet_size:.2f} MB
                 - reposts: {reposts_parquet_size:.2f} MB
                 - replies: {replies_parquet_size:.2f} MB
+                - follows: {follows_parquet_size:.2f} MB
+                - likes: {likes_parquet_size:.2f} MB
+                - blocks: {blocks_parquet_size:.2f} MB
             """)
 
             service = "raw_sync"
 
-            # Export data to storage - same as before
-            if total_posts > 0:
-                logger.info(
-                    f"(PDS endpoint: {self.pds_endpoint}): Exporting posts to local storage..."
-                )
-                export_data_to_local_storage(
-                    service=service,
-                    df=posts_df,
-                    custom_args={"record_type": "post"},
-                )
-                logger.info(
-                    f"(PDS endpoint: {self.pds_endpoint}): Exported posts to local storage."
-                )
-            else:
-                logger.info(f"(PDS endpoint: {self.pds_endpoint}): No posts to export.")
+            # Export data to storage
 
-            if total_reposts > 0:
-                logger.info(
-                    f"(PDS endpoint: {self.pds_endpoint}): Exporting reposts to local storage..."
-                )
-                export_data_to_local_storage(
-                    service=service,
-                    df=reposts_df,
-                    custom_args={"record_type": "repost"},
-                )
-                logger.info(
-                    f"(PDS endpoint: {self.pds_endpoint}): Exported reposts to local storage."
-                )
-            else:
-                logger.info(
-                    f"(PDS endpoint: {self.pds_endpoint}): No reposts to export."
-                )
-
-            if total_replies > 0:
-                logger.info(
-                    f"(PDS endpoint: {self.pds_endpoint}): Exporting replies to local storage..."
-                )
-                export_data_to_local_storage(
-                    service=service,
-                    df=replies_df,
-                    custom_args={"record_type": "reply"},
-                )
-                logger.info(
-                    f"(PDS endpoint: {self.pds_endpoint}): Exported replies to local storage."
-                )
-            else:
-                logger.info(
-                    f"(PDS endpoint: {self.pds_endpoint}): No replies to export."
-                )
+            for (
+                record_type,
+                df,
+            ) in [
+                ("post", posts_df),
+                ("repost", reposts_df),
+                ("reply", replies_df),
+                ("follow", follows_df),
+                ("like", likes_df),
+                ("block", blocks_df),
+            ]:
+                if len(df) > 0:
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Exporting {record_type} records to local storage..."
+                    )
+                    export_data_to_local_storage(
+                        service=service,
+                        df=df,
+                        custom_args={"record_type": record_type},
+                    )
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Exported {record_type} to local storage."
+                    )
+                else:
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): No {record_type} records to export."
+                    )
 
             logger.info(
                 f"(PDS endpoint: {self.pds_endpoint}): Finished persisting {total_posts} posts, {total_reposts} reposts, and {total_replies} replies to permanent storage."
@@ -1405,6 +1478,9 @@ class PDSEndpointWorker:
                         "post": 0,
                         "repost": 0,
                         "reply": 0,
+                        "follow": 0,
+                        "like": 0,
+                        "block": 0,
                     }
 
             logger.info(
