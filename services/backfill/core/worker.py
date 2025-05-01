@@ -858,6 +858,9 @@ class PDSEndpointWorker:
                             "post": 0,
                             "repost": 0,
                             "reply": 0,
+                            "follow": 0,
+                            "like": 0,
+                            "block": 0,
                         }
 
                     user_to_total_per_record_type_map[user_did]["post"] += counts[
@@ -868,6 +871,12 @@ class PDSEndpointWorker:
                     ]
                     user_to_total_per_record_type_map[user_did]["reply"] += counts[
                         "reply"
+                    ]
+                    user_to_total_per_record_type_map[user_did]["follow"] += counts[
+                        "follow"
+                    ]
+                    user_to_total_per_record_type_map[user_did]["like"] += counts[
+                        "like"
                     ]
 
             logger.info(
