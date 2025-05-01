@@ -4,6 +4,7 @@ from typing import Optional
 from lib.log.logger import get_logger
 from lib.db.queue import Queue
 from services.backfill.core.constants import input_queue_name, base_queue_name
+from services.backfill.core.models import PlcResult
 
 logger = get_logger(__name__)
 
@@ -118,16 +119,32 @@ def write_records_to_cache(
         )
 
 
-def load_existing_did_to_pds_endpoint_map(plc_storage_db_path: str) -> dict[str, str]:
+def load_existing_plc_results(plc_storage_db_path: str) -> list[dict]:
     """Gets the existing DID to PDS endpoint map from the local SQLite database."""
     did_plc_db = Queue(
         queue_name="did_plc",
-        create_new_queue=False,
-        temp_queue=False,
+        create_new_queue=True,
+        temp_queue=True,
         temp_queue_path=plc_storage_db_path,
     )
     items = did_plc_db.load_dict_items_from_queue()
-    did_to_pds_endpoint_map = {}
-    for item in items:
-        did_to_pds_endpoint_map[item["did"]] = item["pds_endpoint"]
-    return did_to_pds_endpoint_map
+    plc_results_to_export: list[dict] = []
+    for batch in items:
+        for item in batch:
+            plc_result = PlcResult(**item)
+            plc_results_to_export.append(plc_result.model_dump())
+    return plc_results_to_export
+
+
+def load_dids_to_query(db_path: str) -> list[str]:
+    did_plc_db = Queue(
+        queue_name="did_plc",
+        create_new_queue=True,
+        temp_queue=True,
+        temp_queue_path=db_path,
+    )
+    items = did_plc_db.load_dict_items_from_queue()
+    dids_to_query: list[str] = []
+    for batch in items:
+        dids_to_query.extend(batch["dids"])
+    return dids_to_query

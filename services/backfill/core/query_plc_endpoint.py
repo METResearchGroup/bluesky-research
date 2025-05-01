@@ -1,16 +1,19 @@
 """Given a list of DIDs, query the PLC endpoint and store the results."""
 
 from concurrent.futures import ThreadPoolExecutor
+import os
 import random
 import time
 
 from api.backfill_router.config.schema import BackfillConfigSchema
+from lib.constants import project_home_directory
 from lib.db.queue import Queue
 from lib.helper import create_batches
 from lib.log.logger import get_logger
 from services.backfill.core.backfill import get_plc_directory_doc
+from services.backfill.core.models import PlcResult
 from services.backfill.storage.utils.main import (
-    load_existing_did_to_pds_endpoint_map,
+    load_existing_plc_results,
     load_dids_to_query,
 )
 
@@ -38,11 +41,12 @@ def parallelize_plc_directory_requests(minibatch_dids: list[str]) -> dict[str, s
     return results
 
 
-def single_batch_backfill_missing_did_to_pds_endpoints(
+def single_batch_backfill_missing_plc_docs(
     dids: list[str],
+    did_plc_db: Queue,
 ) -> dict[str, str]:
     """Single batch backfills missing DID to PLC endpoint mappings."""
-    did_to_pds_endpoint_map: dict[str, str] = {}
+    did_to_plc_result_map: dict[str, PlcResult] = {}
     logger.info(f"\tFetching PLC endpoints for {len(dids)} DIDs")
 
     # parallelize the requests to the PLC directory
@@ -62,25 +66,29 @@ def single_batch_backfill_missing_did_to_pds_endpoints(
         minibatch_plc_directory_docs: list[dict] = parallelize_plc_directory_requests(
             minibatch_dids=minibatch_dids_batch
         )
+        plc_results: list[PlcResult] = []
         try:
-            service_endpoints = [
-                doc["service"][0]["serviceEndpoint"]
-                for doc in minibatch_plc_directory_docs
-            ]
-        except Exception:
+            for plc_directory_doc in minibatch_plc_directory_docs:
+                did = plc_directory_doc["id"]
+                pds_endpoint = plc_directory_doc["service"][0]["serviceEndpoint"]
+                pds_owner = (
+                    "bluesky" if "bsky.network" in pds_endpoint else "not_bluesky"
+                )
+                handle = plc_directory_doc["alsoKnownAs"][0]
+                plc_result = PlcResult(
+                    did=did,
+                    pds_service_endpoint=pds_endpoint,
+                    pds_owner=pds_owner,
+                    handle=handle,
+                )
+                plc_results.append(plc_result)
+        except Exception as e:
             # example failed doc: [{'message': 'DID not registered: did:web:witchy.mom'}]
-            service_endpoints = []
-            num_invalid_docs = 0
-            for doc in minibatch_plc_directory_docs:
-                if "service" in doc:
-                    service_endpoints.append(doc["service"][0]["serviceEndpoint"])
-                else:
-                    service_endpoints.append("invalid_doc")
-            if num_invalid_docs > 0:
-                logger.info(f"Found {num_invalid_docs} invalid docs for batch {i}")
-        dids_to_service_endpoints = dict(zip(minibatch_dids_batch, service_endpoints))
-        did_to_pds_endpoint_map.update(dids_to_service_endpoints)
-
+            logger.error(f"Error processing PLC directory doc: {e}")
+        batch_did_to_plc_result_map: dict[str, PlcResult] = {
+            plc_result.did: plc_result for plc_result in plc_results
+        }
+        did_to_plc_result_map.update(batch_did_to_plc_result_map)
         # NOTE: running it without the rate limit jitter still seems to be baseline slow,
         # i.e., 25 requests in 18-20 seconds, so seems like there's some delay and latency
         # already affecting this process anyways (unsure if it is my own network latency)
@@ -91,14 +99,28 @@ def single_batch_backfill_missing_did_to_pds_endpoints(
                 f"\t\tCompleted fetching PLC endpoints for {i*minibatch_did_size}/{len(dids)} DIDs in batch"
             )
 
+    # TODO: continue removing `did_to_pds_endpoint_map` and replacing with
+    # `plc_results_to_export`.
+    plc_results_to_export: list[PlcResult] = list(did_to_plc_result_map.values())
+    plc_results_to_export: list[dict] = [
+        plc_result.model_dump() for plc_result in plc_results_to_export
+    ]
+
+    processed_dids = [plc_result.did for plc_result in plc_results_to_export]
+
     logger.info(f"\tCompleted fetching PLC endpoints for {len(dids)} DIDs")
-    export_did_to_pds_endpoint_map_to_local_db(did_to_pds_endpoint_map)
-    return did_to_pds_endpoint_map
+    export_plc_results_to_local_db(
+        plc_results_to_export=plc_results_to_export,
+        did_plc_db=did_plc_db,
+    )
+    return processed_dids
 
 
-def batch_backfill_missing_did_to_pds_endpoints(dids: list[str]) -> dict[str, str]:
-    """Batch backfills missing DID to PLC endpoint mappings."""
-    did_to_pds_endpoint_map: dict[str, str] = {}
+def batch_backfill_missing_plc_docs(
+    dids: list[str],
+    did_plc_db: Queue,
+) -> list[str]:
+    """Batch backfills missing PLC docs."""
     dids_batches: list[list[str]] = create_batches(
         batch_list=dids, batch_size=default_plc_backfill_batch_size
     )
@@ -108,10 +130,10 @@ def batch_backfill_missing_did_to_pds_endpoints(dids: list[str]) -> dict[str, st
     time_start = time.time()
     for i, dids_batch in enumerate(dids_batches):
         logger.info(f"Fetching PLC endpoints for batch {i+1}/{len(dids_batches)}")
-        batch_did_to_pds_endpoint_map = (
-            single_batch_backfill_missing_did_to_pds_endpoints(dids=dids_batch)
+        single_batch_backfill_missing_plc_docs(
+            dids=dids_batch,
+            did_plc_db=did_plc_db,
         )
-        did_to_pds_endpoint_map.update(batch_did_to_pds_endpoint_map)
         logger.info(
             f"Completed fetching PLC endpoints for batch {i+1}/{len(dids_batches)}"
         )
@@ -124,57 +146,27 @@ def batch_backfill_missing_did_to_pds_endpoints(dids: list[str]) -> dict[str, st
     logger.info(
         f"Time for PLC endpoint backfill of {len(dids)} DIDs: {total_time_minutes} minutes"
     )
-    return did_to_pds_endpoint_map
 
 
-def export_did_to_pds_endpoint_map_to_local_db(
-    did_to_pds_endpoint_map: dict[str, str],
-    did_plc_db: Queue,
+def export_plc_results_to_local_db(
+    plc_results_to_export: list[dict], did_plc_db: Queue
 ) -> None:
     """Exports the DID to PLC endpoint map to the local SQLite database."""
-    did_plc_db.batch_add_items_to_queue(
-        items=[
-            {"did": did, "pds_endpoint": pds_endpoint}
-            for did, pds_endpoint in did_to_pds_endpoint_map.items()
-        ]
-    )
+    did_plc_db.batch_add_items_to_queue(items=plc_results_to_export)
     logger.info(
         f"Exported DID to PLC endpoint map to local database at {did_plc_db.db_path}"
     )
 
 
-def backfill_did_to_pds_endpoint_map(
-    dids: list[str],
-    current_did_to_pds_endpoint_map: dict[str, str],
-) -> dict[str, str]:
-    """Backfills the DID to PDS endpoint map to include any missing DIDs."""
-    missing_dids = [did for did in dids if did not in current_did_to_pds_endpoint_map]
-    if len(missing_dids) == 0:
-        logger.info("No missing DIDs, returning current map.")
-        return current_did_to_pds_endpoint_map
-    logger.info(
-        f"Backfilling the PDS endpoints for {len(missing_dids)}/{len(dids)} missing DIDs"
-    )
-    missing_dids_to_pds_endpoint_map = batch_backfill_missing_did_to_pds_endpoints(
-        dids=missing_dids
-    )
-
-    return {
-        **current_did_to_pds_endpoint_map,
-        **missing_dids_to_pds_endpoint_map,
-    }
-
-
 def filter_dids_to_query(
-    dids: list[str], existing_did_to_pds_endpoint_map: dict[str, str]
+    dids: list[str], existing_queried_dids: list[str]
 ) -> list[str]:
     """Loads the DIDs to query from the local SQLite database."""
-    existing_dids = list(existing_did_to_pds_endpoint_map.keys())
-    missing_dids = [did for did in dids if did not in existing_dids]
+    missing_dids = [did for did in dids if did not in existing_queried_dids]
     return missing_dids
 
 
-def query_plc_endpoint(dids: list[str], config: BackfillConfigSchema) -> None:
+def query_plc_endpoint(config: BackfillConfigSchema) -> None:
     """Query the PLC endpoint and store the results.
 
     Steps:
@@ -184,30 +176,40 @@ def query_plc_endpoint(dids: list[str], config: BackfillConfigSchema) -> None:
     4. Query the PLC endpoint for the missing DIDs.
     5. Export the DID to PLC endpoint map to the local SQLite database.
     """
+    full_plc_storage_fp = os.path.join(
+        project_home_directory,
+        config.plc_storage.path,
+    )
+    full_did_storage_fp = os.path.join(
+        project_home_directory,
+        config.source.path,
+    )
+    logger.info(f"Loading DIDs from {full_did_storage_fp}")
+    logger.info(f"Loading existing DID to PLC endpoint map from {full_plc_storage_fp}")
 
     dids: list[str] = load_dids_to_query(
-        type=config.source.type,
-        path=config.source.path,
+        type=config.source.type, path=full_did_storage_fp
     )
-    existing_did_to_pds_endpoint_map: dict[str, str] = (
-        load_existing_did_to_pds_endpoint_map(
-            type=config.plc_storage.type,
-            path=config.plc_storage.path,
-        )
+    existing_plc_results: list[dict] = load_existing_plc_results(
+        type=config.plc_storage.type, path=full_plc_storage_fp
+    )
+    existing_queried_dids = [plc_result["did"] for plc_result in existing_plc_results]
+    logger.info(f"Filtering DIDs to query from {len(dids)} total DIDs")
+    logger.info(
+        f"Filtering DIDs to query from {len(existing_queried_dids)} existing DIDs"
     )
     dids_to_query: list[str] = filter_dids_to_query(
         dids=dids,
-        existing_did_to_pds_endpoint_map=existing_did_to_pds_endpoint_map,
+        existing_queried_dids=existing_queried_dids,
     )
+    if len(dids_to_query) == 0 and len(existing_queried_dids) > 0:
+        logger.info("No more DIDs to do a PLC backfill for.")
+        return
     did_plc_db = Queue(
         queue_name="did_plc",
         create_new_queue=True,
         temp_queue=True,
-        temp_queue_path=config.plc_storage.path,
+        temp_queue_path=full_plc_storage_fp,
     )
-    did_to_pds_endpoint_map = batch_backfill_missing_did_to_pds_endpoints(
-        dids=dids_to_query
-    )
-    export_did_to_pds_endpoint_map_to_local_db(
-        did_to_pds_endpoint_map=did_to_pds_endpoint_map, did_plc_db=did_plc_db
-    )
+    batch_backfill_missing_plc_docs(dids=dids_to_query, did_plc_db=did_plc_db)
+    logger.info("Completed PLC backfill for DIDs.")

@@ -23,3 +23,20 @@ class UserBackfillMetadata(BaseModel):
     timestamp: str = Field(
         ..., description="Timestamp when the backfill was performed."
     )
+
+
+class PlcResult(BaseModel):
+    """Result from the PLC endpoint. Filtered version of the response object,
+    only including the fields that are needed.
+    """
+
+    did: str = Field(..., description="The DID of the user.")
+    pds_service_endpoint: str = Field(
+        ...,
+        description="The PDS service endpoint for the user, obtained from the PLC directory.",
+    )
+    pds_owner: str = Field(
+        ...,
+        description="The owner of the PDS. Possible values are 'bluesky' and 'not_bluesky'.",
+    )
+    handle: str = Field(..., description="The Bluesky handle of the user.")
