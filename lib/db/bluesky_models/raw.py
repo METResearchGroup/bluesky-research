@@ -62,7 +62,7 @@ class RawPostPdsRecord(BaseModel):
 
     uri: str = Field(..., description="The URI of the post.")
     cid: str = Field(..., description="The CID of the post.")
-    createdAt: str = Field(
+    created_at: str = Field(
         ...,
         description="Client-declared timestamp when this post was originally created.",
     )  # noqa
@@ -156,7 +156,7 @@ class RawReplyPdsRecord(BaseModel):
 
     uri: str = Field(..., description="The URI of the reply.")
     cid: str = Field(..., description="The CID of the reply.")
-    createdAt: str = Field(
+    created_at: str = Field(
         ...,
         description="Client-declared timestamp when this post was originally created.",
     )  # noqa

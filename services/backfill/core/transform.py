@@ -134,6 +134,10 @@ def transform_backfilled_record(
             labels = record_value.get("labels", False)
             record["labels"] = json.dumps(labels) if labels else None
 
+            record["created_at"] = record_value["createdAt"]
+            record["text"] = record_value["text"]
+            record["reply"] = record_value.get("reply", None)
+
             if record_type == "post":
                 transformed_record = TransformedPost(**record)
             elif record_type == "reply":
