@@ -129,10 +129,11 @@ def load_existing_plc_results(plc_storage_db_path: str) -> list[dict]:
     )
     items = did_plc_db.load_dict_items_from_queue()
     plc_results_to_export: list[dict] = []
-    for batch in items:
-        for item in batch:
-            plc_result = PlcResult(**item)
-            plc_results_to_export.append(plc_result.model_dump())
+    for item in items:
+        item.pop("batch_id")
+        item.pop("batch_metadata")
+        plc_result = PlcResult(**item)
+        plc_results_to_export.append(plc_result.model_dump())
     return plc_results_to_export
 
 

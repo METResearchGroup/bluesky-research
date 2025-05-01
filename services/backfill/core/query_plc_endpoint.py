@@ -106,7 +106,7 @@ def single_batch_backfill_missing_plc_docs(
         plc_result.model_dump() for plc_result in plc_results_to_export
     ]
 
-    processed_dids = [plc_result.did for plc_result in plc_results_to_export]
+    processed_dids = [plc_result["did"] for plc_result in plc_results_to_export]
 
     logger.info(f"\tCompleted fetching PLC endpoints for {len(dids)} DIDs")
     export_plc_results_to_local_db(
