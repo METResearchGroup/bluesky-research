@@ -184,7 +184,8 @@ class PDSEndpointWorker:
         # Track a rolling window of response times
         self.response_times = collections.deque(maxlen=20)
 
-        # add other metadata.
+        # config
+        self.config = config
 
     async def _init_worker_queue(self):
         for did in self.dids:

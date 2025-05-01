@@ -30,7 +30,6 @@ class PdsEndpointManager:
         self.config = config
         print("Config for PDS backfill:")
         pprint(self.config.model_dump())
-        breakpoint()
         self.plc_docs = plc_docs
         self.pds_endpoint_to_dids_map = self.generate_pds_endpoint_to_dids_map()
         self.max_threads = 6
@@ -80,7 +79,7 @@ class PdsEndpointManager:
     def calculate_completed_pds_endpoint_backfills(self) -> list[str]:
         """Calculates the PDS endpoints that have already been backfilled."""
         completed_pds_endpoint_backfills = ["invalid_doc"]
-        for pds_endpoint in self.sorted_endpoints:
+        for pds_endpoint in self.pds_endpoint_to_dids_map.keys():
             if self.check_if_pds_endpoint_backfill_completed(
                 pds_endpoint=pds_endpoint,
                 expected_total=len(self.pds_endpoint_to_dids_map[pds_endpoint]),
@@ -102,7 +101,7 @@ class PdsEndpointManager:
         total_valid = 0
         total_invalid = 0
         valid_endpoints = []
-        for pds_endpoint in self.sorted_endpoints:
+        for pds_endpoint in self.pds_endpoint_to_dids_map.keys():
             if "bsky.network" in pds_endpoint:
                 valid_endpoints.append(pds_endpoint)
                 total_valid += 1
@@ -151,16 +150,8 @@ class PdsEndpointManager:
         logger.info(
             f"[PDSEndpointManager]: Starting PDS backfills at {start_timestamp}..."
         )
-
-        pds_endpoints_to_sync = list(self.pds_endpoint_to_dids_map.keys())[
-            : self.max_threads
-        ]
-        pds_endpoint_to_dids_map = {
-            pds_endpoint: self.pds_endpoint_to_dids_map[pds_endpoint]
-            for pds_endpoint in pds_endpoints_to_sync
-        }
         logger.info(
-            f"Syncing {len(pds_endpoints_to_sync)} PDS endpoints: {pds_endpoints_to_sync}"
+            f"Syncing {len(self.pds_endpoints_to_sync)} PDS endpoints: {self.pds_endpoints_to_sync}"
         )
 
         semaphore = asyncio.Semaphore(self.max_threads)
@@ -192,8 +183,11 @@ class PdsEndpointManager:
                 await run_single_pds_backfill(pds_endpoint, dids)
 
         tasks = [
-            limited_backfill(pds_endpoint, endpoint_dids)
-            for pds_endpoint, endpoint_dids in pds_endpoint_to_dids_map.items()
+            limited_backfill(
+                pds_endpoint=pds_endpoint,
+                dids=self.pds_endpoint_to_dids_map[pds_endpoint],
+            )
+            for pds_endpoint in self.pds_endpoints_to_sync
         ]
 
         # Run them concurrently using asyncio
