@@ -16,7 +16,7 @@ from typing import Optional
 import pandas as pd
 
 from api.backfill_router.config.schema import BackfillConfigSchema
-from lib.constants import timestamp_format
+from lib.constants import timestamp_format, convert_bsky_dt_to_pipeline_dt
 from lib.db.manage_local_data import (
     export_data_to_local_storage,
 )
@@ -299,7 +299,9 @@ class PDSEndpointWorker:
                         # check if the last record in the response is before
                         # the min record timestamp. If so, we don't want to send
                         # any more requests.
-                        earliest_record_timestamp = records[-1]["value"]["createdAt"]
+                        earliest_record_timestamp = convert_bsky_dt_to_pipeline_dt(
+                            records[-1]["value"]["createdAt"]
+                        )
                         if earliest_record_timestamp < self.min_record_timestamp:
                             break
 
@@ -312,7 +314,14 @@ class PDSEndpointWorker:
                         # Rate limited - sleep and retry this page
                         await asyncio.sleep(1 * (2**retry_count))
                         continue
-
+                    elif response.status == 400 and response.reason == "Bad Request":
+                        # API returning 400 means the account is deleted/suspended.
+                        # The PLC doc might exist, but if you look at Bluesky, their
+                        # account won't exist.
+                        logger.error(
+                            f"(PDS endpoint: {self.pds_endpoint}): Account {did} is deleted/suspended. Adding to deadletter queue."
+                        )
+                        break
                     else:
                         # Other errors - log and stop pagination
                         logger.error(
@@ -414,6 +423,17 @@ class PDSEndpointWorker:
 
                     if avg_response_time > 3.0:
                         await asyncio.sleep(avg_response_time / 2)
+
+                else:
+                    # TODO: if they don't have records, put them in the
+                    # deadletter queue. Likely to be an inactive or deleted
+                    # account. Even if it's a valid account, if they don't
+                    # have any records, we treat them as if they were
+                    # deleted/suspended anyways.
+                    await self.temp_deadletter_queue.put({"did": did, "content": ""})
+                    pdm.BACKFILL_QUEUE_SIZES.labels(
+                        endpoint=self.pds_endpoint, queue_type="deadletter"
+                    ).set(self.temp_deadletter_queue.qsize())
 
         except Exception as e:
             # Handle unexpected errors
