@@ -217,6 +217,121 @@ class PDSEndpointWorker:
         ]
         return filtered_records
 
+    async def _fetch_paginated_records(
+        self,
+        did: str,
+        record_type: str,
+        session: aiohttp.ClientSession,
+        retry_count: int,
+    ) -> list[dict]:
+        """Fetches all paginated records for a single record type.
+
+        Args:
+            record_type: str, the type of record to fetch (post, repost, etc.)
+            did: str, the DID to fetch records for.
+            session: aiohttp.ClientSession, the session to use to send the request.
+            retry_count: int, number of retries attempted so far
+
+        Returns:
+            list[dict]: All records for this type, or empty list if error
+        """
+        all_records = []
+        cursor = None
+
+        while True:
+            try:
+                # Rate limit handling
+                pdm.BACKFILL_REQUESTS.labels(endpoint=self.pds_endpoint).inc()
+                pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).inc()
+                await self.token_bucket._acquire()
+                pdm.BACKFILL_TOKENS_LEFT.labels(endpoint=self.pds_endpoint).set(
+                    self.token_bucket._tokens
+                )
+
+                start = time.perf_counter()
+
+                # Make paginated request
+                atp_agent = AtpAgent(service=self.pds_endpoint)
+                response = await atp_agent.async_list_records(
+                    repo=did, collection=record_type, session=session, cursor=cursor
+                )
+
+                self.total_requests += 1
+                pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).dec()
+
+                # Track latency
+                request_latency = time.perf_counter() - start
+                pdm.BACKFILL_LATENCY_SECONDS.labels(endpoint=self.pds_endpoint).observe(
+                    request_latency
+                )
+
+                # Handle rate limit tokens
+                tokens_remaining: int = int(
+                    response.headers.get("ratelimit-remaining", 0)
+                )
+                if tokens_remaining < self.token_bucket.get_tokens():
+                    token_buffer_size = 50
+                    self.token_bucket.set_tokens(tokens_remaining - token_buffer_size)
+
+                # Process response
+                if response.status == 200:
+                    response_dict = await response.json()
+                    records: list[dict] = response_dict.get("records", [])
+                    all_records.extend(records)
+
+                    # no records synced.
+                    if len(records) == 0:
+                        break
+
+                    # check if the last record in the response is before
+                    # the min record timestamp. If so, we don't want to send
+                    # any more requests.
+                    earliest_record_timestamp = convert_bsky_dt_to_pipeline_dt(
+                        records[-1]["value"]["createdAt"]
+                    )
+                    if earliest_record_timestamp < self.min_record_timestamp:
+                        break
+
+                    # Check if more pages
+                    cursor = response_dict.get("cursor")
+                    if not cursor:  # No more pages
+                        break
+
+                elif response.status == 429:
+                    # Rate limited - sleep and retry this page
+                    await asyncio.sleep(1 * (2**retry_count))
+                    continue
+                elif response.status == 400 and response.reason == "Bad Request":
+                    # API returning 400 means the account is deleted/suspended.
+                    # The PLC doc might exist, but if you look at Bluesky, their
+                    # account won't exist.
+                    logger.error(
+                        f"(PDS endpoint: {self.pds_endpoint}): Account {did} is deleted/suspended. Adding to deadletter queue."
+                    )
+                    break
+                else:
+                    # Other errors - log and stop pagination
+                    logger.error(
+                        f"(PDS endpoint: {self.pds_endpoint}): Error fetching {record_type} records for DID {did}. "
+                        f"Status: {response.status}, Reason: {response.reason}"
+                    )
+                    break
+
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                # Network errors - log and stop pagination
+                error_type = (
+                    "timeout" if isinstance(e, asyncio.TimeoutError) else "connection"
+                )
+                pdm.BACKFILL_NETWORK_ERRORS.labels(
+                    endpoint=self.pds_endpoint, error_type=error_type
+                ).inc()
+                logger.warning(
+                    f"(PDS endpoint: {self.pds_endpoint}): Connection error fetching {record_type} records for DID {did}: {e}"
+                )
+                break
+
+        return all_records
+
     async def _process_did(
         self,
         did: str,
@@ -236,116 +351,6 @@ class PDSEndpointWorker:
         concurrent requests is managed by the semaphore. CPU-intensive work
         is offloaded to the thread pool.
         """
-
-        async def _fetch_paginated_records(record_type: str) -> list[dict]:
-            """Fetches all paginated records for a single record type.
-
-            Args:
-                record_type: str, the type of record to fetch (post, repost, etc.)
-
-            Returns:
-                list[dict]: All records for this type, or empty list if error
-            """
-            all_records = []
-            cursor = None
-
-            while True:
-                try:
-                    # Rate limit handling
-                    pdm.BACKFILL_REQUESTS.labels(endpoint=self.pds_endpoint).inc()
-                    pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).inc()
-                    await self.token_bucket._acquire()
-                    pdm.BACKFILL_TOKENS_LEFT.labels(endpoint=self.pds_endpoint).set(
-                        self.token_bucket._tokens
-                    )
-
-                    start = time.perf_counter()
-
-                    # Make paginated request
-                    atp_agent = AtpAgent(service=self.pds_endpoint)
-                    response = await atp_agent.async_list_records(
-                        repo=did, collection=record_type, session=session, cursor=cursor
-                    )
-
-                    self.total_requests += 1
-                    pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).dec()
-
-                    # Track latency
-                    request_latency = time.perf_counter() - start
-                    pdm.BACKFILL_LATENCY_SECONDS.labels(
-                        endpoint=self.pds_endpoint
-                    ).observe(request_latency)
-
-                    # Handle rate limit tokens
-                    tokens_remaining: int = int(
-                        response.headers.get("ratelimit-remaining", 0)
-                    )
-                    if tokens_remaining < self.token_bucket.get_tokens():
-                        token_buffer_size = 50
-                        self.token_bucket.set_tokens(
-                            tokens_remaining - token_buffer_size
-                        )
-
-                    # Process response
-                    if response.status == 200:
-                        response_dict = await response.json()
-                        records: list[dict] = response_dict.get("records", [])
-                        all_records.extend(records)
-
-                        # no records synced.
-                        if len(records) == 0:
-                            break
-
-                        # check if the last record in the response is before
-                        # the min record timestamp. If so, we don't want to send
-                        # any more requests.
-                        earliest_record_timestamp = convert_bsky_dt_to_pipeline_dt(
-                            records[-1]["value"]["createdAt"]
-                        )
-                        if earliest_record_timestamp < self.min_record_timestamp:
-                            break
-
-                        # Check if more pages
-                        cursor = response_dict.get("cursor")
-                        if not cursor:  # No more pages
-                            break
-
-                    elif response.status == 429:
-                        # Rate limited - sleep and retry this page
-                        await asyncio.sleep(1 * (2**retry_count))
-                        continue
-                    elif response.status == 400 and response.reason == "Bad Request":
-                        # API returning 400 means the account is deleted/suspended.
-                        # The PLC doc might exist, but if you look at Bluesky, their
-                        # account won't exist.
-                        logger.error(
-                            f"(PDS endpoint: {self.pds_endpoint}): Account {did} is deleted/suspended. Adding to deadletter queue."
-                        )
-                        break
-                    else:
-                        # Other errors - log and stop pagination
-                        logger.error(
-                            f"(PDS endpoint: {self.pds_endpoint}): Error fetching {record_type} records for DID {did}. "
-                            f"Status: {response.status}, Reason: {response.reason}"
-                        )
-                        break
-
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    # Network errors - log and stop pagination
-                    error_type = (
-                        "timeout"
-                        if isinstance(e, asyncio.TimeoutError)
-                        else "connection"
-                    )
-                    pdm.BACKFILL_NETWORK_ERRORS.labels(
-                        endpoint=self.pds_endpoint, error_type=error_type
-                    ).inc()
-                    logger.warning(
-                        f"(PDS endpoint: {self.pds_endpoint}): Connection error fetching {record_type} records for DID {did}: {e}"
-                    )
-                    break
-
-            return all_records
 
         # Main _process_did logic
         if not max_retries:
@@ -367,7 +372,12 @@ class PDSEndpointWorker:
 
                 # Fetch paginated records for each type
                 for record_type in self.config.record_types:
-                    records = await _fetch_paginated_records(record_type)
+                    records = await self._fetch_paginated_records(
+                        did=did,
+                        record_type=record_type,
+                        session=session,
+                        retry_count=retry_count,
+                    )
                     all_records.extend(records)
 
                 if all_records:

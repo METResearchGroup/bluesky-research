@@ -52,7 +52,7 @@ def get_previously_processed_dids(pds_endpoint: str) -> set[str]:
 
     # TODO: uncomment this.
     # dynamodb_previously_processed_dids = get_dids_by_pds_endpoint(pds_endpoint)
-    # queue_previously_processed_dids = get_dids_from_queues(pds_endpoint)
+    queue_previously_processed_dids = get_dids_from_queues(pds_endpoint)
 
     dynamodb_previously_processed_dids = set()
     queue_previously_processed_dids = set()
