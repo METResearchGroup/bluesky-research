@@ -36,6 +36,8 @@ def run_pds_backfill(config: BackfillConfigSchema) -> None:
     if len(valid_plc_docs) == 0:
         logger.info("No valid PLC results found. Skipping PDS backfill.")
         return
+    else:
+        logger.info(f"Found {len(valid_plc_docs)} valid PLC results.")
     if len(valid_plc_docs) != len(dids_set):
         num_unmatched_dids = len(dids_set) - len(valid_plc_docs)
         logger.info(

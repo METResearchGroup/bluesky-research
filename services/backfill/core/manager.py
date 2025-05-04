@@ -32,6 +32,7 @@ class PdsEndpointManager:
         pprint(self.config.model_dump())
         self.plc_docs = plc_docs
         self.pds_endpoint_to_dids_map = self.generate_pds_endpoint_to_dids_map()
+
         self.max_threads = 6
         self.max_workers_per_thread = 4
         self.max_endpoints_to_sync = 10  # set arbitrarily for now.
@@ -54,6 +55,21 @@ class PdsEndpointManager:
         self.pds_endpoints_to_sync = self.filter_pds_endpoints_to_sync()
         logger.info(
             f"[PdsEndpointManager]: PDS endpoints to sync: {self.pds_endpoints_to_sync}"
+        )
+        logger.info(
+            f"[PdsEndpointManager]: Total PDS endpoints to sync: {len(self.pds_endpoints_to_sync)}"
+        )
+
+        self.pds_endpoint_to_did_counts_map = {
+            pds_endpoint: len(dids)
+            for pds_endpoint, dids in self.pds_endpoint_to_dids_map.items()
+            if pds_endpoint in self.pds_endpoints_to_sync
+        }
+        logger.info(
+            f"[PdsEndpointManager]: PDS endpoint to DID counts map: {self.pds_endpoint_to_did_counts_map}"
+        )
+        logger.info(
+            f"[PdsEndpointManager]: Total DIDs to sync: {sum(self.pds_endpoint_to_did_counts_map.values())}"
         )
 
     def generate_pds_endpoint_to_dids_map(self) -> dict[str, Iterable[str]]:
@@ -131,6 +147,7 @@ class PdsEndpointManager:
             endpoint
             for endpoint in self.sorted_endpoints
             if endpoint not in self.completed_pds_endpoint_backfills
+            and endpoint in self.valid_endpoints
         ]
 
         # TODO: just sync all endpoints for now.

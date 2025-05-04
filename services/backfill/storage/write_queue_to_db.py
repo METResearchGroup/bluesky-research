@@ -36,7 +36,7 @@ async def write_pds_queue_to_db(
 
 if __name__ == "__main__":
     config = load_config(
-        "api/backfill_router/config/examples/backfill_study_users.yaml"
+        "api/backfill_router/config/examples/backfill_posts_engaged_with_by_study_users.yaml"
     )
 
     # pds_endpoint = "https://meadow.us-east.host.bsky.network"
@@ -61,13 +61,12 @@ if __name__ == "__main__":
     # pds_endpoint = "https://puffball.us-east.host.bsky.network"
 
     pds_endpoints = [
-        "https://amanita.us-east.host.bsky.network",
-        "https://coral.us-east.host.bsky.network",
+        "https://enoki.us-east.host.bsky.network",
         "https://inkcap.us-east.host.bsky.network",
-        "https://lobster.us-east.host.bsky.network",
         "https://oyster.us-east.host.bsky.network",
+        "https://porcini.us-east.host.bsky.network",
+        "https://shiitake.us-east.host.bsky.network",
         "https://shimeji.us-east.host.bsky.network",
-        "https://woodear.us-west.host.bsky.network",
     ]
 
     for pds_endpoint in pds_endpoints:

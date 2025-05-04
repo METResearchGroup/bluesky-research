@@ -223,10 +223,8 @@ class PDSEndpointWorker:
         ).set(queue_size)
         pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(queue_size)
 
-    # TODO: double-check that filter works as intended.
     def _filter_relevant_uri(self, record: dict) -> bool:
         """Filters out URIs that are not relevant to the sync."""
-        breakpoint()
         return record["uri"] not in self.uris_to_filter
 
     def _filter_records(self, records: list[dict]) -> list[dict]:
@@ -432,7 +430,7 @@ class PDSEndpointWorker:
                     )
                     if records is None:
                         logger.info(
-                            f"Error fetching records for {did} {record_type}. Putting DID back in queue to retry."
+                            f"(PDS endpoint: {self.pds_endpoint}): Error fetching records for {did} {record_type}. Putting DID back in queue to retry."
                         )
                         return
                     all_records.extend(records)
