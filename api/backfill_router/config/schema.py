@@ -34,11 +34,16 @@ class SyncStorageConfig(BaseModel):
     records. By default, should be stored to Parquet, in which the other
     information is optional (since `manage_local_data.py` will manage the
     Parquet files itself).
+
+    If the backfill is being run again, and the backfill was previously
+    completed, then the `min_timestamp` can be provided to resume the backfill
+    from the last timestamp.
     """
 
     type: str
     path: str
     metadata: str
+    min_timestamp: Optional[str]
 
 
 class BackfillConfigSchema(BaseModel):

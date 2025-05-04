@@ -5,6 +5,7 @@ import pandas as pd
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.db.queue import Queue
 from lib.log.logger import get_logger
+from services.backfill.storage.utils.dynamodb_utils import get_dids_by_pds_endpoint
 from services.backfill.storage.utils.queue_utils import get_write_queues
 
 logger = get_logger(__name__)
@@ -44,18 +45,20 @@ def load_previously_liked_post_uris() -> set[str]:
     return liked_post_uris
 
 
-def get_previously_processed_dids(pds_endpoint: str) -> set[str]:
+def get_previously_processed_dids(
+    pds_endpoint: str,
+    min_timestamp: str,
+) -> set[str]:
     """Load previously processed DIDs from both DynamoDB (if the backfill
     is already 100% completed) and from the queues (if the backfill is
     not yet 100% completed, and thus the DIDs haven't been written to
     DynamoDB yet)."""
 
-    # TODO: uncomment this.
-    # dynamodb_previously_processed_dids = get_dids_by_pds_endpoint(pds_endpoint)
+    dynamodb_previously_processed_dids = get_dids_by_pds_endpoint(
+        pds_endpoint=pds_endpoint,
+        min_timestamp=min_timestamp,
+    )
     queue_previously_processed_dids = get_dids_from_queues(pds_endpoint)
-
-    dynamodb_previously_processed_dids = set()
-    queue_previously_processed_dids = set()
 
     return set(dynamodb_previously_processed_dids) | set(
         queue_previously_processed_dids

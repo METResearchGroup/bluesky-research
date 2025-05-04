@@ -132,10 +132,17 @@ def get_user_metadata_by_handle(handle: str) -> Optional[UserBackfillMetadata]:
     return deserialize_user_metadata(items[0])
 
 
-def get_dids_by_pds_endpoint(pds_endpoint: str) -> list[str]:
+def get_dids_by_pds_endpoint(
+    pds_endpoint: str,
+    min_timestamp: str,
+) -> list[str]:
     """Get all DIDs for a specific PDS endpoint (most recent backfill only).
 
     Uses a paginated query to get all DIDs for a specific PDS endpoint.
+
+    Gets all DIDs for a specific PDS endpoint, and filters out any DIDs
+    that have a timestamp before the given minimum timestamp (meaning they
+    were backfilled before the given timestamp).
     """
     unique_dids = set()
     last_evaluated_key = None
@@ -145,7 +152,8 @@ def get_dids_by_pds_endpoint(pds_endpoint: str) -> list[str]:
             "TableName": TABLE_NAME,
             "KeyConditionExpression": "pds_service_endpoint = :value",
             "ExpressionAttributeValues": {":value": {"S": pds_endpoint}},
-            "ProjectionExpression": "did",
+            "ExpressionAttributeNames": {"#ts": "timestamp"},
+            "ProjectionExpression": "did, #ts",
         }
 
         if last_evaluated_key:
@@ -153,9 +161,11 @@ def get_dids_by_pds_endpoint(pds_endpoint: str) -> list[str]:
 
         response = dynamodb_client.client.query(**query_params)
 
-        # Add DIDs from this page to our set
         for item in response.get("Items", []):
-            unique_dids.add(item["did"]["S"])
+            did = item["did"]["S"]
+            timestamp = item["timestamp"]["S"]
+            if timestamp > min_timestamp:
+                unique_dids.add(did)
 
         last_evaluated_key = response.get("LastEvaluatedKey")
         if not last_evaluated_key:
