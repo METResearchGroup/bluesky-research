@@ -2,15 +2,21 @@
 
 import asyncio
 
+from api.backfill_router.api import load_config
+from api.backfill_router.config.schema import BackfillConfigSchema
 from services.backfill.core.worker import PDSEndpointWorker
 
 
-async def write_pds_queue_to_db(pds_endpoint: str) -> None:
+async def write_pds_queue_to_db(
+    pds_endpoint: str,
+    config: BackfillConfigSchema,
+) -> None:
     """Writes a PDS queue to DB and then exports metadata."""
     print(f"Writing PDS queue to DB for {pds_endpoint}...")
     worker = PDSEndpointWorker(
         pds_endpoint=pds_endpoint,
         dids=[],
+        config=config,
         session=None,
         cpu_pool=None,
     )
@@ -29,6 +35,10 @@ async def write_pds_queue_to_db(pds_endpoint: str) -> None:
 
 
 if __name__ == "__main__":
+    config = load_config(
+        "api/backfill_router/config/examples/backfill_study_users.yaml"
+    )
+
     # pds_endpoint = "https://meadow.us-east.host.bsky.network"
     # pds_endpoint = "https://shiitake.us-east.host.bsky.network"
     # pds_endpoint = "https://lionsmane.us-east.host.bsky.network"
@@ -50,4 +60,20 @@ if __name__ == "__main__":
     # pds_endpoint = "https://shimeji.us-east.host.bsky.network"
     pds_endpoint = "https://puffball.us-east.host.bsky.network"
 
-    asyncio.run(write_pds_queue_to_db(pds_endpoint=pds_endpoint))
+    pds_endpoints = [
+        "https://puffball.us-east.host.bsky.network",
+        "https://amanita.us-east.host.bsky.network",
+        "https://inkcap.us-east.host.bsky.network",
+        "https://oyster.us-east.host.bsky.network",
+        "https://shimeji.us-east.host.bsky.network",
+        "https://shiitake.us-east.host.bsky.network",
+    ]
+
+    for pds_endpoint in pds_endpoints:
+        print(f"Writing PDS queue to DB for {pds_endpoint}...")
+        asyncio.run(
+            write_pds_queue_to_db(
+                pds_endpoint=pds_endpoint,
+                config=config,
+            )
+        )
