@@ -28,7 +28,7 @@ def get_write_queues(
     pds_hostname = (
         pds_endpoint.replace("https://", "").replace("http://", "").replace("/", "")
     )
-    logger.info(f"Instantiating queues for PDS hostname: {pds_hostname}")
+    logger.info(f"Fetching queues for PDS hostname: {pds_hostname}")
 
     output_results_db_path = os.path.join(current_dir, f"results_{pds_hostname}.db")
     output_deadletter_db_path = os.path.join(

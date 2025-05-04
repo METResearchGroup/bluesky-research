@@ -167,8 +167,6 @@ def get_dids_by_pds_endpoint(
             if timestamp > min_timestamp:
                 unique_dids.add(did)
 
-        breakpoint()
-
         last_evaluated_key = response.get("LastEvaluatedKey")
         if not last_evaluated_key:
             break

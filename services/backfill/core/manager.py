@@ -95,6 +95,9 @@ class PdsEndpointManager:
             pds_endpoint=pds_endpoint,
             min_timestamp=self.config.sync_storage.min_timestamp,
         )
+        logger.info(
+            f"(PDS endpoint: {pds_endpoint}): Finished backfilling {len(previously_processed_dids)}/{expected_total} DIDs."
+        )
         return len(previously_processed_dids) == expected_total
 
     def validate_pds_endpoints_to_sync(self) -> list[str]:
