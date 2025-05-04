@@ -55,9 +55,16 @@ start_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
 logger = get_logger(__name__)
 
 
-def filter_previously_processed_dids(pds_endpoint: str, dids: list[str]) -> list[str]:
+def filter_previously_processed_dids(
+    pds_endpoint: str,
+    dids: list[str],
+    min_timestamp: str,
+) -> list[str]:
     """Load previous results from queues and filter out DIDs that have already been processed."""
-    previously_processed_dids = get_previously_processed_dids(pds_endpoint)
+    previously_processed_dids = get_previously_processed_dids(
+        pds_endpoint=pds_endpoint,
+        min_timestamp=min_timestamp,
+    )
 
     filtered_dids = [did for did in dids if did not in previously_processed_dids]
     total_original_dids = len(dids)
@@ -155,7 +162,9 @@ class PDSEndpointWorker:
 
         self.original_total_dids = len(dids)
         self.dids: list[str] = filter_previously_processed_dids(
-            pds_endpoint=pds_endpoint, dids=dids
+            pds_endpoint=pds_endpoint,
+            dids=dids,
+            min_timestamp=self.config.sync_storage.min_timestamp,
         )
         self.total_dids_post_filter = len(self.dids)
         self.dids_filtered_out = self.original_total_dids - self.total_dids_post_filter

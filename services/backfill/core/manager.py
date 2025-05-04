@@ -92,7 +92,8 @@ class PdsEndpointManager:
     ) -> bool:
         """Checks if the PDS endpoint backfill is completed."""
         previously_processed_dids: set[str] = get_previously_processed_dids(
-            pds_endpoint=pds_endpoint
+            pds_endpoint=pds_endpoint,
+            min_timestamp=self.config.sync_storage.min_timestamp,
         )
         return len(previously_processed_dids) == expected_total
 
