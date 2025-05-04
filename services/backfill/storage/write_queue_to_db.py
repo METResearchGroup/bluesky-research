@@ -58,15 +58,16 @@ if __name__ == "__main__":
     # pds_endpoint = "https://splitgill.us-east.host.bsky.network"
     # pds_endpoint = "https://chanterelle.us-east.host.bsky.network"
     # pds_endpoint = "https://shimeji.us-east.host.bsky.network"
-    pds_endpoint = "https://puffball.us-east.host.bsky.network"
+    # pds_endpoint = "https://puffball.us-east.host.bsky.network"
 
     pds_endpoints = [
-        "https://puffball.us-east.host.bsky.network",
         "https://amanita.us-east.host.bsky.network",
+        "https://coral.us-east.host.bsky.network",
         "https://inkcap.us-east.host.bsky.network",
+        "https://lobster.us-east.host.bsky.network",
         "https://oyster.us-east.host.bsky.network",
         "https://shimeji.us-east.host.bsky.network",
-        "https://shiitake.us-east.host.bsky.network",
+        "https://woodear.us-west.host.bsky.network",
     ]
 
     for pds_endpoint in pds_endpoints:

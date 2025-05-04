@@ -28,6 +28,14 @@ class TimeRangeConfig(BaseModel):
     end_date: Optional[str]
 
 
+class FiltersConfig(BaseModel):
+    """Filters to apply to the records."""
+
+    record_type: str
+    subject: list[str]
+    source: SourceConfig
+
+
 class SyncStorageConfig(BaseModel):
     """Storage configuration for the backfill. Location of the results
     stored from querying the PDS endpoint with the DIDs in order to get the
@@ -55,4 +63,5 @@ class BackfillConfigSchema(BaseModel):
     plc_storage: PlcStorageConfig
     record_types: list[str]
     time_range: TimeRangeConfig
+    filters: Optional[FiltersConfig] = None
     sync_storage: SyncStorageConfig

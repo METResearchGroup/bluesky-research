@@ -203,7 +203,7 @@ def main():
         temp_queue_path=queue_path,
     )
     queue.batch_add_items_to_queue(items=items)
-    logger.info(f"Wrote {len(dids_of_users_engaged_with)} study users to queue")
+    logger.info(f"Wrote {len(dids_of_users_engaged_with)} user DIDs to queue")
 
     # export the URIs to a parquet file.
     uris_df = pd.DataFrame({"uri": list(uris_of_posts_engaged_with)})
@@ -211,7 +211,7 @@ def main():
         current_dir, "backfill_post_uris_engaged_with_by_study_users.parquet"
     )
     uris_df.to_parquet(uris_path)
-    logger.info(f"Wrote {len(uris_of_posts_engaged_with)} posts to parquet")
+    logger.info(f"Wrote {len(uris_of_posts_engaged_with)} post URIs to parquet")
 
 
 if __name__ == "__main__":
