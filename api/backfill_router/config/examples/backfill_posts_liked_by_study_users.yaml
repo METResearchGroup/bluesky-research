@@ -2,8 +2,8 @@ backfill:
   name: "backfill_posts_liked_by_study_users"
   version: "1.0"
   source:
-    type: "s3"
-    path: "s3://your-bucket/posts_liked_by_study_users.csv"
+    type: "sqlite"
+    path: "api/backfill_router/backfill_posts_engaged_with_by_study_users/backfill_posts_liked_by_study_users.sqlite"
     query: null  # Not used for S3
   record_types:
     - "app.bsky.feed.like"
