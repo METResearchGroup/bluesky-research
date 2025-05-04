@@ -232,7 +232,7 @@ class PDSEndpointWorker:
         record_type: str,
         session: aiohttp.ClientSession,
         retry_count: int,
-    ) -> list[dict]:
+    ) -> Optional[list[dict]]:
         """Fetches all paginated records for a single record type.
 
         Args:
@@ -242,7 +242,8 @@ class PDSEndpointWorker:
             retry_count: int, number of retries attempted so far
 
         Returns:
-            list[dict]: All records for this type, or empty list if error
+            list[dict]: All records for this type, or None if error. Empty
+            if there are no records.
         """
         all_records = []
         cursor = None
@@ -307,9 +308,17 @@ class PDSEndpointWorker:
                         break
 
                 elif response.status == 429:
-                    # Rate limited - sleep and retry this page
+                    # Rate limited, put back in queue to retry.
                     await asyncio.sleep(1 * (2**retry_count))
-                    continue
+                    retry_count += 1
+                    await self.temp_work_queue.put(
+                        {"did": did, "retry_count": retry_count}
+                    )
+                    pdm.BACKFILL_QUEUE_SIZES.labels(
+                        endpoint=self.pds_endpoint, queue_type="work"
+                    ).set(self.temp_work_queue.qsize())
+                    logger.info(f"Rate limited, putting back in queue to retry. {did}")
+                    return None
                 elif response.status == 400 and response.reason == "Bad Request":
                     # API returning 400 means the account is deleted/suspended.
                     # The PLC doc might exist, but if you look at Bluesky, their
@@ -317,14 +326,28 @@ class PDSEndpointWorker:
                     logger.error(
                         f"(PDS endpoint: {self.pds_endpoint}): Account {did} is deleted/suspended. Adding to deadletter queue."
                     )
-                    break
+                    await self.temp_deadletter_queue.put({"did": did, "content": ""})
+                    pdm.BACKFILL_DID_STATUS.labels(
+                        endpoint=self.pds_endpoint, status="account_deleted"
+                    ).inc()
+                    pdm.BACKFILL_QUEUE_SIZES.labels(
+                        endpoint=self.pds_endpoint, queue_type="deadletter"
+                    ).set(self.temp_deadletter_queue.qsize())
+                    return None
                 else:
                     # Other errors - log and stop pagination
                     logger.error(
                         f"(PDS endpoint: {self.pds_endpoint}): Error fetching {record_type} records for DID {did}. "
                         f"Status: {response.status}, Reason: {response.reason}"
                     )
-                    break
+                    await self.temp_deadletter_queue.put({"did": did, "content": ""})
+                    pdm.BACKFILL_DID_STATUS.labels(
+                        endpoint=self.pds_endpoint, status="http_error"
+                    ).inc()
+                    pdm.BACKFILL_QUEUE_SIZES.labels(
+                        endpoint=self.pds_endpoint, queue_type="deadletter"
+                    ).set(self.temp_deadletter_queue.qsize())
+                    return None
 
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 # Network errors - log and stop pagination
@@ -361,7 +384,6 @@ class PDSEndpointWorker:
         is offloaded to the thread pool.
         """
 
-        # Main _process_did logic
         if not max_retries:
             max_retries = self.max_retries
 
@@ -381,12 +403,17 @@ class PDSEndpointWorker:
 
                 # Fetch paginated records for each type
                 for record_type in self.config.record_types:
-                    records = await self._fetch_paginated_records(
+                    records: Optional[list[dict]] = await self._fetch_paginated_records(
                         did=did,
                         record_type=record_type,
                         session=session,
                         retry_count=retry_count,
                     )
+                    if records is None:
+                        logger.info(
+                            f"Error fetching records for {did} {record_type}. Putting DID back in queue to retry."
+                        )
+                        return
                     all_records.extend(records)
 
                 if all_records:
@@ -444,7 +471,7 @@ class PDSEndpointWorker:
                         await asyncio.sleep(avg_response_time / 2)
 
                 else:
-                    # TODO: if they don't have records, put them in the
+                    # if they don't have records, put them in the
                     # deadletter queue. Likely to be an inactive or deleted
                     # account. Even if it's a valid account, if they don't
                     # have any records, we treat them as if they were
@@ -468,6 +495,7 @@ class PDSEndpointWorker:
             pdm.BACKFILL_QUEUE_SIZES.labels(
                 endpoint=self.pds_endpoint, queue_type="deadletter"
             ).set(self.temp_deadletter_queue.qsize())
+            return None
 
     async def start(self):
         """Starts the backfill for a single PDS endpoint."""
