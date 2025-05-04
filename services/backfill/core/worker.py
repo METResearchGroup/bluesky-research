@@ -47,6 +47,7 @@ from services.backfill.core.validate import (
 from services.backfill.storage.load_data import (
     get_previously_processed_dids,
 )
+from services.backfill.storage.utils.main import load_uris_to_filter
 from services.backfill.storage.utils.queue_utils import get_write_queues
 from services.backfill.storage.session_metadata import write_backfill_metadata_to_db
 
@@ -197,6 +198,21 @@ class PDSEndpointWorker:
         # min record timestamp - remove any records before this timestamp.
         self.min_record_timestamp = self.config.time_range.start_date
 
+        # filters. Config used for determining how to filter synced
+        # records, if applicable (e.g., filtering by URI).
+        self.filters = self.config.filters
+        self.uris_to_filter = load_uris_to_filter(
+            type=self.filters.source.type,
+            path=self.filters.source.path,
+        )
+        if not self.uris_to_filter:
+            logger.warning(
+                "No URIs to filter out. May be intentional, should check (this excludes previously processed URIs and only includes those pre-emptively chosen to be filtered out (e.g., only 'relevant' URIs are included))."
+            )
+            self.uris_to_filter = set()
+        else:
+            logger.info(f"Loaded {len(self.uris_to_filter)} URIs to filter out.")
+
     async def _init_worker_queue(self):
         for did in self.dids:
             await self.temp_work_queue.put({"did": did})
@@ -206,6 +222,12 @@ class PDSEndpointWorker:
             endpoint=self.pds_endpoint, queue_type="work"
         ).set(queue_size)
         pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(queue_size)
+
+    # TODO: double-check that filter works as intended.
+    def _filter_relevant_uri(self, record: dict) -> bool:
+        """Filters out URIs that are not relevant to the sync."""
+        breakpoint()
+        return record["uri"] not in self.uris_to_filter
 
     def _filter_records(self, records: list[dict]) -> list[dict]:
         """Filter for only posts/reposts in the date range of interest."""
@@ -221,6 +243,7 @@ class PDSEndpointWorker:
                 start_timestamp=self.config.time_range.start_date,
                 end_timestamp=self.config.time_range.end_date,
             )
+            and self._filter_relevant_uri(record=record)
         ]
         return filtered_records
 
