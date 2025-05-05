@@ -3,10 +3,13 @@
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
+from lib.db.queue import Queue
 from lib.helper import get_partition_dates
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)
+
+queue = Queue(queue_name="input_preprocess_raw_data")
 
 
 def load_posts_from_db(partition_date: str) -> pd.DataFrame:
@@ -52,9 +55,18 @@ def preprocess_raw_data_for_date(partition_date: str) -> pd.DataFrame:
     return raw_posts
 
 
-def insert_raw_data_into_queue(raw_posts: pd.DataFrame) -> None:
+def insert_raw_data_into_queue(
+    raw_posts: pd.DataFrame,
+    partition_date: str,
+) -> None:
     """Inserts raw data into the preprocess_raw_data input queue."""
-    pass
+    queue.batch_add_items_to_queue(
+        items=raw_posts.to_dict(orient="records"),
+        metadata={
+            "partition_date": partition_date,
+            "total_items": len(raw_posts),
+        },
+    )
 
 
 def preprocess_raw_data_for_date_range(start_date: str, end_date: str) -> pd.DataFrame:
