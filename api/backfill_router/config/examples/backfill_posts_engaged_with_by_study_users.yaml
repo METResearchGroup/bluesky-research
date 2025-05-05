@@ -26,4 +26,4 @@ backfill:
     type: "parquet"
     path: ""  # not required if stored in Parquet. `manage_local_data.py` will manage.
     metadata: ""  # not required if stored in Parquet. `manage_local_data.py` will manage.
-    min_timestamp: "2025-05-04-05:01:50"
+    min_timestamp: "2025-05-05-04:46:48"
