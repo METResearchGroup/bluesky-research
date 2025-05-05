@@ -18,7 +18,7 @@ SERVICES_TO_WRITE = [
     "ml_inference_perspective_api",
     "ml_inference_sociopolitical",
     "ml_inference_ime",
-    "backfill_sync",
+    "preprocess_raw_data",
 ]
 
 
