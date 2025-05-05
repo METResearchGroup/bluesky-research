@@ -2,7 +2,7 @@
 
 import pytest
 import pandas as pd
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from lib.metadata.models import RunExecutionMetadata
 from services.backfill.storage.session_metadata import (
@@ -25,7 +25,7 @@ class TestLoadLatestBackfilledUsers:
     @pytest.fixture
     def mock_athena(self):
         """Fixture for mocking Athena."""
-        with patch("services.backfill.sync.session_metadata.athena") as mock:
+        with patch("services.backfill.storage.session_metadata.athena") as mock:
             yield mock
     
     def test_load_latest_backfilled_users(self, mock_athena):
@@ -98,13 +98,13 @@ class TestWriteUserSessionBackfillMetadataToDB:
     @pytest.fixture
     def mock_batch_save(self):
         """Fixture for mocking batch_save_user_metadata."""
-        with patch("services.backfill.sync.session_metadata.batch_save_user_metadata") as mock:
+        with patch("services.backfill.storage.session_metadata.batch_save_user_metadata") as mock:
             yield mock
     
     @pytest.fixture
     def mock_logger(self):
         """Fixture for mocking logger."""
-        with patch("services.backfill.sync.session_metadata.logger") as mock:
+        with patch("services.backfill.storage.session_metadata.logger") as mock:
             yield mock
 
     def test_write_user_session_backfill_metadata_empty(self, mock_batch_save, mock_logger):
@@ -153,13 +153,13 @@ class TestWriteSessionBackfillJobMetadataToDB:
     @pytest.fixture
     def mock_dynamodb(self):
         """Fixture for mocking DynamoDB."""
-        with patch("services.backfill.sync.session_metadata.dynamodb") as mock:
+        with patch("services.backfill.storage.session_metadata.dynamodb") as mock:
             yield mock
     
     @pytest.fixture
     def mock_logger(self):
         """Fixture for mocking logger."""
-        with patch("services.backfill.sync.session_metadata.logger") as mock:
+        with patch("services.backfill.storage.session_metadata.logger") as mock:
             yield mock
 
     def test_write_session_backfill_job_metadata(self, mock_dynamodb, mock_logger):
@@ -217,19 +217,19 @@ class TestWriteBackfillMetadataToDB:
     @pytest.fixture
     def mock_write_user_metadata(self):
         """Fixture for mocking write_user_session_backfill_metadata_to_db."""
-        with patch("services.backfill.sync.session_metadata.write_user_session_backfill_metadata_to_db") as mock:
+        with patch("services.backfill.storage.session_metadata.write_user_session_backfill_metadata_to_db") as mock:
             yield mock
     
     @pytest.fixture
     def mock_write_session_metadata(self):
         """Fixture for mocking write_session_backfill_job_metadata_to_db."""
-        with patch("services.backfill.sync.session_metadata.write_session_backfill_job_metadata_to_db") as mock:
+        with patch("services.backfill.storage.session_metadata.write_session_backfill_job_metadata_to_db") as mock:
             yield mock
     
     @pytest.fixture
     def mock_logger(self):
         """Fixture for mocking logger."""
-        with patch("services.backfill.sync.session_metadata.logger") as mock:
+        with patch("services.backfill.storage.session_metadata.logger") as mock:
             yield mock
 
     def test_write_backfill_metadata(self, mock_write_user_metadata, mock_write_session_metadata, mock_logger):
@@ -266,4 +266,4 @@ class TestWriteBackfillMetadataToDB:
         mock_write_session_metadata.assert_called_once_with(session_metadata)
         
         # Verify completion was logged
-        mock_logger.info.assert_called_with("completed writing backfill metadata to db") 
+        mock_logger.info.assert_called_with("completed writing backfill metadata to db")
