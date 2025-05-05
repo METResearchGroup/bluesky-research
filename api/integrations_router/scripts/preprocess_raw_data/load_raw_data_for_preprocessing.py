@@ -3,6 +3,10 @@
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
+from lib.helper import get_partition_dates
+from lib.log.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def load_posts_from_db(partition_date: str) -> pd.DataFrame:
@@ -48,6 +52,28 @@ def preprocess_raw_data_for_date(partition_date: str) -> pd.DataFrame:
     return raw_posts
 
 
+def insert_raw_data_into_queue(raw_posts: pd.DataFrame) -> None:
+    """Inserts raw data into the preprocess_raw_data input queue."""
+    pass
+
+
+def preprocess_raw_data_for_date_range(start_date: str, end_date: str) -> pd.DataFrame:
+    """Preprocesses raw data for a given date range."""
+    partition_dates: list[str] = get_partition_dates(
+        start_date=start_date,
+        end_date=end_date,
+    )
+    logger.info(f"Loading raw data from {start_date} to {end_date}")
+    for partition_date in partition_dates:
+        logger.info(f"Loading raw data for partition date: {partition_date}")
+        raw_posts: pd.DataFrame = load_raw_posts_from_db_for_date(
+            partition_date=partition_date
+        )
+        insert_raw_data_into_queue(raw_posts=raw_posts)
+        logger.info(f"Inserted raw data for partition date: {partition_date}")
+    logger.info(f"Finished loading raw data from {start_date} to {end_date}")
+
+
 def main():
     """Preprocesses raw data for a given date range.
 
@@ -55,7 +81,9 @@ def main():
     1. Loads the raw posts and replies for a given set of dates.
     2. Pushes them to the preprocess_raw_data input queue.
     """
-    pass
+    start_date = "2024-09-01"
+    end_date = "2024-09-30"
+    preprocess_raw_data_for_date_range(start_date=start_date, end_date=end_date)
 
 
 if __name__ == "__main__":
