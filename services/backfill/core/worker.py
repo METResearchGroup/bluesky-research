@@ -21,7 +21,7 @@ from lib.db.manage_local_data import (
     export_data_to_local_storage,
 )
 from lib.db.queue import Queue
-from lib.db.rate_limiter import AsyncTokenBucket
+from lib.db.rate_limiter import AsyncTokenBucket, calculate_sleep_seconds
 from lib.helper import generate_current_datetime_str, create_batches
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
@@ -357,7 +357,17 @@ class PDSEndpointWorker:
 
                 elif response.status == 429:
                     # Rate limited, put back in queue to retry.
-                    await asyncio.sleep(1 * (2**retry_count))
+                    sleep_time_seconds = calculate_sleep_seconds(
+                        reset_unix=int(response.headers["ratelimit-reset"])
+                    )
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Rate limited, sleeping for {sleep_time_seconds} seconds."
+                    )
+                    await asyncio.sleep(sleep_time_seconds)
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Rate limit reset, continuing requests. Putting current DID {did} back into queue to retry."
+                    )
+                    await asyncio.sleep(0.5)  # have a little buffer.
                     retry_count += 1
                     await self.temp_work_queue.put(
                         {"did": did, "retry_count": retry_count}
@@ -365,7 +375,9 @@ class PDSEndpointWorker:
                     pdm.BACKFILL_QUEUE_SIZES.labels(
                         endpoint=self.pds_endpoint, queue_type="work"
                     ).set(self.temp_work_queue.qsize())
-                    logger.info(f"Rate limited, putting back in queue to retry. {did}")
+                    logger.info(
+                        f"(PDS endpoint: {self.pds_endpoint}): Rate limited, putting back in queue to retry. {did}"
+                    )
                     return None
                 elif response.status == 400 and response.reason == "Bad Request":
                     # API returning 400 means the account is deleted/suspended.
@@ -847,10 +859,6 @@ class PDSEndpointWorker:
             self.output_deadletter_queue.load_dict_items_from_queue()
         )
         deadletter_batch_ids: set[str] = {item["batch_id"] for item in deadletter_items}
-
-        # TODO: deduplicate items and deadletter items, if relevant.
-        # by URI.
-        breakpoint()
 
         if len(items) == 0 and len(deadletter_items) == 0:
             logger.info(
