@@ -34,8 +34,9 @@ default_batch_size = 100
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-default_write_batch_size = 100
+# default_write_batch_size = 100
 # default_write_batch_size = 25
+default_write_batch_size = 10  # for experimental purposes.
 default_pds_endpoint = "https://bsky.social"
 
 # constants for rate limiting the APIs.

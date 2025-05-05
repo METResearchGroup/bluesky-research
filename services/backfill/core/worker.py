@@ -85,9 +85,10 @@ def filter_previously_processed_dids(
 def log_progress(
     pds_endpoint: str,
     total_dids: int,
-    total_filtered_dids: int,
-    total_queued_dids: int,
+    total_dids_to_process: int,
+    total_remaining_dids: int,
     total_records_flushed: int,
+    total_worker_tasks_running: int,
     total_requests_made: int = 0,
 ):
     """Logs the following:
@@ -100,10 +101,11 @@ def log_progress(
     logger.info(
         f"=== Progress for PDS endpoint {pds_endpoint} ===\n"
         f"\tTotal DIDs for endpoint: {total_dids}\n"
-        f"\tTotal DIDs previously processed {total_dids - total_filtered_dids}\n"
-        f"\tTotal DIDs to be processed in this session: {total_filtered_dids}\n"
-        f"\tTotal DIDS remaining in queue: {total_queued_dids}/{total_filtered_dids}\n"
+        f"\tTotal DIDs previously processed {total_dids - total_dids_to_process}\n"
+        f"\tTotal DIDs to be processed in this session: {total_dids_to_process}\n"
+        f"\tTotal DIDS remaining in queue: {total_remaining_dids}/{total_dids_to_process}\n"
         f"\tTotal DIDs processed in this session: {total_records_flushed}\n"
+        f"\tNumber of worker tasks running: {total_worker_tasks_running}\n"
         f"\tTotal requests made in this session: {total_requests_made}\n"
         f"=== End of progress for PDS endpoint {pds_endpoint} ==="
     )
@@ -168,8 +170,8 @@ class PDSEndpointWorker:
             dids=dids,
             min_timestamp=self.config.sync_storage.min_timestamp,
         )
-        self.total_dids_post_filter = len(self.dids)
-        self.dids_filtered_out = self.original_total_dids - self.total_dids_post_filter
+        self.total_dids_to_process = len(self.dids)
+        self.dids_filtered_out = self.original_total_dids - self.total_dids_to_process
 
         self.session = session
         self.cpu_pool = cpu_pool
@@ -223,9 +225,9 @@ class PDSEndpointWorker:
         ).set(queue_size)
         pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(queue_size)
 
-    def _filter_relevant_uri(self, record: dict) -> bool:
-        """Filters out URIs that are not relevant to the sync."""
-        return record["uri"] not in self.uris_to_filter
+    def _filter_only_relevant_uri(self, record: dict) -> bool:
+        """Filters for only URIs that are relevant to the sync."""
+        return record["uri"] in self.uris_to_filter
 
     def _filter_records(self, records: list[dict]) -> list[dict]:
         """Filter for only posts/reposts in the date range of interest."""
@@ -241,7 +243,7 @@ class PDSEndpointWorker:
                 start_timestamp=self.config.time_range.start_date,
                 end_timestamp=self.config.time_range.end_date,
             )
-            and self._filter_relevant_uri(record=record)
+            and self._filter_only_relevant_uri(record=record)
         ]
         return filtered_records
 
@@ -301,7 +303,15 @@ class PDSEndpointWorker:
                 )
                 if tokens_remaining < self.token_bucket.get_tokens():
                     token_buffer_size = 50
-                    self.token_bucket.set_tokens(tokens_remaining - token_buffer_size)
+                    new_tokens = tokens_remaining - token_buffer_size
+                    logger.info(f"""
+                        (PDS endpoint: {self.pds_endpoint}):
+                            Tokens remaining (according to endpoint header): {tokens_remaining},
+                            current tokens: {self.token_bucket.get_tokens()},
+                            token buffer size: {token_buffer_size}
+                            Setting tokens to {new_tokens}
+                        """)
+                    self.token_bucket.set_tokens(new_tokens)
 
                 # Process response
                 if response.status == 200:
@@ -321,7 +331,12 @@ class PDSEndpointWorker:
                     )
                     if earliest_record_timestamp < self.min_record_timestamp:
                         logger.info(
-                            f"Total paginated requests made for DID {did}, record type {record_type}: {total_paginated_requests}"
+                            f"""
+                            (PDS endpoint: {self.pds_endpoint}):
+                                Earliest record timestamp: {earliest_record_timestamp}
+                                Min record timestamp: {self.min_record_timestamp}
+                                Total paginated requests made for DID {did}, record type {record_type}: {total_paginated_requests}
+                            """
                         )
                         break
 
@@ -329,7 +344,12 @@ class PDSEndpointWorker:
                     cursor = response_dict.get("cursor")
                     if not cursor:  # No more pages
                         logger.info(
-                            f"Total paginated requests made for DID {did}, record type {record_type}: {total_paginated_requests}"
+                            f"""
+                            (PDS endpoint: {self.pds_endpoint}):
+                                No more cursor found.
+                                Total paginated requests made for DID {did},
+                                record type {record_type}: {total_paginated_requests}
+                            """
                         )
                         break
 
@@ -724,9 +744,12 @@ class PDSEndpointWorker:
                         log_progress(
                             pds_endpoint=self.pds_endpoint,
                             total_dids=self.original_total_dids,
-                            total_filtered_dids=self.total_dids_post_filter,
-                            total_queued_dids=self.temp_work_queue.qsize(),
+                            total_dids_to_process=self.total_dids_to_process,
+                            total_remaining_dids=self.temp_work_queue.qsize(),
                             total_records_flushed=global_total_records_flushed,
+                            total_worker_tasks_running=len(
+                                self._producer_group._children
+                            ),
                             total_requests_made=self.total_requests,
                         )
 
@@ -824,6 +847,10 @@ class PDSEndpointWorker:
             self.output_deadletter_queue.load_dict_items_from_queue()
         )
         deadletter_batch_ids: set[str] = {item["batch_id"] for item in deadletter_items}
+
+        # TODO: deduplicate items and deadletter items, if relevant.
+        # by URI.
+        breakpoint()
 
         if len(items) == 0 and len(deadletter_items) == 0:
             logger.info(
