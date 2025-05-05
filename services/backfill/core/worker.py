@@ -28,9 +28,6 @@ from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.prometheus.service import pds_backfill_metrics as pdm
 from services.backfill.core.atp_agent import AtpAgent
-from services.backfill.core.backfill import (
-    transform_backfilled_record,
-)
 from services.backfill.core.constants import (
     default_pds_endpoint,
     default_qps,
@@ -39,7 +36,10 @@ from services.backfill.core.constants import (
     service_name,
 )
 from services.backfill.core.models import UserBackfillMetadata
-from services.backfill.core.transform import postprocess_backfilled_record
+from services.backfill.core.transform import (
+    postprocess_backfilled_record,
+    transform_backfilled_record,
+)
 from services.backfill.core.validate import (
     identify_record_type,
     filter_only_valid_bsky_records,
