@@ -8,6 +8,7 @@ import contextlib
 from datetime import datetime, timezone
 import json
 import os
+import random
 import tempfile
 import time
 import traceback
@@ -21,7 +22,7 @@ from lib.db.manage_local_data import (
     export_data_to_local_storage,
 )
 from lib.db.queue import Queue
-from lib.db.rate_limiter import AsyncTokenBucket, calculate_sleep_seconds
+from lib.db.rate_limiter import AsyncTokenBucket
 from lib.helper import generate_current_datetime_str, create_batches
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
@@ -215,6 +216,11 @@ class PDSEndpointWorker:
         else:
             logger.info(f"Loaded {len(self.uris_to_filter)} URIs to filter out.")
 
+        # track rate limit resets at a global level, so that all tasks can reference
+        # the same reset time.
+        self.rate_limit_reset_time_unix = None
+        self.rate_limit_reset_time_ts = None
+
     async def _init_worker_queue(self):
         for did in self.dids:
             await self.temp_work_queue.put({"did": did})
@@ -356,17 +362,18 @@ class PDSEndpointWorker:
                     total_paginated_requests += 1
 
                 elif response.status == 429:
-                    # Rate limited, put back in queue to retry.
-                    sleep_time_seconds = calculate_sleep_seconds(
-                        reset_unix=int(response.headers["ratelimit-reset"])
-                    )
-                    logger.info(
-                        f"(PDS endpoint: {self.pds_endpoint}): Rate limited, sleeping for {sleep_time_seconds} seconds."
-                    )
-                    await asyncio.sleep(sleep_time_seconds)
-                    logger.info(
-                        f"(PDS endpoint: {self.pds_endpoint}): Rate limit reset, continuing requests. Putting current DID {did} back into queue to retry."
-                    )
+                    if self.rate_limit_reset_time_unix is None:
+                        self.rate_limit_reset_time_unix = int(
+                            response.headers["ratelimit-reset"]
+                        )
+                    else:
+                        if (
+                            int(response.headers["ratelimit-reset"])
+                            > self.rate_limit_reset_time_unix
+                        ):
+                            self.rate_limit_reset_time_unix = int(
+                                response.headers["ratelimit-reset"]
+                            )
                     await asyncio.sleep(0.5)  # have a little buffer.
                     retry_count += 1
                     await self.temp_work_queue.put(
@@ -375,8 +382,14 @@ class PDSEndpointWorker:
                     pdm.BACKFILL_QUEUE_SIZES.labels(
                         endpoint=self.pds_endpoint, queue_type="work"
                     ).set(self.temp_work_queue.qsize())
+                    self.rate_limit_reset_time_ts = datetime.fromtimestamp(
+                        self.rate_limit_reset_time_unix, tz=timezone.utc
+                    ).strftime(timestamp_format)
                     logger.info(
-                        f"(PDS endpoint: {self.pds_endpoint}): Rate limited, putting back in queue to retry. {did}"
+                        f"""
+                        (PDS endpoint: {self.pds_endpoint}): Rate limited, putting back in queue to retry. {did}.
+                            Set new reset time: {self.rate_limit_reset_time_ts} UTC.
+                        """
                     )
                     return None
                 elif response.status == 400 and response.reason == "Bad Request":
@@ -462,6 +475,22 @@ class PDSEndpointWorker:
             # Fetch paginated records for each type
             for record_type in self.config.record_types:
                 async with self.semaphore:
+                    current_unix_ts = time.time()
+                    if (
+                        self.rate_limit_reset_time_unix
+                        and current_unix_ts < self.rate_limit_reset_time_unix
+                    ):
+                        seconds_sleep = (
+                            self.rate_limit_reset_time_unix - current_unix_ts
+                        )
+                        logger.info(
+                            f"(PDS endpoint: {self.pds_endpoint}): Rate limit will reset at ts={self.rate_limit_reset_time_ts}, sleeping for {seconds_sleep} seconds."
+                        )
+                        await asyncio.sleep(seconds_sleep)
+                        # add a staggered sleep to avoid all workers hitting the
+                        # rate limit at the same time.
+                        rand_sleep = random.uniform(0.0, 2.0)
+                        await asyncio.sleep(rand_sleep)
                     records: Optional[list[dict]] = await self._fetch_paginated_records(
                         did=did,
                         record_type=record_type,
