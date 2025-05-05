@@ -1,260 +1,109 @@
 """Helper code for running filters on raw data."""
 
-from datetime import datetime, timedelta, timezone
 import json
-import re
 from typing import Optional
 
-import pandas as pd
+from api.integrations_router.helper import determine_backfill_latest_timestamp
+from lib.constants import current_datetime_str
+from lib.db.queue import Queue
+from lib.helper import track_performance, generate_current_datetime_str
+from lib.log.logger import get_logger
+from services.preprocess_raw_data.preprocess import preprocess_latest_posts
 
-from lib.aws.athena import Athena
-from lib.aws.sqs import SQS
-from lib.constants import current_datetime_str, timestamp_format
-from lib.helper import track_performance
-from lib.log.logger import Logger
-from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
-from services.preprocess_raw_data.export_data import (
-    # export_latest_follows,
-    # export_latest_likes,
-    export_latest_preprocessed_posts,
-    export_session_metadata,
-)
-from services.preprocess_raw_data.load_data import (
-    load_latest_firehose_posts,
-    load_latest_most_liked_posts,
-    load_previous_session_metadata,
-)
-from services.preprocess_raw_data.preprocess import (
-    preprocess_latest_posts,
-    # preprocess_latest_likes,
-    # preprocess_latest_follows,
-)
-
-DEFAULT_BATCH_SIZE = 100000
-max_firehose_posts_to_load = None
-num_days_lookback = 1
-default_latest_timestamp = (
-    datetime.now(timezone.utc) - timedelta(days=num_days_lookback)
-).strftime(timestamp_format)
-
-logger = Logger(__name__)
-
-firehose_sqs_queue = SQS("firehoseSyncsToBeProcessedQueue")
-most_liked_sqs_queue = SQS("mostLikedSyncsToBeProcessedQueue")
-
-athena = Athena()
+logger = get_logger(__name__)
 
 
-def init_session_data(previous_timestamp: str) -> dict:
-    """Initializes the session data for the current preprocessing run."""
-    return {
-        "previous_preprocessing_timestamp": previous_timestamp,
-        "current_preprocessing_timestamp": current_datetime_str,
-        "num_raw_records": {"posts": 0, "likes": 0, "follows": 0},
-        "num_records_after_filtering": {
-            "posts": {
-                "passed": 0,
-                "failed_total": 0,
-                "failed_breakdown": {
-                    "not_english": 0,
-                    "has_spam": 0,
-                    "has_hate_speech": 0,
-                    "has_nsfw": 0,
-                    "not_written_by_bot": 0,
-                },
-            }
-        },
-        # let's set, by default, the latest processed insert_timestamp
-        # to be equal to the timestamp of the previous session.
-        "latest_processed_insert_timestamp": previous_timestamp,
-    }
-
-
-def quote_s3_keys(match):
-    keys = match.group(1).split(",")
-    quoted_keys = [f'"{key.strip()}"' for key in keys]
-    return "[" + ", ".join(quoted_keys) + "]"
-
-
-def quote_keys(match):
-    key = match.group(1)
-    valid_keys = ["sync", "source", "operation", "operation_type", "s3_keys"]
-    if key in valid_keys:
-        return f'"{key}":'
-
-
-def quote_values(match):
-    key, value = match.groups()
-    if key in ["source", "operation", "operation_type"]:
-        return f'"{key}":"{value.strip()}"'
-    return f'"{key}":{value}'
-
-
-def preprocess_queue_message(message: dict) -> dict:
-    """Preprocess the queue message.
-
-    Example:
-    >>> message = '{sync:{source:in-network-user-activity, operation:create, operation_type:post, s3_keys:[in_network_user_activity/create/post/did:plc:oky5czdrnfjpqslsw2a5iclo/author_did=did:plc:oky5czdrnfjpqslsw2a5iclo_post_uri_suffix=3l35d7xvwt22z.json]}}'
-    >>> preprocess_queue_message(message)
-    {'sync': {'source': 'in-network-user-activity', 'operation': 'create', 'operation_type': 'post', 's3_keys': ['in_network_user_activity/create/post/oky5czdrnfjpqslsw2a5iclo/author_did=oky5czdrnfjpqslsw2a5iclo_post_uri_suffix=3l35d7xvwt22z.json']}}
-    """
-    data = message["data"]
-    pattern = r"=(?![^\[]*\])"
-    # replace all '=' with ':'
-    data = re.sub(pattern, ":", data)
-    # surround the items in the s3_keys array with quotes
-    result = re.sub(r"\[(.*?)\]", quote_s3_keys, data)
-    # Enclose all the keys, which are before the ':', with quotes
-    result = re.sub(r"(\w+):", quote_keys, result)
-    # Enclose the values, which are after the ':', with quotes
-    result = re.sub(r'"(\w+)":\s*([^{[\s][^,}]*)', quote_values, result)
-    return json.loads(result)
-
-
-def load_latest_sqs_messages_from_athena(
-    source: str,
-    limit: Optional[int] = None,
-    latest_processed_insert_timestamp: Optional[str] = None,
+def get_posts_to_preprocess(
+    timestamp: Optional[str] = None,
+    previous_run_metadata: Optional[dict] = None,
 ) -> list[dict]:
-    """Load the latest sync messages."""
-    logger.info("Getting latest queue messages.")
-    where_condition = (
-        f"insert_timestamp > '{latest_processed_insert_timestamp}'"
-        if latest_processed_insert_timestamp
-        else "1=1"
+    """Retrieves posts to preprocess.
+
+    Args:
+        timestamp (Optional[str]): Optional timestamp in YYYY-MM-DD-HH:MM:SS format to
+            override latest preprocessing timestamp for filtering posts.
+        previous_run_metadata (Optional[dict]): Metadata from previous run containing:
+            - metadata (str): JSON string with:
+                - latest_id_classified (Optional[int]): ID of last processed post.
+                - inference_timestamp (Optional[str]): Timestamp of last preprocessing run.
+    """
+    queue = Queue(queue_name="input_preprocess_raw_data")
+
+    if previous_run_metadata is not None:
+        latest_job_metadata = json.loads(previous_run_metadata.get("metadata", "{}"))
+        latest_id_classified = latest_job_metadata.get("latest_id_classified", None)
+        latest_preprocessing_timestamp = latest_job_metadata.get(
+            "preprocessing_timestamp", None
+        )
+    else:
+        latest_id_classified = None
+        latest_preprocessing_timestamp = None
+
+    if timestamp is not None:
+        logger.info(
+            f"Using backfill timestamp {timestamp} instead of latest preprocessing timestamp: {latest_preprocessing_timestamp}"
+        )
+        latest_preprocessing_timestamp = timestamp
+
+    latest_payloads: list[dict] = queue.load_dict_items_from_queue(
+        limit=None,
+        min_id=latest_id_classified,
+        min_timestamp=latest_preprocessing_timestamp,
+        status="pending",
     )
-    where_clause = f"""
-    WHERE source = '{source}'
-    AND {where_condition}
-    """
-    limit_clause = f"LIMIT {limit}" if limit else ""
-    # get the oldest messages first.
-    query = f"""
-    SELECT * FROM queue_messages
-    {where_clause}
-    {limit_clause}
-    ORDER BY insert_timestamp ASC
-    """
-    response = athena.query_results_as_df(query)
-    messages: list[dict] = response.to_dict(orient="records")
-    messages: list[dict] = athena.parse_converted_pandas_dicts(messages)
-    for message in messages:
-        data = preprocess_queue_message(message)
-        message["data"] = data
-    return messages
+    logger.info(f"Loaded {len(latest_payloads)} posts to preprocess.")
+    logger.info(f"Latest preprocessing timestamp: {latest_preprocessing_timestamp}")
+
+    # TODO: check if I need to transform the posts to fit the format expected
+    # by the preprocess_latest_posts function.
+
+    if not latest_payloads:
+        logger.info("No posts to preprocess.")
+        return []
+
+    return latest_payloads
 
 
 @track_performance
 def preprocess_latest_raw_data(
-    backfill_period: Optional[str] = None, backfill_duration: Optional[int] = None
+    backfill_period: Optional[str] = None,
+    backfill_duration: Optional[int] = None,
+    previous_run_metadata: Optional[dict] = None,
+    event: Optional[dict] = None,
 ):
     """Preprocesses the latest raw data."""
     logger.info(f"Preprocessing the latest raw data at {current_datetime_str}.")
-    if backfill_duration is not None and backfill_period in ["days", "hours"]:
-        current_time = datetime.now(timezone.utc)
-        if backfill_period == "days":
-            backfill_time = current_time - timedelta(days=backfill_duration)
-            logger.info(f"Backfilling {backfill_duration} days of data.")
-        elif backfill_period == "hours":
-            backfill_time = current_time - timedelta(hours=backfill_duration)
-            logger.info(f"Backfilling {backfill_duration} hours of data.")
-    else:
-        backfill_time = None
-    previous_session_metadata: dict = load_previous_session_metadata()
-    if previous_session_metadata:
-        previous_timestamp = previous_session_metadata[
-            "current_preprocessing_timestamp"
-        ]  # noqa
-    else:
-        previous_timestamp = None
-
-    session_metadata: dict = init_session_data(previous_timestamp=previous_timestamp)  # noqa
-
-    if not previous_timestamp:
-        previous_timestamp = default_latest_timestamp
-
-    latest_processed_insert_timestamp = previous_session_metadata.get(
-        "latest_processed_insert_timestamp", None
+    backfill_latest_timestamp: str = determine_backfill_latest_timestamp(
+        backfill_duration=backfill_duration,
+        backfill_period=backfill_period,
     )
-
-    if backfill_time is not None:
-        backfill_timestamp = backfill_time.strftime(timestamp_format)
-        timestamp = backfill_timestamp
-    else:
-        timestamp = latest_processed_insert_timestamp
-
-    # load latest posts
-    latest_firehose_posts_df: list[ConsolidatedPostRecordModel] = (
-        load_latest_firehose_posts(
-            timestamp=timestamp, limit=max_firehose_posts_to_load
-        )
+    posts_to_preprocess: list[dict] = get_posts_to_preprocess(
+        timestamp=backfill_latest_timestamp,
+        previous_run_metadata=previous_run_metadata,
     )
-    logger.info(f"Loaded {len(latest_firehose_posts_df)} firehose posts.")
-    latest_most_liked_posts_df: list[ConsolidatedPostRecordModel] = (
-        load_latest_most_liked_posts(timestamp=timestamp, limit=None)
+    logger.info(f"Preprocessing {len(posts_to_preprocess)} posts...")  # noqa
+    if len(posts_to_preprocess) == 0:
+        logger.warning("No posts to preprocess. Exiting...")
+        return {
+            "service": "preprocess_raw_data",
+            "preprocessing_timestamp": current_datetime_str,
+            "status_code": 200,
+            "total_preprocessed_posts": 0,
+            "body": json.dumps("No posts to preprocess."),
+            "event": event,
+            "metadata": {},
+        }
+    preprocessing_metadata = preprocess_latest_posts(
+        posts=posts_to_preprocess,
     )
-    logger.info(f"Loaded {len(latest_most_liked_posts_df)} most liked posts.")
-    latest_posts_df: pd.DataFrame = pd.concat(
-        [latest_firehose_posts_df, latest_most_liked_posts_df]
-    )
-    logger.info(f"Loaded {len(latest_posts_df)} posts for preprocessing.")
+    total_preprocessed = len(posts_to_preprocess)
 
-    # we export only the posts that have passed preprocessing
-    if len(latest_posts_df) > 0:
-        print(f"Preprocessing {len(latest_posts_df)} posts.")
-        filtered_posts_df, posts_metadata = preprocess_latest_posts(
-            latest_posts=latest_posts_df
-        )  # noqa
-        print(f"Preprocessed {len(latest_posts_df)} posts.")
-        passed_posts_df = filtered_posts_df[filtered_posts_df["passed_filters"]]
-        failed_posts_df = filtered_posts_df[~filtered_posts_df["passed_filters"]]
-        logger.info(
-            f"Number of posts that passed preprocessing: {len(passed_posts_df)}"
-        )
-        logger.info(
-            f"Number of posts that failed preprocessing: {len(failed_posts_df)}"
-        )
-
-        # get the max insert timestamp for the firehose posts
-        firehose_insert_timestamps: pd.Series = passed_posts_df[
-            passed_posts_df["source"] == "firehose"
-        ]["synctimestamp"]
-        if not firehose_insert_timestamps.empty:
-            max_firehose_insert_timestamp = max(firehose_insert_timestamps)
-        else:
-            max_firehose_insert_timestamp = None
-
-        # get the max insert timestamp for the most liked posts
-        most_liked_insert_timestamps: pd.Series = passed_posts_df[
-            passed_posts_df["source"] == "most_liked"
-        ]["synctimestamp"]
-
-        if not most_liked_insert_timestamps.empty:
-            max_most_liked_insert_timestamp = max(most_liked_insert_timestamps)
-        else:
-            max_most_liked_insert_timestamp = None
-
-        # get the max insert timestamp for the posts
-        max_processed_insert_timestamp = (
-            max_firehose_insert_timestamp
-            if max_most_liked_insert_timestamp is None
-            else max_most_liked_insert_timestamp
-            if max_firehose_insert_timestamp is None
-            else max(max_firehose_insert_timestamp, max_most_liked_insert_timestamp)
-        )
-
-        # update session metadata
-        session_metadata["num_raw_records"]["posts"] = posts_metadata["num_posts"]
-        session_metadata["num_records_after_filtering"]["posts"] = posts_metadata[
-            "num_records_after_filtering"
-        ]["posts"]  # noqa
-        session_metadata["latest_processed_insert_timestamp"] = (
-            max_processed_insert_timestamp
-        )
-
-        # export the posts
-        export_latest_preprocessed_posts(latest_posts=passed_posts_df)
-    else:
-        logger.info("No posts to process.")
-    export_session_metadata(session_metadata)
-    logger.info(f"Preprocessing completed at {current_datetime_str}.")
+    timestamp = generate_current_datetime_str()
+    preprocessing_session = {
+        "service": "preprocess_raw_data",
+        "preprocessing_timestamp": timestamp,
+        "total_preprocessed_posts": total_preprocessed,
+        "event": event,
+        "metadata": preprocessing_metadata,
+    }
+    return preprocessing_session

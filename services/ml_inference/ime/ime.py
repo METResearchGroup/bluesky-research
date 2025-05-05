@@ -2,12 +2,12 @@
 
 from typing import Optional
 
+from api.integrations_router.helper import determine_backfill_latest_timestamp
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from ml_tooling.ime.constants import default_hyperparameters
 from ml_tooling.ime.model import run_batch_classification
 from services.ml_inference.helper import (
-    determine_backfill_latest_timestamp,
     get_posts_to_classify,
 )
 

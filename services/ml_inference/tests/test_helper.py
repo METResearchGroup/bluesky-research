@@ -1,18 +1,16 @@
 """Tests for helper.py.
 
 This test suite verifies the functionality of ML inference helper functions:
-- determine_backfill_latest_timestamp: Handles backfill timestamp calculation
 - get_posts_to_classify: Retrieves and processes posts for classification
 """
 
 import json
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock
+from datetime import datetime
+from unittest.mock import patch
 
 import pytest
 
 from services.ml_inference.helper import (
-    determine_backfill_latest_timestamp,
     get_posts_to_classify,
 )
 
@@ -28,45 +26,6 @@ class MockDateTime:
         if isinstance(other, datetime):
             return MockDateTime(self.dt - other)
         return MockDateTime(self.dt - other)
-
-
-class TestDetermineBackfillLatestTimestamp:
-    """Tests for determine_backfill_latest_timestamp function."""
-
-    @pytest.mark.parametrize("duration,period,expected", [
-        (None, "days", None),
-        (None, "hours", None), 
-        (7, "invalid", None),
-    ])
-    def test_invalid_inputs(self, duration, period, expected):
-        """Test handling of invalid/None inputs."""
-        result = determine_backfill_latest_timestamp(duration, period)
-        assert result == expected
-
-    @patch("services.ml_inference.helper.datetime")
-    def test_backfill_days(self, mock_datetime):
-        """Test backfill with days period."""
-        mock_now = MockDateTime(datetime(2024, 1, 7, 12, 0, tzinfo=timezone.utc))
-        mock_datetime.now.return_value = mock_now
-        mock_datetime.timezone = timezone
-        mock_datetime.timedelta = timedelta
-
-        result = determine_backfill_latest_timestamp(7, "days")
-        
-        assert result == "2023-12-31-12:00:00"
-        mock_datetime.now.assert_called_once()
-
-    @patch("services.ml_inference.helper.datetime") 
-    def test_backfill_hours(self, mock_datetime):
-        """Test backfill with hours period."""
-        mock_now = MockDateTime(datetime(2024, 1, 7, 12, 0, tzinfo=timezone.utc))
-        mock_datetime.now.return_value = mock_now
-        mock_datetime.timezone = timezone
-
-        result = determine_backfill_latest_timestamp(24, "hours")
-        
-        assert result == "2024-01-06-12:00:00"
-        mock_datetime.now.assert_called_once()
 
 
 @pytest.fixture
