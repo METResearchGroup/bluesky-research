@@ -266,6 +266,7 @@ class PDSEndpointWorker:
         """
         all_records = []
         cursor = None
+        total_paginated_requests = 1
 
         while True:
             try:
@@ -319,12 +320,20 @@ class PDSEndpointWorker:
                         records[-1]["value"]["createdAt"]
                     )
                     if earliest_record_timestamp < self.min_record_timestamp:
+                        logger.info(
+                            f"Total paginated requests made for DID {did}, record type {record_type}: {total_paginated_requests}"
+                        )
                         break
 
                     # Check if more pages
                     cursor = response_dict.get("cursor")
                     if not cursor:  # No more pages
+                        logger.info(
+                            f"Total paginated requests made for DID {did}, record type {record_type}: {total_paginated_requests}"
+                        )
                         break
+
+                    total_paginated_requests += 1
 
                 elif response.status == 429:
                     # Rate limited, put back in queue to retry.
@@ -417,11 +426,10 @@ class PDSEndpointWorker:
             return
 
         try:
-            async with self.semaphore:
-                all_records = []
-
-                # Fetch paginated records for each type
-                for record_type in self.config.record_types:
+            all_records = []
+            # Fetch paginated records for each type
+            for record_type in self.config.record_types:
+                async with self.semaphore:
                     records: Optional[list[dict]] = await self._fetch_paginated_records(
                         did=did,
                         record_type=record_type,
@@ -435,70 +443,68 @@ class PDSEndpointWorker:
                         return
                     all_records.extend(records)
 
-                if all_records:
-                    # Process collected records
-                    loop = asyncio.get_running_loop()
-                    processing_start = time.perf_counter()
+            if all_records:
+                # Process collected records
+                loop = asyncio.get_running_loop()
+                processing_start = time.perf_counter()
 
-                    filtered_records: list[dict] = await loop.run_in_executor(
-                        self.cpu_pool,
-                        self._filter_records,
-                        all_records,
+                filtered_records: list[dict] = await loop.run_in_executor(
+                    self.cpu_pool,
+                    self._filter_records,
+                    all_records,
+                )
+
+                processing_time = time.perf_counter() - processing_start
+                pdm.BACKFILL_PROCESSING_SECONDS.labels(
+                    endpoint=self.pds_endpoint, operation_type="parse_records"
+                ).observe(processing_time)
+
+                # Add to results queue
+                await self.temp_results_queue.put(
+                    {"did": did, "content": filtered_records}
+                )
+
+                # Update metrics
+                pdm.BACKFILL_DID_STATUS.labels(
+                    endpoint=self.pds_endpoint, status="success"
+                ).inc()
+                self.total_successes += 1
+
+                if self.total_requests > 0:
+                    success_ratio = self.total_successes / self.total_requests
+                    pdm.BACKFILL_SUCCESS_RATIO.labels(endpoint=self.pds_endpoint).set(
+                        success_ratio
                     )
 
-                    processing_time = time.perf_counter() - processing_start
-                    pdm.BACKFILL_PROCESSING_SECONDS.labels(
-                        endpoint=self.pds_endpoint, operation_type="parse_records"
-                    ).observe(processing_time)
+                # Update queue metrics
+                current_results_queue_size = self.temp_results_queue.qsize()
+                pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(
+                    current_results_queue_size
+                )
+                pdm.BACKFILL_QUEUE_SIZES.labels(
+                    endpoint=self.pds_endpoint, queue_type="results"
+                ).set(current_results_queue_size)
 
-                    # Add to results queue
-                    await self.temp_results_queue.put(
-                        {"did": did, "content": filtered_records}
-                    )
+                # Adjust backoff and concurrency
+                if processing_time < 1.0:
+                    self.backoff_factor = max(self.backoff_factor * 0.8, 1.0)
 
-                    # Update metrics
-                    pdm.BACKFILL_DID_STATUS.labels(
-                        endpoint=self.pds_endpoint, status="success"
-                    ).inc()
-                    self.total_successes += 1
+                self.response_times.append(processing_time)
+                avg_response_time = sum(self.response_times) / len(self.response_times)
 
-                    if self.total_requests > 0:
-                        success_ratio = self.total_successes / self.total_requests
-                        pdm.BACKFILL_SUCCESS_RATIO.labels(
-                            endpoint=self.pds_endpoint
-                        ).set(success_ratio)
+                if avg_response_time > 3.0:
+                    await asyncio.sleep(avg_response_time / 2)
 
-                    # Update queue metrics
-                    current_results_queue_size = self.temp_results_queue.qsize()
-                    pdm.BACKFILL_QUEUE_SIZE.labels(endpoint=self.pds_endpoint).set(
-                        current_results_queue_size
-                    )
-                    pdm.BACKFILL_QUEUE_SIZES.labels(
-                        endpoint=self.pds_endpoint, queue_type="results"
-                    ).set(current_results_queue_size)
-
-                    # Adjust backoff and concurrency
-                    if processing_time < 1.0:
-                        self.backoff_factor = max(self.backoff_factor * 0.8, 1.0)
-
-                    self.response_times.append(processing_time)
-                    avg_response_time = sum(self.response_times) / len(
-                        self.response_times
-                    )
-
-                    if avg_response_time > 3.0:
-                        await asyncio.sleep(avg_response_time / 2)
-
-                else:
-                    # if they don't have records, put them in the
-                    # deadletter queue. Likely to be an inactive or deleted
-                    # account. Even if it's a valid account, if they don't
-                    # have any records, we treat them as if they were
-                    # deleted/suspended anyways.
-                    await self.temp_deadletter_queue.put({"did": did, "content": ""})
-                    pdm.BACKFILL_QUEUE_SIZES.labels(
-                        endpoint=self.pds_endpoint, queue_type="deadletter"
-                    ).set(self.temp_deadletter_queue.qsize())
+            else:
+                # if they don't have records, put them in the
+                # deadletter queue. Likely to be an inactive or deleted
+                # account. Even if it's a valid account, if they don't
+                # have any records, we treat them as if they were
+                # deleted/suspended anyways.
+                await self.temp_deadletter_queue.put({"did": did, "content": ""})
+                pdm.BACKFILL_QUEUE_SIZES.labels(
+                    endpoint=self.pds_endpoint, queue_type="deadletter"
+                ).set(self.temp_deadletter_queue.qsize())
 
         except Exception as e:
             # Handle unexpected errors
