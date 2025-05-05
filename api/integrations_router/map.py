@@ -28,6 +28,15 @@ def return_ime_handler():
     return ml_inference_ime_handler
 
 
+def return_preprocess_raw_data_handler():
+    """Lazy-load the preprocess raw data handler."""
+    from pipelines.preprocess_raw_data.handler import (
+        lambda_handler as preprocess_raw_data_handler,
+    )
+
+    return preprocess_raw_data_handler
+
+
 def get_handler(service_name: str):
     """Get the handler for a given service name.
 
@@ -46,6 +55,8 @@ def get_handler(service_name: str):
         handler_func = return_sociopolitical_handler
     elif service_name == "ml_inference_ime":
         handler_func = return_ime_handler
+    elif service_name == "preprocess_raw_data":
+        handler_func = return_preprocess_raw_data_handler
     else:
         raise KeyError(f"Unknown service name: {service_name}")
     return handler_func()
