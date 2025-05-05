@@ -10,12 +10,9 @@ class RawPostRecord(BaseModel):
 
     Corresponds to https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.post.json.
 
-    Based on the schema that is available from crawling the PDSes (the firehose
-    might have a slightly different schema. TODO: consolidate this with
-    `process_firehose_post`).
+    Based on the schema that is available from crawling the PDSes.
     """
 
-    py_type: str = Field(default="app.bsky.feed.post", alias="$type", frozen=True)
     uri: str = Field(..., description="The URI of the post.")
     cid: str = Field(..., description="The CID of the post.")
     createdAt: str = Field(
@@ -54,6 +51,54 @@ class RawPostRecord(BaseModel):
         default=None,
         description="Additional hashtags, in addition to any included in post text and facets. Stored as a JSON string.",
     )
+    py_type: str = Field(default="app.bsky.feed.post", alias="$type", frozen=True)
+
+
+class RawPostPdsRecord(BaseModel):
+    """Model for a raw post record synced from the PDS.
+
+    Undoes the "value" dictionary.
+    """
+
+    uri: str = Field(..., description="The URI of the post.")
+    cid: str = Field(..., description="The CID of the post.")
+    created_at: str = Field(
+        ...,
+        description="Client-declared timestamp when this post was originally created.",
+    )  # noqa
+    text: str = Field(
+        ...,
+        description="The primary post content. May be an empty string, if there are embeds.",
+    )
+    embed: Optional[str] = Field(
+        default=None,
+        description="Embed content (images, video, external link, record, or record with media) as a JSON string.",
+    )
+    entities: Optional[str] = Field(
+        default=None,
+        description="DEPRECATED: replaced by app.bsky.richtext.facet. Stored as a JSON string.",
+    )
+    facets: Optional[str] = Field(
+        default=None,
+        description="Annotations of text (mentions, URLs, hashtags, etc). Stored as a JSON string.",
+    )
+    reply: Optional[str] = Field(
+        default=None,
+        description="Reference to a post this post is replying to, stored as a JSON string.",
+    )
+    labels: Optional[str] = Field(
+        default=None,
+        description="Self-label values for this post. Effectively content warnings. Stored as a JSON string.",
+    )
+    langs: Optional[str] = Field(
+        default=None,
+        description="Indicates human language of post primary text content. Stored as a JSON string.",
+    )
+    tags: Optional[str] = Field(
+        default=None,
+        description="Additional hashtags, in addition to any included in post text and facets. Stored as a JSON string.",
+    )
+    py_type: str = Field(default="app.bsky.feed.post", alias="$type", frozen=True)
 
 
 class RawPostReference(BaseModel):
@@ -102,12 +147,63 @@ class RawReply(RawPostRecord):
     py_type: str = Field(default="app.bsky.feed.post", alias="$type", frozen=True)  # noqa
 
 
+class RawReplyPdsRecord(BaseModel):
+    """Model for a raw reply record synced from the PDS. Same as 'post' but
+    has 'reply' in the 'value' dictionary.
+
+    Undoes the "value" dictionary.
+    """
+
+    uri: str = Field(..., description="The URI of the reply.")
+    cid: str = Field(..., description="The CID of the reply.")
+    created_at: str = Field(
+        ...,
+        description="Client-declared timestamp when this post was originally created.",
+    )  # noqa
+    text: str = Field(
+        ...,
+        description="The primary post content. May be an empty string, if there are embeds.",
+    )
+    embed: Optional[str] = Field(
+        default=None,
+        description="Embed content (images, video, external link, record, or record with media) as a JSON string.",
+    )
+    entities: Optional[str] = Field(
+        default=None,
+        description="DEPRECATED: replaced by app.bsky.richtext.facet. Stored as a JSON string.",
+    )
+    facets: Optional[str] = Field(
+        default=None,
+        description="Annotations of text (mentions, URLs, hashtags, etc). Stored as a JSON string.",
+    )
+    reply: Optional[str] = Field(
+        default=None,
+        description="Reference to a post this post is replying to, stored as a JSON string.",
+    )
+    labels: Optional[str] = Field(
+        default=None,
+        description="Self-label values for this post. Effectively content warnings. Stored as a JSON string.",
+    )
+    langs: Optional[str] = Field(
+        default=None,
+        description="Indicates human language of post primary text content. Stored as a JSON string.",
+    )
+    tags: Optional[str] = Field(
+        default=None,
+        description="Additional hashtags, in addition to any included in post text and facets. Stored as a JSON string.",
+    )
+    reply: RawReplyRef = Field(..., description="The reply reference.")
+    py_type: str = Field(default="app.bsky.feed.post", alias="$type", frozen=True)  # noqa
+
+
 class RawRepost(BaseModel):
     """A raw repost.
 
     Corresponds to https://github.com/MarshalX/atproto/blob/main/lexicons/app.bsky.feed.repost.json
     """
 
+    uri: str = Field(..., description="The URI of the repost.")
+    cid: str = Field(..., description="The CID of the repost.")
     createdAt: str = Field(
         ..., description="The timestamp of when the repost was created."
     )
@@ -115,6 +211,54 @@ class RawRepost(BaseModel):
         ..., description="Reference to the post being reposted."
     )
     py_type: str = Field(default="app.bsky.feed.repost", alias="$type", frozen=True)
+
+
+class RawRepostPdsRecord(BaseModel):
+    """Model for a raw repost record synced from the PDS.
+
+    Undoes the "value" dictionary.
+    """
+
+    uri: str = Field(..., description="The URI of the repost record.")
+    cid: str = Field(..., description="The CID of the record.")
+    created_at: str = Field(
+        ..., description="The timestamp of when the repost was created."
+    )
+    subject: RawPostReference = Field(
+        ..., description="Reference to the post being reposted."
+    )
+    py_type: str = Field(default="app.bsky.feed.repost", alias="$type", frozen=True)
+
+
+class RawLikePdsRecord(BaseModel):
+    """Model for a like record synced from the PDS.
+
+    Undoes the "value" dictionary.
+
+    Example:
+    {
+        'cid': 'bafyreigho7g25eibg27m5oebibvecd3yoifnyg7p2q4ebgt6qg4d7uhrqq',
+        'uri': 'at://did:plc:ltz7g4ivfs4a52elbryw4qpr/app.bsky.feed.like/3lc5oyxe7vx2f',
+        'value': {
+            '$type': 'app.bsky.feed.like',
+            'createdAt': '2024-11-30T08:38:36.402Z',
+            'subject': {
+                'cid': 'bafyreibkmx6el5igtwh4ipbyypolkt22zgujyzt7hdntmqkiboavjklqtq',
+                'uri': 'at://did:plc:e6n7jxtu2qrhwvp3j6ib6sq6/app.bsky.feed.post/3lc4qhwfues2y'
+            }
+        }
+    }
+    """
+
+    uri: str = Field(..., description="The URI of the like.")
+    cid: str = Field(..., description="The CID of the like.")
+    created_at: str = Field(
+        ..., description="The timestamp of when the like was created."
+    )
+    subject: RawPostReference = Field(
+        ..., description="Reference to the post being liked."
+    )
+    py_type: str = Field(default="app.bsky.feed.like", alias="$type", frozen=True)  # noqa
 
 
 class RawLikeRecord(BaseModel):
@@ -164,12 +308,12 @@ class RawLike(BaseModel):
     }
     """  # noqa
 
-    author: str = Field(..., description="The DID of the author of the post.")
+    uri: str = Field(..., description="The URI of the like record.")
     cid: str = Field(..., description="The CID of the record.")
+    author: str = Field(..., description="The DID of the author of the post.")
     record: RawLikeRecord = Field(
         ..., description="The actual post (and metadata) that was liked."
     )  # noqa
-    uri: str = Field(..., description="The URI of the like record.")
 
 
 class RawFollowRecord(BaseModel):
@@ -190,6 +334,21 @@ class RawFollowRecord(BaseModel):
     subject: str = Field(..., description="The DID of the user being followed.")  # noqa
     # for backwards compatibility, keep as string. Some old posts
     # (e.g., from 2023) use app.bsky.feed.post as the type instead of strongRef.
+    py_type: str = Field(default="app.bsky.graph.follow", alias="$type", frozen=True)  # noqa
+
+
+class RawFollowPdsRecord(BaseModel):
+    """Model for a raw follow record synced from the PDS.
+
+    Undoes the "value" dictionary.
+    """
+
+    uri: str = Field(..., description="The URI of the follow record.")
+    cid: str = Field(..., description="The CID of the record.")
+    created_at: str = Field(
+        ..., description="The timestamp of when the follow was created."
+    )
+    subject: str = Field(..., description="The DID of the user being followed.")  # noqa
     py_type: str = Field(default="app.bsky.graph.follow", alias="$type", frozen=True)  # noqa
 
 
@@ -242,6 +401,21 @@ class RawBlock(BaseModel):
     )
     subject: str = Field(..., description="The DID of the user being blocked.")
     py_type: str = Field(default="app.bsky.graph.block", alias="$type", frozen=True)
+
+
+class RawBlockPdsRecord(BaseModel):
+    """Model for a raw block record synced from the PDS.
+
+    Undoes the "value" dictionary.
+    """
+
+    uri: str = Field(..., description="The URI of the block record.")
+    cid: str = Field(..., description="The CID of the record.")
+    created_at: str = Field(
+        ..., description="The timestamp of when the block was created."
+    )
+    subject: str = Field(..., description="The DID of the user being blocked.")  # noqa
+    py_type: str = Field(default="app.bsky.graph.block", alias="$type", frozen=True)  # noqa
 
 
 class FirehoseSubscriptionStateCursorModel(BaseModel):

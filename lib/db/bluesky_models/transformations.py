@@ -8,12 +8,12 @@ from pydantic import BaseModel, Field, validator
 
 from lib.db.bluesky_models.embed import ProcessedEmbed
 from lib.db.bluesky_models.raw import (
-    RawBlock,
-    RawFollowRecord,
-    RawLikeRecord,
-    RawPostRecord,
-    RawRepost,
-    RawReply,
+    RawBlockPdsRecord,
+    RawFollowPdsRecord,
+    RawLikePdsRecord,
+    RawPostPdsRecord,
+    RawRepostPdsRecord,
+    RawReplyPdsRecord,
 )
 
 
@@ -142,54 +142,60 @@ class TransformedFeedViewPostModel(BaseModel):
 ##### Backfill sync (via PDS) #####
 
 
-class TransformedPost(RawPostRecord):
-    """Transforms a raw post and adds the 'record_type' and 'synctimestamp' fields."""
+class TransformedPost(RawPostPdsRecord):
+    """Transforms a raw post and adds the 'author', 'record_type' and 'synctimestamp' fields."""
 
+    author: str = Field(..., description="The DID of the author of the post.")
     record_type: str = Field(default="post", frozen=True)
     synctimestamp: str = Field(
         ..., description="The timestamp of when the post was synchronized."
     )  # noqa
 
 
-class TransformedReply(RawReply):
-    """Transforms a raw reply and adds the 'record_type' and 'synctimestamp' fields."""
+class TransformedReply(RawReplyPdsRecord):
+    """Transforms a raw reply and adds the 'author', 'record_type' and 'synctimestamp' fields."""
 
+    author: str = Field(..., description="The DID of the author of the reply.")
     record_type: str = Field(default="reply", frozen=True)
     synctimestamp: str = Field(
         ..., description="The timestamp of when the reply was synchronized."
     )  # noqa
 
 
-class TransformedLike(RawLikeRecord):
-    """Transforms a raw like and adds the 'record_type' and 'synctimestamp' fields."""
+class TransformedLike(RawLikePdsRecord):
+    """Transforms a raw like and adds the 'author', 'record_type' and 'synctimestamp' fields."""
 
+    author: str = Field(..., description="The DID of the author of the like.")
     record_type: str = Field(default="like", frozen=True)
     synctimestamp: str = Field(
         ..., description="The timestamp of when the like was synchronized."
     )  # noqa
 
 
-class TransformedFollow(RawFollowRecord):
-    """Transforms a raw follow and adds the 'record_type' and 'synctimestamp' fields."""
+class TransformedFollow(RawFollowPdsRecord):
+    """Transforms a raw follow and adds the 'author', 'record_type' and 'synctimestamp' fields."""
 
+    author: str = Field(..., description="The DID of the author of the follow.")
     record_type: str = Field(default="follow", frozen=True)
     synctimestamp: str = Field(
         ..., description="The timestamp of when the follow was synchronized."
     )  # noqa
 
 
-class TransformedRepost(RawRepost):
-    """Transforms a raw repost and adds the 'record_type' and 'synctimestamp' fields."""
+class TransformedRepost(RawRepostPdsRecord):
+    """Transforms a raw repost and adds the 'author', 'record_type' and 'synctimestamp' fields."""
 
+    author: str = Field(..., description="The DID of the author of the repost.")
     record_type: str = Field(default="repost", frozen=True)
     synctimestamp: str = Field(
         ..., description="The timestamp of when the repost was synchronized."
     )  # noqa
 
 
-class TransformedBlock(RawBlock):
-    """Transforms a raw block and adds the 'record_type' and 'synctimestamp' fields."""
+class TransformedBlock(RawBlockPdsRecord):
+    """Transforms a raw block and adds the 'author', 'record_type' and 'synctimestamp' fields."""
 
+    author: str = Field(..., description="The DID of the author of the block.")
     record_type: str = Field(default="block", frozen=True)
     synctimestamp: str = Field(
         ..., description="The timestamp of when the block was synchronized."
