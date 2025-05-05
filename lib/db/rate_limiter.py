@@ -104,3 +104,10 @@ class TokenBucket:
             else:
                 # Sleep for a short time before checking again
                 time.sleep(0.05)
+
+
+def calculate_sleep_seconds(reset_unix: int) -> int:
+    """Given the unix reset time from a response header, calculate
+    how long to sleep for."""
+    now = time.time()
+    return reset_unix - now
