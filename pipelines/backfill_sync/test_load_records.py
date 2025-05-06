@@ -1,9 +1,15 @@
+import json
 from pprint import pprint
 
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
 from services.backfill.core.constants import valid_types
+
+
+def get_total_liked_records(likes: pd.DataFrame) -> int:
+    return likes["subject"].apply(json.loads).apply(lambda x: x["uri"]).nunique()
+
 
 if __name__ == "__main__":
     service = "raw_sync"
@@ -33,4 +39,7 @@ if __name__ == "__main__":
         print(f"Example records for {record_type}:")
         pprint(example_records)
         print("-" * 20)
+        if record_type == "like":
+            num_liked_records = get_total_liked_records(df)
+            record_to_total_size["total_liked_records"] = num_liked_records
     pprint(record_to_total_size)
