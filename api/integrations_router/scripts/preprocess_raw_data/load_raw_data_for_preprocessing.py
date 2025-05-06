@@ -9,7 +9,7 @@ from lib.log.logger import get_logger
 
 logger = get_logger(__name__)
 
-queue = Queue(queue_name="input_preprocess_raw_data")
+queue = Queue(queue_name="input_preprocess_raw_data", create_new_queue=True)
 
 
 def load_posts_from_db(partition_date: str) -> pd.DataFrame:
@@ -17,6 +17,7 @@ def load_posts_from_db(partition_date: str) -> pd.DataFrame:
     for a given date."""
     posts_df = load_data_from_local_storage(
         service="raw_sync",
+        directory="cache",
         partition_date=partition_date,
         custom_args={"record_type": "post"},
     )
@@ -30,6 +31,7 @@ def load_replies_from_db(partition_date: str) -> pd.DataFrame:
     for a given date."""
     replies_df = load_data_from_local_storage(
         service="raw_sync",
+        directory="cache",
         partition_date=partition_date,
         custom_args={"record_type": "reply"},
     )
@@ -81,7 +83,7 @@ def preprocess_raw_data_for_date_range(start_date: str, end_date: str) -> pd.Dat
         raw_posts: pd.DataFrame = load_raw_posts_from_db_for_date(
             partition_date=partition_date
         )
-        insert_raw_data_into_queue(raw_posts=raw_posts)
+        insert_raw_data_into_queue(raw_posts=raw_posts, partition_date=partition_date)
         logger.info(f"Inserted raw data for partition date: {partition_date}")
     logger.info(f"Finished loading raw data from {start_date} to {end_date}")
 
@@ -94,7 +96,7 @@ def main():
     2. Pushes them to the preprocess_raw_data input queue.
     """
     start_date = "2024-09-01"
-    end_date = "2024-09-30"
+    end_date = "2024-12-01"
     preprocess_raw_data_for_date_range(start_date=start_date, end_date=end_date)
 
 
