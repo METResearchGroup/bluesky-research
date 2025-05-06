@@ -93,10 +93,10 @@ def preprocess_latest_raw_data(
             "event": event,
             "metadata": {},
         }
-    preprocessing_metadata = preprocess_latest_posts(
+    preprocessing_metadata: dict = preprocess_latest_posts(
         posts=posts_to_preprocess,
     )
-    total_preprocessed = len(posts_to_preprocess)
+    total_preprocessed: int = len(posts_to_preprocess)
 
     timestamp = generate_current_datetime_str()
     preprocessing_session = {
