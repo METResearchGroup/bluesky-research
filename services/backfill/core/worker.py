@@ -281,6 +281,10 @@ class PDSEndpointWorker:
                 # Rate limit handling
                 pdm.BACKFILL_REQUESTS.labels(endpoint=self.pds_endpoint).inc()
                 pdm.BACKFILL_INFLIGHT.labels(endpoint=self.pds_endpoint).inc()
+                rand_noise = random.uniform(0.0, 0.5)
+                await asyncio.sleep(
+                    rand_noise
+                )  # add some noise to avoid all workers fetching tokens at the same time.
                 await self.token_bucket._acquire()
                 pdm.BACKFILL_TOKENS_LEFT.labels(endpoint=self.pds_endpoint).set(
                     self.token_bucket._tokens
@@ -336,27 +340,27 @@ class PDSEndpointWorker:
                         records[-1]["value"]["createdAt"]
                     )
                     if earliest_record_timestamp < self.min_record_timestamp:
-                        logger.info(
-                            f"""
-                            (PDS endpoint: {self.pds_endpoint}):
-                                Earliest record timestamp: {earliest_record_timestamp}
-                                Min record timestamp: {self.min_record_timestamp}
-                                Total paginated requests made for DID {did}, record type {record_type}: {total_paginated_requests}
-                            """
-                        )
+                        # logger.info(
+                        #     f"""
+                        #     (PDS endpoint: {self.pds_endpoint}):
+                        #         Earliest record timestamp: {earliest_record_timestamp}
+                        #         Min record timestamp: {self.min_record_timestamp}
+                        #         Total paginated requests made for DID {did}, record type {record_type}: {total_paginated_requests}
+                        #     """
+                        # )
                         break
 
                     # Check if more pages
                     cursor = response_dict.get("cursor")
                     if not cursor:  # No more pages
-                        logger.info(
-                            f"""
-                            (PDS endpoint: {self.pds_endpoint}):
-                                No more cursor found.
-                                Total paginated requests made for DID {did},
-                                record type {record_type}: {total_paginated_requests}
-                            """
-                        )
+                        # logger.info(
+                        #     f"""
+                        #     (PDS endpoint: {self.pds_endpoint}):
+                        #         No more cursor found.
+                        #         Total paginated requests made for DID {did},
+                        #         record type {record_type}: {total_paginated_requests}
+                        #     """
+                        # )
                         break
 
                     total_paginated_requests += 1
@@ -503,6 +507,11 @@ class PDSEndpointWorker:
                         )
                         return
                     all_records.extend(records)
+
+                # sleep to force waiting for the rate limit to reset,
+                # since the other ways for avoiding the rate limit aren't working, bruh...
+                sleep_seconds = 30
+                await asyncio.sleep(sleep_seconds)
 
             if all_records:
                 # Process collected records

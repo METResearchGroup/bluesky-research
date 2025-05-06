@@ -33,9 +33,8 @@ class AsyncTokenBucket:
         while True:
             async with self._lock:
                 now = time.perf_counter()
-                time_since_last_refill = now - self._last_refill
                 self._tokens = min(
-                    int(self._tokens) + int(time_since_last_refill * self._token_rate),
+                    int(self._tokens) + self.get_num_tokens_to_refill(),
                     self._max_tokens,
                 )
                 self._last_refill = now
@@ -49,7 +48,34 @@ class AsyncTokenBucket:
                     self._tokens -= 1
                     return
                 else:
-                    await asyncio.sleep(0.05)  # back-off, wait for refill.
+                    seconds_to_sleep = (int(abs(self._tokens)) * self._token_rate) + 10
+                    print(
+                        f"Not enough tokens: {self._tokens}\tWaiting for refill for {seconds_to_sleep} seconds..."
+                    )
+                    await asyncio.sleep(seconds_to_sleep)  # back-off, wait for refill.
+
+                    # NOTE: I know having dupes is bad. This is a hacky workaround
+                    # for now.
+                    # TODO: next time this service is used, can properly refactor this logic.
+                    # Hacky workaround works for now, allows the thread to hand back
+                    # control to the main thread when it's trying to regenerate
+                    # tokens, as opposed to checking every 0.5 seconds. Useful for
+                    # backfill, which can consume up to 100 requests per DID (due to pagination),
+                    # so we need to give the bucket some time to regenerate tokens as well
+                    # as hand back control of the main thread to other workers.
+                    self._tokens = min(
+                        int(self._tokens) + self.get_num_tokens_to_refill(),
+                        self._max_tokens,
+                    )
+                    self._last_refill = now
+                    print(
+                        f"Refilled tokens after {seconds_to_sleep} seconds: {self._tokens} tokens in bucket now."
+                    )
+
+    def get_num_tokens_to_refill(self) -> int:
+        now = time.perf_counter()
+        time_since_last_refill = now - self._last_refill
+        return int(time_since_last_refill * self._token_rate)
 
     def get_tokens(self) -> int:
         """Get the number of tokens in the bucket.
