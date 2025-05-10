@@ -25,8 +25,8 @@ def get_num_records_per_user_per_day(record_type: str) -> dict:
 
     {
         "did": {
-            "2024-09-28": 10,
-            "2024-09-29": 20,
+            "2024-10-01": 10,
+            "2024-10-02": 20,
             ...
         },
         ...
@@ -38,7 +38,7 @@ def get_num_records_per_user_per_day(record_type: str) -> dict:
     df = load_data_from_local_storage(
         service="raw_sync",
         directory="cache",
-        start_partition_date="2024-09-28",
+        start_partition_date="2024-09-30",
         end_partition_date="2024-12-01",
         custom_args=custom_args,
     )
@@ -76,7 +76,7 @@ def aggregate_metrics_per_user_per_day(users: list[dict], partition_dates: list[
 
     {
         "<handle>": {
-            "2024-09-28": {
+            "2024-10-01": {
                 "num_likes": 10,
                 "num_posts": 20,
                 "num_follows": 30,
@@ -95,6 +95,8 @@ def aggregate_metrics_per_user_per_day(users: list[dict], partition_dates: list[
     num_reposts_per_user_per_day = get_num_records_per_user_per_day("repost")
 
     aggregated_metrics_per_user_per_day: dict = {}
+
+    print(f"Calculating engagement metrics for {len(users)} users")
 
     for user in users:
         did: str = user["bluesky_user_did"]
@@ -214,12 +216,21 @@ def main():
     users = user_df.to_dict(orient="records")
 
     partition_dates: list[str] = get_partition_dates(
-        start_date="2024-09-28",
+        start_date="2024-09-30",
         end_date="2024-12-01",
         exclude_partition_dates=[],
     )
 
     user_date_to_week_df = load_user_date_to_week_df()
+
+    # The list of users from Qualtrics is slightly different from the list of users in DynamoDB.
+    # This is due to a variety of reasons (test users, people leaving the study, etc.),
+    # and we treat the users from Qualtrics as the source of ground truth.
+    # So, we filter the users in DynamoDB to only include those that are in the Qualtrics logs.
+    users_from_qualtrics_logs = set(user_date_to_week_df["bluesky_handle"].unique())
+    users: list[dict] = [
+        user for user in users if user["bluesky_handle"] in users_from_qualtrics_logs
+    ]
 
     aggregated_metrics_per_user_per_day: dict = aggregate_metrics_per_user_per_day(
         users=users,
