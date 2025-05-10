@@ -364,6 +364,21 @@ def partition_data_by_date(
     return output
 
 
+def _convert_service_name_to_db_name(service: str) -> str:
+    """Converts the service name to the version used to define the DB.
+
+    NOTE: tbh normally these two are equivalent, but idk why past me decided
+    to change 'preprocess_raw_data' to 'preprocessed_posts'. Tryna be slick ig.
+
+    Anyways, due for a refactoring later.
+    """
+    if service == "preprocess_raw_data":
+        print("Converting 'preprocess_raw_data' to 'preprocessed_posts'...")
+        return "preprocessed_posts"
+    else:
+        return service
+
+
 def export_data_to_local_storage(
     service: str,
     df: pd.DataFrame,
@@ -388,6 +403,7 @@ def export_data_to_local_storage(
 
     Receives a generic dataframe and exports it to local storage.
     """
+    service = _convert_service_name_to_db_name(service)
     # metadata needs to include timestamp field so that we can figure out what
     # data is old vs. new
     timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
@@ -454,9 +470,9 @@ def export_data_to_local_storage(
         elif service == "raw_sync":
             record_type = custom_args["record_type"]
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
-        elif service == "preprocessed_posts":
-            source = custom_args["source"]
-            local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
+        # elif service == "preprocessed_posts":
+        #     source = custom_args["source"]
+        #     local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
         # elif service == "ml_inference_perspective_api":
         #     source = custom_args["source"]
         #     local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]

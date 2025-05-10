@@ -3,7 +3,6 @@
 from typing import Optional, Union
 
 from pydantic import BaseModel, Field
-import typing_extensions as te
 
 from lib.db.bluesky_models.embed import ProcessedEmbed
 
@@ -60,9 +59,14 @@ class FilteredPreprocessedPostModel(BaseModel):
         default=None,
         description="The URL of the post. Available only if the post is from feed view. Firehose posts won't have this hydrated.",
     )  # noqa
-    source: te.Literal["firehose", "most_liked"] = Field(
-        ...,
-        description="The source feed of the post. Either 'firehose' or 'most_liked'",
+    source: Optional[str] = Field(
+        default=None,
+        description="""
+            The source feed of the post.
+            Old records will have 'firehose' or 'most_liked' since previous
+            pipelines distinguished between the two sources. New sources won't have
+            this as the source isn't relevant.
+        """,
     )  # noqa
     like_count: Optional[int] = Field(
         default=None, description="The like count of the post."

@@ -1,9 +1,9 @@
 import json
 import traceback
 
+from api.integrations_router.constants import dynamodb_table_name
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
-from services.ml_inference.helper import dynamodb_table_name
 from services.ml_inference.perspective_api.perspective_api import classify_latest_posts
 
 logger = get_logger(__name__)
