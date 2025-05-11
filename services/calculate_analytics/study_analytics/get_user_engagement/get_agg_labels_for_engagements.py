@@ -300,17 +300,167 @@ Now, we flatten.
 
 """
 
+import json
 import os
 
 import pandas as pd
+
+from lib.db.manage_local_data import load_data_from_local_storage
+from lib.helper import get_partition_dates
+from services.calculate_analytics.study_analytics.generate_reports.weekly_user_logins import (
+    load_user_date_to_week_df,
+)
+from services.participant_data.helper import get_all_users
+from services.participant_data.models import UserToBlueskyProfileModel
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 filename = "content_classifications_engaged_content_per_user_per_week.csv"
 fp = os.path.join(current_dir, filename)
 
 
-def get_engaged_content():
-    pass
+def get_content_engaged_with(
+    record_type: str, valid_study_users_dids: set[str]
+) -> dict:
+    """Get the content that was engaged with, by record type.
+
+    Returns a dict of the following format (for "likes", for example)
+
+    {
+        "<uri_1>": [
+            {
+                "did": "did_A", # user who liked it.
+                "date": "<YYYY-MM-DD>", the date the user liked it.
+                "record_type": "like"
+            },
+            {
+                "did": "did_B", # user who liked it.
+                "date": "<YYYY-MM-DD>", the date the user liked it.
+                "record_type": "like"
+            }
+        ],
+        "<uri_2>": [
+            {
+                "did": "did_C", # user who liked it.
+                "date": "<YYYY-MM-DD>", the date the user liked it.
+                "record_type": "like"
+            },
+            {
+                "did": "did_D", # user who liked it.
+                "date": "<YYYY-MM-DD>", the date the user liked it.
+                "record_type": "like"
+            }
+        ]
+    }
+    """
+    custom_args = {"record_type": record_type}
+    df: pd.DataFrame = load_data_from_local_storage(
+        service="raw_sync",
+        directory="cache",
+        start_partition_date="2024-09-30",
+        end_partition_date="2024-12-01",
+        custom_args=custom_args,
+    )
+
+    df = df.drop_duplicates(subset=["uri"])
+    df = df[df["author"]].isin(valid_study_users_dids)
+
+    df["partition_date"] = pd.to_datetime(df["synctimestamp"]).dt.date
+
+    if record_type == "reply":
+        # for simplicity's sake, we'll just take the URI of the post they replied to.
+        df["engaged_post_uris"] = (
+            df["reply"].apply(json.loads).apply(lambda x: x["parent"]["uri"])
+        )
+    else:
+        df["engaged_post_uris"] = (
+            df["subject"].apply(json.loads).apply(lambda x: x["uri"])
+        )
+
+    content_engaged_with = {}
+
+    for _, row in df.iterrows():
+        uri = row["engaged_post_uris"]
+        if uri not in content_engaged_with:
+            content_engaged_with[uri] = []
+        content_engaged_with[uri].append(
+            {
+                "did": row["author"],
+                "date": row["partition_date"],
+                "record_type": record_type,
+            }
+        )
+
+    return content_engaged_with
+
+
+def get_engaged_content(valid_study_users_dids: set[str]):
+    """Loads the content engaged with.
+
+    Returns a map of the URIs of posts engaged with on that day and a list
+    of who engaged with that record and what type of engagement.
+
+    For example, let's say that we're loading the engagements from 2024-10-01.
+
+    Let's say that user A and user B both liked post 1, and user B reposted
+    shared user C's post, post 2. That would give us a result like:
+
+    {
+        "uri_1": [
+            {
+                "did": "did_A",
+                "date": "<partition date>", # date they engaged with the content.
+                "record_type": "like",
+            },
+            {
+                "did": "did_B",
+                "date": "<partition date>",
+                "record_type": "like",
+            }
+        ],
+        "uri_2": [
+            {
+                "did": "did_B",
+                "date": "<partition date>",
+                "record_type": "reshare"
+            },
+            {
+                "did": "did_C",
+                "date": "<partition date>",
+                "record_type": "post"
+            }
+        ]
+    }
+
+    We do this in 1 shot since the number of records is small enough to do so.
+
+    Takes as input `valid_study_users_dids`, the set of study user DIDs. We
+    only want engagements related to these users (e.g., we only, in this one,
+    explicitly want the posts written by study users, for example. We have
+    other posts, e.g., the posts that were liked, but we want to limit this
+    to the records directly linked to study users).
+    """
+    map_uri_to_engagements = {}
+
+    liked_content: dict = get_content_engaged_with(
+        record_type="like", valid_study_users_dids=valid_study_users_dids
+    )
+    posted_content: dict = get_content_engaged_with(
+        record_type="post", valid_study_users_dids=valid_study_users_dids
+    )
+    reposted_content: dict = get_content_engaged_with(
+        record_type="repost", valid_study_users_dids=valid_study_users_dids
+    )
+    reshared_content: dict = get_content_engaged_with(
+        record_type="reshare", valid_study_users_dids=valid_study_users_dids
+    )
+
+    for content in [liked_content, posted_content, reposted_content, reshared_content]:
+        for uri, engagements in content.items():
+            if uri not in map_uri_to_engagements:
+                map_uri_to_engagements[uri] = []
+            map_uri_to_engagements[uri].extend(engagements)
+
+    return map_uri_to_engagements
 
 
 def get_agg_labels_content_per_user_per_day():
@@ -326,6 +476,28 @@ def transform_labeled_content_per_user_per_week():
 
 
 def main():
+    users: list[UserToBlueskyProfileModel] = get_all_users()
+    user_df: pd.DataFrame = pd.DataFrame([user.model_dump() for user in users])
+    user_df = user_df[user_df["is_study_user"]]
+    user_df = user_df[["bluesky_handle", "bluesky_user_did", "condition"]]
+    users = user_df.to_dict(orient="records")
+
+    partition_dates: list[str] = get_partition_dates(
+        start_date="2024-09-30",
+        end_date="2024-12-01",
+        exclude_partition_dates=[],
+    )
+
+    print(f"partition_dates: {partition_dates}")
+
+    user_date_to_week_df = load_user_date_to_week_df()
+    valid_study_users_dids = set(user_date_to_week_df["bluesky_user_did"].unique())
+
+    engaged_content: dict[str, list[dict]] = get_engaged_content(
+        valid_study_user_dids=valid_study_users_dids
+    )
+    print(f"Total number of engaged content: {len(engaged_content)}")
+
     transformed_agg_labeled_engaged_content_per_user_per_week: pd.DataFrame = (
         pd.DataFrame()
     )
