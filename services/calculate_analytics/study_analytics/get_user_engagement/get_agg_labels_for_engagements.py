@@ -92,7 +92,7 @@ def get_content_engaged_with(
     )
 
     df = df.drop_duplicates(subset=["uri"])
-    df = df[df["author"]].isin(valid_study_users_dids)
+    df = df[df["author"].isin(valid_study_users_dids)]
 
     df["partition_date"] = pd.to_datetime(df["synctimestamp"]).dt.date
 
