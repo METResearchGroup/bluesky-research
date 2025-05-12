@@ -29,6 +29,7 @@ as this'll mostly copy that anyways. But would be good to refactor for future
 purposes.
 """
 
+import gc
 import json
 import os
 
@@ -193,6 +194,9 @@ def get_engaged_content(valid_study_users_dids: set[str]):
                 map_uri_to_engagements[uri] = []
             map_uri_to_engagements[uri].extend(engagements)
 
+    del liked_content, posted_content, reposted_content, replied_content
+    gc.collect()
+
     return map_uri_to_engagements
 
 
@@ -351,6 +355,8 @@ def get_labels_for_engaged_content(uris: list[str]) -> dict:
                     **uri_to_labels_map[post_uri],
                     **relevant_label_probs,
                 }
+            del labels_df
+            gc.collect()
 
         # remove from list of pending integrations.
         for uri in filtered_uris:
