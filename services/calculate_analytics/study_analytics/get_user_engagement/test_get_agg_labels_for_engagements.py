@@ -4,6 +4,9 @@ from unittest.mock import patch
 from services.calculate_analytics.study_analytics.get_user_engagement import (
     get_agg_labels_for_engagements as agg,
 )
+from services.calculate_analytics.study_analytics.get_user_engagement.constants import (
+    default_content_engagement_columns,
+)
 
 
 class TestGetContentEngagedWith:
@@ -1764,3 +1767,330 @@ class TestGetPerUserToWeeklyContentLabelProportions:
                             result[user_did][week][metric]
                             == pytest.approx(expected_value, abs=0.001)
                         ), f"Metric {metric} for user {user_did} in {week}: expected {expected_value}, got {result[user_did][week][metric]}"
+
+
+class TestTransformPerUserToWeeklyContentLabelProportions:
+    def test_transform_per_user_to_weekly_content_label_proportions(self):
+        """
+        Test that transform_per_user_to_weekly_content_label_proportions correctly transforms
+        the weekly content label proportions and handles users with no data.
+
+        This test:
+        - Uses data from test_weekly_aggregation_comprehensive
+        - Adds a new user (did_C) who has no data in the input
+        - Verifies that the transformation correctly preserves all metrics
+        - Checks that users with no data are handled properly
+        """
+        # Use the same data structure as in test_weekly_aggregation_comprehensive
+        user_to_weekly_content_label_proportions = {
+            "did_A": {
+                "week_1": {
+                    "prop_liked_posts_toxic": 0.5,
+                    "prop_liked_posts_constructive": 0.5,
+                    "prop_liked_posts_sociopolitical": 0.5,
+                    "prop_liked_posts_is_not_sociopolitical": 0.5,
+                    "prop_liked_posts_is_political_left": 0.111,
+                    "prop_liked_posts_is_political_right": 0.111,
+                    "prop_liked_posts_is_political_moderate": 0.333,
+                    "prop_liked_posts_is_political_unclear": 0.444,
+                    "prop_liked_posts_intergroup": 0.222,
+                    "prop_liked_posts_moral": 0.222,
+                    "prop_liked_posts_emotion": 0.667,
+                    "prop_liked_posts_other": 0.111,
+                    "prop_posted_posts_toxic": 0.25,
+                    "prop_posted_posts_constructive": 0.75,
+                    "prop_posted_posts_sociopolitical": 0.167,
+                    "prop_posted_posts_is_not_sociopolitical": 0.833,
+                    "prop_posted_posts_is_political_left": 0.0,
+                    "prop_posted_posts_is_political_right": 0.0,
+                    "prop_posted_posts_is_political_moderate": 0.5,
+                    "prop_posted_posts_is_political_unclear": 0.5,
+                    "prop_posted_posts_intergroup": 0.167,
+                    "prop_posted_posts_moral": 0.167,
+                    "prop_posted_posts_emotion": 0.167,
+                    "prop_posted_posts_other": 0.5,
+                    "prop_reposted_posts_toxic": 1.0,
+                    "prop_reposted_posts_constructive": 0.0,
+                    "prop_reposted_posts_sociopolitical": 1.0,
+                    "prop_reposted_posts_is_not_sociopolitical": 0.0,
+                    "prop_reposted_posts_is_political_left": 1.0,
+                    "prop_reposted_posts_is_political_right": 0.0,
+                    "prop_reposted_posts_is_political_moderate": 0.0,
+                    "prop_reposted_posts_is_political_unclear": 0.0,
+                    "prop_reposted_posts_intergroup": 1.0,
+                    "prop_reposted_posts_moral": 1.0,
+                    "prop_reposted_posts_emotion": 0.0,
+                    "prop_reposted_posts_other": 0.0,
+                    "prop_replied_posts_toxic": 0.5,
+                    "prop_replied_posts_constructive": 0.5,
+                    "prop_replied_posts_sociopolitical": 0.5,
+                    "prop_replied_posts_is_not_sociopolitical": 0.5,
+                    "prop_replied_posts_is_political_left": 0.0,
+                    "prop_replied_posts_is_political_right": 0.0,
+                    "prop_replied_posts_is_political_moderate": 0.0,
+                    "prop_replied_posts_is_political_unclear": 1.0,
+                    "prop_replied_posts_intergroup": 0.5,
+                    "prop_replied_posts_moral": 0.5,
+                    "prop_replied_posts_emotion": 0.5,
+                    "prop_replied_posts_other": 0.0,
+                },
+                "week_3": {
+                    "prop_liked_posts_toxic": 0.2,
+                    "prop_liked_posts_constructive": 0.8,
+                    "prop_liked_posts_sociopolitical": 0.6,
+                    "prop_liked_posts_is_not_sociopolitical": 0.4,
+                    "prop_liked_posts_is_political_left": 0.5,
+                    "prop_liked_posts_is_political_right": 0.0,
+                    "prop_liked_posts_is_political_moderate": 0.0,
+                    "prop_liked_posts_is_political_unclear": 0.5,
+                    "prop_liked_posts_intergroup": 0.8,
+                    "prop_liked_posts_moral": 0.6,
+                    "prop_liked_posts_emotion": 0.4,
+                    "prop_liked_posts_other": 0.2,
+                    "prop_posted_posts_toxic": 0.75,
+                    "prop_posted_posts_constructive": 0.25,
+                    "prop_posted_posts_sociopolitical": 1.0,
+                    "prop_posted_posts_is_not_sociopolitical": 0.0,
+                    "prop_posted_posts_is_political_left": 1.0,
+                    "prop_posted_posts_is_political_right": 0.0,
+                    "prop_posted_posts_is_political_moderate": 0.0,
+                    "prop_posted_posts_is_political_unclear": 0.0,
+                    "prop_posted_posts_intergroup": 0.75,
+                    "prop_posted_posts_moral": 0.75,
+                    "prop_posted_posts_emotion": 0.25,
+                    "prop_posted_posts_other": 0.0,
+                    "prop_reposted_posts_toxic": None,
+                    "prop_reposted_posts_constructive": None,
+                    "prop_reposted_posts_sociopolitical": None,
+                    "prop_reposted_posts_is_not_sociopolitical": None,
+                    "prop_reposted_posts_is_political_left": None,
+                    "prop_reposted_posts_is_political_right": None,
+                    "prop_reposted_posts_is_political_moderate": None,
+                    "prop_reposted_posts_is_political_unclear": None,
+                    "prop_reposted_posts_intergroup": None,
+                    "prop_reposted_posts_moral": None,
+                    "prop_reposted_posts_emotion": None,
+                    "prop_reposted_posts_other": None,
+                    "prop_replied_posts_toxic": None,
+                    "prop_replied_posts_constructive": None,
+                    "prop_replied_posts_sociopolitical": None,
+                    "prop_replied_posts_is_not_sociopolitical": None,
+                    "prop_replied_posts_is_political_left": None,
+                    "prop_replied_posts_is_political_right": None,
+                    "prop_replied_posts_is_political_moderate": None,
+                    "prop_replied_posts_is_political_unclear": None,
+                    "prop_replied_posts_intergroup": None,
+                    "prop_replied_posts_moral": None,
+                    "prop_replied_posts_emotion": None,
+                    "prop_replied_posts_other": None,
+                },
+            },
+            "did_B": {
+                "week_1": {
+                    "prop_liked_posts_toxic": 0.5,
+                    "prop_liked_posts_constructive": 0.5,
+                    "prop_liked_posts_sociopolitical": 0.5,
+                    "prop_liked_posts_is_not_sociopolitical": 0.5,
+                    "prop_liked_posts_is_political_left": 0.15,
+                    "prop_liked_posts_is_political_right": 0.2,
+                    "prop_liked_posts_is_political_moderate": 0.05,
+                    "prop_liked_posts_is_political_unclear": 0.6,
+                    "prop_liked_posts_intergroup": 0.25,
+                    "prop_liked_posts_moral": 0.35,
+                    "prop_liked_posts_emotion": 0.5,
+                    "prop_liked_posts_other": 0.25,
+                    "prop_posted_posts_toxic": 0.25,
+                    "prop_posted_posts_constructive": 0.75,
+                    "prop_posted_posts_sociopolitical": 0.5,
+                    "prop_posted_posts_is_not_sociopolitical": 0.5,
+                    "prop_posted_posts_is_political_left": 0.25,
+                    "prop_posted_posts_is_political_right": 0.05,
+                    "prop_posted_posts_is_political_moderate": 0.1,
+                    "prop_posted_posts_is_political_unclear": 0.6,
+                    "prop_posted_posts_intergroup": 0.25,
+                    "prop_posted_posts_moral": 0.35,
+                    "prop_posted_posts_emotion": 0.6,
+                    "prop_posted_posts_other": 0.25,
+                    "prop_reposted_posts_toxic": 0.5,
+                    "prop_reposted_posts_constructive": 0.5,
+                    "prop_reposted_posts_sociopolitical": 0.5,
+                    "prop_reposted_posts_is_not_sociopolitical": 0.5,
+                    "prop_reposted_posts_is_political_left": 0.0,
+                    "prop_reposted_posts_is_political_right": 0.0,
+                    "prop_reposted_posts_is_political_moderate": 0.5,
+                    "prop_reposted_posts_is_political_unclear": 0.5,
+                    "prop_reposted_posts_intergroup": 0.5,
+                    "prop_reposted_posts_moral": 0.5,
+                    "prop_reposted_posts_emotion": 0.5,
+                    "prop_reposted_posts_other": 0.5,
+                    "prop_replied_posts_toxic": 0.0,
+                    "prop_replied_posts_constructive": 1.0,
+                    "prop_replied_posts_sociopolitical": 0.5,
+                    "prop_replied_posts_is_not_sociopolitical": 0.5,
+                    "prop_replied_posts_is_political_left": 0.0,
+                    "prop_replied_posts_is_political_right": 0.0,
+                    "prop_replied_posts_is_political_moderate": 0.5,
+                    "prop_replied_posts_is_political_unclear": 0.5,
+                    "prop_replied_posts_intergroup": 0.0,
+                    "prop_replied_posts_moral": 0.0,
+                    "prop_replied_posts_emotion": 0.5,
+                    "prop_replied_posts_other": 0.0,
+                },
+            },
+        }
+
+        # Create a user_date_to_week_df that includes did_C
+        # Create dates from 2024-10-01 to 2024-10-18
+        dates = [f"2024-10-{str(day).zfill(2)}" for day in range(1, 19)]
+
+        # Assign weeks (6 days per week)
+        weeks = ["week_1"] * 6 + ["week_2"] * 6 + ["week_3"] * 6
+
+        # Create a list with each date repeated for all 3 users
+        all_dates = dates * 3
+        all_weeks = weeks * 3
+        all_users = ["did_A"] * 18 + ["did_B"] * 18 + ["did_C"] * 18
+
+        user_date_to_week_df = pd.DataFrame(
+            {"bluesky_user_did": all_users, "date": all_dates, "week": all_weeks}
+        )
+
+        # Define expected result including did_C with empty data
+        # The expected result should be a pandas DataFrame with bluesky_handle, condition, week, and metrics
+        expected_result = pd.DataFrame(
+            [
+                # User A, Week 1
+                {
+                    "handle": "handle_A",
+                    "condition": "condition_A",
+                    "week": "week_1",
+                    **user_to_weekly_content_label_proportions["did_A"]["week_1"],
+                },
+                # User A, Week 2 - should be None values.
+                {
+                    "handle": "handle_A",
+                    "condition": "condition_A",
+                    "week": "week_2",
+                    **{label: None for label in default_content_engagement_columns},
+                },
+                # User A, Week 3
+                {
+                    "handle": "handle_A",
+                    "condition": "condition_A",
+                    "week": "week_3",
+                    **user_to_weekly_content_label_proportions["did_A"]["week_3"],
+                },
+                # User B, Week 1
+                {
+                    "handle": "handle_B",
+                    "condition": "condition_B",
+                    "week": "week_1",
+                    **user_to_weekly_content_label_proportions["did_B"]["week_1"],
+                },
+                # User B, Week 2 - should be None values.
+                {
+                    "handle": "handle_B",
+                    "condition": "condition_B",
+                    "week": "week_2",
+                    **{label: None for label in default_content_engagement_columns},
+                },
+                # User B, Week 3 - should be None values.
+                {
+                    "handle": "handle_B",
+                    "condition": "condition_B",
+                    "week": "week_3",
+                    **{label: None for label in default_content_engagement_columns},
+                },
+                # User C, Week 1 (with None values since did_C has no data)
+                {
+                    "handle": "handle_C",
+                    "condition": "condition_C",
+                    "week": "week_1",
+                    **{label: None for label in default_content_engagement_columns},
+                },
+                # User C, Week 2 - should be None values.
+                {
+                    "handle": "handle_C",
+                    "condition": "condition_C",
+                    "week": "week_2",
+                    **{label: None for label in default_content_engagement_columns},
+                },
+                # User C, Week 3 - should be None values.
+                {
+                    "handle": "handle_C",
+                    "condition": "condition_C",
+                    "week": "week_3",
+                    **{label: None for label in default_content_engagement_columns},
+                },
+            ]
+        )
+
+        users = [
+            {
+                "bluesky_user_did": "did_A",
+                "bluesky_handle": "handle_A",
+                "condition": "condition_A",
+            },
+            {
+                "bluesky_user_did": "did_B",
+                "bluesky_handle": "handle_B",
+                "condition": "condition_B",
+            },
+            {
+                "bluesky_user_did": "did_C",
+                "bluesky_handle": "handle_C",
+                "condition": "condition_C",
+            },
+        ]
+
+        # Call the function
+        result: pd.DataFrame = agg.transform_per_user_to_weekly_content_label_proportions(
+            user_to_weekly_content_label_proportions=user_to_weekly_content_label_proportions,
+            user_date_to_week_df=user_date_to_week_df,
+            users=users,
+        )
+
+        # Verify the result structure
+        assert set(result.columns) == set(
+            expected_result.columns
+        ), "DataFrame columns don't match"
+
+        # Sort both dataframes to ensure consistent comparison
+        result_sorted = result.sort_values(by=["handle", "week"]).reset_index(drop=True)
+        expected_sorted = expected_result.sort_values(
+            by=["handle", "week"]
+        ).reset_index(drop=True)
+
+        # Check that we have the right number of rows
+        assert len(result) == len(
+            expected_result
+        ), f"Expected {len(expected_result)} rows, got {len(result)}"
+
+        # Verify all rows match the expected values
+        for idx, expected_row in expected_sorted.iterrows():
+            result_row = result_sorted.iloc[idx]
+
+            # Check handle, condition and week match
+            assert (
+                result_row["handle"] == expected_row["handle"]
+            ), f"Handle mismatch at row {idx}"
+            assert (
+                result_row["condition"] == expected_row["condition"]
+            ), f"Condition mismatch at row {idx}"
+            assert (
+                result_row["week"] == expected_row["week"]
+            ), f"Week mismatch at row {idx}"
+
+            # Check all metrics
+            for metric in default_content_engagement_columns:
+                expected_value = expected_row[metric]
+                actual_value = result_row[metric]
+
+                if pd.isna(expected_value):
+                    assert pd.isna(
+                        actual_value
+                    ), f"Expected None for {metric} but got {actual_value} for {result_row['handle']} in {result_row['week']}"
+                else:
+                    assert (
+                        actual_value == pytest.approx(expected_value, abs=0.001)
+                    ), f"Metric {metric} for {result_row['handle']} in {result_row['week']}: expected {expected_value}, got {actual_value}"

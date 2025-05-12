@@ -40,6 +40,9 @@ from lib.helper import get_partition_dates
 from services.calculate_analytics.study_analytics.generate_reports.weekly_user_logins import (
     load_user_date_to_week_df,
 )
+from services.calculate_analytics.study_analytics.get_user_engagement.constants import (
+    default_content_engagement_columns,
+)
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 
@@ -793,30 +796,57 @@ def get_per_user_to_weekly_content_label_proportions(
     return user_to_weekly_content_label_proportions
 
 
-# TODO: need to account for users that have 0 engagements on a given week,
-# as well as users that have no engagement for the entire study.
 def transform_per_user_to_weekly_content_label_proportions(
-    user_to_weekly_content_label_proportions: dict, users: list[dict]
+    user_to_weekly_content_label_proportions: dict,
+    users: list[dict],
+    user_date_to_week_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """Transforms the aggregated label statistics into the output format required.
 
-    Iterates through each of the users and gets their data
+    Iterates through each of the users and gets their data. Imputes default
+    values when:
+    - The user doesn't have data for the given week.
+    - The user doesn't have engagement data at all.
     """
     flattened_metrics_per_user_per_week: list[dict] = []
     for user in users:
         user_handle = user["bluesky_handle"]
         user_condition = user["condition"]
         user_did = user["bluesky_user_did"]
-        weeks_to_metrics_map = user_to_weekly_content_label_proportions[user_did]
-        for week, metrics in weeks_to_metrics_map.items():
-            flattened_metrics_per_user_per_week.append(
-                {
-                    "handle": user_handle,
-                    "condition": user_condition,
-                    "week": week,
-                    **metrics,
+
+        subset_user_date_to_week_df = user_date_to_week_df[
+            user_date_to_week_df["bluesky_user_did"] == user_did
+        ]
+
+        weeks = sorted(subset_user_date_to_week_df["week"].unique().tolist(), key=str)
+
+        weeks_to_metrics_map = user_to_weekly_content_label_proportions.get(
+            user_did, {}
+        )
+
+        for week in weeks:
+            default_fields = {
+                "handle": user_handle,
+                "condition": user_condition,
+                "week": week,
+            }
+            metrics = weeks_to_metrics_map.get(week, {})
+            if len(metrics) == 0:
+                metrics = {
+                    **default_fields,
+                    **{label: None for label in default_content_engagement_columns},
                 }
-            )
+            else:
+                metrics = {
+                    **default_fields,
+                    **{
+                        label: metrics[label]
+                        for label in default_content_engagement_columns
+                    },
+                }
+
+            flattened_metrics_per_user_per_week.append(metrics)
+
     return pd.DataFrame(flattened_metrics_per_user_per_week)
 
 
@@ -868,16 +898,20 @@ def main():
         )
     )
 
-    user_to_weekly_content_label_proportions = get_per_user_to_weekly_content_label_proportions(
+    print("Getting per-user, per-week content label proportions...")
+    user_to_weekly_content_label_proportions: dict = get_per_user_to_weekly_content_label_proportions(
         user_per_day_content_label_proportions=user_per_day_content_label_proportions,
         user_date_to_week_df=user_date_to_week_df,
     )
 
-    transformed_per_user_to_weekly_content_label_proportions = transform_per_user_to_weekly_content_label_proportions(
+    print("Transforming per-user, per-week content label proportions...")
+    transformed_per_user_to_weekly_content_label_proportions: pd.DataFrame = transform_per_user_to_weekly_content_label_proportions(
         user_to_weekly_content_label_proportions=user_to_weekly_content_label_proportions,
         users=users,
+        user_date_to_week_df=user_date_to_week_df,
     )
 
+    print(f"Completed transformation. Writing to file: {fp}...")
     transformed_per_user_to_weekly_content_label_proportions.to_csv(fp, index=False)
 
 
