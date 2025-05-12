@@ -20,8 +20,9 @@ def classify_latest_posts(
     run_classification: bool = True,
     previous_run_metadata: Optional[dict] = None,
     event: Optional[dict] = None,
-):
-    """Classifies the latest posts using the Vader classifier.
+) -> dict:
+    """
+    Classifies the latest posts using the Vader classifier.
 
     Args:
         backfill_period (Optional[str]): The unit for backfilling - either "days" or "hours".
