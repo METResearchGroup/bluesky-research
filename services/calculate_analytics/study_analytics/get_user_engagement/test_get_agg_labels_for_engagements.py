@@ -50,7 +50,7 @@ class TestGetContentEngagedWith:
         result = agg.get_content_engaged_with("like", valid_dids)
         assert set(result.keys()) == set(expected_result.keys())
         for uri, expected_engagements in expected_result.items():
-            assert set(result[uri]) == set(expected_engagements)
+            assert result[uri] == expected_engagements
 
     @patch(
         "services.calculate_analytics.study_analytics.get_user_engagement.get_agg_labels_for_engagements.load_data_from_local_storage"
@@ -80,8 +80,8 @@ class TestGetContentEngagedWith:
         valid_dids = {"did_C"}
         result = agg.get_content_engaged_with("reply", valid_dids)
         assert set(result.keys()) == set(expected_result.keys())
-        assert result["post_uri_3"][0]["did"] == "did_C"
-        assert result["post_uri_3"][0]["record_type"] == "reply"
+        for uri, expected_engagements in expected_result.items():
+            assert result[uri] == expected_engagements
 
 
 class TestGetEngagedContent:
@@ -100,22 +100,96 @@ class TestGetEngagedContent:
         Output: The merged dict contains all URIs and all engagement dicts.
         """
         mock_get.side_effect = [
-            {"uri_1": [{"did": "did_A", "date": "2024-10-01", "record_type": "like"}]},
-            {"uri_2": [{"did": "did_B", "date": "2024-10-01", "record_type": "post"}]},
+            # likes
             {
-                "uri_3": [
-                    {"did": "did_C", "date": "2024-10-01", "record_type": "repost"}
+                "uri_1": [
+                    {"did": "did_A", "date": "2024-10-01", "record_type": "like"},
+                    {"did": "did_B", "date": "2024-10-01", "record_type": "like"},
+                    {"did": "did_C", "date": "2024-10-01", "record_type": "like"},
                 ]
             },
-            {"uri_4": [{"did": "did_D", "date": "2024-10-01", "record_type": "reply"}]},
+            # posts
+            {
+                "uri_1": [
+                    {"did": "did_A", "date": "2024-10-01", "record_type": "post"},
+                ],
+                "uri_2": [
+                    {"did": "did_B", "date": "2024-10-01", "record_type": "post"},
+                    {"did": "did_C", "date": "2024-10-01", "record_type": "post"},
+                ],
+            },
+            # reposts
+            {
+                "uri_1": [
+                    {"did": "did_B", "date": "2024-10-01", "record_type": "repost"},
+                ],
+                "uri_2": [
+                    {"did": "did_D", "date": "2024-10-01", "record_type": "repost"},
+                ],
+                "uri_3": [
+                    {"did": "did_C", "date": "2024-10-01", "record_type": "repost"},
+                    {"did": "did_D", "date": "2024-10-01", "record_type": "repost"},
+                ],
+            },
+            #
+            {
+                "uri_3": [
+                    {"did": "did_C", "date": "2024-10-01", "record_type": "reply"},
+                ],
+                "uri_4": [
+                    {"did": "did_D", "date": "2024-10-01", "record_type": "reply"},
+                ],
+            },
         ]
+        expected_result = {
+            "uri_1": [
+                {"did": "did_A", "date": "2024-10-01", "record_type": "like"},
+                {"did": "did_A", "date": "2024-10-01", "record_type": "post"},
+                {"did": "did_B", "date": "2024-10-01", "record_type": "like"},
+                {"did": "did_B", "date": "2024-10-01", "record_type": "repost"},
+                {"did": "did_C", "date": "2024-10-01", "record_type": "like"},
+            ],
+            "uri_2": [
+                {"did": "did_B", "date": "2024-10-01", "record_type": "post"},
+                {"did": "did_C", "date": "2024-10-01", "record_type": "post"},
+                {"did": "did_D", "date": "2024-10-01", "record_type": "repost"},
+            ],
+            "uri_3": [
+                {"did": "did_C", "date": "2024-10-01", "record_type": "repost"},
+                {"did": "did_C", "date": "2024-10-01", "record_type": "reply"},
+                {"did": "did_D", "date": "2024-10-01", "record_type": "repost"},
+            ],
+            "uri_4": [
+                {"did": "did_D", "date": "2024-10-01", "record_type": "reply"},
+            ],
+        }
         valid_dids = {"did_A", "did_B", "did_C", "did_D"}
         result = agg.get_engaged_content(valid_dids)
-        assert set(result.keys()) == {"uri_1", "uri_2", "uri_3", "uri_4"}
-        assert result["uri_1"][0]["record_type"] == "like"
-        assert result["uri_2"][0]["record_type"] == "post"
-        assert result["uri_3"][0]["record_type"] == "repost"
-        assert result["uri_4"][0]["record_type"] == "reply"
+        assert set(result.keys()) == set(expected_result.keys())
+
+        # check that the likes/reposts/posts/replies are all in the result
+        # and are identical, in a clear and readable way, by organizing
+        # by record type.
+        for uri, expected_engagements in expected_result.items():
+            observed_results_by_record_type = {}
+            expected_results_by_record_type = {}
+            for engagement in result[uri]:
+                record_type = engagement["record_type"]
+                if record_type not in observed_results_by_record_type:
+                    observed_results_by_record_type[record_type] = []
+                observed_results_by_record_type[record_type].append(engagement)
+            for engagement in expected_engagements:
+                record_type = engagement["record_type"]
+                if record_type not in expected_results_by_record_type:
+                    expected_results_by_record_type[record_type] = []
+                expected_results_by_record_type[record_type].append(engagement)
+            for (
+                record_type,
+                expected_engagements,
+            ) in expected_results_by_record_type.items():
+                assert (
+                    observed_results_by_record_type[record_type] == expected_engagements
+                )
 
 
 class TestGetContentEngagedWithPerUser:

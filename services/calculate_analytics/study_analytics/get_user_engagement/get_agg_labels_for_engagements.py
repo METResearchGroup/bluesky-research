@@ -94,7 +94,7 @@ def get_content_engaged_with(
     df = df.drop_duplicates(subset=["uri"])
     df = df[df["author"].isin(valid_study_users_dids)]
 
-    df["partition_date"] = pd.to_datetime(df["synctimestamp"]).dt.date
+    df["partition_date"] = pd.to_datetime(df["synctimestamp"]).dt.date.astype(str)
 
     if record_type == "reply":
         # for simplicity's sake, we'll just take the URI of the post they replied to.
