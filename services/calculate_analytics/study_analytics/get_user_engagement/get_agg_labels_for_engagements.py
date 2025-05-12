@@ -722,7 +722,7 @@ def get_per_user_to_weekly_content_label_proportions(
         dates_to_content_proportions_map,
     ) in user_per_day_content_label_proportions.items():
         subset_user_date_to_week_df = user_date_to_week_df[
-            user_date_to_week_df["bluesky_handle"] == user
+            user_date_to_week_df["bluesky_user_did"] == user
         ]
         subset_map_date_to_week = dict(
             zip(
@@ -760,7 +760,7 @@ def get_per_user_to_weekly_content_label_proportions(
                     aggregated_weekly_labels_across_record_types
                 )
 
-            for label, prop in daily_props_across_record_types:
+            for label, prop in daily_props_across_record_types.items():
                 if prop is not None:
                     content_proportions_per_week_map[week][label].append(prop)
 
@@ -776,6 +776,8 @@ def get_per_user_to_weekly_content_label_proportions(
         aggregated_content_proportions_per_week = {}
 
         for week, content_proportions in content_proportions_per_week_map.items():
+            if week not in aggregated_content_proportions_per_week:
+                aggregated_content_proportions_per_week[week] = {}
             for label, values in content_proportions.items():
                 if len(values) == 0:
                     aggregated_content_proportions_per_week[week][label] = None
@@ -791,6 +793,8 @@ def get_per_user_to_weekly_content_label_proportions(
     return user_to_weekly_content_label_proportions
 
 
+# TODO: need to account for users that have 0 engagements on a given week,
+# as well as users that have no engagement for the entire study.
 def transform_per_user_to_weekly_content_label_proportions(
     user_to_weekly_content_label_proportions: dict, users: list[dict]
 ) -> pd.DataFrame:
