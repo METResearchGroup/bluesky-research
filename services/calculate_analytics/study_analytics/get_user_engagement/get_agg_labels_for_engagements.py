@@ -384,8 +384,6 @@ def get_column_prefix_for_record_type(record_type: str) -> str:
     return prefix
 
 
-# TODO: need to validate that the required label fields exist and are
-# consistent across all records.
 def get_per_user_per_day_content_label_proportions(
     user_to_content_engaged_with: dict[str, dict], labels_for_engaged_content: dict[str]
 ):
@@ -527,64 +525,84 @@ def get_per_user_per_day_content_label_proportions(
                 # of posts for the given DID + date + record type that have
                 # the given label (e.g., proportion of posts liked by DID A
                 # on 2024-10-01)
+
                 aggregated_labels_collection = {
                     "prop_toxic": (
-                        np.mean(labels_collection["prob_toxic"] > 0.5)
+                        round(
+                            (np.array(labels_collection["prob_toxic"]) > 0.5).mean(), 3
+                        )
                         if len(labels_collection["prob_toxic"]) > 0
                         else None
                     ),
                     "prop_constructive": (
-                        np.mean(labels_collection["prob_constructive"] > 0.5)
-                        if len(labels_collection["prob_toxic"]) > 0
+                        round(
+                            (
+                                np.array(labels_collection["prob_constructive"]) > 0.5
+                            ).mean(),
+                            3,
+                        )
+                        if len(labels_collection["prob_constructive"]) > 0
                         else None
                     ),
                     "prop_sociopolitical": (
-                        np.mean(labels_collection["is_sociopolitical"])
+                        round(np.mean(labels_collection["is_sociopolitical"]), 3)
                         if len(labels_collection["is_sociopolitical"]) > 0
                         else None
                     ),
                     "prop_is_not_sociopolitical": (
-                        np.mean(labels_collection["is_not_sociopolitical"])
+                        round(np.mean(labels_collection["is_not_sociopolitical"]), 3)
                         if len(labels_collection["is_not_sociopolitical"]) > 0
                         else None
                     ),
                     "prop_is_political_left": (
-                        np.mean(labels_collection["is_political_left"])
+                        round(np.mean(labels_collection["is_political_left"]), 3)
                         if len(labels_collection["is_political_left"]) > 0
                         else None
                     ),
                     "prop_is_political_right": (
-                        np.mean(labels_collection["is_political_right"])
+                        round(np.mean(labels_collection["is_political_right"]), 3)
                         if len(labels_collection["is_political_right"]) > 0
                         else None
                     ),
                     "prop_is_political_moderate": (
-                        np.mean(labels_collection["is_political_moderate"])
+                        round(np.mean(labels_collection["is_political_moderate"]), 3)
                         if len(labels_collection["is_political_moderate"]) > 0
                         else None
                     ),
                     "prop_is_political_unclear": (
-                        np.mean(labels_collection["is_political_unclear"])
+                        round(np.mean(labels_collection["is_political_unclear"]), 3)
                         if len(labels_collection["is_political_unclear"]) > 0
                         else None
                     ),
                     "prop_intergroup": (
-                        np.mean(labels_collection["prob_intergroup"] > 0.5)
+                        round(
+                            (
+                                np.array(labels_collection["prob_intergroup"]) > 0.5
+                            ).mean(),
+                            3,
+                        )
                         if len(labels_collection["prob_intergroup"]) > 0
                         else None
                     ),
                     "prop_moral": (
-                        np.mean(labels_collection["prob_moral"] > 0.5)
+                        round(
+                            (np.array(labels_collection["prob_moral"]) > 0.5).mean(), 3
+                        )
                         if len(labels_collection["prob_moral"]) > 0
                         else None
                     ),
                     "prop_emotion": (
-                        np.mean(labels_collection["prob_emotion"] > 0.5)
+                        round(
+                            (np.array(labels_collection["prob_emotion"]) > 0.5).mean(),
+                            3,
+                        )
                         if len(labels_collection["prob_emotion"]) > 0
                         else None
                     ),
                     "prop_other": (
-                        np.mean(labels_collection["prob_other"] > 0.5)
+                        round(
+                            (np.array(labels_collection["prob_other"]) > 0.5).mean(), 3
+                        )
                         if len(labels_collection["prob_other"]) > 0
                         else None
                     ),
@@ -622,6 +640,9 @@ def get_per_user_per_day_content_label_proportions(
     return per_user_per_day_content_label_proportions
 
 
+# TODO: account for the weeks where they don't have any engagement at all.
+# TODO: need tests to account for this. Can just put 'None' for everything
+# if they just don't have activity for those weeks.
 def get_per_user_to_weekly_content_label_proportions(
     user_per_day_content_label_proportions: dict, user_date_to_week_df: pd.DataFrame
 ):
@@ -759,8 +780,8 @@ def get_per_user_to_weekly_content_label_proportions(
                 if len(values) == 0:
                     aggregated_content_proportions_per_week[week][label] = None
                 else:
-                    aggregated_content_proportions_per_week[week][label] = np.mean(
-                        values
+                    aggregated_content_proportions_per_week[week][label] = round(
+                        np.mean(values), 3
                     )
 
         user_to_weekly_content_label_proportions[user] = (
