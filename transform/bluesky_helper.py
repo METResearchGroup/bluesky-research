@@ -43,6 +43,18 @@ def get_author_handle_and_post_id_from_link(link: str) -> dict[str, str]:
     return {"author": author, "post_id": post_id}
 
 
+def get_author_record(
+    did: Optional[str] = None, handle: Optional[str] = None
+) -> ProfileViewDetailed:
+    """Given a DID or handle, get the author record."""
+    if did:
+        return client.get_profile(did)
+    elif handle:
+        return client.get_profile(handle)
+    else:
+        raise ValueError("Either a DID or handle must be provided.")
+
+
 def get_author_did_from_handle(author_handle: str) -> str:
     """Given an author handle, get the DID.
 
@@ -51,7 +63,7 @@ def get_author_did_from_handle(author_handle: str) -> str:
     "did:example:123"
     """
     # Get the profile
-    profile = client.get_profile(author_handle)
+    profile = get_author_record(handle=author_handle)
     # Get the DID
     return profile["did"]
 
