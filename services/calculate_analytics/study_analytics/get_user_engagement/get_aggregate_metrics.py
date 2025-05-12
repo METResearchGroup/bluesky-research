@@ -183,26 +183,50 @@ def aggregate_metrics_per_user_per_week(
 
 
 def transform_aggregated_metrics_per_user_per_week(
-    aggregated_metrics_per_user_per_week: dict, users: list[dict]
+    aggregated_metrics_per_user_per_week: dict,
+    users: list[dict],
+    user_date_to_week_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Transform the aggregated metrics per user per week into a DataFrame."""
+    """Transform the aggregated metrics per user per week into a DataFrame.
+
+    Iterates through each of the users and gets their data. Imputes default
+    values when:
+    - The user doesn't have data for the given week.
+    - The user doesn't have engagement data at all.
+    """
     flattened_metrics_per_user_per_week: list[dict] = []
+
+    default_metrics = {
+        "num_likes": 0,
+        "num_posts": 0,
+        "num_follows": 0,
+        "num_reposts": 0,
+    }
+
     for user in users:
         user_handle = user["bluesky_handle"]
         user_condition = user["condition"]
+
+        subset_user_date_to_week_df = user_date_to_week_df[
+            user_date_to_week_df["bluesky_handle"] == user_handle
+        ]
+
+        weeks = sorted(subset_user_date_to_week_df["week"].unique().tolist(), key=str)
+
         weeks_to_metrics_map = aggregated_metrics_per_user_per_week[user_handle]
-        for week, metrics in weeks_to_metrics_map.items():
-            flattened_metrics_per_user_per_week.append(
-                {
-                    "handle": user_handle,
-                    "condition": user_condition,
-                    "week": week,
-                    "num_likes": metrics["num_likes"],
-                    "num_posts": metrics["num_posts"],
-                    "num_follows": metrics["num_follows"],
-                    "num_reposts": metrics["num_reposts"],
-                }
-            )
+
+        for week in weeks:
+            if not week or pd.isna(week):
+                # sometimes there's a weird empty string or None or NaN. Skip this.
+                continue
+            default_fields = {
+                "handle": user_handle,
+                "condition": user_condition,
+                "week": week,
+            }
+            metrics = weeks_to_metrics_map.get(week, default_metrics)
+            flattened_metrics_per_user_per_week.append({**default_fields, **metrics})
+
     return pd.DataFrame(flattened_metrics_per_user_per_week)
 
 
@@ -246,6 +270,7 @@ def main():
         transform_aggregated_metrics_per_user_per_week(
             aggregated_metrics_per_user_per_week=aggregated_metrics_per_user_per_week,
             users=users,
+            user_date_to_week_df=user_date_to_week_df,
         )
     )
 
