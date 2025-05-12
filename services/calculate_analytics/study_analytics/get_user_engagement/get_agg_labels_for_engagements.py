@@ -100,15 +100,18 @@ def get_content_engaged_with(
 
     df["partition_date"] = pd.to_datetime(df["synctimestamp"]).dt.date.astype(str)
 
-    if record_type == "reply":
-        # for simplicity's sake, we'll just take the URI of the post they replied to.
-        df["engaged_post_uris"] = (
-            df["reply"].apply(json.loads).apply(lambda x: x["parent"]["uri"])
-        )
-    else:
-        df["engaged_post_uris"] = (
-            df["subject"].apply(json.loads).apply(lambda x: x["uri"])
-        )
+    try:
+        if record_type == "reply":
+            # for simplicity's sake, we'll just take the URI of the post they replied to.
+            df["engaged_post_uris"] = (
+                df["reply"].apply(json.loads).apply(lambda x: x["parent"]["uri"])
+            )
+        else:
+            df["engaged_post_uris"] = (
+                df["subject"].apply(json.loads).apply(lambda x: x["uri"])
+            )
+    except Exception:
+        breakpoint()
 
     content_engaged_with = {}
 
@@ -394,8 +397,8 @@ def get_column_prefix_for_record_type(record_type: str) -> str:
 
 
 def get_per_user_per_day_content_label_proportions(
-    user_to_content_engaged_with: dict[str, dict], labels_for_engaged_content: dict[str]
-):
+    user_to_content_engaged_with: dict[str, dict], labels_for_engaged_content: dict
+) -> dict:
     """Given a map of user and the content they engaged with,
     as well as the labels for any engaged content, start linking them together.
 
@@ -509,7 +512,7 @@ def get_per_user_per_day_content_label_proportions(
                 # liked posts for did A for date 2024-10-01.
 
                 uris = user_to_content_engaged_with[did][partition_date][record_type]
-                labels_collection: set[str, list] = {
+                labels_collection: dict[str, list] = {
                     "prob_toxic": [],
                     "prob_constructive": [],
                     "is_sociopolitical": [],
@@ -857,23 +860,30 @@ def transform_per_user_to_weekly_content_label_proportions(
 
 
 def main():
-    users: list[UserToBlueskyProfileModel] = get_all_users()
-    user_df: pd.DataFrame = pd.DataFrame([user.model_dump() for user in users])
+    total_users: list[UserToBlueskyProfileModel] = get_all_users()
+    user_df: pd.DataFrame = pd.DataFrame([user.model_dump() for user in total_users])
 
     user_date_to_week_df = load_user_date_to_week_df()
+
+    user_handle_to_did_map = {
+        user.bluesky_handle: user.bluesky_user_did for user in total_users
+    }
 
     # we base the valid users on the Qualtrics logs. We load the users from
     # DynamoDB but some of those users aren't valid (e.g., they were
     # experimental users, they didn't do the study, etc.).
-    valid_study_users_dids = set(user_date_to_week_df["bluesky_user_did"].unique())
+    valid_study_user_handles = set(user_date_to_week_df["bluesky_handle"].unique())
+    valid_study_users_dids = set(
+        [user_handle_to_did_map[handle] for handle in valid_study_user_handles]
+    )
     user_df = user_df[user_df["is_study_user"]]
     user_df = user_df[["bluesky_handle", "bluesky_user_did", "condition"]]
     user_df = user_df[user_df["bluesky_user_did"].isin(valid_study_users_dids)]
-    users = user_df.to_dict(orient="records")
+    users: list[dict] = user_df.to_dict(orient="records")
 
     # get all content engaged with by study users, keyed on the URI of the post.
     engaged_content: dict[str, list[dict]] = get_engaged_content(
-        valid_study_user_dids=valid_study_users_dids
+        valid_study_users_dids=valid_study_users_dids
     )
     print(
         f"Total # of posts engaged with in some way (e.g., like/post/repost/reply): {len(engaged_content)}"
@@ -889,8 +899,10 @@ def main():
         f"Total number of users who have engaged with content on Bluesky: {len(user_to_content_engaged_with)}/{len(valid_study_users_dids)} total valid users."
     )
 
+    uris = list(engaged_content.keys())
+
     labels_for_engaged_content: dict[str, dict] = get_labels_for_engaged_content(
-        uris=engaged_content.keys()
+        uris=uris
     )
 
     print(
