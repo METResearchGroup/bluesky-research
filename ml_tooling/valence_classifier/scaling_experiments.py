@@ -6,8 +6,12 @@ This module extends the experiments.py functionality to handle a larger volume o
 printing individual results.
 
 Metrics from experiments:
-- 50,000 posts: Classification completed in 1.52 seconds
-"""
+- Total posts: 50000, Total runtime: 5.84 seconds
+- Total posts: 100000, Total runtime: 11.80 seconds
+- Total posts: 200000, Total runtime: 22.91 seconds
+- Total posts: 400000, Total runtime: 45.91 seconds
+- Total posts: 800000, Total runtime: 91.10 seconds
+- Total posts: 1600000, Total runtime: 190.51 seconds"""
 
 import time
 from typing import List, Dict, Any, Tuple
