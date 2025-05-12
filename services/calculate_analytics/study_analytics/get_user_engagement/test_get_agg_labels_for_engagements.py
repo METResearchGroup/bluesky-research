@@ -208,24 +208,110 @@ class TestGetContentEngagedWithPerUser:
             "uri_1": [
                 {"did": "did_A", "date": "2024-10-01", "record_type": "like"},
                 {"did": "did_B", "date": "2024-10-02", "record_type": "post"},
+                {"did": "did_C", "date": "2024-10-02", "record_type": "like"},
             ],
             "uri_2": [
+                {"did": "did_A", "date": "2024-10-01", "record_type": "like"},
                 {"did": "did_A", "date": "2024-10-01", "record_type": "reply"},
             ],
+            "uri_3": [
+                {"did": "did_A", "date": "2024-10-01", "record_type": "post"},
+                {"did": "did_B", "date": "2024-10-02", "record_type": "like"},
+                {"did": "did_C", "date": "2024-10-02", "record_type": "repost"},
+            ],
+            "uri_4": [
+                {"did": "did_A", "date": "2024-10-01", "record_type": "reply"},
+                {"did": "did_B", "date": "2024-10-03", "record_type": "reply"},
+                {"did": "did_C", "date": "2024-10-03", "record_type": "like"},
+                {"did": "did_C", "date": "2024-10-05", "record_type": "repost"},
+                {"did": "did_D", "date": "2024-10-05", "record_type": "like"},
+            ],
+            "uri_5": [
+                {"did": "did_A", "date": "2024-10-01", "record_type": "post"},
+                {"did": "did_B", "date": "2024-10-02", "record_type": "like"},
+                {"did": "did_C", "date": "2024-10-03", "record_type": "like"},
+                {"did": "did_D", "date": "2024-10-03", "record_type": "like"},
+            ],
+        }
+        expected_result = {
+            "did_A": {
+                "2024-10-01": {
+                    "like": ["uri_1", "uri_2"],
+                    "post": ["uri_3", "uri_5"],
+                    "reply": ["uri_2", "uri_4"],
+                    "repost": [],
+                },
+            },
+            "did_B": {
+                "2024-10-02": {
+                    "post": ["uri_1"],
+                    "like": ["uri_3", "uri_5"],
+                    "repost": [],
+                    "reply": [],
+                },
+                "2024-10-03": {
+                    "like": [],
+                    "post": [],
+                    "repost": [],
+                    "reply": ["uri_4"],
+                },
+            },
+            "did_C": {
+                "2024-10-02": {
+                    "like": ["uri_1"],
+                    "post": [],
+                    "repost": ["uri_3"],
+                    "reply": [],
+                },
+                "2024-10-03": {
+                    "like": ["uri_4", "uri_5"],
+                    "post": [],
+                    "repost": [],
+                    "reply": [],
+                },
+                "2024-10-05": {
+                    "like": [],
+                    "post": [],
+                    "repost": ["uri_4"],
+                    "reply": [],
+                },
+            },
+            "did_D": {
+                "2024-10-03": {
+                    "like": ["uri_5"],
+                    "post": [],
+                    "repost": [],
+                    "reply": [],
+                },
+                "2024-10-05": {
+                    "like": ["uri_4"],
+                    "post": [],
+                    "repost": [],
+                    "reply": [],
+                },
+            },
         }
         result = agg.get_content_engaged_with_per_user(engaged_content)
-        assert set(result.keys()) == {"did_A", "did_B"}
-        assert set(result["did_A"].keys()) == {"2024-10-01"}
-        assert set(result["did_B"].keys()) == {"2024-10-02"}
-        assert set(result["did_A"]["2024-10-01"].keys()) == {
-            "post",
-            "like",
-            "repost",
-            "reply",
-        }
-        assert result["did_A"]["2024-10-01"]["like"][0]["post_uri"] == "uri_1"
-        assert result["did_A"]["2024-10-01"]["reply"][0]["post_uri"] == "uri_2"
-        assert result["did_B"]["2024-10-02"]["post"][0]["post_uri"] == "uri_1"
+        assert set(result.keys()) == set(expected_result.keys())
+
+        # Check that the structure and content match the expected result
+        for did, expected_dates in expected_result.items():
+            assert set(result[did].keys()) == set(expected_dates.keys())
+
+            for date, expected_record_types in expected_dates.items():
+                assert set(result[did][date].keys()) == set(
+                    expected_record_types.keys()
+                )
+
+                for record_type, expected_uris in expected_record_types.items():
+                    observed_uris = result[did][date][record_type]
+                    assert len(observed_uris) == len(expected_uris)
+
+                    # Sort both lists to ensure consistent comparison
+                    observed_sorted = sorted(observed_uris)
+                    expected_sorted = sorted(expected_uris)
+
+                    assert observed_sorted == expected_sorted
 
 
 class TestGetLabelsForPartitionDate:
@@ -328,19 +414,24 @@ class TestGetLabelsForEngagedContent:
     def test_labels_aggregation(self, mock_probs, mock_labels, mock_dates):
         """
         Test that the function aggregates label probabilities for each URI and integration.
-        Input: Two URIs, two integrations, two partition dates, each with one label dict.
+        Input: Two URIs, three integrations (perspective_api, sociopolitical, ime), two partition dates, each with one label dict.
         Output: Dict mapping each URI to aggregated label probabilities.
         """
         uris = ["uri_1", "uri_2"]
         mock_dates.return_value = ["2024-10-01", "2024-10-02"]
 
-        # Simulate two integrations, each with one label per URI per date
+        # Simulate three integrations, each with one label per URI per date
         def labels_side_effect(integration, partition_date):
             if integration == "perspective_api":
                 return pd.DataFrame(
                     [
-                        {"uri": "uri_1", "prob_toxic": 0.1},
-                        {"uri": "uri_2", "prob_toxic": 0.2},
+                        {"uri": "uri_1", "prob_toxic": 0.7, "prob_constructive": 0.2},
+                        {"uri": "uri_2", "prob_toxic": 0.3, "prob_constructive": 0.8},
+                        {
+                            "uri": "uri_3",
+                            "prob_toxic": 0.5,
+                            "prob_constructive": 0.5,
+                        },  # shouldn't show up.
                     ]
                 )
             elif integration == "sociopolitical":
@@ -356,6 +447,39 @@ class TestGetLabelsForEngagedContent:
                             "is_sociopolitical": False,
                             "political_ideology_label": "right",
                         },
+                        # shouldn't show up.
+                        {
+                            "uri": "uri_3",
+                            "is_sociopolitical": True,
+                            "political_ideology_label": "moderate",
+                        },
+                    ]
+                )
+            elif integration == "ime":
+                return pd.DataFrame(
+                    [
+                        {
+                            "uri": "uri_1",
+                            "prob_intergroup": 0.4,
+                            "prob_moral": 0.3,
+                            "prob_emotion": 0.2,
+                            "prob_other": 0.1,
+                        },
+                        {
+                            "uri": "uri_2",
+                            "prob_intergroup": 0.1,
+                            "prob_moral": 0.2,
+                            "prob_emotion": 0.3,
+                            "prob_other": 0.4,
+                        },
+                        # shouldn't show up.
+                        {
+                            "uri": "uri_3",
+                            "prob_intergroup": 0.5,
+                            "prob_moral": 0.5,
+                            "prob_emotion": 0.5,
+                            "prob_other": 0.5,
+                        },
                     ]
                 )
             else:
@@ -365,21 +489,246 @@ class TestGetLabelsForEngagedContent:
 
         def probs_side_effect(integration, label_dict):
             if integration == "perspective_api":
-                return {"prob_toxic": label_dict["prob_toxic"]}
+                return {
+                    "prob_toxic": label_dict["prob_toxic"],
+                    "prob_constructive": label_dict["prob_constructive"],
+                }
             elif integration == "sociopolitical":
-                return {"is_sociopolitical": label_dict["is_sociopolitical"]}
+                return {
+                    "is_sociopolitical": label_dict["is_sociopolitical"],
+                    "is_not_sociopolitical": not label_dict["is_sociopolitical"],
+                    "is_political_left": (
+                        label_dict["political_ideology_label"] == "left"
+                    ),
+                    "is_political_right": (
+                        label_dict["political_ideology_label"] == "right"
+                    ),
+                    "is_political_moderate": (
+                        label_dict["political_ideology_label"] == "moderate"
+                    ),
+                    "is_political_unclear": (
+                        label_dict["political_ideology_label"] == "unclear"
+                    ),
+                }
+            elif integration == "ime":
+                return {
+                    "prob_intergroup": label_dict["prob_intergroup"],
+                    "prob_moral": label_dict["prob_moral"],
+                    "prob_emotion": label_dict["prob_emotion"],
+                    "prob_other": label_dict["prob_other"],
+                }
             else:
                 return {}
 
         mock_probs.side_effect = probs_side_effect
+
+        expected_result = {
+            "uri_1": {
+                "prob_toxic": 0.7,
+                "prob_constructive": 0.2,
+                "is_sociopolitical": True,
+                "is_not_sociopolitical": False,
+                "is_political_left": True,
+                "is_political_right": False,
+                "is_political_moderate": False,
+                "is_political_unclear": False,
+                "prob_intergroup": 0.4,
+                "prob_moral": 0.3,
+                "prob_emotion": 0.2,
+                "prob_other": 0.1,
+            },
+            "uri_2": {
+                "prob_toxic": 0.3,
+                "prob_constructive": 0.8,
+                "is_sociopolitical": False,
+                "is_not_sociopolitical": True,
+                "is_political_left": False,
+                "is_political_right": True,
+                "is_political_moderate": False,
+                "is_political_unclear": False,
+                "prob_intergroup": 0.1,
+                "prob_moral": 0.2,
+                "prob_emotion": 0.3,
+                "prob_other": 0.4,
+            },
+        }
+
         result = agg.get_labels_for_engaged_content(uris)
-        assert set(result.keys()) == {"uri_1", "uri_2"}
-        assert "prob_toxic" in result["uri_1"]
-        assert "is_sociopolitical" in result["uri_1"]
-        assert result["uri_1"]["prob_toxic"] == 0.1
-        assert result["uri_2"]["prob_toxic"] == 0.2
-        assert result["uri_1"]["is_sociopolitical"] is True
-        assert result["uri_2"]["is_sociopolitical"] is False
+
+        assert set(result.keys()) == set(expected_result.keys())
+        for uri, expected_labels in expected_result.items():
+            for label_key, expected_value in expected_labels.items():
+                assert label_key in result[uri]
+                assert result[uri][label_key] == expected_value
+
+    @patch(
+        "services.calculate_analytics.study_analytics.get_user_engagement.get_agg_labels_for_engagements.get_partition_dates"
+    )
+    @patch(
+        "services.calculate_analytics.study_analytics.get_user_engagement.get_agg_labels_for_engagements.get_labels_for_partition_date"
+    )
+    @patch(
+        "services.calculate_analytics.study_analytics.get_user_engagement.get_agg_labels_for_engagements.get_relevant_probs_for_label"
+    )
+    @patch("builtins.print")
+    def test_labels_aggregation_with_missing_integrations(
+        self, mock_print, mock_probs, mock_labels, mock_dates
+    ):
+        """
+        Test that the function handles URIs with missing integrations correctly.
+        Input: Three URIs, where:
+            - uri_1 has all three integrations
+            - uri_2 is missing perspective_api
+            - uri_3 is missing sociopolitical and ime
+        Output: Dict mapping each URI to available label probabilities, with tracking of missing integrations.
+        """
+        uris = ["uri_1", "uri_2", "uri_3"]
+        mock_dates.return_value = ["2024-10-01"]
+
+        # Simulate three integrations with different coverage for each URI
+        def labels_side_effect(integration, partition_date):
+            if integration == "perspective_api":
+                return pd.DataFrame(
+                    [
+                        {"uri": "uri_1", "prob_toxic": 0.7, "prob_constructive": 0.2},
+                        # uri_2 is missing perspective_api
+                        {"uri": "uri_3", "prob_toxic": 0.5, "prob_constructive": 0.5},
+                    ]
+                )
+            elif integration == "sociopolitical":
+                return pd.DataFrame(
+                    [
+                        {
+                            "uri": "uri_1",
+                            "is_sociopolitical": True,
+                            "political_ideology_label": "left",
+                        },
+                        {
+                            "uri": "uri_2",
+                            "is_sociopolitical": False,
+                            "political_ideology_label": "right",
+                        },
+                        # uri_3 is missing sociopolitical
+                    ]
+                )
+            elif integration == "ime":
+                return pd.DataFrame(
+                    [
+                        {
+                            "uri": "uri_1",
+                            "prob_intergroup": 0.4,
+                            "prob_moral": 0.3,
+                            "prob_emotion": 0.2,
+                            "prob_other": 0.1,
+                        },
+                        {
+                            "uri": "uri_2",
+                            "prob_intergroup": 0.1,
+                            "prob_moral": 0.2,
+                            "prob_emotion": 0.3,
+                            "prob_other": 0.4,
+                        },
+                        # uri_3 is missing ime
+                    ]
+                )
+            else:
+                return pd.DataFrame([])
+
+        mock_labels.side_effect = labels_side_effect
+
+        def probs_side_effect(integration, label_dict):
+            if integration == "perspective_api":
+                return {
+                    "prob_toxic": label_dict["prob_toxic"],
+                    "prob_constructive": label_dict["prob_constructive"],
+                }
+            elif integration == "sociopolitical":
+                return {
+                    "is_sociopolitical": label_dict["is_sociopolitical"],
+                    "is_not_sociopolitical": not label_dict["is_sociopolitical"],
+                    "is_political_left": (
+                        label_dict["political_ideology_label"] == "left"
+                    ),
+                    "is_political_right": (
+                        label_dict["political_ideology_label"] == "right"
+                    ),
+                    "is_political_moderate": (
+                        label_dict["political_ideology_label"] == "moderate"
+                    ),
+                    "is_political_unclear": (
+                        label_dict["political_ideology_label"] == "unclear"
+                    ),
+                }
+            elif integration == "ime":
+                return {
+                    "prob_intergroup": label_dict["prob_intergroup"],
+                    "prob_moral": label_dict["prob_moral"],
+                    "prob_emotion": label_dict["prob_emotion"],
+                    "prob_other": label_dict["prob_other"],
+                }
+            else:
+                return {}
+
+        mock_probs.side_effect = probs_side_effect
+
+        expected_result = {
+            "uri_1": {
+                "prob_toxic": 0.7,
+                "prob_constructive": 0.2,
+                "is_sociopolitical": True,
+                "is_not_sociopolitical": False,
+                "is_political_left": True,
+                "is_political_right": False,
+                "is_political_moderate": False,
+                "is_political_unclear": False,
+                "prob_intergroup": 0.4,
+                "prob_moral": 0.3,
+                "prob_emotion": 0.2,
+                "prob_other": 0.1,
+            },
+            "uri_2": {
+                "is_sociopolitical": False,
+                "is_not_sociopolitical": True,
+                "is_political_left": False,
+                "is_political_right": True,
+                "is_political_moderate": False,
+                "is_political_unclear": False,
+                "prob_intergroup": 0.1,
+                "prob_moral": 0.2,
+                "prob_emotion": 0.3,
+                "prob_other": 0.4,
+            },
+            "uri_3": {
+                "prob_toxic": 0.5,
+                "prob_constructive": 0.5,
+            },
+        }
+
+        # Expected missing integrations tracking
+        expected_missing_integrations = {
+            "perspective_api": ["uri_2"],
+            "sociopolitical": ["uri_3"],
+            "ime": ["uri_3"],
+        }
+
+        result = agg.get_labels_for_engaged_content(uris)
+
+        # Verify the result contains all expected URIs
+        assert set(result.keys()) == set(expected_result.keys())
+
+        # Verify each URI has the expected labels
+        for uri, expected_labels in expected_result.items():
+            for label_key, expected_value in expected_labels.items():
+                assert label_key in result[uri]
+                assert result[uri][label_key] == expected_value
+
+        # Verify the print statements about missing integrations
+        mock_print.assert_any_call(
+            "We have 2/3 still missing some integration of some sort."
+        )
+        mock_print.assert_any_call(
+            f"integration_to_missing_uris={expected_missing_integrations}"
+        )
 
 
 class TestGetColumnPrefixForRecordType:

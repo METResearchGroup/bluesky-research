@@ -226,9 +226,7 @@ def get_content_engaged_with_per_user(engaged_content: dict):
                     "repost": [],
                     "reply": [],
                 }
-            user_to_engagements_map[did][date][record_type].append(
-                {"post_uri": uri, "date": date}
-            )
+            user_to_engagements_map[did][date][record_type].append(uri)
 
     return user_to_engagements_map
 
@@ -330,31 +328,44 @@ def get_labels_for_engaged_content(uris: list[str]) -> dict:
     )
 
     for integration in ["perspective_api", "sociopolitical", "ime"]:
+        # load day-by-day labels for each integration, and filter for only the
+        # relevant URIs.
+        filtered_uris = set()
         for partition_date in partition_dates:
             labels_df = get_labels_for_partition_date(
                 integration=integration, partition_date=partition_date
             )
-            labels_df = labels_df[labels_df["uri"]].isin(uris)
+            labels_df = labels_df[labels_df["uri"].isin(uris)]
             labels = labels_df.to_dict(orient="records")
-            post_uri = labels["uri"]
             for label_dict in labels:
                 # get the labels formatted in the way that we care about.
                 relevant_label_probs = get_relevant_probs_for_label(
                     integration=integration, label_dict=label_dict
                 )
+                post_uri = label_dict["uri"]
+                filtered_uris.add(post_uri)
                 uri_to_labels_map[post_uri] = {
                     **uri_to_labels_map[post_uri],
                     **relevant_label_probs,
                 }
-                # remove from list of pending integrations.
-                uris_to_pending_integrations[post_uri].remove(integration)
-                if len(uris_to_pending_integrations[post_uri]) == 0:
-                    uris_to_pending_integrations.pop(post_uri)
+
+        # remove from list of pending integrations.
+        for uri in filtered_uris:
+            uris_to_pending_integrations[uri].remove(integration)
+            if len(uris_to_pending_integrations[uri]) == 0:
+                uris_to_pending_integrations.pop(uri)
 
     if len(uris_to_pending_integrations) > 0:
         print(
-            f"We have {len(len(uris_to_pending_integrations))}/{len(uris)} still missing some integration of some sort."
+            f"We have {len(uris_to_pending_integrations)}/{len(uris)} still missing some integration of some sort."
         )
+        integration_to_missing_uris = {}
+        for uri, integrations in uris_to_pending_integrations.items():
+            for integration in integrations:
+                if integration not in integration_to_missing_uris:
+                    integration_to_missing_uris[integration] = []
+                integration_to_missing_uris[integration].append(uri)
+        print(f"integration_to_missing_uris={integration_to_missing_uris}")
 
     return uri_to_labels_map
 
