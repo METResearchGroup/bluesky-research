@@ -381,7 +381,7 @@ def get_labels_for_engaged_content(uris: list[str]) -> dict:
                 if integration not in integration_to_missing_uris:
                     integration_to_missing_uris[integration] = []
                 integration_to_missing_uris[integration].append(uri)
-        print(f"integration_to_missing_uris={integration_to_missing_uris}")
+        # print(f"integration_to_missing_uris={integration_to_missing_uris}")
 
     return uri_to_labels_map
 
@@ -838,6 +838,9 @@ def transform_per_user_to_weekly_content_label_proportions(
         )
 
         for week in weeks:
+            if not week or pd.isna(week):
+                # sometimes there's a weird empty string or None or NaN. Skip this.
+                continue
             default_fields = {
                 "handle": user_handle,
                 "condition": user_condition,
@@ -872,6 +875,10 @@ def main():
     user_handle_to_did_map = {
         user.bluesky_handle: user.bluesky_user_did for user in total_users
     }
+
+    user_date_to_week_df["bluesky_user_did"] = user_date_to_week_df[
+        "bluesky_handle"
+    ].map(user_handle_to_did_map)
 
     # we base the valid users on the Qualtrics logs. We load the users from
     # DynamoDB but some of those users aren't valid (e.g., they were
