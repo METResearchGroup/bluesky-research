@@ -58,6 +58,44 @@ class TestGetContentEngagedWith:
     @patch(
         "services.calculate_analytics.study_analytics.get_user_engagement.get_agg_labels_for_engagements.load_data_from_local_storage"
     )
+    def test_post_engagements(self, mock_load):
+        """
+        Test that posts use their own URI as the engaged post URI.
+        Input: DataFrame with post records.
+        Output: Dict mapping post URI to engagement dict.
+        """
+        df = pd.DataFrame(
+            [
+                {
+                    "uri": "post_uri_1",
+                    "author": "did_A",
+                    "synctimestamp": "2024-10-01",
+                },
+                {
+                    "uri": "post_uri_2",
+                    "author": "did_B",
+                    "synctimestamp": "2024-10-02",
+                },
+            ]
+        )
+        expected_result = {
+            "post_uri_1": [
+                {"did": "did_A", "date": "2024-10-01", "record_type": "post"}
+            ],
+            "post_uri_2": [
+                {"did": "did_B", "date": "2024-10-02", "record_type": "post"}
+            ],
+        }
+        mock_load.return_value = df
+        valid_dids = {"did_A", "did_B"}
+        result = agg.get_content_engaged_with("post", valid_dids)
+        assert set(result.keys()) == set(expected_result.keys())
+        for uri, expected_engagements in expected_result.items():
+            assert result[uri] == expected_engagements
+
+    @patch(
+        "services.calculate_analytics.study_analytics.get_user_engagement.get_agg_labels_for_engagements.load_data_from_local_storage"
+    )
     def test_reply_engagements(self, mock_load):
         """
         Test that replies extract the parent URI correctly.

@@ -106,6 +106,10 @@ def get_content_engaged_with(
             df["engaged_post_uris"] = (
                 df["reply"].apply(json.loads).apply(lambda x: x["parent"]["uri"])
             )
+        elif record_type == "post":
+            # for posts, since the author wrote the post itself, we can just
+            # grab the actual post URI.
+            df["engaged_post_uris"] = df["uri"]
         else:
             df["engaged_post_uris"] = (
                 df["subject"].apply(json.loads).apply(lambda x: x["uri"])
