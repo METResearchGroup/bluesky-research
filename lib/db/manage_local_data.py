@@ -39,6 +39,7 @@ services_list = [
     "ml_inference_perspective_api",
     "ml_inference_sociopolitical",
     "ml_inference_ime",
+    "ml_inference_valence_classifier",
     "in_network_user_activity",
     "scraped_user_social_network",
     "consolidate_enrichment_integrations",

@@ -17,6 +17,7 @@ INTEGRATIONS_LIST = [
     "ml_inference_perspective_api",
     "ml_inference_sociopolitical",
     "ml_inference_ime",
+    "ml_inference_valence_classifier",
 ]
 
 default_table_columns = ["uri", "text", "preprocessing_timestamp"]
