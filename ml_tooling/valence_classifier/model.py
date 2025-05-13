@@ -11,8 +11,15 @@ from typing import Any
 import pandas as pd
 
 from lib.helper import create_batches
+from lib.log.logger import get_logger
 from ml_tooling.valence_classifier.inference import run_vader_on_posts
 from ml_tooling.valence_classifier.constants import VALENCE_LABELS
+from services.ml_inference.export_data import (
+    return_failed_labels_to_input_queue,
+    write_posts_to_cache,
+)
+
+logger = get_logger(__file__)
 
 
 def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
@@ -78,22 +85,44 @@ def batch_classify_posts(posts: list[dict], batch_size: int = 100) -> dict[str, 
 
     batches = create_batches(posts, batch_size)
     all_labels = []
-    total_success = 0
-    total_failed = 0
+    total_successful_labels = 0
+    total_failed_labels = 0
+    successful_labels: list[dict] = []
+    failed_labels: list[dict] = []
     for batch in batches:
         output_df = run_vader_on_posts(batch)
         labels = create_labels(batch, output_df)
-        all_labels.extend(labels)
-        total_success += sum(
-            result_label["was_successfully_labeled"] for result_label in labels
-        )
-        total_failed += sum(
-            not result_label["was_successfully_labeled"] for result_label in labels
-        )
+        for label in labels:
+            if label["was_successfully_labeled"]:
+                successful_labels.append(label)
+                total_successful_labels += 1
+            else:
+                failed_labels.append(label)
+                total_failed_labels += 1
+
+        # Handle successful and failed labels separately
+        if total_successful_labels > 0:
+            logger.info(f"Successfully labeled {total_successful_labels} posts.")
+            write_posts_to_cache(
+                inference_type="valence_classifier",
+                posts=successful_labels,
+                batch_size=batch_size,
+            )
+
+        if total_failed_labels > 0:
+            logger.error(
+                f"Failed to label {total_failed_labels} posts. Re-inserting these into queue."
+            )
+            return_failed_labels_to_input_queue(
+                inference_type="valence_classifier",
+                failed_label_models=failed_labels,
+                batch_size=batch_size,
+            )
+
     metadata = {
         "total_batches": len(batches),
-        "total_posts_successfully_labeled": total_success,
-        "total_posts_failed_to_label": total_failed,
+        "total_posts_successfully_labeled": total_successful_labels,
+        "total_posts_failed_to_label": total_failed_labels,
     }
     experiment_metrics = {
         "label_distribution": {
@@ -103,11 +132,7 @@ def batch_classify_posts(posts: list[dict], batch_size: int = 100) -> dict[str, 
             for label in VALENCE_LABELS
         }
     }
-    return {
-        "metadata": metadata,
-        "experiment_metrics": experiment_metrics,
-        "labels": all_labels,
-    }
+    return {"metadata": metadata, "experiment_metrics": experiment_metrics}
 
 
 def run_batch_classification(
