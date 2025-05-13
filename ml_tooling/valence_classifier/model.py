@@ -13,7 +13,6 @@ import pandas as pd
 from lib.helper import create_batches
 from lib.log.logger import get_logger
 from ml_tooling.valence_classifier.inference import run_vader_on_posts
-from ml_tooling.valence_classifier.constants import VALENCE_LABELS
 from services.ml_inference.export_data import (
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
@@ -84,14 +83,21 @@ def batch_classify_posts(posts: list[dict], batch_size: int = 100) -> dict[str, 
         }
 
     batches = create_batches(posts, batch_size)
-    all_labels = []
+
+    total_labels_by_class = {
+        "positive": 0,
+        "neutral": 0,
+        "negative": 0,
+    }
+
     total_successful_labels = 0
     total_failed_labels = 0
-    successful_labels: list[dict] = []
-    failed_labels: list[dict] = []
     for batch in batches:
         output_df = run_vader_on_posts(batch)
         labels = create_labels(batch, output_df)
+
+        successful_labels: list[dict] = []
+        failed_labels: list[dict] = []
 
         for post, label in zip(batch, labels):
             post_batch_id = post["batch_id"]
@@ -122,19 +128,16 @@ def batch_classify_posts(posts: list[dict], batch_size: int = 100) -> dict[str, 
                 batch_size=batch_size,
             )
 
+        for label in successful_labels:
+            total_labels_by_class[label["valence_label"]] += 1
+
     metadata = {
         "total_batches": len(batches),
         "total_posts_successfully_labeled": total_successful_labels,
         "total_posts_failed_to_label": total_failed_labels,
     }
-    experiment_metrics = {
-        "label_distribution": {
-            label: sum(
-                result_label["valence_label"] == label for result_label in all_labels
-            )
-            for label in VALENCE_LABELS
-        }
-    }
+
+    experiment_metrics = {"label_distribution": total_labels_by_class}
     return {"metadata": metadata, "experiment_metrics": experiment_metrics}
 
 
