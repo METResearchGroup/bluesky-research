@@ -55,6 +55,7 @@ def load_raw_sync_posts():
         end_partition_date=end_date,
     )
     df = pd.concat([active_df, cached_df])
+    df = df.drop_duplicates(subset=["uri"])
     return df
 
 
@@ -73,6 +74,7 @@ def load_preprocessed_posts():
         end_partition_date=end_date,
     )
     df = pd.concat([active_df, cached_df])
+    df = df.drop_duplicates(subset=["uri"])
     return df
 
 
@@ -90,6 +92,7 @@ def load_integration(service: str) -> pd.DataFrame:
         end_partition_date=end_date,
     )
     df = pd.concat([active_df, cached_df])
+    df = df.drop_duplicates(subset=["uri"])
     return df
 
 
@@ -131,8 +134,14 @@ def main():
         f"After replacement, the min timestamp is: {min(preprocessed_posts['preprocessing_timestamp'])}\t max timestamp is: {max(preprocessed_posts['preprocessing_timestamp'])}"
     )
 
+    skipped_integrations = []
+
     # replace the integrations timestamps.
     for integration, df in integrations_map.items():
+        if len(df) == 0:
+            print(f"No records to replace for {integration}. Skipping...")
+            skipped_integrations.append(integration)
+            continue
         df["new_timestamp"] = df["uri"].map(uri_to_synctimestamp_map)
         print(
             f"Before replacement, the min timestamp for {integration} was: {min(df['preprocessing_timestamp'])}\t max timestamp was: {max(df['preprocessing_timestamp'])}"
@@ -149,6 +158,9 @@ def main():
 
     print("Exporting integrations...")
     for integration, df in integrations_map.items():
+        if integration in skipped_integrations:
+            print(f"Skipping {integration} because it has no records to replace.")
+            continue
         export_data_to_local_storage(service=integration, df=df)
 
     print("Finished exporting updated records. Now deleting old records.")
@@ -168,6 +180,11 @@ def main():
     )
 
     for integration in integrations_map.keys():
+        if integration in skipped_integrations:
+            print(
+                f"Skipping deletion of records from {integration} because it has no records to replace."
+            )
+            continue
         delete_records_for_service(
             service=integration,
             directory="active",
