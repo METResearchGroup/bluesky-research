@@ -197,8 +197,6 @@ def load_posts_to_backfill(
         output_format="list",
     )
 
-    breakpoint()
-
     posts_to_backfill_by_integration: dict[str, list[dict]] = {}
     for integration in valid_integrations:
         integration_post_uris: set[str] = load_service_post_uris(
@@ -209,7 +207,5 @@ def load_posts_to_backfill(
         posts_to_backfill_by_integration[integration] = [
             post for post in total_posts if post["uri"] not in integration_post_uris
         ]
-
-    breakpoint()
 
     return posts_to_backfill_by_integration
