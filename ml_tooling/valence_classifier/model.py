@@ -92,7 +92,10 @@ def batch_classify_posts(posts: list[dict], batch_size: int = 100) -> dict[str, 
     for batch in batches:
         output_df = run_vader_on_posts(batch)
         labels = create_labels(batch, output_df)
-        for label in labels:
+
+        for post, label in zip(batch, labels):
+            post_batch_id = post["batch_id"]
+            label["batch_id"] = post_batch_id
             if label["was_successfully_labeled"]:
                 successful_labels.append(label)
                 total_successful_labels += 1
