@@ -10,13 +10,14 @@ from typing import Any
 
 import pandas as pd
 
-from lib.helper import create_batches
+from lib.helper import create_batches, generate_current_datetime_str
 from lib.log.logger import get_logger
 from ml_tooling.valence_classifier.inference import run_vader_on_posts
 from services.ml_inference.export_data import (
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
 )
+from services.ml_inference.models import ValenceClassifierLabelModel
 
 logger = get_logger(__file__)
 
@@ -34,28 +35,33 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
     """
     uri_to_row = {row["uri"]: row for _, row in output_df.iterrows()}
     labels = []
+    label_timestamp = generate_current_datetime_str()
     for post in posts:
         uri = post.get("uri")
         row = uri_to_row.get(uri)
         if row is not None:
             labels.append(
-                {
-                    "uri": uri,
-                    "text": post.get("text", ""),
-                    "valence_label": row["valence_label"],
-                    "compound": row["compound"],
-                    "was_successfully_labeled": True,
-                }
+                ValenceClassifierLabelModel(
+                    uri=uri,
+                    text=post.get("text", ""),
+                    preprocessing_timestamp=post.get("preprocessing_timestamp", ""),
+                    was_successfully_labeled=True,
+                    label_timestamp=label_timestamp,
+                    valence_label=row["valence_label"],
+                    compound=row["compound"],
+                ).model_dump()
             )
         else:
             labels.append(
-                {
-                    "uri": uri,
-                    "text": post.get("text", ""),
-                    "valence_label": None,
-                    "compound": None,
-                    "was_successfully_labeled": False,
-                }
+                ValenceClassifierLabelModel(
+                    uri=uri,
+                    text=post.get("text", ""),
+                    preprocessing_timestamp=post.get("preprocessing_timestamp", ""),
+                    was_successfully_labeled=False,
+                    label_timestamp=label_timestamp,
+                    valence_label=None,
+                    compound=None,
+                ).model_dump()
             )
     return labels
 
