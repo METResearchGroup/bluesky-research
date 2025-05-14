@@ -944,6 +944,7 @@ def load_data_from_local_storage(
             Used for deprecated ["firehose", "most_liked"] format.
         custom_args: Optional custom arguments for the service
     """
+    service = _convert_service_name_to_db_name(service)
     directories = [directory]
     if use_all_data:
         directories = ["cache", "active"]
