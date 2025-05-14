@@ -29,32 +29,46 @@ import pandas as pd
 
 from lib.db.manage_local_data import (
     load_data_from_local_storage,
-    export_data_to_local_storage,
     delete_records_for_service,
 )
 
-start_date = "2025-05-01"
-end_date = "2025-05-13"
+# the synctimestamps of the posts that were synced. We synced posts
+# within this date range.
+sync_start_date = "2024-09-01"
+sync_end_date = "2024-12-01"
+
+# dates when the posts were preprocessed. These are the timestamps we
+# ended up assigning, which we want to replace with the synctimestamp.
+preprocessing_start_date = "2025-05-01"
+preprocessing_end_date = "2025-05-13"
 
 
-def load_raw_sync_posts():
-    custom_args = {"record_type": "post"}
+def load_raw_sync_records(record_type: str) -> pd.DataFrame:
+    custom_args = {"record_type": record_type}
     service = "raw_sync"
     active_df = load_data_from_local_storage(
         service=service,
         directory="active",
         custom_args=custom_args,
-        start_partition_date=start_date,
-        end_partition_date=end_date,
+        start_partition_date=sync_start_date,
+        end_partition_date=sync_end_date,
     )
     cached_df = load_data_from_local_storage(
         service=service,
         directory="cache",
         custom_args=custom_args,
-        start_partition_date=start_date,
-        end_partition_date=end_date,
+        start_partition_date=sync_start_date,
+        end_partition_date=sync_end_date,
     )
     df = pd.concat([active_df, cached_df])
+    df = df.drop_duplicates(subset=["uri"])
+    return df
+
+
+def load_raw_sync_posts():
+    record_types = ["post", "reply"]
+    dfs = [load_raw_sync_records(record_type) for record_type in record_types]
+    df = pd.concat(dfs)
     df = df.drop_duplicates(subset=["uri"])
     return df
 
@@ -64,14 +78,14 @@ def load_preprocessed_posts():
     active_df = load_data_from_local_storage(
         service=service,
         directory="active",
-        start_partition_date=start_date,
-        end_partition_date=end_date,
+        start_partition_date=preprocessing_start_date,
+        end_partition_date=preprocessing_end_date,
     )
     cached_df = load_data_from_local_storage(
         service=service,
         directory="cache",
-        start_partition_date=start_date,
-        end_partition_date=end_date,
+        start_partition_date=preprocessing_start_date,
+        end_partition_date=preprocessing_end_date,
     )
     df = pd.concat([active_df, cached_df])
     df = df.drop_duplicates(subset=["uri"])
@@ -82,14 +96,14 @@ def load_integration(service: str) -> pd.DataFrame:
     active_df = load_data_from_local_storage(
         service=service,
         directory="active",
-        start_partition_date=start_date,
-        end_partition_date=end_date,
+        start_partition_date=preprocessing_start_date,
+        end_partition_date=preprocessing_end_date,
     )
     cached_df = load_data_from_local_storage(
         service=service,
         directory="cache",
-        start_partition_date=start_date,
-        end_partition_date=end_date,
+        start_partition_date=preprocessing_start_date,
+        end_partition_date=preprocessing_end_date,
     )
     df = pd.concat([active_df, cached_df])
     df = df.drop_duplicates(subset=["uri"])
@@ -128,6 +142,7 @@ def main():
     print(
         f"Before replacement, the min timestamp was: {min(preprocessed_posts['preprocessing_timestamp'])}\t max timestamp was: {max(preprocessed_posts['preprocessing_timestamp'])}"
     )
+
     preprocessed_posts["preprocessing_timestamp"] = preprocessed_posts["new_timestamp"]
 
     print(
@@ -146,22 +161,33 @@ def main():
         print(
             f"Before replacement, the min timestamp for {integration} was: {min(df['preprocessing_timestamp'])}\t max timestamp was: {max(df['preprocessing_timestamp'])}"
         )
-        df["preprocessing_timestamp"] = df["new_timestamp"]
+        print(
+            f"Number of posts with no synctimestamp to impute, for integration={integration}: {sum(pd.isna(df['new_timestamp']))}"
+        )
+        # Only update preprocessing_timestamp if new_timestamp is not NaN. We might
+        # not have the raw sync record for some reason, in which case we'll just
+        # keep the old timestamp.
+        df["preprocessing_timestamp"] = df.apply(
+            lambda row: row["new_timestamp"]
+            if pd.notna(row["new_timestamp"])
+            else row["preprocessing_timestamp"],
+            axis=1,
+        )
         print(
             f"After replacement, the min timestamp for {integration} is: {min(df['preprocessing_timestamp'])}\t max timestamp is: {max(df['preprocessing_timestamp'])}"
         )
 
-    print("Exporting preprocess_raw_data...")
+    # print("Exporting preprocess_raw_data...")
 
-    # export records.
-    export_data_to_local_storage(service="preprocess_raw_data", df=preprocessed_posts)
+    # # export records.
+    # export_data_to_local_storage(service="preprocess_raw_data", df=preprocessed_posts)
 
-    print("Exporting integrations...")
-    for integration, df in integrations_map.items():
-        if integration in skipped_integrations:
-            print(f"Skipping {integration} because it has no records to replace.")
-            continue
-        export_data_to_local_storage(service=integration, df=df)
+    # print("Exporting integrations...")
+    # for integration, df in integrations_map.items():
+    #     if integration in skipped_integrations:
+    #         print(f"Skipping {integration} because it has no records to replace.")
+    #         continue
+    #     export_data_to_local_storage(service=integration, df=df)
 
     print("Finished exporting updated records. Now deleting old records.")
 
@@ -169,14 +195,14 @@ def main():
     delete_records_for_service(
         service="preprocess_raw_data",
         directory="active",
-        start_partition_date=start_date,
-        end_partition_date=end_date,
+        start_partition_date=preprocessing_start_date,
+        end_partition_date=preprocessing_end_date,
     )
     delete_records_for_service(
         service="preprocess_raw_data",
         directory="cache",
-        start_partition_date=start_date,
-        end_partition_date=end_date,
+        start_partition_date=preprocessing_start_date,
+        end_partition_date=preprocessing_end_date,
     )
 
     for integration in integrations_map.keys():
@@ -188,14 +214,14 @@ def main():
         delete_records_for_service(
             service=integration,
             directory="active",
-            start_partition_date=start_date,
-            end_partition_date=end_date,
+            start_partition_date=preprocessing_start_date,
+            end_partition_date=preprocessing_end_date,
         )
         delete_records_for_service(
             service=integration,
             directory="cache",
-            start_partition_date=start_date,
-            end_partition_date=end_date,
+            start_partition_date=preprocessing_start_date,
+            end_partition_date=preprocessing_end_date,
         )
 
     print("Finished deleting old records.")

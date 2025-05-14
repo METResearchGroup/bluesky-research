@@ -1084,6 +1084,7 @@ def delete_records_for_service(
     custom_args: Optional[dict] = None,
 ) -> None:
     """Deletes records for a partition service."""
+    service = _convert_service_name_to_db_name(service)
     filepaths = list_filenames(
         service=service,
         directories=[directory],
@@ -1096,7 +1097,7 @@ def delete_records_for_service(
         custom_args=custom_args,
     )
     total_fps_to_delete = len(filepaths)
-    if len(total_fps_to_delete) == 0:
+    if total_fps_to_delete == 0:
         logger.info(
             f"No files to delete for service={service}, partition_date={partition_date}, start_partition_date={start_partition_date}, end_partition_date={end_partition_date}. Exiting."
         )
