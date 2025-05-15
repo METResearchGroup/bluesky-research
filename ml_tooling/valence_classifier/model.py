@@ -85,7 +85,6 @@ def batch_classify_posts(posts: list[dict], batch_size: int = 100) -> dict[str, 
                 "total_posts_failed_to_label": 0,
             },
             "experiment_metrics": {},
-            "labels": [],
         }
 
     batches = create_batches(posts, batch_size)
