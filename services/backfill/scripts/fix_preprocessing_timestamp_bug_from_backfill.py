@@ -30,6 +30,7 @@ import pandas as pd
 from lib.db.manage_local_data import (
     load_data_from_local_storage,
     delete_records_for_service,
+    export_data_to_local_storage,
 )
 
 # the synctimestamps of the posts that were synced. We synced posts
@@ -133,21 +134,26 @@ def main():
     integrations_map: dict[str, pd.DataFrame] = load_integrations()
     uri_to_synctimestamp_map: dict = create_uri_to_synctimestamp_map(raw_posts)
 
-    # replace the preprocessed posts timestamps.
-    print("Replacing preprocessed posts timestamps...")
-    preprocessed_posts["new_timestamp"] = preprocessed_posts["uri"].map(
-        uri_to_synctimestamp_map
-    )
+    if len(preprocessed_posts) > 0:
+        # replace the preprocessed posts timestamps.
+        print("Replacing preprocessed posts timestamps...")
+        preprocessed_posts["new_timestamp"] = preprocessed_posts["uri"].map(
+            uri_to_synctimestamp_map
+        )
 
-    print(
-        f"Before replacement, the min timestamp was: {min(preprocessed_posts['preprocessing_timestamp'])}\t max timestamp was: {max(preprocessed_posts['preprocessing_timestamp'])}"
-    )
+        print(
+            f"Before replacement, the min timestamp was: {min(preprocessed_posts['preprocessing_timestamp'])}\t max timestamp was: {max(preprocessed_posts['preprocessing_timestamp'])}"
+        )
 
-    preprocessed_posts["preprocessing_timestamp"] = preprocessed_posts["new_timestamp"]
+        preprocessed_posts["preprocessing_timestamp"] = preprocessed_posts[
+            "new_timestamp"
+        ]
 
-    print(
-        f"After replacement, the min timestamp is: {min(preprocessed_posts['preprocessing_timestamp'])}\t max timestamp is: {max(preprocessed_posts['preprocessing_timestamp'])}"
-    )
+        print(
+            f"After replacement, the min timestamp is: {min(preprocessed_posts['preprocessing_timestamp'])}\t max timestamp is: {max(preprocessed_posts['preprocessing_timestamp'])}"
+        )
+    else:
+        print("No preprocessed posts to replace. Skipping...")
 
     skipped_integrations = []
 
@@ -177,17 +183,17 @@ def main():
             f"After replacement, the min timestamp for {integration} is: {min(df['preprocessing_timestamp'])}\t max timestamp is: {max(df['preprocessing_timestamp'])}"
         )
 
-    # print("Exporting preprocess_raw_data...")
+    print("Exporting preprocess_raw_data...")
 
     # # export records.
-    # export_data_to_local_storage(service="preprocess_raw_data", df=preprocessed_posts)
+    export_data_to_local_storage(service="preprocess_raw_data", df=preprocessed_posts)
 
-    # print("Exporting integrations...")
-    # for integration, df in integrations_map.items():
-    #     if integration in skipped_integrations:
-    #         print(f"Skipping {integration} because it has no records to replace.")
-    #         continue
-    #     export_data_to_local_storage(service=integration, df=df)
+    print("Exporting integrations...")
+    for integration, df in integrations_map.items():
+        if integration in skipped_integrations:
+            print(f"Skipping {integration} because it has no records to replace.")
+            continue
+        export_data_to_local_storage(service=integration, df=df)
 
     print("Finished exporting updated records. Now deleting old records.")
 

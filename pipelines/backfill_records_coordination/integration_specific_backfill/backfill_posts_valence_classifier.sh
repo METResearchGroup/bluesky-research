@@ -4,7 +4,7 @@
 #SBATCH -p short
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 2:00:00
+#SBATCH -t 1:00:00
 #SBATCH --mem=20G
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
@@ -58,10 +58,11 @@ PYTHON_CMD="/projects/p32375/bluesky-research/pipelines/backfill_records_coordin
     --add-to-queue \
     --start-date $START_DATE \
     --end-date $END_DATE \
+    --run-integrations \
     --integration v"
 
-PYTHON_CMD_2="/projects/p32375/bluesky-research/pipelines/backfill_records_coordination/app.py \
-    --write-cache ml_inference_valence_classifier"
+PYTHON_CMD_2="/projects/p32375/bluesky-research/pipelines/backfill_records_coordination/p \
+    --write-cache ml_inference_valence_classifier --clear-queue"
 
 echo "Running python command: $PYTHON_CMD"
 echo "Then, running python command: $PYTHON_CMD_2"

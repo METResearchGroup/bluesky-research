@@ -104,6 +104,7 @@ def write_posts_to_cache(
     input queue).
     """
     if not posts:
+        logger.info("No posts to write to cache.")
         return
 
     successfully_labeled_batch_ids = set(post["batch_id"] for post in posts)

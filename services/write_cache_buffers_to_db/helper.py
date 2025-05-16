@@ -96,7 +96,7 @@ def write_cache_buffer_queue_to_db(
     if queue:
         logger.info(f"Using provided queue for service {service}: {queue}...")
     else:
-        queue = Queue(queue_name=f"output_{service}")
+        queue = Queue(queue_name=f"output_{service}", create_new_queue=True)
 
     latest_payloads: list[dict] = queue.load_dict_items_from_queue(
         limit=None, min_id=None, min_timestamp=None, status="pending"
