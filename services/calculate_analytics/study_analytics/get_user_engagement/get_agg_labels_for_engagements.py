@@ -8,6 +8,7 @@ Writes a pandas df where the columns are a pairwise combination of:
     - Perspective API: toxic, constructive
     - Sociopolitical: political, not political, left, moderate, right, unclear
     - IME: intergroup, moral, emotion, other
+    - Valence Classifier: positive, negative, neutral
 
 For example, for toxic, we'll have the following columns
 - prop_liked_posts_toxic
@@ -15,7 +16,7 @@ For example, for toxic, we'll have the following columns
 - prop_replied_posts_toxic
 - prop_reposted_posts_toxic
 
-Creates 4 * 12 = 48 columns related to content classification.
+Creates 4 * 15 = 60 columns related to content classification.
 
 In addition, we have a few more columns:
 - Bluesky Handle
@@ -284,6 +285,12 @@ def get_relevant_probs_for_label(integration: str, label_dict: dict):
             "prob_emotion": label_dict["prob_emotion"],
             "prob_other": label_dict["prob_other"],
         }
+    elif integration == "valence_classifier":
+        return {
+            "is_valence_positive": label_dict["positive"],
+            "is_valence_negative": label_dict["negative"],
+            "is_valence_neutral": label_dict["neutral"],
+        }
     else:
         raise ValueError(f"Invalid integration for labeling: {integration}")
 
@@ -341,7 +348,12 @@ def get_labels_for_engaged_content(uris: list[str]) -> dict:
         exclude_partition_dates=[],
     )
 
-    for integration in ["perspective_api", "sociopolitical", "ime"]:
+    for integration in [
+        "perspective_api",
+        "sociopolitical",
+        "ime",
+        "valence_classifier",
+    ]:
         # load day-by-day labels for each integration, and filter for only the
         # relevant URIs.
         filtered_uris = set()
@@ -529,6 +541,9 @@ def get_per_user_per_day_content_label_proportions(
                     "prob_moral": [],
                     "prob_emotion": [],
                     "prob_other": [],
+                    "is_valence_positive": [],
+                    "is_valence_negative": [],
+                    "is_valence_neutral": [],
                 }
 
                 for uri in uris:
@@ -620,6 +635,21 @@ def get_per_user_per_day_content_label_proportions(
                             (np.array(labels_collection["prob_other"]) > 0.5).mean(), 3
                         )
                         if len(labels_collection["prob_other"]) > 0
+                        else None
+                    ),
+                    "prop_valence_positive": (
+                        round(np.mean(labels_collection["is_valence_positive"]), 3)
+                        if len(labels_collection["is_valence_positive"]) > 0
+                        else None
+                    ),
+                    "prop_valence_negative": (
+                        round(np.mean(labels_collection["is_valence_negative"]), 3)
+                        if len(labels_collection["is_valence_negative"]) > 0
+                        else None
+                    ),
+                    "prop_valence_neutral": (
+                        round(np.mean(labels_collection["is_valence_neutral"]), 3)
+                        if len(labels_collection["is_valence_neutral"]) > 0
                         else None
                     ),
                 }
