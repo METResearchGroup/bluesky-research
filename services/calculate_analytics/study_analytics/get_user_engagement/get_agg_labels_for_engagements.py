@@ -287,9 +287,9 @@ def get_relevant_probs_for_label(integration: str, label_dict: dict):
         }
     elif integration == "valence_classifier":
         return {
-            "is_valence_positive": label_dict["positive"],
-            "is_valence_negative": label_dict["negative"],
-            "is_valence_neutral": label_dict["neutral"],
+            "is_valence_positive": label_dict["valence_label"] == "positive",
+            "is_valence_negative": label_dict["valence_label"] == "negative",
+            "is_valence_neutral": label_dict["valence_label"] == "neutral",
         }
     else:
         raise ValueError(f"Invalid integration for labeling: {integration}")
