@@ -337,7 +337,12 @@ def get_labels_for_engaged_content(uris: list[str]) -> dict:
     for uri in uris:
         uri_to_labels_map[uri] = {}
         # pop each of these from the set as they're hydrated.
-        uris_to_pending_integrations[uri] = {"perspective_api", "sociopolitical", "ime"}
+        uris_to_pending_integrations[uri] = {
+            "perspective_api",
+            "sociopolitical",
+            "ime",
+            "valence_classifier",
+        }
 
     # TODO: need to check the start_date. Probably need some lookback
     # (e.g., some of the posts liked on 2024-09-28 might've been written on
