@@ -50,7 +50,7 @@ def postprocess_posts(posts: pd.DataFrame) -> pd.DataFrame:
 
 
 @track_performance
-def preprocess_latest_posts(posts: list[dict]) -> dict:
+def preprocess_latest_posts(posts: list[dict], custom_args: dict) -> dict:
     """Preprocesses and filters posts."""
     batch_ids = [post["batch_id"] for post in posts]
     logger.info(f"Preprocessing {len(posts)} posts...")
@@ -58,7 +58,9 @@ def preprocess_latest_posts(posts: list[dict]) -> dict:
     transformed_posts_df: pd.DataFrame = prepare_posts_for_preprocessing(
         latest_posts=posts_df
     )
-    preprocessed_posts_df, posts_metadata = filter_posts(transformed_posts_df)
+    preprocessed_posts_df, posts_metadata = filter_posts(
+        posts=transformed_posts_df, custom_args=custom_args
+    )
     preprocessed_posts: list[dict] = postprocess_posts(preprocessed_posts_df)
     logger.info(
         f"Finished preprocessing {len(preprocessed_posts)} posts. Now writing to cache..."

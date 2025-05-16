@@ -13,6 +13,7 @@ INTEGRATION_MAP = {
     "p": "ml_inference_perspective_api",
     "s": "ml_inference_sociopolitical",
     "i": "ml_inference_ime",
+    "v": "ml_inference_valence_classifier",
 }
 
 
@@ -35,6 +36,11 @@ DEFAULT_INTEGRATION_KWARGS = {
         "run_classification": True,
     },
     "ml_inference_ime": {
+        "backfill_period": None,
+        "backfill_duration": None,
+        "run_classification": True,
+    },
+    "ml_inference_valence_classifier": {
         "backfill_period": None,
         "backfill_duration": None,
         "run_classification": True,
@@ -84,6 +90,8 @@ def validate_date_format(ctx, param, value):
             "s",
             "ml_inference_ime",
             "i",
+            "ml_inference_valence_classifier",
+            "v",
         ]
     ),
     multiple=True,
@@ -116,6 +124,8 @@ def validate_date_format(ctx, param, value):
             "ml_inference_perspective_api",
             "ml_inference_sociopolitical",
             "ml_inference_ime",
+            "ml_inference_valence_classifier",
+            "preprocess_raw_data",
         ]
     ),
     default=None,

@@ -21,7 +21,7 @@ logger = Logger(__name__)
 
 
 @track_performance
-def filter_posts(posts: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+def filter_posts(posts: pd.DataFrame, custom_args: dict) -> tuple[pd.DataFrame, dict]:
     """Applies the filtering steps."""  # noqa
     logger.info(f"Total posts for filtering: {len(posts)}")
 
@@ -84,9 +84,14 @@ def filter_posts(posts: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     for col in filter_columns:
         posts.loc[posts[col], "filtered_by_func"] = col
 
-    ts =  generate_current_datetime_str()
-    posts["preprocessing_timestamp"] = ts
-    posts["filtered_at"] = ts
+    if custom_args:
+        ts_field = custom_args["new_timestamp_field"]
+        posts["preprocessing_timestamp"] = posts[ts_field]
+        posts["filtered_at"] = posts[ts_field]
+    else:
+        ts = generate_current_datetime_str()
+        posts["preprocessing_timestamp"] = ts
+        posts["filtered_at"] = ts
 
     # count up the # of posts that failed each filter.
     filter_to_count_map = {

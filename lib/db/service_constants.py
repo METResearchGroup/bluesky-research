@@ -753,4 +753,27 @@ MAP_SERVICE_TO_METADATA = {
         "skip_deduping": True,
         "pydantic_model": "",
     },
+    "ml_inference_valence_classifier": {
+        "local_prefix": os.path.join(
+            root_local_data_directory, "ml_inference_valence_classifier"
+        ),
+        "s3_prefix": "ml_inference_valence_classifier",
+        "glue_table_name": "ml_inference_valence_classifier",
+        "primary_key": "uri",
+        "timestamp_field": "preprocessing_timestamp",
+        "skip_deduping": False,
+        "pydantic_model": "",
+        "dtypes_map": {
+            "uri": "string",
+            "text": "string",
+            "preprocessing_timestamp": "string",
+            "valence_label": "string",
+            "compound": "Float64",
+            "was_successfully_labeled": "bool",
+            "reason": "string",
+            "label_timestamp": "string",
+            "source": "string",
+            "partition_date": "string",
+        },
+    },
 }

@@ -17,6 +17,7 @@ INTEGRATIONS_LIST = [
     "ml_inference_perspective_api",
     "ml_inference_sociopolitical",
     "ml_inference_ime",
+    "ml_inference_valence_classifier",
 ]
 
 default_table_columns = ["uri", "text", "preprocessing_timestamp"]
@@ -206,4 +207,5 @@ def load_posts_to_backfill(
         posts_to_backfill_by_integration[integration] = [
             post for post in total_posts if post["uri"] not in integration_post_uris
         ]
+
     return posts_to_backfill_by_integration

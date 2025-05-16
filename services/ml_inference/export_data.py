@@ -19,6 +19,10 @@ inference_type_to_input_queue_map = {
         queue_name="input_ml_inference_ime",
         create_new_queue=True,
     ),
+    "valence_classifier": Queue(
+        queue_name="input_ml_inference_valence_classifier",
+        create_new_queue=True,
+    ),
 }
 
 inference_type_to_output_queue_map = {
@@ -34,13 +38,22 @@ inference_type_to_output_queue_map = {
         queue_name="output_ml_inference_ime",
         create_new_queue=True,
     ),
+    "valence_classifier": Queue(
+        queue_name="output_ml_inference_valence_classifier",
+        create_new_queue=True,
+    ),
 }
 
 logger = get_logger(__file__)
 
 
 def return_failed_labels_to_input_queue(
-    inference_type: Literal["perspective_api", "sociopolitical", "ime"],
+    inference_type: Literal[
+        "perspective_api",
+        "sociopolitical",
+        "ime",
+        "valence_classifier",
+    ],
     failed_label_models: list[dict],
     batch_size: Optional[int] = None,
 ):
@@ -70,7 +83,12 @@ def return_failed_labels_to_input_queue(
 
 
 def write_posts_to_cache(
-    inference_type: Literal["perspective_api", "sociopolitical", "ime"],
+    inference_type: Literal[
+        "perspective_api",
+        "sociopolitical",
+        "ime",
+        "valence_classifier",
+    ],
     posts: list[dict],
     batch_size: Optional[int] = None,
 ):
@@ -86,6 +104,7 @@ def write_posts_to_cache(
     input queue).
     """
     if not posts:
+        logger.info("No posts to write to cache.")
         return
 
     successfully_labeled_batch_ids = set(post["batch_id"] for post in posts)

@@ -6,7 +6,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH -t 2:00:00
 #SBATCH --mem=25G
-#SBATCH --mail-type=FAIL
+#SBATCH --mail-type=FAIL,END
 #SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --job-name=get_agg_labels_for_engagements_%j
 #SBATCH --output=/projects/p32375/bluesky-research/lib/log/study_analytics/get_agg_labels_for_engagements-%j.log
