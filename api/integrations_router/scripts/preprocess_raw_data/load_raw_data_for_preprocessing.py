@@ -71,9 +71,7 @@ def insert_raw_data_into_queue(
     )
 
 
-def load_raw_data_to_preprocess_for_date_range(
-    start_date: str, end_date: str
-) -> pd.DataFrame:
+def load_raw_data_to_preprocess_for_date_range(start_date: str, end_date: str) -> None:
     """Preprocesses raw data for a given date range."""
     partition_dates: list[str] = get_partition_dates(
         start_date=start_date,
