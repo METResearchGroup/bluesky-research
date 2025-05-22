@@ -1,3 +1,5 @@
 """Single agent for the simulation platform."""
 
-pass
+
+class Agent:
+    pass
