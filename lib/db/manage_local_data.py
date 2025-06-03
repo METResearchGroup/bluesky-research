@@ -39,6 +39,7 @@ services_list = [
     "ml_inference_perspective_api",
     "ml_inference_sociopolitical",
     "ml_inference_ime",
+    "ml_inference_valence_classifier",
     "in_network_user_activity",
     "scraped_user_social_network",
     "consolidate_enrichment_integrations",
@@ -943,6 +944,7 @@ def load_data_from_local_storage(
             Used for deprecated ["firehose", "most_liked"] format.
         custom_args: Optional custom arguments for the service
     """
+    service = _convert_service_name_to_db_name(service)
     directories = [directory]
     if use_all_data:
         directories = ["cache", "active"]
@@ -1068,3 +1070,42 @@ def load_latest_data(
         else:
             return pd.DataFrame()
     return df
+
+
+def delete_records_for_service(
+    service: str,
+    directory: Literal["cache", "active"] = "active",
+    partition_date: Optional[str] = None,
+    start_partition_date: Optional[str] = None,
+    end_partition_date: Optional[str] = None,
+    validate_pq_files: bool = False,
+    override_local_prefix: Optional[str] = None,
+    source_types: Optional[list[Literal["firehose", "most_liked"]]] = None,
+    custom_args: Optional[dict] = None,
+) -> None:
+    """Deletes records for a partition service."""
+    service = _convert_service_name_to_db_name(service)
+    filepaths = list_filenames(
+        service=service,
+        directories=[directory],
+        validate_pq_files=validate_pq_files,
+        partition_date=partition_date,
+        start_partition_date=start_partition_date,
+        end_partition_date=end_partition_date,
+        override_local_prefix=override_local_prefix,
+        source_types=source_types,
+        custom_args=custom_args,
+    )
+    total_fps_to_delete = len(filepaths)
+    if total_fps_to_delete == 0:
+        logger.info(
+            f"No files to delete for service={service}, partition_date={partition_date}, start_partition_date={start_partition_date}, end_partition_date={end_partition_date}. Exiting."
+        )
+        return
+    delete_records = input(
+        f"Are you sure you want to delete {total_fps_to_delete} files for service={service}, partition_date={partition_date}, start_partition_date={start_partition_date}, end_partition_date={end_partition_date}? (y/n)"
+    )
+    if delete_records != "y":
+        logger.info("Aborting deletion.")
+        return
+    delete_files(filepaths)

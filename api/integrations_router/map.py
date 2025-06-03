@@ -28,6 +28,15 @@ def return_ime_handler():
     return ml_inference_ime_handler
 
 
+def return_valence_classifier_handler():
+    """Lazy-load the valence classifier handler."""
+    from pipelines.classify_records.valence_classifier.handler import (
+        lambda_handler as ml_inference_valence_classifier_handler,
+    )
+
+    return ml_inference_valence_classifier_handler
+
+
 def return_preprocess_raw_data_handler():
     """Lazy-load the preprocess raw data handler."""
     from pipelines.preprocess_raw_data.handler import (
@@ -55,6 +64,8 @@ def get_handler(service_name: str):
         handler_func = return_sociopolitical_handler
     elif service_name == "ml_inference_ime":
         handler_func = return_ime_handler
+    elif service_name == "ml_inference_valence_classifier":
+        handler_func = return_valence_classifier_handler
     elif service_name == "preprocess_raw_data":
         handler_func = return_preprocess_raw_data_handler
     else:

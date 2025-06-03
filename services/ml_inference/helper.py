@@ -71,6 +71,7 @@ def get_posts_to_classify(
         "perspective_api": "input_ml_inference_perspective_api",
         "llm": "input_ml_inference_sociopolitical",
         "ime": "input_ml_inference_ime",
+        "valence_classifier": "input_ml_inference_valence_classifier",
     }
 
     if inference_type not in queue_mapping:

@@ -81,6 +81,11 @@ def preprocess_latest_raw_data(
         timestamp=backfill_latest_timestamp,
         previous_run_metadata=previous_run_metadata,
     )
+    custom_args = {}
+    if event.get("overwrite_preprocessing_timestamp", False):
+        custom_args["new_timestamp_field"] = event.get(
+            "new_timestamp_field", "synctimestamp"
+        )
     logger.info(f"Preprocessing {len(posts_to_preprocess)} posts...")  # noqa
     if len(posts_to_preprocess) == 0:
         logger.warning("No posts to preprocess. Exiting...")
@@ -94,7 +99,7 @@ def preprocess_latest_raw_data(
             "metadata": {},
         }
     preprocessing_metadata: dict = preprocess_latest_posts(
-        posts=posts_to_preprocess,
+        posts=posts_to_preprocess, custom_args=custom_args
     )
     total_preprocessed: int = len(posts_to_preprocess)
 

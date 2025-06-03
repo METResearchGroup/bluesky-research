@@ -136,7 +136,7 @@ class TestWriteCacheBufferQueueToDb:
         write_cache_buffer_queue_to_db(self.service, clear_queue=False)
 
         # Verify queue initialization
-        mock_queue_cls.assert_called_once_with(queue_name=self.queue_name)
+        mock_queue_cls.assert_called_once_with(queue_name=self.queue_name, create_new_queue=True)
 
         # Verify data loading
         mock_queue.load_dict_items_from_queue.assert_called_once_with(

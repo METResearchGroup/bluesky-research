@@ -232,6 +232,28 @@ class ImeLabelModel(BaseModel):
     )
 
 
+class ValenceClassifierLabelModel(BaseModel):
+    uri: str = Field(..., description="The URI of the post.")
+    text: str = Field(..., description="The text of the post.")
+    preprocessing_timestamp: str = Field(
+        ..., description="The preprocessing_timestamp timestamp of the post."
+    )
+    was_successfully_labeled: bool = Field(
+        ...,
+        description="Indicates if the post was successfully labeled by the Perspective API.",
+    )  # noqa
+    label_timestamp: str = Field(
+        ...,
+        description="Timestamp when the post was labeled (or, if labeling failed, when it was attempted).",
+    )  # noqa
+    valence_label: Optional[str] = Field(
+        default=None, description="The valence label of the post."
+    )
+    compound: Optional[float] = Field(
+        default=None, description="The compound score of the post."
+    )
+
+
 class PostToLabelModel(BaseModel):
     """A model for a post to be labeled."""
 
