@@ -55,7 +55,7 @@ def main() -> None:
     - Title, subtitle, description
     - Query input with explicit submit button (in a form)
     - Clickable example queries (showing actual query text)
-    - Results area with dummy response and expandable table
+    - Results area with backend integration and expandable table
     - Feedback section (text, thumbs up/down emojis, submit button)
     - Input validation and anti-spam guard
     """
@@ -124,62 +124,129 @@ def main() -> None:
         and st.session_state["query"]
         and not error_message
     ):
-        # Call FastAPI backend
+        # Call FastAPI backend: classify intent, then route query
         try:
-            response = requests.get("http://localhost:8000/fetch-results")
-            if response.status_code == 200:
-                data = response.json()
+            with st.spinner("Processing your query and generating results..."):
+                # Step 1: Classify intent
+                intent_response = requests.get(
+                    "http://localhost:8000/get-query-intent",
+                    params={"query": st.session_state["query"]},
+                    timeout=30,
+                )
+                if intent_response.status_code != 200:
+                    st.error("Could not classify query intent (backend error).")
+                    return
+                intent_data = intent_response.json()
+                intent = intent_data.get("intent", "unknown")
+                reason = intent_data.get("reason", "")
+
+                # Step 2: Route query
+                route_payload = {
+                    "intent": intent,
+                    "query": st.session_state["query"],
+                    "kwargs": {},
+                }
+                route_response = requests.post(
+                    "http://localhost:8000/route-query",
+                    json=route_payload,
+                    timeout=60,
+                )
+                if route_response.status_code != 200:
+                    st.error(f"Backend error: {route_response.status_code}")
+                    return
+                data = route_response.json()
                 posts = data.get("posts", [])
                 total_count = data.get("total_count", 0)
-                # Placeholder answer
-                st.markdown("**[Answer]:** <The user's answer would go here>")
-                # De-emphasized total count
-                st.markdown(
-                    f"<span style='color: grey; font-style: italic;'>Found {total_count} results related to your query.</span>",
-                    unsafe_allow_html=True,
-                )
-                if posts:
-                    df = pd.DataFrame(posts)
-                    with st.expander("Show results table"):
-                        st.dataframe(df)
-                    # Export Results button
-                    today = datetime.now().strftime("%Y-%m-%d")
-                    timestamp = str(datetime.now().timestamp())
-                    hash_digest = hashlib.sha256(timestamp.encode()).hexdigest()[:8]
-                    filename = f"{today}_results_{hash_digest}.csv"
-                    csv_buffer = io.StringIO()
-                    df.to_csv(csv_buffer, index=False)
-                    st.download_button(
-                        label="Export Results",
-                        data=csv_buffer.getvalue(),
-                        file_name=filename,
-                        mime="text/csv",
-                    )
-                    # Classified intent section
-                    try:
-                        intent_response = requests.get(
-                            "http://localhost:8000/get-query-intent",
-                            params={"query": st.session_state["query"]},
-                            timeout=30,
-                        )
-                        if intent_response.status_code == 200:
-                            intent_data = intent_response.json()
-                            st.markdown("---")
-                            st.markdown("#### Classified intent")
-                            st.markdown(
-                                f"**Intent:** `{intent_data.get('intent', 'unknown')}`"
-                            )
-                            st.markdown(f"**Reason:** {intent_data.get('reason', '')}")
-                        else:
-                            st.warning(
-                                "Could not classify query intent (backend error)."
-                            )
-                    except Exception as e:
-                        st.warning(f"Could not classify query intent: {e}")
-                else:
+                source = data.get("source", "unknown")
+
+                if not posts:
                     st.info("No results found.")
+                    st.markdown("---")
+                    st.markdown("#### Classified intent and data source")
+                    st.markdown(f"**Intent:** `{intent}`")
+                    st.markdown(f"**Reason:** {reason}")
+                    st.markdown(f"**Data source:** `{source}`")
+                    return
+
+                # Step 3: Summarize results
+                summarize_payload = {"posts": posts}
+                summarize_response = requests.post(
+                    "http://localhost:8000/summarize-results",
+                    json=summarize_payload,
+                    timeout=60,
+                )
+                if summarize_response.status_code != 200:
+                    st.error(
+                        f"Summarizer backend error: {summarize_response.status_code}"
+                    )
+                    return
+                summarizer_output = summarize_response.json()
+
+                # Step 4: Compose answer
+                compose_payload = {
+                    "summarizer_output": summarizer_output,
+                    "posts": posts,
+                }
+                compose_response = requests.post(
+                    "http://localhost:8000/compose-answer",
+                    json=compose_payload,
+                    timeout=60,
+                )
+                if compose_response.status_code != 200:
+                    st.error(
+                        f"Answer composer backend error: {compose_response.status_code}"
+                    )
+                    return
+                answer = compose_response.json()
+
+            # Display AI-generated response
+            ai_text = answer.get("text", "")
+            # If the text contains lines with 'YYYY-MM-DD: <count>', format as code block
+            import re
+
+            date_count_lines = re.findall(r"(\d{4}-\d{2}-\d{2}:\s*\d+)", ai_text)
+            if date_count_lines:
+                # Split the text into lines, keep the header, then code block for the rest
+                header, *rest = ai_text.split("\n")
+                st.markdown(f"**[AI-generated response]:** {header}")
+                st.code("\n".join(rest))
             else:
-                st.error(f"Backend error: {response.status_code}")
+                st.markdown(f"**[AI-generated response]:** {ai_text}")
+
+            # Display .head() of DataFrame
+            df = pd.DataFrame(answer.get("df", []))
+            st.markdown(
+                f"<span style='color: grey; font-style: italic;'>Found {total_count} total results.</span>",
+                unsafe_allow_html=True,
+            )
+            if not df.empty:
+                with st.expander("Show results table"):
+                    st.dataframe(df)
+                # Export Results button
+                today = datetime.now().strftime("%Y-%m-%d")
+                timestamp = str(datetime.now().timestamp())
+                hash_digest = hashlib.sha256(timestamp.encode()).hexdigest()[:8]
+                filename = f"{today}_results_{hash_digest}.csv"
+                csv_buffer = io.StringIO()
+                df.to_csv(csv_buffer, index=False)
+                st.download_button(
+                    label="Export Results",
+                    data=csv_buffer.getvalue(),
+                    file_name=filename,
+                    mime="text/csv",
+                )
+            # Display visuals
+            visuals = answer.get("visuals", [])
+            for visual in visuals:
+                st.markdown(f"**{visual.get('type', '').capitalize()} plot:**")
+                st.image(visual.get("path", ""), use_container_width=True)
+
+            # Classified intent and data source section
+            st.markdown("---")
+            st.markdown("#### Classified intent and data source")
+            st.markdown(f"**Intent:** `{intent}`")
+            st.markdown(f"**Reason:** {reason}")
+            st.markdown(f"**Data source:** `{source}`")
         except Exception as e:
             st.error(f"Failed to fetch results from backend: {e}")
     else:
