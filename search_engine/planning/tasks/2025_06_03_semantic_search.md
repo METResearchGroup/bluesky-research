@@ -6,17 +6,17 @@ This document tracks daily progress on implementing the semantic search engine M
 ## 📋 Task Checklist
 
 ### UI + Input Pipeline
-- [ ] [#001] Create Streamlit UI with text input and results box (3 hrs)
-  - [ ] Basic layout with form
-  - [ ] Results area with markdown and expandable table
-  - [ ] Dummy I/O implementation
-  - [ ] Example query suggestions
-  - [ ] Title, subtitle, and description
-  - [ ] Stakeholder-focused design
+- [x] [#001] Create Streamlit UI with text input and results box (3 hrs)
+  - [x] Basic layout with form
+  - [x] Results area with markdown and expandable table
+  - [x] Dummy I/O implementation
+  - [x] Example query suggestions
+  - [x] Title, subtitle, and description
+  - [x] Stakeholder-focused design
 
 - [ ] [#002] Add input validation + sanitation (2 hrs)
-  - [ ] Input filtering
-  - [ ] Basic anti-spam guard
+  - [ ] Filter for empty inputs, SQL injection-like text, profanity, length caps
+  - [ ] Optional: basic anti-spam guard (e.g., rate limit per session)
 
 ### Data Handling
 - [ ] [#003] Load parquet files with DuckDB (2 hrs)
