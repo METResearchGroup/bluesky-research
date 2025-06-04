@@ -57,8 +57,16 @@ Estimated: 2–3 hrs each; intended to be tracked individually in an issue track
 ### Data Handling
 
 - [#003] Load parquet files with DuckDB for a fixed date range
-  - Read from local .parquet files (e.g., posts/2024-06-01/, etc.)
-  - Return as pandas DataFrame
+  - Start development of the FastAPI backend to support the UI. The FastAPI backend
+  should expose a simple interface that the Streamlit app can query. Start with
+  creating one simple endpoint, called "fetch-results".
+  - Read from local .parquet files (e.g., posts/2024-06-01/, etc.). Use the helper
+  tooling in "manage_local_data.py", specifically the function "load_data_from_local_storage". Let's just return all posts from the date
+  range "2024-11-10" to "2024-11-21". See "get_details_of_posts_liked_by_study_users"
+  from the "load_users_engaged_with_by_study_users.py" file for instructions on how
+  to load likes, and then replace record type with "post".
+  - Return as pandas DataFrame, return the top 10 posts. Also print out how many
+  results there originally were in the query (e.g., "Found XXX results related to your query").
 
 - [#004] Preprocess post data after load
   - Lowercasing, timestamp normalization, drop nulls
