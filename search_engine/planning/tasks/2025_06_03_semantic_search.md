@@ -34,9 +34,13 @@ This document tracks daily progress on implementing the semantic search engine M
   - [ ] Computed fields
 
 ### Routing Logic
-- [ ] [#005] Build basic query classifier (2 hrs)
-  - [ ] Rule-based classification
-  - [ ] Routing instructions
+- [x] [#005] Build basic query intent classifier (2 hrs)
+  - [x] Classify into [top-k, summarize, unknown].
+  - [x] Uses an LLM call to dynamically route the query. Create a query to do this routing, then interpolate with the actual text of the query itself. Use run_query, using the "GPT-4o mini" model, with custom kwargs, changing the current kwargs to use a Pydantic model to constrain the format. The Pydantic model should have two fields, "intent" (top-k, summarize, unknown), and "reason".
+  - [x] Encapsulate all of this into an "intent_classifier.py" with a "classify_query_intent" function that returns the intent and also the reason for the intent (ask the model to give a reason).
+  - [x] Connect the intent classifier with the FastAPI backend. Create a new endpoint,
+  'get-query-intent'. Upon submitting a query in the UI, have the query be sent
+  to the intent classifier. Underneath the dummy results, put a "Classified intent" section that returns the output of the intent classifier and then the reason.
 
 - [ ] [#006] Implement router/controller (2 hrs)
   - [ ] Query dispatch logic

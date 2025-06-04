@@ -155,6 +155,27 @@ def main() -> None:
                         file_name=filename,
                         mime="text/csv",
                     )
+                    # Classified intent section
+                    try:
+                        intent_response = requests.get(
+                            "http://localhost:8000/get-query-intent",
+                            params={"query": st.session_state["query"]},
+                            timeout=30,
+                        )
+                        if intent_response.status_code == 200:
+                            intent_data = intent_response.json()
+                            st.markdown("---")
+                            st.markdown("#### Classified intent")
+                            st.markdown(
+                                f"**Intent:** `{intent_data.get('intent', 'unknown')}`"
+                            )
+                            st.markdown(f"**Reason:** {intent_data.get('reason', '')}")
+                        else:
+                            st.warning(
+                                "Could not classify query intent (backend error)."
+                            )
+                    except Exception as e:
+                        st.warning(f"Could not classify query intent: {e}")
                 else:
                     st.info("No results found.")
             else:

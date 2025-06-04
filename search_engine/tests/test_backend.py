@@ -45,4 +45,41 @@ class TestFetchResultsEndpoint:
         # Check that the first post matches the mock data
         assert data["posts"][0]["id"] == "post_0"
         assert data["posts"][0]["text"] == "Post text 0"
-        assert data["posts"][0]["likes"] == 0 
+        assert data["posts"][0]["likes"] == 0
+
+class TestGetQueryIntentEndpoint:
+    """
+    Test suite for the /get-query-intent endpoint in the FastAPI backend.
+    This endpoint should:
+      - Classify the intent of a query as 'top-k', 'summarize', or 'unknown'
+      - Return a JSON with 'intent' and 'reason'
+    """
+    def test_top_k_intent(self, client: TestClient) -> None:
+        """
+        Test that a 'top-k' query returns the correct intent and reason.
+        """
+        response = client.get("/get-query-intent", params={"query": "What are the most liked posts?"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["intent"] == "top-k"
+        assert "top" in data["reason"] or "most" in data["reason"]
+
+    def test_summarize_intent(self, client: TestClient) -> None:
+        """
+        Test that a 'summarize' query returns the correct intent and reason.
+        """
+        response = client.get("/get-query-intent", params={"query": "Summarize what people are saying about climate."})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["intent"] == "summarize"
+        assert "summary" in data["reason"] or "summarize" in data["reason"]
+
+    def test_unknown_intent(self, client: TestClient) -> None:
+        """
+        Test that an unknown query returns the correct intent and reason.
+        """
+        response = client.get("/get-query-intent", params={"query": "Tell me something interesting."})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["intent"] == "unknown"
+        assert "does not match" in data["reason"] 

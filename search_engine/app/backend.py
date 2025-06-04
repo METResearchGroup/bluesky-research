@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 from typing import Any
 from lib.db.manage_local_data import load_data_from_local_storage
+from search_engine.app.intent_classifier import classify_query_intent
 
 app = FastAPI()
 
@@ -25,3 +26,12 @@ def fetch_results() -> Any:
     print(f"Found {total_count} posts")
     posts = df.head(10).to_dict(orient="records")
     return JSONResponse(content={"posts": posts, "total_count": total_count})
+
+
+@app.get("/get-query-intent")
+def get_query_intent(query: str = Query(..., description="User query")) -> Any:
+    """
+    Classify the intent of a user query and return the intent and reason.
+    """
+    result = classify_query_intent(query)
+    return JSONResponse(content=result)
