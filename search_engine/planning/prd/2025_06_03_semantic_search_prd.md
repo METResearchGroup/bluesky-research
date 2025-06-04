@@ -38,8 +38,17 @@ Estimated: 2–3 hrs each; intended to be tracked individually in an issue track
 ### UI + Input Pipeline
 
 - [#001] Create Streamlit UI with text input and results box
-  - Basic layout with form
-  - Results area supports markdown and expandable table
+  - Basic layout with form.
+  - Results area supports markdown and expandable table.
+  - Show dummy inputs and outputs. No I/O or external API calls yet.
+  - Basic submission logic - user writes a question, then app returns a generic
+  dummy response.
+  - Underneath the search bar, the app suggests example queries that are popular.
+  - Basic title, relevant to the project.
+  - Basic subtitle, relevant to the project.
+  - Basic description, relevant to the project.
+  - Stakeholders: nontechnical social scientists, interested in easily being able
+  to access technical data using a search interface.
 
 - [#002] Add input validation + sanitation
   - Filter for empty inputs, SQL injection-like text, profanity, length caps
