@@ -71,11 +71,10 @@ def main() -> None:
         filter_state, show=st.session_state["show_query_preview"]
     )
 
-    # Visualization Quick-Look panel (only show after query preview is shown)
-    if st.session_state["show_query_preview"]:
-        st.divider()
-        sample_posts = get_sample_posts()
-        render_visualization_quicklook_panel(filter_state.filters, sample_posts)
+    # Visualization Quick-Look panel: always show and update live with filter changes
+    st.divider()
+    sample_posts = get_sample_posts()
+    render_visualization_quicklook_panel(filter_state.filters, sample_posts)
 
 
 if __name__ == "__main__":
