@@ -1,8 +1,17 @@
 import streamlit as st
-from filter_state import FilterState
-from components.filter_chips_panel import render_filter_chips_panel
-from components.filter_builder_panel import render_filter_builder_panel
-from components.query_preview_panel import render_query_preview_panel
+
+from search_engine.app_v2.filter_state import FilterState
+from search_engine.app_v2.components.filter_chips_panel import render_filter_chips_panel
+from search_engine.app_v2.components.filter_builder_panel import (
+    render_filter_builder_panel,
+)
+from search_engine.app_v2.components.query_preview_panel import (
+    render_query_preview_panel,
+)
+from search_engine.app_v2.components.visualization_quicklook_panel import (
+    render_visualization_quicklook_panel,
+)
+from search_engine.app_v2.generate_sample_data import get_sample_posts
 
 
 # --- Streamlit UI for Filter Builder Panel ---
@@ -61,6 +70,12 @@ def main() -> None:
     render_query_preview_panel(
         filter_state, show=st.session_state["show_query_preview"]
     )
+
+    # Visualization Quick-Look panel (only show after query preview is shown)
+    if st.session_state["show_query_preview"]:
+        st.divider()
+        sample_posts = get_sample_posts()
+        render_visualization_quicklook_panel(filter_state.filters, sample_posts)
 
 
 if __name__ == "__main__":

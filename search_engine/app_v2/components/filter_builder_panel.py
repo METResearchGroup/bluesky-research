@@ -1,6 +1,7 @@
 import streamlit as st
 from filter_state import FilterState
 import datetime
+from search_engine.app_v2.generate_sample_data import get_sample_posts
 
 
 def render_filter_builder_panel(filter_state: FilterState) -> None:
@@ -14,13 +15,32 @@ def render_filter_builder_panel(filter_state: FilterState) -> None:
 
     # --- Temporal ---
     with st.expander("Temporal", expanded=False):
-        today = datetime.date.today()
+        # Get min and max dates from sample data
+        sample_posts = get_sample_posts()
+        if sample_posts:
+            dates = [
+                datetime.datetime.strptime(row["date"], "%Y-%m-%d").date()
+                for row in sample_posts
+            ]
+            min_date, max_date = min(dates), max(dates)
+        else:
+            today = datetime.date.today()
+            min_date = today - datetime.timedelta(days=7)
+            max_date = today
         start_date = st.date_input(
             "Start Date",
-            value=today - datetime.timedelta(days=7),
+            value=min_date,
+            min_value=min_date,
+            max_value=max_date,
             key="temporal_start_date",
         )
-        end_date = st.date_input("End Date", value=today, key="temporal_end_date")
+        end_date = st.date_input(
+            "End Date",
+            value=max_date,
+            min_value=min_date,
+            max_value=max_date,
+            key="temporal_end_date",
+        )
         if st.button("Set Date Range"):
             filter_state.add_filter(
                 "Temporal", "date_range", f"{start_date} to {end_date}"

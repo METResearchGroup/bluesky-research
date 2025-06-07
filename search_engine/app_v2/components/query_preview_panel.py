@@ -1,6 +1,6 @@
 import streamlit as st
 from filter_state import FilterState
-from search_engine.app_v2.sample_data import get_sample_posts
+from search_engine.app_v2.generate_sample_data import get_sample_posts
 from search_engine.app_v2.sample_data_preview import filter_and_preview_sample_data
 
 

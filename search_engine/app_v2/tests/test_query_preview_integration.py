@@ -25,6 +25,8 @@ class TestQueryPreviewIntegration:
         """
         Query for posts by a specific user. Assert correct number and content.
         """
+        if not self.data:
+            pytest.skip("No sample data available.")
         user = self.data[0]["user"]
         filters = {"User": {"handles": [user]}}
         expected_results = [row for row in self.data if row["user"] == user][:5]
@@ -36,29 +38,64 @@ class TestQueryPreviewIntegration:
         """
         Query for posts in a specific date range. Assert correct number and content.
         """
-        filters = {"Temporal": {"date_range": "2024-06-10 to 2024-06-15"}}
-        expected_results = [row for row in self.data if "2024-06-10" <= row["date"] <= "2024-06-15"][:5]
+        filters = {"Temporal": {"date_range": "2024-06-02 to 2024-06-05"}}
+        expected_results = [row for row in self.data if "2024-06-02" <= row["date"] <= "2024-06-05"][:5]
         result = filter_and_preview_sample_data(filters, self.data)
-        print("Filters:", filters)
-        print("First 10 rows:", self.data[:10])
-        print("Expected results:", expected_results)
-        print("Actual results:", result)
+        assert result == expected_results
+        assert len(result) == len(expected_results)
+
+    def test_valence_query(self):
+        """
+        Query for posts with valence 'negative'.
+        """
+        filters = {"Sentiment": {"valence": "negative"}}
+        expected_results = [row for row in self.data if row["valence"] == "negative"][:5]
+        result = filter_and_preview_sample_data(filters, self.data)
+        assert result == expected_results
+        assert len(result) == len(expected_results)
+
+    def test_toxic_query(self):
+        """
+        Query for posts that are toxic.
+        """
+        filters = {"Sentiment": {"toxicity": "Toxic"}}
+        expected_results = [row for row in self.data if row["toxic"] is True][:5]
+        result = filter_and_preview_sample_data(filters, self.data)
+        assert result == expected_results
+        assert len(result) == len(expected_results)
+
+    def test_political_slant_query(self):
+        """
+        Query for posts that are political and have slant 'left'.
+        """
+        filters = {"Political": {"political": "Yes", "slant": "left"}}
+        expected_results = [row for row in self.data if row["political"] is True and row["slant"] == "left"][:5]
+        result = filter_and_preview_sample_data(filters, self.data)
         assert result == expected_results
         assert len(result) == len(expected_results)
 
     def test_combined_query(self):
         """
-        Query for posts by a user with a specific hashtag in a date range.
+        Query for posts by a user with a specific hashtag, valence, and political slant in a date range.
         """
+        if not self.data:
+            pytest.skip("No sample data available.")
         user = self.data[0]["user"]
         filters = {
             "User": {"handles": [user]},
-            "Content": {"hashtags": ["#bsky"]},
-            "Temporal": {"date_range": "2024-06-01 to 2024-06-30"},
+            "Content": {"hashtags": ["#climate"]},
+            "Temporal": {"date_range": "2024-06-01 to 2024-06-10"},
+            "Sentiment": {"valence": "positive"},
+            "Political": {"political": "Yes", "slant": "left"}
         }
         expected_results = [
             row for row in self.data
-            if row["user"] == user and "#bsky" in row["hashtags"] and "2024-06-01" <= row["date"] <= "2024-06-30"
+            if row["user"] == user
+            and "#climate" in row["hashtags"]
+            and "2024-06-01" <= row["date"] <= "2024-06-10"
+            and row["valence"] == "positive"
+            and row["political"] is True
+            and row["slant"] == "left"
         ][:5]
         result = filter_and_preview_sample_data(filters, self.data)
         assert result == expected_results

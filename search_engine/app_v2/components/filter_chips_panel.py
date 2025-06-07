@@ -1,5 +1,6 @@
 import streamlit as st
-from filter_state import FilterState
+
+from search_engine.app_v2.filter_state import FilterState
 
 
 def render_filter_chips_panel(filter_state: FilterState) -> None:

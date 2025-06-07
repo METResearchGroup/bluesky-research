@@ -7,7 +7,7 @@ def filter_and_preview_sample_data(
 ) -> List[Dict[str, Any]]:
     """
     Filters the sample data according to the provided filters and returns the top 5 matching rows.
-    Supports filtering by keywords, hashtags, date range, and user handles.
+    Supports filtering by keywords, hashtags, date range, user handles, valence, toxic, political, and slant.
 
     Args:
         filters: Nested dict of filters (e.g., {'Content': {'keywords': [...]}, ...})
@@ -39,6 +39,30 @@ def filter_and_preview_sample_data(
         # User: handles
         handles = filters.get("User", {}).get("handles", [])
         if handles and row["user"] not in handles:
+            return False
+        # Sentiment: valence
+        valence = filters.get("Sentiment", {}).get("valence")
+        if valence and row.get("valence") != valence:
+            return False
+        # Sentiment: toxic
+        toxicity = filters.get("Sentiment", {}).get("toxicity")
+        if toxicity:
+            if toxicity == "Toxic" and row.get("toxic") is not True:
+                return False
+            if toxicity == "Not Toxic" and row.get("toxic") is not False:
+                return False
+            if toxicity == "Uncertain" and row.get("toxic") is not None:
+                return False
+        # Political: political
+        political = filters.get("Political", {}).get("political")
+        if political:
+            if political == "Yes" and row.get("political") is not True:
+                return False
+            if political == "No" and row.get("political") is not False:
+                return False
+        # Political: slant
+        slant = filters.get("Political", {}).get("slant")
+        if slant and row.get("slant") != slant:
             return False
         return True
 
