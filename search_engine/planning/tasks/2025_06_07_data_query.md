@@ -6,11 +6,11 @@ This document tracks daily progress on the Streamlit Data Access App Demo as def
 ## 📋 Task Checklist
 
 ### UI Components
-- [ ] [#001] Filter Builder Panel (4 hrs)
-  - [ ] Accordion sections for: Temporal, Content, Sentiment, Political, User, Engagement, Network
-  - [ ] Chips display for active filters
-  - [ ] Selecting controls displays chips in header
-  - [ ] Dependencies: sample JSON schema for filters
+- [x] [#001] Filter Builder Panel (4 hrs)
+  - [x] Accordion sections for: Temporal, Content, Sentiment, Political, User, Engagement, Network
+  - [x] Chips display for active filters
+  - [x] Selecting controls displays chips in header
+  - [x] Dependencies: sample JSON schema for filters
 
 - [ ] [#002] Query Preview & Sample Data (3 hrs)
   - [ ] Static sample tables (posts, users, reactions)
@@ -60,8 +60,17 @@ This document tracks daily progress on the Streamlit Data Access App Demo as def
 - Project planning and task tracking file created.
 - Next: Begin UI component scaffolding (#001)
 
+### Day 2 (2025-06-08)
+- [#001] Filter Builder Panel fully implemented and tested.
+- All accordion sections (Temporal, Content, Hashtags, Sentiment, Political, User, Engagement, Network) are present and functional.
+- Active filters are displayed as chips in the right panel, with live updates and removal.
+- All filter controls update the chips as expected.
+- UI is modular, left-aligned, and responsive, using Streamlit's wide layout and a 2/3:1/3 split.
+- All acceptance criteria for #001 are met.
+- Next: Begin Query Preview & Sample Data (#002)
+
 ## 📊 Status Summary
-- Overall Progress: 0%
-- Completed Tasks: 0/9
-- Estimated Remaining Time: 24 hours
+- Overall Progress: 1/9 tasks complete (11%)
+- Completed Tasks: 1/9
+- Estimated Remaining Time: 20 hours
 - Timeline: On track for 2-week delivery 
