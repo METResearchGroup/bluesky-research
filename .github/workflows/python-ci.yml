@@ -59,6 +59,7 @@ jobs:
         pytest services/write_cache_buffers_to_db/tests
         pytest services/sync/jetstream/tests
         pytest api/integrations_router/tests
+        pytest search_engine/tests
     - name: Lint Dockerfiles with Hadolint
       run: |
         docker run --rm -i hadolint/hadolint < Dockerfiles/add_users_to_study.Dockerfile

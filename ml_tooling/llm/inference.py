@@ -136,16 +136,22 @@ BACKEND_OPTIONS = {
 
 @track_performance
 def run_query(
-    prompt: str, role: str = "user", model_name: str = "Gemini", num_retries: int = 2
+    prompt: str,
+    role: str = "user",
+    model_name: str = "Gemini",
+    num_retries: int = 2,
+    custom_kwargs: dict = None,
 ) -> str:
-    """Runs a query to an LLM model and returns the response."""
+    """Runs a query to an LLM model and returns the response.
+    If custom_kwargs is provided, use it for model kwargs; otherwise, use model_params['kwargs'].
+    """
     model_dict = BACKEND_OPTIONS[model_name]
     model_params = model_dict.copy()
     kwargs = {
         "model": model_params.pop("model"),
         "messages": [{"role": role, "content": prompt}],
         "num_retries": num_retries,
-        **model_params["kwargs"],
+        **(custom_kwargs if custom_kwargs is not None else model_params["kwargs"]),
     }
     response: ModelResponse = completion(**kwargs)
     content: str = response.get("choices", [{}])[0].get("message", {}).get("content")
