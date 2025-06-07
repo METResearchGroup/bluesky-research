@@ -218,9 +218,7 @@ def render_filter_builder_panel(filter_state: FilterState) -> None:
     filter_state.add_filter("General", "max_results", max_results)
 
     # --- Submit Filters ---
-    if st.button("Submit Filters"):
-        summary = build_human_readable_summary(filter_state)
-        st.success(summary)
+    # (Removed per user request; each filter already has its own submit button)
 
 
 def build_human_readable_summary(filter_state: FilterState) -> str:

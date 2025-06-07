@@ -14,6 +14,9 @@ from search_engine.app_v2.components.visualization_quicklook_panel import (
 from search_engine.app_v2.components.export_templates_panel import (
     render_export_templates_panel,
 )
+from search_engine.app_v2.components.example_queries_panel import (
+    render_example_queries_panel,
+)
 from search_engine.app_v2.generate_sample_data import get_sample_posts
 
 
@@ -49,6 +52,7 @@ def main() -> None:
         render_filter_builder_panel(filter_state)
 
     with right:
+        render_example_queries_panel(filter_state)
         render_filter_chips_panel(filter_state)
         st.divider()
         # Action buttons

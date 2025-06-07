@@ -27,18 +27,17 @@ This document tracks daily progress on the Streamlit Data Access App Demo as def
   something like "results_{timestamp}.{csv/parquet}".
   - [x] Export downloads file
 
-### Create example content
-- [ ] [#005] Create example queries.
-  - [ ] Create an "Example queries" section above "Active filters".
-  - [ ] This new section is a dropdown with several buttons. Each button corresponds
+- [x] [#005] Create example queries.
+  - [x] Create an "Example queries" section above "Active filters".
+  - [x] This new section is a dropdown with several buttons. Each button corresponds
   to an example query. See the PRD for example queries. Use 5 queries that can
   be fulfilled with the query parameters. Verify that they can be fulfilled
   with the query parameters.
-  - [ ] If a user clicks one of these example queries, the filters are replaced
+  - [x] If a user clicks one of these example queries, the filters are replaced
   with those parameters. The elements in the "Filter Builder Panel" are replaced
   with those parameters, which should also be reflected in the "Active filters'
   as well.
-  - [ ] Create unit tests to verify this functionality.
+  - [x] Create unit tests to verify this functionality.
 
 - [ ] [#006] Extra Usability Features & Final Polish
   - **Immediate Impact**
@@ -55,7 +54,7 @@ This document tracks daily progress on the Streamlit Data Access App Demo as def
     - [ ] Collapsible "Getting Started"/help section at top
     - [ ] Friendly error message and suggestions if no results
     - [ ] Export preview/summary before download (record count, size, format)
-    - [ ] Add a "Learn More" section. For this, have two cases, (1) something like "Can't find the data you're looking for? Contact us" (underlining "Contact us", we'll eventually connect this to a hyperlink but not right now), and (2) "Interested in working with us? Reach out!" (similarly, underlining "Reach out!").
+    - [ ] Add a "Have questions?" section. For this, have the following cases, (1) something like "Can't find the data you're looking for? Looking for more data than just a 1 week sample? Interested in contributing or collaborating with us? Reach out!" (underline "Reach out")
 
   - **Nice-to-Have**
     - [ ] Allow user to select columns for export (checkboxes)
@@ -84,8 +83,6 @@ This document tracks daily progress on the Streamlit Data Access App Demo as def
   - Chart and logic are robust to new sample data (100 posts), and all tests pass.
   - All acceptance criteria for #003 are met.
 - Next: Begin Export & Templates Panel (#004)
-
-### Day 2 (2025-06-08)
 - [#004] Export & Templates Panel fully implemented, tested, and complete.
   - Export panel now allows CSV/Parquet export after query submission only.
   - Export button is only enabled after submitting a query, with clear UI feedback.
@@ -93,9 +90,16 @@ This document tracks daily progress on the Streamlit Data Access App Demo as def
   - UI is clean, focused, and matches all requirements.
   - All tests for export functionality pass.
   - #004 is fully complete and checked in the checklist.
+- [#005] Example Queries feature fully implemented and tested.
+  - Example Queries panel added with a bold section header, matching other panels.
+  - Dropdown with 5 example queries, each mapped to valid filter parameters and sample data.
+  - Clicking a query updates all filter state, session state, and UI as required.
+  - Comprehensive, headless unit tests for the logic (CI-safe) are included and passing.
+  - All acceptance criteria for #005 are met.
+  - #005 is fully complete and checked in the checklist.
 
 ## 📊 Status Summary
-- Overall Progress: 3/9 tasks complete (33%)
-- Completed Tasks: 3/9
-- Estimated Remaining Time: 14 hours
+- Overall Progress: 4/9 tasks complete (44%)
+- Completed Tasks: 4/9
+- Estimated Remaining Time: 10 hours
 - Timeline: On track for 2-week delivery 
