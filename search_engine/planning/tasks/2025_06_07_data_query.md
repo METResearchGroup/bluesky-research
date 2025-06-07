@@ -12,10 +12,10 @@ This document tracks daily progress on the Streamlit Data Access App Demo as def
   - [x] Selecting controls displays chips in header
   - [x] Dependencies: sample JSON schema for filters
 
-- [ ] [#002] Query Preview & Sample Data (3 hrs)
-  - [ ] Static sample tables (posts, users, reactions)
-  - [ ] Display top 5 rows matching filter state
-  - [ ] Changing filter toggles sample rows accordingly
+- [x] [#002] Query Preview & Sample Data (3 hrs)
+  - [x] Static sample tables (posts, users, reactions)
+  - [x] Display top 5 rows matching filter state
+  - [x] Changing filter toggles sample rows accordingly
 
 - [ ] [#003] Visualization Quick‑Look (3 hrs)
   - [ ] Mini line chart showing daily count (mock data)
@@ -69,8 +69,16 @@ This document tracks daily progress on the Streamlit Data Access App Demo as def
 - All acceptance criteria for #001 are met.
 - Next: Begin Query Preview & Sample Data (#002)
 
+### Day 3 (2025-06-09)
+- [#002] Query Preview & Sample Data fully implemented and tested.
+- Robust sample data (100 posts) generated and persisted with Faker.
+- Query Preview panel displays top 5 matching rows, updates on filter change, and only appears after query submission.
+- Comprehensive integration tests cover hashtag, user, date range, combined, and no-match queries.
+- All acceptance criteria for #002 are met.
+- Next: Begin Visualization Quick-Look (#003)
+
 ## 📊 Status Summary
-- Overall Progress: 1/9 tasks complete (11%)
-- Completed Tasks: 1/9
-- Estimated Remaining Time: 20 hours
+- Overall Progress: 2/9 tasks complete (22%)
+- Completed Tasks: 2/9
+- Estimated Remaining Time: 17 hours
 - Timeline: On track for 2-week delivery 

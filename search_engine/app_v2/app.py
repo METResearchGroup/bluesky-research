@@ -2,6 +2,7 @@ import streamlit as st
 from filter_state import FilterState
 from components.filter_chips_panel import render_filter_chips_panel
 from components.filter_builder_panel import render_filter_builder_panel
+from components.query_preview_panel import render_query_preview_panel
 
 
 # --- Streamlit UI for Filter Builder Panel ---
@@ -26,6 +27,8 @@ def main() -> None:
     st.caption("Build and preview research data queries interactively.")
 
     filter_state = get_filter_state()
+    if "show_query_preview" not in st.session_state:
+        st.session_state["show_query_preview"] = False
 
     # Two-column layout: filters left (2/3), active filters + actions right (1/3)
     left, right = st.columns([2, 1])
@@ -37,20 +40,27 @@ def main() -> None:
         render_filter_chips_panel(filter_state)
         st.divider()
         # Action buttons
-        submit = st.button("Submit Filters", key="submit_filters")
+        submit = st.button("Submit query", key="submit_filters")
         clear = st.button("Clear All Filters", key="clear_all_filters")
         if submit:
             from components.filter_builder_panel import build_human_readable_summary
 
             summary = build_human_readable_summary(filter_state)
             st.success(summary)
+            st.session_state["show_query_preview"] = True
         if clear:
             filter_state.clear_filters()
             # Also clear session state for keywords and user_handles and hashtags
             st.session_state["keywords"] = []
             st.session_state["user_handles"] = []
             st.session_state["hashtags"] = []
+            st.session_state["show_query_preview"] = False
             st.rerun()
+
+    st.divider()
+    render_query_preview_panel(
+        filter_state, show=st.session_state["show_query_preview"]
+    )
 
 
 if __name__ == "__main__":
