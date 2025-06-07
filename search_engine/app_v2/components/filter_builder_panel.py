@@ -33,6 +33,7 @@ def render_filter_builder_panel(filter_state: FilterState) -> None:
             min_value=min_date,
             max_value=max_date,
             key="temporal_start_date",
+            help="Select the start date for your query.",
         )
         end_date = st.date_input(
             "End Date",
@@ -40,6 +41,7 @@ def render_filter_builder_panel(filter_state: FilterState) -> None:
             min_value=min_date,
             max_value=max_date,
             key="temporal_end_date",
+            help="Select the end date for your query.",
         )
         if st.button("Set Date Range"):
             filter_state.add_filter(
@@ -52,7 +54,9 @@ def render_filter_builder_panel(filter_state: FilterState) -> None:
         if "keywords" not in st.session_state:
             st.session_state["keywords"] = []
         keyword_input = st.text_input(
-            "Keyword (free text)", key="content_keyword_input"
+            "Keyword (free text)",
+            key="content_keyword_input",
+            help="Add keywords to filter posts by text content.",
         )
         if st.button("Add Keyword") and keyword_input:
             keywords = st.session_state["keywords"]
@@ -82,7 +86,9 @@ def render_filter_builder_panel(filter_state: FilterState) -> None:
         if "hashtags" not in st.session_state:
             st.session_state["hashtags"] = []
         hashtag_input = st.text_input(
-            "Add hashtag (with or without #)", key="hashtag_input"
+            "Add hashtag (with or without #)",
+            key="hashtag_input",
+            help="Add hashtags to filter posts.",
         )
         if st.button("Add Hashtag") and hashtag_input:
             hashtags = st.session_state["hashtags"]
@@ -116,11 +122,13 @@ def render_filter_builder_panel(filter_state: FilterState) -> None:
             "Valence",
             options=["Any", "positive", "neutral", "negative"],
             key="sentiment_valence",
+            help="Select the sentiment (valence) of posts.",
         )
         toxicity = st.radio(
             "Toxicity",
             options=["Any", "Toxic", "Not Toxic", "Uncertain"],
             key="sentiment_toxicity",
+            help="Filter posts by toxicity label.",
         )
         if st.button("Submit Sentiment Filters"):
             if valence != "Any":
@@ -136,12 +144,16 @@ def render_filter_builder_panel(filter_state: FilterState) -> None:
     # --- Political ---
     with st.expander("Political", expanded=False):
         political = st.radio(
-            "Political Content", options=["Any", "Yes", "No"], key="political_content"
+            "Political Content",
+            options=["Any", "Yes", "No"],
+            key="political_content",
+            help="Filter posts by whether they are political.",
         )
         slant = st.radio(
             "Slant",
             options=["Any", "left", "center", "right", "unclear"],
             key="political_slant",
+            help="Filter posts by political slant.",
         )
         if st.button("Submit Political Filters"):
             if political != "Any":
@@ -158,7 +170,11 @@ def render_filter_builder_panel(filter_state: FilterState) -> None:
     with st.expander("User", expanded=False):
         if "user_handles" not in st.session_state:
             st.session_state["user_handles"] = []
-        user_input = st.text_input("Add user handle", key="user_handle_input")
+        user_input = st.text_input(
+            "Add user handle",
+            key="user_handle_input",
+            help="Filter posts by user handle.",
+        )
         if st.button("Add User Handle") and user_input:
             handles = st.session_state["user_handles"]
             if user_input not in handles:
@@ -188,6 +204,7 @@ def render_filter_builder_panel(filter_state: FilterState) -> None:
             "Engagement Type",
             options=["Any", "post", "like", "repost", "comment", "follow", "block"],
             key="engagement_type",
+            help="Filter posts by engagement type.",
         )
         if st.button("Submit Engagement Filter"):
             if engagement_type != "Any":
@@ -199,7 +216,10 @@ def render_filter_builder_panel(filter_state: FilterState) -> None:
     # --- Network ---
     with st.expander("Network", expanded=False):
         hops = st.selectbox(
-            "Graph Distance (hops)", options=["Any", 1, 2], key="network_hops"
+            "Graph Distance (hops)",
+            options=["Any", 1, 2],
+            key="network_hops",
+            help="Filter posts by network graph distance.",
         )
         if hops != "Any":
             filter_state.add_filter("Network", "hops", hops)
@@ -214,6 +234,7 @@ def render_filter_builder_panel(filter_state: FilterState) -> None:
         value=1000,
         step=100,
         key="max_results",
+        help="Set the maximum number of results to return.",
     )
     filter_state.add_filter("General", "max_results", max_results)
 

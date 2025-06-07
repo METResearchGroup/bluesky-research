@@ -56,70 +56,10 @@ def render_visualization_quicklook_panel(
     Renders the Visualization Quick-Look panel with a line chart of daily post counts for the filtered data.
     Args:
         filters: Current filter dict.
-        data: List of post dicts.
+        data: List of post dicts (already filtered and limited to max_results).
     """
     st.subheader("Visualization Quick-Look")
-
-    # Use the same filtering logic as the Query Preview, but no row limit
-    def filter_all_sample_data(
-        filters: Dict[str, Any], data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        # Remove the 5-row limit from filter_and_preview_sample_data
-        def row_matches(row: Dict[str, Any]) -> bool:
-            # Content: keywords
-            keywords = filters.get("Content", {}).get("keywords", [])
-            if keywords and not any(
-                kw.lower() in row["text"].lower() for kw in keywords
-            ):
-                return False
-            # Content: hashtags
-            hashtags = filters.get("Content", {}).get("hashtags", [])
-            if hashtags and not any(tag in row["hashtags"] for tag in hashtags):
-                return False
-            # Temporal: date_range
-            date_range = filters.get("Temporal", {}).get("date_range")
-            if date_range:
-                try:
-                    parts = re.split(r"\s*to\s*", date_range)
-                    start, end = parts[0].strip(), parts[-1].strip()
-                    if not (start <= row["date"] <= end):
-                        return False
-                except Exception:
-                    return False
-            # User: handles
-            handles = filters.get("User", {}).get("handles", [])
-            if handles and row["user"] not in handles:
-                return False
-            # Sentiment: valence
-            valence = filters.get("Sentiment", {}).get("valence")
-            if valence and row.get("valence") != valence:
-                return False
-            # Sentiment: toxic
-            toxicity = filters.get("Sentiment", {}).get("toxicity")
-            if toxicity:
-                if toxicity == "Toxic" and row.get("toxic") is not True:
-                    return False
-                if toxicity == "Not Toxic" and row.get("toxic") is not False:
-                    return False
-                if toxicity == "Uncertain" and row.get("toxic") is not None:
-                    return False
-            # Political: political
-            political = filters.get("Political", {}).get("political")
-            if political:
-                if political == "Yes" and row.get("political") is not True:
-                    return False
-                if political == "No" and row.get("political") is not False:
-                    return False
-            # Political: slant
-            slant = filters.get("Political", {}).get("slant")
-            if slant and row.get("slant") != slant:
-                return False
-            return True
-
-        return [row for row in data if row_matches(row)]
-
-    filtered_data = filter_all_sample_data(filters, data)
-    daily_counts = generate_daily_counts_from_filtered(filtered_data, filters)
+    daily_counts = generate_daily_counts_from_filtered(data, filters)
     if not daily_counts:
         st.info("No data to visualize for the current filters.")
         return

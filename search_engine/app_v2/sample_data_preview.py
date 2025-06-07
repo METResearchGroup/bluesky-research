@@ -3,17 +3,18 @@ import re
 
 
 def filter_and_preview_sample_data(
-    filters: Dict[str, Any], data: List[Dict[str, Any]]
+    filters: Dict[str, Any], data: List[Dict[str, Any]], preview: bool = True
 ) -> List[Dict[str, Any]]:
     """
-    Filters the sample data according to the provided filters and returns the top 5 matching rows.
+    Filters the sample data according to the provided filters and returns the top N matching rows.
     Supports filtering by keywords, hashtags, date range, user handles, valence, toxic, political, and slant.
 
     Args:
         filters: Nested dict of filters (e.g., {'Content': {'keywords': [...]}, ...})
         data: List of post dicts to filter.
+        preview: If True, return only the first 5 rows. If False, return all up to max_results.
     Returns:
-        List of up to 5 filtered post dicts.
+        List of filtered post dicts (up to 5 for preview, or up to max_results for export).
     """
 
     def row_matches(row: Dict[str, Any]) -> bool:
@@ -67,4 +68,8 @@ def filter_and_preview_sample_data(
         return True
 
     result = [row for row in data if row_matches(row)]
-    return result[:5]
+    max_results = filters.get("General", {}).get("max_results", 1000)
+    result = result[:max_results]
+    if preview:
+        return result[:5]
+    return result

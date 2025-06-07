@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 
 from search_engine.app_v2.filter_state import FilterState
 from search_engine.app_v2.components.filter_chips_panel import render_filter_chips_panel
@@ -17,7 +18,8 @@ from search_engine.app_v2.components.export_templates_panel import (
 from search_engine.app_v2.components.example_queries_panel import (
     render_example_queries_panel,
 )
-from search_engine.app_v2.generate_sample_data import get_sample_posts
+from search_engine.app_v2.sample_data import get_sample_posts
+from search_engine.app_v2.sample_data_preview import filter_and_preview_sample_data
 
 
 # --- Streamlit UI for Filter Builder Panel ---
@@ -37,13 +39,60 @@ def main() -> None:
     Main entrypoint for the Streamlit app. Renders the modular UI.
     Uses Streamlit's wide layout. Filters are 2/3, active filters/actions are 1/3.
     """
+    # Must be the first Streamlit command
     st.set_page_config(page_title="Bluesky Data Access App Demo", layout="wide")
     st.title("Bluesky Data Access App Demo")
     st.caption("Build and preview research data queries interactively.")
+    # Collapsible Getting Started/help section (should be directly below title/caption)
+    with st.expander("Getting Started / Help", expanded=False):
+        st.markdown("""
+        **Welcome to the Bluesky Data Access App Demo!**
+
+        - Use the Filter Builder Panel to select filters for your query.
+        - Submit your query to preview results and see visualizations.
+        - Export your results as CSV or Parquet using the floating action button.
+        - Use the 'Reset All' button to clear all filters and start over.
+        """)
+    # High-contrast mode toggle
+    high_contrast = st.checkbox("Enable High-Contrast Mode", key="high_contrast_mode")
+    if high_contrast:
+        st.markdown(
+            """
+            <style>
+            body, .stApp, .stMarkdown, .stDataFrame, .stButton>button, .stRadio>div, .stTextInput>div, .stSelectbox>div, .stExpander, .stNumberInput>div {
+                background-color: #fff !important;
+                color: #111 !important;
+            }
+            .stButton>button, .fab-export button {
+                background-color: #000 !important;
+                color: #fff !important;
+                border: 2px solid #fff !important;
+                font-weight: bold !important;
+            }
+            .stExpander, .stRadio>div, .stTextInput>div, .stSelectbox>div, .stNumberInput>div {
+                border: 2px solid #000 !important;
+            }
+            .stDataFrame, .stDataFrame th, .stDataFrame td {
+                background-color: #fff !important;
+                color: #111 !important;
+                border-color: #000 !important;
+            }
+            .stMarkdown strong, .stMarkdown b {
+                color: #000 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
     filter_state = get_filter_state()
     if "show_query_preview" not in st.session_state:
         st.session_state["show_query_preview"] = False
+
+    # Load sample data with correct scaling once
+    demo_mode = os.environ.get("DEMO_MODE", True)
+    scale = 1000 if demo_mode else 1
+    sample_posts = get_sample_posts(scale=scale)
 
     # Two-column layout: filters left (2/3), active filters + actions right (1/3)
     left, right = st.columns([2, 1])
@@ -54,37 +103,49 @@ def main() -> None:
     with right:
         render_example_queries_panel(filter_state)
         render_filter_chips_panel(filter_state)
+        # Copy query/filter state to clipboard (Nice-to-Have)
+        if st.button("Copy filter state as JSON", key="copy_filter_state_btn"):
+            st.toast("Filter state JSON shown below. Copy manually.")
+        st.json(filter_state.filters, expanded=False)
         st.divider()
         # Action buttons
         submit = st.button("Submit query", key="submit_filters")
         clear = st.button("Clear All Filters", key="clear_all_filters")
+        reset = st.button("Reset All", key="reset_all_filters")
         if submit:
             from components.filter_builder_panel import build_human_readable_summary
 
             summary = build_human_readable_summary(filter_state)
             st.success(summary)
             st.session_state["show_query_preview"] = True
-        if clear:
+        if clear or reset:
             filter_state.clear_filters()
             # Also clear session state for keywords and user_handles and hashtags
             st.session_state["keywords"] = []
             st.session_state["user_handles"] = []
             st.session_state["hashtags"] = []
             st.session_state["show_query_preview"] = False
+            st.session_state["preview_rows_mode"] = "less"
             st.rerun()
         # --- Export & Templates Panel ---
         st.divider()
-        render_export_templates_panel(filter_state)
+        render_export_templates_panel(filter_state, sample_posts)
 
     st.divider()
     render_query_preview_panel(
-        filter_state, show=st.session_state["show_query_preview"]
+        filter_state,
+        show=st.session_state["show_query_preview"],
+        sample_posts=sample_posts,
     )
 
     # Visualization Quick-Look panel: always show and update live with filter changes
     st.divider()
-    sample_posts = get_sample_posts()
-    render_visualization_quicklook_panel(filter_state.filters, sample_posts)
+    if st.session_state["show_query_preview"]:
+        # Filter data for visualization (up to max_results)
+        filtered_for_viz = filter_and_preview_sample_data(
+            filter_state.filters, sample_posts, preview=False
+        )
+        render_visualization_quicklook_panel(filter_state.filters, filtered_for_viz)
 
 
 if __name__ == "__main__":
