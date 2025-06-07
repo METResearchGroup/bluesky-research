@@ -213,8 +213,6 @@ Estimated: 2–3 hrs each; intended to be tracked individually in an issue track
     - Display the .head() of the dataframe in "df". Also print out in grey text italics the number of total rows in df, something like "Found <XYZ> total results".
     - For each of the visuals in "visuals", load the asset picture and display it.
 
-  - 
-
 - [#008] Integrate OpenAI API for semantic understanding
   - Call LLM with prompt + formatted tabular data
   - Capture output, retry on error once, return JSON/text
