@@ -22,37 +22,48 @@ This document tracks daily progress on the Streamlit Data Access App Demo as def
   - [x] Use Streamlit's `st.altair_chart` with sample time series
   - [x] Reacts to date‑range filter
 
-- [ ] [#004] Export & Templates Panel (3 hrs)
-  - [ ] Show estimated record count & data footprint (hard‑coded logic)
-  - [ ] Export button triggers download of sample CSV/Parquet
-  - [ ] Saved‑query dropdown loads predefined filter sets
-  - [ ] Template selection applies filters; Export downloads file
+- [x] [#004] Export & Templates Panel (3 hrs)
+  - [x] Export button triggers download of sample CSV/Parquet. Call the file
+  something like "results_{timestamp}.{csv/parquet}".
+  - [x] Export downloads file
 
-### Static Assets & Data
-- [ ] [#005] Prepare Sample CSV/Parquet Files (2 hrs)
-  - [ ] Create 3 sample files: `posts.csv`, `users.csv`, `engagement.csv`
-  - [ ] Ensure variety of valence, toxicity, slant, timestamps
-  - [ ] Files load into demo and power preview/export
+### Create example content
+- [ ] [#005] Create example queries.
+  - [ ] Create an "Example queries" section above "Active filters".
+  - [ ] This new section is a dropdown with several buttons. Each button corresponds
+  to an example query. See the PRD for example queries. Use 5 queries that can
+  be fulfilled with the query parameters. Verify that they can be fulfilled
+  with the query parameters.
+  - [ ] If a user clicks one of these example queries, the filters are replaced
+  with those parameters. The elements in the "Filter Builder Panel" are replaced
+  with those parameters, which should also be reflected in the "Active filters'
+  as well.
+  - [ ] Create unit tests to verify this functionality.
 
-- [ ] [#006] JSON Schema for Saved Queries (1 hr)
-  - [ ] Define 3 templates (e.g. toxic‑posts, cohort‑engagement, topic‑time)
-  - [ ] Frontend can parse and apply template filters
+- [ ] [#006] Extra Usability Features & Final Polish
+  - **Immediate Impact**
+    - [ ] Multiply sample data by 1,000 for demo (scaling)
+    - [ ] Show progress bar or spinner when filtering/exporting large datasets
+    - [ ] Lazy loading in preview tables (show first N rows, "Show more")
+    - [ ] Export feedback: toast/message for export started/completed
+    - [ ] Sticky/fixed export button or floating action button
+    - [ ] Clear state feedback ("No filters selected. Showing all data.")
+    - [ ] Filter summary sentence above preview
+    - [ ] "Reset All" button to clear all filters
+    - [ ] Keyboard shortcuts: Enter to submit, Esc to clear filters
+    - [ ] Tooltips for all filter controls
+    - [ ] Collapsible "Getting Started"/help section at top
+    - [ ] Friendly error message and suggestions if no results
+    - [ ] Export preview/summary before download (record count, size, format)
+    - [ ] Add a "Learn More" section. For this, have two cases, (1) something like "Can't find the data you're looking for? Contact us" (underlining "Contact us", we'll eventually connect this to a hyperlink but not right now), and (2) "Interested in working with us? Reach out!" (similarly, underlining "Reach out!").
 
-### Integration & Polish
-- [ ] [#007] Wire up Streamlit Layout & Navigation (4 hrs)
-  - [ ] Combine panels into cohesive layout: sidebar vs main vs bottom
-  - [ ] Include app title, description, help tooltips
-  - [ ] Navigable demo with clear labels
-
-- [ ] [#008] User Onboarding & Tooltips (2 hrs)
-  - [ ] Add contextual tooltips for each filter group
-  - [ ] Include a "Getting Started" collapsible help pane
-  - [ ] Tooltips appear on hover or click
-
-- [ ] [#009] Documentation & README (2 hrs)
-  - [ ] Write usage guide, sample queries, and file naming convention
-  - [ ] Instructions for running `streamlit run app.py`
-  - [ ] New user can launch demo without support
+  - **Nice-to-Have**
+    - [ ] Allow user to select columns for export (checkboxes)
+    - [ ] Copy query/filter state to clipboard (JSON or readable string)
+  - **Visual Polish**
+    - [ ] Consistent spacing and alignment across all panels
+    - [ ] Responsive layout for different screen sizes
+    - [ ] High-contrast mode and color/contrast accessibility
 
 ## 📝 Progress Notes
 
@@ -73,6 +84,15 @@ This document tracks daily progress on the Streamlit Data Access App Demo as def
   - Chart and logic are robust to new sample data (100 posts), and all tests pass.
   - All acceptance criteria for #003 are met.
 - Next: Begin Export & Templates Panel (#004)
+
+### Day 2 (2025-06-08)
+- [#004] Export & Templates Panel fully implemented, tested, and complete.
+  - Export panel now allows CSV/Parquet export after query submission only.
+  - Export button is only enabled after submitting a query, with clear UI feedback.
+  - All export logic is robust, user-friendly, and fully tested.
+  - UI is clean, focused, and matches all requirements.
+  - All tests for export functionality pass.
+  - #004 is fully complete and checked in the checklist.
 
 ## 📊 Status Summary
 - Overall Progress: 3/9 tasks complete (33%)

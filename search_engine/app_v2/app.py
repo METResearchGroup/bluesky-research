@@ -11,6 +11,9 @@ from search_engine.app_v2.components.query_preview_panel import (
 from search_engine.app_v2.components.visualization_quicklook_panel import (
     render_visualization_quicklook_panel,
 )
+from search_engine.app_v2.components.export_templates_panel import (
+    render_export_templates_panel,
+)
 from search_engine.app_v2.generate_sample_data import get_sample_posts
 
 
@@ -65,6 +68,9 @@ def main() -> None:
             st.session_state["hashtags"] = []
             st.session_state["show_query_preview"] = False
             st.rerun()
+        # --- Export & Templates Panel ---
+        st.divider()
+        render_export_templates_panel(filter_state)
 
     st.divider()
     render_query_preview_panel(
