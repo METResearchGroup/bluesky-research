@@ -1,6 +1,8 @@
 import pytest
 import streamlit as st
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
+from search_engine.app_v2.components.sna_metric_summary_panel import render_sna_metric_summary_panel
+import networkx as nx
 
 # Note: These tests are for TDD Red Phase. The SNA tab and its components do not yet exist.
 # All tests are expected to fail until the corresponding implementation is provided.
@@ -63,14 +65,39 @@ class TestSnaMetricSummaryPanel:
     def test_metrics_display(self):
         """
         Should display top 5 central nodes, community count, and assortativity for the current graph snapshot.
+        This test expects the Metric Summary Panel to render these metrics in the UI, using either hard-coded or sample data.
         """
-        assert False
+        state = {}
+        G = nx.Graph()
+        G.add_nodes_from(["A", "B", "C", "D", "E", "F"])
+        G.add_edges_from([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "A")])
+        with patch("streamlit.subheader") as mock_subheader, \
+             patch("streamlit.markdown") as mock_markdown:
+            render_sna_metric_summary_panel(state, G)
+            # Check that the subheader and key metrics are rendered
+            mock_subheader.assert_called_with("Metric Summary Panel")
+            markdown_calls = [call[0][0] for call in mock_markdown.call_args_list]
+            assert any("Community Count" in c for c in markdown_calls)
+            assert any("Assortativity" in c for c in markdown_calls)
+            assert any("Top 5 Central Nodes" in c for c in markdown_calls)
 
     def test_metrics_refresh_on_filter_change(self):
         """
         Should refresh metrics when filters or parameters are changed.
+        This test expects the Metric Summary Panel to update its displayed metrics when the sidebar controls are changed.
         """
-        assert False
+        state1 = {"centrality_metric": "Degree"}
+        state2 = {"centrality_metric": "Betweenness"}
+        G1 = nx.cycle_graph(6)
+        G2 = nx.path_graph(6)
+        with patch("streamlit.markdown") as mock_markdown1:
+            render_sna_metric_summary_panel(state1, G1)
+            calls1 = [call[0][0] for call in mock_markdown1.call_args_list]
+        with patch("streamlit.markdown") as mock_markdown2:
+            render_sna_metric_summary_panel(state2, G2)
+            calls2 = [call[0][0] for call in mock_markdown2.call_args_list]
+        # The metrics output should differ between the two calls
+        assert calls1 != calls2
 
 class TestSnaExportSimulation:
     """

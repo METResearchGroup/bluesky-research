@@ -25,6 +25,10 @@ from search_engine.app_v2.components.sna_sidebar_controls_panel import (
 )
 from search_engine.app_v2.components.sna_mini_graph_panel import (
     render_sna_mini_graph_panel,
+    generate_clustered_broker_graph,
+)
+from search_engine.app_v2.components.sna_metric_summary_panel import (
+    render_sna_metric_summary_panel,
 )
 
 
@@ -166,8 +170,10 @@ def main() -> None:
             render_sna_sidebar_controls_panel(state)
         with sna_right:
             st.markdown("**Selected Filters Panel (placeholder)**")
-            st.markdown("Future: Mini-Graph Preview, Metric Summary, Export, etc.")
+            # Generate the sample graph (same as mini-graph)
+            G = generate_clustered_broker_graph()
             render_sna_mini_graph_panel(state)
+            render_sna_metric_summary_panel(state, G)
 
 
 if __name__ == "__main__":
