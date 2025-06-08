@@ -85,67 +85,74 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-    filter_state = get_filter_state()
-    if "show_query_preview" not in st.session_state:
-        st.session_state["show_query_preview"] = False
+    # Add two tabs: 'Query data' and 'Perform social network analysis'
+    tab1, tab2 = st.tabs(["Query data", "Perform social network analysis"])
 
-    # Load sample data with correct scaling once
-    demo_mode = os.environ.get("DEMO_MODE", True)
-    scale = 1000 if demo_mode else 1
-    sample_posts = get_sample_posts(scale=scale)
-
-    # Two-column layout: filters left (2/3), active filters + actions right (1/3)
-    left, right = st.columns([2, 1])
-
-    with left:
-        render_filter_builder_panel(filter_state)
-
-    with right:
-        render_example_queries_panel(filter_state)
-        render_filter_chips_panel(filter_state)
-        # Copy query/filter state to clipboard (Nice-to-Have)
-        if st.button("Copy filter state as JSON", key="copy_filter_state_btn"):
-            st.toast("Filter state JSON shown below. Copy manually.")
-        st.json(filter_state.filters, expanded=False)
-        st.divider()
-        # Action buttons
-        submit = st.button("Submit query", key="submit_filters")
-        clear = st.button("Clear All Filters", key="clear_all_filters")
-        reset = st.button("Reset All", key="reset_all_filters")
-        if submit:
-            from components.filter_builder_panel import build_human_readable_summary
-
-            summary = build_human_readable_summary(filter_state)
-            st.success(summary)
-            st.session_state["show_query_preview"] = True
-        if clear or reset:
-            filter_state.clear_filters()
-            # Also clear session state for keywords and user_handles and hashtags
-            st.session_state["keywords"] = []
-            st.session_state["user_handles"] = []
-            st.session_state["hashtags"] = []
+    with tab1:
+        filter_state = get_filter_state()
+        if "show_query_preview" not in st.session_state:
             st.session_state["show_query_preview"] = False
-            st.session_state["preview_rows_mode"] = "less"
-            st.rerun()
-        # --- Export & Templates Panel ---
+
+        # Load sample data with correct scaling once
+        demo_mode = os.environ.get("DEMO_MODE", True)
+        scale = 1000 if demo_mode else 1
+        sample_posts = get_sample_posts(scale=scale)
+
+        # Two-column layout: filters left (2/3), active filters + actions right (1/3)
+        left, right = st.columns([2, 1])
+
+        with left:
+            render_filter_builder_panel(filter_state)
+
+        with right:
+            render_example_queries_panel(filter_state)
+            render_filter_chips_panel(filter_state)
+            # Copy query/filter state to clipboard (Nice-to-Have)
+            if st.button("Copy filter state as JSON", key="copy_filter_state_btn"):
+                st.toast("Filter state JSON shown below. Copy manually.")
+            st.json(filter_state.filters, expanded=False)
+            st.divider()
+            # Action buttons
+            submit = st.button("Submit query", key="submit_filters")
+            clear = st.button("Clear All Filters", key="clear_all_filters")
+            reset = st.button("Reset All", key="reset_all_filters")
+            if submit:
+                from components.filter_builder_panel import build_human_readable_summary
+
+                summary = build_human_readable_summary(filter_state)
+                st.success(summary)
+                st.session_state["show_query_preview"] = True
+            if clear or reset:
+                filter_state.clear_filters()
+                # Also clear session state for keywords and user_handles and hashtags
+                st.session_state["keywords"] = []
+                st.session_state["user_handles"] = []
+                st.session_state["hashtags"] = []
+                st.session_state["show_query_preview"] = False
+                st.session_state["preview_rows_mode"] = "less"
+                st.rerun()
+            # --- Export & Templates Panel ---
+            st.divider()
+            render_export_templates_panel(filter_state, sample_posts)
+
         st.divider()
-        render_export_templates_panel(filter_state, sample_posts)
-
-    st.divider()
-    render_query_preview_panel(
-        filter_state,
-        show=st.session_state["show_query_preview"],
-        sample_posts=sample_posts,
-    )
-
-    # Visualization Quick-Look panel: always show and update live with filter changes
-    st.divider()
-    if st.session_state["show_query_preview"]:
-        # Filter data for visualization (up to max_results)
-        filtered_for_viz = filter_and_preview_sample_data(
-            filter_state.filters, sample_posts, preview=False
+        render_query_preview_panel(
+            filter_state,
+            show=st.session_state["show_query_preview"],
+            sample_posts=sample_posts,
         )
-        render_visualization_quicklook_panel(filter_state.filters, filtered_for_viz)
+
+        # Visualization Quick-Look panel: always show and update live with filter changes
+        st.divider()
+        if st.session_state["show_query_preview"]:
+            # Filter data for visualization (up to max_results)
+            filtered_for_viz = filter_and_preview_sample_data(
+                filter_state.filters, sample_posts, preview=False
+            )
+            render_visualization_quicklook_panel(filter_state.filters, filtered_for_viz)
+
+    with tab2:
+        st.markdown("[Pending construction]")
 
 
 if __name__ == "__main__":
