@@ -194,4 +194,82 @@ class TestSnaTabIntegration:
         """
         Should render onboarding/help section and tooltips for SNA concepts.
         """
-        assert False 
+        assert False
+
+class TestSnaUnifiedSampleData:
+    """
+    Tests for unified sample data usage across all SNA components (task #007).
+    Ensures all components use the same sample data loader and that all required fields are present.
+    """
+    def test_sample_data_loader_fields(self):
+        """
+        Should load node and edge data with all required fields for all SNA components.
+        """
+        from search_engine.app_v2 import generate_sample_network_data
+        node_df, edge_df = generate_sample_network_data.load_sample_network_data()
+        # Required node fields
+        required_node_fields = {"id", "date", "valence", "toxic", "political", "slant"}
+        # Required edge fields
+        required_edge_fields = {"source", "target", "type", "date"}
+        assert set(node_df.columns) >= required_node_fields
+        assert set(edge_df.columns) >= required_edge_fields
+        assert len(node_df) > 0
+        assert len(edge_df) > 0
+
+    def test_all_components_use_unified_data(self):
+        """
+        Should ensure all SNA components (mini-graph, metrics, export, time slider) use the unified sample data loader and reflect the same filtered data.
+        """
+        from search_engine.app_v2 import generate_sample_network_data
+        from search_engine.app_v2.components import (
+            sna_mini_graph_panel,
+            sna_metric_summary_panel,
+            sna_export_simulation_panel,
+            sna_time_slider_panel,
+        )
+        import datetime
+        node_df, edge_df = generate_sample_network_data.load_sample_network_data()
+        # Simulate a filter state (e.g., date range and edge type)
+        state = {
+            "date_range": (datetime.date(2024, 6, 2), datetime.date(2024, 6, 3)),
+            "edge_type": "retweet",
+        }
+        # All components should construct their graph from the same filtered data
+        # (This will fail until components are refactored to use the loader)
+        def filter_data(node_df, edge_df, state):
+            # Filter by date range and edge type
+            start, end = state["date_range"]
+            edge_mask = (
+                (edge_df["date"] >= str(start)) &
+                (edge_df["date"] <= str(end)) &
+                (edge_df["type"] == state["edge_type"])
+            )
+            filtered_edges = edge_df[edge_mask]
+            node_ids = set(filtered_edges["source"]).union(filtered_edges["target"])
+            filtered_nodes = node_df[node_df["id"].isin(node_ids)]
+            return filtered_nodes, filtered_edges
+        filtered_nodes, filtered_edges = filter_data(node_df, edge_df, state)
+        # Build reference graph
+        import networkx as nx
+        G_ref = nx.from_pandas_edgelist(filtered_edges, "source", "target")
+        G_ref.add_nodes_from(filtered_nodes["id"])  # Ensure all nodes present
+        # Mini-graph panel should use this graph
+        with patch("streamlit.subheader"), patch("streamlit.components.v1.html"), patch("streamlit.caption") as mock_caption:
+            sna_mini_graph_panel.render_sna_mini_graph_panel(state)
+            # Should display correct node/edge counts
+            # (This will fail until the panel uses the unified data)
+            mock_caption.assert_any_call(f"Nodes: {G_ref.number_of_nodes()}, Edges: {G_ref.number_of_edges()}")
+        # Metric summary panel should use the same graph
+        with patch("streamlit.subheader"), patch("streamlit.markdown") as mock_markdown:
+            sna_metric_summary_panel.render_sna_metric_summary_panel(state, G_ref)
+            # Should display metrics for this graph
+            markdown_calls = [call[0][0] for call in mock_markdown.call_args_list]
+            assert any("Community Count" in c for c in markdown_calls)
+        # Export simulation panel should export data from this graph
+        with patch("streamlit.subheader"), patch("streamlit.button", return_value=True), patch("streamlit.download_button") as mock_download:
+            sna_export_simulation_panel.render_sna_export_simulation_panel(state, G_ref)
+            assert mock_download.called
+        # Time slider panel should update state and trigger graph/metrics update
+        with patch("streamlit.slider", return_value=state["date_range"]), patch("search_engine.app_v2.components.sna_time_slider_panel.update_graph_and_metrics") as mock_update:
+            sna_time_slider_panel.render_sna_time_slider_panel(state)
+            mock_update.assert_called_with(state, state["date_range"]) 

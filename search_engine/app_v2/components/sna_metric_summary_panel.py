@@ -5,21 +5,24 @@ import networkx as nx
 
 def compute_sample_metrics(G: nx.Graph) -> Dict[str, Any]:
     """
-    Compute static sample metrics for the given graph: top 5 central nodes (by degree), community count, and assortativity.
+    Compute metrics for the given graph: top 5 central nodes (by degree), community count, and assortativity.
     Args:
         G (nx.Graph): The networkx graph to analyze.
     Returns:
         Dict[str, Any]: Dictionary with 'top_central_nodes', 'community_count', and 'assortativity'.
     """
-    # Top 5 central nodes by degree
+    if G.number_of_nodes() == 0:
+        return {
+            "top_central_nodes": [],
+            "community_count": 0,
+            "assortativity": float("nan"),
+        }
     degree_centrality = nx.degree_centrality(G)
     top_central_nodes = sorted(
         degree_centrality.items(), key=lambda x: x[1], reverse=True
     )[:5]
-    # Community count (simulate with connected components)
     communities = list(nx.connected_components(G))
     community_count = len(communities)
-    # Assortativity (simulate with degree assortativity)
     assortativity = nx.degree_assortativity_coefficient(G)
     return {
         "top_central_nodes": top_central_nodes,

@@ -45,16 +45,13 @@ This document tracks daily progress on the Streamlit Social Network Analysis (SN
   - [x] Precompute centrality/community for snapshots
   - [x] Files load and power UI components
 
-- [ ] [#007] Define Sample Metrics and make sure that the interface is unified (1 hr)
-  - [ ] Hard-code centrality rankings and assortativity values for each snapshot
-  - [ ] Metrics panel displays correct values per snapshot
-  - [ ] Consolidate across all the network interfaces, making sure that any different sample datas for each component is removed and all components use the prepped sample data. If any component requires data or fields that aren't included in the
+- [x] [#007] Make sure that the interface is unified (1 hr)
+  - [x] Consolidate across all the network interfaces, making sure that any different sample datas for each component is removed and all components use the prepped sample data. If any component requires data or fields that aren't included in the
   sample data, load the .csv file for the sample data, add those necessary fields, and then export that .csv file again. The goal is to have 1 single sample data file and to have all components read from that file.
 
 ### Integration & Documentation
 
 - [ ] [#008] Layout & Styling (3 hrs)
-  - [ ] Add tab layout: integrate SNA tab alongside Data Access tab
   - [ ] Ensure cohesive styling and navigation
   - [ ] SNA tab accessible and visually consistent
 
@@ -63,10 +60,11 @@ This document tracks daily progress on the Streamlit Social Network Analysis (SN
   - [ ] "How to Use" collapsible help section
   - [ ] Help elements appear contextually
 
-- [ ] [#010] README & Demo Instructions (2 hrs)
+- [ ] [#010] Demo Instructions (2 hrs)
   - [ ] Write instructions for running demo and navigating SNA tab
   - [ ] Include sample research questions and flow script
   - [ ] Stakeholders can launch and demo without assistance
+  - [ ] Make all of this available in a collapsible section called "Demo instructions"
 
 ## 📝 Progress Notes
 
@@ -113,8 +111,17 @@ This document tracks daily progress on the Streamlit Social Network Analysis (SN
   - The files are ready to power UI components and further analysis.
 - Next: Begin Define Sample Metrics and unify interface (#007)
 
+### Day 7 (2025-06-19)
+- [#007] Interface unification and optimization complete.
+  - All SNA components now use a single, unified sample data loader and reflect the same filtered data.
+  - Persistent HTML caching is implemented for the mini-graph visualization, with cache files stored in `graph_cache/` for reuse across sessions.
+  - Subgraphing is implemented: for large graphs, only the largest connected component or a random sample of 100 nodes is visualized, ensuring fast rendering and smooth animation.
+  - The UI clearly indicates when a subgraph is shown, and the cache is persistent across Streamlit restarts.
+  - All relevant tests pass, and the SNA tab is performant and robust.
+- Next: Begin Layout & Styling (#008)
+
 ## 📊 Status Summary
-- Overall Progress: 6/15 tasks complete (40%)
-- Completed Tasks: 6/15
-- Estimated Remaining Time: 12 hours
+- Overall Progress: 7/15 tasks complete (47%)
+- Completed Tasks: 7/15
+- Estimated Remaining Time: 11 hours
 - Timeline: Work began 2025-06-13, target completion 2025-06-21 

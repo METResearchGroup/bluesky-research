@@ -25,7 +25,7 @@ from search_engine.app_v2.components.sna_sidebar_controls_panel import (
 )
 from search_engine.app_v2.components.sna_mini_graph_panel import (
     render_sna_mini_graph_panel,
-    generate_clustered_broker_graph,
+    filter_sample_graph,
 )
 from search_engine.app_v2.components.sna_metric_summary_panel import (
     render_sna_metric_summary_panel,
@@ -170,13 +170,15 @@ def main() -> None:
     with tab2:
         # SNA Tab: Two-column layout (left: controls, right: selected filters/panels)
         sna_left, sna_right = st.columns([2, 1])
+        # Use session state for SNA state
+        if "sna_state" not in st.session_state:
+            st.session_state["sna_state"] = {}
+        state = st.session_state["sna_state"]
         with sna_left:
-            # Placeholder state object for now
-            state = {}
             render_sna_sidebar_controls_panel(state)
         with sna_right:
             render_sna_time_slider_panel(state)
-            G = generate_clustered_broker_graph()
+            G = filter_sample_graph(state)
             render_sna_mini_graph_panel(state)
             render_sna_metric_summary_panel(state, G)
             render_sna_export_simulation_panel(state, G)
