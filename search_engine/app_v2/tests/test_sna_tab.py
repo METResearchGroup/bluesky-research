@@ -37,12 +37,21 @@ class TestSnaMiniGraphPreview:
     def test_graph_renders_with_sample_data(self):
         """
         Should render a 50-node sample graph using networkx and a Streamlit visualization component.
+        The graph should be visible in the UI and have the correct number of nodes and edges.
         """
         assert False
 
     def test_graph_updates_on_control_change(self):
         """
-        Should update the graph visualization when sidebar controls are changed.
+        Should update the graph visualization when sidebar controls are changed (e.g., edge type, hop depth).
+        Changing a control should result in a visibly different graph (e.g., different edges or layout).
+        """
+        assert False
+
+    def test_graph_rendering_logic_unit(self):
+        """
+        Should correctly generate a networkx graph object with the expected structure (50 nodes, sample edges) given a set of filter parameters.
+        This is a pure logic test, not a UI test.
         """
         assert False
 

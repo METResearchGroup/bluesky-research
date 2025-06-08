@@ -23,6 +23,9 @@ from search_engine.app_v2.sample_data_preview import filter_and_preview_sample_d
 from search_engine.app_v2.components.sna_sidebar_controls_panel import (
     render_sna_sidebar_controls_panel,
 )
+from search_engine.app_v2.components.sna_mini_graph_panel import (
+    render_sna_mini_graph_panel,
+)
 
 
 # --- Streamlit UI for Filter Builder Panel ---
@@ -164,6 +167,7 @@ def main() -> None:
         with sna_right:
             st.markdown("**Selected Filters Panel (placeholder)**")
             st.markdown("Future: Mini-Graph Preview, Metric Summary, Export, etc.")
+            render_sna_mini_graph_panel(state)
 
 
 if __name__ == "__main__":

@@ -15,11 +15,11 @@ This document tracks daily progress on the Streamlit Social Network Analysis (SN
   - [x] Split page: left = filters, right = chosen filters (deselectable)
   - [x] "Submit" button displays chosen parameters as a string
 
-- [ ] [#002] Mini-Graph Preview (4 hrs)
-  - [ ] Integrate networkx to render 50-node sample graph
-  - [ ] Use Streamlit component (e.g., st.graphviz_chart or pyvis) for visualization
-  - [ ] Graph updates when controls change
-  - [ ] Unit tests for graph rendering and update logic
+- [x] [#002] Mini-Graph Preview (4 hrs)
+  - [x] Integrate networkx to render 50-node sample graph
+  - [x] Use Streamlit component (pyvis) for visualization
+  - [x] Graph updates when controls change
+  - [x] Unit tests for graph rendering and update logic
 
 - [ ] [#003] Metric Summary Panel (3 hrs)
   - [ ] Display computed metrics: top 5 central nodes, community count, assortativity
@@ -44,9 +44,11 @@ This document tracks daily progress on the Streamlit Social Network Analysis (SN
   - [ ] Precompute centrality/community for snapshots
   - [ ] Files load and power UI components
 
-- [ ] [#SNA-007] Define Sample Metrics (1 hr)
+- [ ] [#SNA-007] Define Sample Metrics and make sure that the interface is unified (1 hr)
   - [ ] Hard-code centrality rankings and assortativity values for each snapshot
   - [ ] Metrics panel displays correct values per snapshot
+  - [ ] Consolidate across all the network interfaces, making sure that any different sample datas for each component is removed and all components use the prepped sample data. If any component requires data or fields that aren't included in the
+  sample data, load the .csv file for the sample data, add those necessary fields, and then 
 
 ### Integration & Documentation
 - [ ] [#SNA-008] Layout & Styling (3 hrs)
@@ -76,8 +78,19 @@ This document tracks daily progress on the Streamlit Social Network Analysis (SN
   - All acceptance criteria for #001 are met.
 - Next: Begin Mini-Graph Preview (#002)
 
+### Day 2 (2025-06-14)
+- [#002] Mini-Graph Preview fully implemented and tested.
+  - The mini-graph now uses pyvis for interactive, browser-based visualization.
+  - The network structure consists of two dense clusters with 4–5 broker nodes connecting them, visually representing high homophily and broker roles.
+  - Node labels are hidden by default; user names appear as tooltips on hover for clarity and compactness.
+  - The visualization is visually appealing, compact, and fits well in the UI.
+  - All error handling and integration issues (JSON options, pyvis compatibility) have been resolved.
+  - Unit tests for graph rendering and update logic are passing.
+  - All acceptance criteria for #002 are met.
+- Next: Begin Metric Summary Panel (#003)
+
 ## 📊 Status Summary
-- Overall Progress: 1/15 tasks complete (7%)
-- Completed Tasks: 1/15
-- Estimated Remaining Time: 25 hours
+- Overall Progress: 2/15 tasks complete (13%)
+- Completed Tasks: 2/15
+- Estimated Remaining Time: 22 hours
 - Timeline: Work began 2025-06-13, target completion 2025-06-21 
