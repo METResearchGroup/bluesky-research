@@ -33,6 +33,9 @@ from search_engine.app_v2.components.sna_metric_summary_panel import (
 from search_engine.app_v2.components.sna_export_simulation_panel import (
     render_sna_export_simulation_panel,
 )
+from search_engine.app_v2.components.sna_time_slider_panel import (
+    render_sna_time_slider_panel,
+)
 
 
 # --- Streamlit UI for Filter Builder Panel ---
@@ -172,8 +175,7 @@ def main() -> None:
             state = {}
             render_sna_sidebar_controls_panel(state)
         with sna_right:
-            st.markdown("**Selected Filters Panel (placeholder)**")
-            # Generate the sample graph (same as mini-graph)
+            render_sna_time_slider_panel(state)
             G = generate_clustered_broker_graph()
             render_sna_mini_graph_panel(state)
             render_sna_metric_summary_panel(state, G)

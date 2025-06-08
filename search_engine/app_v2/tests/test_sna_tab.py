@@ -147,7 +147,14 @@ class TestSnaTimeSliderAnimation:
         """
         Should render a date range slider and update graph/metrics when the slider is moved.
         """
-        assert False
+        from search_engine.app_v2.components import sna_time_slider_panel
+        state = {}
+        with patch("streamlit.slider") as mock_slider, \
+             patch("search_engine.app_v2.components.sna_time_slider_panel.update_graph_and_metrics") as mock_update:
+            mock_slider.return_value = ("2024-06-01", "2024-06-05")
+            sna_time_slider_panel.render_sna_time_slider_panel(state)
+            mock_slider.assert_called()
+            mock_update.assert_called_with(state, ("2024-06-01", "2024-06-05"))
 
 class TestSnaTabIntegration:
     """
