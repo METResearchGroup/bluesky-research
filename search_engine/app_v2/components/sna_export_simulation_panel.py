@@ -56,6 +56,9 @@ def render_sna_export_simulation_panel(state: Dict[str, Any], G: nx.Graph) -> No
         G (nx.Graph): The current networkx graph for which to export data.
     """
     st.subheader("Export Simulation")
+    st.caption(
+        "Download the current network as an edge list (CSV), node metrics (CSV), or full network (GEXF) for offline analysis. Each file contains data for the current graph snapshot."
+    )
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("Download Edge List (CSV)"):

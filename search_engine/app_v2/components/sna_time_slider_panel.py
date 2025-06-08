@@ -21,6 +21,9 @@ def render_sna_time_slider_panel(state: Dict[str, Any]) -> None:
         state (Dict[str, Any]): The current filter state for the SNA tab.
     """
     st.subheader("Time Slider Animation")
+    st.caption(
+        "Use the date range slider to select a time window. Click 'Play' to animate the network over time and observe changes in structure and metrics."
+    )
     start_date = datetime.date(2024, 6, 1)
     end_date = datetime.date(2024, 6, 14)
     # Animation state management

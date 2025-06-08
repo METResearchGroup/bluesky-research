@@ -42,7 +42,16 @@ def render_sna_metric_summary_panel(state: Dict[str, Any], G: nx.Graph) -> None:
     st.subheader("Metric Summary Panel")
     metrics = compute_sample_metrics(G)
     st.markdown(f"**Community Count:** {metrics['community_count']}")
+    st.caption(
+        "Community Count: Number of distinct groups or clusters in the network, as detected by the selected community algorithm."
+    )
     st.markdown(f"**Assortativity:** {metrics['assortativity']:.2f}")
+    st.caption(
+        "Assortativity: Measures the tendency of nodes to connect to similar nodes (e.g., high value = homophily, low value = mixing). Range: -1 to 1."
+    )
     st.markdown("**Top 5 Central Nodes (by degree):**")
+    st.caption(
+        "Centrality: Nodes with high centrality are important for information flow or influence. Degree = most connections."
+    )
     for node, centrality in metrics["top_central_nodes"]:
         st.markdown(f"- {node} (centrality: {centrality:.2f})")

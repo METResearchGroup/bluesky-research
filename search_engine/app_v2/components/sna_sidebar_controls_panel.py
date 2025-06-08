@@ -15,20 +15,28 @@ def render_sna_sidebar_controls_panel(state: Dict[str, Any]) -> None:
         "Edge Type",
         options=["retweet", "reply", "mention", "follow"],
         key="sna_edge_type",
+        help="Type of connection between users (e.g., retweet, reply, mention, follow).",
     )
     community_algo = st.selectbox(
         "Community Algorithm",
         options=["Louvain", "Label Propagation", "Girvan-Newman"],
         key="sna_community_algo",
+        help="Algorithm for detecting communities/groups in the network.",
     )
     centrality_metric = st.selectbox(
         "Centrality Metric",
         options=["Degree", "Betweenness", "Closeness", "Eigenvector"],
         key="sna_centrality_metric",
+        help="Metric for ranking node importance (e.g., Degree = most connections, Betweenness = most bridging paths).",
     )
     # Sliders
     hop_depth = st.slider(
-        "Hop Depth", min_value=1, max_value=5, value=2, key="sna_hop_depth"
+        "Hop Depth",
+        min_value=1,
+        max_value=5,
+        value=2,
+        key="sna_hop_depth",
+        help="How many steps away from a node to include in the subgraph.",
     )
     time_range = st.slider(
         "Time Range (days)",
@@ -36,20 +44,39 @@ def render_sna_sidebar_controls_panel(state: Dict[str, Any]) -> None:
         max_value=14,
         value=(1, 14),
         key="sna_time_range",
+        help="Select the range of days to include in the analysis.",
     )
     # Checkbox groups
     st.subheader("Content Filters")
-    toxic = st.checkbox("Toxic", key="sna_toxic")
-    not_toxic = st.checkbox("Not Toxic", key="sna_not_toxic")
-    valence = st.multiselect(
-        "Valence", options=["positive", "neutral", "negative"], key="sna_valence"
+    toxic = st.checkbox(
+        "Toxic", key="sna_toxic", help="Include posts/nodes marked as toxic."
     )
-    political = st.checkbox("Political", key="sna_political")
-    not_political = st.checkbox("Not Political", key="sna_not_political")
+    not_toxic = st.checkbox(
+        "Not Toxic",
+        key="sna_not_toxic",
+        help="Include posts/nodes not marked as toxic.",
+    )
+    valence = st.multiselect(
+        "Valence",
+        options=["positive", "neutral", "negative"],
+        key="sna_valence",
+        help="Emotional tone of content: positive, neutral, or negative.",
+    )
+    political = st.checkbox(
+        "Political",
+        key="sna_political",
+        help="Include posts/nodes marked as political.",
+    )
+    not_political = st.checkbox(
+        "Not Political",
+        key="sna_not_political",
+        help="Include posts/nodes not marked as political.",
+    )
     slant = st.multiselect(
         "Political Slant",
         options=["left", "center", "right", "unclear"],
         key="sna_slant",
+        help="Political orientation: left, center, right, or unclear. Only relevant if 'Political' is selected.",
     )
 
     # Store selections in state

@@ -1,5 +1,5 @@
 import streamlit as st
-from filter_state import FilterState
+from search_engine.app_v2.filter_state import FilterState
 import datetime
 from search_engine.app_v2.generate_sample_data import get_sample_posts
 

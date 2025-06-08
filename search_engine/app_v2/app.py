@@ -168,9 +168,49 @@ def main() -> None:
             render_visualization_quicklook_panel(filter_state.filters, filtered_for_viz)
 
     with tab2:
-        # SNA Tab: Two-column layout (left: controls, right: selected filters/panels)
-        sna_left, sna_right = st.columns([2, 1])
-        # Use session state for SNA state
+        # SNA Tab: Add onboarding/help and demo instructions at the top
+        st.title("Social Network Analysis (SNA) Tab")
+        st.caption(
+            "Analyze social network structure, polarization, and key actors using interactive controls and visualizations."
+        )
+        # --- Onboarding/How to Use Section ---
+        with st.expander("How to Use (SNA Tab)", expanded=False):
+            st.markdown("""
+            **Welcome to the Social Network Analysis (SNA) Tab!**
+
+            - **Sidebar Controls:** Use the left panel to select edge type, community algorithm, centrality metric, hop depth, time range, and content filters. Hover over any label for a tooltip explaining the concept.
+            - **Mini-Graph Preview:** See a live preview of the network graph based on your filters. Node colors indicate political slant. Hover over nodes for details.
+            - **Metric Summary Panel:** View key metrics (top central nodes, community count, assortativity) for the current graph snapshot. Tooltips explain each metric.
+            - **Export Simulation:** Download the current network as CSV or GEXF for further analysis.
+            - **Time Slider Animation:** Animate the network over time using the date range slider and play button.
+            - For more details, see the 'Demo instructions' section below.
+            """)
+        # --- Demo Instructions Section ---
+        with st.expander("Demo instructions", expanded=False):
+            st.markdown("""
+            **How to Run the Demo:**
+            1. Launch the app and navigate to the 'Perform social network analysis' tab.
+            2. Use the sidebar to select filters and parameters. Try changing edge type, community algorithm, or time range.
+            3. Observe how the mini-graph, metrics, and export options update live.
+            4. Use the time slider to animate the network over different days.
+            5. Download the edge list, node metrics, or GEXF for offline analysis.
+
+            **Sample Research Questions:**
+            - Who are the most central users in the network during a given week?
+            - How do communities form and change over time?
+            - Is there evidence of polarization (e.g., left vs. right slant) in the network structure?
+            - How does toxicity or valence affect engagement and network position?
+
+            **Demo Flow Script:**
+            - Start with all filters at default. Show the full network and explain the color legend.
+            - Select 'retweet' as edge type and 'Louvain' for community detection. Show how the graph and metrics update.
+            - Use the time slider to animate the network from June 1 to June 14, highlighting changes in community structure.
+            - Apply a filter for 'Political' and 'left' slant. Show how the subgraph and metrics change.
+            - Download the edge list and node metrics to demonstrate export functionality.
+            - Reset filters and try a different centrality metric (e.g., Betweenness). Discuss the impact on top nodes.
+            """)
+        # --- SNA Tab Main Layout ---
+        sna_left, sna_right = st.columns([2, 1], gap="large")
         if "sna_state" not in st.session_state:
             st.session_state["sna_state"] = {}
         state = st.session_state["sna_state"]

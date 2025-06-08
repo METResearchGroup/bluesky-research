@@ -130,6 +130,9 @@ def render_sna_mini_graph_panel(state: Dict[str, Any]) -> None:
         state (Dict[str, Any]): The current filter state for the SNA tab.
     """
     st.subheader("Mini-Graph Preview")
+    st.caption(
+        "This interactive graph shows a sample of the network based on your filters. Node color = political slant. Hover nodes for details. Use the buttons to toggle between full graph and subgraph views."
+    )
     # Full/subgraph toggle
     if "sna_graph_mode" not in st.session_state:
         st.session_state["sna_graph_mode"] = "subgraph"
