@@ -30,6 +30,9 @@ from search_engine.app_v2.components.sna_mini_graph_panel import (
 from search_engine.app_v2.components.sna_metric_summary_panel import (
     render_sna_metric_summary_panel,
 )
+from search_engine.app_v2.components.sna_export_simulation_panel import (
+    render_sna_export_simulation_panel,
+)
 
 
 # --- Streamlit UI for Filter Builder Panel ---
@@ -174,6 +177,7 @@ def main() -> None:
             G = generate_clustered_broker_graph()
             render_sna_mini_graph_panel(state)
             render_sna_metric_summary_panel(state, G)
+            render_sna_export_simulation_panel(state, G)
 
 
 if __name__ == "__main__":

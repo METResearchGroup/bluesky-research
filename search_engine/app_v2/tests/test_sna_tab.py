@@ -108,13 +108,35 @@ class TestSnaExportSimulation:
         """
         Should render buttons for 'Download Edge List (CSV)', 'Download Node Metrics (CSV)', and 'Download GEXF'.
         """
-        assert False
+        from search_engine.app_v2.components import sna_export_simulation_panel
+        state = {}
+        G = nx.cycle_graph(6)
+        with patch("streamlit.button") as mock_button:
+            sna_export_simulation_panel.render_sna_export_simulation_panel(state, G)
+            button_calls = [call[0][0] for call in mock_button.call_args_list]
+            assert any("Download Edge List" in c for c in button_calls)
+            assert any("Download Node Metrics" in c for c in button_calls)
+            assert any("Download GEXF" in c for c in button_calls)
 
     def test_export_triggers_sample_file_download(self):
         """
         Should trigger a simulated file download with sample network data when export buttons are clicked.
         """
-        assert False
+        from search_engine.app_v2.components import sna_export_simulation_panel
+        state = {}
+        G = nx.cycle_graph(6)
+        with patch("streamlit.button", side_effect=[True, False, False]), \
+             patch("streamlit.download_button") as mock_download:
+            sna_export_simulation_panel.render_sna_export_simulation_panel(state, G)
+            assert mock_download.called
+        with patch("streamlit.button", side_effect=[False, True, False]), \
+             patch("streamlit.download_button") as mock_download:
+            sna_export_simulation_panel.render_sna_export_simulation_panel(state, G)
+            assert mock_download.called
+        with patch("streamlit.button", side_effect=[False, False, True]), \
+             patch("streamlit.download_button") as mock_download:
+            sna_export_simulation_panel.render_sna_export_simulation_panel(state, G)
+            assert mock_download.called
 
 class TestSnaTimeSliderAnimation:
     """

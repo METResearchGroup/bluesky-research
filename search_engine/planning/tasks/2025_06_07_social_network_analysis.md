@@ -26,10 +26,10 @@ This document tracks daily progress on the Streamlit Social Network Analysis (SN
   - [x] Use static sample calculations tied to sample data
   - [x] Metrics refresh on filter/parameter changes
 
-- [ ] [#004] Export Simulation (2 hrs)
-  - [ ] Buttons for "Download Edge List (CSV)", "Download Node Metrics (CSV)", "Download GEXF"
-  - [ ] Simulate file with sample network data
-  - [ ] Download triggers sample file
+- [x] [#004] Export Simulation (2 hrs)
+  - [x] Buttons for "Download Edge List (CSV)", "Download Node Metrics (CSV)", "Download GEXF"
+  - [x] Simulate file with sample network data
+  - [x] Download triggers sample file
 
 - [ ] [#005] Time Slider Animation (3 hrs)
   - [ ] Implement st.slider for date range; update graph and metrics accordingly
@@ -93,10 +93,15 @@ This document tracks daily progress on the Streamlit Social Network Analysis (SN
   - Comprehensive TDD was followed: tests were written first, confirmed to fail, then the panel was implemented and the tests now pass.
   - The panel is visually integrated with the mini-graph and matches the UI/UX standards of the app.
   - All acceptance criteria for #003 are met.
-- Next: Begin Export Simulation (#SNA-004)
+- [#004] Export Simulation fully implemented and tested.
+  - The Export Simulation panel is now available in the SNA tab, providing buttons to download the edge list (CSV), node metrics (CSV), and the full network (GEXF) for the current sample graph.
+  - Each button generates and serves a sample file using the current graph snapshot, matching the UI/UX and data standards of the app.
+  - Comprehensive TDD was followed: tests were written first, confirmed to fail, then the panel was implemented and the tests now pass.
+  - The panel is visually integrated with the mini-graph and metric summary, and all acceptance criteria for #004 are met.
+- Next: Begin Time Slider Animation (#005)
 
 ## 📊 Status Summary
-- Overall Progress: 3/15 tasks complete (20%)
-- Completed Tasks: 3/15
-- Estimated Remaining Time: 19 hours
+- Overall Progress: 4/15 tasks complete (27%)
+- Completed Tasks: 4/15
+- Estimated Remaining Time: 17 hours
 - Timeline: Work began 2025-06-13, target completion 2025-06-21 
