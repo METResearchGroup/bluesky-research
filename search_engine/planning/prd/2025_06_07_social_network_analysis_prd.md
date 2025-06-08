@@ -28,20 +28,31 @@
 
 ### UI Components
 
-* **\[#SNA-001] Sidebar Controls** (3 hrs)
+* **\[#001] Sidebar Controls** (3 hrs)
 
   * Dropdowns for Edge Type, Community Algorithm, Centrality Metric
   * Sliders for Hop Depth, Time Range
-  * Checkbox groups for content filters (toxicity, slant)
+  * Checkbox groups for content filters:
+    * toxic/not toxic
+    * valence: positive, neutral, negative
+    * political: is/is not political
+    * political slant: left/center/right/unclear (only applicable to cases where political is True).
   * Acceptance: Controls change preview and metrics
+  * Create unit tests where appropriate, in order to verify functionality.
+  * Split the page into two halves, the left being the filters and the right
+  displaying the list of filters that have been chosen. Allow the users to also
+  deselect the filters that have been chosen, by clicking on the list of filters
+  that have been chosen.
+  * Include a "Submit" button that displays a string message telling the user what parameters they've chosen.
 
-* **\[#SNA-002] Mini-Graph Preview** (4 hrs)
+* **\[#002] Mini-Graph Preview** (4 hrs)
 
   * Integrate networkx to render 50-node sample graph
   * Use Streamlit component (e.g., `st.graphviz_chart` or `pyvis`) for visualization
   * Acceptance: Graph updates when controls change
+  * Create unit tests where appropriate, in order to verify functionality.
 
-* **\[#SNA-003] Metric Summary Panel** (3 hrs)
+* **\[#003] Metric Summary Panel** (3 hrs)
 
   * Display computed metrics: top 5 central nodes, community count, assortativity
   * Use static sample calculations tied to sample data
@@ -62,7 +73,7 @@
 
 * **\[#SNA-006] Prepare Sample Network Files** (2 hrs)
 
-  * Create JSON/CSV for nodes with attributes (slant, toxicity) and edges (retweet, reply)
+  * Create .csv for nodes with attributes (political, valence, slant, toxicity) and edges (retweet, reply, like). Make sure that there are at least 100 nodes per day for the date range 2024-06-01 to 2024-06-14 (so, total of 1,400 rows). Bias the sampling so that across each day, the probability of a node engaging with (retweet, reply, like) another node with positive valence and low toxicity goes up (irrespective of political or slant), whereas the probability of a node engaging with another node goes down with the presence of negative valence and higher toxicity. Verify with unit tests that this trend is True when comparing day N to day N + 1, for all N days. Use a Python file to generate this data, make sure that the Python generator file includes the requisite data quality checks, export it as a .csv file, and then load in that .csv file for unit tests and then for the simulation itself.
   * Precompute centrality/community for snapshots
   * Acceptance: Files load and power UI components
 
@@ -118,8 +129,10 @@
 ```yaml
 Node {
   id: str
+  political_content_rate: float
   slant: enum(left, center, right, unclear)
   toxicity_rate: float
+  average_valence: float # if float > 0.2, then it is a positive node, else -0.2 < float <= 0.2 then neutral, else negative
 }
 Edge {
   source: str
