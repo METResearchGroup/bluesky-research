@@ -20,6 +20,9 @@ from search_engine.app_v2.components.example_queries_panel import (
 )
 from search_engine.app_v2.sample_data import get_sample_posts
 from search_engine.app_v2.sample_data_preview import filter_and_preview_sample_data
+from search_engine.app_v2.components.sna_sidebar_controls_panel import (
+    render_sna_sidebar_controls_panel,
+)
 
 
 # --- Streamlit UI for Filter Builder Panel ---
@@ -152,7 +155,15 @@ def main() -> None:
             render_visualization_quicklook_panel(filter_state.filters, filtered_for_viz)
 
     with tab2:
-        st.markdown("[Pending construction]")
+        # SNA Tab: Two-column layout (left: controls, right: selected filters/panels)
+        sna_left, sna_right = st.columns([2, 1])
+        with sna_left:
+            # Placeholder state object for now
+            state = {}
+            render_sna_sidebar_controls_panel(state)
+        with sna_right:
+            st.markdown("**Selected Filters Panel (placeholder)**")
+            st.markdown("Future: Mini-Graph Preview, Metric Summary, Export, etc.")
 
 
 if __name__ == "__main__":

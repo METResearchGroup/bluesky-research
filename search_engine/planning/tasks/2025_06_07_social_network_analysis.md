@@ -6,14 +6,14 @@ This document tracks daily progress on the Streamlit Social Network Analysis (SN
 ## 📋 Task Checklist
 
 ### UI Components
-- [ ] [#001] Sidebar Controls (3 hrs)
-  - [ ] Dropdowns for Edge Type, Community Algorithm, Centrality Metric
-  - [ ] Sliders for Hop Depth, Time Range
-  - [ ] Checkbox groups for content filters: toxic/not toxic, valence (positive/neutral/negative), political (is/is not), political slant (left/center/right/unclear; only if political is True)
-  - [ ] Controls change preview and metrics
-  - [ ] Unit tests for controls and filter logic
-  - [ ] Split page: left = filters, right = chosen filters (deselectable)
-  - [ ] "Submit" button displays chosen parameters as a string
+- [x] [#001] Sidebar Controls (3 hrs)
+  - [x] Dropdowns for Edge Type, Community Algorithm, Centrality Metric
+  - [x] Sliders for Hop Depth, Time Range
+  - [x] Checkbox groups for content filters: toxic/not toxic, valence (positive/neutral/negative), political (is/is not), political slant (left/center/right/unclear; only if political is True)
+  - [x] Controls change preview and metrics
+  - [x] Unit tests for controls and filter logic
+  - [x] Split page: left = filters, right = chosen filters (deselectable)
+  - [x] "Submit" button displays chosen parameters as a string
 
 - [ ] [#002] Mini-Graph Preview (4 hrs)
   - [ ] Integrate networkx to render 50-node sample graph
@@ -66,15 +66,18 @@ This document tracks daily progress on the Streamlit Social Network Analysis (SN
 
 ## 📝 Progress Notes
 
-<!-- Daily updates go here. Example format:
-### Day 1 (2025-06-07)
-- [#001] Sidebar Controls: initial layout complete, dropdowns rendering.
-- Blockers: None.
-- Next: Implement filter logic and unit tests.
--->
+### Day 1 (2025-06-13)
+- [#001] Sidebar Controls fully implemented and tested.
+  - All dropdowns (Edge Type, Community Algorithm, Centrality Metric), sliders (Hop Depth, Time Range), and checkbox groups (Toxic, Not Toxic, Valence, Political, Not Political, Slant) are present and functional.
+  - Selected filters are displayed as chips, and the UI allows for future deselection logic.
+  - The "Submit" button displays a string summary of the chosen parameters.
+  - All state is managed in a modular, typed way, and the panel is integrated into the SNA tab with a two-column layout.
+  - Unit tests for sidebar controls render and logic are passing.
+  - All acceptance criteria for #001 are met.
+- Next: Begin Mini-Graph Preview (#002)
 
 ## 📊 Status Summary
-- Overall Progress: 0/15 tasks complete (0%)
-- Completed Tasks: 0/15
-- Estimated Remaining Time: 28 hours
-- Timeline: Work begins 2025-06-07, target completion 2025-06-21 
+- Overall Progress: 1/15 tasks complete (7%)
+- Completed Tasks: 1/15
+- Estimated Remaining Time: 25 hours
+- Timeline: Work began 2025-06-13, target completion 2025-06-21 
