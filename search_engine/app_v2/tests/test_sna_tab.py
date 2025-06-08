@@ -3,6 +3,7 @@ import streamlit as st
 from unittest.mock import patch, MagicMock
 from search_engine.app_v2.components.sna_metric_summary_panel import render_sna_metric_summary_panel
 import networkx as nx
+import datetime
 
 # Note: These tests are for TDD Red Phase. The SNA tab and its components do not yet exist.
 # All tests are expected to fail until the corresponding implementation is provided.
@@ -155,6 +156,28 @@ class TestSnaTimeSliderAnimation:
             sna_time_slider_panel.render_sna_time_slider_panel(state)
             mock_slider.assert_called()
             mock_update.assert_called_with(state, ("2024-06-01", "2024-06-05"))
+
+    def test_play_button_advances_network(self):
+        """
+        Should render a play button and, when pressed, call update_graph_and_metrics at least once for the selected date range.
+        Note: Due to Streamlit rerun limitations, we cannot test the full animation loop in a unit test.
+        """
+        from search_engine.app_v2.components import sna_time_slider_panel
+        state = {}
+        mock_col = MagicMock()
+        with patch("streamlit.columns", return_value=[mock_col, MagicMock()]) as mock_columns, \
+             patch("streamlit.slider") as mock_slider, \
+             patch("streamlit.session_state", {}) as mock_session_state, \
+             patch("search_engine.app_v2.components.sna_time_slider_panel.update_graph_and_metrics") as mock_update, \
+             patch("streamlit.rerun") as mock_rerun:
+            mock_slider.return_value = (datetime.date(2024, 6, 1), datetime.date(2024, 6, 3))
+            # Simulate play button pressed
+            mock_col.button.return_value = True
+            sna_time_slider_panel.render_sna_time_slider_panel(state)
+            # Should update session state for at least one day in range
+            assert mock_update.call_count >= 1
+            # Should render the play button
+            mock_col.button.assert_called_with("Play", disabled=False, key="sna_play_btn")
 
 class TestSnaTabIntegration:
     """
