@@ -26,6 +26,7 @@
 - **Integration Tests**: Test critical paths end-to-end with real components
 - **Property-Based Testing**: Use for complex business logic validation
 - **Testing against expected results**: Write the expected output and save it to a "expected_result" variable. Then have your assertions, where relevant, test directly against the "expected_result" to see if the content is correct. This helps with improving readability of tests.
+- **Make sure all tests can run in CI**: This means no browser requirements, no GUI access, and the like. For any UI tests, if necessary, it must be headless.
 - **Activate conda environment**: Activate the conda environment for the repo. For this current repo, the name of the conda env is 'bluesky-research'.
 
 ## Code Style & Readability
