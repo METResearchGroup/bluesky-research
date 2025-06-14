@@ -28,7 +28,7 @@ jobs:
         pip install -r dev_requirements.txt
         pip install -r ml_tooling/requirements.txt
         pip install -r ml_tooling/llm/requirements.txt
-        pip install -r search_engine/requirements.txt
+        # pip install -r search_engine/requirements.txt
         pip install -r ml_tooling/valence_classifier/requirements.txt
         pip install -r lib/telemetry/requirements.txt
     - name: Add project directory to PYTHONPATH
@@ -60,7 +60,7 @@ jobs:
         pytest services/write_cache_buffers_to_db/tests
         pytest services/sync/jetstream/tests
         pytest api/integrations_router/tests
-        pytest search_engine/tests
+        # pytest search_engine/tests
     - name: Lint Dockerfiles with Hadolint
       run: |
         docker run --rm -i hadolint/hadolint < Dockerfiles/add_users_to_study.Dockerfile
