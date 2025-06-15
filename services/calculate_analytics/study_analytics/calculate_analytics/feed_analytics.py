@@ -104,8 +104,19 @@ def get_per_user_feed_averages_for_partition_date(
             / total_rows,
         }
 
+        # Calculate valence averages
+        valence_proportions = {
+            "prop_is_positive": posts_df["valence_label"].eq("positive").sum()
+            / total_rows,
+            "prop_is_neutral": posts_df["valence_label"].eq("neutral").sum()
+            / total_rows,
+            "prop_is_negative": posts_df["valence_label"].eq("negative").sum()
+            / total_rows,
+        }
+
         # Combine all averages
         averages.update(political_averages)
+        averages.update(valence_proportions)
 
         user_averages.append(averages)
 
@@ -165,8 +176,8 @@ def get_per_user_feed_average_labels_for_partition_date(
     posts (here, using a default threshold of p=0.5 for our labels).
 
     We use a cutoff of p=0.5 by default for all attributes that return a
-    probability. For the LLM labels, we return the average label (which
-    is also how we do it in `get_per_user_feed_averages_for_partition_date`).
+    probability. For the LLM and valence labels, we return the average label
+    (which is also how we do it in `get_per_user_feed_averages_for_partition_date`).
     """
     map_user_to_posts_df: dict[str, pd.DataFrame] = get_hydrated_feed_posts_per_user(
         partition_date=partition_date, load_unfiltered_posts=load_unfiltered_posts
@@ -473,8 +484,19 @@ def get_per_user_feed_average_labels_for_partition_date(
             / total_rows,
         }
 
+        # Calculate valence averages
+        valence_proportions = {
+            "prop_is_positive": posts_df["valence_label"].eq("positive").sum()
+            / total_rows,
+            "prop_is_neutral": posts_df["valence_label"].eq("neutral").sum()
+            / total_rows,
+            "prop_is_negative": posts_df["valence_label"].eq("negative").sum()
+            / total_rows,
+        }
+
         # Combine all averages
         proportions.update(political_proportions)
+        proportions.update(valence_proportions)
 
         user_proportions.append(proportions)
 

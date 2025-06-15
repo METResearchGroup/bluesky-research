@@ -4,7 +4,7 @@ import os
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
-from lib.helper import get_partition_dates
+from lib.helper import get_partition_dates, generate_current_datetime_str
 from services.calculate_analytics.study_analytics.generate_reports.weekly_user_logins import (
     load_user_date_to_week_df,
 )
@@ -13,6 +13,7 @@ from services.participant_data.models import UserToBlueskyProfileModel
 
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
+current_datetime_str = generate_current_datetime_str()
 
 
 def get_num_records_per_user_per_day(record_type: str) -> dict:
@@ -182,6 +183,64 @@ def aggregate_metrics_per_user_per_week(
     return user_to_weekly_engagement_metrics
 
 
+def transform_aggregated_metrics_per_user_per_day(
+    aggregated_metrics_per_user_per_day: dict,
+    users: list[dict],
+) -> pd.DataFrame:
+    """Transform the aggregated metrics per user per day into a DataFrame.
+
+    Flattens the data into a single dataframe.
+
+    Input:
+        {
+            "<handle>": {
+                "2024-10-01": {
+                    "num_likes": 10,
+                    "num_posts": 20,
+                    "num_follows": 30,
+                    "num_reposts": 40,
+                },
+                ...
+            },
+            ...
+        }
+
+    Output:
+        pd.DataFrame with the following columns:
+        ```
+        {
+            "handle": "<handle>",
+            "condition": "<condition>",
+            "date": "<date>",
+            "num_likes": 10,
+            "num_posts": 20,
+            "num_follows": 30,
+            "num_reposts": 40,
+        },
+        ...
+        ```
+    """
+    records = []
+
+    for user in users:
+        user_handle = user["bluesky_handle"]
+        user_condition = user["condition"]
+
+        metrics = aggregated_metrics_per_user_per_day[user_handle]
+
+        for date, metrics in metrics.items():
+            default_fields = {
+                "handle": user_handle,
+                "condition": user_condition,
+                "date": date,
+            }
+            records.append({**default_fields, **metrics})
+
+    return pd.DataFrame(records).sort_values(
+        by=["handle", "date"], inplace=True, ascending=[True, True]
+    )
+
+
 def transform_aggregated_metrics_per_user_per_week(
     aggregated_metrics_per_user_per_week: dict,
     users: list[dict],
@@ -256,11 +315,27 @@ def main():
         user for user in users if user["bluesky_handle"] in users_from_qualtrics_logs
     ]
 
+    # get daily engagement metrics
     aggregated_metrics_per_user_per_day: dict = aggregate_metrics_per_user_per_day(
         users=users,
         partition_dates=partition_dates,
     )
 
+    transformed_metrics_per_user_per_day: pd.DataFrame = (
+        transform_aggregated_metrics_per_user_per_day(
+            aggregated_metrics_per_user_per_day=aggregated_metrics_per_user_per_day,
+            users=users,
+        )
+    )
+
+    daily_fp = os.path.join(
+        current_dir,
+        "per_user_engagement_metrics",
+        f"daily_engagement_metrics_per_user_{current_datetime_str}.csv",
+    )
+    transformed_metrics_per_user_per_day.to_csv(daily_fp, index=False)
+
+    # get weekly engagement metrics
     aggregated_metrics_per_user_per_week: dict = aggregate_metrics_per_user_per_week(
         aggregated_metrics_per_user_per_day=aggregated_metrics_per_user_per_day,
         user_date_to_week_df=user_date_to_week_df,
@@ -274,7 +349,11 @@ def main():
         )
     )
 
-    fp = os.path.join(current_dir, "engagement_metrics_per_user_per_week.csv")
+    fp = os.path.join(
+        current_dir,
+        "per_user_engagement_metrics",
+        f"weekly_engagement_metrics_per_user_{current_datetime_str}.csv",
+    )
 
     transformed_metrics_per_user_per_week.to_csv(fp, index=False)
 

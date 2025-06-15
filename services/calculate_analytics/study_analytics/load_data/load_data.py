@@ -22,6 +22,7 @@ from services.calculate_analytics.study_analytics.load_data.load_labels import (
     get_ime_labels_for_posts,
     get_perspective_api_labels_for_posts,
     get_sociopolitical_labels_for_posts,
+    get_valence_labels_for_posts,
 )
 from services.calculate_analytics.study_analytics.load_data.helper import (
     insert_missing_posts_to_backfill_queue,
@@ -121,6 +122,13 @@ def get_hydrated_posts_for_partition_date(
         lookback_end_date=lookback_end_date,
     )
 
+    valence_labels_df: pd.DataFrame = get_valence_labels_for_posts(
+        posts=posts_df,
+        partition_date=partition_date,
+        lookback_start_date=lookback_start_date,
+        lookback_end_date=lookback_end_date,
+    )
+
     # deduping
     posts_df = posts_df.drop_duplicates(subset=["uri"])
     perspective_api_labels_df = perspective_api_labels_df.drop_duplicates(
@@ -128,52 +136,71 @@ def get_hydrated_posts_for_partition_date(
     )
     ime_labels_df = ime_labels_df.drop_duplicates(subset=["uri"])
     sociopolitical_labels_df = sociopolitical_labels_df.drop_duplicates(subset=["uri"])
+    valence_labels_df = valence_labels_df.drop_duplicates(subset=["uri"])
 
     # Left join each set of labels against the posts dataframe
     # This ensures we keep all posts even if they don't have certain labels
     # Keep only the left dataframe's columns when there are duplicates
-    # Get list of duplicate columns between posts_df and perspective_api_labels_df
+    # Get list of duplicate columns between posts_df and each of the integrations.
+    # These are columns like "text' and whatnot.
     duplicate_cols = [
         col
         for col in perspective_api_labels_df.columns
         if col in posts_df.columns and col != "uri"
     ]
-    # Drop duplicate columns from perspective_api_labels_df before merging
+
+    duplicate_cols = []
+
+    for label_df in [
+        perspective_api_labels_df,
+        sociopolitical_labels_df,
+        ime_labels_df,
+        valence_labels_df,
+    ]:
+        for col in label_df.columns:
+            if col in posts_df.columns and col != "uri":
+                duplicate_cols.append(col)
+
+    # Drop duplicate columns from each integration df before merging.
     perspective_api_labels_df_deduped = perspective_api_labels_df.drop(
         columns=duplicate_cols
-    )
+    )  # noqa
     ime_labels_df_deduped = ime_labels_df.drop(columns=duplicate_cols)
     sociopolitical_labels_df_deduped = sociopolitical_labels_df.drop(
         columns=duplicate_cols
-    )
+    )  # noqa
+    valence_labels_df_deduped = valence_labels_df.drop(columns=duplicate_cols)  # noqa
 
-    posts_with_perspective = posts_df.merge(
-        perspective_api_labels_df_deduped, on="uri", how="left"
-    )
+    # merge the dfs together.
+    posts_with_all_labels = posts_df
 
-    posts_with_ime = posts_with_perspective.merge(
-        ime_labels_df_deduped, on="uri", how="left"
-    )
-
-    posts_with_all_labels = posts_with_ime.merge(
-        sociopolitical_labels_df_deduped, on="uri", how="left"
-    )
+    for label_df in [
+        perspective_api_labels_df_deduped,
+        sociopolitical_labels_df_deduped,
+        ime_labels_df_deduped,
+        valence_labels_df_deduped,
+    ]:
+        posts_with_all_labels = posts_with_all_labels.merge(
+            label_df, on="uri", how="left"
+        )
 
     # get missing labels.
     missing_perspective_api_labels_df = posts_df[
         ~posts_df["uri"].isin(perspective_api_labels_df["uri"])
     ]
-
     missing_sociopolitical_labels_df = posts_df[
         ~posts_df["uri"].isin(sociopolitical_labels_df["uri"])
     ]
-
     missing_ime_labels_df = posts_df[~posts_df["uri"].isin(ime_labels_df["uri"])]
+    missing_valence_labels_df = posts_df[
+        ~posts_df["uri"].isin(valence_labels_df["uri"])
+    ]
 
     for integration, missing_df in [
         ("ml_inference_perspective_api", missing_perspective_api_labels_df),
         ("ml_inference_sociopolitical", missing_sociopolitical_labels_df),
         ("ml_inference_ime", missing_ime_labels_df),
+        ("ml_inference_valence_classifier", missing_valence_labels_df),
     ]:
         if len(missing_df) > 0:
             print(
@@ -182,8 +209,6 @@ def get_hydrated_posts_for_partition_date(
             insert_missing_posts_to_backfill_queue(missing_df, integration)
 
     del posts_df
-    del posts_with_perspective
-    del posts_with_ime
     del perspective_api_labels_df
     del ime_labels_df
     del sociopolitical_labels_df
