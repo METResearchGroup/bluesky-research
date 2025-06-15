@@ -861,6 +861,13 @@ def transform_per_user_per_day_content_label_proportions(
 ) -> pd.DataFrame:
     """Transforms the aggregated label statistics into the output format required."""
     flattened_metrics_per_user_per_day: list[dict] = []
+
+    partition_dates: list[str] = get_partition_dates(
+        start_date="2024-09-30",
+        end_date="2024-12-01",
+        exclude_partition_dates=[],
+    )
+
     for user in users:
         user_handle = user["bluesky_handle"]
         user_condition = user["condition"]
@@ -868,29 +875,27 @@ def transform_per_user_per_day_content_label_proportions(
 
         metrics = user_per_day_content_label_proportions.get(user_did, {})
 
-        for date, metrics in metrics.items():
+        for date in partition_dates:
+            # this sets defaults for dates that the user doesn't have any engagement for.
+            if date not in metrics:
+                metrics[date] = {
+                    label: None for label in default_content_engagement_columns
+                }
+
+            day_metrics = metrics[date]
             default_fields = {
                 "handle": user_handle,
                 "condition": user_condition,
                 "date": date,
             }
-            if len(metrics) == 0:
-                raise ValueError(
-                    f"No metrics for user {user_handle} on date {date}. This shouldn't happen..."
-                )
-                # metrics = {
-                #     **default_fields,
-                #     **{label: None for label in default_content_engagement_columns},
-                # }
-            else:
-                metrics = {
-                    **default_fields,
-                    **{
-                        label: metrics[label]
-                        for label in default_content_engagement_columns
-                    },
-                }
-            flattened_metrics_per_user_per_day.append(metrics)
+            hydrated_day_metrics = {
+                **default_fields,
+                **{
+                    label: day_metrics[label]
+                    for label in default_content_engagement_columns
+                },
+            }
+            flattened_metrics_per_user_per_day.append(hydrated_day_metrics)
 
     return pd.DataFrame(flattened_metrics_per_user_per_day).sort_values(
         by=["handle", "date"], inplace=False, ascending=[True, True]
