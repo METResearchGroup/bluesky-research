@@ -38,7 +38,7 @@ import numpy as np
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
-from lib.helper import get_partition_dates
+from lib.helper import get_partition_dates, generate_current_datetime_str
 from services.calculate_analytics.study_analytics.generate_reports.weekly_user_logins import (
     load_user_date_to_week_df,
 )
@@ -49,8 +49,19 @@ from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-filename = "content_classifications_engaged_content_per_user_per_week.csv"
-fp = os.path.join(current_dir, filename)
+current_datetime_str = generate_current_datetime_str()
+
+daily_fp = os.path.join(
+    current_dir,
+    "per_user_engagement_metrics",
+    f"daily_content_label_proportions_per_user_{current_datetime_str}.csv",
+)
+
+weekly_fp = os.path.join(
+    current_dir,
+    "per_user_engagement_metrics",
+    f"weekly_content_label_proportions_per_user_{current_datetime_str}.csv",
+)
 
 
 def get_content_engaged_with(
@@ -844,6 +855,46 @@ def get_per_user_to_weekly_content_label_proportions(
     return user_to_weekly_content_label_proportions
 
 
+def transform_per_user_per_day_content_label_proportions(
+    user_per_day_content_label_proportions: dict,
+    users: list[dict],
+) -> pd.DataFrame:
+    """Transforms the aggregated label statistics into the output format required."""
+    flattened_metrics_per_user_per_day: list[dict] = []
+    for user in users:
+        user_handle = user["bluesky_handle"]
+        user_condition = user["condition"]
+        user_did = user["bluesky_user_did"]
+
+        metrics = user_per_day_content_label_proportions.get(user_did, {})
+
+        for date, metrics in metrics.items():
+            default_fields = {
+                "handle": user_handle,
+                "condition": user_condition,
+                "date": date,
+            }
+            if len(metrics) == 0:
+                raise ValueError(
+                    f"No metrics for user {user_handle} on date {date}. This shouldn't happen..."
+                )
+                # metrics = {
+                #     **default_fields,
+                #     **{label: None for label in default_content_engagement_columns},
+                # }
+            else:
+                metrics = {
+                    **default_fields,
+                    **{
+                        label: metrics[label]
+                        for label in default_content_engagement_columns
+                    },
+                }
+            flattened_metrics_per_user_per_day.append(metrics)
+
+    return pd.DataFrame(flattened_metrics_per_user_per_day)
+
+
 def transform_per_user_to_weekly_content_label_proportions(
     user_to_weekly_content_label_proportions: dict,
     users: list[dict],
@@ -955,6 +1006,7 @@ def main():
         f"Loaded labels for {len(labels_for_engaged_content)} post URIs (out of {len(engaged_content)} total content engaged with)."
     )
 
+    ### Per Day ###
     user_per_day_content_label_proportions = (
         get_per_user_per_day_content_label_proportions(
             user_to_content_engaged_with=user_to_content_engaged_with,
@@ -962,6 +1014,23 @@ def main():
         )
     )
 
+    transformed_per_user_per_day_content_label_proportions: pd.DataFrame = transform_per_user_per_day_content_label_proportions(
+        user_per_day_content_label_proportions=user_per_day_content_label_proportions,
+        users=users,
+    )
+
+    daily_fp = os.path.join(
+        current_dir,
+        "per_user_engagement_metrics",
+        f"daily_content_label_proportions_per_user_{current_datetime_str}.csv",
+    )
+
+    print("Exporting per-user, per-day content label proportions...")
+    os.makedirs(os.path.dirname(daily_fp), exist_ok=True)
+    transformed_per_user_per_day_content_label_proportions.to_csv(daily_fp, index=False)
+    print(f"Exported per-user, per-day content label proportions to {daily_fp}...")
+
+    ### Per Week ###
     print("Getting per-user, per-week content label proportions...")
     user_to_weekly_content_label_proportions: dict = get_per_user_to_weekly_content_label_proportions(
         user_per_day_content_label_proportions=user_per_day_content_label_proportions,
@@ -975,8 +1044,10 @@ def main():
         user_date_to_week_df=user_date_to_week_df,
     )
 
-    print(f"Completed transformation. Writing to file: {fp}...")
-    transformed_per_user_to_weekly_content_label_proportions.to_csv(fp, index=False)
+    print(f"Completed transformation. Writing to file: {weekly_fp}...")
+    transformed_per_user_to_weekly_content_label_proportions.to_csv(
+        weekly_fp, index=False
+    )
 
 
 if __name__ == "__main__":

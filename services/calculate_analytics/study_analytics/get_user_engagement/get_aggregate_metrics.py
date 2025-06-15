@@ -1,4 +1,8 @@
-"""Gets aggregate metrics for user engagement."""
+"""Gets aggregate metrics for user engagement.
+
+NOTE: this doesn't have any content labels. Just gets aggregate counts, e.g.,
+# of likes. For content labels, see `get_agg_labels_for_engagements.py`.
+"""
 
 import os
 import pandas as pd
@@ -330,7 +334,6 @@ def main():
 
     daily_fp = os.path.join(
         current_dir,
-        "per_user_engagement_metrics",
         f"daily_engagement_metrics_per_user_{current_datetime_str}.csv",
     )
     transformed_metrics_per_user_per_day.to_csv(daily_fp, index=False)
@@ -351,7 +354,6 @@ def main():
 
     fp = os.path.join(
         current_dir,
-        "per_user_engagement_metrics",
         f"weekly_engagement_metrics_per_user_{current_datetime_str}.csv",
     )
 
