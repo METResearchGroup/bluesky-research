@@ -892,7 +892,9 @@ def transform_per_user_per_day_content_label_proportions(
                 }
             flattened_metrics_per_user_per_day.append(metrics)
 
-    return pd.DataFrame(flattened_metrics_per_user_per_day)
+    return pd.DataFrame(flattened_metrics_per_user_per_day).sort_values(
+        by=["handle", "date"], inplace=False, ascending=[True, True]
+    )
 
 
 def transform_per_user_to_weekly_content_label_proportions(

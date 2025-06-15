@@ -241,7 +241,7 @@ def transform_aggregated_metrics_per_user_per_day(
             records.append({**default_fields, **metrics})
 
     return pd.DataFrame(records).sort_values(
-        by=["handle", "date"], inplace=True, ascending=[True, True]
+        by=["handle", "date"], inplace=False, ascending=[True, True]
     )
 
 
