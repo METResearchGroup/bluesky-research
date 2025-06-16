@@ -180,9 +180,16 @@ def get_hydrated_posts_for_partition_date(
         ime_labels_df_deduped,
         valence_labels_df_deduped,
     ]:
+        # Merge with suffixes to handle duplicate columns
         posts_with_all_labels = posts_with_all_labels.merge(
-            label_df, on="uri", how="left"
+            label_df, on="uri", how="left", suffixes=("", "_drop")
         )
+        # Drop columns with '_drop' suffix
+        cols_to_drop = [
+            col for col in posts_with_all_labels.columns if col.endswith("_drop")
+        ]
+        if cols_to_drop:
+            posts_with_all_labels = posts_with_all_labels.drop(columns=cols_to_drop)
 
     # get missing labels.
     missing_perspective_api_labels_df = posts_df[
