@@ -56,6 +56,7 @@ def main():
     joined_df.to_csv(
         os.path.join(
             current_filedir,
+            "prop_labeled_posts",
             f"average_daily_prop_labeled_posts_per_user_{current_datetime_str}.csv",
         )
     )
@@ -95,6 +96,7 @@ def main():
     weekly_joined_df.to_csv(
         os.path.join(
             current_filedir,
+            "prop_labeled_posts",
             f"weekly_daily_prop_labeled_posts_per_user_{current_datetime_str}.csv",
         )
     )
