@@ -13,6 +13,9 @@ queue_name_to_queue_dict = {
     "ml_inference_sociopolitical": Queue(
         queue_name="input_ml_inference_sociopolitical", create_new_queue=False
     ),
+    "ml_inference_valence_classifier": Queue(
+        queue_name="input_ml_inference_valence_classifier", create_new_queue=True
+    ),
 }
 
 

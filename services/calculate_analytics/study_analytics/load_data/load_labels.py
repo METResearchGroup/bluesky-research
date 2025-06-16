@@ -69,3 +69,24 @@ def get_ime_labels_for_posts(
     df = df[df["uri"].isin(posts["uri"])]
     logger.info(f"Filtered to {len(df)} IME labels for partition date {partition_date}")
     return df
+
+
+def get_valence_labels_for_posts(
+    posts: pd.DataFrame,
+    partition_date: str,
+    lookback_start_date: str,
+    lookback_end_date: str,
+) -> pd.DataFrame:
+    """Get the valence labels for a list of posts."""
+    df: pd.DataFrame = load_data_from_local_storage(
+        service="ml_inference_valence_classifier",
+        directory="cache",
+        start_partition_date=lookback_start_date,
+        end_partition_date=lookback_end_date,
+    )
+    logger.info(f"Loaded {len(df)} valence labels for partition date {partition_date}")
+    df = df[df["uri"].isin(posts["uri"])]
+    logger.info(
+        f"Filtered to {len(df)} valence labels for partition date {partition_date}"
+    )
+    return df
