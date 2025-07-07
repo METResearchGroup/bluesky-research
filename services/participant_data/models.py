@@ -28,6 +28,7 @@ class UserToBlueskyProfileModel(BaseModel):
         True, description="Whether the user is a study user (as opposed to a mock user for testing purposes)"  # noqa
     )
     created_timestamp: str = Field(..., description="The timestamp when the user was created.")  # noqa
+    score: int = Field(default=0, description="The user's score based on number of posts.")
 
 
 class UserOperation(BaseModel):
@@ -41,3 +42,14 @@ class UserOperation(BaseModel):
     is_study_user: Optional[bool] = Field(
         default=True, description="Whether the user is a study user or a test user."  # noqa
     )
+
+
+class UserProfileResponse(BaseModel):
+    """Response model for user profile API endpoint."""
+    study_user_id: str = Field(..., description="The ID of the user in the study.")
+    bluesky_handle: str = Field(..., description="The Bluesky handle of the user.")
+    bluesky_user_did: str = Field(..., description="The Bluesky user DID of the user.")
+    condition: str = Field(..., description="The experimental condition the user is in.")
+    score: int = Field(..., description="The user's score based on number of posts.")
+    is_study_user: bool = Field(..., description="Whether the user is a study user.")
+    created_timestamp: str = Field(..., description="The timestamp when the user was created.")
