@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Scoring System Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border-left: 4px solid #4f46e5;
+        }
+
+        .section h2 {
+            color: #1e293b;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+
+        .result-box {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 6px;
+            padding: 20px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .error {
+            background: #fef2f2;
+            border-color: #f87171;
+            color: #dc2626;
+        }
+
+        .success {
+            background: #f0fdf4;
+            border-color: #22c55e;
+            color: #166534;
+        }
+
+        .user-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .user-card h3 {
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+
+        .user-card .handle {
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .user-card .score {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4f46e5;
+            margin-bottom: 10px;
+        }
+
+        .user-card .bio {
+            color: #6b7280;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .api-status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .api-status.online {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #22c55e;
+        }
+
+        .api-status.offline {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #f87171;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏆 User Scoring System</h1>
+            <p>Experimental API for tracking user engagement scores</p>
+        </div>
+
+        <div class="main-content">
+            <div id="apiStatus" class="api-status offline">
+                🔴 API Status: Checking connection...
+            </div>
+
+            <div class="section">
+                <h2>👤 Get User Profile</h2>
+                <div class="form-group">
+                    <label for="userHandle">User Handle:</label>
+                    <input type="text" id="userHandle" placeholder="e.g., alice.test" value="alice.test">
+                </div>
+                <button class="btn" onclick="getUserProfile()">Get Profile</button>
+                <button class="btn btn-secondary" onclick="getUserScore()">Get Score Only</button>
+                <button class="btn btn-secondary" onclick="recalculateScore()">Recalculate Score</button>
+                <div id="userResult" class="result-box" style="display: none;"></div>
+            </div>
+
+            <div class="section">
+                <h2>➕ Create New User</h2>
+                <div class="form-group">
+                    <label for="newUserHandle">Handle:</label>
+                    <input type="text" id="newUserHandle" placeholder="e.g., john.doe">
+                </div>
+                <div class="form-group">
+                    <label for="newUserName">Display Name:</label>
+                    <input type="text" id="newUserName" placeholder="e.g., John Doe">
+                </div>
+                <div class="form-group">
+                    <label for="newUserBio">Bio (optional):</label>
+                    <textarea id="newUserBio" placeholder="Tell us about yourself..."></textarea>
+                </div>
+                <button class="btn" onclick="createUser()">Create User</button>
+                <div id="createUserResult" class="result-box" style="display: none;"></div>
+            </div>
+
+            <div class="section">
+                <h2>📝 Create New Post</h2>
+                <div class="form-group">
+                    <label for="postUserId">User ID:</label>
+                    <input type="text" id="postUserId" placeholder="User ID (get from user profile)">
+                </div>
+                <div class="form-group">
+                    <label for="postContent">Post Content:</label>
+                    <textarea id="postContent" placeholder="What's on your mind?"></textarea>
+                </div>
+                <button class="btn" onclick="createPost()">Create Post</button>
+                <div id="createPostResult" class="result-box" style="display: none;"></div>
+            </div>
+
+            <div class="section">
+                <h2>👥 All Users</h2>
+                <button class="btn" onclick="getAllUsers()">Load All Users</button>
+                <button class="btn btn-secondary" onclick="recalculateAllScores()">Recalculate All Scores</button>
+                <div id="allUsersResult" class="result-box" style="display: none;"></div>
+                <div id="usersGrid" class="grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        // Check API status on page load
+        window.addEventListener('load', checkApiStatus);
+        
+        async function checkApiStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('apiStatus').className = 'api-status online';
+                    document.getElementById('apiStatus').innerHTML = '🟢 API Status: Online';
+                } else {
+                    throw new Error('API not responding');
+                }
+            } catch (error) {
+                document.getElementById('apiStatus').className = 'api-status offline';
+                document.getElementById('apiStatus').innerHTML = '🔴 API Status: Offline - Make sure to run "python api_server.py"';
+            }
+        }
+        
+        async function makeRequest(url, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${url}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Request failed');
+                }
+                
+                return data;
+            } catch (error) {
+                throw error;
+            }
+        }
+        
+        function showResult(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `result-box ${isError ? 'error' : 'success'}`;
+            element.textContent = JSON.stringify(data, null, 2);
+        }
+        
+        async function getUserProfile() {
+            const handle = document.getElementById('userHandle').value.trim();
+            if (!handle) {
+                showResult('userResult', { error: 'Please enter a user handle' }, true);
+                return;
+            }
+            
+            try {
+                const data = await makeRequest(`/user/${handle}`);
+                showResult('userResult', data);
+            } catch (error) {
+                showResult('userResult', { error: error.message }, true);
+            }
+        }
+        
+        async function getUserScore() {
+            const handle = document.getElementById('userHandle').value.trim();
+            if (!handle) {
+                showResult('userResult', { error: 'Please enter a user handle' }, true);
+                return;
+            }
+            
+            try {
+                const data = await makeRequest(`/user/${handle}/score`);
+                showResult('userResult', data);
+            } catch (error) {
+                showResult('userResult', { error: error.message }, true);
+            }
+        }
+        
+        async function recalculateScore() {
+            const handle = document.getElementById('userHandle').value.trim();
+            if (!handle) {
+                showResult('userResult', { error: 'Please enter a user handle' }, true);
+                return;
+            }
+            
+            try {
+                const data = await makeRequest(`/user/${handle}/recalculate`, { method: 'POST' });
+                showResult('userResult', data);
+            } catch (error) {
+                showResult('userResult', { error: error.message }, true);
+            }
+        }
+        
+        async function createUser() {
+            const handle = document.getElementById('newUserHandle').value.trim();
+            const displayName = document.getElementById('newUserName').value.trim();
+            const bio = document.getElementById('newUserBio').value.trim();
+            
+            if (!handle || !displayName) {
+                showResult('createUserResult', { error: 'Handle and display name are required' }, true);
+                return;
+            }
+            
+            try {
+                const data = await makeRequest('/users', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        handle,
+                        display_name: displayName,
+                        bio: bio || null
+                    })
+                });
+                
+                showResult('createUserResult', data);
+                
+                // Clear form
+                document.getElementById('newUserHandle').value = '';
+                document.getElementById('newUserName').value = '';
+                document.getElementById('newUserBio').value = '';
+            } catch (error) {
+                showResult('createUserResult', { error: error.message }, true);
+            }
+        }
+        
+        async function createPost() {
+            const userId = document.getElementById('postUserId').value.trim();
+            const content = document.getElementById('postContent').value.trim();
+            
+            if (!userId || !content) {
+                showResult('createPostResult', { error: 'User ID and content are required' }, true);
+                return;
+            }
+            
+            try {
+                const data = await makeRequest('/posts', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        user_id: userId,
+                        content
+                    })
+                });
+                
+                showResult('createPostResult', data);
+                
+                // Clear form
+                document.getElementById('postUserId').value = '';
+                document.getElementById('postContent').value = '';
+            } catch (error) {
+                showResult('createPostResult', { error: error.message }, true);
+            }
+        }
+        
+        async function getAllUsers() {
+            try {
+                const data = await makeRequest('/users');
+                showResult('allUsersResult', { message: `Found ${data.length} users`, users: data });
+                
+                // Display users in grid
+                const grid = document.getElementById('usersGrid');
+                grid.innerHTML = '';
+                
+                data.forEach(user => {
+                    const userCard = document.createElement('div');
+                    userCard.className = 'user-card';
+                    userCard.innerHTML = `
+                        <h3>${user.display_name}</h3>
+                        <div class="handle">@${user.handle}</div>
+                        <div class="score">${user.score} points</div>
+                        <div class="bio">${user.bio || 'No bio available'}</div>
+                        <small style="color: #9ca3af;">ID: ${user.user_id}</small>
+                    `;
+                    grid.appendChild(userCard);
+                });
+            } catch (error) {
+                showResult('allUsersResult', { error: error.message }, true);
+            }
+        }
+        
+        async function recalculateAllScores() {
+            try {
+                const data = await makeRequest('/admin/recalculate-all-scores', { method: 'POST' });
+                showResult('allUsersResult', data);
+                
+                // Refresh the users grid
+                setTimeout(getAllUsers, 1000);
+            } catch (error) {
+                showResult('allUsersResult', { error: error.message }, true);
+            }
+        }
+    </script>
+</body>
+</html>
