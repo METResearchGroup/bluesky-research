@@ -7,12 +7,114 @@ from botocore.exceptions import ClientError
 from lib.aws.dynamodb import DynamoDB
 from lib.constants import current_datetime_str
 from services.participant_data.mock_users import mock_users
-from services.participant_data.models import UserToBlueskyProfileModel
+from services.participant_data.models import UserToBlueskyProfileModel, UserProfileResponse
 
 
 TABLE_NAME = "study_participants"
 dynamodb = DynamoDB()
 table = dynamodb.resource.Table(TABLE_NAME)
+
+
+def calculate_user_score(bluesky_user_did: str) -> int:
+    """Calculate user score based on number of posts.
+
+    Args:
+        bluesky_user_did: The user's DID to calculate score for
+
+    Returns:
+        int: The user's score (number of posts they've made)
+    """
+    try:
+        from lib.db.sql.user_engagement_database import PostsWrittenByStudyUsers
+        
+        # Count posts written by this user
+        post_count = PostsWrittenByStudyUsers.select().where(
+            PostsWrittenByStudyUsers.author_did == bluesky_user_did
+        ).count()
+        
+        return post_count
+    except Exception as e:
+        print(f"Error calculating score for user {bluesky_user_did}: {e}")
+        return 0
+
+
+def get_user_by_handle(bluesky_handle: str) -> Optional[UserToBlueskyProfileModel]:
+    """Get a user by their Bluesky handle.
+
+    Args:
+        bluesky_handle: The user's Bluesky handle
+
+    Returns:
+        UserToBlueskyProfileModel or None if not found
+    """
+    try:
+        response = table.scan(
+            FilterExpression='bluesky_handle = :handle',
+            ExpressionAttributeValues={':handle': bluesky_handle}
+        )
+        
+        if response['Items']:
+            user_data = response['Items'][0]
+            user = UserToBlueskyProfileModel(**user_data)
+            
+            # Calculate current score
+            current_score = calculate_user_score(user.bluesky_user_did)
+            
+            # Update user model with current score
+            user.score = current_score
+            
+            # Update score in database if it's different
+            if 'score' not in user_data or user_data.get('score', 0) != current_score:
+                update_user_score(user.bluesky_user_did, current_score)
+            
+            return user
+        
+        return None
+    except ClientError as e:
+        print(f"Failed to get user by handle from DynamoDB: {e}")
+        return None
+
+
+def update_user_score(bluesky_user_did: str, score: int) -> None:
+    """Update a user's score in the database.
+
+    Args:
+        bluesky_user_did: The user's DID
+        score: The new score value
+    """
+    try:
+        table.update_item(
+            Key={'bluesky_user_did': bluesky_user_did},
+            UpdateExpression='SET score = :score',
+            ExpressionAttributeValues={':score': score}
+        )
+    except ClientError as e:
+        print(f"Failed to update user score in DynamoDB: {e}")
+        raise e
+
+
+def get_user_profile_response(bluesky_handle: str) -> Optional[UserProfileResponse]:
+    """Get user profile response for API endpoint.
+
+    Args:
+        bluesky_handle: The user's Bluesky handle
+
+    Returns:
+        UserProfileResponse or None if user not found
+    """
+    user = get_user_by_handle(bluesky_handle)
+    if not user:
+        return None
+    
+    return UserProfileResponse(
+        study_user_id=user.study_user_id,
+        bluesky_handle=user.bluesky_handle,
+        bluesky_user_did=user.bluesky_user_did,
+        condition=user.condition,
+        score=user.score,
+        is_study_user=user.is_study_user,
+        created_timestamp=user.created_timestamp
+    )
 
 
 def insert_bsky_user_to_db(
@@ -68,13 +170,18 @@ def insert_bsky_user_to_study(
     has a custom domain).
     """
     study_user_id = hashlib.sha256(bluesky_handle.encode()).hexdigest()
+    
+    # Calculate initial score
+    initial_score = calculate_user_score(bluesky_user_did)
+    
     user_model = UserToBlueskyProfileModel(
         study_user_id=study_user_id,
         bluesky_handle=bluesky_handle,
         bluesky_user_did=bluesky_user_did,
         condition=condition,
         is_study_user=is_study_user,
-        created_timestamp=current_datetime_str
+        created_timestamp=current_datetime_str,
+        score=initial_score
     )
     insert_bsky_user_to_db(user_model)
     return user_model
@@ -172,9 +279,17 @@ def get_all_users() -> list[UserToBlueskyProfileModel]:
     """Get all users in the study."""
     try:
         response = table.scan()
-        return [
-            UserToBlueskyProfileModel(**item) for item in response['Items']
-        ]
+        users = []
+        for item in response['Items']:
+            user = UserToBlueskyProfileModel(**item)
+            # Calculate current score for each user
+            current_score = calculate_user_score(user.bluesky_user_did)
+            user.score = current_score
+            # Update score in database if needed
+            if 'score' not in item or item.get('score', 0) != current_score:
+                update_user_score(user.bluesky_user_did, current_score)
+            users.append(user)
+        return users
     except ClientError as e:
         print(f"Failed to fetch users from DynamoDB: {e}")
         return []
