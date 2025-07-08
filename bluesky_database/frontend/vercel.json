@@ -1,0 +1,13 @@
+{
+  "name": "bluesky-post-explorer",
+  "version": 2,
+  "build": {
+    "env": {
+      "NODE_VERSION": "18.x"
+    }
+  },
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs"
+} 
