@@ -15,14 +15,14 @@ A Next.js frontend application for searching and exploring Bluesky posts with ad
 
 ## Task Plan
 
-| Subtask | Deliverable | Dependencies | Effort (hrs) | Impact | Risk | Urgency | Total Score | Linear Issue ID |
-|---------|-------------|--------------|--------------|--------|------|---------|-------------|-----------------|
-| Project Foundation Setup | Next.js app with TypeScript, Tailwind config, base layout | None | 8-12 | 5 | 5 | 5 | 15 | MET-10 |
-| Search Form Implementation | Complete search form with validation and loading states | Project Foundation | 12-16 | 5 | 4 | 5 | 14 | MET-11 |
-| Results Table Component | Responsive table with mock data integration | Search Form | 10-14 | 5 | 3 | 5 | 13 | MET-12 |
-| CSV Export Functionality | CSV generation and download with error handling | Results Table | 6-8 | 4 | 2 | 5 | 11 | MET-13 |
-| Coming Soon Features Panel | Disabled toggles with tooltips for future features | Project Foundation | 4-6 | 2 | 2 | 4 | 8 | MET-14 |
-| Polish & Testing | Comprehensive test suite, accessibility audit, deployment | All previous tasks | 8-12 | 4 | 3 | 5 | 12 | MET-15 |
+| Subtask | Deliverable | Dependencies | Effort (hrs) | Impact | Risk | Urgency | Total Score | Linear Issue ID | Linear Issue Identifier | PR URL |
+|---------|-------------|--------------|--------------|--------|------|---------|-------------|-----------------|-------------------------|---------|
+| Project Foundation Setup | Next.js app with TypeScript, Tailwind config, base layout | None | 8-12 | 5 | 5 | 5 | 15 | 747b87a7-27a0-48b1-914f-8011390def37 | MET-10 | https://github.com/METResearchGroup/bluesky-research/pull/180 |
+| Search Form Implementation | Complete search form with validation and loading states | Project Foundation | 12-16 | 5 | 4 | 5 | 14 | MET-11 | | |
+| Results Table Component | Responsive table with mock data integration | Search Form | 10-14 | 5 | 3 | 5 | 13 | MET-12 | | |
+| CSV Export Functionality | CSV generation and download with error handling | Results Table | 6-8 | 4 | 2 | 5 | 11 | MET-13 | | |
+| Coming Soon Features Panel | Disabled toggles with tooltips for future features | Project Foundation | 4-6 | 2 | 2 | 4 | 8 | MET-14 | | |
+| Polish & Testing | Comprehensive test suite, accessibility audit, deployment | All previous tasks | 8-12 | 4 | 3 | 5 | 12 | MET-15 | | |
 
 ## Dependencies
 
