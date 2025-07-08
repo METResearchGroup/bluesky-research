@@ -1,110 +1,142 @@
 # LLM-Specific Reflection & Debugging Rules
 
-These rules define how the agent should reflect, debug, and recover from issues specific to its nature as a Large Language Model-based system. They are designed to enforce reliability, maintainability, and alignment with staff+ engineering practices.
+This document defines how the agent, as a Large Language Model-based system, should reflect, debug, and recover from issues to ensure reliability, maintainability, and alignment with staff/principal engineer practices. Reflections and debugging logs are stored in Markdown format in the project-specific directory `/planning/<projectId_prefix>_<project_name>/`, with filenames prepended by the first 6 digits of the Linear project ID and issue ID (e.g., `8f4c2b_9a0b1c_reflection.md` for project ID `8f4c2b1a-...` and issue ID `9a0b1c2d-...`). These rules integrate with `TASK_PLANNING_AND_PRIORITIZATION.md` and `GITHUB_OPERATIONS.md` to support autonomous feature execution.
 
-## 1. Error Detection & Categorization
+## Error Detection & Categorization
 
-### When encountering an error, the agent must:
+When encountering an error, the agent must:
 
 - Evaluate the failure mode using the following taxonomy:
-  - **Planning Error**: Incorrect sequence or logic in breaking down the task
-  - **Specification Misunderstanding**: Misinterpreted user instructions or ambiguous intent
-  - **Code Generation Error**: Syntax or semantic errors in generated code
-  - **Tooling Failure**: Errors due to tool misuse, file I/O, environment setup
-  - **Hallucination**: Made-up APIs, nonexistent files, or invalid assumptions
-  - **Out-of-Bounds Querying**: Accessing data or making references beyond known context
+  - **Planning Error**: Incorrect sequence or logic in task decomposition (e.g., missing a dependency in `plan_<feature>.md`).
+  - **Specification Misunderstanding**: Misinterpreted user instructions or ambiguous intent (e.g., assuming OAuth without confirmation).
+  - **Code Generation Error**: Syntax or semantic errors in generated code (e.g., invalid Python syntax in a function).
+  - **Tooling Failure**: Errors due to tool misuse, file I/O, or environment setup (e.g., incorrect `gh` command syntax).
+  - **Hallucination**: Made-up APIs, nonexistent files, or invalid assumptions (e.g., referencing a nonexistent `utils.get_feature_vector`).
+  - **Out-of-Bounds Querying**: Accessing data or references beyond known context (e.g., querying an undefined variable).
+- Log the error type, location (e.g., subtask name, file path, line number), and a human-readable reason in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`. Use a Markdown section titled `### Error: <timestamp>` with fields:
+  - **Type**: The error category from the taxonomy.
+  - **Location**: The subtask, file, or line where the error occurred.
+  - **Reason**: A concise explanation of the failure.
+  - Example:
+    ```markdown
+    ### Error: 2025-07-07T22:34:00Z
+    **Type**: Code Generation Error
+    **Location**: /src/api.py, line 42
+    **Reason**: Syntax error in Python function due to missing colon after if statement.
+    ```
 
-- Log the error type, location (e.g. line number or step), and a human-readable reason for failure to a structured `reflection_log.json`.
+## Self-Reflection Loop
 
-## 2. Self-Reflection Loop
+Whenever a subtask is completed, a test fails, or an error occurs, the agent must:
 
-### Whenever a task is completed or a test fails, the agent must:
+- Perform a structured reflection in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md` under a section titled `### Reflection: <timestamp>`. Include:
+  - **What Was Attempted**: A concise description of the action (e.g., “Generated authentication API endpoint”).
+  - **Outcome**: Success or failure, with details (e.g., “Test failed due to null pointer exception”).
+  - **Why It Failed** (if applicable): Reference the error taxonomy (e.g., “Code Generation Error: incorrect variable scope”).
+  - **How to Fix It** (if applicable): A concrete plan (e.g., “Add type checking to ensure variable is defined”).
+  - **Confidence Level**: A score from 0.0 to 1.0 for the fix’s likelihood of success (e.g., 0.9 for a validated syntax correction).
+  - **Next Steps**: The recovery plan or next action (e.g., “Update code, rerun tests, and create PR”).
+  - Example:
+    ```markdown
+    ### Reflection: 2025-07-07T22:35:00Z
+    **What Was Attempted**: Generated authentication API endpoint
+    **Outcome**: Test failed
+    **Why It Failed**: Code Generation Error - incorrect variable scope
+    **How to Fix It**: Add type checking to ensure variable is defined
+    **Confidence Level**: 0.9
+    **Next Steps**: Update code, rerun tests, and create PR
+    ```
+- Commit the reflection file to GitHub using `gh` per `GITHUB_OPERATIONS.md` with a message like `[reflection] Log reflection for Linear issue <issue_identifier>`.
 
-- Perform a structured reflection with the following fields:
-  - `what_was_attempted`: A concise description of what the agent just tried to do
-  - `why_it_failed`: Explanation using the above taxonomy
-  - `how_to_fix_it`: A concrete plan for resolving the issue
-  - `confidence_level`: Score from 0.0 to 1.0 of how likely the fix will succeed
-  - `next_steps`: The agent's recovery plan
+## Hallucination Control
 
-- Append this to `reflections.md` or a structured `reflection_log.json` with timestamps.
+Before referencing tools, APIs, or file paths, the agent must:
 
-## 3. Hallucination Control
-
-### Before referencing tools, APIs, or file paths, the agent must:
-
-- Check if the reference exists in the current context (file system, API manifest, etc.)
-- If unsure, issue a verification query (e.g. "Does `utils.get_feature_vector` exist in any known file?")
-- If the reference is speculative, clearly mark it as such (e.g. "Assuming existence of a `normalize_input()` function")
-
-### When hallucinations are detected:
-
-- Replace fabricated code with a placeholder and emit a comment like:
+- Verify the reference exists in the current context (e.g., check file system for paths, API manifest for endpoints) using a language-specific validation (e.g., Python’s `os.path.exists`, JavaScript’s `fs.existsSync`).
+- If unsure, issue a verification query (e.g., “Does `utils.get_feature_vector` exist in the project?”) and log the query in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`.
+- If the reference is speculative, mark it in code with a comment, e.g.:
   ```python
-  # TODO: This function was inferred but may not exist. Confirm before implementing.
+  # TODO: Assuming existence of utils.get_feature_vector; confirm before use
+  ```
+- When hallucinations are detected, replace fabricated code with a placeholder and log in the reflection file under `### Error: <timestamp>` with Type: Hallucination. Example:
+  ```markdown
+  ### Error: 2025-07-07T22:36:00Z
+  **Type**: Hallucination
+  **Location**: /src/utils.py
+  **Reason**: Referenced nonexistent function utils.get_feature_vector
   ```
 
-## 4. Retry Logic
+## Retry Logic
 
-### If any step fails (e.g. failed test, syntax error, invalid plan):
+If any step fails (e.g., test failure, syntax error, invalid plan):
 
-- Retry the step only after:
-  - Modifying inputs (e.g. refining plan, improving function signature)
-  - Logging the retry rationale in the reflection log
-  - Limiting to 2 retries per failure class, escalating if needed
+- Retry the step after:
+  - Modifying inputs (e.g., refining plan, correcting function signature).
+  - Logging the retry rationale in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md` under `### Retry: <timestamp>`.
+  - Limiting to 2 retries per failure class, escalating if needed.
+- Escalation Triggers: After 2 retries, stop and escalate to the user with a message: “Multiple retries failed for Linear issue <issue_identifier>. Proposed fix: <fix>. Please confirm or revise.” Log the escalation in the reflection file.
+- Commit retry and escalation logs using `gh` per `GITHUB_OPERATIONS.md`.
 
-### Escalation Triggers:
+## Evaluation Checkpoints
 
-- After N retries (default N=2), stop and prompt user:
-  > "Multiple retries failed for this task. Would you like me to escalate, revise the strategy, or hand off?"
+At each major milestone (e.g., planning complete, tests pass, PR created), the agent must:
 
-## 5. Evaluation Checkpoints
+- Log a checkpoint in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md` under `### Checkpoint: <timestamp>` with:
+  - **Summary of State**: What has been accomplished (e.g., “Completed UI design and unit tests”).
+  - **Open Questions**: Remaining uncertainties (e.g., “Unclear if OAuth is required”).
+  - **Assumptions**: Unverified assumptions (e.g., “Assumed 100ms API response time”).
+  - Example:
+    ```markdown
+    ### Checkpoint: 2025-07-07T22:37:00Z
+    **Summary of State**: Completed UI design and unit tests
+    **Open Questions**: Unclear if OAuth is required
+    **Assumptions**: Assumed 100ms API response time
+    ```
+- Commit the checkpoint to GitHub using `gh` per `GITHUB_OPERATIONS.md`.
 
-At each major milestone (e.g. planning complete, tests pass, implementation written), the agent must:
+## Reflection-Aware Planning
 
-- Log a checkpoint in `checkpoints.md` with:
-  - `summary_of_state`: What has been accomplished
-  - `open_questions`: Remaining uncertainties
-  - `assumptions`: Any working assumptions that haven’t been verified
+The agent must incorporate prior reflections into future planning:
 
-## 6. Reflection-Aware Planning
+- Before starting a new subtask, summarize prior errors and successful strategies from all `<projectId_prefix>_<issueId_prefix>_reflection.md` files in the project directory.
+- Avoid repeating known mistakes (e.g., if a prior hallucination referenced a nonexistent API, double-check references).
+- Reuse successful strategies (e.g., if type checking resolved a past error, apply it proactively).
+- Log the summary in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md` under `### Planning Summary: <timestamp>`.
 
-The agent must incorporate prior reflections into future planning steps. If a reflection log exists from prior runs:
+## Structured Prompt Hygiene
 
-- Summarize prior errors before starting new work
-- Avoid repeating known mistakes
-- Reuse successful strategies, as logged in past resolutions
+When constructing prompts for other models or tools, the agent must:
 
-## 7. Structured Prompt Hygiene
+- Avoid nested prompts beyond 2 levels deep to prevent complexity.
+- Validate all referenced variables, functions, and instructions exist in the prompt context using language-specific checks (e.g., Python’s `globals()`, JavaScript’s `typeof`).
+- Include a reflection hook in prompts: “Before completing this, reflect on whether the inputs are sufficient. If not, return a clarifying question.”
+- Log prompt validation results in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`.
 
-When constructing prompts to other models or tools, the agent must:
+## Fail-Soft Design
 
-- Avoid nested prompts beyond 2 levels deep
-- Validate all referenced variables, functions, and instructions exist in the prompt context
-- Include a “reflection hook” in generated prompts, such as:
-  > "Before completing this, reflect on whether the inputs are sufficient. If not, return a clarifying question."
+- For non-critical errors (e.g., optional module missing), proceed with a warning and degraded behavior, logging in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`. Example: “Optional analysis skipped due to missing `pandas` dependency.”
+- Notify the user of degraded behavior in PR comments per `GITHUB_OPERATIONS.md`.
 
-## 8. Fail-Soft Design
+## Controlled Creativity
 
-- If an error is likely but non-critical (e.g. optional module missing), proceed with a warning and degraded behavior
-- Log this in both reflection and summary output with clear notes to user (e.g. “Optional analysis skipped due to missing dependency”)
+- Make creative design decisions only when no clear instruction exists, logging the rationale in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`. Example: “Chose FastAPI over Flask for Python API due to async support.”
+- Inform the user of divergences in PR descriptions, referencing `AGENT_CONVERSATION_STYLE.md`.
 
-## 9. Controlled Creativity
+## Final Output Quality Check
 
-- Agent is allowed to make creative design decisions **only when**:
-  - No clear instruction or context exists
-  - A reflective explanation is included for why a choice was made
-  - The user is informed of any divergence from known standards or user patterns
+Before submitting a PR or marking a task complete:
 
-## 10. Final Output Quality Check
-
-Before returning final output to the user:
-
-- Review generated output and run an internal checklist:
-  - Does this match the original intent?
+- Run an internal checklist in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`:
+  - Does the output match the original intent?
   - Are all assumptions stated?
   - Are known caveats noted?
-  - Is the reflection log updated?
-  - Would this pass code review by a senior engineer?
+  - Is the reflection file updated?
+  - Would this pass a senior engineer’s code review?
+- If any answer is “No”, replan or re-execute, logging the decision and committing using `gh`.
 
-If any answer is “No”, replan or re-execute the necessary components and document why.
+## Implementation Notes
+
+- Store reflection logs in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`, using Markdown headers and fields for structure.
+- Use language-specific validation tools (e.g., Python’s `os`, JavaScript’s `fs`) for hallucination checks, aligning with the project’s language per `CODING_RULES.md`.
+- Test reflection and debugging logic with pytest (Python) or jest (JavaScript) in the `bluesky-research` conda environment, ensuring >90% coverage.
+- Commit all reflection files to GitHub using `gh` per `GITHUB_OPERATIONS.md`, with messages like `[reflection] Update reflection for Linear issue <issue_identifier>`.
