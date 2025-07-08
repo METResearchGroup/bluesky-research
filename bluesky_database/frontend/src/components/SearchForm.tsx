@@ -1,8 +1,9 @@
 'use client'
 
 import React from 'react'
-import { useForm } from 'react-hook-form'
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { useForm, Controller } from 'react-hook-form'
+import { MagnifyingGlassIcon, CalendarIcon } from '@heroicons/react/24/outline'
+import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react'
 
 interface SearchFormData {
   query: string
@@ -17,12 +18,94 @@ interface SearchFormProps {
   isLoading?: boolean
 }
 
+interface DatePickerProps {
+  label: string
+  value: string
+  onChange: (date: string) => void
+  placeholder: string
+  id: string
+  testId: string
+  error?: string
+}
+
+function DatePicker({ label, value, onChange, placeholder, id, testId, error }: DatePickerProps) {
+  const labelId = `${id}-label`
+  const buttonId = `${id}-button`
+
+  const handleDateChange = (event: React.ChangeEvent<HTMLInputElement>, close: () => void) => {
+    onChange(event.target.value)
+    close()
+  }
+
+  return (
+    <div>
+      <label id={labelId} htmlFor={buttonId} className="block text-sm font-medium text-gray-700 mb-1">
+        {label}
+      </label>
+      <Popover className="relative">
+        {({ open, close }) => (
+          <>
+            <PopoverButton
+              id={buttonId}
+              data-testid={testId}
+              role="button"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between bg-white text-left"
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              aria-labelledby={labelId}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                } else if (event.key === 'Escape' && open) {
+                  event.preventDefault()
+                  close()
+                }
+              }}
+            >
+              <span className={value ? 'text-gray-900' : 'text-gray-400'}>
+                {value || placeholder}
+              </span>
+              <CalendarIcon className="h-4 w-4 text-gray-400" />
+            </PopoverButton>
+            
+            <PopoverPanel 
+              data-testid="date-picker-dialog"
+              className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg p-2"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  close()
+                }
+              }}
+            >
+              <input
+                type="date"
+                value={value}
+                onChange={(event) => handleDateChange(event, close)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                autoFocus
+                tabIndex={0}
+              />
+            </PopoverPanel>
+          </>
+        )}
+      </Popover>
+      {error && (
+        <p className="mt-1 text-sm text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function SearchForm({ onSubmit, isLoading = false }: SearchFormProps) {
   const {
     register,
     handleSubmit,
     formState: { errors },
     watch,
+    control,
   } = useForm<SearchFormData>({
     defaultValues: {
       query: '',
@@ -60,11 +143,11 @@ export default function SearchForm({ onSubmit, isLoading = false }: SearchFormPr
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
       <h2 className="text-lg font-medium text-gray-900 mb-6">Search Posts</h2>
       
-      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4" role="form">
         {/* Search Query */}
         <div>
           <label htmlFor="query" className="block text-sm font-medium text-gray-700 mb-1">
-            Search Query *
+            Search Query <span className="text-red-500">*</span>
           </label>
           <input
             {...register('query', { 
@@ -74,10 +157,12 @@ export default function SearchForm({ onSubmit, isLoading = false }: SearchFormPr
             type="text"
             id="query"
             placeholder="Enter text or #hashtag to search..."
+            aria-required="true"
+            aria-describedby={errors.query ? "query-error" : undefined}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           {errors.query && (
-            <p className="mt-1 text-sm text-red-600" role="alert">
+            <p id="query-error" className="mt-1 text-sm text-red-600" role="alert">
               {errors.query.message}
             </p>
           )}
@@ -93,44 +178,48 @@ export default function SearchForm({ onSubmit, isLoading = false }: SearchFormPr
             type="text"
             id="username"
             placeholder="Optional: filter by username"
+            aria-describedby={errors.username ? "username-error" : undefined}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           {errors.username && (
-            <p className="mt-1 text-sm text-red-600" role="alert">
+            <p id="username-error" className="mt-1 text-sm text-red-600" role="alert">
               {errors.username.message}
             </p>
           )}
         </div>
 
-        {/* Date Range */}
+        {/* Date Range using Headless UI DatePickers */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
-              Start Date
-            </label>
-            <input
-              {...register('startDate')}
-              type="date"
-              id="startDate"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
-              End Date
-            </label>
-            <input
-              {...register('endDate', { validate: validateDateRange })}
-              type="date"
-              id="endDate"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-            {errors.endDate && (
-              <p className="mt-1 text-sm text-red-600" role="alert">
-                {errors.endDate.message}
-              </p>
+          <Controller
+            name="startDate"
+            control={control}
+            render={({ field }) => (
+              <DatePicker
+                label="Start Date"
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Select start date"
+                id="startDate"
+                testId="start-date-picker"
+              />
             )}
-          </div>
+          />
+          <Controller
+            name="endDate"
+            control={control}
+            rules={{ validate: validateDateRange }}
+            render={({ field }) => (
+              <DatePicker
+                label="End Date"
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Select end date"
+                id="endDate"
+                testId="end-date-picker"
+                error={errors.endDate?.message}
+              />
+            )}
+          />
         </div>
 
         {/* Exact Match Toggle */}

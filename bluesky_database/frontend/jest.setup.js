@@ -1,5 +1,19 @@
 import '@testing-library/jest-dom'
 
+// Mock ResizeObserver for Headless UI
+global.ResizeObserver = jest.fn().mockImplementation(() => ({
+  observe: jest.fn(),
+  unobserve: jest.fn(),
+  disconnect: jest.fn(),
+}))
+
+// Mock IntersectionObserver 
+global.IntersectionObserver = jest.fn().mockImplementation(() => ({
+  observe: jest.fn(),
+  unobserve: jest.fn(),
+  disconnect: jest.fn(),
+}))
+
 // Mock next/font/google
 jest.mock('next/font/google', () => ({
   Inter: () => ({
