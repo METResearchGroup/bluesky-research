@@ -21,7 +21,7 @@ Task planning involves decomposing user requests into actionable subtasks, estim
 To scale planning across projects and align with long-term goals, the agent maintains a roadmap and coordinates cross-feature tasks.
 
 - Create a `roadmap.md` file in the project root for features spanning multiple sprints, outlining high-level goals, milestones, and cross-feature dependencies. Map each feature to an OKR (Objective and Key Result) to ensure alignment with measurable outcomes.
-- Validate roadmap priorities with stakeholders (e.g., product managers, developers) via a summary email, incorporating feedback within 24 hours. Document stakeholder input in `roadmap.md` and commit using `gh` per `GITHUB_OPERATIONS.md`.
+- Validate roadmap priorities with stakeholders (e.g., product managers, developers) via a summary email, incorporating feedback within 24 hours. Document stakeholder input in `roadmap.md` and commit using `gh` per `GITHUB_OPERATIONS.md`. Log validation in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`.
 - Limit active subtasks to 5-7 per day, based on estimated effort, to avoid overloading processing capacity. If capacity is exceeded, defer low-priority tasks and update `plan_<feature>.md` in `/planning/<projectId_prefix>_<project_name>/`.
 - Maintain a `dependencies.md` file in the project root listing all cross-project dependencies (e.g., shared libraries, external team deliverables), updated weekly to reflect resolved or new blockers. Commit changes using `gh` per `GITHUB_OPERATIONS.md`.
 
@@ -55,7 +55,7 @@ Tracking progress and reflecting on outcomes ensure alignment with goals and con
 
 - Update `/planning/<projectId_prefix>_<project_name>/plan_<feature>.md` after completing each subtask, marking it as done and noting deviations from estimated effort or deliverables. For example, if a subtask took 6 hours instead of 4, document the reason (e.g., edge cases) in `/planning/<projectId_prefix>_<project_name>/lessons_learned.md`.
 - Maintain a `/planning/<projectId_prefix>_<project_name>/todo.md` file as a checklist of subtasks, synchronized with `plan_<feature>.md` and Linear issues, following `AGENT_WORKFLOW.md`. Update markers (e.g., `[x]`) based on Linear issue `state` (e.g., `Completed`) after PR approval per `GITHUB_OPERATIONS.md`.
-- Conduct self-reflection after major milestones (e.g., feature completion), comparing actual outcomes to planned deliverables. Document findings in `/planning/<projectId_prefix>_<project_name>/lessons_learned.md`, covering successes, challenges, and process improvements (e.g., “Underestimated UI complexity due to responsive design”).
+- Conduct self-reflection after major milestones (e.g., feature completion), comparing actual outcomes to planned deliverables. Log reflections in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md` and `/planning/<projectId_prefix>_<project_name>/lessons_learned.md`, covering successes, challenges, and process improvements (e.g., “Underestimated UI complexity due to responsive design”).
 - Compare actual vs. estimated effort for each subtask in `lessons_learned.md`, updating benchmarks in `plan_<feature>.md` if deviations exceed 20%. For example, increase database task estimates by 10% if consistently underestimated.
 - Verify task completion by running all relevant tests (per `tdd.md`), validating against user requirements, and ensuring the corresponding PR is approved on GitHub per `GITHUB_OPERATIONS.md`. If gaps exist, create new subtasks, update `plan_<feature>.md`, and create a new PR.
 - Instrument task completion times with Prometheus metrics to identify bottlenecks (e.g., subtasks taking >150% of estimated effort). Log metrics in `/planning/<projectId_prefix>_<project_name>/metrics.md`.
@@ -64,11 +64,11 @@ Tracking progress and reflecting on outcomes ensure alignment with goals and con
 
 Errors during planning, prioritization, or GitHub operations require swift detection and correction to maintain progress.
 
-- Detect planning errors (e.g., missed dependencies) by reviewing `plan_<feature>.md` before execution and after updates. Correct errors by revising the plan, notifying the user if delays exceed 1 day, and updating the PR per `GITHUB_OPERATIONS.md`.
+- Detect planning errors (e.g., missed dependencies) by reviewing `plan_<feature>.md` before execution and after updates. Correct errors by revising the plan, notifying the user if delays exceed 1 day, and updating the PR per `GITHUB_OPERATIONS.md`. Log errors in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`.
 - Handle prioritization errors (e.g., focusing on low-impact tasks) by re-scoring subtasks during daily reassessments. Adjust the execution order, document the rationale in `plan_<feature>.md`, and update the PR.
 - Implement retry logic for transient issues (e.g., temporary API unavailability for Linear or GitHub) with up to three attempts using exponential backoff (1s, 2s, 4s). Log attempts in `/planning/<projectId_prefix>_<project_name>/logs.md`.
 - Escalate persistent errors to the user with a proposed solution and timeline, using a template: `Error: <issue>. Impact: <effect>. Solution: <fix>. ETA: <time>.` If no response within 48 hours, proceed with the proposed fix, logging the decision in `logs.md` and updating the PR.
-- For ambiguous requirements, infer intent from `lessons_learned.md` and propose a minimal viable solution, seeking confirmation. If unresolvable, prototype both options, A/B test with a user subset, and update the PR with results.
+- For ambiguous requirements, infer intent from `lessons_learned.md` and propose a minimal viable solution, seeking confirmation. If unresolvable, prototype both options, A/B test with a user subset, and update the PR with results. Log the process in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`.
 
 ## Linear Integration
 
@@ -80,9 +80,9 @@ Linear serves as the primary source of truth for project and task management, wi
 
 ### Project Creation
 - For each new feature, create a Linear project in the `MET` team using the `projectCreate` mutation, generating a unique `projectId` (UUID, e.g., `8f4c2b1a-4f3e-4a6b-9c2d-7e8f9a0b1c2d`).
-- Create a project-specific folder `/planning/<projectId_prefix>_<project_name>/`, where `<projectId_prefix>` is the first 6 characters of the `projectId` and `<project_name>` is the Linear project name (lowercased, spaces replaced with underscores, e.g., `/planning/8f4c2b_user_profile_page/` for “User Profile Page”). Store `plan_<feature>.md`, `todo.md`, `lessons_learned.md`, `logs.md`, `metrics.md`, and `mocks.md` within it.
+- Create a project-specific folder `/planning/<projectId_prefix>_<project_name>/`, where `<projectId_prefix>` is the first 6 characters of the `projectId` and `<project_name>` is the Linear project name (lowercased, spaces replaced with underscores, e.g., `/planning/8f4c2b_user_profile_page/` for “User Profile Page”). Store `plan_<feature>.md`, `todo.md`, `lessons_learned.md`, `logs.md`, `metrics.md`, `mocks.md`, and `<projectId_prefix>_<issueId_prefix>_reflection.md` within it.
 - Map `plan_<feature>.md` fields: `name` to the feature name (e.g., “User Profile Page”), `description` to deliverables and milestones, `startDate` to the current date, and `targetDate` to the planned completion date based on effort estimates.
-- Store the full `projectId` in `plan_<feature>.md` as a table column (`Linear Project ID`) and in `/planning/<projectId_prefix>_<project_name>/metadata.md` as a key-value pair (e.g., `projectId: 8f4c2b1a-4f3e-4a6b-9c2d-7e8f9a0b1c2d`). Commit using `gh` per `GITHUB_OPERATIONS.md` with a message like `[plan] Create /planning/<projectId_prefix>_<project_name>/ for <feature> with Linear project ID`.
+- Store the full `projectId` in `plan_<feature>.md` as a table column (`Linear Project ID`) and in `/planning/<projectId_prefix>_<project_name>/metadata.md` as a key-value pair (e.g., `projectId: 8f4c2b1a-4f3e-4a6b-9c2d-7e8f9a0b1c2d`). Commit using `gh` per `GITHUB_OPERATIONS.md` with a message like `[plan] Create /planning/<projectId_prefix>_<project_name>/ for <feature> with Linear project ID`. Log creation in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`.
 
 ### Task Creation and Updates
 - Create a Linear issue for each subtask in `plan_<feature>.md` using the `issueCreate` mutation, generating a unique issue `id` (UUID). Set:
@@ -92,29 +92,35 @@ Linear serves as the primary source of truth for project and task management, wi
   - `priority`: Map priority score (1-5) to Linear’s scale (0-4, e.g., 5→1=Urgent, 4→2=High, 3→3=Medium, 2→4=Low, 1→0=None).
   - `projectId`: Link to the feature’s Linear project.
   - `teamId`: `MET` team’s ID.
-- Store the issue `id` and human-readable `identifier` (e.g., `MET-123`) in `plan_<feature>.md` as table columns (`Linear Issue ID`, `Linear Issue Identifier`) and commit using `gh` per `GITHUB_OPERATIONS.md`.
-- Update issues via `issueUpdate` when `plan_<feature>.md` changes (e.g., updated effort, priority, or status). For example, if a subtask’s effort increases, update the issue’s `estimate` field and update the PR.
-- When completing a subtask, wait for PR approval on GitHub per `GITHUB_OPERATIONS.md`, then set the Linear issue `state` to `Completed` and update `/planning/<projectId_prefix>_<project_name>/todo.md` to `[x]`.
+- Store the issue `id` and human-readable `identifier` (e.g., `MET-123`) in `plan_<feature>.md` as table columns (`Linear Issue ID`, `Linear Issue Identifier`) and commit using `gh` per `GITHUB_OPERATIONS.md`. Log creation in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`.
+- Update issues via `issueUpdate` when `plan_<feature>.md` changes (e.g., updated effort, priority, or status). For example, if a subtask’s effort increases, update the issue’s `estimate` field and update the PR.  Log updates in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`.
+- When completing a subtask, wait for PR approval on GitHub per `GITHUB_OPERATIONS.md`, then set the Linear issue `state` to `Completed` and update `/planning/<projectId_prefix>_<project_name>/todo.md` to `[x]`. Log completion in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`.
 
 ### Synchronization Process
-- Run a sync process every 10 minutes to align Linear, GitHub, and `/planning/<projectId_prefix>_<project_name>/` files, triggered also on task completion, plan reassessment, or PR updates.
+
+- Run a sync process every 10 minutes to align Linear, GitHub, and `/planning/<projectId_prefix>_<project_name>/` files, triggered also on task completion, plan reassessment, PR updates, or reflection events per `LLM_REFLECTION_DEBUGGING_RULES.md`.
 - Query Linear’s `issues` for the project using the `projectId`, retrieving `id`, `identifier` (e.g., `MET-123`), `title`, `description`, `estimate`, `priority`, `state`, and `updatedAt`. Compare with `plan_<feature>.md` using a `last_modified` field in the Markdown file’s frontmatter (e.g., `---\nlast_modified: 2025-07-07T16:00:00Z\n---`).
-- **Linear to Markdown**: If an issue’s `updatedAt` is newer, update `plan_<feature>.md` and `todo.md` to reflect changes (e.g., status, estimate). For example, if an issue moves to `In Progress`, update `todo.md` to `[ ]` with a note: “In Progress in Linear.”
+- **Linear to Markdown**: If an issue’s `updatedAt` is newer, update `plan_<feature>.md` and `todo.md` to reflect changes (e.g., status, estimate). For example, if an issue moves to In Progress, update todo.md to [ ] with a note: “In Progress in Linear.” Log the sync in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md.`
 - **Markdown to Linear**: If `plan_<feature>.md`’s `last_modified` is newer, push changes to Linear via `issueUpdate` or `issueCreate` for new subtasks. For example, if a subtask’s priority score changes, update the issue’s `priority` and PR description.
-- **GitHub Synchronization**: Update the PR description via `gh pr edit` to reflect Linear issue changes (e.g., updated subtasks, status). Ensure `plan_<feature>.md` includes the latest PR URL.
-- Resolve conflicts by prioritizing Linear’s state, logging discrepancies in `/planning/<projectId_prefix>_<project_name>/logs.md` with a timestamp and resolution (e.g., “Overwrote local effort estimate to match Linear”).
-- Maintain a one-to-one correspondence between `plan_<feature>.md` subtasks, Linear issues, and GitHub PRs, creating or archiving issues and PRs as subtasks are added or removed. If an issue is deleted in Linear, archive the corresponding subtask in `/planning/<projectId_prefix>_<project_name>/archive/subtask_<issueId>.md`.
+- **GitHub Synchronization**: Update the PR description via `gh pr edit` to reflect Linear issue changes (e.g., updated subtasks, status). Ensure `plan_<feature>.md` includes the latest PR URL.  Log PR updates in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`.
+- Resolve conflicts by prioritizing Linear’s state, logging discrepancies in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md` with a timestamp and resolution (e.g., “Overwrote local effort estimate to match Linear”).
+- Maintain a one-to-one correspondence between `plan_<feature>.md` subtasks, Linear issues, and GitHub PRs, creating or archiving issues and PRs as subtasks are added or removed. If an issue is deleted in Linear, archive the corresponding subtask in `/planning/<projectId_prefix>_<project_name>/archive/subtask_<issueId>.md.`
 
 ### Error Handling
-- Retry API errors (e.g., rate limits, network issues) for Linear and GitHub `gh` commands up to three times with exponential backoff (1s, 2s, 4s). Log attempts to `/planning/<projectId_prefix>_<project_name>/logs.md` with context (e.g., “Retry failed: 429 Rate Limit on gh pr create”).
-- For persistent errors (e.g., invalid `teamId` or repository access), escalate to the user with a template: `Error: <issue>. Impact: <effect>. Solution: <fix, e.g., verify MET team access>. ETA: <time>.` If no response within 48 hours, queue changes locally in `/planning/<projectId_prefix>_<project_name>/sync_queue.json` and retry daily.
-- Handle offline scenarios by queuing changes in `sync_queue.json`, syncing when connectivity is restored. Log queue status in `logs.md`.
+
+- Retry API errors (e.g., rate limits, network issues) for Linear and GitHub gh commands up to three times with exponential backoff (1s, 2s, 4s). Log attempts to `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md` per `LLM_REFLECTION_DEBUGGING_RULES.md`.
+For persistent errors (e.g., invalid teamId or repository access), escalate to the user with a template: `Error: <issue>. Impact: <effect>. Solution: <fix>. ETA: <time>`. If no response within 48 hours, queue changes locally in `/planning/<projectId_prefix>_<project_name>/sync_queue.json` and retry daily. Log escalations in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`.
+
+
+
+Handle offline scenarios by queuing changes in sync_queue.json, syncing when connectivity is restored. Log queue status in /planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md.
 
 ### Testing
+
 - Write language-specific unit tests in the `bluesky-research` conda environment to mock Linear (`projectCreate`, `issueCreate`, `issueUpdate`) and GitHub (`gh pr create`) operations, verifying field mappings (e.g., priority score to Linear priority, PR title format). For Python projects, use `pytest` with `unittest.mock`. For JavaScript projects, use `jest` with `jest-mock`. Ensure >90% line coverage per `CODING_RULES.md`.
 - Run integration tests to create a test project in Linear’s `MET` team, a test PR using `gh pr create`, and sync with `/planning/<projectId_prefix>_<project_name>/plan_<feature>.md`, asserting consistency (e.g., issue count, PR links). Use test-specific prefixes (e.g., “Test_<feature>” for projects, `test/<issueId_prefix>_<feature_snippet>` for branches).
 - Validate sync accuracy by simulating a sync cycle (Linear↔Markdown↔GitHub) and asserting no data loss. Log test results in `/planning/<projectId_prefix>_<project_name>/tests.md`.
-- Test error handling by simulating API and `gh` command failures (e.g., 429, network timeout), verifying retries and logging.
+- Test error handling by simulating API and gh command failures (e.g., 429, network timeout), verifying retries and logging per `LLM_REFLECTION_DEBUGGING_RULES.md`.
 - Verify folder structure integrity by checking that all required files (`plan_<feature>.md`, `todo.md`, etc.) exist in `/planning/<projectId_prefix>_<project_name>/` and match Linear and GitHub data.
 
 ### Scalability
@@ -146,9 +152,11 @@ Task planning integrates with coding, testing, GitHub, and workflow rules for co
 
 - Align task plans with the TDD workflow in `tdd.md`, ensuring each subtask includes test cases as deliverables. For example, an API endpoint subtask must include unit and integration tests, documented in the PR per `GITHUB_OPERATIONS.md`. Use language-specific testing frameworks (e.g., `pytest` for Python, `jest` for JavaScript).
 - Follow `CODING_RULES.md` for effort estimation, accounting for complexity limits (e.g., cyclomatic complexity <10) and testing requirements (e.g., >90% coverage). Adhere to language-specific best practices (e.g., Python’s PEP 8, JavaScript’s Airbnb style guide).
-- Synchronize progress with `AGENT_WORKFLOW.md`, using `/planning/<projectId_prefix>_<project_name>/todo.md` for detailed tracking and `plan_<feature>.md` for high-level planning. Ensure updates reflect in Linear and GitHub PRs.
+- If starting a new issue that hasn't had any development yet.
+- Synchronize progress with `AGENT_WORKFLOW.md`, using `/planning/<projectId_prefix>_<project_name>/todo.md` for detailed tracking and `plan_<feature>.md` for high-level planning. Ensure updates reflect in Linear and GitHub PRs and `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`.
 - Incorporate `UI_RULES.md` for UI subtasks, prioritizing clarity and accessibility in deliverables, and document in PR descriptions.
 - Communicate progress and escalations per `AGENT_CONVERSATION_STYLE.md`, using prose for updates and natural language lists (e.g., “current blockers include: x, y, z”) for summaries, included in PR comments or descriptions.
+- Perform reflection and debugging per `LLM_REFLECTION_DEBUGGING_RULES.md` at key stages (e.g., error detection, subtask completion, PR creation), logging in `/planning/<projectId_prefix>_<project_name>/<projectId_prefix>_<issueId_prefix>_reflection.md`
 
 ## Implementation Notes
 
