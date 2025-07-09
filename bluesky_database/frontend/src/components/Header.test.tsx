@@ -17,7 +17,8 @@ describe('Header Component', () => {
     
     const logo = screen.getByRole('img')
     expect(logo).toBeInTheDocument()
-    expect(logo).toHaveAttribute('src', logoUrl)
+    // Next.js Image component optimizes the src, so we check it contains our URL
+    expect(logo).toHaveAttribute('src', expect.stringContaining('example.com%2Flogo.png'))
     expect(logo).toHaveAttribute('alt', 'Bluesky Post Explorer Logo')
   })
 
