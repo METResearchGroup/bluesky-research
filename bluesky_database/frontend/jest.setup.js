@@ -1,5 +1,9 @@
 import '@testing-library/jest-dom'
 
+// Setup jest-axe
+import { toHaveNoViolations } from 'jest-axe'
+expect.extend(toHaveNoViolations)
+
 // Mock ResizeObserver for Headless UI
 global.ResizeObserver = jest.fn().mockImplementation(() => ({
   observe: jest.fn(),

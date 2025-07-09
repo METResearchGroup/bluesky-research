@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react'
+import { render, screen, waitFor, within, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom'
 import SearchForm from '../SearchForm'
@@ -7,7 +7,7 @@ import SearchForm from '../SearchForm'
 // Mock Headless UI components that we expect to be used
 jest.mock('@headlessui/react', () => ({
   ...jest.requireActual('@headlessui/react'),
-  Dialog: ({ children, open }: any) => open ? <div data-testid="date-picker-dialog">{children}</div> : null,
+  Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => open ? <div data-testid="date-picker-dialog">{children}</div> : null,
 }))
 
 interface SearchFormData {
@@ -241,8 +241,7 @@ describe('SearchForm Component', () => {
   describe('Accessibility Compliance (WCAG AA)', () => {
     test('provides proper ARIA labels and descriptions', () => {
       const expected_result = {
-        requiredFieldIndicator: '*',
-        ariaDescribedByAttributes: ['query-error', 'username-error', 'date-error']
+        requiredFieldIndicator: '*'
       }
 
       render(<SearchForm onSubmit={mockOnSubmit} />)
@@ -275,10 +274,6 @@ describe('SearchForm Component', () => {
     })
 
     test('supports keyboard navigation throughout form', async () => {
-      const expected_result = {
-        tabOrder: ['search-input', 'username-input', 'start-date-picker', 'end-date-picker', 'exact-match', 'submit-button']
-      }
-
       render(<SearchForm onSubmit={mockOnSubmit} />)
       
       // Test Tab navigation
@@ -309,11 +304,6 @@ describe('SearchForm Component', () => {
     })
 
     test('date pickers open and close with keyboard controls', async () => {
-      const expected_result = {
-        openKeys: ['Enter', ' '],
-        closeKeys: ['Escape']
-      }
-
       render(<SearchForm onSubmit={mockOnSubmit} />)
       
       const startDatePicker = screen.getByTestId('start-date-picker')
@@ -388,11 +378,6 @@ describe('SearchForm Component', () => {
 
   describe('Headless UI Integration', () => {
     test('uses Headless UI components for enhanced accessibility', () => {
-      const expected_result = {
-        headlessUIComponents: ['date-picker', 'dialog', 'button'],
-        ariaAttributes: ['aria-expanded', 'aria-haspopup']
-      }
-
       render(<SearchForm onSubmit={mockOnSubmit} />)
       
       const startDatePicker = screen.getByTestId('start-date-picker')
@@ -405,11 +390,6 @@ describe('SearchForm Component', () => {
     })
 
     test('date picker dialogs manage focus properly', async () => {
-      const expected_result = {
-        focusTrapping: true,
-        returnFocus: true
-      }
-
       render(<SearchForm onSubmit={mockOnSubmit} />)
       
       const startDatePicker = screen.getByTestId('start-date-picker')
