@@ -15,7 +15,7 @@ const exportToCSV = (posts: Post[]) => {
     headers.join(','),
     ...posts.map(post => {
       const timestamp = new Date(post.timestamp).toLocaleString()
-      const username = post.username
+      const username = `"${post.username.replace(/"/g, '""')}"`
       const text = `"${post.text.replace(/"/g, '""')}"`
       return [timestamp, username, text].join(',')
     })
@@ -127,10 +127,10 @@ describe('CSV Export Functionality - MET-13 Unit Tests', () => {
       const blobCall = (global.Blob as jest.Mock).mock.calls[0]
       const csvContent = blobCall[0][0]
 
-      // Check that usernames and content are included
-      expect(csvContent).toContain('bluesky_user')
-      expect(csvContent).toContain('tech_enthusiast')
-      expect(csvContent).toContain('developer_jane')
+      // Check that usernames and content are included (usernames should be quoted)
+      expect(csvContent).toContain('"bluesky_user"')
+      expect(csvContent).toContain('"tech_enthusiast"')
+      expect(csvContent).toContain('"developer_jane"')
     })
 
     it('properly formats timestamps in CSV', () => {
@@ -335,7 +335,7 @@ describe('CSV Export Functionality - MET-13 Unit Tests', () => {
       const blobCall = (global.Blob as jest.Mock).mock.calls[0]
       const csvContent = blobCall[0][0]
 
-      expect(csvContent).toContain('silent_user')
+      expect(csvContent).toContain('"silent_user"')
       expect(csvContent).toContain('""') // Empty quoted string
     })
 
@@ -354,7 +354,34 @@ describe('CSV Export Functionality - MET-13 Unit Tests', () => {
       const blobCall = (global.Blob as jest.Mock).mock.calls[0]
       const csvContent = blobCall[0][0]
 
-      expect(csvContent).toContain('user.with-dots_and-dashes')
+      expect(csvContent).toContain('"user.with-dots_and-dashes"')
+    })
+
+    it('handles usernames with commas and quotes', () => {
+      const postsWithProblematicUsernames: Post[] = [
+        {
+          id: '1',
+          timestamp: '2024-01-15T14:30:00Z',
+          username: 'user,with,commas',
+          text: 'Test post with comma username'
+        },
+        {
+          id: '2',
+          timestamp: '2024-01-15T14:30:00Z',
+          username: 'user"with"quotes',
+          text: 'Test post with quoted username'
+        }
+      ]
+
+      exportToCSV(postsWithProblematicUsernames)
+
+      const blobCall = (global.Blob as jest.Mock).mock.calls[0]
+      const csvContent = blobCall[0][0]
+
+      // Usernames with commas should be properly quoted
+      expect(csvContent).toContain('"user,with,commas"')
+      // Usernames with quotes should have escaped quotes
+      expect(csvContent).toContain('"user""with""quotes"')
     })
 
     it('handles invalid timestamp gracefully', () => {
