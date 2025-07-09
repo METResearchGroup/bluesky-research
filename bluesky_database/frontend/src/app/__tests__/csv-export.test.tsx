@@ -1,33 +1,5 @@
 import '@testing-library/jest-dom'
-import { escapeCSVField } from '@/utils/csvExport'
-
-
-// Extract and test the CSV export function directly
-const exportToCSV = (posts: Post[]) => {
-  const headers = ['Timestamp', 'Username', 'Post Preview']
-  const csvContent = [
-    headers.join(','),
-    ...posts.map(post => {
-      const timestamp = new Date(post.timestamp).toLocaleString()
-      const username = `"${post.username.replace(/"/g, '""')}"`
-      const text = `"${post.text.replace(/"/g, '""')}"`
-      return [timestamp, username, text].join(',')
-    })
-  ].join('\n')
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  
-  if (link.download !== undefined) {
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', `bluesky-posts-${new Date().toISOString().split('T')[0]}.csv`)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-}
+import { escapeCSVField, exportToCSV, type Post } from '@/utils/csvExport'
 
 // Mock implementations for testing
 const mockCreateObjectURL = jest.fn()
@@ -99,6 +71,14 @@ describe('CSV Export Functionality - MET-13 Unit Tests', () => {
       expect(escapeCSVField('')).toBe('""')
     })
 
+    it('handles null values', () => {
+      expect(escapeCSVField(null)).toBe('""')
+    })
+
+    it('handles undefined values', () => {
+      expect(escapeCSVField(undefined)).toBe('""')
+    })
+
     it('handles text with newlines', () => {
       expect(escapeCSVField('text\nwith\nnewlines')).toBe('"text\nwith\nnewlines"')
     })
@@ -147,7 +127,7 @@ describe('CSV Export Functionality - MET-13 Unit Tests', () => {
       const blobCall = (global.Blob as jest.Mock).mock.calls[0]
       const csvContent = blobCall[0][0]
 
-      // Check that usernames and content are included (usernames should be quoted)
+      // Check that usernames and content are included (all fields should be quoted)
       expect(csvContent).toContain('"bluesky_user"')
       expect(csvContent).toContain('"tech_enthusiast"')
       expect(csvContent).toContain('"developer_jane"')

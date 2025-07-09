@@ -10,7 +10,12 @@ interface Post {
  * @param field - The field value to escape
  * @returns The properly escaped and quoted field
  */
-export const escapeCSVField = (field: string): string => {
+export const escapeCSVField = (field: string | null | undefined): string => {
+  // Handle null/undefined values
+  if (field == null) {
+    return '""'
+  }
+  
   // Always quote fields to ensure RFC 4180 compliance
   // Escape any existing quotes by doubling them
   const escapedField = field.replace(/"/g, '""')
