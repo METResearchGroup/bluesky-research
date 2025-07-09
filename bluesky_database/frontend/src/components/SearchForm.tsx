@@ -1,9 +1,8 @@
 'use client'
 
 import React from 'react'
-import { useForm, Controller } from 'react-hook-form'
-import { MagnifyingGlassIcon, CalendarIcon } from '@heroicons/react/24/outline'
-import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react'
+import { useForm } from 'react-hook-form'
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 
 interface SearchFormData {
   query: string
@@ -18,86 +17,7 @@ interface SearchFormProps {
   isLoading?: boolean
 }
 
-interface DatePickerProps {
-  label: string
-  value: string
-  onChange: (date: string) => void
-  placeholder: string
-  id: string
-  testId: string
-  error?: string
-}
 
-function DatePicker({ label, value, onChange, placeholder, id, testId, error }: DatePickerProps) {
-  const labelId = `${id}-label`
-  const buttonId = `${id}-button`
-
-  const handleDateChange = (event: React.ChangeEvent<HTMLInputElement>, close: () => void) => {
-    onChange(event.target.value)
-    close()
-  }
-
-  return (
-    <div>
-      <label id={labelId} htmlFor={buttonId} className="block text-sm font-medium text-gray-700 mb-1">
-        {label}
-      </label>
-      <Popover className="relative">
-        {({ open, close }) => (
-          <>
-            <PopoverButton
-              id={buttonId}
-              data-testid={testId}
-              role="button"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between bg-white text-left"
-              aria-haspopup="dialog"
-              aria-expanded={open}
-              aria-labelledby={labelId}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                } else if (event.key === 'Escape' && open) {
-                  event.preventDefault()
-                  close()
-                }
-              }}
-            >
-              <span className={value ? 'text-gray-900' : 'text-gray-400'}>
-                {value || placeholder}
-              </span>
-              <CalendarIcon className="h-4 w-4 text-gray-400" />
-            </PopoverButton>
-            
-            <PopoverPanel 
-              data-testid="date-picker-dialog"
-              className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg p-2"
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  event.preventDefault()
-                  close()
-                }
-              }}
-            >
-              <input
-                type="date"
-                value={value}
-                onChange={(event) => handleDateChange(event, close)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                autoFocus
-                tabIndex={0}
-              />
-            </PopoverPanel>
-          </>
-        )}
-      </Popover>
-      {error && (
-        <p className="mt-1 text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
 
 export default function SearchForm({ onSubmit, isLoading = false }: SearchFormProps) {
   const {
@@ -105,7 +25,6 @@ export default function SearchForm({ onSubmit, isLoading = false }: SearchFormPr
     handleSubmit,
     formState: { errors },
     watch,
-    control,
   } = useForm<SearchFormData>({
     defaultValues: {
       query: '',
@@ -188,38 +107,37 @@ export default function SearchForm({ onSubmit, isLoading = false }: SearchFormPr
           )}
         </div>
 
-        {/* Date Range using Headless UI DatePickers */}
+        {/* Date Range */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Controller
-            name="startDate"
-            control={control}
-            render={({ field }) => (
-              <DatePicker
-                label="Start Date"
-                value={field.value}
-                onChange={field.onChange}
-                placeholder="Select start date"
-                id="startDate"
-                testId="start-date-picker"
-              />
+          <div>
+            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+              Start Date
+            </label>
+            <input
+              {...register('startDate')}
+              type="date"
+              id="startDate"
+              data-testid="start-date-picker"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
+              End Date
+            </label>
+            <input
+              {...register('endDate', { validate: validateDateRange })}
+              type="date"
+              id="endDate"
+              data-testid="end-date-picker"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            {errors.endDate && (
+              <p className="mt-1 text-sm text-red-600" role="alert">
+                {errors.endDate.message}
+              </p>
             )}
-          />
-          <Controller
-            name="endDate"
-            control={control}
-            rules={{ validate: validateDateRange }}
-            render={({ field }) => (
-              <DatePicker
-                label="End Date"
-                value={field.value}
-                onChange={field.onChange}
-                placeholder="Select end date"
-                id="endDate"
-                testId="end-date-picker"
-                error={errors.endDate?.message}
-              />
-            )}
-          />
+          </div>
         </div>
 
         {/* Exact Match Toggle */}
