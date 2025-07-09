@@ -17,10 +17,11 @@
   - ✅ All 18 tests passing (100% coverage)
   - Dependencies: MET-10
 
-- [ ] **MET-12: Results Table Component** (10-14h) - *Priority: High* 
-  - Build responsive table component
-  - Implement skeleton loading and empty states
-  - Add text truncation for long posts
+- [x] **MET-12: Results Table Component** (10-14h) - *Priority: High* ✅ **COMPLETED**
+  - ✅ Build responsive table component (desktop table + mobile cards)
+  - ✅ Implement skeleton loading and empty states
+  - ✅ Add text truncation for long posts (140 char limit with expand/collapse)
+  - ✅ Comprehensive testing (43/43 tests passing with accessibility compliance)
   - Dependencies: MET-11
 
 - [ ] **MET-13: CSV Export Functionality** (6-8h) - *Priority: Medium*
@@ -43,9 +44,9 @@
 
 ## Current Status
 - **Total Tasks:** 6
-- **Completed:** 2 ✅ 
+- **Completed:** 3 ✅ 
 - **In Progress:** 0  
-- **Remaining:** 4
+- **Remaining:** 3
 
 ## Next Actions
 1. ✅ **COMPLETED**: MET-10 (Project Foundation Setup) - PR created and ready for review
