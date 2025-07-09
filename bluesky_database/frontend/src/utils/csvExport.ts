@@ -10,10 +10,12 @@ interface Post {
  * @param field - The field value to escape
  * @returns The properly escaped and quoted field
  */
-export const escapeCSVField = (field: string): string => {
+export const escapeCSVField = (field: string | null | undefined): string => {
+  // Handle null/undefined values by converting to empty string
+  const fieldStr = field ?? ''
   // Always quote fields to ensure RFC 4180 compliance
   // Escape any existing quotes by doubling them
-  const escapedField = field.replace(/"/g, '""')
+  const escapedField = fieldStr.replace(/"/g, '""')
   return `"${escapedField}"`
 }
 
@@ -49,18 +51,5 @@ export const exportToCSV = (posts: Post[]): void => {
     link.click()
     document.body.removeChild(link)
   }
-}
-/**
- * Helper function to escape and quote CSV fields according to RFC 4180
- * @param field - The field value to escape
- * @returns The properly escaped and quoted field
- */
-export const escapeCSVField = (field: string | null | undefined): string => {
-  // Handle null/undefined values by converting to empty string
-  const fieldStr = field ?? ''
-  // Always quote fields to ensure RFC 4180 compliance
-  // Escape any existing quotes by doubling them
-  const escapedField = fieldStr.replace(/"/g, '""')
-  return `"${escapedField}"`
 }
 export type { Post }
