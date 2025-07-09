@@ -6,23 +6,25 @@ interface Post {
 }
 
 /**
+ * Helper function to escape and quote CSV fields according to RFC 4180
+ * @param field - The field value to escape
+ * @returns The properly escaped and quoted field
+ */
+export const escapeCSVField = (field: string): string => {
+  // Always quote fields to ensure RFC 4180 compliance
+  // Escape any existing quotes by doubling them
+  const escapedField = field.replace(/"/g, '""')
+  return `"${escapedField}"`
+}
+
+/**
  * Exports an array of posts to a CSV file and triggers download
  * @param posts - Array of Post objects to export
  */
 export const exportToCSV = (posts: Post[]): void => {
-  // Helper function to properly escape and quote CSV fields according to RFC 4180
-  const escapeCSVField = (field: string | null | undefined): string => {
-    // Handle null/undefined values by converting to empty string
-    const fieldStr = field ?? ''
-    // Always quote fields to ensure RFC 4180 compliance
-    // Escape any existing quotes by doubling them
-    const escapedField = fieldStr.replace(/"/g, '""')
-    return `"${escapedField}"`
-  }
-
   const headers = ['Timestamp', 'Username', 'Post Preview']
   const csvContent = [
-    headers.map(escapeCSVField).join(','),
+    headers.map().join(','),
     ...posts.map(post => {
       const timestamp = new Date(post.timestamp).toLocaleString()
       const username = post.username
@@ -48,7 +50,6 @@ export const exportToCSV = (posts: Post[]): void => {
     document.body.removeChild(link)
   }
 }
-
 /**
  * Helper function to escape and quote CSV fields according to RFC 4180
  * @param field - The field value to escape
@@ -62,5 +63,4 @@ export const escapeCSVField = (field: string | null | undefined): string => {
   const escapedField = fieldStr.replace(/"/g, '""')
   return `"${escapedField}"`
 }
-
 export type { Post }
