@@ -17,22 +17,28 @@
   - ✅ All 18 tests passing (100% coverage)
   - Dependencies: MET-10
 
-- [ ] **MET-12: Results Table Component** (10-14h) - *Priority: High* 
-  - Build responsive table component
-  - Implement skeleton loading and empty states
-  - Add text truncation for long posts
+- [x] **MET-12: Results Table Component** (10-14h) - *Priority: High* ✅ **COMPLETED**
+  - ✅ Build responsive table component (desktop table + mobile cards)
+  - ✅ Implement skeleton loading and empty states
+  - ✅ Add text truncation for long posts (140 char limit with expand/collapse)
+  - ✅ Comprehensive testing (43/43 tests passing with accessibility compliance)
   - Dependencies: MET-11
 
-- [ ] **MET-13: CSV Export Functionality** (6-8h) - *Priority: Medium*
-  - Implement CSV generation and download
-  - Handle special characters and formatting
-  - Add cross-browser compatibility
+- [ ] **MET-13: CSV Export Functionality** (6-8h) - *Priority: Medium* 🔄 **IN PROGRESS**
+  - ✅ Implement CSV generation and download (blob-based with proper encoding)
+  - ✅ Handle special characters and formatting (quote escaping, UTF-8)
+  - ✅ Add cross-browser compatibility (standard APIs)
+  - ✅ Integration with ResultsTable export button
+  - ❌ **MISSING: Comprehensive testing (0% coverage on page.tsx)**
+  - ❌ **MISSING: CSV generation unit tests, special character tests, cross-browser tests**
   - Dependencies: MET-12
 
-- [ ] **MET-14: Coming Soon Features Panel** (4-6h) - *Priority: Low*
-  - Create disabled toggles with tooltips
-  - Implement mobile-friendly interactions
-  - Add accessibility support
+- [ ] **MET-14: Coming Soon Features Panel** (4-6h) - *Priority: Low* 🔄 **IN PROGRESS**
+  - ✅ Create disabled toggles with tooltips
+  - ✅ Implement mobile-friendly interactions  
+  - ✅ Add accessibility support (basic implementation)
+  - ❌ **MISSING: Comprehensive testing (0% coverage on ComingSoonPanel.tsx)**
+  - ❌ **MISSING: Accessibility testing, tooltip testing, responsive design tests**
   - Dependencies: MET-10
 
 - [ ] **MET-15: Polish & Testing** (8-12h) - *Priority: Medium*
@@ -43,9 +49,9 @@
 
 ## Current Status
 - **Total Tasks:** 6
-- **Completed:** 2 ✅ 
-- **In Progress:** 0  
-- **Remaining:** 4
+- **Completed:** 3 ✅ 
+- **In Progress:** 2 🔄  
+- **Remaining:** 1
 
 ## Next Actions
 1. ✅ **COMPLETED**: MET-10 (Project Foundation Setup) - PR created and ready for review
