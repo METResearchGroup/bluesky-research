@@ -17,6 +17,11 @@ interface SearchFormProps {
   isLoading?: boolean
 }
 
+/**
+ * Renders a search form for filtering posts by query, username, date range, and exact match.
+ *
+ * The form includes validation for required fields, username format, and date range consistency. On submission, it calls the provided `onSubmit` callback with the form data. Displays loading state and error messages as appropriate.
+ */
 export default function SearchForm({ onSubmit, isLoading = false }: SearchFormProps) {
   const {
     register,
