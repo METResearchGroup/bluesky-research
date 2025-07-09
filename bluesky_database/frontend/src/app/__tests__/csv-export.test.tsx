@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { exportToCSV, escapeCSVField, type Post } from '@/utils/csvExport'
+import { escapeCSVField } from '@/utils/csvExport'
 
 
 // Mock data structure matching the page component
