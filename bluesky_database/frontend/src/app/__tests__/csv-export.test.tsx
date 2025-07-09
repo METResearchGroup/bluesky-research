@@ -1,39 +1,5 @@
 import '@testing-library/jest-dom'
-
-// Mock data structure matching the page component
-interface Post {
-  id: string
-  timestamp: string
-  username: string
-  text: string
-}
-
-// Extract and test the CSV export function directly
-const exportToCSV = (posts: Post[]) => {
-  const headers = ['Timestamp', 'Username', 'Post Preview']
-  const csvContent = [
-    headers.join(','),
-    ...posts.map(post => {
-      const timestamp = new Date(post.timestamp).toLocaleString()
-      const username = post.username
-      const text = `"${post.text.replace(/"/g, '""')}"`
-      return [timestamp, username, text].join(',')
-    })
-  ].join('\n')
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  
-  if (link.download !== undefined) {
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', `bluesky-posts-${new Date().toISOString().split('T')[0]}.csv`)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-}
+import { exportToCSV, escapeCSVField, type Post } from '@/utils/csvExport'
 
 // Mock implementations for testing
 const mockCreateObjectURL = jest.fn()
@@ -88,6 +54,32 @@ describe('CSV Export Functionality - MET-13 Unit Tests', () => {
     mockCreateObjectURL.mockReturnValue('mock-blob-url')
   })
 
+  describe('escapeCSVField Helper Function', () => {
+    it('quotes simple text', () => {
+      expect(escapeCSVField('simple text')).toBe('"simple text"')
+    })
+
+    it('escapes quotes by doubling them', () => {
+      expect(escapeCSVField('text with "quotes"')).toBe('"text with ""quotes"""')
+    })
+
+    it('handles text with commas', () => {
+      expect(escapeCSVField('text, with, commas')).toBe('"text, with, commas"')
+    })
+
+    it('handles empty string', () => {
+      expect(escapeCSVField('')).toBe('""')
+    })
+
+    it('handles text with newlines', () => {
+      expect(escapeCSVField('text\nwith\nnewlines')).toBe('"text\nwith\nnewlines"')
+    })
+
+    it('handles mixed special characters', () => {
+      expect(escapeCSVField('complex "text", with\nnewlines')).toBe('"complex ""text"", with\nnewlines"')
+    })
+  })
+
   const mockPosts: Post[] = [
     {
       id: '1',
@@ -115,7 +107,7 @@ describe('CSV Export Functionality - MET-13 Unit Tests', () => {
 
       expect(global.Blob).toHaveBeenCalledWith(
         expect.arrayContaining([
-          expect.stringContaining('Timestamp,Username,Post Preview')
+          expect.stringContaining('"Timestamp","Username","Post Preview"')
         ]),
         { type: 'text/csv;charset=utf-8;' }
       )
@@ -183,6 +175,54 @@ describe('CSV Export Functionality - MET-13 Unit Tests', () => {
 
       // Content with commas should be properly quoted
       expect(csvContent).toContain('"This has, commas, in it"')
+    })
+
+    it('properly quotes all fields according to RFC 4180', () => {
+      const postsWithSpecialChars: Post[] = [
+        {
+          id: '1',
+          timestamp: '2024-01-15T14:30:00Z',
+          username: 'user,with,commas',
+          text: 'Text with "quotes" and, commas'
+        }
+      ]
+
+      exportToCSV(postsWithSpecialChars)
+
+      const blobCall = (global.Blob as jest.Mock).mock.calls[0]
+      const csvContent = blobCall[0][0]
+
+      // All fields should be quoted
+      expect(csvContent).toContain('"user,with,commas"')
+      expect(csvContent).toContain('"Text with ""quotes"" and, commas"')
+      
+      // Header should also be quoted
+      expect(csvContent).toContain('"Timestamp","Username","Post Preview"')
+    })
+
+    it('handles timestamps with commas from toLocaleString()', () => {
+      const postsWithTimestamp: Post[] = [
+        {
+          id: '1',
+          timestamp: '2024-01-15T14:30:00Z',
+          username: 'test_user',
+          text: 'Test post'
+        }
+      ]
+
+      exportToCSV(postsWithTimestamp)
+
+      const blobCall = (global.Blob as jest.Mock).mock.calls[0]
+      const csvContent = blobCall[0][0]
+
+      // Split by lines and check the data row
+      const lines = csvContent.split('\n')
+      const dataRow = lines[1] // First data row after header
+      
+      // Should start and end with quotes for each field
+      const fields = dataRow.split('","')
+      expect(fields[0]).toMatch(/^".*/) // First field starts with quote
+      expect(fields[fields.length - 1]).toMatch(/.*"$/) // Last field ends with quote
     })
 
     it('handles special characters and emojis', () => {
@@ -316,7 +356,7 @@ describe('CSV Export Functionality - MET-13 Unit Tests', () => {
       const csvContent = blobCall[0][0]
 
       // Should still have headers
-      expect(csvContent).toContain('Timestamp,Username,Post Preview')
+      expect(csvContent).toContain('"Timestamp","Username","Post Preview"')
       expect(csvContent.split('\n')).toHaveLength(1) // Only header row
     })
 

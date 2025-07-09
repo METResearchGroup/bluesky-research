@@ -4,13 +4,7 @@ import React, { useState } from 'react'
 import SearchForm from '@/components/SearchForm'
 import ResultsTable from '@/components/ResultsTable'
 import ComingSoonPanel from '@/components/ComingSoonPanel'
-
-interface Post {
-  id: string
-  timestamp: string
-  username: string
-  text: string
-}
+import { exportToCSV, type Post } from '@/utils/csvExport'
 
 interface SearchFormData {
   query: string
@@ -108,32 +102,7 @@ const generateMockPosts = (searchData: SearchFormData): Post[] => {
   return filteredPosts
 }
 
-// CSV export function
-const exportToCSV = (posts: Post[]) => {
-  const headers = ['Timestamp', 'Username', 'Post Preview']
-  const csvContent = [
-    headers.join(','),
-    ...posts.map(post => {
-      const timestamp = new Date(post.timestamp).toLocaleString()
-      const username = post.username
-      const text = `"${post.text.replace(/"/g, '""')}"`
-      return [timestamp, username, text].join(',')
-    })
-  ].join('\n')
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  
-  if (link.download !== undefined) {
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', `bluesky-posts-${new Date().toISOString().split('T')[0]}.csv`)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-}
 
 export default function HomePage() {
   const [posts, setPosts] = useState<Post[]>([])
