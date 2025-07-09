@@ -2,14 +2,6 @@ import '@testing-library/jest-dom'
 import { exportToCSV, escapeCSVField, type Post } from '@/utils/csvExport'
 
 
-// Mock data structure matching the page component
-interface Post {
-  id: string
-  timestamp: string
-  username: string
-  text: string
-}
-
 // Extract and test the CSV export function directly
 const exportToCSV = (posts: Post[]) => {
   const headers = ['Timestamp', 'Username', 'Post Preview']
