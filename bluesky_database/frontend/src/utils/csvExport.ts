@@ -54,6 +54,12 @@ export const exportToCSV = (posts: Post[]): void => {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  } else {
+    // Fallback for browsers without download support
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    URL.revokeObjectURL(url)
   }
 }
 
