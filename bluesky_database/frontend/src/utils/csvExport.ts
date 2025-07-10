@@ -31,7 +31,8 @@ export const exportToCSV = (posts: Post[]): void => {
   const csvContent = [
     headers.map(escapeCSVField).join(','),
     ...posts.map(post => {
-      const timestamp = new Date(post.timestamp).toLocaleString()
+      const date = new Date(post.timestamp)
+      const timestamp = isNaN(date.getTime()) ? post.timestamp : date.toLocaleString()
       const username = post.username
       const text = post.text
       return [
