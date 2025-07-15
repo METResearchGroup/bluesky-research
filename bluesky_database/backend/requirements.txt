@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+python-multipart
+pandas
+itsdangerous
+python-dotenv 
