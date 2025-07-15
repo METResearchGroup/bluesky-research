@@ -2,7 +2,8 @@
 FROM python:3.10-slim
 
 # Install uv (ultra-fast Python package manager)
-RUN pip install --no-cache-dir uv
+RUN pip install --no-cache-dir uv \
+ && adduser --disabled-password --gecos '' app
 
 # Set workdir
 WORKDIR /app
@@ -11,12 +12,13 @@ WORKDIR /app
 COPY requirements.in requirements.txt ./
 
 # Install dependencies with uv
-RUN uv pip install --system -r requirements.txt
+RUN uv pip install --system -r requirements.txt --no-cache-dir
 
 # Copy app code
 COPY app ./app
 
 # Expose port
+USER app
 EXPOSE 8000
 
 # Entrypoint
