@@ -72,6 +72,8 @@ export const exportToCSV = (posts: Post[]): void => {
     } catch (error) {
       // Final fallback: navigate to the blob URL in the same window
       window.location.href = url
+
+      console.log('error', error)
       
       // Clean up after a longer delay since navigation might take more time
       setTimeout(() => {
