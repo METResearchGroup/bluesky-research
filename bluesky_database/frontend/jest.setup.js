@@ -1,5 +1,12 @@
 import '@testing-library/jest-dom'
 
+// Setup proper JSDOM environment
+import { TextEncoder, TextDecoder } from 'util'
+
+// Polyfill for Node.js environment
+global.TextEncoder = TextEncoder
+global.TextDecoder = TextDecoder
+
 // Setup jest-axe
 import { toHaveNoViolations } from 'jest-axe'
 expect.extend(toHaveNoViolations)
