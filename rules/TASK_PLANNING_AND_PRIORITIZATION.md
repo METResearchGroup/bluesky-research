@@ -165,3 +165,7 @@ Task planning integrates with coding, testing, GitHub, and workflow rules for co
 - Optimize planning for performance by limiting subtasks to 10-20 per feature, merging or splitting to balance granularity and manageability.
 - Ensure compatibility with Streamlit or other frameworks by including framework-specific considerations in effort estimates (e.g., Streamlit’s rendering constraints for Python, React’s component lifecycle for JavaScript).
 - Instrument planning efficiency with Prometheus metrics (e.g., plan reassessment frequency, sync latency, PR creation time) and set alerts for error rates >1% over a 5-minute window, logged in `/planning/<projectId_prefix>_<project_name>/metrics.md`.
+
+## Planning Folder Nomenclature Rule
+
+- All new planning folders must use the first 6 digits of the Linear project ID as prefix, followed by the project name, for all new backend/frontend projects. Example: `b94f21_bluesky_post_explorer_backend` for project ID `b94f21bf-f11b-4210-a8ef-67904301a8fa` and project name `Bluesky Post Explorer Backend`. This ensures consistent cross-project planning nomenclature and traceability.
