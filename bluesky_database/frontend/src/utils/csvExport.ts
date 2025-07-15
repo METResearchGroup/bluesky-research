@@ -44,15 +44,39 @@ export const exportToCSV = (posts: Post[]): void => {
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
   
   if (link.download !== undefined) {
-    const url = URL.createObjectURL(blob)
+    // Modern browsers with download attribute support
     link.setAttribute('href', url)
     link.setAttribute('download', `bluesky-posts-${new Date().toISOString().split('T')[0]}.csv`)
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    
+    // Clean up the blob URL after a short delay to ensure download completes
+    setTimeout(() => {
+      URL.revokeObjectURL(url)
+    }, 100)
+  } else {
+    // Fallback for older browsers without download attribute support
+    try {
+      window.open(url, '_blank')
+      
+      // Delay cleanup to prevent race condition - give browser time to process the request
+      setTimeout(() => {
+        URL.revokeObjectURL(url)
+      }, 1000)
+    } catch (error) {
+      // Final fallback: navigate to the blob URL in the same window
+      window.location.href = url
+      
+      // Clean up after a longer delay since navigation might take more time
+      setTimeout(() => {
+        URL.revokeObjectURL(url)
+      }, 3000)
+    }
   }
 }
 
