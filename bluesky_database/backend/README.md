@@ -48,3 +48,38 @@ A FastAPI backend for the Bluesky Post Explorer frontend. Provides authenticatio
 - `app/` - FastAPI application code
 - `Dockerfiles/` - Dockerfile for backend
 - `requirements.in` / `requirements.txt` - Python dependencies 
+
+## Detailed Code Explanation
+
+The backend is organized for clarity and maintainability:
+
+- `app/main.py`: The FastAPI application entrypoint. Defines the root endpoint and will contain all API routes. All functions and classes include type annotations and descriptive docstrings.
+- `requirements.in` / `requirements.txt`: Python dependencies. `requirements.txt` is pinned using pip-compile for reproducibility.
+- `Dockerfiles/Dockerfile`: Dockerfile for containerized deployment, using python:3.10-slim and uv for dependency management.
+- All modules are documented with docstrings, and code is structured for extensibility (e.g., future ML-powered filters).
+
+### Walk-through of Key Modules
+- **`app/main.py`**: Initializes the FastAPI app, sets up the root endpoint, and will be extended with authentication, search, and export endpoints. All endpoints are documented with OpenAPI and include type annotations.
+- **Configuration**: Environment variables are loaded from the root `.env` file for secrets and configuration.
+- **Testing**: Test files (to be added) will cover authentication, data loading, filtering, and API endpoints.
+
+## Testing
+
+To run tests:
+
+1. Activate the environment:
+   ```sh
+   conda activate bluesky-research
+   ```
+2. Run tests with pytest:
+   ```sh
+   pytest bluesky_database/backend/app/tests
+   ```
+
+### Test Coverage
+- Tests will cover:
+  - Authentication logic (login, session, logout)
+  - Data loading and filtering
+  - API endpoints (`/`, `/posts/search`, `/posts/export`)
+  - Error handling and validation
+- All test files are located in `bluesky_database/backend/app/tests/` and follow the repo's TDD and documentation standards. 
