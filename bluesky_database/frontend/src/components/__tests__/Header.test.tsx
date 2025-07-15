@@ -18,7 +18,8 @@ describe('Header Component', () => {
       
       const logo = screen.getByRole('img')
       expect(logo).toBeInTheDocument()
-      expect(logo).toHaveAttribute('src', logoUrl)
+      // Next.js Image component optimizes the src, so we check it contains our URL
+      expect(logo).toHaveAttribute('src', expect.stringContaining('example.com%2Flogo.png'))
       expect(logo).toHaveAttribute('alt', 'Bluesky Post Explorer Logo')
     })
 
@@ -37,11 +38,12 @@ describe('Header Component', () => {
       render(<Header />)
       
       const header = screen.getByRole('banner')
-      expect(header).toHaveClass('flex', 'justify-between', 'items-center', 'p-4')
+      expect(header).toHaveClass('header', 'bg-white', 'border-b', 'border-gray-200', 'shadow-sm')
       
-      // Check for responsive classes that will be applied via Tailwind
+      // Check for responsive classes that are applied via the inner div
       const headerContent = header.querySelector('.flex')
       expect(headerContent).toBeInTheDocument()
+      expect(headerContent).toHaveClass('flex', 'justify-between', 'items-center')
     })
 
     test('desktop layout maintains horizontal structure', () => {
