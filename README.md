@@ -177,8 +177,6 @@ Currently uses mock data for demonstration. To integrate with a real Bluesky API
 MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Support
-
->>>>>>> 5ff24d928c5ed33eb90bb84b880bebb60f8812a0
 For questions or issues:
 - Create an issue in this repository
 - Contact: [contact@example.com](mailto:contact@example.com)
