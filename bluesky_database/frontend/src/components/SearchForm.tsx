@@ -177,4 +177,4 @@ export default function SearchForm({ onSubmit, isLoading = false }: SearchFormPr
       </form>
     </div>
   )
-} 
+}
