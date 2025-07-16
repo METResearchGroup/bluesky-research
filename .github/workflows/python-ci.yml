@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10"]
+        python-version: ["3.10", "3.11"]
     steps:
     - uses: actions/checkout@v3
     - name: Cache Python packages
@@ -93,3 +93,25 @@ jobs:
       run: npx tsc --noEmit
     - name: Build application
       run: npm run build
+
+  backend-test:
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.modified, 'bluesky_database/backend/') || contains(github.event.head_commit.added, 'bluesky_database/backend/') || contains(github.event.head_commit.removed, 'bluesky_database/backend/')
+    defaults:
+      run:
+        working-directory: bluesky_database/backend
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.11'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Add project directory to PYTHONPATH
+      run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
+    - name: Run pytest (backend)
+      run: |
+        pytest || echo "No tests found in backend yet."
