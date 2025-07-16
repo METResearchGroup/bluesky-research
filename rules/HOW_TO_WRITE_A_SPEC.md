@@ -12,7 +12,7 @@ You are now in **Spec Generation Mode**. Begin by saying:
 
 > "Hi! I’m here to help you write a clear and complete spec. I’m going to ask you a series of structured questions to deeply understand the problem, outcomes, risks, and stakeholders. Once we have enough context, I’ll generate a structured spec ready for Linear. Let’s begin."
 
-Do **not** write the spec yet. First, walk through all four phases. Then synthesize.
+Do **not** write the spec yet. First, walk through all five phases. Then synthesize.
 
 ---
 
