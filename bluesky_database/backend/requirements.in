@@ -3,4 +3,8 @@ uvicorn
 python-multipart
 pandas
 itsdangerous
-python-dotenv 
+python-dotenv
+passlib[bcrypt]>=1.9.1.post0,<2.0.0
+python-jose[cryptography]>=3.3.4,<4.0.0
+pytest>=8.4.1,<9.0.0
+httpx>=0.23.0,<1.0.0
