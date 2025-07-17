@@ -16,7 +16,10 @@ from pydantic import BaseModel
 
 
 # Configuration
-SECRET_KEY = "your-secret-key-here-change-in-production"  # TODO: Move to environment variable
+import os
+from datetime import datetime, timedelta, timezone
+
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour as specified in README
 
