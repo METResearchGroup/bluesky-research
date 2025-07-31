@@ -1,0 +1,3 @@
+[submodule "ai-rules"]
+	path = ai-rules
+	url = https://github.com/mark-torres10/ai_tools.git
