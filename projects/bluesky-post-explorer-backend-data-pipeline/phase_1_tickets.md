@@ -1,9 +1,9 @@
 # Phase 1: Core Data Pipeline - Linear Ticket Proposals
 
 ## Overview
-**Objective**: Get raw data flowing from Redis to permanent storage
+**Objective**: Get raw data flowing from Redis to permanent storage with rapid prototyping approach
 **Timeline**: Weeks 1-2
-**Approach**: Rapid prototyping with piecemeal deployment
+**Approach**: Rapid prototyping with piecemeal deployment to Hetzner as early as possible
 
 ---
 
@@ -101,7 +101,99 @@ Redis buffer is required for high-throughput data buffering to handle ~8.1M even
 
 ---
 
-## MET-002: Create data writer service for Redis to Parquet conversion
+## MET-002: Deploy Redis infrastructure to Hetzner with CI/CD
+
+### Context & Motivation
+Early deployment to Hetzner is critical for rapid prototyping and real-world validation. This ensures we can test the Redis infrastructure in a production-like environment immediately, rather than waiting until Phase 3. This deployment will serve as the foundation for all subsequent data pipeline components.
+
+### Detailed Description & Requirements
+
+#### Functional Requirements:
+- Set up Hetzner VM with appropriate specifications for Redis workload
+- Configure Docker and Docker Compose for production deployment
+- Deploy Redis container with monitoring stack to Hetzner
+- Set up automated CI/CD pipeline for deployment
+- Configure production environment variables and secrets
+- Set up SSL/TLS certificates for secure access
+- Configure firewall and network security
+- Implement automated deployment scripts
+
+#### Non-Functional Requirements:
+- VM should have sufficient resources (2+ CPU cores, 4GB+ RAM, 80GB+ SSD)
+- Deployment should complete within 15 minutes
+- SSL certificates should be automatically renewed
+- Firewall should block unnecessary ports
+- CI/CD pipeline should deploy on every main branch push
+- System should be accessible via HTTPS
+
+#### Validation & Error Handling:
+- Redis container starts successfully in Hetzner environment
+- SSL certificates are valid and working
+- Firewall blocks unauthorized access
+- CI/CD pipeline deploys successfully
+- System is accessible from internet
+- Deployment scripts are idempotent
+
+### Success Criteria
+- Redis deployed to Hetzner successfully
+- SSL/TLS certificates configured and working
+- Firewall and security configured
+- CI/CD pipeline functional and automated
+- System accessible from internet
+- Monitoring stack operational in production
+- Deployment automated and repeatable
+
+### Test Plan
+- `test_hetzner_deployment`: Deploy to Hetzner → Redis starts successfully
+- `test_ssl_certificates`: HTTPS access → Certificates valid and working
+- `test_firewall_security`: Unauthorized access → Blocked appropriately
+- `test_cicd_pipeline`: Push to main → Automatic deployment successful
+- `test_internet_access`: External access → System accessible via HTTPS
+- `test_monitoring_production`: Monitoring stack → Operational in production
+
+📁 Test file: `deployment/tests/test_hetzner_deployment.py`
+
+### Dependencies
+- Depends on: MET-001 (Redis setup)
+
+### Suggested Implementation Plan
+- Provision Hetzner VM with appropriate specifications
+- Install Docker and Docker Compose
+- Configure production environment variables
+- Set up SSL certificates with Let's Encrypt
+- Configure firewall rules
+- Set up GitHub Actions CI/CD pipeline
+- Deploy Redis with monitoring stack
+- Test deployment and accessibility
+
+### Effort Estimate
+- Estimated effort: **8 hours**
+- Includes VM setup, CI/CD configuration, security setup, and testing
+
+### Priority & Impact
+- Priority: **High**
+- Rationale: Enables rapid prototyping in production environment
+
+### Acceptance Checklist
+- [ ] Hetzner VM provisioned with appropriate specs
+- [ ] Redis deployed successfully to production
+- [ ] SSL certificates configured and working
+- [ ] Firewall and security configured
+- [ ] CI/CD pipeline functional and automated
+- [ ] System accessible from internet
+- [ ] Monitoring stack operational
+- [ ] Deployment automated and repeatable
+- [ ] Tests written and passing
+- [ ] Documentation created
+
+### Links & References
+- Plan: `projects/bluesky-post-explorer-backend-data-pipeline/spec.md`
+- Hetzner Documentation: https://docs.hetzner.com/
+- Related tickets: MET-001, MET-003
+
+---
+
+## MET-003: Create data writer service for Redis to Parquet conversion
 
 ### Context & Motivation
 The data writer service is the core component that reads data from the Redis buffer and writes it to permanent Parquet storage with intelligent partitioning. This service must handle the high-throughput data flow from Redis to Parquet files efficiently, ensuring no data loss and optimal compression.
@@ -157,7 +249,7 @@ The data writer service is the core component that reads data from the Redis buf
 📁 Test file: `services/data_writer/tests/test_data_writer.py`
 
 ### Dependencies
-- Depends on: MET-001 (Redis setup)
+- Depends on: MET-001 (Redis setup), MET-002 (Hetzner deployment)
 
 ### Suggested Implementation Plan
 - Create `services/data_writer/main.py` with Redis connection logic
@@ -193,11 +285,106 @@ The data writer service is the core component that reads data from the Redis buf
 - Plan: `projects/bluesky-post-explorer-backend-data-pipeline/spec.md`
 - Parquet Documentation: https://parquet.apache.org/
 - Polars Documentation: https://pola.rs/
+- Related tickets: MET-001, MET-002, MET-004
+
+---
+
+## MET-004: Implement load testing with mock data stream
+
+### Context & Motivation
+Load testing is essential to validate that the Redis buffer and data writer service can handle the expected production workload. This includes testing high-throughput data ingestion, buffer performance under load, and data writer processing capabilities. We need to simulate the ~8.1M events/day throughput to ensure system stability.
+
+### Detailed Description & Requirements
+
+#### Functional Requirements:
+- Create mock data generator that simulates Bluesky firehose data
+- Implement load testing scenarios for Redis buffer throughput
+- Test data writer service performance under high load
+- Monitor system resources during load testing
+- Validate data integrity during high-load scenarios
+- Test system recovery after load spikes
+- Implement automated load testing scripts with Locust
+- Create load testing reports and analysis
+
+#### Non-Functional Requirements:
+- Mock data should simulate realistic Bluesky firehose patterns
+- Load testing should generate 100,000+ records per minute
+- System should handle sustained load for 1+ hours
+- Response times should remain acceptable under load
+- System should recover within 5 minutes after load spikes
+- Resource usage should stay within acceptable limits
+- Data integrity should be maintained during all tests
+
+#### Validation & Error Handling:
+- Mock data accurately simulates real firehose data
+- Redis buffer handles high-throughput without data loss
+- Data writer processes all data without errors
+- System resources stay within limits during load
+- Data integrity is maintained throughout testing
+- System recovers gracefully from load spikes
+
+### Success Criteria
+- Mock data generator creates realistic firehose data
+- Load testing scenarios designed and implemented
+- System handles 100,000+ records/minute without data loss
+- Data writer performance meets requirements under load
+- Data integrity maintained during all tests
+- System recovery tested and validated
+- Load testing automated and repeatable
+- Comprehensive testing reports generated
+
+### Test Plan
+- `test_mock_data_generation`: Generate mock data → Realistic firehose patterns
+- `test_redis_buffer_load`: High-volume data ingestion → No data loss
+- `test_data_writer_load`: High-load processing → Performance maintained
+- `test_system_resources`: Resource monitoring → Usage within limits
+- `test_data_integrity`: Data validation → Integrity maintained
+- `test_recovery_scenarios`: Load spike recovery → System recovers gracefully
+- `test_sustained_load`: 1+ hour load test → System stable throughout
+
+📁 Test file: `testing/tests/test_load_testing.py`
+
+### Dependencies
+- Depends on: MET-001 (Redis setup), MET-003 (Data writer service)
+
+### Suggested Implementation Plan
+- Create mock data generator for Bluesky firehose data
+- Implement Locust load testing scenarios
+- Set up monitoring for load testing
+- Execute load tests with various scenarios
+- Monitor system performance and resources
+- Validate data integrity during tests
+- Analyze results and identify bottlenecks
+- Generate comprehensive testing reports
+
+### Effort Estimate
+- Estimated effort: **8 hours**
+- Includes mock data generation, load testing implementation, and analysis
+
+### Priority & Impact
+- Priority: **Medium**
+- Rationale: Important for validation but not blocking core functionality
+
+### Acceptance Checklist
+- [ ] Mock data generator implemented
+- [ ] Load testing scenarios designed
+- [ ] Automated load testing implemented
+- [ ] System handles expected production load
+- [ ] Data integrity maintained during tests
+- [ ] System recovery tested
+- [ ] Performance bottlenecks identified
+- [ ] Comprehensive reports generated
+- [ ] Tests documented and repeatable
+- [ ] Results analyzed and documented
+
+### Links & References
+- Plan: `projects/bluesky-post-explorer-backend-data-pipeline/spec.md`
+- Locust Documentation: https://locust.io/
 - Related tickets: MET-001, MET-003
 
 ---
 
-## MET-003: Implement Jetstream integration with Redis buffer
+## MET-005: Implement Jetstream integration with Redis buffer
 
 ### Context & Motivation
 Jetstream integration is the final component needed to complete the data pipeline. This connects the Bluesky firehose to the Redis buffer, enabling real-time data ingestion. The integration must be robust and handle the high-throughput nature of the firehose data.
@@ -250,7 +437,7 @@ Jetstream integration is the final component needed to complete the data pipelin
 📁 Test file: `services/jetstream/tests/test_jetstream_integration.py`
 
 ### Dependencies
-- Depends on: MET-001 (Redis setup), MET-002 (Data writer service)
+- Depends on: MET-001 (Redis setup), MET-002 (Hetzner deployment), MET-003 (Data writer service), MET-004 (Load testing)
 
 ### Suggested Implementation Plan
 - Review existing Jetstream connector code
@@ -284,11 +471,11 @@ Jetstream integration is the final component needed to complete the data pipelin
 ### Links & References
 - Plan: `projects/bluesky-post-explorer-backend-data-pipeline/spec.md`
 - Existing Jetstream Code: `services/sync/jetstream/`
-- Related tickets: MET-001, MET-002
+- Related tickets: MET-001, MET-002, MET-003, MET-004
 
 ---
 
-## MET-004: Create comprehensive monitoring dashboard for data pipeline
+## MET-006: Create comprehensive monitoring dashboard for data pipeline
 
 ### Context & Motivation
 Comprehensive monitoring is essential for the data pipeline to provide visibility into system performance, data flow, and potential issues. This dashboard will show Redis metrics, data flow rates, Parquet writing performance, and Jetstream connection status.
@@ -337,7 +524,7 @@ Comprehensive monitoring is essential for the data pipeline to provide visibilit
 📁 Test file: `services/monitoring/tests/test_dashboard.py`
 
 ### Dependencies
-- Depends on: MET-001 (Redis setup), MET-002 (Data writer), MET-003 (Jetstream)
+- Depends on: MET-001 (Redis setup), MET-002 (Hetzner deployment), MET-003 (Data writer), MET-005 (Jetstream)
 
 ### Suggested Implementation Plan
 - Configure Prometheus data sources
@@ -368,108 +555,28 @@ Comprehensive monitoring is essential for the data pipeline to provide visibilit
 ### Links & References
 - Plan: `projects/bluesky-post-explorer-backend-data-pipeline/spec.md`
 - Grafana Documentation: https://grafana.com/docs/
-- Related tickets: MET-001, MET-002, MET-003
-
----
-
-## MET-005: Implement data validation and error handling for data pipeline
-
-### Context & Motivation
-Robust error handling and data validation are critical for a production data pipeline. This ensures data quality, prevents data loss, and provides clear visibility into any issues that occur during processing.
-
-### Detailed Description & Requirements
-
-#### Functional Requirements:
-- Implement data validation for all firehose data types
-- Add error handling for Redis connection failures
-- Create retry logic for failed Parquet writes
-- Implement dead letter queue for unprocessable data
-- Add comprehensive logging for all error scenarios
-- Create data quality metrics and reporting
-- Implement circuit breaker pattern for external dependencies
-
-#### Non-Functional Requirements:
-- Error handling should not impact pipeline performance
-- Failed data should be retried up to 3 times
-- Unprocessable data should be logged and stored separately
-- Error logs should be searchable and actionable
-- Data quality metrics should be available in monitoring
-
-#### Validation & Error Handling:
-- Invalid data is handled gracefully without pipeline failure
-- Connection failures are handled with retry logic
-- Failed operations are logged with sufficient detail
-- Data quality metrics are accurate and actionable
-
-### Success Criteria
-- Data validation prevents invalid data from corrupting pipeline
-- Error handling works for all failure scenarios
-- Retry logic successfully processes failed operations
-- Dead letter queue captures unprocessable data
-- Comprehensive logging provides visibility into issues
-- Data quality metrics are accurate and actionable
-- Pipeline continues operating despite individual failures
-
-### Test Plan
-- `test_data_validation`: Invalid data → Handled gracefully
-- `test_connection_failures`: Redis failures → Retry logic works
-- `test_parquet_failures`: Write failures → Retry and dead letter queue
-- `test_error_logging`: Error scenarios → Logged with sufficient detail
-- `test_data_quality`: Quality metrics → Accurate and actionable
-
-📁 Test file: `services/data_writer/tests/test_error_handling.py`
-
-### Dependencies
-- Depends on: MET-002 (Data writer service)
-
-### Suggested Implementation Plan
-- Add data validation schemas for all data types
-- Implement retry logic with exponential backoff
-- Create dead letter queue storage
-- Add comprehensive error logging
-- Create data quality metrics collection
-- Test with various failure scenarios
-
-### Effort Estimate
-- Estimated effort: **6 hours**
-- Includes validation logic, error handling, and testing
-
-### Priority & Impact
-- Priority: **Medium**
-- Rationale: Important for production reliability but not blocking core functionality
-
-### Acceptance Checklist
-- [ ] Data validation implemented for all data types
-- [ ] Error handling works for all failure scenarios
-- [ ] Retry logic implemented and tested
-- [ ] Dead letter queue functional
-- [ ] Comprehensive error logging added
-- [ ] Data quality metrics implemented
-- [ ] Tests written and passing
-- [ ] Code reviewed and merged
-
-### Links & References
-- Plan: `projects/bluesky-post-explorer-backend-data-pipeline/spec.md`
-- Related tickets: MET-002
+- Related tickets: MET-001, MET-002, MET-003, MET-005
 
 ---
 
 ## Phase 1 Summary
 
-### Total Tickets: 5
-### Estimated Effort: 36 hours
-### Critical Path: MET-001 → MET-002 → MET-003
+### Total Tickets: 6
+### Estimated Effort: 46 hours
+### Critical Path: MET-001 → MET-002 → MET-003 → MET-005
 ### Key Deliverables:
-- Redis instance with monitoring
+- Redis instance with monitoring (local and Hetzner)
+- Hetzner deployment with CI/CD pipeline
 - Data writer service (Redis → Parquet)
+- Load testing with mock data stream
 - Jetstream integration
 - Complete data pipeline (Jetstream → Redis → Parquet)
 - Comprehensive monitoring dashboard
-- Error handling and validation
 
 ### Exit Criteria:
 - Complete pipeline working for 2 days continuously
 - All data flowing from Jetstream to Parquet storage
 - Monitoring showing accurate metrics
-- Error handling working for all scenarios
+- Load testing validates system performance
+- System deployed to Hetzner with automated CI/CD
 - Ready for Phase 2 (Query Engine & API) 

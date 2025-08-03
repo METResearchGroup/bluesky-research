@@ -7,7 +7,7 @@
 
 ---
 
-## MET-006: Set up DuckDB integration with Parquet storage
+## MET-007: Set up DuckDB integration with Parquet storage
 
 ### Context & Motivation
 DuckDB is the core query engine that will enable fast analytical queries against the Parquet data. This integration must provide efficient access to the stored data and support basic LIKE queries for text search, which is the primary use case for the Bluesky Post Explorer.
@@ -62,7 +62,7 @@ DuckDB is the core query engine that will enable fast analytical queries against
 📁 Test file: `services/query_engine/tests/test_duckdb_integration.py`
 
 ### Dependencies
-- Depends on: MET-002 (Data writer service - Parquet storage)
+- Depends on: MET-003 (Data writer service - Parquet storage)
 
 ### Suggested Implementation Plan
 - Install and configure DuckDB with Python bindings
@@ -97,11 +97,11 @@ DuckDB is the core query engine that will enable fast analytical queries against
 ### Links & References
 - Plan: `projects/bluesky-post-explorer-backend-data-pipeline/spec.md`
 - DuckDB Documentation: https://duckdb.org/docs/
-- Related tickets: MET-002, MET-007
+- Related tickets: MET-003, MET-008
 
 ---
 
-## MET-007: Implement basic text search functionality with DuckDB
+## MET-008: Implement basic text search functionality with DuckDB
 
 ### Context & Motivation
 Text search is the primary use case for the Bluesky Post Explorer. Users need to search post content using basic LIKE queries to find relevant posts. This functionality must be fast and efficient, providing results within the performance requirements.
@@ -157,7 +157,7 @@ Text search is the primary use case for the Bluesky Post Explorer. Users need to
 📁 Test file: `services/query_engine/tests/test_text_search.py`
 
 ### Dependencies
-- Depends on: MET-006 (DuckDB integration)
+- Depends on: MET-007 (DuckDB integration)
 
 ### Suggested Implementation Plan
 - Implement LIKE query builder for DuckDB
@@ -191,11 +191,11 @@ Text search is the primary use case for the Bluesky Post Explorer. Users need to
 
 ### Links & References
 - Plan: `projects/bluesky-post-explorer-backend-data-pipeline/spec.md`
-- Related tickets: MET-006, MET-008
+- Related tickets: MET-007, MET-009
 
 ---
 
-## MET-008: Create REST API with search endpoint
+## MET-009: Create REST API with search endpoint
 
 ### Context & Motivation
 The REST API is the interface between the frontend and the query engine. It needs to provide a simple, efficient way for users to search posts and retrieve results. The API should be designed for the Vercel frontend and support the primary use case of text-based post search.
@@ -252,7 +252,7 @@ The REST API is the interface between the frontend and the query engine. It need
 📁 Test file: `services/api/tests/test_search_api.py`
 
 ### Dependencies
-- Depends on: MET-007 (Text search functionality)
+- Depends on: MET-008 (Text search functionality)
 
 ### Suggested Implementation Plan
 - Create FastAPI application structure
@@ -288,11 +288,103 @@ The REST API is the interface between the frontend and the query engine. It need
 ### Links & References
 - Plan: `projects/bluesky-post-explorer-backend-data-pipeline/spec.md`
 - FastAPI Documentation: https://fastapi.tiangolo.com/
-- Related tickets: MET-007, MET-009
+- Related tickets: MET-008, MET-010
 
 ---
 
-## MET-009: Implement API authentication and security
+## MET-010: Deploy API to Hetzner production environment
+
+### Context & Motivation
+The API needs to be deployed to the existing Hetzner production environment alongside the data pipeline components. This ensures the complete system is operational in production and ready for frontend integration.
+
+### Detailed Description & Requirements
+
+#### Functional Requirements:
+- Deploy FastAPI application to existing Hetzner VM
+- Configure API service in Docker Compose
+- Set up reverse proxy (Nginx) for API routing
+- Configure SSL/TLS certificates for API endpoints
+- Implement health checks for API service
+- Add API service to monitoring stack
+- Configure logging and log aggregation
+- Set up automated deployment for API updates
+
+#### Non-Functional Requirements:
+- API should be accessible via HTTPS
+- Health checks should complete within 30 seconds
+- API should integrate with existing monitoring
+- Deployment should be automated via CI/CD
+- API should be load balanced if needed
+- Logs should be aggregated with existing pipeline
+
+#### Validation & Error Handling:
+- API is accessible via HTTPS
+- Health checks return appropriate status
+- Monitoring shows API metrics
+- CI/CD deployment works correctly
+- Logs are properly aggregated
+- API integrates with existing infrastructure
+
+### Success Criteria
+- API deployed to Hetzner successfully
+- API accessible via HTTPS
+- Health checks functional
+- Monitoring integration complete
+- CI/CD deployment automated
+- Logs aggregated properly
+- API integrated with existing infrastructure
+
+### Test Plan
+- `test_api_deployment`: Deploy API → Service starts successfully
+- `test_https_access`: HTTPS access → API accessible securely
+- `test_health_checks`: Health endpoint → Returns appropriate status
+- `test_monitoring`: API metrics → Visible in monitoring dashboard
+- `test_cicd_deployment`: CI/CD pipeline → Automated deployment works
+- `test_log_aggregation`: API logs → Properly aggregated
+- `test_infrastructure_integration`: Existing services → API integrates correctly
+
+📁 Test file: `deployment/tests/test_api_deployment.py`
+
+### Dependencies
+- Depends on: MET-009 (REST API), MET-002 (Hetzner deployment)
+
+### Suggested Implementation Plan
+- Add API service to existing Docker Compose
+- Configure Nginx reverse proxy
+- Set up SSL certificates for API
+- Add health checks for API service
+- Integrate with existing monitoring
+- Configure log aggregation
+- Update CI/CD pipeline for API
+- Test deployment and integration
+
+### Effort Estimate
+- Estimated effort: **6 hours**
+- Includes deployment, configuration, monitoring integration, and testing
+
+### Priority & Impact
+- Priority: **High**
+- Rationale: Required for production API availability
+
+### Acceptance Checklist
+- [ ] API deployed to Hetzner successfully
+- [ ] API accessible via HTTPS
+- [ ] Health checks functional
+- [ ] Monitoring integration complete
+- [ ] CI/CD deployment automated
+- [ ] Logs aggregated properly
+- [ ] API integrated with existing infrastructure
+- [ ] Tests written and passing
+- [ ] Documentation created
+
+### Links & References
+- Plan: `projects/bluesky-post-explorer-backend-data-pipeline/spec.md`
+- Hetzner Documentation: https://docs.hetzner.com/
+- Related tickets: MET-002, MET-009
+
+---
+
+## MET-011: Implement API authentication and security
 
 ### Context & Motivation
 While the initial implementation is internal-only, we need to prepare for future authentication requirements. This includes basic security measures, API key management, and infrastructure for future auth integration.
@@ -344,7 +436,7 @@ While the initial implementation is internal-only, we need to prepare for future
 📁 Test file: `services/api/tests/test_security.py`
 
 ### Dependencies
-- Depends on: MET-008 (REST API)
+- Depends on: MET-009 (REST API), MET-010 (API deployment)
 
 ### Suggested Implementation Plan
 - Implement API key middleware
@@ -378,11 +470,11 @@ While the initial implementation is internal-only, we need to prepare for future
 
 ### Links & References
 - Plan: `projects/bluesky-post-explorer-backend-data-pipeline/spec.md`
-- Related tickets: MET-008
+- Related tickets: MET-009, MET-010
 
 ---
 
-## MET-010: Create API performance optimization and caching
+## MET-012: Create API performance optimization and caching
 
 ### Context & Motivation
 API performance is critical for user experience. We need to implement caching strategies and query optimization to ensure fast response times, especially for frequently accessed data and repeated queries.
@@ -434,7 +526,7 @@ API performance is critical for user experience. We need to implement caching st
 📁 Test file: `services/api/tests/test_performance.py`
 
 ### Dependencies
-- Depends on: MET-008 (REST API), MET-001 (Redis setup)
+- Depends on: MET-009 (REST API), MET-010 (API deployment), MET-001 (Redis setup)
 
 ### Suggested Implementation Plan
 - Implement Redis caching middleware
@@ -468,25 +560,27 @@ API performance is critical for user experience. We need to implement caching st
 
 ### Links & References
 - Plan: `projects/bluesky-post-explorer-backend-data-pipeline/spec.md`
-- Related tickets: MET-001, MET-008
+- Related tickets: MET-001, MET-009, MET-010
 
 ---
 
 ## Phase 2 Summary
 
-### Total Tickets: 5
-### Estimated Effort: 42 hours
-### Critical Path: MET-006 → MET-007 → MET-008
+### Total Tickets: 6
+### Estimated Effort: 48 hours
+### Critical Path: MET-007 → MET-008 → MET-009 → MET-010
 ### Key Deliverables:
 - DuckDB integration with Parquet storage
 - Basic text search functionality
 - REST API with search endpoint
+- API deployment to Hetzner
 - API authentication and security
 - Performance optimization and caching
 
 ### Exit Criteria:
 - DuckDB can query Parquet data with LIKE queries
 - Basic search API functional with pagination
+- API deployed and accessible in production
 - API responds within performance requirements
 - Security measures implemented
 - Ready for Phase 3 (Production Hardening) 
