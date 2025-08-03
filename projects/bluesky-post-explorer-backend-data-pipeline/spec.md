@@ -5,7 +5,7 @@
 - **Author**: Mark Torres
 - **Date**: 2025-01-27
 - **Project Type**: Greenfield backend infrastructure
-- **Timeline**: 2 months with team of 10
+- **Timeline**: 6 weeks with single engineer (rapid prototyping)
 
 ---
 
@@ -16,9 +16,9 @@ The Bluesky Post Explorer frontend needs a high-performance, scalable backend da
 
 ### Stakeholders
 1. **Primary Users**: Social media researchers and analysts using the Bluesky Post Explorer frontend
-2. **Development Team**: 10-person engineering team building the system
+2. **Development Team**: Single engineer using rapid prototyping methodology
 3. **Data Scientists**: Users analyzing social media trends and patterns
-4. **System Administrators**: Team managing Hetzner infrastructure
+4. **System Administrator**: Single engineer managing Hetzner infrastructure
 5. **Frontend Developers**: Team building the Vercel-hosted Bluesky Post Explorer UI
 
 ### Current Pain Points
@@ -31,23 +31,25 @@ The Bluesky Post Explorer frontend needs a high-performance, scalable backend da
 
 ### Success Criteria
 - Handle ~8.1M events/day from Bluesky firehose with Redis buffering
-- Process configurable batches (default 5 minutes) in <30 seconds
+- Process data from Redis to Parquet storage efficiently
 - Return query results for 1-day queries in <30 seconds
 - Achieve 80%+ compression ratio with Parquet
 - Maintain 99.9% availability for data pipeline and API services
-- Support batch processing with Redis buffering
 - Enable fast analytics queries for frontend
 - Scale to handle all Bluesky users (not just study participants)
 - Cost under $100/month, ideally under $50/month
-- **Initial Success**: Successfully capture and process 1 month of data (~240M events)
-- **Primary Focus**: Fast text-based and feature-based queries of posts
+- **Initial Success**: Successfully capture and process raw data with 2-day continuous Jetstream run
+- **Primary Focus**: Fast text-based queries of posts
 - **Long-term**: Scale to handle 1TB every 3 months with data lifecycle management
 
-### Incremental Validation Success Criteria
-- **Phase 1 (1 Day)**: All components work correctly with 1 day of data
-- **Phase 2 (1 Week)**: System handles 1 week of data without issues
-- **Phase 3 (1 Month)**: System successfully handles 1 month of data
-- **Phase 4 (Full Scale)**: Production-ready system with continuous ingestion
+### Rapid Prototyping Success Criteria
+- **Phase 1A (Redis)**: Redis running with monitoring, can write/read test data
+- **Phase 1B (Data Writer)**: Service reads from Redis, writes to Parquet, deletes from buffer
+- **Phase 1C (Jetstream)**: Complete pipeline working for 2 days continuously
+- **Phase 2A (DuckDB)**: Can query Parquet data with LIKE queries
+- **Phase 2B (API)**: Basic search API functional with pagination
+- **Phase 3A (Production)**: System deployed to Hetzner with security
+- **Phase 3B (Load Test)**: System handles expected load with performance requirements met
 
 ---
 
@@ -95,14 +97,13 @@ The Bluesky Post Explorer frontend needs a high-performance, scalable backend da
 
 ### In Scope
 - **Redis Buffer Layer**: High-performance in-memory buffering for firehose data (required for throughput)
-- **Batch Processing Service**: Configurable processing (default 5 minutes)
+- **Data Writer Service**: Service that reads from Redis buffer and writes to Parquet storage
 - **Parquet Storage**: Optimized columnar storage with intelligent partitioning from system design
 - **DuckDB Query Engine**: Fast analytical queries with SQL interface
-- **REST API**: Endpoints for frontend integration (designed for future auth)
+- **REST API**: Basic search endpoint for frontend integration
 - **Docker Deployment**: Containerized services on Hetzner VMs
-- **Monitoring**: Basic health checks with Prometheus + Grafana (Phase 6)
+- **Monitoring**: Prometheus + Grafana from day one
 - **Local Development**: Environment that mirrors production
-- **Scalable Data Loading**: Design for future scaling (PySpark, custom map-reduce, etc.)
 - **Complete Data Collection**: Collect all firehose data (posts, likes, follows, etc.)
 - **Post-Focused Querying**: Primary query functionality focused on posts with basic LIKE queries
 - **Basic Network Storage**: Store follows/followers data for future analysis
@@ -245,44 +246,43 @@ The Bluesky Post Explorer frontend needs a high-performance, scalable backend da
 - **Scalability**: Monitoring and capacity planning
 - **Integration**: Comprehensive testing with Jetstream connector
 
-### Effort Estimation (2-Month Timeline)
+### Effort Estimation (6-Week Timeline)
 
-#### Month 1: Core Infrastructure
-- **Week 1-2**: Redis buffer setup and Jetstream integration
-- **Week 3-4**: Batch processing service and Parquet storage
+#### Week 1-2: Core Data Pipeline
+- **Week 1**: Redis foundation with monitoring + Data writer service
+- **Week 2**: Jetstream integration + Complete pipeline validation
 
-#### Month 2: Query Engine and Integration
-- **Week 5-6**: DuckDB query engine and API development
-- **Week 7-8**: Frontend integration, monitoring, and deployment
+#### Week 3-4: Query Engine & API
+- **Week 3**: DuckDB integration + Basic query functionality
+- **Week 4**: REST API development + Search functionality
+
+#### Week 5-6: Production Hardening
+- **Week 5**: Production deployment to Hetzner
+- **Week 6**: Load testing, optimization, and security
 
 #### Detailed Breakdown:
-- **Phase 1**: Redis Buffer Setup (2 weeks)
-  - Redis installation and configuration for high throughput
-  - Jetstream connector integration
-  - Basic monitoring setup
+- **Phase 1**: Core Data Pipeline (2 weeks)
+  - Redis setup with Prometheus/Grafana monitoring
+  - Data writer service (Redis → Parquet)
+  - Jetstream integration and 2-day validation
 
-- **Phase 2**: Batch Processing Service (2 weeks)
-  - Configurable batch processing logic
-  - Parquet conversion with intelligent partitioning
-  - Error handling and recovery
+- **Phase 2**: Query Engine & API (2 weeks)
+  - DuckDB integration with Parquet storage
+  - REST API with search functionality
+  - Basic query performance optimization
 
-- **Phase 3**: Query Engine & API (2 weeks)
-  - DuckDB integration
-  - REST API implementation with OpenAPI docs
-  - Query optimization and performance tuning
-
-- **Phase 4**: Integration & Monitoring (2 weeks)
-  - Frontend integration
-  - Prometheus/Grafana monitoring setup
-  - Production deployment and testing
+- **Phase 3**: Production Hardening (2 weeks)
+  - Hetzner deployment and security
+  - Load testing and optimization
+  - Production monitoring validation
 
 ### Resource Requirements
-- **Team Size**: 10 engineers
-- **Infrastructure**: 3 Hetzner VMs (~$40-110/month, target under $50/month)
+- **Team Size**: 1 engineer (rapid prototyping)
+- **Infrastructure**: 1-2 Hetzner VMs (~$20-60/month, target under $50/month)
 - **Storage**: ~1TB every 3 months (~$20-50/month additional storage costs)
-- **Development Tools**: Docker, Prefect, monitoring stack
-- **Timeline**: 2 months (realistic with proper testing and deployment)
-- **Experience**: Team experienced with Docker, Prefect, Prometheus/Grafana; new to Hetzner
+- **Development Tools**: Docker, monitoring stack
+- **Timeline**: 6 weeks (rapid prototyping with piecemeal deployment)
+- **Experience**: Engineer experienced with Docker, monitoring; new to Hetzner
 - **Initial Data Volume**: 1 month of data (~240M events, ~300-400GB compressed)
 
 ### Success Probability
@@ -294,78 +294,115 @@ The Bluesky Post Explorer frontend needs a high-performance, scalable backend da
 
 ## Implementation Plan
 
-### Month 1: Core Infrastructure
-- **Weeks 1-2**: Redis buffer setup and Jetstream integration
-- **Weeks 3-4**: Batch processing service and Parquet storage
+### Rapid Prototyping Approach - Piecemeal Deployment
 
-### Month 2: Query Engine and Integration
-- **Weeks 5-6**: DuckDB query engine and API development
-- **Weeks 7-8**: Frontend integration, monitoring, and deployment
+**Single Engineer, Rapid Iteration, Quick Shipping**
 
-### Incremental Testing & Validation Strategy
+This project will be executed by a single engineer using rapid prototyping methodology with piecemeal deployment to production as early as possible.
 
-**Build for Scale, Test Incrementally**
+### **Phase 1: Core Data Pipeline (Weeks 1-2)**
+**Objective**: Get raw data flowing from Redis to permanent storage
 
-The system is designed to handle the full Bluesky firehose at scale, but will be validated through incremental testing phases:
+#### **Phase 1A: Redis Foundation (Week 1)**
+- **Deliverable**: Working Redis instance with basic monitoring
+- **Success Criteria**:
+  - ✅ Redis container running and accessible
+  - ✅ Basic health checks operational
+  - ✅ Prometheus/Grafana monitoring active
+  - ✅ Can write/read test data to/from Redis
+  - ✅ Monitoring shows Redis metrics
 
-#### **Phase 1: One Day Validation (Week 2)**
-- **Test Load**: 1 day of firehose data (~8.1M events, ~10-15GB)
-- **Validation Checkpoints**:
-  - ✅ Jetstream connector successfully ingests data to Redis buffer
-  - ✅ Batch processing service processes all data without errors
-  - ✅ Parquet storage correctly partitions and stores data
-  - ✅ DuckDB can query the stored data
-  - ✅ REST API returns correct results
-  - ✅ Basic text search and feature filtering work
-- **Success Criteria**: All components work correctly with 1 day of data
-- **Next Step**: Only proceed to Phase 2 if Phase 1 is 100% successful
+#### **Phase 1B: Data Writer Service (Week 1-2)**
+- **Deliverable**: Service that reads from Redis buffer and writes to Parquet storage
+- **Success Criteria**:
+  - ✅ Service can read data from Redis buffer
+  - ✅ Service can write data to Parquet with partitioning
+  - ✅ Service can delete processed data from Redis
+  - ✅ Compression algorithms implemented and tested
+  - ✅ Service scales with data volume
+  - ✅ Can process test data end-to-end
 
-#### **Phase 2: One Week Validation (Week 4)**
-- **Test Load**: 1 week of firehose data (~56.7M events, ~70-100GB)
-- **Validation Checkpoints**:
-  - ✅ All Phase 1 checkpoints continue to work
-  - ✅ Memory usage remains stable over 7 days
-  - ✅ Storage growth matches expected patterns
-  - ✅ Query performance remains under 30 seconds
-  - ✅ No data loss or corruption
-- **Success Criteria**: System handles 1 week of data without issues
-- **Next Step**: Only proceed to Phase 3 if Phase 2 is 100% successful
+#### **Phase 1C: Jetstream Integration (Week 2)**
+- **Deliverable**: Jetstream writing to Redis buffer
+- **Success Criteria**:
+  - ✅ Jetstream connects to Redis successfully
+  - ✅ Jetstream writes data to Redis buffer
+  - ✅ Complete pipeline: Jetstream → Redis → Parquet
+  - ✅ Can run for 2 days continuously
+  - ✅ Full transparency through Grafana/Prometheus
+  - ✅ Data telemetry visible and accurate
 
-#### **Phase 3: One Month Validation (Week 6)**
-- **Test Load**: 1 month of firehose data (~240M events, ~300-400GB)
-- **Validation Checkpoints**:
-  - ✅ All Phase 2 checkpoints continue to work
-  - ✅ Storage efficiency meets expectations
-  - ✅ Query performance scales appropriately
-  - ✅ Enrichment pipeline processes all data
-  - ✅ System uptime and reliability validated
-- **Success Criteria**: System successfully handles 1 month of data
-- **Next Step**: Production deployment ready
+### **Phase 2: Query Engine & API (Weeks 3-4)**
+**Objective**: Connect query engine to raw data and build basic API
 
-#### **Phase 4: Full Scale (Week 8)**
-- **Test Load**: Continuous firehose ingestion
-- **Validation Checkpoints**:
-  - ✅ All Phase 3 checkpoints continue to work
-  - ✅ Long-term stability validated
-  - ✅ Monitoring and alerting functional
-  - ✅ Performance optimization complete
-- **Success Criteria**: Production-ready system
+#### **Phase 2A: DuckDB Integration (Week 3)**
+- **Deliverable**: DuckDB reading from Parquet storage
+- **Success Criteria**:
+  - ✅ DuckDB can read from Parquet files
+  - ✅ Basic LIKE queries work on post text
+  - ✅ Query performance <30 seconds for 1-day data
+  - ✅ Can handle concurrent queries
 
-### Key Milestones
-- **Week 2**: End-to-end data flow working (Redis → Parquet) + One day validation complete
-- **Week 4**: Basic query functionality operational + One week validation complete
-- **Week 6**: Full API integration complete + One month validation complete
-- **Week 8**: Production deployment and monitoring + Full scale validation
-- **Month 1**: Successfully capture 1 month of data (~240M events)
-- **Future**: Scale to handle 1TB every 3 months with data lifecycle management
+#### **Phase 2B: REST API (Week 3-4)**
+- **Deliverable**: Basic REST API with search functionality
+- **Success Criteria**:
+  - ✅ GET /search endpoint functional
+  - ✅ Text search working with DuckDB
+  - ✅ Pagination implemented (50 results/page)
+  - ✅ Basic error handling
+  - ✅ API responds within performance requirements
 
-### Risk Mitigation
-- **Parallel Development**: Multiple teams working on different components
-- **Early Testing**: Continuous integration and testing with incremental validation phases
-- **Rollback Plan**: Docker-based deployment enables quick rollbacks
-- **Monitoring**: Comprehensive observability from day one
-- **Incremental Scaling**: Test with 1 day → 1 week → 1 month → full scale
-- **Validation Gates**: Each phase must be 100% successful before proceeding
+### **Phase 3: Production Hardening (Weeks 5-6)**
+**Objective**: Production deployment, security, and load testing
+
+#### **Phase 3A: Production Deployment (Week 5)**
+- **Deliverable**: System deployed to Hetzner production environment
+- **Success Criteria**:
+  - ✅ All services deployed to Hetzner
+  - ✅ SSL/TLS certificates configured
+  - ✅ Firewall and security configured
+  - ✅ Monitoring and alerting operational
+  - ✅ System accessible from internet
+
+#### **Phase 3B: Load Testing & Optimization (Week 6)**
+- **Deliverable**: System tested under load and optimized
+- **Success Criteria**:
+  - ✅ Load testing with expected data volumes
+  - ✅ Performance requirements met under load
+  - ✅ Security review completed
+  - ✅ API documentation complete
+  - ✅ Production monitoring validated
+
+### **Incremental Validation Strategy**
+
+**Test Early, Test Often, Deploy Early**
+
+#### **Phase 1 Validation**
+- **Redis Test**: Write/read test data, verify monitoring
+- **Data Writer Test**: Process test data, verify Parquet output
+- **Jetstream Test**: 2-day continuous run, verify data flow
+
+#### **Phase 2 Validation**
+- **DuckDB Test**: Query test data, verify performance
+- **API Test**: Search functionality, verify responses
+
+#### **Phase 3 Validation**
+- **Production Test**: Deploy to Hetzner, verify accessibility
+- **Load Test**: Test under expected load, verify performance
+
+### **Key Principles**
+- **Ship Early**: Deploy to production as soon as basic functionality works
+- **Test Incrementally**: Validate each component before moving to next
+- **Monitor Everything**: Prometheus/Grafana from day one
+- **Fail Fast**: Identify issues early and fix quickly
+- **Piecemeal Deployment**: Deploy small chunks frequently
+
+### **Risk Mitigation**
+- **Single Engineer**: Reduces coordination overhead
+- **Rapid Prototyping**: Quick iteration and feedback
+- **Early Production**: Real-world testing from start
+- **Comprehensive Monitoring**: Visibility into all components
+- **Incremental Validation**: Test each piece before proceeding
 
 ---
 
@@ -454,10 +491,12 @@ LIMIT 100;
 
 ## Conclusion
 
-This specification provides a comprehensive roadmap for building a high-performance, scalable backend data pipeline for the Bluesky Post Explorer. The phased approach focuses on successfully capturing 1 month of data (~240M events) before scaling to handle the full 1TB every 3 months requirement.
+This specification provides a rapid prototyping roadmap for building a high-performance, scalable backend data pipeline for the Bluesky Post Explorer. The approach focuses on getting raw data flowing quickly with piecemeal deployment to production as early as possible.
 
-**Primary Focus**: Text-based and feature-based queries of posts with enrichment from in-house classifiers. The system is optimized for fast post content search and feature filtering, enabling researchers to analyze social media trends through post content and enriched features.
+**Primary Focus**: Text-based queries of posts with rapid iteration and quick shipping. The system is optimized for fast post content search, enabling researchers to analyze social media trends through post content.
 
 **Secondary Consideration**: Basic network storage (follows/followers) is included for future network analysis capabilities, but complex network queries and graph analysis are explicitly out of scope for the initial implementation.
 
-The technical architecture leverages proven technologies (Redis, Parquet, DuckDB) while introducing modern practices (Docker, monitoring, intelligent partitioning) to create a robust foundation for long-term scalability and performance. The post data storage strategy addresses the unique challenges of social media content analysis at scale, with network analysis planned for future phases.
+**Rapid Prototyping Approach**: Single engineer using rapid prototyping methodology with piecemeal deployment to production. Each phase has clear, tangible deliverables that can be shipped quickly and validated incrementally.
+
+The technical architecture leverages proven technologies (Redis, Parquet, DuckDB) while introducing modern practices (Docker, monitoring, intelligent partitioning) to create a robust foundation for long-term scalability and performance. The rapid prototyping approach ensures quick iteration and early production deployment for real-world validation.
