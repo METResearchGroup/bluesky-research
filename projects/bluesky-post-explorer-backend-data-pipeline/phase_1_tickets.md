@@ -421,14 +421,30 @@ class DataWriter:
         self.last_processed_id = None
         
     def process_buffer(self):
-        # 1. Get all records from Redis buffer
-        all_records = self.redis_client.lrange('firehose_buffer', 0, -1)
+        """Process Redis buffer using streaming pattern to avoid memory issues"""
+        batch_size = 1000
+        total_processed = 0
         
-        # 2. Write to Parquet with batch processing
-        written_ids = self.write_to_parquet(all_records)
-        
-        # 3. Remove only successfully written records
-        self.remove_written_records(written_ids)
+        while True:
+            # 1. Get batch of records from Redis buffer (streaming approach)
+            batch_records = self.redis_client.lrange('firehose_buffer', 0, batch_size - 1)
+            
+            if not batch_records:
+                break  # No more records to process
+                
+            # 2. Write batch to Parquet
+            written_ids = self.write_batch_to_parquet(batch_records)
+            
+            if written_ids:
+                # 3. Remove only successfully written records atomically
+                self.remove_written_records(written_ids)
+                total_processed += len(written_ids)
+                
+            # 4. Continue with next batch
+            if len(batch_records) < batch_size:
+                break  # Last batch processed
+                
+        logger.info(f"Processed {total_processed} records from buffer")
         
     def write_to_parquet(self, records):
         """Write records to Parquet and return IDs of written records"""

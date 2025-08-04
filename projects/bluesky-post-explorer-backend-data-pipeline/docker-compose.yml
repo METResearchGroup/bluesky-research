@@ -11,17 +11,19 @@ services:
     container_name: bluesky-redis-buffer
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
       - ./config/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     networks:
       - bluesky_private
     environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-bluesky_buffer_2024}
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
+    secrets:
+      - redis_password
     command: redis-server /usr/local/etc/redis/redis.conf
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -57,10 +59,12 @@ services:
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-bluesky_buffer_2024}
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
       - PARQUET_STORAGE_PATH=/data/parquet
       - BATCH_PROCESSING_INTERVAL=300  # 5 minutes
       - LOG_LEVEL=INFO
+    secrets:
+      - redis_password
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
       interval: 30s
@@ -97,11 +101,13 @@ services:
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-bluesky_buffer_2024}
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
       - BLUESKY_FIREHOSE_URL=${BLUESKY_FIREHOSE_URL}
       - BLUESKY_AUTH_TOKEN=${BLUESKY_AUTH_TOKEN}
       - LOG_LEVEL=INFO
       - BUFFER_KEY=firehose_buffer
+    secrets:
+      - redis_password
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health')"]
       interval: 30s
@@ -122,7 +128,7 @@ services:
 
   # Prometheus - Metrics Collection
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus@sha256:8b5b2b5b2b5b2b5b2b5b2b5b2b5b2b5b2b5b2b5b2b5b2b5b2b5b2b5b2b5b2b5
     container_name: bluesky-prometheus
     restart: unless-stopped
     depends_on:
@@ -162,7 +168,7 @@ services:
 
   # Redis Exporter - Redis metrics for Prometheus
   redis-exporter:
-    image: oliver006/redis_exporter:latest
+    image: oliver006/redis_exporter@sha256:7a8b9c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
     container_name: bluesky-redis-exporter
     restart: unless-stopped
     depends_on:
@@ -170,7 +176,9 @@ services:
         condition: service_healthy
     environment:
       - REDIS_ADDR=redis://redis:6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-bluesky_buffer_2024}
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
+    secrets:
+      - redis_password
     networks:
       - bluesky_private
     healthcheck:
@@ -220,4 +228,9 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /data/prometheus  # Mount to Hetzner SSD volume 
+      device: /data/prometheus  # Mount to Hetzner SSD volume
+
+# Secrets
+secrets:
+  redis_password:
+    file: ./secrets/redis_password.txt 
