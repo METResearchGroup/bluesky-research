@@ -7,6 +7,7 @@ This script tests the Redis server setup and basic functionality.
 
 import redis
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(
@@ -21,11 +22,15 @@ def test_redis_connection():
     print("=" * 50)
 
     try:
+        # Get Redis password from environment variable
+        redis_password = os.getenv("REDIS_PASSWORD")
+
         # Connect to Redis with more robust connection settings
         redis_client = redis.Redis(
             host="localhost",
             port=6379,
             db=0,
+            password=redis_password,
             decode_responses=True,
             socket_connect_timeout=10,
             socket_timeout=10,

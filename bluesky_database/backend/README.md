@@ -91,6 +91,20 @@ The `redis.conf` file is optimized for the Bluesky data pipeline:
 - **AOF persistence** - Data durability with `appendfsync everysec`
 - **LRU eviction** - `allkeys-lru` policy for buffer management
 - **Stream optimization** - Configured for high-throughput stream operations
+- **Authentication support** - Optional password protection via `REDIS_PASSWORD` environment variable
+
+### Redis Authentication
+The system supports Redis authentication for enhanced security:
+
+1. **Environment Variable**: Set `REDIS_PASSWORD` in your environment or `.env` file
+2. **Configuration**: Copy `.env.example` to `.env` and set your password
+3. **Redis Config**: Uncomment `requirepass ${REDIS_PASSWORD}` in `redis.conf` if using authentication
+4. **Automatic Detection**: The scripts automatically detect and use the password if set
+
+Example `.env` file:
+```bash
+REDIS_PASSWORD=your_secure_password_here
+```
 
 ### Volume Mounting
 The Docker setup mounts volumes for data persistence:
@@ -393,6 +407,23 @@ The `run_load_test.sh` script includes comprehensive debugging capabilities:
 - **Connection testing**: Validates Redis connectivity before running tests
 - **Graceful error handling**: Provides clear error messages and recovery steps
 - **Container management**: Proper cleanup and container lifecycle management
+- **Authentication support**: Automatic detection and use of Redis passwords
+
+### Authentication Issues
+If you encounter authentication errors:
+```bash
+# Check if Redis requires authentication
+docker compose exec redis redis-cli CONFIG GET requirepass
+
+# Test connection with password
+docker compose exec redis redis-cli -a "your_password" ping
+
+# Verify environment variable is set
+echo $REDIS_PASSWORD
+
+# Check .env file exists and has correct format
+cat .env
+```
 
 ### Python Dependencies
 ```bash

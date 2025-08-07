@@ -5,6 +5,16 @@
 
 set -euo pipefail  # Exit on any error, unset var, or failed pipe
 
+# Load Redis password from environment or Docker secret
+if [ -z "${REDIS_PASSWORD:-}" ]; then
+    if [ -f ".env" ]; then
+        # Source .env file if it exists
+        set -a  # automatically export all variables
+        source .env
+        set +a
+    fi
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -58,6 +68,15 @@ get_docker_compose_cmd() {
         echo "docker-compose"
     else
         echo "docker compose"
+    fi
+}
+
+# Function to get Redis authentication arguments
+get_redis_auth_args() {
+    if [ -n "${REDIS_PASSWORD:-}" ]; then
+        echo "-a \"$REDIS_PASSWORD\""
+    else
+        echo ""
     fi
 }
 
@@ -117,6 +136,10 @@ start_redis() {
     local docker_compose_cmd
     docker_compose_cmd=$(get_docker_compose_cmd)
     
+    # Get Redis authentication arguments
+    local redis_auth_args
+    redis_auth_args=$(get_redis_auth_args)
+    
     # Stop any existing containers
     $docker_compose_cmd down >/dev/null 2>&1 || true
     
@@ -126,7 +149,7 @@ start_redis() {
     # Wait for Redis to be ready
     print_status "Waiting for Redis to be ready..."
     for i in {1..30}; do
-        if $docker_compose_cmd exec -T redis redis-cli ping >/dev/null 2>&1; then
+        if $docker_compose_cmd exec -T redis redis-cli $redis_auth_args ping >/dev/null 2>&1; then
             print_success "Redis is ready!"
             break
         fi
@@ -140,14 +163,14 @@ start_redis() {
     
     # Display Redis information
     print_status "Redis Information:"
-    $docker_compose_cmd exec -T redis redis-cli info server | grep -E "(redis_version|uptime_in_seconds|connected_clients)"
-    $docker_compose_cmd exec -T redis redis-cli info memory | grep -E "(used_memory_human|maxmemory_human)"
+    $docker_compose_cmd exec -T redis redis-cli $redis_auth_args info server | grep -E "(redis_version|uptime_in_seconds|connected_clients)"
+    $docker_compose_cmd exec -T redis redis-cli $redis_auth_args info memory | grep -E "(used_memory_human|maxmemory_human)"
 }
 
 # Function to test Redis
 test_redis() {
     print_status "Testing Redis functionality..."
-    if python test_redis_server.py; then
+    if REDIS_PASSWORD="${REDIS_PASSWORD:-}" python test_redis_server.py; then
         print_success "Redis tests passed"
     else
         print_error "Redis tests failed"
@@ -162,8 +185,8 @@ run_load_test() {
     print_status "Press Ctrl+C to stop the test early."
     echo ""
     
-    # Run the load test
-    python jetstream_load_test.py
+    # Run the load test with Redis password
+    REDIS_PASSWORD="${REDIS_PASSWORD:-}" python jetstream_load_test.py
 }
 
 # Function to show results
