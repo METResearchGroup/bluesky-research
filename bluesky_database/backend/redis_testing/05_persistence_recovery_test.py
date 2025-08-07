@@ -395,7 +395,7 @@ class RedisPersistenceRecoveryTester:
 
         try:
             # Try to restart Redis container using Docker
-            restart_cmd = "docker restart redis"
+            restart_cmd = "docker restart bluesky_redis"
             result = subprocess.run(
                 restart_cmd, shell=True, capture_output=True, text=True
             )
