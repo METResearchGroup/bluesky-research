@@ -12,27 +12,44 @@ A comprehensive Redis setup for the Bluesky database backend with educational im
 
 ## Quick Start
 
-### 1. Start Redis Server
+### Option 1: Automated Setup (Recommended)
+Run everything with a single command:
+```bash
+./run_load_test.sh
+```
+
+This script will:
+- Check Docker and conda environment
+- Install all dependencies
+- Start Redis container
+- Test Redis functionality
+- Run the complete Jetstream load test
+- Show results and generated files
+
+### Option 2: Manual Setup
+If you prefer to run steps individually:
+
+#### 1. Start Redis Server
 ```bash
 ./start_local.sh
 ```
 
-### 2. Activate Conda Environment
+#### 2. Activate Conda Environment
 ```bash
 conda activate bluesky-research
 ```
 
-### 3. Install Dependencies
+#### 3. Install Dependencies
 ```bash
 uv pip install -r requirements.txt
 ```
 
-### 4. Test Redis Connection
+#### 4. Test Redis Connection
 ```bash
 python test_redis_server.py
 ```
 
-### 5. Run Jetstream Load Test
+#### 5. Run Jetstream Load Test
 ```bash
 python jetstream_load_test.py
 ```
@@ -48,6 +65,7 @@ python jetstream_load_test.py
 ### Testing & Development
 - `test_redis_server.py` - Basic Redis connection and functionality test script
 - `jetstream_load_test.py` - Complete Bluesky Jetstream firehose simulation with Redis Streams
+- `run_load_test.sh` - Complete automation script for running the entire load test
 - `.gitignore` - Git ignore rules for data files, logs, and temporary files
 
 ## Docker Setup
@@ -361,6 +379,12 @@ redis-cli info keyspace
 
 ## Development Workflow
 
+### Automated Workflow (Recommended)
+1. **Run Everything**: `./run_load_test.sh`
+2. **View Results**: Check `./data/` for generated Parquet files
+3. **Stop Redis**: `docker-compose down` (when done)
+
+### Manual Workflow
 1. **Start Redis**: `./start_local.sh`
 2. **Activate Environment**: `conda activate bluesky-research`
 3. **Install Dependencies**: `uv pip install -r requirements.txt`
