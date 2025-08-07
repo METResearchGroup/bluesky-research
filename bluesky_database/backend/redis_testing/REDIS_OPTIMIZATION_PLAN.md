@@ -107,35 +107,37 @@ This document outlines the comprehensive optimization plan for Redis to meet the
 - Sustained performance meets production requirements
 - No data loss during stress scenarios
 
-## Phase 4: Monitoring & Alerting 🔄 PENDING
+## Phase 4: Prometheus + Grafana Monitoring MVP 🔄 PENDING
 
 ### Objectives
-- Implement comprehensive buffer monitoring and alerting
-- Set up buffer overflow detection
-- Create performance monitoring dashboards
+- Implement basic Redis monitoring with Prometheus + Grafana
+- Set up real-time performance visibility
+- Create monitoring infrastructure foundation
 
 ### Actions Pending
-1. **Buffer Monitoring Setup**
-   - Implement buffer utilization metrics
-   - Set up memory usage alerts
-   - Configure buffer overflow detection
+1. **Prometheus + Grafana Setup**
+   - Create Docker Compose with Redis + Prometheus + Grafana
+   - Configure Redis exporter for metrics collection
+   - Set up basic Prometheus configuration
+   - Import default Redis dashboard in Grafana
 
-2. **Production Readiness Validation**
-   - Create production readiness checklist
-   - Validate all MET-001 requirements
-   - Document deployment procedures
+2. **Infrastructure Validation**
+   - Validate all containers start and run correctly
+   - Verify Prometheus collects Redis metrics
+   - Test Grafana dashboard functionality
+   - Document setup and configuration
 
 ### Deliverables
-- Buffer monitoring implementation
-- Alerting configuration
-- Production readiness documentation
-- Monitoring dashboards
+- Docker Compose monitoring stack
+- Working Prometheus + Grafana setup
+- Basic Redis monitoring dashboard
+- Infrastructure validation documentation
 
 ### Success Criteria
-- Buffer overflow detection works correctly
-- Comprehensive monitoring provides visibility
-- Alerting prevents data loss scenarios
-- Production deployment procedures documented
+- All containers start and run without errors
+- Prometheus successfully collects Redis metrics
+- Grafana dashboard displays Redis performance data
+- Monitoring infrastructure is documented and operational
 
 ## Testing Strategy
 
@@ -170,8 +172,8 @@ This document outlines the comprehensive optimization plan for Redis to meet the
 - 🔄 Sustained throughput testing
 
 ### Week 3 ⏳ PENDING
-- ⏳ Monitoring and alerting setup
-- ⏳ Production readiness validation
+- ⏳ Prometheus + Grafana monitoring setup
+- ⏳ Infrastructure validation and testing
 - ⏳ Documentation completion
 
 ## Success Criteria
@@ -181,23 +183,23 @@ This document outlines the comprehensive optimization plan for Redis to meet the
 - ✅ AOF persistence enabled with appendfsync everysec
 - ✅ Buffer capacity validated for 2.7M events
 - ✅ Performance exceeds 1,000+ ops/sec target
-- 🔄 Memory pressure handling validated
-- 🔄 Persistence recovery tested
-- ⏳ Monitoring and alerting implemented
+- ✅ Memory pressure handling validated
+- ✅ Persistence recovery tested
+- ⏳ Prometheus + Grafana monitoring implemented
 
 ### Operational Requirements 🔄 IN PROGRESS
 - ✅ Data integrity maintained under load
 - ✅ Memory usage stays within limits
-- 🔄 Buffer overflow detection working
-- 🔄 Recovery procedures validated
-- ⏳ Monitoring provides comprehensive visibility
+- ✅ Recovery procedures validated
+- ⏳ Prometheus + Grafana monitoring provides visibility
+- ⏳ Buffer overflow detection via monitoring
 
 ### Documentation Requirements 🔄 IN PROGRESS
 - ✅ Configuration audit documented
 - ✅ Performance baselines established
 - ✅ Buffer capacity test results documented
-- 🔄 Load testing results documented
-- ⏳ Production deployment procedures documented
+- ✅ Load testing results documented
+- ⏳ Prometheus + Grafana setup documented
 
 ## Risk Mitigation
 
@@ -208,22 +210,22 @@ This document outlines the comprehensive optimization plan for Redis to meet the
 - **Data Loss**: ✅ AOF persistence confirmed working
 
 ### Operational Risks 🔄 BEING ADDRESSED
-- **Memory Pressure**: Testing eviction behavior under stress
-- **Persistence Failures**: Validating AOF recovery scenarios
-- **Performance Degradation**: Monitoring sustained performance
-- **Buffer Overflow**: Implementing detection and alerting
+- **Memory Pressure**: ✅ Testing eviction behavior under stress
+- **Persistence Failures**: ✅ Validating AOF recovery scenarios
+- **Performance Degradation**: ✅ Monitoring sustained performance
+- **Buffer Overflow**: ⏳ Implementing detection via Prometheus + Grafana
 
 ## Next Steps
 
 ### Immediate Actions (Next Session)
-1. **Memory Pressure Testing**: Create script to test Redis under memory pressure
-2. **Persistence Recovery**: Test AOF recovery with large datasets
-3. **Throughput Validation**: Validate sustained performance over time
+1. **Prometheus + Grafana Setup**: Create Docker Compose monitoring stack
+2. **Infrastructure Validation**: Test monitoring stack functionality
+3. **Documentation**: Document setup and configuration
 
 ### Short-term Goals (Next Week)
-1. **Monitoring Setup**: Implement buffer overflow detection
-2. **Production Validation**: Complete all validation testing
-3. **Documentation**: Finalize deployment procedures
+1. **Monitoring Validation**: Verify Prometheus + Grafana works with Redis
+2. **Production Readiness**: Complete monitoring infrastructure setup
+3. **Documentation**: Finalize monitoring setup procedures
 
 ### Medium-term Goals (Next 2 Weeks)
 1. **Integration Testing**: Test with actual Bluesky firehose
@@ -253,7 +255,7 @@ This document outlines the comprehensive optimization plan for Redis to meet the
 
 ---
 
-**Current Status**: Phase 2 completed successfully. Redis exceeds all MET-001 requirements and has been validated for 2.7M event buffer capacity. Ready to proceed with Phase 3 validation testing.
+**Current Status**: Phase 3 completed successfully. Redis exceeds all MET-001 requirements and has been validated for 2.7M event buffer capacity with excellent performance. Ready to proceed with Phase 4 Prometheus + Grafana monitoring MVP.
 
 **Last Updated**: 2025-08-07
 **Next Review**: After Phase 3 completion

@@ -136,32 +136,32 @@
   - ✅ **SCALING**: 10x throughput improvement with 10 threads
   - ✅ **CLEANUP SUCCESSFUL**: All test data cleaned up efficiently
 
-## Phase 4: Monitoring & Alerting 🔄 PENDING
+## Phase 4: Prometheus + Grafana Monitoring MVP 🔄 PENDING
 
-### Step 7: Buffer Monitoring Setup 🔄 PENDING
+### Step 7: Prometheus + Grafana Setup 🔄 PENDING
 - **Status**: 🔄 PENDING
 - **Date**: TBD
 - **Script**: TBD
-- **Objective**: Set up monitoring and alerting for buffer overflow detection
+- **Objective**: Set up basic Redis monitoring with Prometheus + Grafana
 - **Actions Completed**: None
 - **Actions Pending**:
-  - ⏳ Create buffer monitoring script
-  - ⏳ Set up memory usage alerts
-  - ⏳ Configure buffer overflow detection
-  - ⏳ Set up performance monitoring
+  - ⏳ Create Docker Compose with Redis + Prometheus + Grafana
+  - ⏳ Configure Redis exporter for metrics collection
+  - ⏳ Set up basic Prometheus configuration
+  - ⏳ Import default Redis dashboard in Grafana
 - **Findings**: TBD
 
-### Step 8: Production Readiness Validation 🔄 PENDING
+### Step 8: Infrastructure Validation 🔄 PENDING
 - **Status**: 🔄 PENDING
 - **Date**: TBD
 - **Script**: TBD
-- **Objective**: Final validation for production deployment
+- **Objective**: Validate monitoring infrastructure functionality
 - **Actions Completed**: None
 - **Actions Pending**:
-  - ⏳ Create production readiness checklist
-  - ⏳ Validate all MET-001 requirements
-  - ⏳ Document deployment procedures
-  - ⏳ Create monitoring dashboards
+  - ⏳ Validate all containers start and run correctly
+  - ⏳ Verify Prometheus collects Redis metrics
+  - ⏳ Test Grafana dashboard functionality
+  - ⏳ Document setup and configuration
 - **Findings**: TBD
 
 ## Key Achievements
@@ -207,14 +207,14 @@
 ## Next Steps
 
 ### Immediate Actions (Next Session)
-1. **Persistence Recovery Testing**: Test AOF recovery with large datasets
-2. **Throughput Validation**: Validate sustained performance over time
-3. **Analysis of Eviction Behavior**: Investigate why evictions didn't occur at 95% memory
+1. **Prometheus + Grafana Setup**: Create Docker Compose monitoring stack
+2. **Infrastructure Validation**: Test monitoring stack functionality
+3. **Documentation**: Document setup and configuration
 
 ### Short-term Goals
-1. **Monitoring Setup**: Implement buffer overflow detection
-2. **Production Validation**: Final readiness checks
-3. **Documentation**: Complete deployment procedures
+1. **Monitoring Validation**: Verify Prometheus + Grafana works with Redis
+2. **Production Readiness**: Complete monitoring infrastructure setup
+3. **Documentation**: Finalize monitoring setup procedures
 
 ### Medium-term Goals
 1. **Integration Testing**: Test with actual Bluesky firehose
@@ -231,12 +231,12 @@
 - **Memory Pressure**: Redis handles extreme pressure gracefully
 
 ### ⚠️ Areas Requiring Attention
-- **Eviction Behavior**: Need to understand why evictions didn't occur at 95% memory
-- **Persistence Recovery**: Need to validate AOF recovery scenarios
-- **Long-term Stability**: Need to test sustained performance over time
+- **Monitoring Infrastructure**: Need to set up Prometheus + Grafana for production visibility
+- **Buffer Overflow Detection**: Need to implement monitoring-based overflow detection
+- **Operational Procedures**: Need to document monitoring setup and maintenance
 
 ## Summary
 
-The Redis optimization work continues to be highly successful. The memory pressure test revealed that Redis is even more robust than expected - it can handle 4.2M events (well beyond the 2.7M requirement) at 95% memory utilization without triggering evictions. This suggests excellent memory efficiency and stability. The focus now shifts to persistence recovery testing and throughput validation to complete Phase 3.
+The Redis optimization work continues to be highly successful. All Phase 3 validation tests passed with outstanding results - Redis exceeds all MET-001 requirements by significant margins. The focus now shifts to implementing Prometheus + Grafana monitoring MVP to provide production visibility and buffer overflow detection.
 
-**Current Status**: Phase 3 completed successfully. All load testing and validation tests passed. Ready to proceed with Phase 4 (Monitoring & Alerting).
+**Current Status**: Phase 3 completed successfully. All load testing and validation tests passed. Ready to proceed with Phase 4 (Prometheus + Grafana Monitoring MVP).
