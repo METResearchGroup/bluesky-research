@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7.2-alpine
+    container_name: bluesky_redis
+    ports:
+      - "127.0.0.1:6379:6379"  # Bind to localhost only for security
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./data/redis:/data  # Redis persistence
+      - ./data:/app/data    # Mount data directory for Parquet files
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}  # Optional password from environment
+    networks:
+      - bluesky_network
+
+networks:
+  bluesky_network:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local

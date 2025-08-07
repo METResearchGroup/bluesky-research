@@ -24,47 +24,70 @@ conda activate bluesky-research
 
 ### 3. Install Dependencies
 ```bash
-uv pip install redis
+uv pip install -r requirements.txt
 ```
 
 ### 4. Test Redis Connection
 ```bash
-redis-cli ping
+python test_redis_server.py
+```
+
+### 5. Run Jetstream Load Test
+```bash
+python jetstream_load_test.py
 ```
 
 ## Files Overview
 
 ### Core Infrastructure
-- `docker-compose.yml` - Redis container configuration
-- `redis.conf` - Redis server configuration
-- `start_local.sh` - Script to start Redis locally
-- `Dockerfile.redis` - Redis Docker image
-- `requirements.in` & `requirements.txt` - Python dependencies
+- `docker-compose.yml` - Redis container configuration with volume mounting
+- `redis.conf` - Redis server configuration optimized for buffer operations
+- `start_local.sh` - Script to start Redis locally with Docker Compose
+- `requirements.in` & `requirements.txt` - Python dependencies for Redis backend
 
-### Educational & Testing
-- `redis_python_impl.py` - Educational Python implementation of Redis
-- `test_redis_server.py` - Comprehensive Redis workflow test script
-- `implementation_comparison.py` - Redis Lists vs Streams comparison
+### Testing & Development
+- `test_redis_server.py` - Basic Redis connection and functionality test script
 - `jetstream_load_test.py` - Complete Bluesky Jetstream firehose simulation with Redis Streams
+- `.gitignore` - Git ignore rules for data files, logs, and temporary files
+
+## Docker Setup
+
+### Redis Container
+The `docker-compose.yml` file provides a minimal Redis setup:
+
+- **Redis 7.2-alpine** - Lightweight Redis container
+- **Port 6379** - Bound to localhost only for security
+- **Volume mounting** - Data persistence and Parquet file access
+- **Health checks** - Automatic container health monitoring
+
+### Configuration
+The `redis.conf` file is optimized for the Bluesky data pipeline:
+
+- **2GB memory limit** - Sufficient for 8-hour buffer capacity
+- **AOF persistence** - Data durability with `appendfsync everysec`
+- **LRU eviction** - `allkeys-lru` policy for buffer management
+- **Stream optimization** - Configured for high-throughput stream operations
+
+### Volume Mounting
+The Docker setup mounts volumes for data persistence:
+
+```yaml
+volumes:
+  - ./data/redis:/data          # Redis persistence
+  - ./data:/app/data            # Parquet file output
+```
+
+This allows the Jetstream load test to write Parquet files to `./data/` which persists on the host.
 
 ## Learning Redis
 
-### Educational Implementation
-The `redis_python_impl.py` file contains a simplified Python implementation of Redis core functionality. This is for educational purposes to understand how Redis works internally.
+### Redis Testing
+The `test_redis_server.py` script tests basic Redis functionality:
 
-```bash
-python redis_python_impl.py
-```
-
-### Redis Workflow Testing
-The `test_redis_server.py` script demonstrates a complete Redis workflow:
-
-1. **Write 100 records** to Redis with realistic data
-2. **Display records** to verify storage
-3. **Retrieve all records** in a simulated job
-4. **Verify persistence** - records still exist after retrieval
-5. **Delete all records** from Redis
-6. **Verify deletion** - confirm Redis is empty
+1. **Connection test** - Verify Redis is accessible
+2. **Basic operations** - Test SET/GET/DELETE operations
+3. **Redis Streams** - Test stream operations for Jetstream load test
+4. **Configuration validation** - Verify Redis settings
 
 ```bash
 python test_redis_server.py
@@ -72,32 +95,25 @@ python test_redis_server.py
 
 **Sample Output:**
 ```
-🚀 Redis Server Workflow Test Script
+🚀 Redis Server Test Script
 ==================================================
-✅ Redis client initialized
 ✅ Redis connection successful
+📊 Redis version: 7.2.0
+📊 Connected clients: 1
+📊 Used memory: 890.36K
+📊 Max memory: 2.0G
 
-📊 Initial Redis Info:
-  Redis version: 8.0.3
-  Connected clients: 1
-  Used memory: 890.36K
-  Keyspace: Empty
+🧪 Testing basic operations...
+✅ SET/GET operations work
+✅ DELETE operations work
 
-==================== STEP 1: WRITE RECORDS ====================
-📝 Writing 100 records to Redis...
-✅ Successfully wrote 100 records to Redis
+🧪 Testing Redis Streams...
+✅ Added message to stream: 1703123456789-0
+✅ Stream read operations work
+✅ Stream cleanup successful
 
-==================== STEP 2: DISPLAY RECORDS ====================
-📋 Showing records in Redis (displaying first 5):
-------------------------------------------------------------
-Key: record:001
-  ID: 1
-  User: user_2
-  Content: This is sample content for record 1...
-  Category: category_2
-...
-
-==================== STEP 3: RETRIEVAL JOB ====================
+🎉 All Redis tests passed!
+```
 🔍 Starting retrieval job...
 📊 Retrieving 100 records from Redis...
 ✅ Successfully retrieved 100 records
@@ -347,10 +363,10 @@ redis-cli info keyspace
 
 1. **Start Redis**: `./start_local.sh`
 2. **Activate Environment**: `conda activate bluesky-research`
-3. **Run Basic Tests**: `python test_redis_server.py`
-4. **Explore Implementation**: `python implementation_comparison.py`
-5. **Learn Redis**: `python redis_python_impl.py`
-6. **Load Test Pipeline**: `python jetstream_load_test.py`
+3. **Install Dependencies**: `uv pip install -r requirements.txt`
+4. **Test Redis**: `python test_redis_server.py`
+5. **Run Load Test**: `python jetstream_load_test.py`
+6. **View Data**: Check `./data/` for generated Parquet files
 
 ## Next Steps
 
