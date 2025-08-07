@@ -458,6 +458,27 @@ redis-cli info keyspace
 5. **Run Load Test**: `python jetstream_load_test.py`
 6. **View Data**: Check `./data/` for generated Parquet files
 
+## Redis Optimization
+
+### Current Optimization Work
+We are actively optimizing Redis for the buffer use case as specified in MET-001. See the comprehensive optimization plan:
+
+- **[Redis Optimization Plan](redis_testing/REDIS_OPTIMIZATION_PLAN.md)** - Detailed step-by-step optimization approach for high-throughput data buffering
+
+The optimization work includes:
+- Configuration analysis and baseline testing
+- Memory management optimization for 2.7M events capacity
+- Performance tuning for 1000+ ops/sec throughput
+- Comprehensive load testing and validation
+- Buffer overflow detection and monitoring
+
+### Testing & Development
+The `redis_testing/` folder contains all optimization-related work:
+- Optimization plans and progress notes
+- Testing scripts and intermediate outputs
+- Performance benchmarks and analysis
+- Configuration validation tools
+
 ## Next Steps
 
 This foundation provides:
@@ -466,7 +487,8 @@ This foundation provides:
 3. ✅ Comprehensive testing
 4. ✅ Implementation comparison
 5. ✅ Complete load testing system
-6. 🔄 Database schema design
-7. 🔄 API endpoints
-8. 🔄 Data models
-9. 🔄 Business logic 
+6. 🔄 Redis optimization for buffer use case
+7. 🔄 Database schema design
+8. 🔄 API endpoints
+9. 🔄 Data models
+10. 🔄 Business logic 
