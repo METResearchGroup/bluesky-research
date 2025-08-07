@@ -1,9 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Bluesky Redis Backend - Complete Load Test Runner
 # This script runs the entire Redis setup and Jetstream load test using Docker
 
-set -e  # Exit on any error
+set -euo pipefail  # Exit on any error, unset var, or failed pipe
 
 # Colors for output
 RED='\033[0;31m'
@@ -43,9 +43,34 @@ check_docker() {
     print_success "Docker is running"
 }
 
+# Function to check if Docker Compose is available
+check_docker_compose() {
+    if ! command_exists docker-compose && ! docker compose version >/dev/null 2>&1; then
+        print_error "Neither docker-compose nor docker compose CLI found."
+        exit 1
+    fi
+    print_success "Docker Compose is available"
+}
+
+# Function to get the appropriate docker compose command
+get_docker_compose_cmd() {
+    if command_exists docker-compose; then
+        echo "docker-compose"
+    else
+        echo "docker compose"
+    fi
+}
+
 # Function to check if conda environment exists
 check_conda_env() {
-    if ! conda env list | grep -q "bluesky-research"; then
+    # Check if conda command exists
+    if ! command_exists conda; then
+        print_error "Conda is not installed or not in PATH. Please install conda and try again."
+        exit 1
+    fi
+    
+    # Check for exact environment name match
+    if ! conda env list | awk '{print $1}' | grep -xq "bluesky-research"; then
         print_warning "Conda environment 'bluesky-research' not found. Creating it..."
         conda create -n bluesky-research python=3.11 -y
     fi
@@ -88,22 +113,26 @@ create_data_directories() {
 start_redis() {
     print_status "Starting Redis container..."
     
+    # Get the appropriate docker compose command
+    local docker_compose_cmd
+    docker_compose_cmd=$(get_docker_compose_cmd)
+    
     # Stop any existing containers
-    docker-compose down >/dev/null 2>&1 || true
+    $docker_compose_cmd down >/dev/null 2>&1 || true
     
     # Start Redis
-    docker-compose up -d redis
+    $docker_compose_cmd up -d redis
     
     # Wait for Redis to be ready
     print_status "Waiting for Redis to be ready..."
     for i in {1..30}; do
-        if docker-compose exec -T redis redis-cli ping >/dev/null 2>&1; then
+        if $docker_compose_cmd exec -T redis redis-cli ping >/dev/null 2>&1; then
             print_success "Redis is ready!"
             break
         fi
         if [ $i -eq 30 ]; then
             print_error "Redis failed to start within 30 seconds"
-            docker-compose logs redis
+            $docker_compose_cmd logs redis
             exit 1
         fi
         sleep 1
@@ -111,8 +140,8 @@ start_redis() {
     
     # Display Redis information
     print_status "Redis Information:"
-    docker-compose exec -T redis redis-cli info server | grep -E "(redis_version|uptime_in_seconds|connected_clients)"
-    docker-compose exec -T redis redis-cli info memory | grep -E "(used_memory_human|maxmemory_human)"
+    $docker_compose_cmd exec -T redis redis-cli info server | grep -E "(redis_version|uptime_in_seconds|connected_clients)"
+    $docker_compose_cmd exec -T redis redis-cli info memory | grep -E "(used_memory_human|maxmemory_human)"
 }
 
 # Function to test Redis
@@ -164,17 +193,21 @@ show_results() {
     
     echo ""
     print_status "Redis container is still running. To stop it, run:"
-    echo "  docker-compose down"
+    local docker_compose_cmd
+    docker_compose_cmd=$(get_docker_compose_cmd)
+    echo "  $docker_compose_cmd down"
     echo ""
     print_status "To view Redis logs, run:"
-    echo "  docker-compose logs -f redis"
+    echo "  $docker_compose_cmd logs -f redis"
 }
 
 # Function to cleanup on exit
 cleanup() {
     print_status "Cleaning up..."
     # Don't stop Redis by default, let user decide
-    print_status "Redis container is still running. Use 'docker-compose down' to stop it."
+    local docker_compose_cmd
+    docker_compose_cmd=$(get_docker_compose_cmd 2>/dev/null || echo "docker compose")
+    print_status "Redis container is still running. Use '$docker_compose_cmd down' to stop it."
 }
 
 # Set up trap for cleanup
@@ -189,6 +222,7 @@ main() {
     # Check prerequisites
     print_status "Checking prerequisites..."
     check_docker
+    check_docker_compose
     check_conda_env
     
     # Change to script directory

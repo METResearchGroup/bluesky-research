@@ -26,6 +26,12 @@ This script will:
 - Run the complete Jetstream load test
 - Show results and generated files
 
+**Note**: The script includes robust error handling and debugging features:
+- Automatic port conflict detection and resolution
+- Enhanced Redis connection parameters for Docker environments
+- Comprehensive prerequisite checking (Docker, Docker Compose, conda)
+- Graceful cleanup and container management
+
 ### Option 2: Manual Setup
 If you prefer to run steps individually:
 
@@ -358,6 +364,35 @@ docker compose logs redis
 # Restart Redis
 docker compose restart redis
 ```
+
+### Port Conflicts
+If you encounter port conflicts (e.g., "Ports are not available: exposing port TCP 127.0.0.1:6379"):
+```bash
+# Check what's using port 6379
+lsof -i :6379
+
+# Stop any existing Redis processes
+brew services stop redis  # If using Homebrew Redis
+kill -9 <PID>            # For other processes
+
+# Clean up Docker containers
+docker compose down
+```
+
+### Enhanced Connection Parameters
+The test script uses robust Redis connection parameters optimized for Docker environments:
+- **Longer timeouts**: 10s instead of 5s for better reliability
+- **Retry on timeout**: Automatic retry for transient connection issues
+- **Health check interval**: 30s health checks for connection stability
+- **Docker-aware configuration**: Optimized for containerized Redis instances
+
+### Debugging Features
+The `run_load_test.sh` script includes comprehensive debugging capabilities:
+- **Prerequisite validation**: Checks for Docker, Docker Compose, and conda
+- **Port conflict detection**: Automatically identifies and reports port conflicts
+- **Connection testing**: Validates Redis connectivity before running tests
+- **Graceful error handling**: Provides clear error messages and recovery steps
+- **Container management**: Proper cleanup and container lifecycle management
 
 ### Python Dependencies
 ```bash
