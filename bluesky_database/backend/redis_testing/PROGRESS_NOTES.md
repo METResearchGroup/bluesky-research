@@ -475,10 +475,10 @@
 ## Next Steps
 
 ### Immediate Actions (Next Session)
-1. **Prefect Infrastructure Setup**: Create Docker Compose configuration for Prefect server with SQLite backend
-2. **DataWriter Flow Implementation**: Create Prefect flow for processing Redis Streams to partitioned Parquet files
-3. **Monitoring Integration**: Integrate DataWriter metrics with existing Prometheus + Grafana monitoring
-4. **Scheduling Setup**: Configure 5-minute scheduled execution with batch processing logic
+1. **DataWriter Flow Implementation**: Create Prefect flow for processing Redis Streams to partitioned Parquet files
+2. **Monitoring Integration**: Integrate DataWriter metrics with existing Prometheus + Grafana monitoring
+3. **Scheduling Setup**: Configure 5-minute scheduled execution with batch processing logic
+4. **End-to-End Testing**: Create comprehensive test with 10-minute continuous operation and mock data stream
 
 ### Short-term Goals
 1. **Prefect Validation**: Verify Prefect server and agent work correctly with SQLite backend

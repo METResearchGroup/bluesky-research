@@ -193,6 +193,13 @@ This document outlines the comprehensive optimization plan for Redis to meet the
    - Add flow dependency management and error recovery
    - Validate scheduled execution and performance
 
+6. **End-to-End Testing**
+   - Create comprehensive end-to-end test with mock data stream
+   - Test 10-minute continuous operation with all services
+   - Validate Parquet file generation with correct paths and data amounts
+   - Test functionality of all services (Redis, Prefect, monitoring)
+   - Verify data integrity and processing accuracy
+
 ### Deliverables ✅
 - ✅ Prefect server and worker setup with SQLite backend
 - ✅ Docker Compose configuration with Prefect integration
@@ -207,6 +214,18 @@ This document outlines the comprehensive optimization plan for Redis to meet the
 - ✅ Infrastructure validation passes all 8 tests with 100% success rate
 - ✅ API compatibility issues resolved for Prefect v3.4.11
 - ✅ Monitoring integration confirmed with existing Prometheus + Grafana stack
+
+### Success Criteria (Pending)
+- DataWriter flow processes all 5 data types (posts, likes, reposts, follows, blocks)
+- Parquet files written to correct partitioned directory structure
+- Flow executes every 5 minutes automatically
+- Processing completes within 4 minutes (leaving 1-minute buffer)
+- Custom metrics visible in Grafana dashboard
+- Slack alerts for flow failures or performance issues
+- Redis memory usage decreases after successful processing
+- End-to-end test validates 10-minute continuous operation
+- All services function correctly during end-to-end test
+- Parquet files contain expected data amounts and correct paths
 
 ### Performance Targets (Based on Optimization Results)
 - **Throughput**: 1,500+ events/sec sustained processing
