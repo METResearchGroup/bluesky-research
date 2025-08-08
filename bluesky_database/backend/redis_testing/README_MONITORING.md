@@ -1,17 +1,18 @@
-# Redis Monitoring Stack - Prometheus + Grafana
+# Redis Monitoring Stack - Prometheus + Grafana + Slack
 
 ## Overview
 
-This directory contains the Prometheus + Grafana monitoring stack for the Redis optimization project. The monitoring stack provides real-time visibility into Redis performance, memory usage, and operational metrics.
+This directory contains the Prometheus + Grafana + Slack monitoring stack for the Redis optimization project. The monitoring stack provides real-time visibility into Redis performance, memory usage, and operational metrics, with proactive Slack alerting for critical events.
 
 ## Architecture
 
-The monitoring stack consists of four main components:
+The monitoring stack consists of five main components:
 
 1. **Redis** - The target database being monitored
 2. **Redis Exporter** - Collects Redis metrics and exposes them in Prometheus format
 3. **Prometheus** - Time-series database that scrapes and stores metrics
-4. **Grafana** - Visualization platform that displays metrics in dashboards
+4. **Alertmanager** - Handles alert routing and Slack integration
+5. **Grafana** - Visualization platform that displays metrics in dashboards
 
 ## Services
 
@@ -32,6 +33,12 @@ The monitoring stack consists of four main components:
 - **Retention**: 200 hours
 - **Targets**: Redis Exporter, self-monitoring
 
+### Alertmanager
+- **Port**: 9093
+- **Purpose**: Handles alert routing and Slack integration
+- **Configuration**: Slack webhook integration for critical alerts
+- **Features**: Alert grouping, routing, and escalation
+
 ### Grafana
 - **Port**: 3000
 - **Credentials**: admin/admin
@@ -42,7 +49,8 @@ The monitoring stack consists of four main components:
 
 ### Prerequisites
 - Docker and Docker Compose installed
-- Ports 6379, 9121, 9090, and 3000 available
+- Ports 6379, 9121, 9090, 9093, and 3000 available
+- Slack webhook URL configured (optional for basic setup)
 
 ### Start the Monitoring Stack
 
@@ -61,6 +69,7 @@ docker-compose -f docker-compose.monitoring.yml ps
 - **Redis**: `redis-cli -h localhost -p 6379`
 - **Redis Exporter**: http://localhost:9121/metrics
 - **Prometheus**: http://localhost:9090
+- **Alertmanager**: http://localhost:9093
 - **Grafana**: http://localhost:3000 (admin/admin)
 
 ### Stop the Stack
@@ -82,6 +91,7 @@ The validation script checks:
 - Redis connectivity
 - Redis Exporter metrics
 - Prometheus targets and metrics
+- Alertmanager connectivity and Slack integration
 - Grafana connectivity and dashboard
 
 ## Configuration Files
@@ -90,7 +100,7 @@ The validation script checks:
 Main orchestration file defining all services, volumes, and networking.
 
 ### prometheus.yml
-Prometheus configuration with scrape targets and intervals.
+Prometheus configuration with scrape targets, intervals, and alerting rules.
 
 ### redis.conf
 Optimized Redis configuration for the buffer use case.
@@ -99,6 +109,10 @@ Optimized Redis configuration for the buffer use case.
 - **datasources/prometheus.yml**: Auto-configures Prometheus datasource
 - **dashboards/dashboard.yml**: Dashboard provisioning configuration
 - **dashboards/redis-dashboard.json**: Redis monitoring dashboard
+
+### alertmanager/
+- **alertmanager.yml**: Alertmanager configuration with Slack integration
+- **templates/**: Custom message templates for Slack alerts
 
 ## Dashboard Metrics
 
@@ -121,17 +135,19 @@ The Redis dashboard includes the following key metrics:
 
 ## Monitoring Alerts
 
-The monitoring stack provides visibility into:
+The monitoring stack provides visibility and proactive alerting for:
 
-### Performance Alerts
+### Performance Alerts (Slack Notifications)
 - High command latency (> 10ms)
 - Low throughput (< 1000 ops/sec)
 - Memory pressure (> 90% utilization)
+- Buffer overflow detection
 
-### Operational Alerts
+### Operational Alerts (Slack Notifications)
 - Redis service down
 - High error rates
 - Connection failures
+- Alertmanager service down
 
 ## Integration with Existing Tests
 
@@ -185,6 +201,7 @@ The monitoring stack integrates with the existing Redis optimization test suite:
 ### Resource Usage
 - **Redis**: 2GB memory limit (configurable)
 - **Prometheus**: ~100MB RAM, grows with metrics retention
+- **Alertmanager**: ~20MB RAM
 - **Grafana**: ~50MB RAM
 - **Redis Exporter**: ~10MB RAM
 
@@ -198,10 +215,12 @@ The monitoring stack integrates with the existing Redis optimization test suite:
 ### Default Credentials
 - **Grafana**: admin/admin (change in production)
 - **Redis**: No authentication (configure for production)
+- **Alertmanager**: No authentication (configure for production)
 
 ### Network Access
 - All services bind to 0.0.0.0 (accessible from any IP)
 - Consider firewall rules for production deployment
+- Slack webhook requires outbound HTTPS access
 
 ## Production Deployment
 
@@ -211,6 +230,7 @@ For production deployment, consider:
    - Change default passwords
    - Enable Redis authentication
    - Use reverse proxy for external access
+   - Secure Slack webhook URLs
 
 2. **Persistence**
    - Configure volume mounts for data persistence
@@ -220,11 +240,13 @@ For production deployment, consider:
    - Configure alerting rules
    - Set up log aggregation
    - Monitor the monitoring stack itself
+   - Configure Slack alert escalation policies
 
 4. **Scaling**
    - Use Redis clustering for high availability
    - Configure Prometheus federation for multiple instances
    - Set up Grafana high availability
+   - Configure Alertmanager clustering for high availability
 
 ## Related Documentation
 
@@ -244,5 +266,5 @@ For issues with the monitoring stack:
 ---
 
 **Last Updated**: 2025-08-07
-**Version**: 1.0
-**Status**: MVP Complete
+**Version**: 1.1
+**Status**: MVP Complete (Slack Integration Pending)
