@@ -1,0 +1,5 @@
+prefect>=3.4.0
+requests>=2.31.0
+redis>=5.0.0
+pandas>=2.0.0
+pyarrow>=14.0.0

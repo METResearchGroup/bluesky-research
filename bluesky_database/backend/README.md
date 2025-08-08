@@ -9,6 +9,7 @@ A comprehensive Redis setup for the Bluesky database backend with educational im
 - **Implementation Comparison**: Detailed comparison of Redis Lists vs Redis Streams for data pipelines
 - **Testing Tools**: Comprehensive test scripts for Redis operations
 - **Local Development**: Simple scripts to run Redis locally
+- **Prefect Infrastructure**: Complete workflow orchestration with Prefect v3, SQLite backend, and monitoring integration
 
 ## Quick Start
 
@@ -479,6 +480,40 @@ The `redis_testing/` folder contains all optimization-related work:
 - Performance benchmarks and analysis
 - Configuration validation tools
 
+## Prefect Infrastructure
+
+The backend includes a complete Prefect v3 infrastructure setup for workflow orchestration:
+
+### Quick Start with Prefect
+
+```bash
+# Start the complete infrastructure (Redis + Prefect + Monitoring)
+cd bluesky_database/backend
+docker compose -f docker-compose.prefect.yml up -d
+
+# Validate the setup
+cd redis_testing
+python 08_prefect_infrastructure_setup.py
+```
+
+### What's Included
+
+- **Prefect Server v3.4.11**: Web UI and API for flow management (http://localhost:4200)
+- **Prefect Worker**: Job execution engine with default work pool
+- **SQLite Backend**: Lightweight database for flow metadata
+- **Monitoring Integration**: Full integration with Redis + Prometheus + Grafana stack
+- **Validation Script**: Comprehensive testing of all components
+
+### Key Features
+
+- ✅ **API Compatibility**: Updated for Prefect v3 API endpoints
+- ✅ **Container Health Checks**: All services monitored and healthy
+- ✅ **Work Pool Management**: Default work pool with process execution
+- ✅ **Work Queue Operations**: Queue management and status monitoring
+- ✅ **Monitoring Stack**: Integration with existing Prometheus + Grafana
+
+For detailed documentation, see [Prefect Infrastructure Setup](prefect/README.md).
+
 ## Next Steps
 
 This foundation provides:
@@ -487,8 +522,9 @@ This foundation provides:
 3. ✅ Comprehensive testing
 4. ✅ Implementation comparison
 5. ✅ Complete load testing system
-6. 🔄 Redis optimization for buffer use case
-7. 🔄 Database schema design
-8. 🔄 API endpoints
-9. 🔄 Data models
-10. 🔄 Business logic 
+6. ✅ Prefect infrastructure setup
+7. 🔄 Redis optimization for buffer use case
+8. 🔄 Database schema design
+9. 🔄 API endpoints
+10. 🔄 Data models
+11. 🔄 Business logic 
