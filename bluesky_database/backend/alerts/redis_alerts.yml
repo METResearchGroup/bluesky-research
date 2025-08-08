@@ -1,0 +1,177 @@
+groups:
+  - name: redis_alerts
+    rules:
+      # Critical Alerts - Immediate notification
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis instance is down"
+          description: "Redis instance has been down for more than 0 minutes."
+          value: "{{ $value }}"
+
+      - alert: RedisMemoryCritical
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) > 0.95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis memory usage is critical"
+          description: "Redis memory usage is above 95% for more than 2 minutes."
+          value: "{{ $value | humanizePercentage }}"
+
+      - alert: RedisLatencyCritical
+        expr: histogram_quantile(0.95, rate(redis_commands_duration_seconds_bucket[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis latency is critical"
+          description: "95th percentile latency is above 50ms for more than 2 minutes."
+          value: "{{ $value | humanizeDuration }}"
+
+      - alert: RedisErrorRateCritical
+        expr: rate(redis_commands_total{cmd!="ping"}[5m]) > 0 and (rate(redis_commands_total{cmd!="ping"}[5m]) - rate(redis_commands_processed_total{cmd!="ping"}[5m])) / rate(redis_commands_total{cmd!="ping"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis error rate is critical"
+          description: "Redis error rate is above 5% for more than 2 minutes."
+          value: "{{ $value | humanizePercentage }}"
+
+      - alert: RedisConnectionLimitCritical
+        expr: redis_connected_clients > 950
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis connection limit is critical"
+          description: "Redis connected clients is above 950 for more than 2 minutes."
+          value: "{{ $value }}"
+
+      # Warning Alerts - Notification with delay
+      - alert: RedisMemoryWarning
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage is high"
+          description: "Redis memory usage is above 85% for more than 5 minutes."
+          value: "{{ $value | humanizePercentage }}"
+
+      - alert: RedisLatencyWarning
+        expr: histogram_quantile(0.95, rate(redis_commands_duration_seconds_bucket[5m])) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis latency is high"
+          description: "95th percentile latency is above 20ms for more than 5 minutes."
+          value: "{{ $value | humanizeDuration }}"
+
+      - alert: RedisThroughputWarning
+        expr: rate(redis_commands_total{cmd!="ping"}[5m]) < 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis throughput is low"
+          description: "Redis throughput is below 500 ops/sec for more than 5 minutes."
+          value: "{{ $value | humanize }} ops/sec"
+
+      - alert: RedisConnectionWarning
+        expr: redis_connected_clients > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis connection count is high"
+          description: "Redis connected clients is above 100 for more than 5 minutes."
+          value: "{{ $value }}"
+
+      - alert: RedisEvictionWarning
+        expr: increase(redis_evicted_keys_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis evictions detected"
+          description: "Redis has evicted keys in the last 5 minutes."
+          value: "{{ $value }} evictions"
+
+      # Info Alerts - Daily summaries
+      - alert: RedisPerformanceSummary
+        expr: rate(redis_commands_total{cmd!="ping"}[24h]) > 0
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "Redis daily performance summary"
+          description: "Daily Redis performance metrics summary."
+          value: "{{ $value | humanize }} ops/sec (24h avg)"
+
+      - alert: RedisMemoryTrend
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) > 0
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "Redis memory usage trend"
+          description: "Current Redis memory usage trend analysis."
+          value: "{{ $value | humanizePercentage }}"
+
+      # Buffer-specific alerts for Bluesky use case
+      - alert: RedisBufferCapacityWarning
+        expr: redis_db_keys > 2000000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis buffer capacity is high"
+          description: "Redis buffer is approaching 2.7M event capacity limit."
+          value: "{{ $value | humanize }} keys"
+
+      - alert: RedisBufferCapacityCritical
+        expr: redis_db_keys > 2500000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis buffer capacity is critical"
+          description: "Redis buffer is exceeding 2.5M event capacity limit."
+          value: "{{ $value | humanize }} keys"
+
+      # Monitoring stack health alerts
+      - alert: AlertmanagerDown
+        expr: up{job="alertmanager"} == 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alertmanager is down"
+          description: "Alertmanager instance is down."
+          value: "{{ $value }}"
+
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus is down"
+          description: "Prometheus instance is down."
+          value: "{{ $value }}"
+
+      - alert: RedisExporterDown
+        expr: up{job="redis"} == 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis Exporter is down"
+          description: "Redis Exporter instance is down."
+          value: "{{ $value }}"

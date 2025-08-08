@@ -531,6 +531,125 @@ class MonitoringStackValidator:
             )
             return False
 
+    def test_alertmanager_connectivity(self) -> bool:
+        """Test Alertmanager connectivity and configuration"""
+        logger.info("🔔 Testing Alertmanager connectivity...")
+
+        try:
+            # Test Alertmanager health endpoint
+            response = requests.get("http://localhost:9093/-/healthy", timeout=10)
+
+            if response.status_code == 200:
+                self.log_test_result(
+                    "alertmanager_connectivity",
+                    True,
+                    "Alertmanager health check passed",
+                )
+                return True
+            else:
+                self.log_test_result(
+                    "alertmanager_connectivity",
+                    False,
+                    f"Alertmanager health check failed: {response.status_code}",
+                )
+                return False
+
+        except Exception as e:
+            self.log_test_result(
+                "alertmanager_connectivity",
+                False,
+                f"Alertmanager connectivity test failed: {str(e)}",
+            )
+            return False
+
+    def test_alertmanager_configuration(self) -> bool:
+        """Test Alertmanager configuration and Slack integration"""
+        logger.info("⚙️ Testing Alertmanager configuration...")
+
+        try:
+            # Test Alertmanager configuration endpoint (v2 API)
+            response = requests.get("http://localhost:9093/api/v2/status", timeout=10)
+
+            if response.status_code == 200:
+                status_data = response.json()
+
+                # Check if configuration is loaded
+                if "config" in status_data and "original" in status_data["config"]:
+                    self.log_test_result(
+                        "alertmanager_configuration",
+                        True,
+                        "Alertmanager configuration loaded successfully",
+                    )
+                    return True
+                else:
+                    self.log_test_result(
+                        "alertmanager_configuration",
+                        False,
+                        "Alertmanager configuration not loaded properly",
+                    )
+                    return False
+            else:
+                self.log_test_result(
+                    "alertmanager_configuration",
+                    False,
+                    f"Alertmanager status API error: {response.status_code}",
+                )
+                return False
+
+        except Exception as e:
+            self.log_test_result(
+                "alertmanager_configuration",
+                False,
+                f"Alertmanager configuration test failed: {str(e)}",
+            )
+            return False
+
+    def test_slack_webhook_connectivity(self) -> bool:
+        """Test Slack webhook connectivity (if configured)"""
+        logger.info("💬 Testing Slack webhook connectivity...")
+
+        try:
+            # Check if Slack webhook URL is configured (v2 API)
+            response = requests.get("http://localhost:9093/api/v2/status", timeout=10)
+
+            if response.status_code == 200:
+                status_data = response.json()
+
+                # Check if Slack receiver is configured by parsing the config
+                config_text = status_data.get("config", {}).get("original", "")
+                if (
+                    "slack_configs" in config_text
+                    and "slack-notifications" in config_text
+                ):
+                    self.log_test_result(
+                        "slack_webhook_connectivity",
+                        True,
+                        "Slack receivers configured in Alertmanager",
+                    )
+                    return True
+                else:
+                    self.log_test_result(
+                        "slack_webhook_connectivity",
+                        False,
+                        "No Slack receivers configured (webhook URL not set)",
+                    )
+                    return False
+            else:
+                self.log_test_result(
+                    "slack_webhook_connectivity",
+                    False,
+                    f"Alertmanager status API error: {response.status_code}",
+                )
+                return False
+
+        except Exception as e:
+            self.log_test_result(
+                "slack_webhook_connectivity",
+                False,
+                f"Slack webhook connectivity test failed: {str(e)}",
+            )
+            return False
+
     def run_validation_suite(self) -> Dict[str, Any]:
         """Run the complete validation suite"""
         logger.info("🚀 Starting Redis Monitoring Stack Validation Suite")
@@ -543,6 +662,9 @@ class MonitoringStackValidator:
             ("Redis Exporter Metrics", self.test_redis_exporter_metrics),
             ("Prometheus Targets", self.test_prometheus_targets),
             ("Prometheus Metrics", self.test_prometheus_metrics),
+            ("Alertmanager Connectivity", self.test_alertmanager_connectivity),
+            ("Alertmanager Configuration", self.test_alertmanager_configuration),
+            ("Slack Webhook Connectivity", self.test_slack_webhook_connectivity),
             ("Grafana Connectivity", self.test_grafana_connectivity),
             ("Grafana Datasource", self.test_grafana_datasource),
             ("Grafana Dashboard", self.test_grafana_dashboard),

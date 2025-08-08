@@ -1,0 +1,82 @@
+{{ define "slack.title" }}
+[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}
+{{ end }}
+
+{{ define "slack.text" }}
+{{ range .Alerts }}
+*Alert:* {{ .Annotations.summary }}
+*Description:* {{ .Annotations.description }}
+*Severity:* {{ .Labels.severity }}
+*Started:* {{ .StartsAt | since }}
+{{ if .Labels.instance }}*Instance:* {{ .Labels.instance }}{{ end }}
+{{ if .Annotations.value }}*Current Value:* {{ .Annotations.value }}{{ end }}
+{{ end }}
+{{ end }}
+
+{{ define "slack.critical.text" }}
+🚨 *CRITICAL ALERT* 🚨
+
+{{ range .Alerts }}
+*Alert:* {{ .Annotations.summary }}
+*Description:* {{ .Annotations.description }}
+*Started:* {{ .StartsAt | since }}
+{{ if .Labels.instance }}*Instance:* {{ .Labels.instance }}{{ end }}
+{{ if .Annotations.value }}*Current Value:* {{ .Annotations.value }}{{ end }}
+
+*Immediate Actions Required:*
+• Investigate the issue immediately
+• Check Redis logs and metrics
+• Review system resources
+• Consider rolling back recent changes
+
+*Escalation:* This alert will escalate in 15 minutes if not acknowledged.
+{{ end }}
+{{ end }}
+
+{{ define "slack.warning.text" }}
+⚠️ *WARNING ALERT* ⚠️
+
+{{ range .Alerts }}
+*Alert:* {{ .Annotations.summary }}
+*Description:* {{ .Annotations.description }}
+*Started:* {{ .StartsAt | since }}
+{{ if .Labels.instance }}*Instance:* {{ .Labels.instance }}{{ end }}
+{{ if .Annotations.value }}*Current Value:* {{ .Annotations.value }}{{ end }}
+
+*Recommended Actions:*
+• Monitor the situation
+• Check Redis metrics
+• Review recent activity
+• Prepare for potential escalation
+{{ end }}
+{{ end }}
+
+{{ define "slack.info.text" }}
+ℹ️ *INFO ALERT* ℹ️
+
+{{ range .Alerts }}
+*Alert:* {{ .Annotations.summary }}
+*Description:* {{ .Annotations.description }}
+*Started:* {{ .StartsAt | since }}
+{{ if .Labels.instance }}*Instance:* {{ .Labels.instance }}{{ end }}
+{{ if .Annotations.value }}*Current Value:* {{ .Annotations.value }}{{ end }}
+
+*Information:*
+• Review the information
+• Check related metrics
+• Update documentation if needed
+• Share insights with team
+{{ end }}
+{{ end }}
+
+{{ define "slack.grafana_url" }}
+http://localhost:3000/d/redis/redis-monitoring?orgId=1&refresh=5s
+{{ end }}
+
+{{ define "slack.alertmanager_url" }}
+http://localhost:9093/#/alerts
+{{ end }}
+
+{{ define "slack.acknowledge_url" }}
+http://localhost:9093/#/alerts?silenced=false&inhibited=false&active=true&filter=%7Balertname%3D"{{ .CommonLabels.alertname }}"%7D
+{{ end }}
