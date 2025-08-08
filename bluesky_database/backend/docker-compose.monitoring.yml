@@ -78,7 +78,7 @@ services:
       - '--storage.path=/alertmanager'
       - '--web.listen-address=:9093'
     environment:
-      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - SLACK_WEBHOOK_URL=${SLACK_REDIS_MONITORING_CHANNEL_WEBHOOK_URL}
     depends_on:
       - prometheus
     restart: unless-stopped
