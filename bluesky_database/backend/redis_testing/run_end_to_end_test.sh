@@ -3,7 +3,7 @@
 # End-to-End DataWriter Pipeline Test Runner
 # This script runs a comprehensive test of the complete DataWriter pipeline
 
-set -e  # Exit on any error
+set -euo pipefail  # Exit on error, treat unset vars as errors, fail pipelines
 
 # Configuration
 TEST_DURATION_MINUTES=${1:-10}
@@ -31,19 +31,19 @@ NC='\033[0m' # No Color
 
 # Logging functions
 log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1" | tee -a "$LOG_FILE"
+    printf "%b\n" "${BLUE}[INFO]${NC} $1" | tee -a "$LOG_FILE"
 }
 
 log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1" | tee -a "$LOG_FILE"
+    printf "%b\n" "${GREEN}[SUCCESS]${NC} $1" | tee -a "$LOG_FILE"
 }
 
 log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1" | tee -a "$LOG_FILE"
+    printf "%b\n" "${YELLOW}[WARNING]${NC} $1" | tee -a "$LOG_FILE"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE"
+    printf "%b\n" "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE"
 }
 
 # Create directories (absolute)
@@ -55,7 +55,7 @@ LOG_FILE="$LOG_DIR/end_to_end_test_$TIMESTAMP.log"
 
 # Function to log to both console and file
 log() {
-    echo "$1" | tee -a "$LOG_FILE"
+    printf "%s\n" "$1" | tee -a "$LOG_FILE"
 }
 
 # Header
@@ -77,11 +77,15 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-# Check if conda environment is activated
+# Check if conda environment is activated (allow override/CI)
 if [[ "$CONDA_DEFAULT_ENV" != "bluesky-research" ]]; then
-    log_warning "Conda environment 'bluesky-research' is not activated."
-    log_info "Please run: conda activate bluesky-research"
-    exit 1
+    if [[ -n "${ALLOW_ANY_ENV:-}" || -n "${CI:-}" ]]; then
+        log_warning "Conda env 'bluesky-research' not active; continuing due to ALLOW_ANY_ENV/CI."
+    else
+        log_warning "Conda environment 'bluesky-research' is not activated."
+        log_info "Please run: conda activate bluesky-research (or set ALLOW_ANY_ENV=1 to override)"
+        exit 1
+    fi
 fi
 
 # Check if required Python packages are installed
@@ -108,7 +112,8 @@ docker compose -f docker-compose.prefect.yml up -d
 wait_for_container_healthy() {
     local container_name="$1"
     local timeout_seconds="${2:-180}"
-    local start_time=$(date +%s)
+    local start_time
+    start_time=$(date +%s)
 
     log_info "Waiting for container '$container_name' to be healthy (timeout ${timeout_seconds}s)..."
     while true; do
@@ -134,9 +139,11 @@ wait_for_container_healthy() {
                 fi
             fi
         fi
-
-        local now=$(date +%s)
-        local elapsed=$(( now - start_time ))
+        
+        local now
+        now=$(date +%s)
+        local elapsed
+        elapsed=$(( now - start_time ))
         if [ $elapsed -ge $timeout_seconds ]; then
             log_error "Timed out waiting for '$container_name' to become healthy"
             return 1
@@ -148,15 +155,18 @@ wait_for_container_healthy() {
 wait_for_http_ok() {
     local url="$1"
     local timeout_seconds="${2:-120}"
-    local start_time=$(date +%s)
+    local start_time
+    start_time=$(date +%s)
 
     log_info "Waiting for HTTP 200 from $url (timeout ${timeout_seconds}s)..."
     while true; do
-        if curl -fsS "$url" >/dev/null 2>&1; then
+        if curl -fsS --connect-timeout 2 -m 5 "$url" >/dev/null 2>&1; then
             log_success "HTTP OK from $url"
             break
         fi
+        local now
         now=$(date +%s)
+        local elapsed
         elapsed=$(( now - start_time ))
         if [ $elapsed -ge $timeout_seconds ]; then
             log_error "Timed out waiting for $url"
