@@ -11,6 +11,11 @@ OUTPUT_DIR="./data"
 LOG_DIR="./logs"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
+# Resolve important paths and compose file
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+COMPOSE_FILE="$BACKEND_DIR/docker-compose.prefect.yml"
+
 # Resolve OUTPUT_DIR and LOG_DIR to absolute paths to remain stable across cd
 INITIAL_CWD="$(pwd)"
 case "$OUTPUT_DIR" in
@@ -28,6 +33,26 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Cleanup on error/interrupt to avoid orphaned infrastructure
+CLEANED_UP=false
+cleanup() {
+    if [ "$CLEANED_UP" = true ]; then
+        return
+    fi
+    CLEANED_UP=true
+    local auto_stop_val="${AUTO_STOP:-}"
+    if [[ -z "$auto_stop_val" || "$auto_stop_val" =~ ^([Yy][Ee]?[Ss]?|1|true)$ ]]; then
+        if [ -n "${COMPOSE_FILE:-}" ] && [ -f "$COMPOSE_FILE" ]; then
+            echo "Bringing down infrastructure (trap)…"
+            docker compose -f "$COMPOSE_FILE" down || true
+        fi
+    else
+        echo "AUTO_STOP is '$auto_stop_val'; leaving infrastructure running (trap)."
+    fi
+}
+
+trap cleanup ERR INT TERM
 
 # Logging functions
 log_info() {
@@ -102,39 +127,41 @@ log_success "Prerequisites check passed"
 log_info "Step 2: Starting infrastructure..."
 
 # Navigate to backend directory
-cd "$(dirname "$0")/.."
+cd "$BACKEND_DIR"
 
 # Start Prefect infrastructure
 log_info "Starting Prefect infrastructure..."
-docker compose -f docker-compose.prefect.yml up -d
+docker compose -f "$COMPOSE_FILE" up -d
 
 # Wait helpers
 wait_for_container_healthy() {
-    local container_name="$1"
+    local service_name="$1"
     local timeout_seconds="${2:-180}"
     local start_time
     start_time=$(date +%s)
 
-    log_info "Waiting for container '$container_name' to be healthy (timeout ${timeout_seconds}s)..."
+    log_info "Waiting for service '$service_name' container to be healthy (timeout ${timeout_seconds}s)..."
     while true; do
-        if ! docker inspect "$container_name" >/dev/null 2>&1; then
-            log_warning "Container '$container_name' not found yet. Retrying..."
+        local container_id
+        container_id=$(docker compose -f "$COMPOSE_FILE" ps -q "$service_name" 2>/dev/null || true)
+        if [ -z "$container_id" ]; then
+            log_warning "Service '$service_name' container not found yet. Retrying..."
         else
             # Try health status if Health exists; otherwise fall back to running state
             local health_status
-            health_status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}nohealth{{end}}' "$container_name" 2>/dev/null || echo "unknown")
+            health_status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}nohealth{{end}}' "$container_id" 2>/dev/null || echo "unknown")
             if [ "$health_status" = "healthy" ]; then
-                log_success "Container '$container_name' is healthy"
+                log_success "Service '$service_name' container is healthy"
                 break
             elif [ "$health_status" = "unhealthy" ]; then
-                log_error "Container '$container_name' is unhealthy"
+                log_error "Service '$service_name' container is unhealthy"
                 return 1
             elif [ "$health_status" = "nohealth" ]; then
                 # No HEALTHCHECK; treat running state as healthy
                 local state_status
-                state_status=$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null || echo "unknown")
+                state_status=$(docker inspect -f '{{.State.Status}}' "$container_id" 2>/dev/null || echo "unknown")
                 if [ "$state_status" = "running" ]; then
-                    log_success "Container '$container_name' is running (no HEALTHCHECK)"
+                    log_success "Service '$service_name' container is running (no HEALTHCHECK)"
                     break
                 fi
             fi
@@ -281,8 +308,7 @@ if [ -t 0 ] && [ -z "$AUTO_STOP" ]; then
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         log_info "Stopping infrastructure..."
-        cd ..
-        docker compose -f docker-compose.prefect.yml down
+        docker compose -f "$COMPOSE_FILE" down
         log_success "Infrastructure stopped"
     else
         log_info "Infrastructure left running. You can stop it manually with:"
@@ -292,8 +318,7 @@ else
     # Non-interactive or AUTO_STOP is set
     if [[ "$AUTO_STOP" =~ ^([Yy][Ee]?[Ss]?|1|true)$ ]]; then
         log_info "AUTO_STOP enabled. Stopping infrastructure..."
-        cd ..
-        docker compose -f docker-compose.prefect.yml down
+        docker compose -f "$COMPOSE_FILE" down
         log_success "Infrastructure stopped"
     elif [[ "$AUTO_STOP" =~ ^([Nn][Oo]?|0|false)$ ]]; then
         log_info "AUTO_STOP disabled. Leaving infrastructure running."
@@ -301,8 +326,7 @@ else
     else
         # Default in CI/non-interactive: stop to avoid leaks
         log_info "Non-interactive session without AUTO_STOP set. Stopping infrastructure by default..."
-        cd ..
-        docker compose -f docker-compose.prefect.yml down
+        docker compose -f "$COMPOSE_FILE" down
         log_success "Infrastructure stopped"
     fi
 fi
