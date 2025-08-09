@@ -13,6 +13,9 @@ import redis
 import time
 import json
 import uuid
+import os
+import sys
+import functools
 from typing import Dict, Any
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -22,7 +25,16 @@ class RedisThroughputValidator:
     """Validates Redis sustained throughput under production-like conditions."""
 
     def __init__(self, host: str = "localhost", port: int = 6379, password: str = None):
-        """Initialize the throughput validator."""
+        """Initialize the throughput validator.
+
+        Environment overrides (optional):
+        - REDIS_THROUGHPUT_BASELINE_DURATION: int seconds for baseline test
+        - REDIS_THROUGHPUT_SUSTAINED_DURATION: int seconds for sustained test
+        - REDIS_THROUGHPUT_CONCURRENT_DURATION: int seconds for concurrent test
+        - REDIS_THROUGHPUT_TARGET: int target ops/sec
+        - REDIS_THROUGHPUT_CONCURRENT_THREADS: int number of concurrent threads
+        - REDIS_THROUGHPUT_BATCH_SIZE: int operations per batch
+        """
         self.host = host
         self.port = port
         self.password = password
@@ -37,14 +49,22 @@ class RedisThroughputValidator:
             "recommendations": [],
         }
 
-        # Test configuration
+        # Test configuration with environment overrides
         self.test_config = {
-            "baseline_duration": 60,  # 1 minute baseline test
-            "sustained_duration": 300,  # 5 minutes sustained test
-            "concurrent_duration": 120,  # 2 minutes concurrent test
-            "target_throughput": 1000,  # Target ops/sec
-            "concurrent_threads": 10,  # Number of concurrent threads
-            "batch_size": 100,  # Operations per batch
+            "baseline_duration": int(
+                os.getenv("REDIS_THROUGHPUT_BASELINE_DURATION", "60")
+            ),
+            "sustained_duration": int(
+                os.getenv("REDIS_THROUGHPUT_SUSTAINED_DURATION", "300")
+            ),
+            "concurrent_duration": int(
+                os.getenv("REDIS_THROUGHPUT_CONCURRENT_DURATION", "120")
+            ),
+            "target_throughput": int(os.getenv("REDIS_THROUGHPUT_TARGET", "1000")),
+            "concurrent_threads": int(
+                os.getenv("REDIS_THROUGHPUT_CONCURRENT_THREADS", "10")
+            ),
+            "batch_size": int(os.getenv("REDIS_THROUGHPUT_BATCH_SIZE", "100")),
             "event_types": [
                 "app.bsky.feed.post",
                 "app.bsky.feed.like",
@@ -647,7 +667,7 @@ class RedisThroughputValidator:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"redis_throughput_validation_test_{timestamp}.json"
 
-        filepath = filename
+        filepath = os.path.join(os.path.dirname(__file__), filename)
         try:
             with open(filepath, "w") as f:
                 json.dump(results, f, indent=2, default=str)
@@ -658,17 +678,74 @@ class RedisThroughputValidator:
 
 def main():
     """Main function to run the throughput validation test."""
-    validator = RedisThroughputValidator()
+    # Ensure all prints flush immediately for real-time visibility
+    try:
+        # Make all print calls in this module flush by default
+        global print  # noqa: PLW0603
+        print = functools.partial(print, flush=True)  # type: ignore[assignment]
+    except Exception:
+        pass
+
+    # Mirror stdout/stderr to a timestamped log file alongside the JSON report
+    try:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = os.path.join(
+            os.path.dirname(__file__), f"06_throughput_validation_{ts}.log"
+        )
+
+        class _Tee:
+            def __init__(self, stream_a, stream_b):
+                self.a = stream_a
+                self.b = stream_b
+
+            def write(self, data: str):
+                try:
+                    self.a.write(data)
+                    self.a.flush()
+                except Exception:
+                    pass
+                try:
+                    self.b.write(data)
+                    self.b.flush()
+                except Exception:
+                    pass
+
+            def flush(self):
+                try:
+                    self.a.flush()
+                except Exception:
+                    pass
+                try:
+                    self.b.flush()
+                except Exception:
+                    pass
+
+        log_fp = open(log_path, "a", buffering=1)
+        sys.stdout = _Tee(sys.stdout, log_fp)
+        sys.stderr = _Tee(sys.stderr, log_fp)
+        print(f"📝 Logging to: {log_path}")
+    except Exception:
+        pass
+
+    # Get Redis connection parameters from environment
+    redis_host = os.getenv("REDIS_HOST", "localhost")
+    redis_port = int(os.getenv("REDIS_PORT", "6379"))
+    redis_password = os.getenv("REDIS_PASSWORD")
+
+    # Create validator
+    validator = RedisThroughputValidator(
+        host=redis_host, port=redis_port, password=redis_password
+    )
+
     results = validator.run_throughput_validation_test()
 
     if results.get("success", False):
         print("✅ Throughput validation test completed successfully!")
+        return 0
     else:
         print("❌ Throughput validation test failed!")
         return 1
 
-    return 0
-
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

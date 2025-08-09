@@ -24,7 +24,16 @@ class RedisPersistenceRecoveryTester:
     """Tests Redis AOF persistence and data recovery scenarios."""
 
     def __init__(self, host: str = "localhost", port: int = 6379, password: str = None):
-        """Initialize the persistence recovery tester."""
+        """Initialize the persistence recovery tester.
+
+        Environment overrides (optional):
+        - REDIS_PERSISTENCE_TARGET_EVENTS: int number of events to load for testing
+        - REDIS_PERSISTENCE_BATCH_SIZE: int events per batch during load
+        - REDIS_PERSISTENCE_RESTART_DELAY: int seconds to wait after restart
+        - REDIS_PERSISTENCE_VALIDATION_SAMPLE: int events to validate after recovery
+        - REDIS_PERSISTENCE_SKIP_RESTART: "true" to skip container restart (for local testing)
+        - REDIS_PERSISTENCE_CONTAINER_NAME: string name of Redis container to restart
+        """
         self.host = host
         self.port = port
         self.password = password
@@ -39,12 +48,21 @@ class RedisPersistenceRecoveryTester:
             "recommendations": [],
         }
 
-        # Test configuration
+        # Test configuration with environment overrides
         self.test_config = {
-            "target_events": 100000,  # 100K events for persistence testing
-            "batch_size": 1000,  # Events per batch
-            "restart_delay": 5,  # Seconds to wait after restart
-            "validation_sample_size": 1000,  # Events to validate after recovery
+            "target_events": int(
+                os.getenv("REDIS_PERSISTENCE_TARGET_EVENTS", "100000")
+            ),
+            "batch_size": int(os.getenv("REDIS_PERSISTENCE_BATCH_SIZE", "1000")),
+            "restart_delay": int(os.getenv("REDIS_PERSISTENCE_RESTART_DELAY", "5")),
+            "validation_sample_size": int(
+                os.getenv("REDIS_PERSISTENCE_VALIDATION_SAMPLE", "1000")
+            ),
+            "skip_restart": os.getenv("REDIS_PERSISTENCE_SKIP_RESTART", "false").lower()
+            == "true",
+            "container_name": os.getenv(
+                "REDIS_PERSISTENCE_CONTAINER_NAME", "bluesky_redis"
+            ),
             "event_types": [
                 "app.bsky.feed.post",
                 "app.bsky.feed.like",
@@ -391,24 +409,39 @@ class RedisPersistenceRecoveryTester:
 
     def restart_redis_container(self) -> bool:
         """Restart the Redis container to test persistence recovery."""
+        if self.test_config["skip_restart"]:
+            print(
+                "⏭️ Skipping Redis container restart (REDIS_PERSISTENCE_SKIP_RESTART=true)"
+            )
+            print(
+                "   Note: This simulates restart testing without actual container restart"
+            )
+            time.sleep(1)  # Small delay to simulate restart time
+            return True
+
         print("🔄 Restarting Redis container...")
 
         try:
             # Try to restart Redis container using Docker
-            restart_cmd = "docker restart bluesky_redis"
+            container_name = self.test_config["container_name"]
+            restart_cmd = f"docker restart {container_name}"
             result = subprocess.run(
                 restart_cmd, shell=True, capture_output=True, text=True
             )
 
             if result.returncode == 0:
-                print("   ✅ Redis container restarted successfully")
+                print(
+                    f"   ✅ Redis container '{container_name}' restarted successfully"
+                )
                 print(
                     f"   ⏳ Waiting {self.test_config['restart_delay']} seconds for Redis to start..."
                 )
                 time.sleep(self.test_config["restart_delay"])
                 return True
             else:
-                print(f"   ❌ Failed to restart Redis container: {result.stderr}")
+                print(
+                    f"   ❌ Failed to restart Redis container '{container_name}': {result.stderr}"
+                )
                 return False
 
         except Exception as e:
@@ -765,6 +798,57 @@ class RedisPersistenceRecoveryTester:
 
 def main():
     """Main function to run the Redis persistence recovery test."""
+    # Ensure all prints flush immediately for real-time visibility
+    import functools
+
+    try:
+        # Make all print calls in this module flush by default
+        global print  # noqa: PLW0603
+        print = functools.partial(print, flush=True)  # type: ignore[assignment]
+    except Exception:
+        pass
+
+    # Mirror stdout/stderr to a timestamped log file alongside the JSON report
+    try:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = os.path.join(
+            os.path.dirname(__file__), f"05_persistence_recovery_test_{ts}.log"
+        )
+
+        class _Tee:
+            def __init__(self, stream_a, stream_b):
+                self.a = stream_a
+                self.b = stream_b
+
+            def write(self, data: str):
+                try:
+                    self.a.write(data)
+                    self.a.flush()
+                except Exception:
+                    pass
+                try:
+                    self.b.write(data)
+                    self.b.flush()
+                except Exception:
+                    pass
+
+            def flush(self):
+                try:
+                    self.a.flush()
+                except Exception:
+                    pass
+                try:
+                    self.b.flush()
+                except Exception:
+                    pass
+
+        log_fp = open(log_path, "a", buffering=1)
+        sys.stdout = _Tee(sys.stdout, log_fp)
+        sys.stderr = _Tee(sys.stderr, log_fp)
+        print(f"📝 Logging to: {log_path}")
+    except Exception:
+        pass
+
     print("🚀 Redis Persistence Recovery Testing for Bluesky Data Pipeline")
     print("=" * 60)
 
