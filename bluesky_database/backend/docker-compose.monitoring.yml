@@ -77,8 +77,8 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
       - '--web.listen-address=:9093'
-    environment:
-      - SLACK_WEBHOOK_URL=${SLACK_REDIS_MONITORING_CHANNEL_WEBHOOK_URL}
+    secrets:
+      - slack_webhook_url
     depends_on:
       - prometheus
     restart: unless-stopped
@@ -116,3 +116,7 @@ volumes:
   prometheus_data:
   alertmanager_data:
   grafana_data:
+
+secrets:
+  slack_webhook_url:
+    file: ./secrets/slack_webhook_url

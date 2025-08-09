@@ -49,8 +49,8 @@ python 07_monitoring_validation.py
 ## Webhook URL Format
 
 Your webhook URL should look like:
-```
-https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX
+```text
+hxxps://hooks.slack.com/services/TXXXXXXXX/BXXXXXXXX/XXXXXXXXXXXXXXXX (obfuscated)
 ```
 
 ## Security Notes
