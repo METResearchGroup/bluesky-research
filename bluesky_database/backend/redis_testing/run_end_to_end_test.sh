@@ -20,19 +20,19 @@ NC='\033[0m' # No Color
 
 # Logging functions
 log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    echo -e "${BLUE}[INFO]${NC} $1" | tee -a "$LOG_FILE"
 }
 
 log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    echo -e "${GREEN}[SUCCESS]${NC} $1" | tee -a "$LOG_FILE"
 }
 
 log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    echo -e "${YELLOW}[WARNING]${NC} $1" | tee -a "$LOG_FILE"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE"
 }
 
 # Create directories
@@ -93,9 +93,71 @@ cd "$(dirname "$0")/.."
 log_info "Starting Prefect infrastructure..."
 docker compose -f docker-compose.prefect.yml up -d
 
-# Wait for services to be ready
+# Wait helpers
+wait_for_container_healthy() {
+    local container_name="$1"
+    local timeout_seconds="${2:-180}"
+    local start_time=$(date +%s)
+
+    log_info "Waiting for container '$container_name' to be healthy (timeout ${timeout_seconds}s)..."
+    while true; do
+        if ! docker inspect "$container_name" >/dev/null 2>&1; then
+            log_warning "Container '$container_name' not found yet. Retrying..."
+        else
+            status=$(docker inspect -f '{{ .State.Health.Status }}' "$container_name" 2>/dev/null || echo "unknown")
+            if [ "$status" = "healthy" ]; then
+                log_success "Container '$container_name' is healthy"
+                break
+            fi
+            if [ "$status" = "unhealthy" ]; then
+                log_error "Container '$container_name' is unhealthy"
+                return 1
+            fi
+        fi
+
+        now=$(date +%s)
+        elapsed=$(( now - start_time ))
+        if [ $elapsed -ge $timeout_seconds ]; then
+            log_error "Timed out waiting for '$container_name' to become healthy"
+            return 1
+        fi
+        sleep 2
+    done
+}
+
+wait_for_http_ok() {
+    local url="$1"
+    local timeout_seconds="${2:-120}"
+    local start_time=$(date +%s)
+
+    log_info "Waiting for HTTP 200 from $url (timeout ${timeout_seconds}s)..."
+    while true; do
+        if curl -fsS "$url" >/dev/null 2>&1; then
+            log_success "HTTP OK from $url"
+            break
+        fi
+        now=$(date +%s)
+        elapsed=$(( now - start_time ))
+        if [ $elapsed -ge $timeout_seconds ]; then
+            log_error "Timed out waiting for $url"
+            return 1
+        fi
+        sleep 2
+    done
+}
+
+# Wait for key services to be healthy/responding
 log_info "Waiting for services to be ready..."
-sleep 30
+wait_for_container_healthy bluesky_redis 120
+wait_for_container_healthy redis_exporter 120
+wait_for_container_healthy prometheus 150
+wait_for_container_healthy alertmanager 150
+wait_for_container_healthy grafana 180
+wait_for_container_healthy prefect_server 180
+wait_for_container_healthy prefect_worker 180
+
+# Also verify critical HTTP endpoints
+wait_for_http_ok "http://localhost:4200/api/health" 120
 
 # Validate infrastructure
 log_info "Validating infrastructure..."
