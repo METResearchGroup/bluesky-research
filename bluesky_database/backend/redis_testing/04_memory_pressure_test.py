@@ -25,7 +25,17 @@ class RedisMemoryPressureTester:
     """Tests Redis behavior under memory pressure and eviction scenarios."""
 
     def __init__(self, host: str = "localhost", port: int = 6379, password: str = None):
-        """Initialize the memory pressure tester."""
+        """Initialize the memory pressure tester.
+
+        Environment overrides (optional):
+        - REDIS_TARGET_MEMORY_PERCENT: int percent target for load phase
+        - REDIS_PRESSURE_DURATION: int seconds to monitor eviction behavior
+        - REDIS_RECOVERY_DURATION: int seconds to monitor recovery
+        - REDIS_EVICTION_BATCH_SIZE: int events per batch during load
+        - REDIS_MONITORING_INTERVAL: int seconds between checks
+        - REDIS_TEST_TEMP_MAXMEMORY_MB: int MB to temporarily set Redis maxmemory for quicker tests
+        - REDIS_TEST_TEMP_EVICTION_POLICY: string policy (e.g., "allkeys-lru") to temporarily set during test
+        """
         self.host = host
         self.port = port
         self.password = password
@@ -56,8 +66,45 @@ class RedisMemoryPressureTester:
             ],
         }
 
+        # Optional environment overrides for faster/local testing
+        try:
+            if os.getenv("REDIS_TARGET_MEMORY_PERCENT"):
+                self.test_config["target_memory_percent"] = int(
+                    os.getenv("REDIS_TARGET_MEMORY_PERCENT", "95")
+                )
+            if os.getenv("REDIS_PRESSURE_DURATION"):
+                self.test_config["pressure_duration"] = int(
+                    os.getenv("REDIS_PRESSURE_DURATION", "300")
+                )
+            if os.getenv("REDIS_RECOVERY_DURATION"):
+                self.test_config["recovery_duration"] = int(
+                    os.getenv("REDIS_RECOVERY_DURATION", "60")
+                )
+            if os.getenv("REDIS_EVICTION_BATCH_SIZE"):
+                self.test_config["eviction_batch_size"] = int(
+                    os.getenv("REDIS_EVICTION_BATCH_SIZE", "1000")
+                )
+            if os.getenv("REDIS_MONITORING_INTERVAL"):
+                self.test_config["monitoring_interval"] = int(
+                    os.getenv("REDIS_MONITORING_INTERVAL", "1")
+                )
+        except Exception:
+            # Use defaults if overrides are invalid
+            pass
+
+        # Optional temporary server configuration to speed up tests
+        self.temp_maxmemory_mb = os.getenv("REDIS_TEST_TEMP_MAXMEMORY_MB")
+        self.temp_eviction_policy = os.getenv("REDIS_TEST_TEMP_EVICTION_POLICY")
+        self._original_maxmemory = None
+        self._original_maxmemory_policy = None
+
     def connect_to_redis(self) -> bool:
-        """Establish connection to Redis server."""
+        """Establish connection to Redis server and apply optional temporary settings.
+
+        If REDIS_TEST_TEMP_MAXMEMORY_MB or REDIS_TEST_TEMP_EVICTION_POLICY are set,
+        this will temporarily adjust Redis server settings for the duration of the test
+        and store the originals for later restoration.
+        """
         try:
             self.redis_client = redis.Redis(
                 host=self.host,
@@ -71,6 +118,35 @@ class RedisMemoryPressureTester:
             # Test connection
             self.redis_client.ping()
             print(f"✅ Connected to Redis at {self.host}:{self.port}")
+
+            # Record originals
+            try:
+                current_config = self.redis_client.config_get()
+                self._original_maxmemory = current_config.get("maxmemory")
+                self._original_maxmemory_policy = current_config.get("maxmemory-policy")
+            except Exception:
+                # If CONFIG GET is disabled, continue without temp overrides
+                self._original_maxmemory = None
+                self._original_maxmemory_policy = None
+
+            # Apply temporary overrides if requested
+            try:
+                if self.temp_maxmemory_mb and self._original_maxmemory is not None:
+                    new_val = f"{int(self.temp_maxmemory_mb)}mb"
+                    self.redis_client.config_set("maxmemory", new_val)
+                    print(f"🛠️ Temporarily set maxmemory to {new_val}")
+                if (
+                    self.temp_eviction_policy
+                    and self._original_maxmemory_policy is not None
+                ):
+                    self.redis_client.config_set(
+                        "maxmemory-policy", self.temp_eviction_policy
+                    )
+                    print(
+                        f"🛠️ Temporarily set maxmemory-policy to {self.temp_eviction_policy}"
+                    )
+            except Exception as e:
+                print(f"⚠️ Could not apply temporary Redis settings: {e}")
             return True
 
         except redis.ConnectionError as e:
@@ -616,44 +692,60 @@ class RedisMemoryPressureTester:
         )
         print(f"   Evicted keys: {initial_stats.get('evicted_keys', 0):,}")
 
-        # Step 1: Load events to reach target memory utilization
-        pressure_load_result = self.load_pressure_events(
-            self.test_config["target_memory_percent"]
-        )
-        self.results["pressure_test"] = pressure_load_result
-
-        if not pressure_load_result["success"]:
-            print(
-                f"❌ Pressure loading failed: {pressure_load_result.get('error', 'Unknown error')}"
+        try:
+            # Step 1: Load events to reach target memory utilization
+            pressure_load_result = self.load_pressure_events(
+                self.test_config["target_memory_percent"]
             )
+            self.results["pressure_test"] = pressure_load_result
+
+            if not pressure_load_result["success"]:
+                print(
+                    f"❌ Pressure loading failed: {pressure_load_result.get('error', 'Unknown error')}"
+                )
+                return self.results
+
+            # Step 2: Monitor eviction behavior under pressure
+            eviction_result = self.monitor_eviction_behavior(
+                self.test_config["pressure_duration"]
+            )
+            self.results["eviction_analysis"] = eviction_result
+
+            if not eviction_result["success"]:
+                print(
+                    f"❌ Eviction monitoring failed: {eviction_result.get('error', 'Unknown error')}"
+                )
+                return self.results
+
+            # Step 3: Test recovery after pressure
+            recovery_result = self.test_recovery_after_pressure(
+                self.test_config["recovery_duration"]
+            )
+            self.results["recovery_test"] = recovery_result
+
+            # Step 4: Analyze eviction patterns
+            if eviction_result.get("monitoring_data"):
+                pattern_analysis = self.analyze_eviction_patterns(
+                    eviction_result["monitoring_data"]
+                )
+                self.results["pattern_analysis"] = pattern_analysis
             return self.results
-
-        # Step 2: Monitor eviction behavior under pressure
-        eviction_result = self.monitor_eviction_behavior(
-            self.test_config["pressure_duration"]
-        )
-        self.results["eviction_analysis"] = eviction_result
-
-        if not eviction_result["success"]:
-            print(
-                f"❌ Eviction monitoring failed: {eviction_result.get('error', 'Unknown error')}"
-            )
-            return self.results
-
-        # Step 3: Test recovery after pressure
-        recovery_result = self.test_recovery_after_pressure(
-            self.test_config["recovery_duration"]
-        )
-        self.results["recovery_test"] = recovery_result
-
-        # Step 4: Analyze eviction patterns
-        if eviction_result.get("monitoring_data"):
-            pattern_analysis = self.analyze_eviction_patterns(
-                eviction_result["monitoring_data"]
-            )
-            self.results["pattern_analysis"] = pattern_analysis
-
-        return self.results
+        finally:
+            # Restore temporary settings if they were applied
+            try:
+                if self._original_maxmemory is not None and self.temp_maxmemory_mb:
+                    self.redis_client.config_set("maxmemory", self._original_maxmemory)
+                    print("🔄 Restored original maxmemory")
+                if (
+                    self._original_maxmemory_policy is not None
+                    and self.temp_eviction_policy
+                ):
+                    self.redis_client.config_set(
+                        "maxmemory-policy", self._original_maxmemory_policy
+                    )
+                    print("🔄 Restored original maxmemory-policy")
+            except Exception as e:
+                print(f"⚠️ Failed to restore Redis settings: {e}")
 
     def print_report(self, results: Dict[str, Any]):
         """Print a formatted memory pressure test report."""
