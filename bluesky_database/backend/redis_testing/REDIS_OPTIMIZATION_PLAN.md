@@ -1,11 +1,11 @@
 # Redis Optimization Plan for Bluesky Data Pipeline
 
 ## Overview
-This document outlines the comprehensive optimization plan for Redis to meet the buffer use case requirements specified in MET-001. The goal is to configure Redis specifically for high-throughput data buffering with 8-hour capacity and optimal performance.
+This document outlines the comprehensive optimization plan for Redis to meet the buffer use case requirements specified in MET-27. The goal is to configure Redis specifically for high-throughput data buffering with 8-hour capacity and optimal performance.
 
 ## Current State Analysis ✅ COMPLETED
 - **Redis Configuration**: Already optimally configured for buffer use case
-- **Performance**: Exceeds all MET-001 requirements by 15x
+- **Performance**: Exceeds all MET-27 requirements by 15x
 - **Memory Management**: 2GB limit with allkeys-lru eviction working correctly
 - **Persistence**: AOF enabled with appendfsync everysec
 - **Buffer Capacity**: Successfully validated with 2.7M realistic events
@@ -13,13 +13,13 @@ This document outlines the comprehensive optimization plan for Redis to meet the
 ## Phase 1: Configuration Analysis & Baseline ✅ COMPLETED
 
 ### Objectives
-- Audit current Redis configuration against MET-001 requirements
+- Audit current Redis configuration against MET-27 requirements
 - Establish baseline performance metrics
 - Identify any configuration gaps or optimization opportunities
 
 ### Actions Completed ✅
 1. **Configuration Audit** (`01_configuration_audit.py`)
-   - ✅ Verified Redis configuration matches MET-001 requirements
+   - ✅ Verified Redis configuration matches MET-27 requirements
    - ✅ Confirmed 2GB memory limit and allkeys-lru eviction policy
    - ✅ Validated AOF persistence settings
    - ✅ Analyzed performance configuration parameters
@@ -30,15 +30,15 @@ This document outlines the comprehensive optimization plan for Redis to meet the
    - ✅ Tested concurrent operations with multiple threads
    - ✅ Tested memory usage patterns under load
    - ✅ Tested sustained load performance
-   - ✅ Validated performance against MET-001 targets
+   - ✅ Validated performance against MET-27 targets
 
 ### Deliverables ✅
 - Configuration audit report with gap analysis
 - Baseline performance metrics and analysis
-- Performance validation against MET-001 requirements
+- Performance validation against MET-27 requirements
 
 ### Success Criteria ✅
-- ✅ Redis configuration meets all MET-001 requirements
+- ✅ Redis configuration meets all MET-27 requirements
 - ✅ Performance exceeds 1,000+ ops/sec target (achieved 15,000+ ops/sec)
 - ✅ Memory utilization stays under 80% under load
 - ✅ All configuration parameters are optimal for buffer use case
@@ -251,7 +251,7 @@ This document outlines the comprehensive optimization plan for Redis to meet the
 
 ### Validation Criteria
 - **Capacity**: Handle 2.7M events without overflow (✅ VALIDATED)
-- **Performance**: Meet or exceed all MET-001 targets (✅ EXCEEDED)
+- **Performance**: Meet or exceed all MET-27 targets (✅ EXCEEDED)
 - **Durability**: AOF persistence provides data safety (✅ CONFIRMED)
 - **Stability**: Maintain performance under sustained load (🔄 PENDING)
 
@@ -334,7 +334,7 @@ This document outlines the comprehensive optimization plan for Redis to meet the
 
 ## References
 
-### MET-001 Requirements
+### MET-27 Requirements
 - Memory limit: 2GB
 - Eviction policy: allkeys-lru
 - AOF persistence: appendfsync everysec
@@ -352,6 +352,7 @@ This document outlines the comprehensive optimization plan for Redis to meet the
 - `03_buffer_capacity_test.py` - Buffer capacity testing script
 - `PROGRESS_NOTES.md` - Detailed progress tracking
 - `README.md` - Backend documentation with Redis optimization section
+- Related specification: `projects/bluesky-post-explorer-backend-data-pipeline/phase_1_tickets.md#met-001-set-up-redis-container-with-docker-and-basic-monitoring`
 
 ---
 

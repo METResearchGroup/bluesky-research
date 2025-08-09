@@ -85,6 +85,7 @@
 - **Findings**:
   - ✅ **MEMORY PRESSURE TEST PASSED**: Successfully reached 95% memory utilization
   - ✅ **EVICTION BEHAVIOR**: No evictions occurred during 300s monitoring (unexpected but positive)
+  - ℹ️ **Explanation**: Evictions only trigger when `used_memory` exceeds `maxmemory`. This run peaked at ~95% of the 2 GB limit and therefore did not cross the eviction threshold. To observe evictions directly, rerun the test so that memory usage exceeds the configured limit (e.g., ~2.05 GB) or adjust the workload to intentionally surpass `maxmemory`.
   - ✅ **MEMORY STABILITY**: Memory utilization remained stable at 94.2-95.0%
   - ✅ **PERFORMANCE STABILITY**: Average 44.9 ops/sec under pressure (lower but stable)
   - ✅ **RECOVERY TEST**: Successfully recovered after removing 1,000 keys
@@ -338,6 +339,7 @@
 
 ### 🔍 Key Insights from Memory Pressure Test
 - **Unexpected Stability**: Redis maintained 95% memory utilization without triggering evictions
+- **Eviction Threshold Clarification**: Lack of evictions at 95% utilization is expected because evictions require exceeding `maxmemory`. To validate eviction behavior, push memory usage beyond the configured 2 GB limit (e.g., ~2.05 GB) or lower the threshold and rerun.
 - **Memory Efficiency**: Redis can handle 4.2M events (beyond 2.7M requirement) without memory issues
 - **Performance Under Pressure**: Lower but stable performance (44.9 ops/sec) under extreme memory pressure
 - **Recovery Capability**: Quick recovery after removing keys to reduce pressure

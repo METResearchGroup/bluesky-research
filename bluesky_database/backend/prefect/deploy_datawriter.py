@@ -9,14 +9,10 @@ Date: 2025-08-08
 """
 
 import sys
-from pathlib import Path
-
-# Add the prefect directory to the Python path
-sys.path.insert(0, str(Path(__file__).parent))
 
 from prefect.deployments import Deployment
 from prefect.server.schemas.schedules import CronSchedule
-from datawriter_flow import datawriter_flow
+from bluesky_database.backend.prefect.datawriter_flow import datawriter_flow
 
 
 def deploy_datawriter_flow():

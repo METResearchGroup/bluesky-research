@@ -111,8 +111,9 @@ log_success "Infrastructure started and validated"
 # Step 3: Deploy DataWriter flow
 log_info "Step 3: Deploying DataWriter flow..."
 
-cd prefect
-python deploy_datawriter.py
+# Move to project root to run module with absolute imports
+cd ../..
+python -m bluesky_database.backend.prefect.deploy_datawriter
 
 if [ $? -ne 0 ]; then
     log_error "DataWriter flow deployment failed"
@@ -124,12 +125,15 @@ log_success "DataWriter flow deployed successfully"
 # Step 4: Run end-to-end test
 log_info "Step 4: Running end-to-end test..."
 
-cd ../redis_testing
+# Move to redis_testing directory
+cd bluesky_database/backend/redis_testing
 
 # Run the comprehensive end-to-end test
+# Temporarily disable exit-on-error to capture test exit code
+set +e
 python 10_end_to_end_test.py --duration "$TEST_DURATION_MINUTES" --output-dir "$OUTPUT_DIR"
-
 TEST_EXIT_CODE=$?
+set -e
 
 # Step 5: Collect results
 log_info "Step 5: Collecting test results..."

@@ -138,8 +138,15 @@ class RedisConfigurationAuditor:
             ),
         }
 
-        # Check maxmemory
-        if analysis["maxmemory"]["current"] == analysis["maxmemory"]["required"]:
+        # Normalize and check maxmemory in bytes to avoid string-format mismatch
+        current_max_bytes = self._parse_memory_to_bytes(
+            str(analysis["maxmemory"]["current"])
+        )
+        required_max_bytes = self._parse_memory_to_bytes(
+            str(analysis["maxmemory"]["required"])
+        )
+
+        if current_max_bytes == required_max_bytes and current_max_bytes is not None:
             analysis["maxmemory"]["status"] = "✅ Correct"
         elif analysis["maxmemory"]["current"] == "Not set":
             analysis["maxmemory"]["status"] = "❌ Not configured"
@@ -158,6 +165,47 @@ class RedisConfigurationAuditor:
             analysis["maxmemory_policy"]["status"] = "⚠️ Different"
 
         return analysis
+
+    @staticmethod
+    def _parse_memory_to_bytes(value: str) -> int | None:
+        """Convert human-readable memory sizes (e.g., '2gb', '64mb', '1024') to bytes.
+
+        Returns None if parsing fails.
+        """
+        try:
+            v = value.strip().lower()
+            if v in ("not set", "unknown", ""):
+                return None
+            # If purely numeric, assume bytes
+            if v.isdigit():
+                return int(v)
+            units = {
+                "b": 1,
+                "kb": 1024,
+                "k": 1024,
+                "mb": 1024**2,
+                "m": 1024**2,
+                "gb": 1024**3,
+                "g": 1024**3,
+                "tb": 1024**4,
+                "t": 1024**4,
+            }
+            # split numeric prefix and unit suffix
+            num_part = ""
+            unit_part = ""
+            for ch in v:
+                if ch.isdigit() or ch == ".":
+                    num_part += ch
+                else:
+                    unit_part += ch
+            num = float(num_part) if num_part else 0.0
+            unit_part = unit_part.strip()
+            multiplier = units.get(unit_part, None)
+            if multiplier is None:
+                return None
+            return int(num * multiplier)
+        except Exception:
+            return None
 
     def analyze_persistence_configuration(
         self, config: Dict[str, Any]

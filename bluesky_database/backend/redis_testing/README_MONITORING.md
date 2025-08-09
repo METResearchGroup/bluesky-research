@@ -186,7 +186,11 @@ The monitoring stack integrates with the existing Redis optimization test suite:
 4. **Grafana Dashboard Issues**
    ```bash
    # Check datasource configuration
-   curl -u admin:admin http://localhost:3000/api/datasources
+   curl -u <username>:<password> http://localhost:3000/api/datasources
+   ```
+   Note: Avoid hardcoding credentials in commands. Prefer using environment variables or a credential manager, e.g.:
+   ```bash
+   curl -u "$GRAFANA_USER:$GRAFANA_PASSWORD" http://localhost:3000/api/datasources
    ```
 
 ### Log Locations

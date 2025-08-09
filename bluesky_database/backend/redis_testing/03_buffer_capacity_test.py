@@ -188,14 +188,14 @@ class RedisBufferCapacityTester:
                 ]
                 event = self.generate_realistic_event(event_type, event_id)
 
-                # Store event in Redis with realistic key structure
-                key = f"firehose:event:{event_id:010d}"
+                # Store event in Redis using a list-only strategy to avoid double storage
                 value = json.dumps(event, separators=(",", ":"))
 
                 # Use Redis pipeline for efficiency
                 pipe = self.redis_client.pipeline()
-                pipe.set(key, value)
-                pipe.lpush("firehose_buffer", key)  # Add to buffer list
+                pipe.lpush(
+                    "firehose_buffer", value
+                )  # Add serialized event directly to buffer list
                 pipe.execute()
 
                 events_loaded += 1
@@ -400,9 +400,9 @@ class RedisBufferCapacityTester:
             if buffer_size == 0:
                 return {"success": False, "error": "No events found in buffer"}
 
-            # Sample events for integrity check
+            # Sample events for integrity check (read directly from list values)
             sample_size = min(100, buffer_size)
-            sample_keys = self.redis_client.lrange(
+            sample_values = self.redis_client.lrange(
                 "firehose_buffer", 0, sample_size - 1
             )
 
@@ -410,28 +410,23 @@ class RedisBufferCapacityTester:
             invalid_events = 0
             sample_events = []
 
-            for key in sample_keys:
+            for value in sample_values:
                 try:
-                    value = self.redis_client.get(key)
-                    if value:
-                        event = json.loads(value)
+                    event = json.loads(value)
 
-                        # Validate event structure
-                        if all(
-                            field in event
-                            for field in ["id", "type", "timestamp", "uri", "cid"]
-                        ):
-                            valid_events += 1
-                            sample_events.append(
-                                {
-                                    "key": key,
-                                    "event_type": event.get("type"),
-                                    "event_id": event.get("id"),
-                                    "timestamp": event.get("timestamp"),
-                                }
-                            )
-                        else:
-                            invalid_events += 1
+                    # Validate event structure
+                    if all(
+                        field in event
+                        for field in ["id", "type", "timestamp", "uri", "cid"]
+                    ):
+                        valid_events += 1
+                        sample_events.append(
+                            {
+                                "event_type": event.get("type"),
+                                "event_id": event.get("id"),
+                                "timestamp": event.get("timestamp"),
+                            }
+                        )
                     else:
                         invalid_events += 1
                 except Exception:
@@ -466,33 +461,13 @@ class RedisBufferCapacityTester:
         print("\n🧹 Cleaning up test data...")
 
         try:
-            # Get all keys in firehose_buffer
-            buffer_keys = self.redis_client.lrange("firehose_buffer", 0, -1)
-            print(f"   Found {len(buffer_keys):,} keys to clean up...")
+            # With list-only storage, simply delete the buffer list
+            buffer_len = self.redis_client.llen("firehose_buffer")
+            print(f"   Found {buffer_len:,} list entries to clean up...")
 
-            if buffer_keys:
-                # Delete all keys in batches
-                batch_size = 1000
-                deleted_count = 0
-
-                for i in range(0, len(buffer_keys), batch_size):
-                    batch = buffer_keys[i : i + batch_size]
-
-                    # Use pipeline for efficiency
-                    pipe = self.redis_client.pipeline()
-                    for key in batch:
-                        pipe.delete(key)
-                    pipe.execute()
-
-                    deleted_count += len(batch)
-
-                    if (i + batch_size) % 10000 == 0:
-                        print(f"   Deleted {deleted_count:,} keys...")
-
-                # Clear the buffer list
+            if buffer_len > 0:
                 self.redis_client.delete("firehose_buffer")
-
-                print(f"   ✅ Cleaned up {deleted_count:,} keys")
+                print(f"   ✅ Cleaned up {buffer_len:,} list entries")
 
             # Get final memory state
             final_memory = self.get_memory_usage()

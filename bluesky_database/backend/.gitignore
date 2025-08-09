@@ -64,3 +64,6 @@ dump.rdb
 *.temp
 temp/
 tmp/
+
+# Secrets
+secrets/

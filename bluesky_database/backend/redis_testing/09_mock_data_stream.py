@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import Dict, Any
 import signal
 import sys
+import copy
 
 import redis
 
@@ -129,9 +130,26 @@ class MockDataStreamGenerator:
             print(f"❌ Failed to connect to Redis: {e}")
             raise
 
+        # Ensure consumer group is created once at initialization
+        self._ensure_consumer_groups()
+
+    def _ensure_consumer_groups(self) -> None:
+        """Create the consumer group for all streams if it doesn't exist."""
+        for stream_name in STREAM_NAMES.values():
+            try:
+                self.redis_client.xgroup_create(
+                    stream_name, "datawriter_group", id="0", mkstream=True
+                )
+            except redis.exceptions.ResponseError as e:
+                if "BUSYGROUP" in str(e):
+                    # Group already exists; ignore
+                    continue
+                # Re-raise unexpected errors
+                raise
+
     def generate_event(self, event_type: str) -> Dict[str, Any]:
         """Generate a realistic Bluesky event of the specified type"""
-        template = EVENT_TEMPLATES[event_type].copy()
+        template = copy.deepcopy(EVENT_TEMPLATES[event_type])
 
         # Generate unique identifiers
         timestamp = datetime.now().isoformat() + "Z"
@@ -166,15 +184,6 @@ class MockDataStreamGenerator:
         try:
             collection = event["collection"]
             stream_name = STREAM_NAMES[collection]
-
-            # Create consumer group if it doesn't exist
-            try:
-                self.redis_client.xgroup_create(
-                    stream_name, "datawriter_group", id="0", mkstream=True
-                )
-            except redis.exceptions.ResponseError as e:
-                if "BUSYGROUP" not in str(e):
-                    raise
 
             # Write to stream
             message_data = {
