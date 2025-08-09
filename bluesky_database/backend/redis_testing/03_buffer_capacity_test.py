@@ -23,8 +23,15 @@ import statistics
 class RedisBufferCapacityTester:
     """Tests Redis buffer capacity with realistic Bluesky firehose events."""
 
-    def __init__(self, host: str = "localhost", port: int = 6379, password: str = None):
-        """Initialize the buffer capacity tester."""
+    def __init__(
+        self, host: str = "localhost", port: int = 6379, password: str | None = None
+    ):
+        """Initialize the buffer capacity tester.
+
+        Reads `REDIS_BUFFER_MODE` from environment to choose storage strategy:
+        - "list" (default): use LPUSH on key `firehose_buffer`.
+        - "stream": use XADD on key `firehose_stream`.
+        """
         self.host = host
         self.port = port
         self.password = password
@@ -52,6 +59,11 @@ class RedisBufferCapacityTester:
                 "app.bsky.graph.block",
             ],
         }
+
+        # Storage mode: list (default) or stream
+        self.buffer_mode: str = os.getenv("REDIS_BUFFER_MODE", "list").strip().lower()
+        self.list_key: str = "firehose_buffer"
+        self.stream_key: str = "firehose_stream"
 
     def connect_to_redis(self) -> bool:
         """Establish connection to Redis server."""
@@ -147,9 +159,14 @@ class RedisBufferCapacityTester:
         return event
 
     def get_memory_usage(self) -> Dict[str, Any]:
-        """Get current Redis memory usage."""
+        """Get current Redis memory and stats usage.
+
+        Note: `keyspace_hits` and `keyspace_misses` are reported in INFO "stats",
+        not in INFO "memory".
+        """
         try:
             memory_info = self.redis_client.info("memory")
+            stats_info = self.redis_client.info("stats")
 
             used_memory = memory_info.get("used_memory", 0)
             max_memory = memory_info.get("maxmemory", 0)
@@ -167,20 +184,26 @@ class RedisBufferCapacityTester:
                 "memory_fragmentation_ratio": memory_info.get(
                     "mem_fragmentation_ratio", 0
                 ),
-                "keyspace_hits": memory_info.get("keyspace_hits", 0),
-                "keyspace_misses": memory_info.get("keyspace_misses", 0),
+                "keyspace_hits": stats_info.get("keyspace_hits", 0),
+                "keyspace_misses": stats_info.get("keyspace_misses", 0),
             }
         except Exception as e:
             print(f"❌ Error getting memory usage: {e}")
             return {}
 
     def load_events_batch(self, start_id: int, batch_size: int) -> Dict[str, Any]:
-        """Load a batch of events into Redis."""
+        """Load a batch of events into Redis.
+
+        Uses LPUSH into list when `buffer_mode` is "list"; uses XADD into stream
+        when `buffer_mode` is "stream". Uses a single pipeline for batching.
+        """
         batch_start = time.time()
         events_loaded = 0
         memory_samples = []
 
         try:
+            # Create a single pipeline for the entire chunk to batch operations
+            pipe = self.redis_client.pipeline()
             for i in range(batch_size):
                 event_id = start_id + i
                 event_type = self.test_config["event_types"][
@@ -188,15 +211,16 @@ class RedisBufferCapacityTester:
                 ]
                 event = self.generate_realistic_event(event_type, event_id)
 
-                # Store event in Redis using a list-only strategy to avoid double storage
+                # Serialize once
                 value = json.dumps(event, separators=(",", ":"))
 
-                # Use Redis pipeline for efficiency
-                pipe = self.redis_client.pipeline()
-                pipe.lpush(
-                    "firehose_buffer", value
-                )  # Add serialized event directly to buffer list
-                pipe.execute()
+                # Queue write per selected mode
+                if self.buffer_mode == "stream":
+                    # Store as a single field payload for parity with production stream usage
+                    pipe.xadd(self.stream_key, {"data": value})
+                else:
+                    # Default list-based storage
+                    pipe.lpush(self.list_key, value)
 
                 events_loaded += 1
 
@@ -214,6 +238,9 @@ class RedisBufferCapacityTester:
                             f"⚠️ Memory threshold exceeded: {memory_usage['memory_utilization_percent']}%"
                         )
                         break
+
+            # Execute the pipeline once after queuing all events in the chunk
+            pipe.execute()
 
             batch_time = time.time() - batch_start
 
@@ -389,22 +416,45 @@ class RedisBufferCapacityTester:
             return {"error": str(e), "success": False}
 
     def test_data_integrity(self) -> Dict[str, Any]:
-        """Test data integrity by sampling loaded events."""
+        """Test data integrity by sampling loaded events.
+
+        Reads from list or stream depending on `buffer_mode`.
+        """
         print("\n🔍 Testing data integrity...")
 
         try:
-            # Get total events in buffer
-            buffer_size = self.redis_client.llen("firehose_buffer")
-            print(f"   Buffer size: {buffer_size:,} events")
+            # Determine source and size
+            if self.buffer_mode == "stream":
+                # Stream length
+                xlen = self.redis_client.xlen(self.stream_key)
+                buffer_size = xlen if xlen is not None else 0
+                print(f"   Stream size: {buffer_size:,} entries")
 
-            if buffer_size == 0:
-                return {"success": False, "error": "No events found in buffer"}
+                if buffer_size == 0:
+                    return {"success": False, "error": "No events found in stream"}
 
-            # Sample events for integrity check (read directly from list values)
-            sample_size = min(100, buffer_size)
-            sample_values = self.redis_client.lrange(
-                "firehose_buffer", 0, sample_size - 1
-            )
+                sample_size = min(100, buffer_size)
+                # XRANGE start/end to get the most recent items
+                # Use COUNT to limit
+                entries = self.redis_client.xrevrange(
+                    self.stream_key, count=sample_size
+                )
+                sample_values = []
+                for _id, fields in entries:
+                    data = fields.get("data") if isinstance(fields, dict) else None
+                    if data is not None:
+                        sample_values.append(data)
+            else:
+                buffer_size = self.redis_client.llen(self.list_key)
+                print(f"   Buffer size: {buffer_size:,} events")
+
+                if buffer_size == 0:
+                    return {"success": False, "error": "No events found in buffer"}
+
+                sample_size = min(100, buffer_size)
+                sample_values = self.redis_client.lrange(
+                    self.list_key, 0, sample_size - 1
+                )
 
             valid_events = 0
             invalid_events = 0
@@ -457,17 +507,26 @@ class RedisBufferCapacityTester:
             return {"success": False, "error": str(e)}
 
     def cleanup_test_data(self) -> bool:
-        """Clean up test data from Redis."""
+        """Clean up test data from Redis.
+
+        Deletes the list or stream depending on `buffer_mode`.
+        """
         print("\n🧹 Cleaning up test data...")
 
         try:
-            # With list-only storage, simply delete the buffer list
-            buffer_len = self.redis_client.llen("firehose_buffer")
-            print(f"   Found {buffer_len:,} list entries to clean up...")
-
-            if buffer_len > 0:
-                self.redis_client.delete("firehose_buffer")
-                print(f"   ✅ Cleaned up {buffer_len:,} list entries")
+            if self.buffer_mode == "stream":
+                xlen = self.redis_client.xlen(self.stream_key)
+                count = xlen if xlen is not None else 0
+                print(f"   Found {count:,} stream entries to clean up...")
+                if count and count > 0:
+                    self.redis_client.delete(self.stream_key)
+                    print(f"   ✅ Cleaned up {count:,} stream entries")
+            else:
+                buffer_len = self.redis_client.llen(self.list_key)
+                print(f"   Found {buffer_len:,} list entries to clean up...")
+                if buffer_len and buffer_len > 0:
+                    self.redis_client.delete(self.list_key)
+                    print(f"   ✅ Cleaned up {buffer_len:,} list entries")
 
             # Get final memory state
             final_memory = self.get_memory_usage()
