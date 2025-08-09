@@ -11,6 +11,17 @@ OUTPUT_DIR="./data"
 LOG_DIR="./logs"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
+# Resolve OUTPUT_DIR and LOG_DIR to absolute paths to remain stable across cd
+INITIAL_CWD="$(pwd)"
+case "$OUTPUT_DIR" in
+  /*) ;; # already absolute
+  *) OUTPUT_DIR="$INITIAL_CWD/${OUTPUT_DIR#./}" ;;
+esac
+case "$LOG_DIR" in
+  /*) ;;
+  *) LOG_DIR="$INITIAL_CWD/${LOG_DIR#./}" ;;
+esac
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -35,11 +46,11 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Create directories
+# Create directories (absolute)
 mkdir -p "$OUTPUT_DIR"
 mkdir -p "$LOG_DIR"
 
-# Log file
+# Log file (absolute)
 LOG_FILE="$LOG_DIR/end_to_end_test_$TIMESTAMP.log"
 
 # Function to log to both console and file
@@ -104,19 +115,28 @@ wait_for_container_healthy() {
         if ! docker inspect "$container_name" >/dev/null 2>&1; then
             log_warning "Container '$container_name' not found yet. Retrying..."
         else
-            status=$(docker inspect -f '{{ .State.Health.Status }}' "$container_name" 2>/dev/null || echo "unknown")
-            if [ "$status" = "healthy" ]; then
+            # Try health status if Health exists; otherwise fall back to running state
+            local health_status
+            health_status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}nohealth{{end}}' "$container_name" 2>/dev/null || echo "unknown")
+            if [ "$health_status" = "healthy" ]; then
                 log_success "Container '$container_name' is healthy"
                 break
-            fi
-            if [ "$status" = "unhealthy" ]; then
+            elif [ "$health_status" = "unhealthy" ]; then
                 log_error "Container '$container_name' is unhealthy"
                 return 1
+            elif [ "$health_status" = "nohealth" ]; then
+                # No HEALTHCHECK; treat running state as healthy
+                local state_status
+                state_status=$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null || echo "unknown")
+                if [ "$state_status" = "running" ]; then
+                    log_success "Container '$container_name' is running (no HEALTHCHECK)"
+                    break
+                fi
             fi
         fi
 
-        now=$(date +%s)
-        elapsed=$(( now - start_time ))
+        local now=$(date +%s)
+        local elapsed=$(( now - start_time ))
         if [ $elapsed -ge $timeout_seconds ]; then
             log_error "Timed out waiting for '$container_name' to become healthy"
             return 1
@@ -161,9 +181,7 @@ wait_for_http_ok "http://localhost:4200/api/health" 120
 
 # Validate infrastructure
 log_info "Validating infrastructure..."
-python redis_testing/08_prefect_infrastructure_setup.py
-
-if [ $? -ne 0 ]; then
+if ! python redis_testing/08_prefect_infrastructure_setup.py; then
     log_error "Infrastructure validation failed"
     exit 1
 fi
@@ -175,9 +193,7 @@ log_info "Step 3: Deploying DataWriter flow..."
 
 # Move to project root to run module with absolute imports
 cd ../..
-python -m bluesky_database.backend.prefect.deploy_datawriter
-
-if [ $? -ne 0 ]; then
+if ! python -m bluesky_database.backend.prefect.deploy_datawriter; then
     log_error "DataWriter flow deployment failed"
     exit 1
 fi
@@ -200,8 +216,8 @@ set -e
 # Step 5: Collect results
 log_info "Step 5: Collecting test results..."
 
-# Find the latest test results file
-LATEST_RESULTS=$(ls -t end_to_end_test_results_*.json 2>/dev/null | head -n1)
+# Find the latest test results file in OUTPUT_DIR
+LATEST_RESULTS=$(ls -t "$OUTPUT_DIR"/end_to_end_test_results_*.json 2>/dev/null | head -n1)
 
 if [ -n "$LATEST_RESULTS" ]; then
     log_info "Test results file: $LATEST_RESULTS"
@@ -247,17 +263,38 @@ fi
 # Step 7: Cleanup (optional)
 log_info "Step 7: Cleanup..."
 
-# Ask user if they want to stop the infrastructure
-read -p "Do you want to stop the infrastructure? (y/N): " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    log_info "Stopping infrastructure..."
-    cd ..
-    docker compose -f docker-compose.prefect.yml down
-    log_success "Infrastructure stopped"
+# Decide whether to stop infrastructure (non-interactive safe)
+AUTO_STOP=${AUTO_STOP:-}
+if [ -t 0 ] && [ -z "$AUTO_STOP" ]; then
+    # Interactive session and no AUTO_STOP override: prompt
+    read -p "Do you want to stop the infrastructure? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        log_info "Stopping infrastructure..."
+        cd ..
+        docker compose -f docker-compose.prefect.yml down
+        log_success "Infrastructure stopped"
+    else
+        log_info "Infrastructure left running. You can stop it manually with:"
+        log_info "docker compose -f docker-compose.prefect.yml down"
+    fi
 else
-    log_info "Infrastructure left running. You can stop it manually with:"
-    log_info "docker compose -f docker-compose.prefect.yml down"
+    # Non-interactive or AUTO_STOP is set
+    if [[ "$AUTO_STOP" =~ ^([Yy][Ee]?[Ss]?|1|true)$ ]]; then
+        log_info "AUTO_STOP enabled. Stopping infrastructure..."
+        cd ..
+        docker compose -f docker-compose.prefect.yml down
+        log_success "Infrastructure stopped"
+    elif [[ "$AUTO_STOP" =~ ^([Nn][Oo]?|0|false)$ ]]; then
+        log_info "AUTO_STOP disabled. Leaving infrastructure running."
+        log_info "docker compose -f docker-compose.prefect.yml down"
+    else
+        # Default in CI/non-interactive: stop to avoid leaks
+        log_info "Non-interactive session without AUTO_STOP set. Stopping infrastructure by default..."
+        cd ..
+        docker compose -f docker-compose.prefect.yml down
+        log_success "Infrastructure stopped"
+    fi
 fi
 
 # Final summary

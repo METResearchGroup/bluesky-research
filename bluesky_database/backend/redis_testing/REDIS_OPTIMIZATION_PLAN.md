@@ -279,8 +279,8 @@ This document outlines the comprehensive optimization plan for Redis to meet the
 - ✅ AOF persistence enabled with appendfsync everysec
 - ✅ Buffer capacity validated for 2.7M events
 - ✅ Performance exceeds 1,000+ ops/sec target
-- ✅ Memory pressure handling validated
-- ✅ Persistence recovery tested
+- 🔄 Memory pressure handling validated (in progress)
+- 🔄 Persistence recovery tested (in progress)
 - ✅ Prometheus + Grafana + Slack monitoring implemented
 
 ### Operational Requirements ✅ COMPLETED

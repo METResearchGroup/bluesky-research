@@ -50,7 +50,6 @@ class RedisBufferCapacityTester:
             "batch_size": 1000,  # Events per batch
             "max_memory_gb": 2,  # 2GB memory limit
             "memory_threshold_percent": 90,  # Alert at 90% memory usage
-            "test_duration_hours": 8,  # Simulate 8 hours of data
             "event_types": [
                 "app.bsky.feed.post",
                 "app.bsky.feed.like",
@@ -195,15 +194,21 @@ class RedisBufferCapacityTester:
         """Load a batch of events into Redis.
 
         Uses LPUSH into list when `buffer_mode` is "list"; uses XADD into stream
-        when `buffer_mode` is "stream". Uses a single pipeline for batching.
+        when `buffer_mode` is "stream". Executes the pipeline in smaller chunks
+        and samples memory immediately after each execution to ensure that
+        memory checks reflect post-write state.
         """
         batch_start = time.time()
         events_loaded = 0
         memory_samples = []
 
         try:
-            # Create a single pipeline for the entire chunk to batch operations
+            # Execute in smaller chunks so memory is sampled after writes are flushed
             pipe = self.redis_client.pipeline()
+            chunk_size = 100  # execute every N events (tunable)
+            enqueued_in_chunk = 0
+            stop_due_to_memory = False
+
             for i in range(batch_size):
                 event_id = start_id + i
                 event_type = self.test_config["event_types"][
@@ -211,36 +216,42 @@ class RedisBufferCapacityTester:
                 ]
                 event = self.generate_realistic_event(event_type, event_id)
 
-                # Serialize once
                 value = json.dumps(event, separators=(",", ":"))
 
-                # Queue write per selected mode
                 if self.buffer_mode == "stream":
-                    # Store as a single field payload for parity with production stream usage
                     pipe.xadd(self.stream_key, {"data": value})
                 else:
-                    # Default list-based storage
                     pipe.lpush(self.list_key, value)
 
-                events_loaded += 1
+                enqueued_in_chunk += 1
 
-                # Sample memory usage every 100 events
-                if events_loaded % 100 == 0:
+                # Execute the pipeline on chunk boundary or at the final iteration
+                if enqueued_in_chunk >= chunk_size or i == batch_size - 1:
+                    pipe.execute()
+                    events_loaded += enqueued_in_chunk
+                    enqueued_in_chunk = 0
+
+                    # Sample memory immediately after writes are flushed
                     memory_usage = self.get_memory_usage()
+                    if memory_usage:
+                        memory_samples.append(memory_usage)
+                        if (
+                            memory_usage.get("memory_utilization_percent", 0)
+                            > self.test_config["memory_threshold_percent"]
+                        ):
+                            print(
+                                f"⚠️ Memory threshold exceeded post-write: {memory_usage['memory_utilization_percent']}%"
+                            )
+                            stop_due_to_memory = True
+                            break
+
+            # Ensure any leftover queued ops are executed (should not happen due to boundary check)
+            if enqueued_in_chunk > 0 and not stop_due_to_memory:
+                pipe.execute()
+                events_loaded += enqueued_in_chunk
+                memory_usage = self.get_memory_usage()
+                if memory_usage:
                     memory_samples.append(memory_usage)
-
-                    # Check memory threshold
-                    if (
-                        memory_usage.get("memory_utilization_percent", 0)
-                        > self.test_config["memory_threshold_percent"]
-                    ):
-                        print(
-                            f"⚠️ Memory threshold exceeded: {memory_usage['memory_utilization_percent']}%"
-                        )
-                        break
-
-            # Execute the pipeline once after queuing all events in the chunk
-            pipe.execute()
 
             batch_time = time.time() - batch_start
 
