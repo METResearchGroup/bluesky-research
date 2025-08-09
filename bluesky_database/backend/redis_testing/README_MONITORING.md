@@ -57,16 +57,16 @@ The monitoring stack consists of five main components:
 ```bash
 cd bluesky_database/backend/redis_testing
 
-# Start all services
-docker-compose -f docker-compose.monitoring.yml up -d
+# Start all services (compose file is in ../backend)
+docker-compose -f ../docker-compose.monitoring.yml up -d
 
 # Check service status
-docker-compose -f docker-compose.monitoring.yml ps
+docker-compose -f ../docker-compose.monitoring.yml ps
 ```
 
 ### Access the Services
 
-- **Redis**: `redis-cli -h localhost -p 6379`
+- **Redis**: `redis-cli -h 127.0.0.1 -p 6379 -a "$(cat ../secrets/redis_password.txt)"`
 - **Redis Exporter**: http://localhost:9121/metrics
 - **Prometheus**: http://localhost:9090
 - **Alertmanager**: http://localhost:9093
@@ -75,7 +75,7 @@ docker-compose -f docker-compose.monitoring.yml ps
 ### Stop the Stack
 
 ```bash
-docker-compose -f docker-compose.monitoring.yml down
+docker-compose -f ../docker-compose.monitoring.yml down
 ```
 
 ## Validation
@@ -169,10 +169,10 @@ The monitoring stack integrates with the existing Redis optimization test suite:
    ```
 
 2. **Container Startup Issues**
-   ```bash
-   # Check container logs
-   docker-compose -f docker-compose.monitoring.yml logs [service_name]
-   ```
+```bash
+# Check container logs
+docker-compose -f ../docker-compose.monitoring.yml logs [service_name]
+```
 
 3. **Metrics Not Appearing**
    ```bash
@@ -218,12 +218,16 @@ The monitoring stack integrates with the existing Redis optimization test suite:
 
 ### Default Credentials
 - **Grafana**: admin/admin (change in production)
-- **Redis**: No authentication (configure for production)
+- **Redis**: Authentication enabled via Docker secrets (change and rotate in production)
 - **Alertmanager**: No authentication (configure for production)
 
 ### Network Access
-- All services bind to 0.0.0.0 (accessible from any IP)
-- Consider firewall rules for production deployment
+- **Redis** binds to 127.0.0.1 (localhost-only). Other services (Prometheus, Alertmanager, Grafana, Redis Exporter) bind to 0.0.0.0 by default for local access.
+- For production, restrict service exposure:
+  - Place services behind a reverse proxy with auth (e.g., Nginx, Traefik)
+  - Bind admin surfaces (Prometheus, Alertmanager, Grafana) to private interfaces
+  - Enforce network policies/firewall rules; expose only required ports
+  - Use long, rotated secrets for Redis and Grafana; disable default credentials
 - Slack webhook requires outbound HTTPS access
 
 ## Production Deployment
