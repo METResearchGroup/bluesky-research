@@ -281,6 +281,9 @@ The monitoring stack integrates with the existing Redis optimization test suite:
 ## Security Notes
 ## Security Notes
 
+For secure defaults (localhost binding and auth via Docker secrets), see
+[Security Posture (MET-27)](../REDIS_SETUP.md#security-posture-met-27).
+
 ### Default Credentials
 
 - **Grafana**: admin/admin (change in production; set via `GF_SECURITY_ADMIN_PASSWORD` or Docker secrets, and disable signup)
