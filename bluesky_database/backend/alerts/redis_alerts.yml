@@ -23,7 +23,7 @@ groups:
           value: "{{ $value | humanizePercentage }}"
 
       - alert: RedisLatencyCritical
-        expr: histogram_quantile(0.95, rate(redis_commands_duration_seconds_bucket[5m])) > 0.05
+        expr: histogram_quantile(0.95, sum by (le) (rate(redis_commands_duration_seconds_bucket[5m]))) > 0.05
         for: 2m
         labels:
           severity: critical
@@ -64,7 +64,7 @@ groups:
           value: "{{ $value | humanizePercentage }}"
 
       - alert: RedisLatencyWarning
-        expr: histogram_quantile(0.95, rate(redis_commands_duration_seconds_bucket[5m])) > 0.02
+        expr: histogram_quantile(0.95, sum by (le) (rate(redis_commands_duration_seconds_bucket[5m]))) > 0.02
         for: 5m
         labels:
           severity: warning
@@ -74,7 +74,7 @@ groups:
           value: "{{ $value | humanizeDuration }}"
 
       - alert: RedisThroughputWarning
-        expr: rate(redis_commands_total{cmd!="ping"}[5m]) < 500
+        expr: sum(rate(redis_commands_total{cmd!="ping"}[5m])) < 500
         for: 5m
         labels:
           severity: warning
