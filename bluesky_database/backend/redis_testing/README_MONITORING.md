@@ -5,6 +5,7 @@
 This directory contains the Prometheus + Grafana + Slack monitoring stack for the Redis optimization project. The monitoring stack provides real-time visibility into Redis performance, memory usage, and operational metrics, with proactive Slack alerting for critical events.
 
 ### Testing details
+
 - **Tests**:
   - `07_monitoring_validation.py` — container health, Redis connectivity, exporter metrics, Prometheus targets, Alertmanager, Grafana dashboards.
   - `02_baseline_performance.py` — baseline ops/sec under monitoring.
@@ -69,7 +70,6 @@ The monitoring stack consists of five main components:
 
 ### Start the Monitoring Stack
 
-
 ```bash
 cd bluesky_database/backend
 
@@ -81,7 +81,6 @@ docker compose -f docker-compose.monitoring.yml ps
 ```
 
 ### Access the Services
-
 
 - **Redis**: `redis-cli -h 127.0.0.1 -p 6379 -a "$(cat ../secrets/redis_password.txt)"`
 - **Redis Exporter**: <http://localhost:9121/metrics>
@@ -95,6 +94,7 @@ docker compose -f docker-compose.monitoring.yml ps
 # Expect "PONG" if Redis is healthy
 redis-cli -h 127.0.0.1 -p 6379 -a "$(cat ../secrets/redis_password.txt)" PING
 ```
+
 ### Stop the Stack
 
 ```bash
@@ -112,6 +112,7 @@ python 07_monitoring_validation.py
 ```
 
 The validation script checks:
+
 - Docker Compose startup
 - Redis connectivity
 - Redis Exporter metrics
@@ -126,23 +127,19 @@ The validation script checks:
 Main orchestration file defining all services, volumes, and networking.
 
 ### prometheus.yml
-### prometheus.yml
 
 Prometheus configuration with scrape targets, intervals, and alerting rules.
 
 ### redis.conf
-### redis.conf
 
 Optimized Redis configuration for the buffer use case.
 
-### grafana/provisioning/
 ### grafana/provisioning/
 
 - **datasources/prometheus.yml**: Auto-configures Prometheus datasource
 - **dashboards/dashboard.yml**: Dashboard provisioning configuration
 - **dashboards/redis-dashboard.json**: Redis monitoring dashboard
 
-### alertmanager/
 ### alertmanager/
 
 - **alertmanager.yml**: Alertmanager configuration with Slack integration
@@ -159,13 +156,11 @@ The Redis dashboard includes the following key metrics:
 - **Total Keys**: Number of keys in the database
 
 ### Memory Metrics
-### Memory Metrics 
 
 - **Memory Usage**: Current memory consumption in bytes
 - **Memory Limit**: Configured memory limit (2GB)
 - **Memory Efficiency**: Memory usage patterns
 
-### Operational Metrics
 ### Operational Metrics
 
 - **Redis Up**: Service availability
@@ -183,7 +178,6 @@ The monitoring stack provides visibility and proactive alerting for:
 - Memory pressure (> 90% utilization)
 - Buffer overflow detection
 
-### Operational Alerts (Slack Notifications)
 ### Operational Alerts (Slack Notifications)
 
 - Redis service down
@@ -210,7 +204,6 @@ The monitoring stack integrates with the existing Redis optimization test suite:
     - [07_monitoring_validation.py](./07_monitoring_validation.py)
 
 ## Troubleshooting
-## Troubleshooting
 
 ### Common Issues
 
@@ -221,7 +214,7 @@ The monitoring stack integrates with the existing Redis optimization test suite:
    ss -tulpn | grep -E ':(6379|9121|9090|9093|3000)' || \
    netstat -tulpn | grep -E ':(6379|9121|9090|9093|3000)'
    ```
-2. **Container Startup Issues**
+
 2. **Container Startup Issues**
 
    ```bash
@@ -229,7 +222,7 @@ The monitoring stack integrates with the existing Redis optimization test suite:
    cd bluesky_database/backend
    docker compose -f docker-compose.monitoring.yml logs [service_name]
    ```
-3. **Metrics Not Appearing**
+
 3. **Metrics Not Appearing**
 
    ```bash
@@ -239,7 +232,7 @@ The monitoring stack integrates with the existing Redis optimization test suite:
    # Check Prometheus targets
    curl http://localhost:9090/api/v1/targets
    ```
-4. **Grafana Dashboard Issues**
+
 4. **Grafana Dashboard Issues**
 
    ```bash
@@ -261,7 +254,6 @@ The monitoring stack integrates with the existing Redis optimization test suite:
 - **Grafana**: `docker logs grafana`
 
 ## Performance Considerations
-## Performance Considerations
 
 ### Resource Usage
 
@@ -272,13 +264,11 @@ The monitoring stack integrates with the existing Redis optimization test suite:
 - **Redis Exporter**: ~10MB RAM
 
 ### Scaling Considerations
-### Scaling Considerations
 
 - **Metrics Retention**: 200 hours by default
 - **Scrape Intervals**: 10s for Redis, 15s for Prometheus
 - **Dashboard Refresh**: 5s default
 
-## Security Notes
 ## Security Notes
 
 For secure defaults (localhost binding and auth via Docker secrets), see
@@ -291,7 +281,6 @@ For secure defaults (localhost binding and auth via Docker secrets), see
 - **Alertmanager**: No authentication (configure for production)
 
 ### Network Access
-### Network Access
 
 - **Redis** binds to 127.0.0.1 (localhost-only). Other services (Prometheus, Alertmanager, Grafana, Redis Exporter) bind to 0.0.0.0 by default for local access.
 - For production, restrict service exposure:
@@ -301,7 +290,6 @@ For secure defaults (localhost binding and auth via Docker secrets), see
   - Use long, rotated secrets for Redis and Grafana; disable default credentials
 - Slack webhook requires outbound HTTPS access
 
-## Production Deployment
 ## Production Deployment
 
 For production deployment, consider:
@@ -329,7 +317,6 @@ For production deployment, consider:
    - Configure Alertmanager clustering for high availability
 
 ## Related Documentation
-## Related Documentation
 
 - [Redis Optimization Plan](REDIS_OPTIMIZATION_PLAN.md)
 - [Progress Notes](PROGRESS_NOTES.md)
@@ -342,7 +329,6 @@ For production deployment, consider:
   - [06_throughput_validation.py](./06_throughput_validation.py)
   - [07_monitoring_validation.py](./07_monitoring_validation.py)
 
-## Support
 ## Support
 
 For issues with the monitoring stack:
