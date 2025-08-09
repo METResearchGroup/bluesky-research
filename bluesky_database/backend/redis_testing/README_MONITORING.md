@@ -55,27 +55,28 @@ The monitoring stack consists of five main components:
 ### Start the Monitoring Stack
 
 ```bash
-cd bluesky_database/backend/redis_testing
+cd bluesky_database/backend
 
-# Start all services (compose file is in ../backend)
-docker-compose -f ../docker-compose.monitoring.yml up -d
+# Start all services
+docker compose -f docker-compose.monitoring.yml up -d
 
 # Check service status
-docker-compose -f ../docker-compose.monitoring.yml ps
+docker compose -f docker-compose.monitoring.yml ps
 ```
 
 ### Access the Services
 
 - **Redis**: `redis-cli -h 127.0.0.1 -p 6379 -a "$(cat ../secrets/redis_password.txt)"`
-- **Redis Exporter**: http://localhost:9121/metrics
-- **Prometheus**: http://localhost:9090
-- **Alertmanager**: http://localhost:9093
-- **Grafana**: http://localhost:3000 (admin/admin)
+- **Redis Exporter**: <http://localhost:9121/metrics>
+- **Prometheus**: <http://localhost:9090>
+- **Alertmanager**: <http://localhost:9093>
+- **Grafana**: <http://localhost:3000> (admin/admin)
 
 ### Stop the Stack
 
 ```bash
-docker-compose -f ../docker-compose.monitoring.yml down
+cd bluesky_database/backend
+docker compose -f docker-compose.monitoring.yml down
 ```
 
 ## Validation
@@ -171,7 +172,8 @@ The monitoring stack integrates with the existing Redis optimization test suite:
 2. **Container Startup Issues**
 ```bash
 # Check container logs
-docker-compose -f ../docker-compose.monitoring.yml logs [service_name]
+cd bluesky_database/backend
+docker compose -f docker-compose.monitoring.yml logs [service_name]
 ```
 
 3. **Metrics Not Appearing**
@@ -217,7 +219,7 @@ docker-compose -f ../docker-compose.monitoring.yml logs [service_name]
 ## Security Notes
 
 ### Default Credentials
-- **Grafana**: admin/admin (change in production)
+- **Grafana**: admin/admin (change in production; set via `GF_SECURITY_ADMIN_PASSWORD` or Docker secrets, and disable signup)
 - **Redis**: Authentication enabled via Docker secrets (change and rotate in production)
 - **Alertmanager**: No authentication (configure for production)
 
