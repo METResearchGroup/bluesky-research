@@ -9,16 +9,16 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Cache Python packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-py-${{ matrix.python-version }}-${{ hashFiles('requirements.txt', 'dev_requirements.txt') }}
+        key: ${{ runner.os }}-py-${{ matrix.python-version }}-${{ hashFiles('requirements.txt', 'dev_requirements.txt', 'ml_tooling/requirements.txt', 'ml_tooling/llm/requirements.txt', 'ml_tooling/valence_classifier/requirements.txt', 'lib/telemetry/requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-py-${{ matrix.python-version }}-${{ hashFiles('requirements.txt', 'dev_requirements.txt') }}
+          ${{ runner.os }}-py-${{ matrix.python-version }}-${{ hashFiles('requirements.txt', 'dev_requirements.txt', 'ml_tooling/requirements.txt', 'ml_tooling/llm/requirements.txt', 'ml_tooling/valence_classifier/requirements.txt', 'lib/telemetry/requirements.txt') }}
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -39,37 +39,40 @@ jobs:
         ruff check .
     - name: Test with pytest
       run: |
-        pytest lib/tests
-        pytest lib/db/tests
-        pytest lib/db/sql/tests
-        pytest lib/telemetry/tests
-        pytest ml_tooling/llm/tests
-        pytest ml_tooling/perspective_api/tests
-        pytest ml_tooling/ime/tests
-        pytest ml_tooling/valence_classifier/tests
-        pytest services/backfill/core/tests
-        pytest services/backfill/storage/tests
-        pytest services/ml_inference/tests
-        pytest services/ml_inference/perspective_api/tests
-        pytest services/ml_inference/sociopolitical/tests
-        pytest services/ml_inference/ime/tests
-        pytest services/ml_inference/valence_classifier/tests
-        pytest services/repartition_service/tests
-        pytest services/calculate_analytics/tests
-        pytest services/calculate_analytics/study_analytics/calculate_analytics/tests
-        pytest services/write_cache_buffers_to_db/tests
-        pytest services/sync/jetstream/tests
-        pytest api/integrations_router/tests
+        pytest \
+          lib/tests \
+          lib/db/tests \
+          lib/db/sql/tests \
+          lib/telemetry/tests \
+          ml_tooling/llm/tests \
+          ml_tooling/perspective_api/tests \
+          ml_tooling/ime/tests \
+          ml_tooling/valence_classifier/tests \
+          services/backfill/core/tests \
+          services/backfill/storage/tests \
+          services/ml_inference/tests \
+          services/ml_inference/perspective_api/tests \
+          services/ml_inference/sociopolitical/tests \
+          services/ml_inference/ime/tests \
+          services/ml_inference/valence_classifier/tests \
+          services/repartition_service/tests \
+          services/calculate_analytics/tests \
+          services/calculate_analytics/study_analytics/calculate_analytics/tests \
+          services/write_cache_buffers_to_db/tests \
+          services/sync/jetstream/tests \
+          api/integrations_router/tests
         # pytest search_engine/tests
     - name: Lint Dockerfiles with Hadolint
-      run: |
-        docker run --rm -i hadolint/hadolint < Dockerfiles/add_users_to_study.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/feed_api.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/calculate_superposters.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/preprocess_raw_data.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/sync_firehose_stream.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/sync_most_liked_feed.Dockerfile
-        docker run --rm -i hadolint/hadolint < Dockerfiles/ml_inference_perspective_api.Dockerfile
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: |
+          Dockerfiles/add_users_to_study.Dockerfile
+          Dockerfiles/feed_api.Dockerfile
+          Dockerfiles/calculate_superposters.Dockerfile
+          Dockerfiles/preprocess_raw_data.Dockerfile
+          Dockerfiles/sync_firehose_stream.Dockerfile
+          Dockerfiles/sync_most_liked_feed.Dockerfile
+          Dockerfiles/ml_inference_perspective_api.Dockerfile
 
   frontend-lint:
     runs-on: ubuntu-latest
@@ -78,9 +81,9 @@ jobs:
       run:
         working-directory: bluesky_database/frontend
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '18'
         cache: 'npm'
