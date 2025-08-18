@@ -3,12 +3,26 @@ name = "bluesky-research"
 version = "0.1.0"
 description = "Bluesky Research"
 readme = "README.md"
-requires-python = ">=3.10"  # Match your ruff target-version
+requires-python = ">=3.10"
 authors = [
     {name = "Mark Torres", email = "markptorres1@gmail.com"},
 ]
-license = {text = "MIT"}
+license = "MIT"
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lib*", "ml_tooling*", "bluesky_database*"]
+exclude = [
+    "demos*", 
+    "experiments*", 
+    "deprecated*", 
+    "assets*", 
+    "terraform*", 
+    "projects*",
+    "Dockerfiles*",
+    "*.tests*",
+    "tests*"
+]
 
 [tool.flake8]
 exclude = ["*/experiments/*", "./demos/*"]
@@ -93,3 +107,6 @@ required_plugins = [
     "pytest-env",
     "pytest-mock"
 ]
+
+# Fix asyncio fixture loop scope deprecation warning
+asyncio_default_fixture_loop_scope = "function"
