@@ -164,3 +164,4 @@ The commit message should be formatted as follows:
 ```
 
 [Other Best Practices]
+NEVER EVER EVER DELETE .env FILES. DO NOT EVER DELETE ANY FILES THAT ARE CLEARLY ENV FILES.
