@@ -180,13 +180,48 @@ The orchestration layer manages six main pipelines:
 
 ### Prerequisites
 
-- **Python 3.12+** (3.10+ minimum supported)
+- **Python 3.10+** (3.10, 3.11, 3.12 supported)
 - **uv** (preferred) or **conda** for package management
 - **Node.js 18+** (for frontend development)
 - **Docker** (for service deployment)
 - **Git** with pre-commit hooks
 
-### Installation with uv (Recommended)
+### Quick Setup (Recommended)
+
+Use our automated setup script for the fastest installation:
+
+```bash
+# Clone the repository
+git clone https://github.com/METResearchGroup/bluesky-research.git
+cd bluesky-research
+
+# Quick setup with uv and Python 3.10 (default)
+./scripts/setup_environment.sh
+
+# Or with custom options
+./scripts/setup_environment.sh --python 3.12 --env-name my-bluesky-env
+
+# Or use conda instead of uv
+./scripts/setup_environment.sh --conda --python 3.11
+```
+
+The setup script will:
+- ✅ Install/validate package manager (uv or conda)
+- ✅ Create virtual environment with specified Python version
+- ✅ Install all project dependencies (core, dev, ML tooling)
+- ✅ Set up pre-commit hooks
+- ✅ Install project in editable mode
+- ✅ Run validation tests to ensure everything works
+
+**Setup Script Options:**
+- `-p, --python VERSION` - Python version (3.10, 3.11, 3.12)
+- `-c, --conda` - Use conda instead of uv
+- `-e, --env-name NAME` - Custom environment name
+- `-h, --help` - Show detailed help
+
+### Manual Installation with uv
+
+If you prefer manual setup:
 
 1. **Clone the repository**:
    ```bash
@@ -201,7 +236,7 @@ The orchestration layer manages six main pipelines:
 
 3. **Create and activate virtual environment**:
    ```bash
-   uv venv --python 3.12
+   uv venv --python 3.10  # or 3.11, 3.12
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    ```
 
@@ -225,12 +260,12 @@ The orchestration layer manages six main pipelines:
    pre-commit install
    ```
 
-### Installation with Conda (Alternative)
+### Manual Installation with Conda
 
 1. **Create conda environment**:
    ```bash
-   conda create -n bluesky_research python=3.12
-   conda activate bluesky_research
+   conda create -n bluesky-research python=3.10  # or 3.11, 3.12
+   conda activate bluesky-research
    ```
 
 2. **Install dependencies**:
@@ -268,14 +303,12 @@ npm run dev  # Development server at http://localhost:3000
 
 The project uses a consolidated requirements system:
 
-- **`requirements.in`** - Source of truth for all package versions
-- **`update_requirements.py`** - Script to sync versions across all requirement files
+- **`requirements.in`** - Core project dependencies with standardized versions
+- **`dev_requirements.in`** - Development and testing dependencies
+- **`ml_tooling/requirements.in`** - Machine learning and AI dependencies
 - **Individual `requirements.in`** files in each module for specific dependencies
 
-To update dependencies:
-```bash
-python update_requirements.py
-```
+All package versions are standardized across the project to ensure consistency. The setup script automatically handles all dependency installation and ensures compatibility.
 
 ## Development Workflow
 
