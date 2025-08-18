@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import uuid
+from functools import partial
 from typing import Dict, Any, List
 from datetime import datetime
 import statistics
@@ -49,7 +50,10 @@ class RedisBufferCapacityTester:
             "target_events": 2700000,  # 2.7M events (8-hour buffer capacity)
             "batch_size": 1000,  # Events per batch
             "max_memory_gb": 2,  # 2GB memory limit
-            "memory_threshold_percent": 90,  # Alert at 90% memory usage
+            # Allow override via environment variable REDIS_MEMORY_THRESHOLD_PERCENT
+            "memory_threshold_percent": int(
+                os.getenv("REDIS_MEMORY_THRESHOLD_PERCENT", "90")
+            ),
             "event_types": [
                 "app.bsky.feed.post",
                 "app.bsky.feed.like",
@@ -733,6 +737,55 @@ class RedisBufferCapacityTester:
 
 def main():
     """Main function to run the Redis buffer capacity test."""
+    # Ensure all prints flush immediately for real-time visibility
+    try:
+        # Make all print calls in this module flush by default
+        global print  # noqa: PLW0603
+        print = partial(print, flush=True)  # type: ignore[assignment]
+    except Exception:
+        pass
+
+    # Mirror stdout/stderr to a timestamped log file alongside the JSON report
+    try:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = os.path.join(
+            os.path.dirname(__file__), f"03_buffer_capacity_test_{ts}.log"
+        )
+
+        class _Tee:
+            def __init__(self, stream_a, stream_b):
+                self.a = stream_a
+                self.b = stream_b
+
+            def write(self, data: str):
+                try:
+                    self.a.write(data)
+                    self.a.flush()
+                except Exception:
+                    pass
+                try:
+                    self.b.write(data)
+                    self.b.flush()
+                except Exception:
+                    pass
+
+            def flush(self):
+                try:
+                    self.a.flush()
+                except Exception:
+                    pass
+                try:
+                    self.b.flush()
+                except Exception:
+                    pass
+
+        log_fp = open(log_path, "a", buffering=1)
+        sys.stdout = _Tee(sys.stdout, log_fp)
+        sys.stderr = _Tee(sys.stderr, log_fp)
+        print(f"📝 Logging to: {log_path}")
+    except Exception:
+        pass
+
     print("🚀 Redis Buffer Capacity Testing for Bluesky Data Pipeline")
     print("=" * 60)
 

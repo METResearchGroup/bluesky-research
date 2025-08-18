@@ -13,7 +13,7 @@ import json
 import time
 import random
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 import signal
 import sys
@@ -106,10 +106,16 @@ STREAM_NAMES = {
 class MockDataStreamGenerator:
     """Generates realistic Bluesky firehose events and writes to Redis Streams"""
 
-    def __init__(self, redis_host="localhost", redis_port=6379):
+    def __init__(
+        self,
+        redis_host: str = "localhost",
+        redis_port: int = 6379,
+        password: str | None = None,
+    ):
         self.redis_client = redis.Redis(
             host=redis_host,
             port=redis_port,
+            password=password,
             decode_responses=True,
             socket_connect_timeout=10,
             socket_timeout=10,
@@ -152,7 +158,8 @@ class MockDataStreamGenerator:
         template = copy.deepcopy(EVENT_TEMPLATES[event_type])
 
         # Generate unique identifiers
-        timestamp = datetime.now().isoformat() + "Z"
+        # Use timezone-aware UTC timestamp with Z suffix
+        timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         unique_id = str(uuid.uuid4())[:8]
 
         # Update template with unique values
@@ -199,7 +206,7 @@ class MockDataStreamGenerator:
             self.stats["events_by_type"][collection] = (
                 self.stats["events_by_type"].get(collection, 0) + 1
             )
-            self.stats["last_event_time"] = datetime.now()
+            self.stats["last_event_time"] = datetime.now(timezone.utc)
 
             return True
 
@@ -238,7 +245,7 @@ class MockDataStreamGenerator:
         print(f"📊 Target rate: {events_per_second} events/second")
 
         self.running = True
-        self.stats["start_time"] = datetime.now()
+        self.stats["start_time"] = datetime.now(timezone.utc)
 
         # Calculate timing
         total_events = duration_minutes * 60 * events_per_second
@@ -289,7 +296,7 @@ class MockDataStreamGenerator:
     def print_final_stats(self):
         """Print final statistics"""
         if self.stats["start_time"]:
-            duration = datetime.now() - self.stats["start_time"]
+            duration = datetime.now(timezone.utc) - self.stats["start_time"]
             total_events = self.stats["total_events"]
             rate = (
                 total_events / duration.total_seconds()
@@ -353,13 +360,18 @@ def main():
         "--redis-port", type=int, default=6379, help="Redis port (default: 6379)"
     )
     parser.add_argument(
+        "--redis-password", default=None, help="Redis password (optional)"
+    )
+    parser.add_argument(
         "--cleanup", action="store_true", help="Clean up streams after running"
     )
 
     args = parser.parse_args()
 
     # Create generator
-    generator = MockDataStreamGenerator(args.redis_host, args.redis_port)
+    generator = MockDataStreamGenerator(
+        args.redis_host, args.redis_port, args.redis_password
+    )
 
     # Set up signal handler for graceful shutdown
     def signal_handler(sig, frame):

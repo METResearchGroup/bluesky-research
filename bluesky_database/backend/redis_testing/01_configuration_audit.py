@@ -250,12 +250,11 @@ class RedisConfigurationAuditor:
             "aof_base_size": config.get("info", {}).get("aof_base_size", "Unknown"),
         }
 
-        # Check each setting
+        # Check simple equality for non-size fields
         for key in [
             "appendonly",
             "appendfsync",
             "auto_aof_rewrite_percentage",
-            "auto_aof_rewrite_min_size",
         ]:
             if analysis[key]["current"] == analysis[key]["required"]:
                 analysis[key]["status"] = "✅ Correct"
@@ -263,6 +262,36 @@ class RedisConfigurationAuditor:
                 analysis[key]["status"] = "❌ Not configured"
             else:
                 analysis[key]["status"] = "⚠️ Different"
+
+        # Normalize memory-size comparison for auto_aof_rewrite_min_size
+        try:
+            current_bytes = self._parse_memory_to_bytes(
+                str(analysis["auto_aof_rewrite_min_size"]["current"])
+            )
+            required_bytes = self._parse_memory_to_bytes(
+                str(analysis["auto_aof_rewrite_min_size"]["required"])
+            )
+            if (
+                current_bytes is not None
+                and required_bytes is not None
+                and current_bytes == required_bytes
+            ):
+                analysis["auto_aof_rewrite_min_size"]["status"] = "✅ Correct"
+            elif analysis["auto_aof_rewrite_min_size"]["current"] == "Not set":
+                analysis["auto_aof_rewrite_min_size"]["status"] = "❌ Not configured"
+            else:
+                analysis["auto_aof_rewrite_min_size"]["status"] = "⚠️ Different"
+        except Exception:
+            # Fallback to string comparison if parsing fails
+            if (
+                analysis["auto_aof_rewrite_min_size"]["current"]
+                == analysis["auto_aof_rewrite_min_size"]["required"]
+            ):
+                analysis["auto_aof_rewrite_min_size"]["status"] = "✅ Correct"
+            elif analysis["auto_aof_rewrite_min_size"]["current"] == "Not set":
+                analysis["auto_aof_rewrite_min_size"]["status"] = "❌ Not configured"
+            else:
+                analysis["auto_aof_rewrite_min_size"]["status"] = "⚠️ Different"
 
         return analysis
 
@@ -298,14 +327,34 @@ class RedisConfigurationAuditor:
             },
         }
 
-        # Check each setting
-        for key in ["tcp_keepalive", "timeout", "tcp_backlog", "databases", "save"]:
+        # Check each setting with special handling for 'save' (disabled RDB)
+        for key in ["tcp_keepalive", "timeout", "tcp_backlog", "databases"]:
             if analysis[key]["current"] == analysis[key]["required"]:
                 analysis[key]["status"] = "✅ Correct"
             elif analysis[key]["current"] == "Not set":
                 analysis[key]["status"] = "❌ Not configured"
             else:
                 analysis[key]["status"] = "⚠️ Different"
+
+        # Treat empty/disabled save as meeting requirement when requirement is '""'
+        current_save_raw = analysis["save"]["current"]
+        required_save_raw = analysis["save"]["required"]
+        current_save_norm = (
+            str(current_save_raw).strip().strip('"')
+            if current_save_raw is not None
+            else ""
+        )
+        required_save_norm = (
+            str(required_save_raw).strip().strip('"')
+            if required_save_raw is not None
+            else ""
+        )
+        if required_save_norm == "" and current_save_norm == "":
+            analysis["save"]["status"] = "✅ Correct"
+        elif current_save_raw == "Not set":
+            analysis["save"]["status"] = "❌ Not configured"
+        else:
+            analysis["save"]["status"] = "⚠️ Different"
 
         return analysis
 

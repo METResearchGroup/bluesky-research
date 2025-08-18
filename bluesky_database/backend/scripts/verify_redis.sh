@@ -30,3 +30,5 @@ docker compose -f "$BACKEND_DIR/docker-compose.monitoring.yml" exec -T redis sh 
 echo "[verify-redis] Done."
 
 
+
+
