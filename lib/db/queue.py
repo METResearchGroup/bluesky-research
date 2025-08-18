@@ -6,7 +6,7 @@ Each queue will have their own SQLite instance in order to scale
 each queue independently.
 """
 
-import aiosqlite3
+import aiosqlite
 import json
 import os
 import sqlite3
@@ -198,7 +198,7 @@ class Queue:
 
     async def _async_get_connection(self) -> sqlite3.Connection:
         """Get an optimized SQLite connection with retry logic."""
-        conn = await aiosqlite3.connect(self.db_path)
+        conn = await aiosqlite.connect(self.db_path)
 
         # Configure connection for optimal performance
         conn.execute("PRAGMA journal_mode=WAL")

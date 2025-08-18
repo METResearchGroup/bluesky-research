@@ -1,4 +1,4 @@
-aiosqlite3==0.3.0
+aiosqlite
 atproto==0.0.52
 boto3==1.34.38
 duckdb==1.1.3
