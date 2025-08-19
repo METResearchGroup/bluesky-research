@@ -61,7 +61,7 @@ jobs:
           services/write_cache_buffers_to_db/tests \
           services/sync/jetstream/tests \
           api/integrations_router/tests
-        # pytest search_engine/tests
+
     - name: Lint Dockerfiles with Hadolint
       uses: hadolint/hadolint-action@v3.1.0
       with:
