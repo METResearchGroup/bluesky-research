@@ -219,9 +219,9 @@ The setup script will:
 - `-e, --env-name NAME` - Custom environment name
 - `-h, --help` - Show detailed help
 
-### Manual Installation with uv
+### Manual Installation with uv (Recommended)
 
-If you prefer manual setup:
+If you prefer manual setup with flexible dependency groups:
 
 1. **Clone the repository**:
    ```bash
@@ -240,22 +240,34 @@ If you prefer manual setup:
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    ```
 
-4. **Install project dependencies**:
+4. **Install project dependencies** (choose based on your needs):
+
+   **Option A: Core only (lightweight, ~50 packages)**
    ```bash
-   # Core dependencies
-   uv pip install -r requirements.txt
-   
-   # Development dependencies
-   uv pip install -r dev_requirements.txt
-   
-   # ML tooling dependencies
-   uv pip install -r ml_tooling/requirements.txt
-   
-   # Install project in editable mode
    uv pip install -e .
    ```
 
-5. **Set up pre-commit hooks**:
+   **Option B: Development setup (core + dev tools)**
+   ```bash
+   uv pip install -e ".[dev]"
+   ```
+
+   **Option C: Research & LLM work (without heavy ML)**
+   ```bash
+   uv pip install -e ".[dev,llm,valence,telemetry]"
+   ```
+
+   **Option D: Full ML stack (includes PyTorch)**
+   ```bash
+   uv pip install -e ".[dev,ml,llm,valence,telemetry]"
+   ```
+
+   **Option E: Everything (for CI or comprehensive development)**
+   ```bash
+   uv pip install -e ".[all]"
+   ```
+
+5. **Set up pre-commit hooks** (if using dev dependencies):
    ```bash
    pre-commit install
    ```
@@ -268,12 +280,22 @@ If you prefer manual setup:
    conda activate bluesky-research
    ```
 
-2. **Install dependencies**:
+2. **Install dependencies** (choose based on your needs):
    ```bash
-   pip install -r requirements.txt
-   pip install -r dev_requirements.txt
-   pip install -r ml_tooling/requirements.txt
+   # Core only (lightweight)
    pip install -e .
+   
+   # Development setup
+   pip install -e ".[dev]"
+   
+   # Research & LLM work (without PyTorch)
+   pip install -e ".[dev,llm,valence,telemetry]"
+   
+   # Full ML stack (includes PyTorch)
+   pip install -e ".[dev,ml,llm,valence,telemetry]"
+   
+   # Everything
+   pip install -e ".[all]"
    ```
 
 ### Frontend Setup
@@ -301,14 +323,69 @@ npm run dev  # Development server at http://localhost:3000
 
 ### Dependency Management
 
-The project uses a consolidated requirements system:
+The project uses a unified `pyproject.toml` with logical dependency groups:
 
-- **`requirements.in`** - Core project dependencies with standardized versions
-- **`dev_requirements.in`** - Development and testing dependencies
-- **`ml_tooling/requirements.in`** - Machine learning and AI dependencies
-- **Individual `requirements.in`** files in each module for specific dependencies
+#### Core Dependencies (always installed)
+- **Web & API**: flask, requests, fastapi
+- **Data Processing**: pandas, numpy, duckdb, pyarrow
+- **Cloud & Storage**: boto3, atproto, peewee
+- **Utilities**: matplotlib, python-dotenv, click
 
-All package versions are standardized across the project to ensure consistency. The setup script automatically handles all dependency installation and ensures compatibility.
+#### Optional Dependency Groups
+
+**`[dev]` - Development Tools (~76 packages)**
+```bash
+uv pip install -e ".[dev]"
+```
+- pytest, ruff, pre-commit, autopep8, faker
+
+**`[ml]` - Machine Learning (~73 packages, includes PyTorch)**
+```bash
+uv pip install -e ".[ml]"
+```
+- torch, transformers, sentence-transformers, scikit-learn, scipy
+
+**`[llm]` - LLM Services (~135 packages, no PyTorch)**
+```bash
+uv pip install -e ".[llm]"
+```
+- openai, langchain, tiktoken, litellm, google-generativeai
+
+**`[valence]` - Lightweight Sentiment (~55 packages)**
+```bash
+uv pip install -e ".[valence]"
+```
+- vadersentiment (minimal footprint)
+
+**`[telemetry]` - Monitoring & Observability**
+```bash
+uv pip install -e ".[telemetry]"
+```
+- wandb, comet-ml, sentry-sdk, prometheus-client, grafana-client
+
+**`[all]` - Everything (~185 packages)**
+```bash
+uv pip install -e ".[all]"
+```
+- All optional dependencies combined
+
+#### Common Installation Patterns
+
+```bash
+# Researchers doing content analysis (no ML training)
+uv pip install -e ".[dev,llm,valence]"
+
+# ML researchers needing full stack
+uv pip install -e ".[dev,ml,llm,telemetry]"
+
+# Feed developers (lightweight)
+uv pip install -e ".[dev,valence]"
+
+# Infrastructure/ops teams
+uv pip install -e ".[dev,telemetry]"
+```
+
+All package versions are resolved consistently through uv's dependency resolver, eliminating the version conflicts that existed with the previous multi-file requirements setup.
 
 ## Development Workflow
 
