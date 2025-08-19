@@ -25,18 +25,25 @@ jobs:
       uses: astral-sh/setup-uv@v4
       with:
         version: "latest"
-    - name: Install dependencies
+    - name: Create virtual environment and install dependencies
       run: |
-        # Install the project with all optional dependencies for comprehensive CI testing
+        # Create virtual environment
+        uv venv .venv --python ${{ matrix.python-version }}
+        # Activate virtual environment and install project with all dependencies
+        source .venv/bin/activate
         uv pip install -e ".[all]"
     - name: Add project directory to PYTHONPATH
       run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
     - name: Ruff linting
       run: |
+        # Activate virtual environment and run linting
+        source .venv/bin/activate
         # stop the build if there are Python syntax errors or undefined names
         ruff check .
     - name: Test with pytest
       run: |
+        # Activate virtual environment and run tests
+        source .venv/bin/activate
         pytest \
           lib/tests \
           lib/db/tests \
