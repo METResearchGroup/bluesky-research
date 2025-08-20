@@ -4,5 +4,7 @@
 #
 #    pip-compile requirements.in
 #
-aiosqlite3==0.3.0
+aiosqlite==0.21.0
     # via -r requirements.in
+typing-extensions==4.14.1
+    # via aiosqlite

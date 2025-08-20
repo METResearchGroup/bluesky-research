@@ -101,8 +101,10 @@ httplib2==0.22.0
     # via
     #   google-api-python-client
     #   google-auth-httplib2
-httpx==0.28.1
-    # via openai
+httpx==0.27.2
+    # via
+    #   litellm
+    #   openai
 huggingface-hub==0.27.1
     # via
     #   sentence-transformers
@@ -147,7 +149,7 @@ langsmith==0.0.87
     #   langchain
     #   langchain-community
     #   langchain-core
-litellm==1.44.5
+litellm==1.59.10
     # via -r requirements.in
 markupsafe==3.0.2
     # via jinja2
@@ -171,7 +173,7 @@ numpy==1.26.4
     #   scipy
     #   sentence-transformers
     #   transformers
-openai==1.42.0
+openai==1.55.3
     # via
     #   -r requirements.in
     #   litellm
@@ -242,7 +244,6 @@ requests==2.32.3
     #   langchain-community
     #   langchain-core
     #   langsmith
-    #   litellm
     #   tiktoken
     #   transformers
 rpds-py==0.22.3
@@ -264,6 +265,7 @@ sentence-transformers==2.6.1
 sniffio==1.3.1
     # via
     #   anyio
+    #   httpx
     #   openai
 sqlalchemy==2.0.37
     # via

@@ -16,7 +16,7 @@ from lib.constants import (
     default_lookback_days,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
-from lib.db.sql.duckdb import DuckDB
+from lib.db.sql.duckdb_wrapper import DuckDB
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 

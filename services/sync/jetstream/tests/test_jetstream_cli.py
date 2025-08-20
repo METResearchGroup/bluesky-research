@@ -25,7 +25,7 @@ class TestJetstreamCli:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.runner = CliRunner(mix_stderr=False)
+        self.runner = CliRunner()
         
         # Set up mock stats return value
         self.mock_stats = {

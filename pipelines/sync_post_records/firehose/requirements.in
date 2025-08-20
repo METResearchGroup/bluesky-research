@@ -1,5 +1,5 @@
-atproto==0.0.48
-boto3==1.35.7
+atproto==0.0.61
+boto3==1.40.11
 flask==3.0.2
 memory_profiler==0.61.0
 numpy==1.26.4

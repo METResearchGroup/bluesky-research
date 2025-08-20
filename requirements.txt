@@ -4,19 +4,19 @@
 #
 #    pip-compile requirements.in
 #
-aiosqlite3==0.3.0
+aiosqlite==0.21.0
     # via -r requirements.in
 annotated-types==0.7.0
     # via pydantic
 anyio==4.4.0
     # via httpx
-atproto==0.0.52
+atproto==0.0.61
     # via -r requirements.in
 blinker==1.8.2
     # via flask
-boto3==1.34.38
+boto3==1.40.11
     # via -r requirements.in
-botocore==1.34.162
+botocore==1.40.11
     # via
     #   boto3
     #   s3transfer
@@ -70,7 +70,7 @@ jmespath==1.0.1
     #   botocore
 kiwisolver==1.4.7
     # via matplotlib
-libipld==1.2.3
+libipld==3.1.1
     # via atproto
 markupsafe==2.1.5
     # via
@@ -86,7 +86,7 @@ numpy==1.26.4
     #   pyarrow
 packaging==23.2
     # via matplotlib
-pandas==2.2.0
+pandas==2.2.2
     # via -r requirements.in
 peewee==3.17.1
     # via -r requirements.in
@@ -107,13 +107,13 @@ python-dateutil==2.9.0.post0
     #   botocore
     #   matplotlib
     #   pandas
-python-dotenv==0.21.0
+python-dotenv==1.0.1
     # via -r requirements.in
 pytz==2024.1
     # via pandas
 requests==2.31.0
     # via -r requirements.in
-s3transfer==0.10.2
+s3transfer==0.13.1
     # via boto3
 six==1.16.0
     # via python-dateutil
@@ -123,6 +123,7 @@ sniffio==1.3.1
     #   httpx
 typing-extensions==4.12.2
     # via
+    #   aiosqlite
     #   anyio
     #   atproto
     #   pydantic
