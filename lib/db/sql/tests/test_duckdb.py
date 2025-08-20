@@ -19,7 +19,7 @@ import duckdb
 import tempfile
 import os
 
-from lib.db.sql.duckdb import DuckDB, get_duckdb_instance
+from lib.db.sql.duckdb_wrapper import DuckDB, get_duckdb_instance
 
 @pytest.fixture
 def db():

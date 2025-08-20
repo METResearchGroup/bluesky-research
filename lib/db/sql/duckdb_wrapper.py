@@ -3,7 +3,7 @@
 from typing import Optional, Any
 
 import duckdb
-from duckdb.duckdb import DuckDBPyConnection
+from duckdb import DuckDBPyConnection
 import pandas as pd
 
 from lib.log.logger import get_logger

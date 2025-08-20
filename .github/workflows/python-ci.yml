@@ -44,7 +44,7 @@ jobs:
       run: |
         # Activate virtual environment and run tests
         source .venv/bin/activate
-        pytest \
+        pytest --import-mode=importlib \
           lib/tests \
           lib/db/tests \
           lib/db/sql/tests \
