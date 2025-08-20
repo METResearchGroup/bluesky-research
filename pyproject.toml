@@ -96,9 +96,17 @@ telemetry = [
     "opentelemetry-api>=1.29.0",
 ]
 
+# Feed API service
+feed_api = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
+    "mangum>=0.17.0",  # For AWS Lambda deployment
+    "momento>=1.21.0",  # For caching
+]
+
 # All optional dependencies for CI
 all = [
-    "bluesky-research[dev,ml,llm,valence,telemetry]"
+    "bluesky-research[dev,ml,llm,valence,telemetry,feed_api]"
 ]
 
 [tool.setuptools.packages.find]

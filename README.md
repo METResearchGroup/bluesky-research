@@ -326,7 +326,7 @@ npm run dev  # Development server at http://localhost:3000
 The project uses a unified `pyproject.toml` with logical dependency groups:
 
 #### Core Dependencies (always installed)
-- **Web & API**: flask, requests, fastapi
+- **Web & API**: flask, requests
 - **Data Processing**: pandas, numpy, duckdb, pyarrow
 - **Cloud & Storage**: boto3, atproto, peewee
 - **Utilities**: matplotlib, python-dotenv, click
@@ -356,6 +356,12 @@ uv pip install -e ".[llm]"
 uv pip install -e ".[valence]"
 ```
 - vadersentiment (minimal footprint)
+
+**`[feed_api]` - FastAPI Service**
+```bash
+uv pip install -e ".[feed_api]"
+```
+- fastapi, uvicorn, mangum, momento (for the feed API service)
 
 **`[telemetry]` - Monitoring & Observability**
 ```bash
