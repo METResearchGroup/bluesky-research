@@ -16,12 +16,17 @@ This module provides a generic, reusable BERTopic modeling pipeline for text ana
 The module is part of the `bluesky-research` package. Install with:
 
 ```bash
-# Install with analysis dependencies
+# Install with analysis dependencies (recommended for topic modeling)
 pip install -e .[analysis]
 
-# Or install all dependencies
-pip install -e .[all]
+# Install with machine learning dependencies
+pip install -e .[ml,analysis]
+
+# Install with all dependencies (check pyproject.toml for available extras)
+pip install -e .[dev,ml,analysis,llm,valence,telemetry,feed_api]
 ```
+
+**Note**: Check `pyproject.toml` in the project root for the complete list of available extras. The `[all]` extra is not available due to pip dependency resolution limitations.
 
 ## Quick Start
 

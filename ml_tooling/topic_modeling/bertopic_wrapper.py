@@ -9,9 +9,10 @@ Author: AI Agent implementing MET-34
 Date: 2025-01-20
 """
 
+import json
 import logging
 import os
-import pickle
+import random
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -58,13 +59,13 @@ class BERTopicWrapper:
         Raises:
             FileNotFoundError: If config_path doesn't exist
             yaml.YAMLError: If YAML file is invalid
+            ValueError: If configuration is not a mapping
         """
         self.config = self._load_config(config_path, config_dict)
         self.random_seed = random_seed or self.config.get("random_seed", 42)
 
         # Set random seeds for reproducibility
-        np.random.seed(self.random_seed)
-        os.environ["PYTHONHASHSEED"] = str(self.random_seed)
+        self._set_random_seeds()
 
         # Initialize components
         self.embedding_model = None
@@ -77,6 +78,30 @@ class BERTopicWrapper:
         self._validate_config()
 
         logger.info(f"BERTopicWrapper initialized with random seed: {self.random_seed}")
+
+    def _set_random_seeds(self) -> None:
+        """Set all random seeds for reproducibility."""
+        # Python random
+        random.seed(self.random_seed)
+
+        # NumPy
+        np.random.seed(self.random_seed)
+
+        # Environment variable
+        os.environ["PYTHONHASHSEED"] = str(self.random_seed)
+
+        # PyTorch (if available)
+        try:
+            import torch
+
+            torch.manual_seed(self.random_seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(self.random_seed)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+            logger.info("PyTorch random seeds set for reproducibility")
+        except ImportError:
+            logger.info("PyTorch not available, skipping PyTorch seed setting")
 
     def _load_config(
         self,
@@ -92,6 +117,9 @@ class BERTopicWrapper:
 
         Returns:
             Configuration dictionary with defaults applied
+
+        Raises:
+            ValueError: If configuration is not a mapping
         """
         if config_dict is not None:
             config = config_dict
@@ -119,6 +147,12 @@ class BERTopicWrapper:
                 logger.info(f"Loaded default configuration from {default_config_path}")
             except yaml.YAMLError as e:
                 raise yaml.YAMLError(f"Invalid default YAML configuration: {e}")
+
+        # Validate that config is a mapping
+        if not isinstance(config, dict):
+            raise ValueError(
+                f"Configuration must be a YAML mapping (dict), got: {type(config)}"
+            )
 
         # Apply default configuration
         return self._apply_defaults(config)
@@ -151,6 +185,10 @@ class BERTopicWrapper:
                 "enable": True,
                 "max_batch_size": 128,
                 "memory_threshold": 0.8,  # Use GPU if memory usage < 80%
+            },
+            "metrics": {
+                "max_docs": 50000,  # Limit documents for coherence computation
+                "top_k_words": 10,  # Limit words per topic for metrics
             },
             "random_seed": 42,
         }
@@ -211,6 +249,13 @@ class BERTopicWrapper:
         if not (0 < gpu_config["memory_threshold"] <= 1):
             raise ValueError("memory_threshold must be between 0 and 1")
 
+        # Validate metrics
+        metrics_config = self.config.get("metrics", {})
+        if metrics_config.get("max_docs", 50000) <= 0:
+            raise ValueError("metrics.max_docs must be positive")
+        if metrics_config.get("top_k_words", 10) <= 0:
+            raise ValueError("metrics.top_k_words must be positive")
+
         logger.info("Configuration validation passed")
 
     def _detect_gpu(self) -> str:
@@ -253,13 +298,16 @@ class BERTopicWrapper:
             logger.error(f"Failed to initialize embedding model: {e}")
             raise
 
-    def _validate_input_data(self, df: pd.DataFrame, text_column: str) -> None:
+    def _validate_input_data(self, df: pd.DataFrame, text_column: str) -> pd.DataFrame:
         """
         Validate input DataFrame and text column.
 
         Args:
             df: Input DataFrame
             text_column: Name of the text column
+
+        Returns:
+            Cleaned DataFrame with validated and normalized text
 
         Raises:
             ValueError: If input validation fails
@@ -277,15 +325,30 @@ class BERTopicWrapper:
             raise ValueError(f"Text column '{text_column}' contains only NaN values")
 
         # Check for non-string values
-        non_string_mask = ~df[text_column].astype(str).str.len().isna()
-        if not non_string_mask.all():
-            logger.warning(
-                f"Found {non_string_mask.sum()} non-string values in text column"
-            )
+        non_string_mask = df[text_column].apply(lambda v: not isinstance(v, str))
+        non_string_count = non_string_mask.sum()
+        if non_string_count > 0:
+            logger.warning(f"Found {non_string_count} non-string values in text column")
+
+        # Clean and normalize text
+        df_cleaned = df.copy()
+        df_cleaned[text_column] = df_cleaned[text_column].astype(str).str.strip()
+
+        # Drop rows with empty or NaN text after cleaning
+        original_count = len(df_cleaned)
+        df_cleaned = df_cleaned.dropna(subset=[text_column])
+        df_cleaned = df_cleaned[df_cleaned[text_column].str.len() > 0]
+        final_count = len(df_cleaned)
+
+        if final_count < original_count:
+            dropped_count = original_count - final_count
+            logger.info(f"Dropped {dropped_count} rows with empty text after cleaning")
 
         logger.info(
-            f"Input validation passed: {len(df)} documents, text column: {text_column}"
+            f"Input validation passed: {final_count} documents, text column: {text_column}"
         )
+
+        return df_cleaned
 
     def _generate_embeddings(
         self, texts: List[str], batch_size: Optional[int] = None
@@ -326,7 +389,7 @@ class BERTopicWrapper:
         self, topic_model: BERTopic, texts: List[str], embeddings: np.ndarray
     ) -> Dict[str, float]:
         """
-        Calculate topic coherence metrics.
+        Calculate topic coherence metrics with optimized computation.
 
         Args:
             topic_model: Trained BERTopic model
@@ -339,6 +402,26 @@ class BERTopicWrapper:
         logger.info("Calculating topic coherence metrics")
 
         try:
+            # Get configuration for metrics computation
+            metrics_config = self.config.get("metrics", {})
+            max_docs = metrics_config.get("max_docs", 50000)
+            top_k_words = metrics_config.get("top_k_words", 10)
+
+            # Sample documents if corpus is too large
+            if len(texts) > max_docs:
+                logger.info(
+                    f"Sampling {max_docs} documents from {len(texts)} for coherence computation"
+                )
+                indices = np.random.choice(len(texts), max_docs, replace=False)
+                sample_texts = [texts[i] for i in indices]
+                sample_embeddings = embeddings[indices]
+            else:
+                sample_texts = texts
+                sample_embeddings = embeddings
+
+            # Precompute lowercased texts and word sets for efficiency
+            text_words = [set(text.lower().split()) for text in sample_texts]
+
             # Get topic words
             topic_words = topic_model.get_topics()
 
@@ -346,16 +429,21 @@ class BERTopicWrapper:
             c_v_scores = []
             for topic_id, words in topic_words.items():
                 if topic_id != -1:  # Skip outlier topic
+                    # Limit to top_k_words for efficiency
+                    top_words = words[: min(top_k_words, len(words))]
                     topic_word_embeddings = []
-                    for word_tuple in words[:10]:  # Top 10 words per topic
+
+                    for word_tuple in top_words:
                         word = word_tuple[0]  # Extract word from (word, weight) tuple
-                        # Find documents containing this word
+                        # Find documents containing this word using token boundaries
                         word_docs = [
-                            i for i, text in enumerate(texts) if word in text.lower()
+                            i
+                            for i, word_set in enumerate(text_words)
+                            if word in word_set
                         ]
                         if word_docs:
                             topic_word_embeddings.append(
-                                embeddings[word_docs].mean(axis=0)
+                                sample_embeddings[word_docs].mean(axis=0)
                             )
 
                     if len(topic_word_embeddings) > 1:
@@ -373,36 +461,38 @@ class BERTopicWrapper:
             c_npmi_scores = []
             for topic_id, words in topic_words.items():
                 if topic_id != -1:
+                    # Limit to top_k_words for efficiency
+                    top_words = words[: min(top_k_words, len(words))]
                     # Count co-occurrences of top words
                     word_pairs = [
-                        (words[i][0], words[j][0])
-                        for i in range(len(words))
-                        for j in range(i + 1, len(words))
+                        (top_words[i][0], top_words[j][0])
+                        for i in range(len(top_words))
+                        for j in range(i + 1, len(top_words))
                     ]
                     if word_pairs:
                         pair_scores = []
                         for word1, word2 in word_pairs[:20]:  # Limit to top 20 pairs
-                            # Count documents containing both words
+                            # Count documents containing both words using token boundaries
                             both_count = sum(
                                 1
-                                for text in texts
-                                if word1 in text.lower() and word2 in text.lower()
+                                for word_set in text_words
+                                if word1 in word_set and word2 in word_set
                             )
                             word1_count = sum(
-                                1 for text in texts if word1 in text.lower()
+                                1 for word_set in text_words if word1 in word_set
                             )
                             word2_count = sum(
-                                1 for text in texts if word2 in text.lower()
+                                1 for word_set in text_words if word2 in word_set
                             )
 
                             if both_count > 0 and word1_count > 0 and word2_count > 0:
                                 # Simplified NPMI calculation
                                 pmi = np.log(
                                     both_count
-                                    * len(texts)
+                                    * len(sample_texts)
                                     / (word1_count * word2_count)
                                 )
-                                npmi = pmi / (-np.log(both_count / len(texts)))
+                                npmi = pmi / (-np.log(both_count / len(sample_texts)))
                                 pair_scores.append(npmi)
 
                         if pair_scores:
@@ -415,10 +505,13 @@ class BERTopicWrapper:
                 "c_npmi_mean": c_npmi_mean,
                 "c_v_scores": c_v_scores,
                 "c_npmi_scores": c_npmi_scores,
+                "docs_used": len(sample_texts),
+                "total_docs": len(texts),
             }
 
             logger.info(
-                f"Coherence metrics calculated: c_v={c_v_mean:.3f}, c_npmi={c_npmi_mean:.3f}"
+                f"Coherence metrics calculated: c_v={c_v_mean:.3f}, c_npmi={c_npmi_mean:.3f} "
+                f"(using {len(sample_texts)}/{len(texts)} documents)"
             )
             return metrics
 
@@ -429,6 +522,8 @@ class BERTopicWrapper:
                 "c_npmi_mean": 0.0,
                 "c_v_scores": [],
                 "c_npmi_scores": [],
+                "docs_used": 0,
+                "total_docs": len(texts),
             }
 
     def _check_quality_thresholds(
@@ -487,10 +582,10 @@ class BERTopicWrapper:
 
         try:
             # Validate input
-            self._validate_input_data(df, text_column)
+            df_cleaned = self._validate_input_data(df, text_column)
 
             # Extract texts
-            texts = df[text_column].astype(str).tolist()
+            texts = df_cleaned[text_column].tolist()
             logger.info(f"Starting BERTopic training on {len(texts)} documents")
 
             # Generate embeddings
@@ -613,32 +708,75 @@ class BERTopicWrapper:
 
     def save_model(self, filepath: Union[str, Path]) -> None:
         """
-        Save the trained model to disk.
+        Save the trained model to disk using safe, non-pickle persistence.
 
         Args:
             filepath: Path where to save the model
 
         Raises:
             RuntimeError: If model hasn't been trained
+            RuntimeError: If filesystem operations fail
         """
         if self.topic_model is None:
             raise RuntimeError("Model must be trained before saving")
 
         filepath = Path(filepath)
-        filepath.parent.mkdir(parents=True, exist_ok=True)
+        model_dir = filepath.parent / filepath.stem
 
         try:
-            with open(filepath, "wb") as f:
-                pickle.dump(self, f)
-            logger.info(f"Model saved to {filepath}")
+            # Create model directory
+            model_dir.mkdir(parents=True, exist_ok=True)
+
+            # Save BERTopic model to the directory
+            self.topic_model.save(str(model_dir))
+
+            # Save wrapper metadata
+            metadata = {
+                "random_seed": self.random_seed,
+                "training_time": self.training_time,
+                "quality_metrics": self.quality_metrics,
+                "config": self.config,
+            }
+
+            with open(model_dir / "wrapper_meta.json", "w") as f:
+                json.dump(metadata, f, indent=2, default=str)
+
+            # Save training results (lightweight version)
+            if self._training_results:
+                results_meta = {
+                    "topics_shape": np.array(
+                        self._training_results.get("topics", [])
+                    ).shape,
+                    "probabilities_shape": np.array(
+                        self._training_results.get("probabilities", [])
+                    ).shape
+                    if self._training_results.get("probabilities") is not None
+                    else None,
+                    "texts_count": len(self._training_results.get("texts", [])),
+                    "embeddings_shape": np.array(
+                        self._training_results.get("embeddings", [])
+                    ).shape
+                    if self._training_results.get("embeddings") is not None
+                    else None,
+                    "meets_thresholds": self._training_results.get(
+                        "meets_thresholds", False
+                    ),
+                    "warnings": self._training_results.get("warnings", []),
+                }
+
+                with open(model_dir / "training_results.json", "w") as f:
+                    json.dump(results_meta, f, indent=2, default=str)
+
+            logger.info(f"Model saved to {model_dir}")
+
         except Exception as e:
             logger.error(f"Failed to save model: {e}")
-            raise
+            raise RuntimeError(f"Model saving failed: {e}")
 
     @classmethod
     def load_model(cls, filepath: Union[str, Path]) -> "BERTopicWrapper":
         """
-        Load a trained model from disk.
+        Load a trained model from disk using safe, non-pickle persistence.
 
         Args:
             filepath: Path to the saved model
@@ -647,18 +785,42 @@ class BERTopicWrapper:
             Loaded BERTopicWrapper instance
 
         Raises:
-            FileNotFoundError: If model file doesn't exist
+            FileNotFoundError: If model directory doesn't exist
             RuntimeError: If loading fails
         """
         filepath = Path(filepath)
-        if not filepath.exists():
-            raise FileNotFoundError(f"Model file not found: {filepath}")
+        model_dir = filepath.parent / filepath.stem
+
+        if not model_dir.exists():
+            raise FileNotFoundError(f"Model directory not found: {model_dir}")
 
         try:
-            with open(filepath, "rb") as f:
-                instance = pickle.load(f)
-            logger.info(f"Model loaded from {filepath}")
+            # Load wrapper metadata
+            with open(model_dir / "wrapper_meta.json", "r") as f:
+                metadata = json.load(f)
+
+            # Create wrapper instance
+            instance = cls(
+                config_dict=metadata["config"], random_seed=metadata["random_seed"]
+            )
+
+            # Load BERTopic model from the directory
+            instance.topic_model = BERTopic.load(str(model_dir))
+
+            # Restore metadata
+            instance.training_time = metadata["training_time"]
+            instance.quality_metrics = metadata["quality_metrics"]
+
+            # Load training results if available
+            results_file = model_dir / "training_results.json"
+            if results_file.exists():
+                with open(results_file, "r") as f:
+                    results_meta = json.load(f)
+                instance._training_results = results_meta
+
+            logger.info(f"Model loaded from {model_dir}")
             return instance
+
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
             raise RuntimeError(f"Model loading failed: {e}")
