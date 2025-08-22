@@ -1,61 +1,67 @@
-# TODO: Feed-Level Topic Analysis
+# Project Todo: Feed-Level Topic Analysis for Bluesky Research
 
-## Project Status: In Progress
-**Linear Project**: [Feed-Level Topic Analysis for Bluesky Research](https://linear.app/metresearch/project/feed-level-topic-analysis-for-bluesky-research-6b2e884b3dd9)
+## Phase 1: Core Infrastructure ✅ COMPLETED
 
-## Core Tasks (Sequential Execution Required)
+- [x] **MET-34**: Core BERTopic pipeline with YAML configuration and text preprocessing ✅ COMPLETED
+  - Generic, reusable BERTopic wrapper with quality monitoring
+  - GPU optimization and comprehensive testing
+  - YAML configuration for all parameters
 
-### ✅ Phase 1: Core Infrastructure
-- [x] **MET-34**: Implement core BERTopic pipeline with YAML configuration
-  - [x] BERTopic wrapper class implemented with YAML configuration
-  - [x] Sentence Transformer model selection configurable  
-  - [x] Coherence metrics (c_v, c_npmi) monitoring implemented
-  - [x] GPU optimization and memory management included
-  - [x] Comprehensive test suite written and passing
-  - [x] Random seed reproducibility validated
-  - [x] Code reviewed and documentation complete
+## Phase 2: Data Loading Infrastructure 🔄 IN PROGRESS
 
-### 🔄 Phase 2: Analysis Engine  
-- [ ] **MET-35**: Build feed-specific analysis and stratification code
-  - [ ] Feed-level topic aggregation implemented
-  - [ ] Multi-level stratified analysis (condition, time, condition×time) working
-  - [ ] Topic evolution tracking across 2-month period
-  - [ ] Topic co-occurrence analysis within feeds
-  - [ ] Weekly temporal analysis and election boundary comparison
-  - [ ] Jupyter notebook workflow documented and tested
-  - [ ] Statistical validation framework implemented
-  - [ ] Comprehensive test suite passing
+- [ ] **MET-44**: Implement Local Data Loader for Topic Modeling Pipeline 🔄 IN PROGRESS
+  - Abstract DataLoader interface with LocalDataLoader implementation
+  - Integration with existing `load_data_from_local_storage` function
+  - Configuration-driven data loader selection
+  - End-to-end integration with BERTopic pipeline
+  - **Status**: Implementation plan approved, starting development
+  - **Estimated Effort**: 4 hours
+  - **Dependencies**: ✅ MET-34 (Core BERTopic pipeline) COMPLETED
 
-### 🔄 Phase 3: Publication Materials
-- [ ] **MET-36**: Generate publication-ready tables and figures
-  - [ ] Statistical tables generated for all stratification levels
-  - [ ] Publication-quality figures created (topic evolution, distributions, comparisons)
-  - [ ] PNG format with appropriate DPI for publication
-  - [ ] CSV and LaTeX table formats available
-  - [ ] Accessibility standards met (color schemes, legends)
-  - [ ] Automated generation pipeline working
-  - [ ] Professional styling consistent across all outputs
-  - [ ] Comprehensive test suite validating figure quality
+- [ ] **MET-45**: Implement Production Data Loader for Topic Modeling Pipeline
+  - ProductionDataLoader implementation following DataLoader interface
+  - Production data source integration with robust error handling
+  - Performance optimization for production-scale data loading
+  - Production configuration management
+  - **Dependencies**: MET-44 (Local Data Loader)
 
-### 🔄 Phase 4: Optional Enhancement
-- [ ] **MET-37**: Create interactive Streamlit dashboard (Optional)
-  - [ ] Streamlit dashboard framework implemented
-  - [ ] Multi-level filtering interface (conditions, time, topics) working
-  - [ ] Interactive visualizations with real-time updates
-  - [ ] Drill-down capabilities for topic exploration
-  - [ ] Representative post viewing functionality
-  - [ ] Performance optimized for large datasets
-  - [ ] Error handling and user input validation
-  - [ ] Dashboard deployed and accessible
+## Phase 3: Analysis & Stratification
 
-## Project Milestones
-- [x] **Week 1**: Core BERTopic pipeline complete
-- [ ] **Week 2**: Feed analysis and stratification complete
-- [ ] **Week 3**: Publication materials generated
-- [ ] **Week 4**: Optional dashboard deployed
+- [ ] **MET-46**: Implement Feed-Specific Analysis and Stratification for Topic Models
+  - Multi-level stratified analysis (overall → condition → time → condition×time)
+  - Topic evolution tracking across 2-month experimental period
+  - Topic co-occurrence patterns within feeds
+  - Weekly temporal analysis and pre/post election comparison
+  - Publication-ready visualizations and statistical summaries
+  - **Dependencies**: MET-44, MET-45 (Data Loading Infrastructure)
 
-## Linear Issue Links
-- [MET-34: Core BERTopic Pipeline](https://linear.app/metresearch/issue/MET-34) ✅ COMPLETED
-- [MET-35: Feed Analysis & Stratification](https://linear.app/metresearch/issue/MET-35)  
-- [MET-36: Publication Materials](https://linear.app/metresearch/issue/MET-36)
-- [MET-37: Interactive Dashboard](https://linear.app/metresearch/issue/MET-37)
+## Phase 4: Publication & Documentation
+
+- [ ] **Publication Materials Generation**
+  - Statistical tables and publication-quality figures
+  - Topic evolution and co-occurrence analysis reports
+  - Reproducible analysis pipeline documentation
+  - **Dependencies**: MET-46 (Feed-Specific Analysis)
+
+- [ ] **Final Documentation & Handoff**
+  - Complete pipeline documentation
+  - Usage examples and best practices
+  - Performance benchmarks and optimization notes
+  - **Dependencies**: All previous phases
+
+## Implementation Notes
+
+### MET-44 Implementation Plan (Current)
+- **Package Structure**: `services/calculate_analytics/2025-08-18_calculate_feed_topic_models/src/data_loading/`
+- **Core Components**: Abstract DataLoader interface, LocalDataLoader implementation, configuration management
+- **Integration**: Seamless integration with existing BERTopicWrapper from MET-34
+- **Testing**: Comprehensive test suite covering all functionality
+- **Deliverables**: Working data loading infrastructure with demo notebook
+
+### Next Steps After MET-44
+1. **MET-45**: Production data loader implementation
+2. **MET-46**: Feed-specific analysis and stratification
+3. **Publication Materials**: Statistical analysis and visualizations
+
+## Current Status: Week 2 - Data Loading Infrastructure
+**Focus**: Building the foundational data loading infrastructure that will enable the complete topic modeling pipeline.
