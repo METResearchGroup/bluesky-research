@@ -1,0 +1,74 @@
+# Example YAML configuration for BERTopic pipeline
+# This file demonstrates all configurable parameters for the BERTopic wrapper
+
+# Embedding model configuration
+embedding_model:
+  # Model name from Hugging Face Hub
+  name: "all-MiniLM-L6-v2"  # Fast and efficient for production
+  # Alternative: "all-mpnet-base-v2" for higher quality
+  
+  # Device selection: 'auto', 'cuda', 'mps', or 'cpu'
+  device: "auto"  # Will auto-detect GPU if available
+  
+  # Batch size for embedding generation
+  batch_size: 32  # Adjust based on GPU memory
+
+# BERTopic model configuration
+bertopic:
+  # Number of top words to extract per topic
+  top_n_words: 20
+  
+  # Minimum number of documents required to form a topic
+  min_topic_size: 15
+  
+  # Number of topics: 'auto' for automatic selection, or integer
+  nr_topics: "auto"
+  
+  # Whether to calculate topic probabilities
+  calculate_probabilities: true
+  
+  # Verbose output during training
+  verbose: true
+
+# Quality thresholds for topic coherence
+quality_thresholds:
+  # Minimum c_v coherence score (0.0 to 1.0)
+  c_v_min: 0.4
+  
+  # Minimum c_npmi coherence score (0.0 to 1.0)
+  c_npmi_min: 0.1
+
+# GPU optimization settings
+gpu_optimization:
+  # Enable GPU acceleration
+  enable: true
+  
+  # Maximum batch size for GPU processing
+  max_batch_size: 128
+  
+  # Memory threshold for GPU usage (0.0 to 1.0)
+  memory_threshold: 0.8
+
+# Random seed for reproducible results
+random_seed: 42
+
+# Advanced BERTopic parameters (optional)
+# bertopic:
+#   # UMAP parameters
+#   umap_model:
+#     n_neighbors: 15
+#     n_components: 5
+#     min_dist: 0.0
+#     metric: "cosine"
+#   
+#   # HDBSCAN parameters
+#   hdbscan_model:
+#     min_cluster_size: 15
+#     min_samples: 5
+#     metric: "euclidean"
+#     cluster_selection_method: "eom"
+#   
+#   # c-TF-IDF parameters
+#   ctfidf_model:
+#     bm25_weighting: true
+#     reduce_frequent_words: true

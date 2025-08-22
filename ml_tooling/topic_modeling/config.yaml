@@ -1,0 +1,22 @@
+embedding_model:
+  name: "all-MiniLM-L6-v2"
+  device: "auto"
+  batch_size: 32
+
+bertopic:
+  top_n_words: 20
+  min_topic_size: 15
+  nr_topics: "auto"
+  calculate_probabilities: true
+  verbose: true
+
+quality_thresholds:
+  c_v_min: 0.4
+  c_npmi_min: 0.1
+
+gpu_optimization:
+  enable: true
+  max_batch_size: 128
+  memory_threshold: 0.8
+
+random_seed: 42
