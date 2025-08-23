@@ -14,8 +14,8 @@ import yaml
 from pathlib import Path
 from unittest.mock import patch, mock_open
 
-from src.data_loading.config import DataLoaderConfig
-from src.data_loading.base import DataLoader
+from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.data_loading.config import DataLoaderConfig
+from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.data_loading.base import DataLoader
 
 
 class MockDataLoader(DataLoader):

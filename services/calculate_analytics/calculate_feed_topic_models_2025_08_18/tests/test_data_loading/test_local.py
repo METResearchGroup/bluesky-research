@@ -12,8 +12,8 @@ import pytest
 import pandas as pd
 from unittest.mock import patch, Mock
 
-from src.data_loading.local import LocalDataLoader
-from src.data_loading.base import DataLoadingError, ValidationError
+from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.data_loading.local import LocalDataLoader
+from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.data_loading.base import DataLoadingError, ValidationError
 
 
 class TestLocalDataLoader:

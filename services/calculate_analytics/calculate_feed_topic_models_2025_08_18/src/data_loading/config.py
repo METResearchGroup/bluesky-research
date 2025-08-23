@@ -14,7 +14,9 @@ from typing import Any, Dict, Optional, Type
 
 import yaml
 
-from .base import DataLoader
+from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.data_loading.base import (
+    DataLoader,
+)
 
 
 class DataLoaderConfig:

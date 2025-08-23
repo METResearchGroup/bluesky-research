@@ -12,9 +12,9 @@ import pytest
 import pandas as pd
 from unittest.mock import patch, Mock
 
-from src.data_loading.base import DataLoader
-from src.data_loading.config import DataLoaderConfig
-from src.pipeline.topic_modeling import TopicModelingPipeline
+from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.data_loading.base import DataLoader
+from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.data_loading.config import DataLoaderConfig
+from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.pipeline.topic_modeling import TopicModelingPipeline
 
 
 class MockDataLoader(DataLoader):

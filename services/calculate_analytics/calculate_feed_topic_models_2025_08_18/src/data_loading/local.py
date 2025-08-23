@@ -16,7 +16,11 @@ import pandas as pd
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.constants import study_start_date, study_end_date
 
-from .base import DataLoader, DataLoadingError, ValidationError
+from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.data_loading.base import (
+    DataLoader,
+    DataLoadingError,
+    ValidationError,
+)
 
 
 logger = logging.getLogger(__name__)

@@ -13,8 +13,13 @@ from typing import Optional, Dict, Any
 
 import pandas as pd
 
-from ..data_loading.base import DataLoader
-from ..data_loading.config import DataLoaderConfig
+from ml_tooling.topic_modeling.bertopic_wrapper import BERTopicWrapper
+from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.data_loading.base import (
+    DataLoader,
+)
+from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.data_loading.config import (
+    DataLoaderConfig,
+)
 
 
 class TopicModelingPipeline:
@@ -43,6 +48,7 @@ class TopicModelingPipeline:
         self.loaded_data = None
         self.topic_model = None
         self.fitted = False
+        self.bertopic_wrapper = BERTopicWrapper()
 
     def load_data(self, start_date: str, end_date: str) -> pd.DataFrame:
         """
@@ -136,7 +142,7 @@ class TopicModelingPipeline:
             start_date: Start date in YYYY-MM-DD format
             end_date: End date in YYYY-MM-DD format
             bertopic_wrapper: Optional BERTopic wrapper instance. If None,
-                            creates a default one.
+                            uses the one created during initialization.
 
         Returns:
             Dictionary containing fitting results and model information
@@ -157,22 +163,14 @@ class TopicModelingPipeline:
                     "No valid data remaining after preparation for BERTopic"
                 )
 
-            # Fit BERTopic model
+            # Use provided wrapper or the one from initialization
             if bertopic_wrapper is None:
-                # Import here to avoid circular imports
-                try:
-                    from ml_tooling.topic_modeling.bertopic_wrapper import (
-                        BERTopicWrapper,
-                    )
+                bertopic_wrapper = self.bertopic_wrapper
 
-                    bertopic_wrapper = BERTopicWrapper()
-                except ImportError:
-                    raise RuntimeError(
-                        "BERTopicWrapper not available. Please ensure MET-34 is completed "
-                        "or provide a bertopic_wrapper instance."
-                    )
+            # Fit the BERTopic model with the prepared data
+            bertopic_wrapper.fit(prepared_data, "text")
 
-            # Fit the model
+            # Store the fitted model
             self.topic_model = bertopic_wrapper
             self.fitted = True
 
@@ -185,6 +183,9 @@ class TopicModelingPipeline:
                 "end_date": end_date,
                 "model_fitted": True,
                 "bertopic_wrapper": bertopic_wrapper,
+                "topics": bertopic_wrapper.get_topics(),
+                "topic_info": bertopic_wrapper.get_topic_info(),
+                "quality_metrics": bertopic_wrapper.get_quality_metrics(),
             }
 
             return results
@@ -192,6 +193,24 @@ class TopicModelingPipeline:
         except Exception as e:
             self.fitted = False
             raise RuntimeError(f"Failed to fit BERTopic model: {str(e)}") from e
+
+    def get_topics(self) -> Dict[int, list]:
+        """Get the discovered topics from the fitted model."""
+        if not self.fitted or self.topic_model is None:
+            raise RuntimeError("Model not fitted. Call fit() first.")
+        return self.topic_model.get_topics()
+
+    def get_topic_info(self) -> pd.DataFrame:
+        """Get detailed topic information."""
+        if not self.fitted or self.topic_model is None:
+            raise RuntimeError("Model not fitted. Call fit() first.")
+        return self.topic_model.get_topic_info()
+
+    def get_quality_metrics(self) -> Dict[str, Any]:
+        """Get quality metrics from the fitted model."""
+        if not self.fitted or self.topic_model is None:
+            raise RuntimeError("Model not fitted. Call fit() first.")
+        return self.topic_model.get_quality_metrics()
 
     def get_pipeline_info(self) -> Dict[str, Any]:
         """
