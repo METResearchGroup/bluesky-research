@@ -47,6 +47,27 @@ projects/analytics_system_refactor/
 4. **Phase 4 (Week 4)**: Implement testing & validation
 5. **Phase 5 (Week 5)**: Documentation & cleanup
 
+## Analysis Folder Structure
+
+Each analysis folder follows a consistent structure to ensure clarity and reproducibility:
+
+```
+analyses/
+├── feed_content_analysis_2024_12_01/           # One analysis per folder
+│   ├── README.md                     # Description of analysis purpose and methodology
+│   ├── investigation.ipynb           # Jupyter notebook with preliminary investigation
+│   ├── main.py                       # Main implementation generating analytical assets
+│   └── assets/                       # Generated outputs (CSV files, images, etc.)
+├── user_engagement_analysis_2024_12_01/     # Another distinct analysis
+│   ├── README.md
+│   ├── investigation.ipynb
+│   ├── main.py
+│   └── assets/
+└── ...
+```
+
+**Folder Naming Convention**: `<description>_<YYYY_MM_DD>` where description is a brief, clear name for the specific analysis being performed. This format ensures valid Python import paths.
+
 ## Success Criteria
 - All existing analytics outputs can be reproduced exactly
 - New analyses can be created quickly using shared modules

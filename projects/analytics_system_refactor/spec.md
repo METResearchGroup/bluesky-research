@@ -107,7 +107,7 @@ services/calculate_analytics/
 │   ├── config/                       # Configuration management
 │   └── utils/                        # Utility functions
 ├── analyses/                         # One-off analyses
-│   ├── YYYY-MM-DD_description/      # Dated analysis folders (one analysis per folder)
+│   ├── description_YYYY_MM_DD/      # Dated analysis folders (one analysis per folder)
 │   └── ...
 ├── tests/                            # Comprehensive test suite
 ├── config/                           # Configuration files
@@ -145,12 +145,12 @@ Each analysis folder follows a consistent structure to ensure clarity and reprod
 
 ```
 analyses/
-├── YYYY-MM-DD_description/           # One analysis per folder
+├── description_YYYY_MM_DD/           # One analysis per folder
 │   ├── README.md                     # Description of analysis purpose and methodology
 │   ├── investigation.ipynb           # Jupyter notebook with preliminary investigation
 │   ├── main.py                       # Main implementation generating analytical assets
 │   └── assets/                       # Generated outputs (CSV files, images, etc.)
-├── YYYY-MM-DD_another_analysis/     # Another distinct analysis
+├── another_analysis_YYYY_MM_DD/     # Another distinct analysis
 │   ├── README.md
 │   ├── investigation.ipynb
 │   ├── main.py
@@ -158,7 +158,7 @@ analyses/
 └── ...
 ```
 
-**Folder Naming Convention**: `<YYYY-MM-DD>_<description>` where description is a brief, clear name for the specific analysis being performed.
+**Folder Naming Convention**: `<description>_<YYYY_MM_DD>` where description is a brief, clear name for the specific analysis being performed. This format ensures valid Python import paths.
 
 **Key Principles**:
 - **One Analysis Per Folder**: Each folder contains exactly one distinct analysis
