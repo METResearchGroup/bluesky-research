@@ -1,7 +1,13 @@
 """Configuration management for analytics system."""
 
 from .loader import ConfigLoader, config_loader
-from .validator import validate_config, AnalyticsConfig, StudyConfig, FeatureConfig
+from .validator import (
+    validate_config,
+    AnalyticsConfig,
+    StudyConfig,
+    FeatureConfig,
+    WeekConfig,
+)
 
 __all__ = [
     "ConfigLoader",
@@ -10,4 +16,5 @@ __all__ = [
     "AnalyticsConfig",
     "StudyConfig",
     "FeatureConfig",
+    "WeekConfig",
 ]

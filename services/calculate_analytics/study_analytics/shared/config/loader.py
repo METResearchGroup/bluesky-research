@@ -56,9 +56,11 @@ class ConfigLoader:
     def get_study_week_dates(self, study_id: str) -> Dict[str, list]:
         """Get week start and end dates for a specific study."""
         study_config = self.get_study_config(study_id)
+        weeks = study_config.get("weeks", [])
+
         return {
-            "week_start_dates": study_config["week_start_dates"],
-            "week_end_dates": study_config["week_end_dates"],
+            "week_start_dates": [week["start"] for week in weeks],
+            "week_end_dates": [week["end"] for week in weeks],
         }
 
     def get_feature_columns(self, feature_type: str) -> list:

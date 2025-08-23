@@ -8,13 +8,38 @@ from lib.log.logger import get_logger
 logger = get_logger(__name__)
 
 
+class WeekConfig(BaseModel):
+    """Validation model for individual week configuration."""
+
+    number: int
+    start: str
+    end: str
+
+    @validator("start", "end")
+    def validate_date_format(cls, v):
+        """Validate YYYY-MM-DD format."""
+        from datetime import datetime
+
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+            return v
+        except ValueError:
+            raise ValueError("Date must be in YYYY-MM-DD format")
+
+    @validator("number")
+    def validate_week_number(cls, v):
+        """Validate week number is between 1 and 8."""
+        if not 1 <= v <= 8:
+            raise ValueError("Week number must be between 1 and 8")
+        return v
+
+
 class StudyConfig(BaseModel):
     """Validation model for study configuration."""
 
     start_date: str
     end_date: str
-    week_start_dates: List[str]
-    week_end_dates: List[str]
+    weeks: List[WeekConfig]
 
     @validator("start_date", "end_date")
     def validate_date_format(cls, v):
@@ -27,16 +52,17 @@ class StudyConfig(BaseModel):
         except ValueError:
             raise ValueError("Date must be in YYYY-MM-DD format")
 
-    @validator("week_start_dates", "week_end_dates")
-    def validate_week_dates(cls, v):
-        """Validate week dates are in correct format."""
-        from datetime import datetime
+    @validator("weeks")
+    def validate_weeks_structure(cls, v):
+        """Validate weeks have correct structure and numbering."""
+        if len(v) != 8:
+            raise ValueError("Study must have exactly 8 weeks")
 
-        for date_str in v:
-            try:
-                datetime.strptime(date_str, "%Y-%m-%d")
-            except ValueError:
-                raise ValueError(f"Week date must be in YYYY-MM-DD format: {date_str}")
+        # Check week numbers are sequential starting from 1
+        week_numbers = [week.number for week in v]
+        if week_numbers != list(range(1, 9)):
+            raise ValueError("Week numbers must be sequential from 1 to 8")
+
         return v
 
 
