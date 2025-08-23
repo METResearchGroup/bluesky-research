@@ -13,7 +13,7 @@ Date: 2025-08-22
 import argparse
 import logging
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -31,6 +31,10 @@ from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.pip
     TopicModelingPipeline,
 )
 
+# Study date constraints
+STUDY_START_DATE = "2024-09-30"
+STUDY_END_DATE = "2024-12-01"
+
 
 def setup_logging(verbose: bool = False) -> None:
     """Setup logging configuration."""
@@ -43,6 +47,34 @@ def setup_logging(verbose: bool = False) -> None:
             logging.FileHandler("topic_modeling_pipeline.log"),
         ],
     )
+
+
+def validate_date_range(start_date: str, end_date: str) -> None:
+    """Validate that the requested date range falls within study constraints."""
+    try:
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        study_start = datetime.strptime(STUDY_START_DATE, "%Y-%m-%d")
+        study_end = datetime.strptime(STUDY_END_DATE, "%Y-%m-%d")
+
+        if start_dt < study_start:
+            raise ValueError(
+                f"Start date {start_date} is before study start date {STUDY_START_DATE}"
+            )
+        if end_dt > study_end:
+            raise ValueError(
+                f"End date {end_date} is after study end date {STUDY_END_DATE}"
+            )
+        if start_dt > end_dt:
+            raise ValueError(
+                f"Start date {start_date} must be before or equal to end date {end_date}"
+            )
+
+    except ValueError as e:
+        if "before study start date" in str(e) or "after study end date" in str(e):
+            raise ValueError(f"Error validating study date range: {e}")
+        else:
+            raise ValueError(f"Invalid date format: {e}")
 
 
 def get_data_loader(loader_type: str, config: DataLoaderConfig) -> DataLoader:
@@ -244,14 +276,14 @@ def main():
     parser.add_argument(
         "--start-date",
         type=str,
-        default=(datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d"),
-        help="Start date for data loading (YYYY-MM-DD)",
+        default=STUDY_START_DATE,
+        help=f"Start date for data loading (YYYY-MM-DD, default: {STUDY_START_DATE})",
     )
     parser.add_argument(
         "--end-date",
         type=str,
-        default=datetime.now().strftime("%Y-%m-%d"),
-        help="End date for data loading (YYYY-MM-DD)",
+        default=STUDY_END_DATE,
+        help=f"End date for data loading (YYYY-MM-DD, default: {STUDY_END_DATE})",
     )
     parser.add_argument(
         "--loader-type",
@@ -266,13 +298,11 @@ def main():
     args = parser.parse_args()
 
     try:
-        # Validate date range
-        start_dt = datetime.strptime(args.start_date, "%Y-%m-%d")
-        end_dt = datetime.strptime(args.end_date, "%Y-%m-%d")
+        # Validate date range against study constraints
+        validate_date_range(args.start_date, args.end_date)
 
-        if start_dt > end_dt:
-            print("❌ Error: Start date must be before or equal to end date")
-            sys.exit(1)
+        print(f"📅 Study date range: {STUDY_START_DATE} to {STUDY_END_DATE}")
+        print(f"📅 Requested date range: {args.start_date} to {args.end_date}")
 
         # Run the pipeline
         results = run_topic_modeling_pipeline(
@@ -294,6 +324,10 @@ def main():
 
     except KeyboardInterrupt:
         print("\n⚠️  Pipeline interrupted by user")
+        sys.exit(1)
+    except ValueError as e:
+        print(f"\n❌ Date validation error: {e}")
+        print(f"📅 Valid study date range: {STUDY_START_DATE} to {STUDY_END_DATE}")
         sys.exit(1)
     except Exception as e:
         print(f"\n❌ Pipeline failed: {e}")
