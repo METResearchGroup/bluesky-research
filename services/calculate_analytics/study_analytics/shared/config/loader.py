@@ -76,3 +76,28 @@ class ConfigLoader:
 
 # Global configuration loader instance
 config_loader = ConfigLoader()
+
+
+def get_config(config_path: str = None) -> Any:
+    """Get configuration value using dot notation.
+
+    Args:
+        config_path: Dot-separated path to configuration value (e.g., "data_loading.default_columns")
+
+    Returns:
+        Configuration value or None if not found
+    """
+    if config_path is None:
+        return config_loader.load_config("analytics")
+
+    # Split the path and navigate through the config
+    parts = config_path.split(".")
+    config = config_loader.load_config("analytics")
+
+    for part in parts:
+        if isinstance(config, dict) and part in config:
+            config = config[part]
+        else:
+            return None
+
+    return config

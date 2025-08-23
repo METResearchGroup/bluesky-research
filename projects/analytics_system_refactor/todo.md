@@ -7,12 +7,12 @@
 > **Implementation Plan**: [plan_phase1_implementation.md](plan_phase1_implementation.md)
 
 ### Data Loading Modules
-- [ ] Create `shared/data_loading/` directory
-- [ ] Extract post loading logic from `load_data.py`
-- [ ] Extract label loading logic from `load_labels.py`
-- [ ] Extract feed loading logic from `load_feeds.py`
-- [ ] Extract user loading logic from participant data modules
-- [ ] Test all data loading modules independently
+- [x] Create `shared/data_loading/` directory
+- [x] Extract post loading logic from `load_data.py`
+- [x] Extract label loading logic from `load_labels.py`
+- [x] Extract feed loading logic from `load_feeds.py`
+- [x] Extract user loading logic from participant data modules
+- [x] Test all data loading modules independently
 
 ### Processing Modules
 - [ ] Create `shared/processing/` directory
