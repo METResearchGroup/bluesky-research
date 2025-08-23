@@ -9,21 +9,24 @@ bertopic:
   nr_topics: "auto"
   calculate_probabilities: true
   verbose: true
-  # UMAP configuration for better performance
+  # UMAP configuration for better performance and clustering
   umap_model:
     n_neighbors: 15
-    n_components: 5
+    n_components: 10  # Increased from 5 to 10 for better clustering potential
     min_dist: 0.0
     metric: "cosine"
     n_jobs: 1  # Disable UMAP multiprocessing
     low_memory: true  # Reduce memory usage
-  # HDBSCAN configuration for better performance
+  # HDBSCAN configuration optimized for large datasets
   hdbscan_model:
-    min_cluster_size: 15
-    min_samples: 5
+    min_cluster_size: 10  # Reduced from 15 to 10 for more clusters
+    min_samples: 3  # Reduced from 5 to 3 for less restrictive clustering
     metric: "euclidean"
     cluster_selection_method: "eom"
     core_dist_n_jobs: 1  # Disable HDBSCAN multiprocessing
+    # Additional parameters for better clustering
+    cluster_selection_epsilon: 0.1  # Allow more flexible cluster selection
+    allow_single_cluster: True  # Allow single cluster if data suggests it
 
 quality_thresholds:
   c_v_min: 0.4

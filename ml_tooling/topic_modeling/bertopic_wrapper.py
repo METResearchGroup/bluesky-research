@@ -654,11 +654,112 @@ class BERTopicWrapper:
                     "📊 Progress logging enabled - monitoring clustering progress..."
                 )
 
+            # Debug: Log model configuration
+            logger.debug(f"BERTopic model type: {type(self.topic_model)}")
+            if hasattr(self.topic_model, "umap_model") and self.topic_model.umap_model:
+                logger.debug(f"UMAP model: {type(self.topic_model.umap_model)}")
+                logger.debug(
+                    f"UMAP n_components: {getattr(self.topic_model.umap_model, 'n_components', 'N/A')}"
+                )
+            if (
+                hasattr(self.topic_model, "hdbscan_model")
+                and self.topic_model.hdbscan_model
+            ):
+                logger.debug(f"HDBSCAN model: {type(self.topic_model.hdbscan_model)}")
+                logger.debug(
+                    f"HDBSCAN min_cluster_size: {getattr(self.topic_model.hdbscan_model, 'min_cluster_size', 'N/A')}"
+                )
+                logger.debug(
+                    f"HDBSCAN min_samples: {getattr(self.topic_model.hdbscan_model, 'min_samples', 'N/A')}"
+                )
+
+            # Debug: Log data shape
+            logger.debug(f"Texts shape: {len(texts)}")
+            logger.debug(f"Embeddings shape: {embeddings.shape}")
+
+            # Debug: Check for data quality issues
+            if len(texts) < 10:
+                logger.warning("⚠️  Very small dataset, clustering may be challenging")
+
+            # Debug: Check embedding quality
+            if embeddings is not None:
+                import numpy as np
+
+                embedding_norms = np.linalg.norm(embeddings, axis=1)
+                logger.debug(
+                    f"Embedding norms - min: {embedding_norms.min():.4f}, max: {embedding_norms.max():.4f}, mean: {embedding_norms.mean():.4f}"
+                )
+
+                # Check for NaN or infinite values
+                if np.any(np.isnan(embeddings)) or np.any(np.isinf(embeddings)):
+                    logger.error("❌ Embeddings contain NaN or infinite values!")
+                    raise ValueError("Embeddings contain NaN or infinite values")
+
+                # Check embedding variance
+                embedding_var = np.var(embeddings, axis=0)
+                logger.debug(
+                    f"Embedding variance - min: {embedding_var.min():.4f}, max: {embedding_var.max():.4f}, mean: {embedding_var.mean():.4f}"
+                )
+
             topics, probs = self.topic_model.fit_transform(texts, embeddings)
             stage_times["clustering"] = time.time() - stage_start
             logger.info(
                 f"✅ Clustering completed in {stage_times['clustering']:.2f} seconds"
             )
+
+            # Debug: Log clustering results
+            logger.debug(
+                f"Topics shape: {len(topics) if topics is not None else 'None'}"
+            )
+            logger.debug(
+                f"Probabilities shape: {probs.shape if probs is not None else 'None'}"
+            )
+            if topics is not None:
+                unique_topics = set(topics)
+                logger.debug(f"Unique topics: {len(unique_topics)}")
+                logger.debug(
+                    f"Topic IDs: {sorted(list(unique_topics))[:10]}..."
+                )  # Show first 10
+
+            # Validate clustering results
+            if topics is None or len(set(topics)) <= 1:
+                logger.warning(
+                    "⚠️  Clustering produced insufficient topics, retrying with more permissive parameters..."
+                )
+
+                # Retry with more permissive HDBSCAN parameters
+                try:
+                    import hdbscan
+
+                    fallback_hdbscan = hdbscan.HDBSCAN(
+                        min_cluster_size=5,  # Very permissive
+                        min_samples=2,  # Very permissive
+                        metric="euclidean",
+                        cluster_selection_method="eom",
+                        core_dist_n_jobs=1,
+                        cluster_selection_epsilon=0.2,  # More flexible
+                        allow_single_cluster=True,
+                    )
+
+                    # Create new BERTopic model with fallback parameters
+                    fallback_model = BERTopic(
+                        hdbscan_model=fallback_hdbscan, verbose=False
+                    )
+
+                    logger.info("🔄 Retrying clustering with fallback parameters...")
+                    topics, probs = fallback_model.fit_transform(texts, embeddings)
+
+                    if topics is not None and len(set(topics)) > 1:
+                        logger.info("✅ Fallback clustering successful!")
+                        self.topic_model = fallback_model  # Use the fallback model
+                    else:
+                        raise RuntimeError("Fallback clustering also failed")
+
+                except Exception as fallback_error:
+                    logger.error(f"❌ Fallback clustering failed: {fallback_error}")
+                    raise RuntimeError(
+                        f"Both primary and fallback clustering failed. Primary error: clustering produced insufficient topics, fallback error: {fallback_error}"
+                    )
 
             # Calculate quality metrics
             stage_start = time.time()

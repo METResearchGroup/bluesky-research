@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from lib.log.logger import logger
 from services.calculate_analytics.calculate_feed_topic_models_2025_08_18.src.data_loading.base import (
     DataLoader,
 )
@@ -212,6 +213,22 @@ def export_results(
         "export_files": [str(topics_file), str(topic_info_file), str(quality_file)],
     }
 
+    # Add performance metrics if available
+    try:
+        timing_breakdown = pipeline.get_timing_breakdown()
+        summary.update(
+            {
+                "total_training_time_seconds": timing_breakdown.get("total", 0),
+                "embedding_time_seconds": timing_breakdown.get("embeddings", 0),
+                "clustering_time_seconds": timing_breakdown.get("clustering", 0),
+                "quality_metrics_time_seconds": timing_breakdown.get(
+                    "quality_metrics", 0
+                ),
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Could not add performance metrics to summary: {e}")
+
     summary_df = pd.DataFrame([summary])
     summary_file = (
         results_dir / f"pipeline_summary_{start_date}_to_{end_date}_{timestamp}.csv"
@@ -314,6 +331,13 @@ def main():
 
         # Display results
         display_topics(results["pipeline"])
+
+        # Display performance summary if available
+        try:
+            performance_summary = results["pipeline"].get_performance_summary()
+            print("\n" + performance_summary)
+        except Exception as e:
+            logger.warning(f"Could not display performance summary: {e}")
 
         # Export results
         export_results(results["pipeline"], args.start_date, args.end_date)
