@@ -1,0 +1,17 @@
+# Content feature configuration
+feature_type: "content"
+columns:
+  - "prob_alienation"
+  - "prob_fearmongering"
+  - "prob_generalization"
+  - "prob_moral_outrage"
+  - "prob_scapegoating"
+  - "prob_sexually_explicit"
+  - "prob_flirtation"
+  - "prob_spam"
+  - "prob_emotion"
+  - "prob_intergroup"
+  - "prob_moral"
+  - "prob_other"
+threshold: 0.5
+description: "General content classification features"
