@@ -9,6 +9,21 @@ bertopic:
   nr_topics: "auto"
   calculate_probabilities: true
   verbose: true
+  # UMAP configuration for better performance
+  umap_model:
+    n_neighbors: 15
+    n_components: 5
+    min_dist: 0.0
+    metric: "cosine"
+    n_jobs: 1  # Disable UMAP multiprocessing
+    low_memory: true  # Reduce memory usage
+  # HDBSCAN configuration for better performance
+  hdbscan_model:
+    min_cluster_size: 15
+    min_samples: 5
+    metric: "euclidean"
+    cluster_selection_method: "eom"
+    core_dist_n_jobs: 1  # Disable HDBSCAN multiprocessing
 
 quality_thresholds:
   c_v_min: 0.4
@@ -18,5 +33,14 @@ gpu_optimization:
   enable: true
   max_batch_size: 128
   memory_threshold: 0.8
+
+# Performance and logging configuration
+performance:
+  # Enable progress logging during clustering
+  enable_progress_logging: true
+  # Log progress every N documents during clustering
+  progress_log_interval: 10000
+  # Enable timing breakdown for each pipeline stage
+  enable_timing_breakdown: true
 
 random_seed: 42
