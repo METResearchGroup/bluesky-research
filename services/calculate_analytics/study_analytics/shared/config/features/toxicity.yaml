@@ -1,0 +1,11 @@
+# Toxicity feature configuration
+feature_type: "toxicity"
+columns:
+  - "prob_toxic"
+  - "prob_severe_toxic"
+  - "prob_identity_attack"
+  - "prob_insult"
+  - "prob_profanity"
+  - "prob_threat"
+threshold: 0.5
+description: "Toxicity-related content classification features"

@@ -1,0 +1,108 @@
+# Main analytics configuration
+# Extracted from hardcoded values in existing scripts
+
+defaults:
+  lookback_days: 7
+  label_threshold: 0.5
+  exclude_partition_dates: ["2024-10-08"]
+
+studies:
+  wave1:
+    start_date: "2024-08-19"
+    end_date: "2024-10-06"
+    week_start_dates: 
+      - "2024-08-19"
+      - "2024-08-26"
+      - "2024-09-02"
+      - "2024-09-09"
+      - "2024-09-16"
+      - "2024-09-23"
+      - "2024-09-30"
+      - "2024-10-06"
+    week_end_dates:
+      - "2024-08-25"
+      - "2024-09-01"
+      - "2024-09-08"
+      - "2024-09-15"
+      - "2024-09-22"
+      - "2024-09-29"
+      - "2024-10-05"
+      - "2024-10-06"
+  
+  wave2:
+    start_date: "2024-10-07"
+    end_date: "2024-12-01"
+    week_start_dates:
+      - "2024-10-07"
+      - "2024-10-14"
+      - "2024-10-21"
+      - "2024-10-28"
+      - "2024-11-04"
+      - "2024-11-11"
+      - "2024-11-18"
+      - "2024-11-25"
+    week_end_dates:
+      - "2024-10-13"
+      - "2024-10-20"
+      - "2024-10-27"
+      - "2024-11-03"
+      - "2024-11-10"
+      - "2024-11-17"
+      - "2024-11-24"
+      - "2024-12-01"
+
+features:
+  toxicity:
+    columns: 
+      - "prob_toxic"
+      - "prob_severe_toxic"
+      - "prob_identity_attack"
+      - "prob_insult"
+      - "prob_profanity"
+      - "prob_threat"
+    threshold: 0.5
+  
+  ime:
+    columns:
+      - "prob_affinity"
+      - "prob_compassion"
+      - "prob_constructive"
+      - "prob_curiosity"
+      - "prob_nuance"
+      - "prob_personal_story"
+      - "prob_reasoning"
+      - "prob_respect"
+    threshold: 0.5
+  
+  political:
+    columns:
+      - "is_sociopolitical"
+      - "political_ideology_label"
+    threshold: 0.5
+  
+  content:
+    columns:
+      - "prob_alienation"
+      - "prob_fearmongering"
+      - "prob_generalization"
+      - "prob_moral_outrage"
+      - "prob_scapegoating"
+      - "prob_sexually_explicit"
+      - "prob_flirtation"
+      - "prob_spam"
+      - "prob_emotion"
+      - "prob_intergroup"
+      - "prob_moral"
+      - "prob_other"
+    threshold: 0.5
+
+data_loading:
+  default_columns:
+    - "uri"
+    - "text"
+    - "preprocessing_timestamp"
+    - "author_did"
+    - "author_handle"
+  invalid_author_sources:
+    - "services/preprocess_raw_data/classify_nsfw_content/dids_to_exclude.csv"
+    - "services/preprocess_raw_data/classify_nsfw_content/manual_excludelist.py"

@@ -1,0 +1,29 @@
+# Wave 1 study configuration
+study_id: "wave1"
+start_date: "2024-08-19"
+end_date: "2024-10-06"
+weeks:
+  - number: 1
+    start: "2024-08-19"
+    end: "2024-08-25"
+  - number: 2
+    start: "2024-08-26"
+    end: "2024-09-01"
+  - number: 3
+    start: "2024-09-02"
+    end: "2024-09-08"
+  - number: 4
+    start: "2024-09-09"
+    end: "2024-09-15"
+  - number: 5
+    start: "2024-09-16"
+    end: "2024-09-22"
+  - number: 6
+    start: "2024-09-23"
+    end: "2024-09-29"
+  - number: 7
+    start: "2024-09-30"
+    end: "2024-10-05"
+  - number: 8
+    start: "2024-10-06"
+    end: "2024-10-06"
