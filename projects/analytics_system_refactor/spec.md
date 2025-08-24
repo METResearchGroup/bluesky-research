@@ -48,7 +48,7 @@ The current `services/calculate_analytics/` system has evolved from one-off rese
 
 ### In Scope
 - Refactoring existing analytics scripts into shared modules
-- Creating pipeline framework for data processing
+- Creating simple, consistent patterns for data processing
 - Implementing configuration management system
 - Adding comprehensive testing infrastructure
 - Reorganizing one-off analyses into dated folders
@@ -96,14 +96,14 @@ The current `services/calculate_analytics/` system has evolved from one-off rese
 
 ### Architecture Overview
 
-The refactored system will use an **Abstract Base Class (ABC) design pattern** to provide consistent contracts while maintaining flexibility for different experimental analyses.
+The refactored system will use **simple, organized analysis classes** to provide consistency while maintaining flexibility for different experimental analyses. The focus is on **modular, reusable components** organized through **simple inheritance for shared utilities** rather than complex frameworks.
 
 ```
 services/calculate_analytics/
 ├── shared/                           # Reusable components
 │   ├── data_loading/                # Data loading modules
 │   ├── processing/                   # Data processing modules
-│   ├── pipelines/                    # Pipeline framework with ABCs
+│   ├── analyzers/                    # Simple analysis classes with shared utilities
 │   ├── config/                       # Configuration management
 │   └── utils/                        # Utility functions
 ├── analyses/                         # One-off analyses
@@ -114,30 +114,29 @@ services/calculate_analytics/
 └── README.md                         # Updated documentation
 ```
 
-### ABC-Based Design Pattern
+### Simple Class-Based Design Pattern
 
-The pipeline framework will use abstract base classes to ensure consistency across different analyses while allowing flexibility in implementation:
+The analysis framework will use simple classes with inheritance for shared utilities to ensure consistency across different analyses while allowing flexibility in implementation:
 
-- **BaseResearchPipeline**: Abstract base class defining the core pipeline contract
-- **BaseFeedAnalysisPipeline**: Abstract base class for feed analysis with common data loading patterns
-- **Specific Implementations**: Each experimental folder implements concrete pipeline classes
+- **BaseAnalyzer**: Simple base class with shared utility methods (configuration validation, logging, data validation)
+- **Specific Analysis Classes**: Each analysis implements concrete classes that inherit common utilities
 
 This approach provides:
-- **Consistent Interface**: All pipelines follow the same structure and error handling
+- **Consistent Utilities**: Common functionality shared through inheritance
 - **Flexible Implementation**: Each analysis can customize data loading, processing, and output generation
-- **Code Reuse**: Common functionality shared through base classes
-- **Maintainability**: Clear contracts for what must be implemented
+- **Code Reuse**: Common functionality shared through base class
+- **Maintainability**: Clear contracts for what utilities are available
 
 ### Interface Design Recommendations
 
-The ABC-based design will include these key interfaces:
+The class-based design will include these key patterns:
 
-- **Data Loading Interface**: Abstract methods for loading posts, users, and labels with clear input/output contracts
-- **Processing Interface**: Abstract methods for data transformation and feature calculation
-- **Output Generation Interface**: Abstract methods for saving results and generating reports
-- **Configuration Interface**: Standardized configuration validation and loading patterns
+- **Simple Method Signatures**: Direct analysis methods like `analyze_partition_date()` instead of complex pipeline interfaces
+- **Configuration Integration**: Standardized configuration loading and validation patterns
+- **Shared Utilities**: Common methods for data validation, logging, and statistical calculations
+- **Clear Responsibility**: Each class has a single, obvious purpose
 
-Each experimental analysis folder will implement these interfaces according to their specific research needs while maintaining consistency in the overall pipeline structure.
+Each experimental analysis will implement these patterns according to their specific research needs while maintaining consistency in the overall structure.
 
 ### Analysis Folder Structure
 
@@ -168,7 +167,7 @@ analyses/
 
 ### Implementation Phases
 1. **Phase 1 (Week 1)**: Extract shared data loading & processing
-2. **Phase 2 (Week 2)**: Refactor core analytics into pipelines
+2. **Phase 2 (Week 2)**: Implement simple analysis framework with shared utilities
 3. **Phase 3 (Week 3)**: Reorganize one-off analyses
 4. **Phase 4 (Week 4)**: Implement testing & validation
 5. **Phase 5 (Week 5)**: Documentation & cleanup
@@ -187,7 +186,7 @@ analyses/
 ### Effort Estimation
 - **Total Effort**: 5 weeks (1 developer)
 - **Phase 1**: 1 week (extracting shared modules)
-- **Phase 2**: 1 week (pipeline framework)
+- **Phase 2**: 1 week (analysis framework)
 - **Phase 3**: 1 week (analysis reorganization)
 - **Phase 4**: 1 week (testing implementation)
 - **Phase 5**: 1 week (documentation & cleanup)
@@ -201,9 +200,9 @@ analyses/
 - [ ] Configuration constants externalized
 
 ### Phase 2 Acceptance
-- [ ] ABC-based pipeline framework implemented
-- [ ] Core analytics converted to concrete pipeline implementations
-- [ ] Pipeline tests pass independently
+- [ ] Simple analysis framework implemented with shared utilities
+- [ ] Core analytics converted to concrete analysis class implementations
+- [ ] Analysis tests pass independently
 - [ ] Performance meets or exceeds targets
 
 ### Phase 3 Acceptance

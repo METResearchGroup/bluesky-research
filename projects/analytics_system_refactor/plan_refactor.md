@@ -1,197 +1,171 @@
-# Analytics System Refactor - Task Plan
+# Analytics System Refactor Plan
 
-## Project Overview
-Refactor the `services/calculate_analytics/` system from monolithic scripts to a modular, ABC-based pipeline framework.
+## Overview
 
-## Subtasks and Deliverables
+This document outlines the plan to refactor the `services/calculate_analytics/` system from monolithic scripts to simple, organized analysis classes using modular components with shared utilities.
+
+## Current State
+
+The analytics system has evolved from one-off research scripts into a critical production analytics platform, but suffers from:
+
+- **Monolithic Scripts**: Single files with 500+ lines mixing multiple concerns
+- **Code Duplication**: Similar logic repeated across multiple files  
+- **Hardcoded Values**: Study dates, feature lists, and file paths scattered throughout
+- **Tight Coupling**: Data loading, processing, and export logic tightly intertwined
+- **Limited Testing**: Minimal test coverage making changes risky
+- **Poor Documentation**: Unclear purpose statements and limited usage examples
+
+## Target Architecture
+
+### Simple Class-Based Design Pattern
+
+The refactored system will use **simple, organized analysis classes** to provide consistency while maintaining flexibility for different experimental analyses. The focus is on **modular, reusable components** organized through **simple inheritance for shared utilities** rather than complex frameworks.
+
+```
+services/calculate_analytics/
+├── shared/                           # Reusable components
+│   ├── data_loading/                # Data loading modules
+│   ├── processing/                   # Data processing modules
+│   ├── analyzers/                    # Simple analysis classes with shared utilities
+│   ├── config/                       # Configuration management
+│   └── utils/                        # Utility functions
+├── analyses/                         # One-off analyses
+│   ├── description_YYYY_MM_DD/      # Dated analysis folders (one analysis per folder)
+│   └── ...
+├── tests/                            # Comprehensive test suite
+├── config/                           # Configuration files
+└── README.md                         # Updated documentation
+```
+
+### Key Design Principles
+
+- **Simple Inheritance**: Base class provides shared utility methods (configuration validation, logging, data validation)
+- **Clear Responsibility**: Each analysis class has a single, obvious purpose
+- **Direct Methods**: Simple method signatures like `analyze_partition_date()` instead of complex pipeline interfaces
+- **Configuration-Driven**: All parameters externalized to YAML configuration files
+- **Research-Focused**: Designed for reproducibility and academic scrutiny, not enterprise orchestration
+
+## Implementation Phases
 
 ### Phase 1: Extract Shared Data Loading & Processing (Week 1)
-**Effort**: 1 week (1 developer)
+- [x] Create shared configuration structure
+- [x] Implement configuration loading utilities  
+- [x] Extract all hardcoded constants
+- [x] Create shared data loading modules
+- [x] Implement unified data loading interfaces
+- [x] Extract feature calculation logic
+- [x] Extract threshold calculation logic
+- [x] Create reusable processing functions
 
-#### Subtasks:
-1. **Create shared data loading modules**
-   - Extract post loading logic from `load_data.py`
-   - Extract label loading logic from `load_labels.py`
-   - Extract feed loading logic from `load_feeds.py`
-   - Extract user loading logic from participant data modules
-
-2. **Create shared processing modules**
-   - Extract feature calculation logic from `feed_analytics.py`
-   - Extract threshold calculation logic from `weekly_thresholds.py`
-   - Extract engagement analysis logic from engagement scripts
-
-3. **Create shared configuration management**
-   - Extract constants to YAML configuration files
-   - Create configuration loading and validation utilities
-   - Implement environment-specific configuration support
-
-#### Deliverables:
-- `shared/data_loading/` directory with focused modules
-- `shared/processing/` directory with reusable processing functions
-- `shared/config/` directory with configuration management
-- All existing scripts updated to import from shared modules
-
-#### Success Criteria:
-- [ ] All existing scripts still work after refactoring
-- [ ] No code duplication between shared modules
-- [ ] Configuration externalized from hardcoded values
-
-### Phase 2: Implement ABC-Based Pipeline Framework (Week 2)
-**Effort**: 1 week (1 developer)
-
-#### Subtasks:
-1. **Create base pipeline ABCs**
-   - Implement `BaseResearchPipeline` abstract base class
-   - Implement `BaseFeedAnalysisPipeline` abstract base class
-   - Define clear interfaces for data loading, processing, and output generation
-
-2. **Refactor core analytics into pipelines**
-   - Convert feed analytics to concrete pipeline implementation
-   - Convert weekly thresholds to concrete pipeline implementation
-   - Convert engagement analysis to concrete pipeline implementation
-
-3. **Implement pipeline orchestration**
-   - Add basic pipeline state management
-   - Implement error handling and recovery
-   - Add logging and progress tracking
-
-#### Deliverables:
-- ABC-based pipeline framework in `shared/pipelines/`
-- Concrete pipeline implementations for existing analytics
-- Pipeline orchestration and execution utilities
-
-#### Success Criteria:
-- [ ] All existing analytics can be run through pipeline framework
-- [ ] Pipeline tests pass independently
-- [ ] Performance meets or exceeds current benchmarks
+### Phase 2: Implement Simple Analysis Framework (Week 2)
+- [ ] **REVISED**: Implement simple analysis framework with shared utilities
+- [ ] **REVISED**: Convert core analytics to concrete analysis class implementations
+- [ ] **REVISED**: Focus on code organization and reusability, not pipeline orchestration
+- [ ] **REVISED**: Remove complex ABC pipeline framework
+- [ ] **REVISED**: Implement simple inheritance for shared utilities
 
 ### Phase 3: Reorganize One-Off Analyses (Week 3)
-**Effort**: 1 week (1 developer)
-
-#### Subtasks:
-1. **Create analysis folder structure**
-   - Create `analyses/` directory with proper structure
-   - Move existing analysis scripts to appropriate dated folders
-   - Implement one analysis per folder structure
-
-2. **Update analysis scripts**
-   - Modify analysis scripts to use shared modules
-   - Update imports and dependencies
-   - Ensure all analyses can be re-run successfully
-
-3. **Standardize analysis folder contents**
-   - Add `README.md` to each analysis folder
-   - Create `investigation.ipynb` for exploratory work
-   - Organize `assets/` folder for outputs
-
-#### Deliverables:
-- Organized analysis folders with consistent structure
-- Updated analysis scripts using shared modules
-- Standardized documentation and organization
-
-#### Success Criteria:
-- [ ] All analyses moved to focused, dated folders
-- [ ] Each analysis folder contains required components
-- [ ] All analyses can be re-run with identical outputs
+- [ ] Move all analyses to focused, dated folders (one analysis per folder)
+- [ ] Update analysis scripts to use shared modules
+- [ ] Ensure all analyses can be re-run successfully
+- [ ] Verify output files match previous versions exactly
+- [ ] Each analysis folder contains README.md, investigation.ipynb, main.py, and assets/
 
 ### Phase 4: Implement Testing & Validation (Week 4)
-**Effort**: 1 week (1 developer)
-
-#### Subtasks:
-1. **Create comprehensive test suite**
-   - Unit tests for all shared modules
-   - Integration tests for pipeline framework
-   - Regression tests for output consistency
-
-2. **Implement data validation**
-   - Input validation for all data loading functions
-   - Output validation for all processing functions
-   - Data quality checks and monitoring
-
-3. **Performance testing and optimization**
-   - Benchmark current performance
-   - Implement caching and optimization
-   - Validate performance improvements
-
-#### Deliverables:
-- Comprehensive test suite with >80% coverage
-- Data validation and quality monitoring
-- Performance benchmarks and optimization
-
-#### Success Criteria:
-- [ ] >80% test coverage achieved
-- [ ] All tests pass consistently
-- [ ] Performance targets met or exceeded
+- [ ] Achieve >80% test coverage
+- [ ] Integration tests pass end-to-end
+- [ ] Performance benchmarks met
+- [ ] Error handling tested and validated
 
 ### Phase 5: Documentation & Cleanup (Week 5)
-**Effort**: 1 week (1 developer)
+- [ ] Remove old monolithic scripts
+- [ ] Update documentation and make comprehensive
+- [ ] Create migration guide
+- [ ] Complete final validation
 
-#### Subtasks:
-1. **Update documentation**
-   - Comprehensive README for shared modules
-   - Usage examples and tutorials
-   - Migration guide for existing users
+## Key Changes from Original Plan
 
-2. **Clean up old files**
-   - Remove deprecated monolithic scripts
-   - Clean up unused imports and dependencies
-   - Archive old analysis outputs
+### **Architecture Simplification**
+- **Original**: ABC-based pipeline framework with complex orchestration
+- **Revised**: Simple analysis classes with shared utility inheritance
+- **Rationale**: Research code doesn't need enterprise pipeline orchestration; focus on code organization and reusability
 
-3. **Final validation**
-   - End-to-end testing of complete system
-   - Validation of all outputs and functionality
-   - Performance and reliability verification
+### **Design Philosophy**
+- **Original**: Enterprise software engineering patterns (pipelines, state management, lifecycle hooks)
+- **Revised**: Research-focused patterns (simple classes, shared utilities, configuration management)
+- **Rationale**: Academic research needs transparency and reproducibility, not workflow orchestration
 
-#### Deliverables:
-- Complete documentation for refactored system
-- Clean, maintainable codebase
-- Final validation and testing results
+### **Implementation Approach**
+- **Original**: Complex setup/execute/teardown lifecycle with state tracking
+- **Revised**: Direct method execution with shared utility methods
+- **Rationale**: Research is iterative and stateless; simple execution is better than complex lifecycle management
 
-#### Success Criteria:
-- [ ] All documentation updated and comprehensive
-- [ ] Old monolithic scripts removed
-- [ ] Final validation completed successfully
+## Linear Project and MET-40 Updates
 
-## Dependencies and Parallel Execution
+### **MET-40 Title and Description Update Required**
 
-### Phase Dependencies:
-- Phase 2 depends on Phase 1 completion
-- Phase 3 depends on Phase 2 completion
-- Phase 4 depends on Phase 3 completion
-- Phase 5 depends on Phase 4 completion
+**Current MET-40 Title:**
+"Phase 2: Implement Simple Pipeline Framework for Consistent Analysis Patterns"
 
-### Parallel Execution Opportunities:
-- Documentation writing can begin during implementation
-- Testing can be developed alongside implementation
-- Configuration management can be developed independently
+**Proposed MET-40 Title:**
+"Phase 2: Implement Simple Analysis Framework with Shared Utilities"
+
+**Current MET-40 Description:**
+Focuses on ABC-based pipeline framework with complex orchestration
+
+**Proposed MET-40 Description:**
+Focus on simple analysis classes with shared utility inheritance for code organization and reusability
+
+### **Key Changes to Communicate in Linear**
+
+1. **Architecture Simplification**: Removed ABC pipeline complexity in favor of simple classes
+2. **Focus Shift**: From enterprise orchestration to research-focused code organization
+3. **Implementation Approach**: Direct method execution instead of setup/execute lifecycle
+4. **Benefits**: Better transparency, easier debugging, simpler testing for academic research
+
+### **Rationale for Architecture Change**
+
+**Academic Research Requirements:**
+- **Transparency**: Code must be easy to understand for peer reviewers
+- **Reproducibility**: Results must be identical every time
+- **Simplicity**: Research is iterative and stateless
+- **Academic Scrutiny**: Nature-level papers require clear, maintainable code
+
+**Research Workflow Alignment:**
+- **One-off execution**: Run analyses, not orchestrate workflows
+- **Iterative development**: Modify and rerun, not maintain long-running processes
+- **Stateless operation**: No need for pipeline state management
+- **Direct execution**: Simple method calls are better than complex interfaces
+
+**Code Organization Benefits:**
+- **Shared utilities**: Common functionality through simple inheritance
+- **Clear responsibility**: Each class has single, obvious purpose
+- **Easy testing**: Simple unit tests without complex mocking
+- **Maintainability**: Less code to maintain and debug
+
+## Success Criteria
+
+- [ ] All existing analytics outputs can be reproduced exactly
+- [ ] New analyses can be created quickly using shared modules
+- [ ] Codebase is maintainable with clear separation of concerns
+- [ ] Performance improved through better caching and optimization
+- [ ] System is extensible for future research needs
+- [ ] **NEW**: Code is transparent and easy to understand for peer reviewers
+- [ ] **NEW**: Architecture supports academic rigor and reproducibility
 
 ## Risk Mitigation
 
-### High-Risk Areas:
-1. **Output Compatibility**: Maintain exact CSV outputs during refactoring
-2. **Performance Regression**: Ensure refactoring doesn't degrade performance
-3. **Integration Complexity**: Manage dependencies between shared modules
+- **Incremental Approach**: Small, testable changes with validation at each step
+- **Comprehensive Testing**: Regression tests ensure output consistency
+- **Backward Compatibility**: Maintain existing interfaces during transition
+- **Rollback Plan**: Ability to revert to previous version if issues arise
+- **Simplified Architecture**: Reduced complexity means fewer things can go wrong
 
-### Mitigation Strategies:
-1. **Incremental Approach**: Small, testable changes with validation at each step
-2. **Comprehensive Testing**: Regression tests ensure output consistency
-3. **Performance Monitoring**: Continuous benchmarking during refactoring
-4. **Rollback Plan**: Ability to revert to previous version if issues arise
+## Notes
 
-## Success Metrics
-
-### Code Quality:
-- Test coverage >80% across all shared functionality
-- Code duplication reduced by >50%
-- No single file >500 lines
-- All public functions documented
-
-### Performance:
-- Processing time reduced by >40% through caching and optimization
-- Memory usage reduced by >30%
-- <1% error rate in data processing
-
-### Maintainability:
-- Clear separation of concerns between shared and analysis code
-- Consistent pipeline structure across all analyses
-- Comprehensive documentation and examples
+- This refactoring maintains backward compatibility throughout the process
+- All changes are incremental and testable
+- Focus is on research-grade reliability and reproducibility, not production complexity
+- Simple, organized patterns provide consistency while maintaining flexibility
+- The revised approach better aligns with academic research requirements and peer review scrutiny
+- **ACTION REQUIRED**: Update Linear project and MET-40 to reflect simplified architecture

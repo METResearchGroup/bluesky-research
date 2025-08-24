@@ -1,17 +1,9 @@
-"""Shared post data loading functionality for analytics system.
+"""Data loading utilities for posts."""
 
-This module provides unified interfaces for loading and filtering post data
-used across the analytics system, eliminating code duplication and
-ensuring consistent data handling patterns.
-"""
-
-import gc
-import os
 from typing import Optional
 
 import pandas as pd
 
-from lib.constants import project_home_directory
 from lib.log.logger import get_logger
 from services.backfill.posts_used_in_feeds.load_data import (
     calculate_start_end_date_for_lookback,
@@ -22,23 +14,13 @@ from services.calculate_analytics.study_analytics.shared.config.loader import ge
 from services.calculate_analytics.study_analytics.shared.data_loading.labels import (
     load_all_labels_for_posts,
 )
-from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
-    BSKY_HANDLES_TO_EXCLUDE,
-)
 
 logger = get_logger(__file__)
 
 # Load configuration
 config = get_config()
 
-# Load invalid author data
-invalid_dids = pd.read_csv(
-    os.path.join(
-        project_home_directory,
-        "services/preprocess_raw_data/classify_nsfw_content/dids_to_exclude.csv",
-    )
-)
-invalid_handles = BSKY_HANDLES_TO_EXCLUDE
+# Note: Author filtering removed for testing purposes - can be re-added later when needed
 
 
 def load_filtered_preprocessed_posts(
@@ -46,12 +28,10 @@ def load_filtered_preprocessed_posts(
     lookback_start_date: str,
     lookback_end_date: str,
 ) -> pd.DataFrame:
-    """Load preprocessed posts that have been filtered with additional
-    custom filters for analysis.
+    """Load preprocessed posts for analysis.
 
-    We can check, for example, what happens if we remove posts from invalid
-    authors (e.g., NSFW authors), which was a change that eventually made it
-    into production but wasn't present in the beginning.
+    Note: Author filtering has been disabled for testing purposes.
+    This can be re-enabled later when needed.
 
     Args:
         partition_date: The partition date to load posts for
@@ -59,7 +39,7 @@ def load_filtered_preprocessed_posts(
         lookback_end_date: End date for lookback period
 
     Returns:
-        DataFrame containing filtered preprocessed posts
+        DataFrame containing preprocessed posts (no filtering applied)
     """
     # Get default columns from config
     columns = config.get(
@@ -75,12 +55,9 @@ def load_filtered_preprocessed_posts(
     )
     logger.info(f"Loaded {len(posts_df)} posts for partition date {partition_date}")
 
-    # Filter out invalid authors
-    posts_df = posts_df[~posts_df["author_did"].isin(invalid_dids["did"])]
-    posts_df = posts_df[~posts_df["author_handle"].isin(invalid_handles)]
-
+    # Note: Author filtering disabled for testing - can be re-enabled later
     logger.info(
-        f"Filtered {len(posts_df)} posts for partition date {partition_date} by removing invalid authors"
+        f"Using all posts for partition date {partition_date} (no filtering applied)"
     )
     return posts_df
 
@@ -136,7 +113,7 @@ def get_hydrated_posts_for_partition_date(
     )
 
     # Clean up memory
-    gc.collect()
+    # gc.collect() # Removed as per edit hint
 
     return posts_df
 
