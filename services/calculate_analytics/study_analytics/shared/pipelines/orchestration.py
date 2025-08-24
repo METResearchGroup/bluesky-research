@@ -11,8 +11,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from lib.log.logger import get_logger
-
-from .base import (
+from services.calculate_analytics.study_analytics.shared.pipelines.base import (
     BaseResearchPipeline,
     PipelineResult,
 )

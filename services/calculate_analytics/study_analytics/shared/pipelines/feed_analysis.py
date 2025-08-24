@@ -18,8 +18,7 @@ from services.calculate_analytics.study_analytics.shared.processing.features imp
     calculate_political_averages,
     calculate_valence_averages,
 )
-
-from .base import (
+from services.calculate_analytics.study_analytics.shared.pipelines.base import (
     BaseFeedAnalysisPipeline,
     PipelineError,
     PipelineResult,

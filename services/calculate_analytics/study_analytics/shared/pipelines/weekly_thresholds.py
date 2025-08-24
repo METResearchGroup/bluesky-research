@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from lib.log.logger import get_logger
 from services.calculate_analytics.study_analytics.shared.config import get_config
 from services.calculate_analytics.study_analytics.shared.data_loading.users import (
     load_user_demographic_info,
@@ -16,12 +17,13 @@ from services.calculate_analytics.study_analytics.shared.processing.thresholds i
     get_week_thresholds_per_user_static,
     get_week_thresholds_per_user_dynamic,
 )
-
-from .base import (
+from services.calculate_analytics.study_analytics.shared.pipelines.base import (
     BaseResearchPipeline,
     PipelineError,
     PipelineResult,
 )
+
+logger = get_logger(__name__)
 
 
 class WeeklyThresholdsPipeline(BaseResearchPipeline):
@@ -287,8 +289,8 @@ class WeeklyThresholdsPipeline(BaseResearchPipeline):
         wave_2_start = self.study_config.get(
             "wave_2_study_start_date_inclusive", "2024-10-07"
         )
-        print(f"Wave 1 start: {wave_1_start}")
-        print(f"Wave 2 start: {wave_2_start}")
+        logger.info(f"Wave 1 start: {wave_1_start}")
+        logger.info(f"Wave 2 start: {wave_2_start}")
 
         # Simple wave assignment (this would be more sophisticated in practice)
         # For now, assign based on condition or other logic

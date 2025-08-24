@@ -17,8 +17,7 @@ from services.calculate_analytics.study_analytics.shared.processing.engagement i
     aggregate_metrics_per_user_per_day,
     get_engagement_summary_per_user,
 )
-
-from .base import (
+from services.calculate_analytics.study_analytics.shared.pipelines.base import (
     BaseResearchPipeline,
     PipelineError,
     PipelineResult,

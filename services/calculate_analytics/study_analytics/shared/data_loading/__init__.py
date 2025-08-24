@@ -22,9 +22,8 @@ from .feeds import (
     map_users_to_posts_used_in_feeds,
 )
 from .users import (
-    load_study_users,
     load_user_demographic_info,
-    get_study_user_manager,
+    get_user_condition_mapping,
 )
 
 __all__ = [
@@ -42,7 +41,6 @@ __all__ = [
     "get_feeds_for_partition_date",
     "map_users_to_posts_used_in_feeds",
     # Users
-    "load_study_users",
     "load_user_demographic_info",
-    "get_study_user_manager",
+    "get_user_condition_mapping",
 ]
