@@ -43,6 +43,10 @@ The current `services/calculate_analytics/` system has evolved from one-off rese
 2. **Integration Testing**: Full analytics pipeline runs end-to-end without errors
 3. **Performance Testing**: Processing time and memory usage meet targets
 4. **Code Quality**: Linting passes, no critical code smells detected
+5. **Output Consistency**: 100% output consistency verified between old and new scripts
+6. **Production Testing**: New scripts tested in Slurm environment (production-like conditions)
+7. **Validation Framework**: Comprehensive validation checklist completed for all analyses
+8. **Migration Testing**: Migration testing folder structure created with validation tracking
 
 ## 3. Scope Boundaries and Technical Requirements
 
