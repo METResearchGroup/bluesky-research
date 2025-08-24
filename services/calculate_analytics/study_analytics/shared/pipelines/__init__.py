@@ -1,34 +1,28 @@
-"""Simple pipeline framework for consistent analytics patterns.
+"""Analytics analysis framework.
 
-This module provides abstract base classes and concrete implementations
-for standardizing analytics workflows. The focus is on simple, direct
-execution rather than complex orchestration.
+This package provides simple, organized analysis classes for analytics operations.
+The focus is on direct method execution and shared utilities rather than complex
+pipeline orchestration.
 """
 
-from .base import (
-    BaseResearchPipeline,
-    BaseFeedAnalysisPipeline,
-    PipelineState,
-    PipelineResult,
-    PipelineError,
+from services.calculate_analytics.study_analytics.shared.pipelines.base import (
+    BaseAnalyzer,
+)
+from services.calculate_analytics.study_analytics.shared.pipelines.feed_analysis import (
+    FeedAnalyzer,
+)
+from services.calculate_analytics.study_analytics.shared.pipelines.engagement_analysis import (
+    EngagementAnalyzer,
+)
+from services.calculate_analytics.study_analytics.shared.pipelines.weekly_thresholds import (
+    WeeklyThresholdsAnalyzer,
 )
 
-from .feed_analysis import FeedAnalysisPipeline
-from .weekly_thresholds import WeeklyThresholdsPipeline
-from .engagement_analysis import EngagementAnalysisPipeline
-
 __all__ = [
-    # Base classes
-    "BaseResearchPipeline",
-    "BaseFeedAnalysisPipeline",
-    # Pipeline states and results
-    "PipelineState",
-    "PipelineResult",
-    "PipelineError",
-    # Concrete implementations
-    "FeedAnalysisPipeline",
-    "WeeklyThresholdsPipeline",
-    "EngagementAnalysisPipeline",
+    "BaseAnalyzer",
+    "FeedAnalyzer",
+    "EngagementAnalyzer",
+    "WeeklyThresholdsAnalyzer",
 ]
 
 __version__ = "1.0.0"

@@ -63,6 +63,41 @@
 - [ ] **REVISED**: Ensure performance meets or exceeds current benchmarks
 - [ ] **REVISED**: Validate that simplified architecture maintains functionality
 
+### **IMPLEMENTATION DETAILS FOR SIMPLIFIED ARCHITECTURE**
+
+#### Step 1: Create Simplified Base Class
+- [ ] **NEW**: Replace BaseResearchPipeline ABC with simple BaseAnalyzer class
+- [ ] **NEW**: Remove PipelineState, PipelineResult, PipelineError classes
+- [ ] **NEW**: Remove setup(), execute(), cleanup(), validate() abstract methods
+- [ ] **NEW**: Remove complex run() orchestration method
+- [ ] **NEW**: Remove state tracking and metadata management
+- [ ] **NEW**: Implement simple utility methods (validate_config, log_execution, validate_data)
+
+#### Step 2: Simplify Analysis Classes
+- [ ] **NEW**: Convert FeedAnalysisPipeline to FeedAnalyzer
+- [ ] **NEW**: Convert EngagementAnalysisPipeline to EngagementAnalyzer
+- [ ] **NEW**: Convert WeeklyThresholdsPipeline to WeeklyThresholdsAnalyzer
+- [ ] **NEW**: Replace pipeline lifecycle with direct method execution
+- [ ] **NEW**: Implement simple methods like analyze_partition_date() instead of complex orchestration
+
+#### Step 3: Update File Structure
+- [ ] **NEW**: Rename pipelines/ directory to analyzers/
+- [ ] **NEW**: Update all import statements throughout codebase
+- [ ] **NEW**: Remove old pipeline framework files
+- [ ] **NEW**: Update __init__.py files with new class names
+
+#### Step 4: Update Usage Patterns
+- [ ] **NEW**: Replace complex pipeline.run() calls with direct method calls
+- [ ] **NEW**: Update example_usage.py to demonstrate simplified approach
+- [ ] **NEW**: Update all existing scripts to use new analyzer classes
+- [ ] **NEW**: Ensure backward compatibility during transition
+
+#### Step 5: Testing & Validation
+- [ ] **NEW**: Test simplified analyzer classes independently
+- [ ] **NEW**: Verify all functionality preserved from pipeline framework
+- [ ] **NEW**: Ensure performance meets or exceeds current benchmarks
+- [ ] **NEW**: Validate that simplified architecture maintains functionality
+
 ## Phase 3: Reorganize One-Off Analyses
 
 ### Analysis Folder Structure

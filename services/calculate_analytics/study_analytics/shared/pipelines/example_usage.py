@@ -1,290 +1,187 @@
-"""Example usage of the simple pipeline framework.
+"""Example usage of the simplified analysis framework.
 
-This module demonstrates how to use the pipeline framework for one-off research analyses.
-The focus is on simple, direct execution rather than complex orchestration.
+This module demonstrates how to use the simplified analysis classes for
+one-off research analyses. The focus is on simple, direct method execution
+rather than complex pipeline orchestration.
 """
 
 from services.calculate_analytics.study_analytics.shared.pipelines import (
-    FeedAnalysisPipeline,
-    WeeklyThresholdsPipeline,
-    EngagementAnalysisPipeline,
+    FeedAnalyzer,
+    WeeklyThresholdsAnalyzer,
+    EngagementAnalyzer,
 )
 
 
 def example_feed_analysis():
-    """Example of running feed analysis pipeline."""
-    print("=== Feed Analysis Pipeline Example ===")
+    """Example of running feed analysis."""
+    print("=== Feed Analysis Example ===")
 
     try:
-        # Create pipeline instance
-        pipeline = FeedAnalysisPipeline("feed_analysis_example")
+        # Create analyzer instance
+        analyzer = FeedAnalyzer("feed_analysis_example")
 
-        # Configure pipeline parameters
-        pipeline.set_partition_date("2024-10-15")
-
-        # Execute pipeline
-        print("Executing feed analysis pipeline...")
-        result = pipeline.run()
+        # Analyze a specific partition date
+        print("Analyzing feed data for partition date 2024-10-15...")
+        results = analyzer.analyze_partition_date("2024-10-15")
 
         # Check results
-        if result.success:
+        if not results.empty:
             print("✅ Feed analysis completed successfully!")
-            print(f"   Processed data: {type(result.data)}")
-            print(f"   Execution time: {result.execution_time:.2f}s")
-            print(f"   Metadata: {result.metadata}")
+            print(f"   Processed users: {len(results)}")
+            print(f"   Columns analyzed: {list(results.columns)}")
 
             # Export results if needed
-            if result.data is not None:
-                output_file = "feed_analysis_results.csv"
-                result.data.to_csv(output_file, index=False)
-                print(f"   Results exported to: {output_file}")
+            output_file = "feed_analysis_results.csv"
+            results.to_csv(output_file, index=False)
+            print(f"   Results exported to: {output_file}")
         else:
-            print(f"❌ Feed analysis failed: {result.error}")
+            print("⚠️  Feed analysis completed but returned no results")
 
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"❌ Feed analysis failed: {e}")
 
 
 def example_weekly_thresholds():
-    """Example of running weekly thresholds pipeline."""
-    print("\n=== Weekly Thresholds Pipeline Example ===")
+    """Example of running weekly thresholds analysis."""
+    print("\n=== Weekly Thresholds Analysis Example ===")
 
     try:
-        # Create pipeline instance
-        pipeline = WeeklyThresholdsPipeline("weekly_thresholds_example")
+        # Create analyzer instance
+        analyzer = WeeklyThresholdsAnalyzer("weekly_thresholds_example")
 
-        # Configure pipeline parameters
-        pipeline.set_time_period("2024-10-01", "2024-10-31")
-
-        # Execute pipeline
-        print("Executing weekly thresholds pipeline...")
-        result = pipeline.run()
+        # Calculate thresholds for a specific time period
+        print("Calculating weekly thresholds for period 2024-10-01 to 2024-10-31...")
+        results = analyzer.calculate_thresholds("2024-10-01", "2024-10-31")
 
         # Check results
-        if result.success:
-            print("✅ Weekly thresholds completed successfully!")
-            print(f"   Generated thresholds: {type(result.data)}")
-            print(f"   Execution time: {result.execution_time:.2f}s")
-            print(f"   Metadata: {result.metadata}")
+        if results:
+            print("✅ Weekly thresholds analysis completed successfully!")
+            print(f"   Analysis period: {results.get('analysis_period', {})}")
+            print(f"   Configuration: {results.get('configuration', {})}")
+            print(f"   Summary: {results.get('summary', {})}")
 
-            # Export results if needed
-            if result.data is not None:
-                output_file = "weekly_thresholds_results.csv"
-                result.data.to_csv(output_file, index=False)
-                print(f"   Results exported to: {output_file}")
+            # Get specific threshold types
+            static_thresholds = results.get("static_thresholds")
+            if static_thresholds is not None and not static_thresholds.empty:
+                print(f"   Static thresholds: {len(static_thresholds)} records")
+
+            dynamic_thresholds = results.get("dynamic_thresholds")
+            if dynamic_thresholds is not None and not dynamic_thresholds.empty:
+                print(f"   Dynamic thresholds: {len(dynamic_thresholds)} records")
         else:
-            print(f"❌ Weekly thresholds failed: {result.error}")
+            print("⚠️  Weekly thresholds analysis completed but returned no results")
 
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"❌ Weekly thresholds analysis failed: {e}")
 
 
 def example_engagement_analysis():
-    """Example of running engagement analysis pipeline."""
-    print("\n=== Engagement Analysis Pipeline Example ===")
+    """Example of running engagement analysis."""
+    print("\n=== Engagement Analysis Example ===")
 
     try:
-        # Create pipeline instance
-        pipeline = EngagementAnalysisPipeline("engagement_analysis_example")
+        # Create analyzer instance
+        analyzer = EngagementAnalyzer("engagement_analysis_example")
 
-        # Configure pipeline parameters
-        pipeline.set_analysis_period("2024-10-01", "2024-10-31")
-
-        # Execute pipeline
-        print("Executing engagement analysis pipeline...")
-        result = pipeline.run()
+        # Analyze engagement for a specific time period
+        print("Analyzing engagement for period 2024-10-01 to 2024-10-31...")
+        results = analyzer.analyze_period("2024-10-01", "2024-10-31")
 
         # Check results
-        if result.success:
+        if results:
             print("✅ Engagement analysis completed successfully!")
-            print(f"   Analyzed data: {type(result.data)}")
-            print(f"   Execution time: {result.execution_time:.2f}s")
-            print(f"   Metadata: {result.metadata}")
+            print(f"   Analysis period: {results.get('analysis_period', {})}")
+            print(f"   Users analyzed: {results.get('users_analyzed', 0)}")
 
-            # Export results if needed
-            if result.data is not None:
-                output_file = "engagement_analysis_results.csv"
-                result.data.to_csv(output_file, index=False)
-                print(f"   Results exported to: {output_file}")
+            # Get specific metrics
+            daily_metrics = results.get("daily_metrics")
+            if daily_metrics:
+                print(f"   Daily metrics calculated for {len(daily_metrics)} users")
+
+            engagement_summary = results.get("engagement_summary")
+            if engagement_summary is not None and not engagement_summary.empty:
+                print(f"   Engagement summary: {len(engagement_summary)} records")
         else:
-            print(f"❌ Engagement analysis failed: {result.error}")
+            print("⚠️  Engagement analysis completed but returned no results")
 
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"❌ Engagement analysis failed: {e}")
 
 
-def example_custom_configuration():
-    """Example of using custom configuration with pipelines."""
-    print("\n=== Custom Configuration Example ===")
+def example_analysis_summaries():
+    """Example of getting analysis summaries."""
+    print("\n=== Analysis Summaries Example ===")
 
     try:
-        # Custom configuration for feed analysis
-        custom_config = {
-            "exclude_partition_dates": ["2024-10-08", "2024-10-09"],
-            "default_label_threshold": 0.7,
-            "load_unfiltered_posts": False,
-        }
+        # Feed analysis summary
+        print("Getting feed analysis summary...")
+        feed_analyzer = FeedAnalyzer("feed_summary_example")
+        feed_summary = feed_analyzer.get_analysis_summary("2024-10-15")
+        print(f"   Feed summary: {feed_summary}")
 
-        # Create pipeline with custom configuration
-        pipeline = FeedAnalysisPipeline("custom_feed_analysis", config=custom_config)
+        # Weekly thresholds summary
+        print("Getting weekly thresholds summary...")
+        thresholds_analyzer = WeeklyThresholdsAnalyzer("thresholds_summary_example")
+        thresholds_summary = thresholds_analyzer.get_thresholds_summary(
+            "2024-10-01", "2024-10-31"
+        )
+        print(f"   Thresholds summary: {thresholds_summary}")
 
-        # Configure pipeline parameters
-        pipeline.set_partition_date("2024-10-15")
-
-        # Execute pipeline
-        print("Executing custom feed analysis pipeline...")
-        result = pipeline.run()
-
-        # Check results
-        if result.success:
-            print("✅ Custom feed analysis completed successfully!")
-            print(f"   Configuration used: {custom_config}")
-            print(f"   Execution time: {result.execution_time:.2f}s")
-        else:
-            print(f"❌ Custom feed analysis failed: {result.error}")
+        print("✅ All summaries retrieved successfully!")
 
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"❌ Summary retrieval failed: {e}")
 
 
-def example_error_handling():
-    """Example of error handling with pipelines."""
-    print("\n=== Error Handling Example ===")
+def example_specific_metrics():
+    """Example of getting specific metrics from analyzers."""
+    print("\n=== Specific Metrics Example ===")
 
     try:
-        # Create pipeline instance
-        pipeline = FeedAnalysisPipeline("error_handling_example")
+        # Get just the engagement summary
+        print("Getting engagement summary only...")
+        engagement_analyzer = EngagementAnalyzer("engagement_metrics_example")
+        summary_df = engagement_analyzer.get_engagement_summary(
+            "2024-10-01", "2024-10-31"
+        )
 
-        # Try to execute without setting required parameters
-        print("Executing pipeline without required parameters...")
-        result = pipeline.run()
-
-        # Check results
-        if result.success:
-            print("✅ Pipeline completed successfully!")
+        if not summary_df.empty:
+            print(f"   Retrieved engagement summary with {len(summary_df)} records")
+            print(f"   Columns: {list(summary_df.columns)}")
         else:
-            print(f"❌ Pipeline failed as expected: {result.error}")
-            print("   This demonstrates proper error handling")
+            print("   No engagement summary data available")
+
+        # Get just the daily metrics
+        print("Getting daily metrics only...")
+        daily_metrics = engagement_analyzer.get_daily_metrics(
+            "2024-10-01", "2024-10-31"
+        )
+
+        if daily_metrics:
+            print(f"   Retrieved daily metrics for {len(daily_metrics)} users")
+        else:
+            print("   No daily metrics data available")
+
+        print("✅ Specific metrics retrieved successfully!")
 
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
-
-
-def example_pipeline_status():
-    """Example of checking pipeline status."""
-    print("\n=== Pipeline Status Example ===")
-
-    try:
-        # Create pipeline instance
-        pipeline = FeedAnalysisPipeline("status_example")
-
-        # Check initial status
-        print("Initial pipeline status:")
-        status = pipeline.get_status()
-        print(f"   Name: {status['name']}")
-        print(f"   State: {status['state']}")
-        print(f"   Start time: {status['start_time']}")
-        print(f"   End time: {status['end_time']}")
-        print(f"   Execution time: {status['execution_time']}")
-        print(f"   Error: {status['error']}")
-        print(f"   Metadata: {status['metadata']}")
-
-        # Execute pipeline
-        print("\nExecuting pipeline...")
-        pipeline.run()
-
-        # Check final status
-        print("\nFinal pipeline status:")
-        status = pipeline.get_status()
-        print(f"   State: {status['state']}")
-        print(f"   Start time: {status['start_time']}")
-        print(f"   End time: {status['end_time']}")
-        print(f"   Execution time: {status['execution_time']}")
-        print(f"   Error: {status['error']}")
-
-    except Exception as e:
-        print(f"❌ Unexpected error: {e}")
-
-
-def example_sequential_execution():
-    """Example of running multiple pipelines sequentially (simple approach)."""
-    print("\n=== Sequential Execution Example ===")
-
-    pipelines = [
-        ("Feed Analysis", FeedAnalysisPipeline("feed_sequential")),
-        ("Weekly Thresholds", WeeklyThresholdsPipeline("thresholds_sequential")),
-        ("Engagement Analysis", EngagementAnalysisPipeline("engagement_sequential")),
-    ]
-
-    results = []
-
-    for name, pipeline in pipelines:
-        print(f"\n--- Executing {name} ---")
-
-        try:
-            # Configure pipeline
-            if name == "Feed Analysis":
-                pipeline.set_partition_date("2024-10-15")
-            elif name == "Weekly Thresholds":
-                pipeline.set_time_period("2024-10-01", "2024-10-31")
-            elif name == "Engagement Analysis":
-                pipeline.set_analysis_period("2024-10-01", "2024-10-31")
-
-            # Execute pipeline
-            result = pipeline.run()
-            results.append((name, result))
-
-            # Report results
-            if result.success:
-                print(
-                    f"✅ {name} completed successfully in {result.execution_time:.2f}s"
-                )
-            else:
-                print(f"❌ {name} failed: {result.error}")
-
-        except Exception as e:
-            print(f"❌ {name} encountered unexpected error: {e}")
-            results.append((name, None))
-
-    # Summary
-    print("\n--- Execution Summary ---")
-    successful = sum(1 for _, result in results if result and result.success)
-    total = len(results)
-    print(f"Successful pipelines: {successful}/{total}")
-
-    for name, result in results:
-        if result and result.success:
-            print(f"   ✅ {name}: {result.execution_time:.2f}s")
-        else:
-            print(f"   ❌ {name}: Failed")
+        print(f"❌ Specific metrics retrieval failed: {e}")
 
 
 def main():
     """Run all examples."""
-    print("Simple Pipeline Framework - Usage Examples")
+    print("Running Simplified Analysis Framework Examples")
     print("=" * 50)
-    print(
-        "This demonstrates simple, direct pipeline execution for one-off research analyses."
-    )
-    print("No complex orchestration - just straightforward pipeline usage.\n")
 
-    # Run examples
+    # Run all examples
     example_feed_analysis()
     example_weekly_thresholds()
     example_engagement_analysis()
-    example_custom_configuration()
-    example_error_handling()
-    example_pipeline_status()
-    example_sequential_execution()
+    example_analysis_summaries()
+    example_specific_metrics()
 
     print("\n" + "=" * 50)
     print("All examples completed!")
-    print("\nKey Points:")
-    print("- Each pipeline runs independently")
-    print("- Simple, direct execution pattern")
-    print("- No complex orchestration needed")
-    print("- Easy to understand and maintain")
-    print("- Perfect for one-off research analyses")
 
 
 if __name__ == "__main__":
