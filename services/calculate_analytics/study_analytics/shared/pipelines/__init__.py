@@ -1,7 +1,8 @@
-"""Shared pipeline framework for analytics system.
+"""Simple pipeline framework for consistent analytics patterns.
 
 This module provides abstract base classes and concrete implementations
-for standardizing how analytics pipelines work across the system.
+for standardizing analytics workflows. The focus is on simple, direct
+execution rather than complex orchestration.
 """
 
 from .base import (
@@ -9,28 +10,27 @@ from .base import (
     BaseFeedAnalysisPipeline,
     PipelineState,
     PipelineResult,
-)
-from .feed_analysis import FeedAnalysisPipeline
-from .weekly_thresholds import WeeklyThresholdsPipeline
-from .engagement_analysis import EngagementAnalysisPipeline
-from .orchestration import (
-    PipelineOrchestrator,
-    PipelineExecutionResult,
     PipelineError,
 )
 
+from .feed_analysis import FeedAnalysisPipeline
+from .weekly_thresholds import WeeklyThresholdsPipeline
+from .engagement_analysis import EngagementAnalysisPipeline
+
 __all__ = [
-    # Base Classes
+    # Base classes
     "BaseResearchPipeline",
     "BaseFeedAnalysisPipeline",
+    # Pipeline states and results
     "PipelineState",
     "PipelineResult",
-    # Concrete Implementations
+    "PipelineError",
+    # Concrete implementations
     "FeedAnalysisPipeline",
     "WeeklyThresholdsPipeline",
     "EngagementAnalysisPipeline",
-    # Orchestration
-    "PipelineOrchestrator",
-    "PipelineExecutionResult",
-    "PipelineError",
 ]
+
+__version__ = "1.0.0"
+__author__ = "Analytics Team"
+__description__ = "Simple pipeline framework for consistent analytics patterns"

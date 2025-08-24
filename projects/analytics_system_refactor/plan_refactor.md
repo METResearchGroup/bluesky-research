@@ -1,7 +1,7 @@
 # Analytics System Refactor - Task Plan
 
 ## Project Overview
-Refactor the `services/calculate_analytics/` system from monolithic scripts to a modular, ABC-based pipeline framework.
+Refactor the `services/calculate_analytics/` system from monolithic scripts to simple, consistent patterns using modular components.
 
 ## Subtasks and Deliverables
 
@@ -36,7 +36,7 @@ Refactor the `services/calculate_analytics/` system from monolithic scripts to a
 - [ ] No code duplication between shared modules
 - [ ] Configuration externalized from hardcoded values
 
-### Phase 2: Implement ABC-Based Pipeline Framework (Week 2)
+### Phase 2: Implement Simple Pipeline Framework (Week 2)
 **Effort**: 1 week (1 developer)
 
 #### Subtasks:
@@ -50,15 +50,15 @@ Refactor the `services/calculate_analytics/` system from monolithic scripts to a
    - Convert weekly thresholds to concrete pipeline implementation
    - Convert engagement analysis to concrete pipeline implementation
 
-3. **Implement pipeline orchestration**
+3. **Implement simple pipeline execution patterns**
    - Add basic pipeline state management
    - Implement error handling and recovery
    - Add logging and progress tracking
 
 #### Deliverables:
-- ABC-based pipeline framework in `shared/pipelines/`
+- Simple pipeline framework in `shared/pipelines/`
 - Concrete pipeline implementations for existing analytics
-- Pipeline orchestration and execution utilities
+- Consistent patterns for one-off research analyses
 
 #### Success Criteria:
 - [ ] All existing analytics can be run through pipeline framework

@@ -1,7 +1,7 @@
 # Analytics System Refactor
 
 ## Project Overview
-Refactor the `services/calculate_analytics/` system from monolithic scripts to a modular, ABC-based pipeline framework.
+Refactor the `services/calculate_analytics/` system from monolithic scripts to simple, consistent patterns using modular components.
 
 ## Project Status
 **Current Phase**: Planning Complete  
@@ -21,7 +21,7 @@ Refactor the `services/calculate_analytics/` system from monolithic scripts to a
 
 ## Linear Tickets
 - [MET-39](https://linear.app/metresearch/issue/MET-39/phase-1-extract-shared-data-loading-and-processing) - Phase 1: Extract Shared Data Loading & Processing
-- [MET-40](https://linear.app/metresearch/issue/MET-40/phase-2-implement-abc-based-pipeline-framework) - Phase 2: Implement ABC-Based Pipeline Framework
+- [MET-40](https://linear.app/metresearch/issue/MET-40/phase-2-implement-simple-pipeline-framework-for-consistent-analysis) - Phase 2: Implement Simple Pipeline Framework for Consistent Analysis Patterns
 - [MET-41](https://linear.app/metresearch/issue/MET-41/phase-3-reorganize-one-off-analyses) - Phase 3: Reorganize One-Off Analyses
 - [MET-42](https://linear.app/metresearch/issue/MET-42/phase-4-implement-testing-and-validation) - Phase 4: Implement Testing & Validation
 - [MET-43](https://linear.app/metresearch/issue/MET-43/phase-5-documentation-and-cleanup) - Phase 5: Documentation & Cleanup
@@ -42,7 +42,7 @@ projects/analytics_system_refactor/
 
 ## Implementation Phases
 1. **Phase 1 (Week 1)**: Extract shared data loading & processing
-2. **Phase 2 (Week 2)**: Implement ABC-based pipeline framework
+2. **Phase 2 (Week 2)**: Implement simple pipeline framework for consistent patterns
 3. **Phase 3 (Week 3)**: Reorganize one-off analyses
 4. **Phase 4 (Week 4)**: Implement testing & validation
 5. **Phase 5 (Week 5)**: Documentation & cleanup
@@ -90,4 +90,4 @@ analyses/
 - This project maintains backward compatibility throughout refactoring
 - All changes are incremental and testable
 - Focus is on research-grade reliability, not production complexity
-- ABC-based design provides consistency while maintaining flexibility
+- Simple, consistent patterns provide consistency while maintaining flexibility

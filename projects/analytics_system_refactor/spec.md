@@ -48,7 +48,7 @@ The current `services/calculate_analytics/` system has evolved from one-off rese
 
 ### In Scope
 - Refactoring existing analytics scripts into shared modules
-- Creating pipeline framework for data processing
+- Creating simple, consistent patterns for data processing
 - Implementing configuration management system
 - Adding comprehensive testing infrastructure
 - Reorganizing one-off analyses into dated folders
@@ -96,7 +96,7 @@ The current `services/calculate_analytics/` system has evolved from one-off rese
 
 ### Architecture Overview
 
-The refactored system will use an **Abstract Base Class (ABC) design pattern** to provide consistent contracts while maintaining flexibility for different experimental analyses.
+The refactored system will use **simple, consistent patterns** to provide consistency while maintaining flexibility for different experimental analyses. The focus is on **modular, reusable components** rather than complex frameworks.
 
 ```
 services/calculate_analytics/
