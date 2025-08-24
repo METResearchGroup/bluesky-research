@@ -118,6 +118,24 @@
 - [ ] Organize `assets/` folder for outputs
 - [ ] Standardize folder contents across all analyses
 
+### **Validation & Output Consistency**
+- [ ] **NEW**: Identify all output files from existing scripts
+- [ ] **NEW**: Create validation scripts for output comparison
+- [ ] **NEW**: Run new scripts in Slurm environment (production testing)
+- [ ] **NEW**: Verify 100% output consistency with old scripts
+- [ ] **NEW**: Document validation results and any discrepancies
+- [ ] **NEW**: Keep old scripts available for validation purposes
+
+### **Migration Testing & Validation Planning**
+- [ ] **NEW**: Write new analysis files first (before validation begins)
+- [ ] **NEW**: Create a migration testing folder structure
+- [ ] **NEW**: Create a validation checklist with:
+  - [ ] Old version of analytics file
+  - [ ] New version of analytics file  
+  - [ ] What output file needs to be tested
+  - [ ] Validation status (completed/pending)
+- [ ] **NEW**: Note: Detailed validation plan (`met_41_validation_plan.md`) needs to be created manually later
+
 ## Phase 4: Implement Testing & Validation
 
 ### Test Suite Creation
