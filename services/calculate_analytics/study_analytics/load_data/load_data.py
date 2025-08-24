@@ -1,12 +1,10 @@
 """Loads the data for a given partition date."""
 
 import gc
-import os
 from typing import Literal, Optional
 
 import pandas as pd
 
-from lib.constants import project_home_directory
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
 from services.backfill.posts_used_in_feeds.load_data import (
@@ -27,18 +25,6 @@ from services.calculate_analytics.study_analytics.load_data.load_labels import (
 from services.calculate_analytics.study_analytics.load_data.helper import (
     insert_missing_posts_to_backfill_queue,
 )
-from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
-    BSKY_HANDLES_TO_EXCLUDE,
-)
-
-invalid_dids = pd.read_csv(
-    os.path.join(
-        project_home_directory,
-        "services/preprocess_raw_data/classify_nsfw_content/dids_to_exclude.csv",
-    )
-)
-invalid_handles = BSKY_HANDLES_TO_EXCLUDE
-
 
 logger = get_logger(__file__)
 
@@ -48,12 +34,11 @@ def load_filtered_preprocessed_posts(
     lookback_start_date: str,
     lookback_end_date: str,
 ) -> pd.DataFrame:
-    """Load preprocessed posts that have been filtered with additional
-    custom filters for analysis.
+    """Load preprocessed posts for analysis.
 
-    We can check, for example, what happens if we remove posts from invalid
-    authors (e.g., NSFW authors), which was a change that eventually made it
-    into production but wasn't present in the beginning."""
+    Note: Author filtering has been removed for testing purposes.
+    This can be re-added later when needed.
+    """
     columns = ["uri", "text", "preprocessing_timestamp", "author_did", "author_handle"]
     posts_df: pd.DataFrame = load_preprocessed_posts_used_in_feeds_for_partition_date(
         partition_date=partition_date,
@@ -62,10 +47,9 @@ def load_filtered_preprocessed_posts(
         table_columns=columns,
     )
     logger.info(f"Loaded {len(posts_df)} posts for partition date {partition_date}")
-    posts_df = posts_df[~posts_df["author_did"].isin(invalid_dids["did"])]
-    posts_df = posts_df[~posts_df["author_handle"].isin(invalid_handles)]
+    # Note: Author filtering removed for testing - can be re-added later
     logger.info(
-        f"Filtered {len(posts_df)} posts for partition date {partition_date} by removing invalid authors"
+        f"Using all posts for partition date {partition_date} (no filtering applied)"
     )
     return posts_df
 
