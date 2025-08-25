@@ -14,6 +14,7 @@ Date: 2025-08-25
 
 import os
 import argparse
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -167,9 +168,11 @@ def run_bertopic_analysis(
 
 def export_results(bertopic: BERTopicWrapper):
     """
-    Export results to CSV files.
+    Export results to files.
 
-    Simple export - no complex abstractions needed.
+    - Topics: CSV format (tabular data)
+    - Quality metrics: JSON format (structured data, easier to read)
+    - Summary: JSON format (structured data, easier to read)
 
     Args:
         bertopic: Trained BERTopicWrapper instance
@@ -192,11 +195,12 @@ def export_results(bertopic: BERTopicWrapper):
     topic_file = os.path.join(output_path, f"topics_{timestamp}.csv")
     topic_info.to_csv(topic_file, index=False)
 
-    # Export quality metrics
-    metrics_file = os.path.join(output_path, f"quality_metrics_{timestamp}.csv")
-    pd.DataFrame([quality_metrics]).to_csv(metrics_file, index=False)
+    # Export quality metrics as JSON (easier to read)
+    metrics_file = os.path.join(output_path, f"quality_metrics_{timestamp}.json")
+    with open(metrics_file, "w") as f:
+        json.dump(quality_metrics, f, indent=2, default=str)
 
-    # Export summary
+    # Export summary as JSON (easier to read)
     summary = {
         "start_date": STUDY_START_DATE,
         "end_date": STUDY_END_DATE,
@@ -208,13 +212,14 @@ def export_results(bertopic: BERTopicWrapper):
         "export_timestamp": timestamp,
     }
 
-    summary_file = os.path.join(output_path, f"summary_{timestamp}.csv")
-    pd.DataFrame([summary]).to_csv(summary_file, index=False)
+    summary_file = os.path.join(output_path, f"summary_{timestamp}.json")
+    with open(summary_file, "w") as f:
+        json.dump(summary, f, indent=2, default=str)
 
     logger.info(f"📊 Results exported to {output_path}")
-    logger.info(f"   📋 Topics: {os.path.basename(topic_file)}")
-    logger.info(f"   📈 Quality: {os.path.basename(metrics_file)}")
-    logger.info(f"   📋 Summary: {os.path.basename(summary_file)}")
+    logger.info(f"   📋 Topics: {os.path.basename(topic_file)} (CSV)")
+    logger.info(f"   📈 Quality: {os.path.basename(metrics_file)} (JSON)")
+    logger.info(f"   📋 Summary: {os.path.basename(summary_file)} (JSON)")
 
 
 def display_results(bertopic: BERTopicWrapper):
