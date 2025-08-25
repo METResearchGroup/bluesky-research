@@ -34,68 +34,69 @@ This checklist is synchronized with Linear issues and tracks progress across all
 - [x] Create usage examples for future researchers
 - [x] Update project documentation
 
-## Phase 2: Feed Selection Bias Analysis 🔄 NEXT UP
+## Phase 2: Feed Selection Bias Analysis ✅ COMPLETED
 **Linear Ticket**: [MET-49](https://linear.app/metresearch/issue/MET-49/feed-selection-bias-analysis)
-**Status**: 🔄 NEXT UP
+**Status**: ✅ COMPLETED
 **Effort**: 1 week
 **Dependencies**: ✅ Phase 1 completion
 
-### Data Collection & Processing (2 days)
-- [ ] For each feed, get the URIs
-- [ ] For each user, get their feeds
-- [ ] Get the condition for each user
-- [ ] For each condition, get all feeds across users
-- [ ] Then for each feed, get post URIs
-- [ ] Then load all labels (same as before), then split up post URIs by condition
+### Data Collection & Processing (2 days) ✅
+- [x] For each feed, get the URIs
+- [x] For each user, get their feeds
+- [x] Get the condition for each user
+- [x] For each condition, get all feeds across users
+- [x] Then for each feed, get post URIs
+- [x] Then load all labels (same as before), then split up post URIs by condition
 
-### Analysis Implementation (2 days)
-- [ ] Implement correlation calculation for all feed posts (aggregate)
-- [ ] Implement correlation calculation split by condition:
-  - [ ] reverse_chronological condition
-  - [ ] engagement condition
-  - [ ] representative_diversification condition
-- [ ] Compare correlation patterns between baseline and feed-selected posts
-- [ ] Implement bias detection metrics and analysis
+### Analysis Implementation (2 days) ✅
+- [x] Implement correlation calculation for all feed posts (aggregate)
+- [x] Implement correlation calculation split by condition:
+  - [x] reverse_chronological condition
+  - [x] engagement condition
+  - [x] representative_diversification condition
+- [x] Compare correlation patterns between baseline and feed-selected posts
+- [x] Implement bias detection metrics and analysis
 
-### Results Generation (1 day)
-- [ ] Generate comparison reports and visualizations
-- [ ] Document findings and bias detection results
-- [ ] Produce expected results:
-  - [ ] Spearman/Pearson correlation across all posts used in feeds
-  - [ ] Spearman/Pearson correlation across all posts used in feeds, split by condition
+### Results Generation (1 day) ✅
+- [x] Generate comparison reports and visualizations
+- [x] Document findings and bias detection results
+- [x] Produce expected results:
+  - [x] Spearman/Pearson correlation across all posts used in feeds
+  - [x] Spearman/Pearson correlation across all posts used in feeds, split by condition
 
-### Documentation (1 day)
-- [ ] Document analysis methodology
-- [ ] Update project documentation with findings
+### Documentation (1 day) ✅
+- [x] Document analysis methodology
+- [x] Update project documentation with findings
 
-## Phase 3: Daily Proportion Calculation Logic Review 📋 PLANNED
+## Phase 3: Daily Proportion Calculation Logic Review ⏭️ TO BE SKIPPED
 **Linear Ticket**: [MET-50](https://linear.app/metresearch/issue/MET-50/daily-proportion-calculation-logic-review)
-**Status**: 📋 PLANNED
+**Status**: ⏭️ TO BE SKIPPED
 **Effort**: 1 week
-**Dependencies**: ✅ Phase 1 completion, Phase 2 completion
+**Dependencies**: ✅ Phase 1 completion, ✅ Phase 2 completion
+**Reason**: Deeper refactor of analytics code needed before this phase can be meaningfully completed
 
-### Code Review (2 days)
+### Code Review (2 days) ⏭️ SKIPPED
 - [ ] Review daily probability/proportion calculation code in condition_aggregated.py
 - [ ] Analyze calculation logic across all fields using same calculation approach
 - [ ] Identify potential systematic calculation errors
 
-### Validation Testing (2 days)
+### Validation Testing (2 days) ⏭️ SKIPPED
 - [ ] Test calculation logic with known inputs
 - [ ] Verify that calculation logic is consistent across different metrics
 - [ ] Document any findings or potential issues
 
-### Documentation (1 day)
+### Documentation (1 day) ⏭️ SKIPPED
 - [ ] Document findings and validation results
 - [ ] Update project documentation with calculation review findings
 
 ## Project Completion Checklist
 - [x] Phase 1: Baseline correlation analysis completed with clear findings
-- [ ] Phase 2: Feed selection bias analysis completed
-- [ ] Phase 3: Daily proportion calculation logic review completed
+- [x] Phase 2: Feed selection bias analysis completed
+- [x] Phase 3: Daily proportion calculation logic review (SKIPPED - requires deeper refactor)
 - [x] Framework successfully integrated with existing shared modules
 - [x] All analyses produce reproducible results
 - [x] Comprehensive documentation for future research use
-- [ ] Project ready for ongoing correlation research
+- [x] Project ready for ongoing correlation research (core questions answered)
 
 ## Notes
 - Focus on shipping quickly for research purposes
@@ -106,3 +107,6 @@ This checklist is synchronized with Linear issues and tracks progress across all
 - **Shared Modules Location**: `services/calculate_analytics/shared/`
 - **Planning & Documentation**: This folder (`projects/correlation_analysis/`)
 - **Phase 1 Status**: ✅ COMPLETED - Baseline correlation analysis framework is working and producing expected results
+- **Phase 2 Status**: ✅ COMPLETED - Feed selection bias analysis successfully implemented and executed
+- **Phase 3 Status**: ⏭️ SKIPPED - Requires deeper analytics system refactor for meaningful completion
+- **Project Status**: ✅ COMPLETED - Core research questions answered, correlations confirmed as real data patterns
