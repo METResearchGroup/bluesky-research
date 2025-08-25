@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, Union
 import yaml
 from lib.log.logger import get_logger
 
-from services.calculate_analytics.study_analytics.shared.config.models import (
+from services.calculate_analytics.shared.config.models import (
     AnalyticsConfig,
     StudyConfig,
     FeatureConfig,

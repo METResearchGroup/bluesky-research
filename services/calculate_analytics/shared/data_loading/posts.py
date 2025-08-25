@@ -10,8 +10,8 @@ from services.backfill.posts_used_in_feeds.load_data import (
     load_preprocessed_posts_used_in_feeds_for_partition_date,
     default_num_days_lookback,
 )
-from services.calculate_analytics.study_analytics.shared.config.loader import get_config
-from services.calculate_analytics.study_analytics.shared.data_loading.labels import (
+from services.calculate_analytics.shared.config.loader import get_config
+from services.calculate_analytics.shared.data_loading.labels import (
     load_all_labels_for_posts,
 )
 
