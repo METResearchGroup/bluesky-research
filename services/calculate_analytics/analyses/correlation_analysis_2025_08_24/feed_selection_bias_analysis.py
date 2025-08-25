@@ -62,11 +62,20 @@ def accumulate_posts_used_in_feeds(
         users_to_posts_used_in_feeds: dict[str, set[str]] = (
             map_users_to_posts_used_in_feeds(partition_date)
         )
+        invalid_users = set()
         for user, post_uris in users_to_posts_used_in_feeds.items():
-            condition = user_condition_mapping[user]
-            if condition not in condition_to_post_uris:
-                condition_to_post_uris[condition] = set()
-            condition_to_post_uris[condition].update(post_uris)
+            try:
+                condition = user_condition_mapping[user]
+                if condition not in condition_to_post_uris:
+                    condition_to_post_uris[condition] = set()
+                condition_to_post_uris[condition].update(post_uris)
+            except Exception:
+                invalid_users.add(user)
+        # expected that some wont' be found (maybe ~30) due to test users who
+        # we added during our pilot.
+        logger.info(
+            f"Total invalid users for partition date {partition_date}: {len(invalid_users)}"
+        )
     return condition_to_post_uris
 
 
@@ -98,6 +107,9 @@ def main():
         partition_dates=partition_dates,
         user_condition_mapping=user_condition_mapping,
     )
+    for condition, post_uris in condition_to_post_uris.items():
+        logger.info(f"[Condition '{condition}']: {len(post_uris)} posts used in feeds")
+
     if not condition_to_post_uris:
         logger.error("No posts used in feeds found")
         return
