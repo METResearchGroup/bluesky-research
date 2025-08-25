@@ -20,6 +20,7 @@ This baseline analysis serves as Phase 1 of the correlation investigation projec
 be compared against feed selection bias analysis and calculation logic review in subsequent phases.
 """
 
+import json
 import os
 
 from pathlib import Path
@@ -28,6 +29,7 @@ from typing import Dict, List
 import pandas as pd
 
 from lib.log.logger import get_logger
+from lib.helper import generate_current_datetime_str
 from services.calculate_analytics.shared.constants import (
     STUDY_START_DATE,
     STUDY_END_DATE,
@@ -105,7 +107,6 @@ def calculate_correlations(df: pd.DataFrame) -> Dict[str, float]:
     spearman_correlation = calculate_spearman_correlation(df)
 
     return {
-        "date": df["partition_date"].min(),
         "pearson_correlation": pearson_correlation,
         "spearman_correlation": spearman_correlation,
         "sample_size": len(df),
@@ -127,11 +128,12 @@ def write_correlation_results(results: List[Dict[str, float]], output_dir: str):
     # Ensure output directory exists
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    # Convert results to DataFrame and save
     if results:
-        df = pd.DataFrame(results)
-        output_path = os.path.join(output_dir, "daily_correlations.csv")
-        df.to_csv(output_path, index=False)
+        output_path = os.path.join(
+            output_dir, f"baseline_correlations_{generate_current_datetime_str()}.json"
+        )
+        with open(output_path, "w") as f:
+            json.dump(results, f, indent=2)
         logger.info(f"Saved daily correlations to {output_path}")
 
 
@@ -159,14 +161,13 @@ def main():
                 {"name": "ml_inference_perspective_api", "columns": table_columns}
             ]
         },
+        export_format="duckdb",
     )
 
     # Generate summary and write results
     results = calculate_correlations(df)
     write_correlation_results(results, output_dir)
-    logger.info(
-        f"Analysis complete. Processed {len(results)} days with {sum(r['sample_size'] for r in results)} total posts"
-    )
+    logger.info("Baseline correlation analysis complete")
 
 
 if __name__ == "__main__":

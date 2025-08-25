@@ -5,7 +5,7 @@ used across the analytics system, eliminating code duplication and
 ensuring consistent data handling patterns.
 """
 
-from typing import Optional
+from typing import Literal, Optional
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
@@ -23,6 +23,7 @@ def get_perspective_api_labels(
     lookback_end_date: str,
     duckdb_query: Optional[str] = None,
     query_metadata: Optional[dict] = None,
+    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
 ):
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_perspective_api",
@@ -31,6 +32,7 @@ def get_perspective_api_labels(
         end_partition_date=lookback_end_date,
         duckdb_query=duckdb_query,
         query_metadata=query_metadata,
+        export_format=export_format,
     )
     logger.info(
         f"Loaded {len(df)} Perspective API labels for lookback period {lookback_start_date} to {lookback_end_date}"
@@ -44,6 +46,7 @@ def get_perspective_api_labels_for_posts(
     lookback_end_date: str,
     duckdb_query: Optional[str] = None,
     query_metadata: Optional[dict] = None,
+    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
 ) -> pd.DataFrame:
     """Get the Perspective API labels for a list of posts.
 
@@ -61,6 +64,7 @@ def get_perspective_api_labels_for_posts(
         lookback_end_date=lookback_end_date,
         duckdb_query=duckdb_query,
         query_metadata=query_metadata,
+        export_format=export_format,
     )
 
     # Filter to only include labels for the given posts
