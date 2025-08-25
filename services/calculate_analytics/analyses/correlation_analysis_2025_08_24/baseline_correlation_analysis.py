@@ -45,19 +45,15 @@ def calculate_pearson_correlation(df: pd.DataFrame) -> float:
     Calculate Pearson correlation coefficient between toxicity and constructiveness.
 
     Args:
-        toxicity_scores: Series of toxicity probability scores
-        constructiveness_scores: Series of constructiveness probability scores
+        df: DataFrame containing posts with toxicity and constructiveness scores
 
     Returns:
         Pearson correlation coefficient
     """
     toxicity_scores = df["prob_toxic"]
     constructiveness_scores = df["prob_constructive"]
-    print(toxicity_scores.head())
-    print(constructiveness_scores.head())
-    print(df.head())
     logger.info("Calculating Pearson correlation")
-    corr = 0.0  # TODO: implement
+    corr = toxicity_scores.corr(constructiveness_scores, method="pearson")
     logger.info(f"Pearson correlation: {corr}")
     return corr
 
@@ -67,19 +63,15 @@ def calculate_spearman_correlation(df: pd.DataFrame) -> float:
     Calculate Spearman correlation coefficient between toxicity and constructiveness.
 
     Args:
-        toxicity_scores: Series of toxicity probability scores
-        constructiveness_scores: Series of constructiveness probability scores
+        df: DataFrame containing posts with toxicity and constructiveness scores
 
     Returns:
         Spearman correlation coefficient
     """
     toxicity_scores = df["prob_toxic"]
     constructiveness_scores = df["prob_constructive"]
-    print(toxicity_scores.head())
-    print(constructiveness_scores.head())
-    print(df.head())
     logger.info("Calculating Spearman correlation")
-    corr = 0.0  # TODO: implement
+    corr = toxicity_scores.corr(constructiveness_scores, method="spearman")
     logger.info(f"Spearman correlation: {corr}")
     return corr
 
