@@ -20,11 +20,9 @@ This baseline analysis serves as Phase 1 of the correlation investigation projec
 be compared against feed selection bias analysis and calculation logic review in subsequent phases.
 """
 
-import json
 import os
 
-from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 import pandas as pd
 
@@ -40,6 +38,7 @@ from services.calculate_analytics.shared.data_loading.labels import (
 from services.calculate_analytics.shared.analysis.correlations import (
     calculate_pearson_correlation,
     calculate_spearman_correlation,
+    write_correlation_results,
 )
 
 output_dir = os.path.join(os.path.dirname(__file__), "results")
@@ -87,28 +86,6 @@ def calculate_correlations(df: pd.DataFrame) -> Dict[str, float]:
     }
 
 
-def write_correlation_results(results: List[Dict[str, float]], output_dir: str):
-    """
-    Write correlation results to CSV files.
-
-    Args:
-        results: List of daily correlation results
-        output_dir: Directory to save output files
-    """
-    logger.info(f"Writing {len(results)} correlation results to {output_dir}")
-
-    # Ensure output directory exists
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    if results:
-        output_path = os.path.join(
-            output_dir, f"baseline_correlations_{generate_current_datetime_str()}.json"
-        )
-        with open(output_path, "w") as f:
-            json.dump(results, f, indent=2)
-        logger.info(f"Saved daily correlations to {output_path}")
-
-
 def main():
     """
     Main execution function for baseline correlation analysis.
@@ -138,7 +115,11 @@ def main():
 
     # Generate summary and write results
     results = calculate_correlations(df)
-    write_correlation_results(results, output_dir)
+    write_correlation_results(
+        results,
+        output_dir,
+        f"baseline_correlations_{generate_current_datetime_str()}.json",
+    )
     logger.info("Baseline correlation analysis complete")
 
 

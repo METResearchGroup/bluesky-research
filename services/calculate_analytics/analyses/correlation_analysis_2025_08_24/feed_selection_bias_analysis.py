@@ -22,13 +22,135 @@ This feed bias analysis serves as Phase 2 of the correlation investigation proje
 depends on the completion of baseline correlation analysis (Phase 1).
 """
 
+import os
+import pandas as pd
+
+from services.calculate_analytics.shared.analysis.correlations import (
+    calculate_correlations,
+    write_correlation_results,
+)
+from services.calculate_analytics.shared.data_loading.feeds import (
+    map_users_to_posts_used_in_feeds,
+)
+from services.calculate_analytics.shared.data_loading.users import (
+    get_user_condition_mapping,
+)
+from services.calculate_analytics.shared.data_loading.labels import (
+    get_perspective_api_labels_for_posts,
+)
+from services.calculate_analytics.shared.constants import (
+    STUDY_START_DATE,
+    STUDY_END_DATE,
+    exclude_partition_dates,
+)
+from lib.log.logger import get_logger
+from lib.helper import get_partition_dates, generate_current_datetime_str
+
+logger = get_logger(__name__)
+output_dir = os.path.join(os.path.dirname(__file__), "results")
+
+
+def accumulate_posts_used_in_feeds(
+    partition_dates: list[str],
+    user_condition_mapping: dict[str, str],
+) -> dict[str, set[str]]:
+    """
+    Accumulate posts used in feeds for each condition.
+    """
+    condition_to_post_uris: dict[str, set[str]] = {}
+    for partition_date in partition_dates:
+        users_to_posts_used_in_feeds: dict[str, set[str]] = (
+            map_users_to_posts_used_in_feeds(partition_date)
+        )
+        for user, post_uris in users_to_posts_used_in_feeds.items():
+            condition = user_condition_mapping[user]
+            if condition not in condition_to_post_uris:
+                condition_to_post_uris[condition] = set()
+            condition_to_post_uris[condition].update(post_uris)
+    return condition_to_post_uris
+
 
 def main():
+    """
+    Main execution function for feed selection bias analysis.
+    """
+    logger.info("Starting feed selection bias analysis")
+
+    table_columns = ["uri", "partition_date", "prob_toxic", "prob_constructive"]
+    table_columns_str = ", ".join(table_columns)
+    query = (
+        f"SELECT {table_columns_str} "
+        f"FROM ml_inference_perspective_api "
+        f"WHERE prob_toxic IS NOT NULL "
+        f"AND prob_constructive IS NOT NULL "
+    ).strip()
+
     # load users.
-    # map users to condition.
-    # load feeds
-    # get post URIs from each feed.
-    pass
+    user_condition_mapping: dict[str, str] = get_user_condition_mapping()
+
+    # load posts used in feeds. Accumulate post URIs used in feeds for each condition.
+    partition_dates: list[str] = get_partition_dates(
+        start_date=STUDY_START_DATE,
+        end_date=STUDY_END_DATE,
+        exclude_partition_dates=exclude_partition_dates,
+    )
+    condition_to_post_uris: dict[str, set[str]] = accumulate_posts_used_in_feeds(
+        partition_dates=partition_dates,
+        user_condition_mapping=user_condition_mapping,
+    )
+    if not condition_to_post_uris:
+        logger.error("No posts used in feeds found")
+        return
+
+    data = []
+    for condition, uris in condition_to_post_uris.items():
+        logger.info(
+            f"[Condition '{condition}']: Loading Perspective API labels for {len(uris)} posts used in feeds"
+        )
+        for uri in uris:
+            data.append((condition, uri))
+
+    posts_df = pd.DataFrame(data, columns=["condition", "uri"])
+
+    # load perspective API labels.
+    df: pd.DataFrame = get_perspective_api_labels_for_posts(
+        posts=posts_df,
+        lookback_start_date=STUDY_START_DATE,
+        lookback_end_date=STUDY_END_DATE,
+        duckdb_query=query,
+        query_metadata={
+            "tables": [
+                {"name": "ml_inference_perspective_api", "columns": table_columns}
+            ]
+        },
+        export_format="duckdb",
+    )
+    if df.empty:
+        logger.error("No Perspective API labels found for posts used in feeds")
+        return
+
+    timestamp = generate_current_datetime_str()
+
+    # Result 1: Get correlations for all posts used in feeds.
+    all_results = calculate_correlations(df, "prob_toxic", "prob_constructive")
+    write_correlation_results(
+        all_results,
+        output_dir,
+        f"all_posts_used_in_feeds_correlations_{timestamp}.json",
+    )
+
+    # Result 2: For each condition, get correlations for posts used in feeds.
+    for condition, post_uris in condition_to_post_uris.items():
+        results = calculate_correlations(
+            df[df["uri"].isin(post_uris)], "prob_toxic", "prob_constructive"
+        )
+        write_correlation_results(
+            results,
+            output_dir,
+            f"{condition}_posts_used_in_feeds_correlations_{timestamp}.json",
+        )
+
+    logger.info("Feed selection bias analysis complete")
 
 
 if __name__ == "__main__":

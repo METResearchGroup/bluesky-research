@@ -2,6 +2,10 @@
 Correlation analysis functions.
 """
 
+import os
+import json
+from pathlib import Path
+
 import pandas as pd
 
 from lib.log.logger import get_logger
@@ -47,3 +51,27 @@ def calculate_spearman_correlation(df: pd.DataFrame, col1: str, col2: str) -> fl
     corr = col1_scores.corr(col2_scores, method="spearman")
     logger.info(f"Spearman correlation: {corr}")
     return corr
+
+
+def write_correlation_results(
+    results: dict[str, float],
+    output_dir: str,
+    filename: str,
+):
+    """
+    Write correlation results to CSV files.
+
+    Args:
+        results: List of daily correlation results
+        output_dir: Directory to save output files
+    """
+    logger.info(f"Writing {len(results)} correlation results to {output_dir}")
+
+    # Ensure output directory exists
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    if results:
+        output_path = os.path.join(output_dir, filename)
+        with open(output_path, "w") as f:
+            json.dump(results, f, indent=2)
+        logger.info(f"Saved daily correlations to {output_path}")
