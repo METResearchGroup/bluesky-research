@@ -5,11 +5,7 @@ used across the analytics system, eliminating code duplication and
 ensuring consistent data handling patterns.
 """
 
-from .posts import (
-    load_filtered_preprocessed_posts,
-    get_hydrated_posts_for_partition_date,
-    load_posts_with_labels,
-)
+from .posts import load_preprocessed_posts
 from .labels import (
     get_perspective_api_labels_for_posts,
     get_sociopolitical_labels_for_posts,
@@ -28,9 +24,7 @@ from .users import (
 
 __all__ = [
     # Posts
-    "load_filtered_preprocessed_posts",
-    "get_hydrated_posts_for_partition_date",
-    "load_posts_with_labels",
+    "load_preprocessed_posts",
     # Labels
     "get_perspective_api_labels_for_posts",
     "get_sociopolitical_labels_for_posts",

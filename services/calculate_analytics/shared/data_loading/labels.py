@@ -10,12 +10,8 @@ import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
-from services.calculate_analytics.shared.config.loader import get_config
 
 logger = get_logger(__file__)
-
-# Load configuration
-config = get_config()
 
 
 def get_perspective_api_labels(

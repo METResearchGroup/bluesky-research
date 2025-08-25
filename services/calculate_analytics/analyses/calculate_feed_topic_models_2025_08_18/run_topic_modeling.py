@@ -8,76 +8,28 @@ This script demonstrates the principle of simplicity:
 - Export results to CSV
 - No unnecessary abstractions or complexity
 
-Author: AI Agent implementing MET-44
+Author: AI Agent implementing MET-44 + Mark Torres
 Date: 2025-08-25
 """
 
-import argparse
-import logging
-from datetime import datetime
+import os
 from pathlib import Path
 
 import pandas as pd
 
+from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
-from lib.db.manage_local_data import load_data_from_local_storage
-from lib.constants import study_start_date, study_end_date
 from ml_tooling.topic_modeling.bertopic_wrapper import BERTopicWrapper
+from services.calculate_analytics.shared.constants import (
+    STUDY_START_DATE,
+    STUDY_END_DATE,
+)
+from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.load_data import (
+    DataLoader,
+)
 
+output_dir = os.path.join(os.path.dirname(__file__), "results")
 logger = get_logger(__name__)
-
-
-def load_local_data(start_date: str, end_date: str) -> pd.DataFrame:
-    """
-    Load preprocessed posts for topic modeling from local storage.
-
-    Simple, direct function - no abstractions needed.
-
-    Args:
-        start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
-
-    Returns:
-        DataFrame with text data ready for BERTopic
-
-    Raises:
-        ValueError: If date validation fails or no data found
-    """
-    logger.info(f"Loading data from {start_date} to {end_date}")
-
-    # Simple date validation
-    if start_date < study_start_date or end_date > study_end_date:
-        raise ValueError(
-            f"Date range must be within study period: {study_start_date} to {study_end_date}"
-        )
-
-    # Load data directly using existing function
-    df = load_data_from_local_storage(
-        service="preprocessed_posts",
-        directory="cache",
-        start_partition_date=start_date,
-        end_partition_date=end_date,
-    )
-
-    # Basic validation
-    if df is None or len(df) == 0:
-        raise ValueError(f"No data found for {start_date} to {end_date}")
-
-    if "text" not in df.columns:
-        raise ValueError("Data must contain 'text' column")
-
-    # Simple cleaning
-    initial_count = len(df)
-    df = df.dropna(subset=["text"])
-    df = df[df["text"].str.strip().str.len() > 0]
-    df["text"] = df["text"].astype(str)
-    final_count = len(df)
-
-    if final_count < initial_count:
-        logger.info(f"Cleaned data: {initial_count} -> {final_count} documents")
-
-    logger.info(f"✅ Loaded {len(df)} documents")
-    return df
 
 
 def run_bertopic_analysis(df: pd.DataFrame, config: dict = None) -> BERTopicWrapper:
@@ -121,12 +73,7 @@ def run_bertopic_analysis(df: pd.DataFrame, config: dict = None) -> BERTopicWrap
     return bertopic
 
 
-def export_results(
-    bertopic: BERTopicWrapper,
-    start_date: str,
-    end_date: str,
-    output_dir: str = "./results",
-):
+def export_results(bertopic: BERTopicWrapper):
     """
     Export results to CSV files.
 
@@ -134,9 +81,6 @@ def export_results(
 
     Args:
         bertopic: Trained BERTopicWrapper instance
-        start_date: Start date for filename
-        end_date: End date for filename
-        output_dir: Output directory path
     """
     logger.info("📁 Exporting results...")
 
@@ -145,7 +89,7 @@ def export_results(
     output_path.mkdir(exist_ok=True)
 
     # Generate timestamp for unique filenames
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = generate_current_datetime_str()
 
     # Get results from BERTopic wrapper
     topics = bertopic.get_topics()
@@ -153,19 +97,17 @@ def export_results(
     quality_metrics = bertopic.get_quality_metrics()
 
     # Export topic information
-    topic_file = output_path / f"topics_{start_date}_to_{end_date}_{timestamp}.csv"
+    topic_file = os.path.join(output_path, f"topics_{timestamp}.csv")
     topic_info.to_csv(topic_file, index=False)
 
     # Export quality metrics
-    metrics_file = (
-        output_path / f"quality_metrics_{start_date}_to_{end_date}_{timestamp}.csv"
-    )
+    metrics_file = os.path.join(output_path, f"quality_metrics_{timestamp}.csv")
     pd.DataFrame([quality_metrics]).to_csv(metrics_file, index=False)
 
     # Export summary
     summary = {
-        "start_date": start_date,
-        "end_date": end_date,
+        "start_date": STUDY_START_DATE,
+        "end_date": STUDY_END_DATE,
         "total_documents": len(bertopic._training_results.get("texts", [])),
         "total_topics": len([t for t in topics.keys() if t != -1]),
         "training_time_seconds": quality_metrics.get("training_time", 0),
@@ -174,13 +116,13 @@ def export_results(
         "export_timestamp": timestamp,
     }
 
-    summary_file = output_path / f"summary_{start_date}_to_{end_date}_{timestamp}.csv"
+    summary_file = os.path.join(output_path, f"summary_{timestamp}.csv")
     pd.DataFrame([summary]).to_csv(summary_file, index=False)
 
     logger.info(f"📊 Results exported to {output_path}")
-    logger.info(f"   📋 Topics: {topic_file.name}")
-    logger.info(f"   📈 Quality: {metrics_file.name}")
-    logger.info(f"   📋 Summary: {summary_file.name}")
+    logger.info(f"   📋 Topics: {os.path.basename(topic_file)}")
+    logger.info(f"   📈 Quality: {os.path.basename(metrics_file)}")
+    logger.info(f"   📋 Summary: {os.path.basename(summary_file)}")
 
 
 def display_results(bertopic: BERTopicWrapper):
@@ -221,63 +163,23 @@ def display_results(bertopic: BERTopicWrapper):
 
 def main():
     """Main function - simple and direct."""
-    parser = argparse.ArgumentParser(
-        description="Run BERTopic topic modeling on local data"
-    )
-    parser.add_argument(
-        "--start-date",
-        type=str,
-        default=study_start_date,
-        help=f"Start date (YYYY-MM-DD, default: {study_start_date})",
-    )
-    parser.add_argument(
-        "--end-date",
-        type=str,
-        default=study_end_date,
-        help=f"End date (YYYY-MM-DD, default: {study_end_date})",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        default="./results",
-        help="Output directory for results (default: ./results)",
-    )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose logging"
-    )
+    logger.info("🚀 Starting Topic Modeling Analysis")
 
-    args = parser.parse_args()
+    # 1. Load data
+    mode = "local"
+    dataloader = DataLoader(mode)
+    df: pd.DataFrame = dataloader.load_data()
 
-    # Set logging level
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+    # 2. Run BERTopic (using existing wrapper)
+    bertopic = run_bertopic_analysis(df)
 
-    try:
-        logger.info("🚀 Starting Topic Modeling Analysis")
-        logger.info(f"📅 Date range: {args.start_date} to {args.end_date}")
-        logger.info(f"📁 Output directory: {args.output_dir}")
+    # 3. Export results (simple CSV export)
+    export_results(bertopic)
 
-        # 1. Load data (simple function call)
-        df = load_local_data(args.start_date, args.end_date)
+    # 4. Display results (simple console output)
+    display_results(bertopic)
 
-        # 2. Run BERTopic (using existing wrapper)
-        bertopic = run_bertopic_analysis(df)
-
-        # 3. Export results (simple CSV export)
-        export_results(bertopic, args.start_date, args.end_date, args.output_dir)
-
-        # 4. Display results (simple console output)
-        display_results(bertopic)
-
-        logger.info("🎉 Analysis completed successfully!")
-
-    except Exception as e:
-        logger.error(f"❌ Analysis failed: {e}")
-        if args.verbose:
-            import traceback
-
-            traceback.print_exc()
-        raise
+    logger.info("🎉 Analysis completed successfully!")
 
 
 if __name__ == "__main__":
