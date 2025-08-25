@@ -4,6 +4,10 @@
 
 This document outlines the detailed implementation plan for MET-41, which involves reorganizing all existing analysis scripts from `services/calculate_analytics/study_analytics/` into a clean, dated folder structure within `projects/analytics_system_refactor/analyses/`.
 
+## GitHub Pull Request
+
+**PR #206**: [https://github.com/METResearchGroup/bluesky-research/pull/206](https://github.com/METResearchGroup/bluesky-research/pull/206)
+
 ## Key Objectives
 
 1. **Organize Analysis Scripts**: Move all analysis scripts into focused, dated folders
