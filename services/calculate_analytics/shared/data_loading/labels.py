@@ -5,11 +5,12 @@ used across the analytics system, eliminating code duplication and
 ensuring consistent data handling patterns.
 """
 
+from typing import Optional
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
-from services.calculate_analytics.study_analytics.shared.config.loader import get_config
+from services.calculate_analytics.shared.config.loader import get_config
 
 logger = get_logger(__file__)
 
@@ -17,11 +18,32 @@ logger = get_logger(__file__)
 config = get_config()
 
 
-def get_perspective_api_labels_for_posts(
-    posts: pd.DataFrame,
-    partition_date: str,
+def get_perspective_api_labels(
     lookback_start_date: str,
     lookback_end_date: str,
+    duckdb_query: Optional[str] = None,
+    query_metadata: Optional[dict] = None,
+):
+    df: pd.DataFrame = load_data_from_local_storage(
+        service="ml_inference_perspective_api",
+        directory="cache",
+        start_partition_date=lookback_start_date,
+        end_partition_date=lookback_end_date,
+        duckdb_query=duckdb_query,
+        query_metadata=query_metadata,
+    )
+    logger.info(
+        f"Loaded {len(df)} Perspective API labels for lookback period {lookback_start_date} to {lookback_end_date}"
+    )
+    return df
+
+
+def get_perspective_api_labels_for_posts(
+    posts: pd.DataFrame,
+    lookback_start_date: str,
+    lookback_end_date: str,
+    duckdb_query: Optional[str] = None,
+    query_metadata: Optional[dict] = None,
 ) -> pd.DataFrame:
     """Get the Perspective API labels for a list of posts.
 
@@ -34,20 +56,17 @@ def get_perspective_api_labels_for_posts(
     Returns:
         DataFrame containing Perspective API labels filtered to the given posts
     """
-    df: pd.DataFrame = load_data_from_local_storage(
-        service="ml_inference_perspective_api",
-        directory="cache",
-        start_partition_date=lookback_start_date,
-        end_partition_date=lookback_end_date,
-    )
-    logger.info(
-        f"Loaded {len(df)} Perspective API labels for partition date {partition_date}"
+    df: pd.DataFrame = get_perspective_api_labels(
+        lookback_start_date=lookback_start_date,
+        lookback_end_date=lookback_end_date,
+        duckdb_query=duckdb_query,
+        query_metadata=query_metadata,
     )
 
     # Filter to only include labels for the given posts
     df = df[df["uri"].isin(posts["uri"])]
     logger.info(
-        f"Filtered to {len(df)} Perspective API labels for partition date {partition_date}"
+        f"Filtered to {len(df)} Perspective API labels for lookback period {lookback_start_date} to {lookback_end_date}"
     )
     return df
 

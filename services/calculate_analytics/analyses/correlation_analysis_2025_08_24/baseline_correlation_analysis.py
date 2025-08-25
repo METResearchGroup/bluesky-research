@@ -19,3 +19,163 @@ The analysis will:
 This baseline analysis serves as Phase 1 of the correlation investigation project and will
 be compared against feed selection bias analysis and calculation logic review in subsequent phases.
 """
+
+import os
+
+from pathlib import Path
+from typing import Dict, List
+
+import pandas as pd
+
+from lib.log.logger import get_logger
+from services.calculate_analytics.shared.constants import (
+    STUDY_START_DATE,
+    STUDY_END_DATE,
+)
+from services.calculate_analytics.shared.data_loading.labels import (
+    get_perspective_api_labels,
+)
+
+output_dir = os.path.join(os.path.dirname(__file__), "results")
+logger = get_logger(__name__)
+
+
+def calculate_pearson_correlation(df: pd.DataFrame) -> float:
+    """
+    Calculate Pearson correlation coefficient between toxicity and constructiveness.
+
+    Args:
+        toxicity_scores: Series of toxicity probability scores
+        constructiveness_scores: Series of constructiveness probability scores
+
+    Returns:
+        Pearson correlation coefficient
+    """
+    toxicity_scores = df["prob_toxic"]
+    constructiveness_scores = df["prob_constructive"]
+    print(toxicity_scores.head())
+    print(constructiveness_scores.head())
+    print(df.head())
+    logger.info("Calculating Pearson correlation")
+    corr = 0.0  # TODO: implement
+    logger.info(f"Pearson correlation: {corr}")
+    return corr
+
+
+def calculate_spearman_correlation(df: pd.DataFrame) -> float:
+    """
+    Calculate Spearman correlation coefficient between toxicity and constructiveness.
+
+    Args:
+        toxicity_scores: Series of toxicity probability scores
+        constructiveness_scores: Series of constructiveness probability scores
+
+    Returns:
+        Spearman correlation coefficient
+    """
+    toxicity_scores = df["prob_toxic"]
+    constructiveness_scores = df["prob_constructive"]
+    print(toxicity_scores.head())
+    print(constructiveness_scores.head())
+    print(df.head())
+    logger.info("Calculating Spearman correlation")
+    corr = 0.0  # TODO: implement
+    logger.info(f"Spearman correlation: {corr}")
+    return corr
+
+
+def calculate_correlations(df: pd.DataFrame) -> Dict[str, float]:
+    """
+    Calculate correlation coefficients for a single day's data.
+
+    Args:
+        df: DataFrame containing posts with toxicity and constructiveness scores
+
+    Returns:
+        Dictionary with correlation results and metadata
+    """
+    logger.info(
+        f"Calculating correlations for {df['partition_date'].min()} to {df['partition_date'].max()}"
+    )
+    df = df.dropna(subset=["prob_toxic", "prob_constructive"])
+    if len(df) == 0:
+        logger.warning("No data to calculate correlations")
+        return {
+            "date": df["partition_date"].min(),
+            "pearson_correlation": 0.0,
+            "spearman_correlation": 0.0,
+            "sample_size": 0,
+            "toxicity_mean": 0.0,
+            "constructiveness_mean": 0.0,
+        }
+
+    pearson_correlation = calculate_pearson_correlation(df)
+    spearman_correlation = calculate_spearman_correlation(df)
+
+    return {
+        "date": df["partition_date"].min(),
+        "pearson_correlation": pearson_correlation,
+        "spearman_correlation": spearman_correlation,
+        "sample_size": len(df),
+        "toxicity_mean": df["prob_toxic"].mean(),
+        "constructiveness_mean": df["prob_constructive"].mean(),
+    }
+
+
+def write_correlation_results(results: List[Dict[str, float]], output_dir: str):
+    """
+    Write correlation results to CSV files.
+
+    Args:
+        results: List of daily correlation results
+        output_dir: Directory to save output files
+    """
+    logger.info(f"Writing {len(results)} correlation results to {output_dir}")
+
+    # Ensure output directory exists
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    # Convert results to DataFrame and save
+    if results:
+        df = pd.DataFrame(results)
+        output_path = os.path.join(output_dir, "daily_correlations.csv")
+        df.to_csv(output_path, index=False)
+        logger.info(f"Saved daily correlations to {output_path}")
+
+
+def main():
+    """
+    Main execution function for baseline correlation analysis.
+    """
+    logger.info("Starting baseline correlation analysis")
+
+    table_columns = ["uri", "partition_date", "prob_toxic", "prob_constructive"]
+    table_columns_str = ", ".join(table_columns)
+    query = (
+        f"SELECT {table_columns_str} "
+        f"FROM ml_inference_perspective_api "
+        f"WHERE prob_toxic IS NOT NULL "
+        f"AND prob_constructive IS NOT NULL "
+    ).strip()
+
+    df: pd.DataFrame = get_perspective_api_labels(
+        lookback_start_date=STUDY_START_DATE,
+        lookback_end_date=STUDY_END_DATE,
+        duckdb_query=query,
+        query_metadata={
+            "tables": [
+                {"name": "ml_inference_perspective_api", "columns": table_columns}
+            ]
+        },
+    )
+
+    # Generate summary and write results
+    results = calculate_correlations(df)
+    write_correlation_results(results, output_dir)
+    logger.info(
+        f"Analysis complete. Processed {len(results)} days with {sum(r['sample_size'] for r in results)} total posts"
+    )
+
+
+if __name__ == "__main__":
+    main()
