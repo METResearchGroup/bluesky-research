@@ -1,0 +1,5 @@
+# Minimal requirements for running topic modeling analysis
+# These should already be available in your project environment
+
+pandas>=1.5.0
+pathlib2>=2.3.0  # For Python < 3.4 compatibility
