@@ -1,61 +1,81 @@
-# TODO: Feed-Level Topic Analysis
+# Project Todo: Feed-Level Topic Analysis for Bluesky Research
 
-## Project Status: In Progress
-**Linear Project**: [Feed-Level Topic Analysis for Bluesky Research](https://linear.app/metresearch/project/feed-level-topic-analysis-for-bluesky-research-6b2e884b3dd9)
+## Phase 1: Core Infrastructure ✅ COMPLETED
 
-## Core Tasks (Sequential Execution Required)
+- [x] **MET-34**: Core BERTopic pipeline with YAML configuration and text preprocessing ✅ COMPLETED
+  - Generic, reusable BERTopic wrapper with quality monitoring
+  - GPU optimization and comprehensive testing
+  - YAML configuration for all parameters
 
-### ✅ Phase 1: Core Infrastructure
-- [x] **MET-34**: Implement core BERTopic pipeline with YAML configuration
-  - [x] BERTopic wrapper class implemented with YAML configuration
-  - [x] Sentence Transformer model selection configurable  
-  - [x] Coherence metrics (c_v, c_npmi) monitoring implemented
-  - [x] GPU optimization and memory management included
-  - [x] Comprehensive test suite written and passing
-  - [x] Random seed reproducibility validated
-  - [x] Code reviewed and documentation complete
+## Phase 2: Data Loading Infrastructure ✅ COMPLETED
 
-### 🔄 Phase 2: Analysis Engine  
-- [ ] **MET-35**: Build feed-specific analysis and stratification code
-  - [ ] Feed-level topic aggregation implemented
-  - [ ] Multi-level stratified analysis (condition, time, condition×time) working
-  - [ ] Topic evolution tracking across 2-month period
-  - [ ] Topic co-occurrence analysis within feeds
-  - [ ] Weekly temporal analysis and election boundary comparison
-  - [ ] Jupyter notebook workflow documented and tested
-  - [ ] Statistical validation framework implemented
-  - [ ] Comprehensive test suite passing
+- [x] **MET-44**: Implement Local Data Loader for Topic Modeling Pipeline ✅ COMPLETED
+  - **V2 Approach (Current)**: Simplified, direct implementation for research workflow
+    - 3 files, 241 lines total (90%+ complexity reduction)
+    - Direct function calls, no unnecessary abstractions
+    - Fast iteration and testing of BERTopic logic
+    - Immediate working solution for local data analysis
+  - **V1 Approach (Previous)**: Enterprise-grade pipeline with 20+ files, 2600+ lines
+    - Abstract DataLoader interface with multiple implementations
+    - Configuration-driven data loader selection
+    - Comprehensive testing suite and pipeline orchestration
+    - Over-engineered for actual research needs
+  - **Status**: ✅ COMPLETED - V2 simplified approach implemented and working
+  - **Actual Effort**: ~2 hours (vs. estimated 4+ hours for V1)
+  - **Dependencies**: ✅ MET-34 (Core BERTopic pipeline) COMPLETED
 
-### 🔄 Phase 3: Publication Materials
-- [ ] **MET-36**: Generate publication-ready tables and figures
-  - [ ] Statistical tables generated for all stratification levels
-  - [ ] Publication-quality figures created (topic evolution, distributions, comparisons)
-  - [ ] PNG format with appropriate DPI for publication
-  - [ ] CSV and LaTeX table formats available
-  - [ ] Accessibility standards met (color schemes, legends)
-  - [ ] Automated generation pipeline working
-  - [ ] Professional styling consistent across all outputs
-  - [ ] Comprehensive test suite validating figure quality
+- [ ] **MET-45**: Implement Production Data Loader for Topic Modeling Pipeline
+  - ProductionDataLoader implementation following DataLoader interface
+  - Production data source integration with robust error handling
+  - Performance optimization for production-scale data loading
+  - Production configuration management
+  - **Dependencies**: MET-44 (Local Data Loader) ✅ COMPLETED
 
-### 🔄 Phase 4: Optional Enhancement
-- [ ] **MET-37**: Create interactive Streamlit dashboard (Optional)
-  - [ ] Streamlit dashboard framework implemented
-  - [ ] Multi-level filtering interface (conditions, time, topics) working
-  - [ ] Interactive visualizations with real-time updates
-  - [ ] Drill-down capabilities for topic exploration
-  - [ ] Representative post viewing functionality
-  - [ ] Performance optimized for large datasets
-  - [ ] Error handling and user input validation
-  - [ ] Dashboard deployed and accessible
+## Phase 3: Analysis & Stratification
 
-## Project Milestones
-- [x] **Week 1**: Core BERTopic pipeline complete
-- [ ] **Week 2**: Feed analysis and stratification complete
-- [ ] **Week 3**: Publication materials generated
-- [ ] **Week 4**: Optional dashboard deployed
+- [ ] **MET-46**: Implement Feed-Specific Analysis and Stratification for Topic Models
+  - Multi-level stratified analysis (overall → condition → time → condition×time)
+  - Topic evolution tracking across 2-month experimental period
+  - Topic co-occurrence patterns within feeds
+  - Weekly temporal analysis and pre/post election comparison
+  - Publication-ready visualizations and statistical summaries
+  - **Dependencies**: MET-44, MET-45 (Data Loading Infrastructure)
 
-## Linear Issue Links
-- [MET-34: Core BERTopic Pipeline](https://linear.app/metresearch/issue/MET-34) ✅ COMPLETED
-- [MET-35: Feed Analysis & Stratification](https://linear.app/metresearch/issue/MET-35)  
-- [MET-36: Publication Materials](https://linear.app/metresearch/issue/MET-36)
-- [MET-37: Interactive Dashboard](https://linear.app/metresearch/issue/MET-37)
+## Phase 4: Publication & Documentation
+
+- [ ] **Publication Materials Generation**
+  - Statistical tables and publication-quality figures
+  - Topic evolution and co-occurrence analysis reports
+  - Reproducible analysis pipeline documentation
+  - **Dependencies**: MET-46 (Feed-Specific Analysis)
+
+- [ ] **Final Documentation & Handoff**
+  - Complete pipeline documentation
+  - Usage examples and best practices
+  - Performance benchmarks and optimization notes
+  - **Dependencies**: All previous phases
+
+## Implementation Notes
+
+### MET-44 Implementation (V2 - Current)
+- **Package Structure**: `services/calculate_analytics/analyses/calculate_feed_topic_models_2025_08_18/`
+- **Core Components**: Simple DataLoader class, direct BERTopic execution, CSV export
+- **Integration**: Direct integration with existing BERTopicWrapper from MET-34
+- **Testing**: Working script ready for immediate use
+- **Deliverables**: ✅ Working topic modeling script for local data analysis
+
+### V2 vs V1 Approach Benefits
+- **Complexity Reduction**: 90%+ reduction in code and files
+- **Development Speed**: Working solution in 2 hours vs. 20+ hours for V1
+- **Maintenance**: Minimal overhead, easy to understand and modify
+- **Research Workflow**: Fast iteration, direct execution, immediate results
+- **YAGNI Principle**: Only builds what's actually needed
+
+### Next Steps After MET-44
+1. **MET-45**: Production data loader implementation (if needed)
+2. **MET-46**: Feed-specific analysis and stratification
+3. **Publication Materials**: Statistical analysis and visualizations
+
+## Current Status: Week 2 - Data Loading Infrastructure ✅ COMPLETED
+**Focus**: ✅ COMPLETED - Simplified data loading infrastructure implemented and working.
+**Next Focus**: Move to Phase 3 - Analysis & Stratification (MET-46)
