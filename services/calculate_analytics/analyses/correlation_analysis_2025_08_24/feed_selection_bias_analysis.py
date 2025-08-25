@@ -21,3 +21,15 @@ The analysis will:
 This feed bias analysis serves as Phase 2 of the correlation investigation project and
 depends on the completion of baseline correlation analysis (Phase 1).
 """
+
+
+def main():
+    # load users.
+    # map users to condition.
+    # load feeds
+    # get post URIs from each feed.
+    pass
+
+
+if __name__ == "__main__":
+    main()

@@ -37,45 +37,13 @@ from services.calculate_analytics.shared.constants import (
 from services.calculate_analytics.shared.data_loading.labels import (
     get_perspective_api_labels,
 )
+from services.calculate_analytics.shared.analysis.correlations import (
+    calculate_pearson_correlation,
+    calculate_spearman_correlation,
+)
 
 output_dir = os.path.join(os.path.dirname(__file__), "results")
 logger = get_logger(__name__)
-
-
-def calculate_pearson_correlation(df: pd.DataFrame) -> float:
-    """
-    Calculate Pearson correlation coefficient between toxicity and constructiveness.
-
-    Args:
-        df: DataFrame containing posts with toxicity and constructiveness scores
-
-    Returns:
-        Pearson correlation coefficient
-    """
-    toxicity_scores = df["prob_toxic"]
-    constructiveness_scores = df["prob_constructive"]
-    logger.info("Calculating Pearson correlation")
-    corr = toxicity_scores.corr(constructiveness_scores, method="pearson")
-    logger.info(f"Pearson correlation: {corr}")
-    return corr
-
-
-def calculate_spearman_correlation(df: pd.DataFrame) -> float:
-    """
-    Calculate Spearman correlation coefficient between toxicity and constructiveness.
-
-    Args:
-        df: DataFrame containing posts with toxicity and constructiveness scores
-
-    Returns:
-        Spearman correlation coefficient
-    """
-    toxicity_scores = df["prob_toxic"]
-    constructiveness_scores = df["prob_constructive"]
-    logger.info("Calculating Spearman correlation")
-    corr = toxicity_scores.corr(constructiveness_scores, method="spearman")
-    logger.info(f"Spearman correlation: {corr}")
-    return corr
 
 
 def calculate_correlations(df: pd.DataFrame) -> Dict[str, float]:
@@ -103,8 +71,12 @@ def calculate_correlations(df: pd.DataFrame) -> Dict[str, float]:
             "constructiveness_mean": 0.0,
         }
 
-    pearson_correlation = calculate_pearson_correlation(df)
-    spearman_correlation = calculate_spearman_correlation(df)
+    pearson_correlation = calculate_pearson_correlation(
+        df, "prob_toxic", "prob_constructive"
+    )
+    spearman_correlation = calculate_spearman_correlation(
+        df, "prob_toxic", "prob_constructive"
+    )
 
     return {
         "pearson_correlation": pearson_correlation,
