@@ -22,8 +22,6 @@ be compared against feed selection bias analysis and calculation logic review in
 
 import os
 
-from typing import Dict
-
 import pandas as pd
 
 from lib.log.logger import get_logger
@@ -36,54 +34,12 @@ from services.calculate_analytics.shared.data_loading.labels import (
     get_perspective_api_labels,
 )
 from services.calculate_analytics.shared.analysis.correlations import (
-    calculate_pearson_correlation,
-    calculate_spearman_correlation,
+    calculate_correlations,
     write_correlation_results,
 )
 
 output_dir = os.path.join(os.path.dirname(__file__), "results")
 logger = get_logger(__name__)
-
-
-def calculate_correlations(df: pd.DataFrame) -> Dict[str, float]:
-    """
-    Calculate correlation coefficients for a single day's data.
-
-    Args:
-        df: DataFrame containing posts with toxicity and constructiveness scores
-
-    Returns:
-        Dictionary with correlation results and metadata
-    """
-    logger.info(
-        f"Calculating correlations for {df['partition_date'].min()} to {df['partition_date'].max()}"
-    )
-    df = df.dropna(subset=["prob_toxic", "prob_constructive"])
-    if len(df) == 0:
-        logger.warning("No data to calculate correlations")
-        return {
-            "date": df["partition_date"].min(),
-            "pearson_correlation": 0.0,
-            "spearman_correlation": 0.0,
-            "sample_size": 0,
-            "toxicity_mean": 0.0,
-            "constructiveness_mean": 0.0,
-        }
-
-    pearson_correlation = calculate_pearson_correlation(
-        df, "prob_toxic", "prob_constructive"
-    )
-    spearman_correlation = calculate_spearman_correlation(
-        df, "prob_toxic", "prob_constructive"
-    )
-
-    return {
-        "pearson_correlation": pearson_correlation,
-        "spearman_correlation": spearman_correlation,
-        "sample_size": len(df),
-        "toxicity_mean": df["prob_toxic"].mean(),
-        "constructiveness_mean": df["prob_constructive"].mean(),
-    }
 
 
 def main():
@@ -114,7 +70,7 @@ def main():
     )
 
     # Generate summary and write results
-    results = calculate_correlations(df)
+    results = calculate_correlations(df, "prob_toxic", "prob_constructive")
     write_correlation_results(
         results,
         output_dir,

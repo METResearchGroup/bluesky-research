@@ -5,12 +5,51 @@ Correlation analysis functions.
 import os
 import json
 from pathlib import Path
+from typing import Dict
 
 import pandas as pd
 
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def calculate_correlations(df: pd.DataFrame, col1: str, col2: str) -> Dict[str, float]:
+    """
+    Calculate correlation coefficients for the given DataFrame.
+
+    Args:
+        df: DataFrame containing posts with toxicity and constructiveness scores
+        col1: First column name (e.g., "prob_toxic")
+        col2: Second column name (e.g., "prob_constructive")
+
+    Returns:
+        Dictionary with correlation results and metadata
+    """
+    logger.info(f"Calculating correlations for {len(df)} posts")
+
+    # Drop rows with missing values in the specified columns
+    df_clean = df.dropna(subset=[col1, col2])
+    if len(df_clean) == 0:
+        logger.warning("No data to calculate correlations")
+        return {
+            "pearson_correlation": 0.0,
+            "spearman_correlation": 0.0,
+            "sample_size": 0,
+            "toxicity_mean": 0.0,
+            "constructiveness_mean": 0.0,
+        }
+
+    pearson_correlation = calculate_pearson_correlation(df_clean, col1, col2)
+    spearman_correlation = calculate_spearman_correlation(df_clean, col1, col2)
+
+    return {
+        "pearson_correlation": pearson_correlation,
+        "spearman_correlation": spearman_correlation,
+        "sample_size": len(df_clean),
+        "toxicity_mean": df_clean[col1].mean(),
+        "constructiveness_mean": df_clean[col2].mean(),
+    }
 
 
 def calculate_pearson_correlation(df: pd.DataFrame, col1: str, col2: str) -> float:
