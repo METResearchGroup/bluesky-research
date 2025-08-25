@@ -53,37 +53,64 @@ Investigate confusing correlations between toxicity and constructiveness scores 
 ### Phase 2: Feed Selection Bias Analysis (1 week)
 **Linear Ticket**: [MET-49](https://linear.app/metresearch/issue/MET-49/feed-selection-bias-analysis)
 
+#### Implementation Approach
+Based on user requirements, Phase 2 implements a comprehensive data flow to analyze algorithmic selection biases:
+
+1. **Data Collection Pipeline** (2 days):
+   - For each feed, get the URIs
+   - For each user, get their feeds
+   - Get the condition for each user
+   - For each condition, get all feeds across users
+   - Then for each feed, get post URIs
+   - Then load all labels (same as before), then split up post URIs by condition
+   - Then recalculate analysis
+
 #### Subtasks
-1. **Data Loading** (1 day)
+1. **Data Collection & Processing** (2 days)
+   - Implement the 7-step data collection pipeline
    - Load posts used in feeds data locally
-   - Implement local processing for feed data
+   - Implement local processing for feed data analysis
+   - Split post URIs by condition (reverse_chronological, engagement, representative_diversification)
 
 2. **Analysis Implementation** (2 days)
-   - Calculate correlations for feed posts
+   - Calculate correlations for feed posts (aggregate)
+   - Implement correlation calculation split by condition
    - Implement bias detection metrics
-   - Compare with baseline correlations
+   - Compare with baseline correlations from Phase 1
 
 3. **Results Generation** (1 day)
    - Generate comparison reports
    - Create visualizations
    - Document findings
+   - Produce expected results:
+     - Spearman/Pearson correlation across all posts used in feeds
+     - Spearman/Pearson correlation across all posts used in feeds, split by condition
 
 4. **Documentation** (1 day)
    - Document analysis methodology
    - Update project documentation
+
+#### Expected Results
+The analysis will produce two key correlation metrics:
+- **Aggregate Feed Correlation**: Overall correlation across all posts used in feeds
+- **Condition-Specific Correlations**: Correlations split by feed algorithm condition:
+  - reverse_chronological condition
+  - engagement condition
+  - representative_diversification condition
 
 #### Deliverables
 - Feed selection bias analysis results
 - Comparison reports between baseline and feed correlations
 - Bias detection metrics
 - Analysis documentation
+- Condition-specific correlation breakdowns
 
 #### Effort Estimate
-- Data Loading: 1 day
+- Data Collection & Processing: 2 days
 - Analysis Implementation: 2 days
 - Results Generation: 1 day
 - Documentation: 1 day
-- **Total**: 5 days (1 week)
+- **Total**: 6 days (1.2 weeks)
 
 ### Phase 3: Daily Proportion Calculation Logic Review (1 week)
 **Linear Ticket**: [MET-50](https://linear.app/metresearch/issue/MET-50/daily-proportion-calculation-logic-review)

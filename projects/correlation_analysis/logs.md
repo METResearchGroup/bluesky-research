@@ -75,14 +75,85 @@ services/calculate_analytics/
 - Focus on shipping quickly for research purposes
 - Integration with existing shared modules is key priority
 
-## Implementation Phase 1 - TBD
-*To be populated as implementation begins*
+## Implementation Phase 1 - 2025-08-25 ✅ COMPLETED
 
-## Implementation Phase 2 - TBD  
-*To be populated as implementation begins*
+### MET-48 Baseline Correlation Analysis Completed
+- [x] Baseline correlation analysis framework implemented and tested
+- [x] Successfully processed ~18.4M posts across all available data
+- [x] Generated comprehensive correlation results with expected negative correlation
+- [x] Results validated and confirmed baseline relationship between toxicity and constructiveness
 
-## Implementation Phase 3 - TBD
-*To be populated as implementation begins*
+### Key Results Achieved
+```json
+{
+  "pearson_correlation": -0.1084108810843165,
+  "spearman_correlation": -0.08536489169351506,
+  "sample_size": 18420828,
+  "toxicity_mean": 0.12372691150354528,
+  "constructiveness_mean": 0.17767073811275552
+}
+```
+
+### Phase 1 Deliverables Completed
+- [x] ✅ Baseline correlation analysis framework
+- [x] ✅ Processing of 20-30M posts (achieved 18.4M)
+- [x] ✅ Pearson and Spearman correlations calculated
+- [x] ✅ CSV output format implemented
+- [x] ✅ Integration with existing shared modules
+- [x] ✅ Memory management for large dataset processing
+- [x] ✅ Comprehensive documentation and examples
+
+### Phase 1 Status: ✅ COMPLETED
+**Research Question Answered**: "Look at the correlation of toxicity x constructiveness on all posts we have, to see if this is a trend that replicates across a wide sample of Bluesky posts."
+
+**Finding**: Confirmed expected negative correlation between toxicity and constructiveness across ~18.4M posts, validating the baseline relationship. The correlation is consistent with expectations and provides a solid foundation for Phase 2 analysis.
+
+### Next Steps for Phase 2
+- [ ] Begin MET-49: Feed Selection Bias Analysis
+- [ ] Analyze correlation patterns in feed-selected posts vs. baseline
+- [ ] Implement bias detection metrics and analysis
+
+## Implementation Phase 2 - 🔄 IN PROGRESS
+*Phase 2 (MET-49) is now the active focus*
+
+### MET-49 Feed Selection Bias Analysis Implementation Plan
+**Date**: 2025-08-25
+**Status**: 🔄 IMPLEMENTATION PLANNING
+
+#### Detailed Implementation Approach
+Based on user requirements, Phase 2 will implement the following data flow:
+
+1. **Data Collection Pipeline**:
+   - For each feed, get the URIs
+   - For each user, get their feeds
+   - Get the condition for each user
+   - For each condition, get all feeds across users
+   - Then for each feed, get post URIs
+   - Then load all labels (same as before), then split up post URIs by condition
+   - Then recalculate analysis
+
+#### Expected Results
+The analysis will produce:
+- **Aggregate Feed Correlation**: Spearman/Pearson correlation across all posts that are used in feeds
+- **Condition-Specific Correlations**: Spearman/Pearson correlation across all posts that are used in feeds, split by condition:
+  - reverse_chronological condition
+  - engagement condition
+  - representative_diversification condition
+
+#### Implementation Strategy
+- **Data Processing**: 2 days for data collection and processing pipeline
+- **Analysis Implementation**: 2 days for correlation calculations and bias detection
+- **Results Generation**: 1 day for reports and visualizations
+- **Documentation**: 1 day for methodology documentation
+
+#### Next Steps
+- [ ] Implement data collection pipeline following the 7-step approach
+- [ ] Create correlation analysis framework for feed posts
+- [ ] Implement condition-specific correlation analysis
+- [ ] Compare results with Phase 1 baseline correlations
+
+## Implementation Phase 3 - 📋 PLANNED
+*Phase 3 (MET-50) depends on Phase 2 completion*
 
 ## Project Completion - TBD
 *To be populated when project is completed*
