@@ -4,9 +4,9 @@
 Refactor the `services/calculate_analytics/` system from monolithic scripts to simple, organized analysis classes using modular components with shared utilities.
 
 ## Project Status
-**Current Phase**: Phase 1 Complete, Phase 2 Planning  
-**Overall Progress**: 25%  
-**Next Milestone**: Begin Phase 2 Implementation (Simple Analysis Framework)  
+**Current Phase**: Phase 1 Complete, Phase 2 In Progress, Phase 3 (MET-41) Planned  
+**Overall Progress**: 30%  
+**Next Milestone**: Complete Phase 2, Begin Phase 3 (MET-41) Implementation  
 **Risk Level**: Low (Simplified architecture reduces complexity)
 
 ## Quick Links
@@ -18,11 +18,13 @@ Refactor the `services/calculate_analytics/` system from monolithic scripts to s
 - [Progress Logs](logs.md)
 - [Lessons Learned](lessons_learned.md)
 - [Performance Metrics](metrics.md)
+- **[NEW]** [MET-41 Implementation Plan](met_41_implementation_plan.md) - Phase 3 reorganization plan
+- **[NEW]** [MET-41 Migration Tracking](met_41_migration_tracking.md) - Migration progress tracking
 
 ## Linear Tickets
 - [MET-39](https://linear.app/metresearch/issue/MET-39/phase-1-extract-shared-data-loading-and-processing) - Phase 1: Extract Shared Data Loading & Processing ✅ **COMPLETED**
 - [MET-40](https://linear.app/metresearch/issue/MET-40/phase-2-implement-simple-pipeline-framework-for-consistent-analysis) - Phase 2: Implement Simple Analysis Framework with Shared Utilities 🔄 **REVISED & IN PROGRESS**
-- [MET-41](https://linear.app/metresearch/issue/MET-41/phase-3-reorganize-one-off-analyses) - Phase 3: Reorganize One-Off Analyses
+- [MET-41](https://linear.app/metresearch/issue/MET-41/phase-3-reorganize-one-off-analyses) - Phase 3: Reorganize One-Off Analyses 🔄 **PLANNED & READY FOR IMPLEMENTATION**
 - [MET-42](https://linear.app/metresearch/issue/MET-42/phase-4-implement-testing-and-validation) - Phase 4: Implement Testing & Validation
 - [MET-43](https://linear.app/metresearch/issue/MET-43/phase-5-documentation-and-cleanup) - Phase 5: Documentation & Cleanup
 
@@ -31,10 +33,12 @@ Refactor the `services/calculate_analytics/` system from monolithic scripts to s
 projects/analytics_system_refactor/
 ├── spec.md                           # Project specification (REVISED)
 ├── plan_refactor.md                  # Detailed task plan (REVISED)
-├── todo.md                           # Todo checklist
+├── todo.md                           # Todo checklist (UPDATED with MET-41)
 ├── logs.md                           # Progress logs
 ├── lessons_learned.md                # Lessons learned
 ├── metrics.md                        # Performance metrics
+├── **[NEW]** met_41_implementation_plan.md  # MET-41 detailed implementation plan
+├── **[NEW]** met_41_migration_tracking.md   # MET-41 migration progress tracking
 └── retrospective/                    # Phase retrospectives
     └── README.md                     # Retrospective overview
 ```
@@ -42,9 +46,37 @@ projects/analytics_system_refactor/
 ## Implementation Phases
 1. **Phase 1 (Week 1)**: Extract shared data loading & processing ✅ **COMPLETED**
 2. **Phase 2 (Week 2)**: Implement simple analysis framework with shared utilities 🔄 **REVISED & IN PROGRESS**
-3. **Phase 3 (Week 3)**: Reorganize one-off analyses
+3. **Phase 3 (Week 3)**: Reorganize one-off analyses 🔄 **MET-41 PLANNED & READY**
 4. **Phase 4 (Week 4)**: Implement testing & validation
 5. **Phase 5 (Week 5)**: Documentation & cleanup
+
+## **MET-41 PHASE 3 IMPLEMENTATION STATUS**
+
+### **Current Status**: 🔄 **PLANNED & READY FOR IMPLEMENTATION**
+
+**What's Ready:**
+- ✅ Complete migration checklist for all 16 analysis scripts
+- ✅ Correct dates determined from git blame analysis
+- ✅ Priority levels assigned based on recent activity
+- ✅ Detailed implementation strategy documented
+- ✅ Migration tracking spreadsheet template created
+- ✅ Folder structure template defined
+
+**What's Blocking:**
+- ⏳ **Phase 2 Completion**: Simplified analyzer framework must be completed first
+- ⏳ **Shared Modules**: All shared data loading and processing modules must be available
+
+**Migration Summary:**
+- **16 analysis scripts** identified for migration
+- **Priority-based approach**: High priority (June 2025) → Medium (May 2025) → Lower (April 2025) → Lowest (March 2025)
+- **Consistent structure**: Each analysis gets dated folder with README, main script, investigation notebook, and results folder
+- **Focus**: Raw data consistency and functionality preservation
+
+### **Next Steps for MET-41:**
+1. Complete Phase 2 (simplified analyzer framework)
+2. Begin high-priority migrations (June 2025 files)
+3. Follow iterative validation approach
+4. Track progress using migration tracking spreadsheet
 
 ## **ARCHITECTURE REVISION - KEY CHANGES**
 
@@ -92,16 +124,18 @@ analyses/
 │   ├── README.md                     # Description of analysis purpose and methodology
 │   ├── investigation.ipynb           # Jupyter notebook with preliminary investigation
 │   ├── main.py                       # Main implementation generating analytical assets
-│   └── assets/                       # Generated outputs (CSV files, images, etc.)
+│   └── results/                      # Generated outputs (CSV files, images, etc.)
 ├── user_engagement_analysis_2024_12_01/     # Another distinct analysis
 │   ├── README.md
 │   ├── investigation.ipynb
 │   ├── main.py
-│   └── assets/
+│   └── results/
 └── ...
 ```
 
 **Folder Naming Convention**: `<description>_<YYYY_MM_DD>` where description is a brief, clear name for the specific analysis being performed. This format ensures valid Python import paths.
+
+**MET-41 Implementation**: Each of the 16 analysis scripts will be migrated to follow this exact structure with dates based on git blame analysis.
 
 ## Success Criteria
 - All existing analytics outputs can be reproduced exactly
@@ -111,6 +145,7 @@ analyses/
 - System is extensible for future research needs
 - **NEW**: Code is transparent and easy to understand for peer reviewers
 - **NEW**: Architecture supports academic rigor and reproducibility
+- **[NEW]**: MET-41: All 16 analysis scripts successfully migrated with consistent structure
 
 ## Key Metrics
 - **Test Coverage**: >80% (Target)
@@ -118,6 +153,7 @@ analyses/
 - **Performance**: >40% faster processing (Target)
 - **File Size**: No files >500 lines (Target)
 - **Architecture Complexity**: Simplified from ABC pipelines to simple classes (Target)
+- **[NEW]**: **MET-41 Migration**: 16/16 analysis scripts migrated (Target)
 
 ## Team
 - **Lead Developer**: [TBD]
@@ -131,3 +167,4 @@ analyses/
 - **REVISED**: Simple, organized patterns provide consistency while maintaining flexibility
 - **REVISED**: Architecture better aligns with academic research requirements and peer review scrutiny
 - **REVISED**: Removed unnecessary enterprise complexity in favor of research-focused simplicity
+- **[NEW]**: **MET-41**: Migration approach focuses on raw data consistency rather than output file matching, aligning with user requirements

@@ -98,27 +98,168 @@
 - [ ] **NEW**: Ensure performance meets or exceeds current benchmarks
 - [ ] **NEW**: Validate that simplified architecture maintains functionality
 
-## Phase 3: Reorganize One-Off Analyses
+## Phase 3: Reorganize One-Off Analyses 🔄 **IN PROGRESS - MET-41**
 
-### Analysis Folder Structure
-- [ ] Create `analyses/` directory with proper structure
-- [ ] Move existing analysis scripts to appropriate dated folders
-- [ ] Implement one analysis per folder structure
-- [ ] Ensure each folder follows naming convention: `<description>_<YYYY_MM_DD>`
+### **MIGRATION CHECKLIST - MET-41 IMPLEMENTATION**
 
-### Analysis Script Updates
-- [ ] Modify analysis scripts to use shared modules
-- [ ] Update imports and dependencies
-- [ ] Ensure all analyses can be re-run successfully
-- [ ] Verify output files match previous versions exactly
+#### **Phase 3a: Setup & Preparation**
+- [ ] Create `analytics_system_refactor/analyses/` directory
+- [ ] Set up folder structure template
+- [ ] Create migration tracking spreadsheet
+- [ ] Verify Phase 2 completion status
 
-### Standardization
-- [ ] Add `README.md` to each analysis folder
-- [ ] Create `investigation.ipynb` for exploratory work
-- [ ] Organize `assets/` folder for outputs
-- [ ] Standardize folder contents across all analyses
+#### **Phase 3b: User Engagement Analysis Migration**
+- [ ] **HIGH PRIORITY**: Migrate `get_agg_labels_for_engagements.py` → `user_engagement_analysis_2025_06_16/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
 
-### **Validation & Output Consistency**
+- [ ] **HIGH PRIORITY**: Migrate `get_aggregate_metrics.py` → `user_engagement_metrics_2025_06_16/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+- [ ] **MEDIUM PRIORITY**: Migrate `experiment_get_agg_labels_for_engagement.py` → `user_engagement_experiment_2025_05_12/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+- [ ] **MEDIUM PRIORITY**: Migrate `qa_spammy_handles.py` → `spam_handle_analysis_2025_05_12/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+#### **Phase 3c: Report Generation Migration**
+- [ ] **MEDIUM PRIORITY**: Migrate `weekly_user_logins.py` → `weekly_user_logins_2025_04_23/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+- [ ] **HIGH PRIORITY**: Migrate `binary_classifications_averages.py` → `binary_classification_averages_2025_06_16/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+- [ ] **LOWER PRIORITY**: Migrate `condition_aggregated.py` → `condition_aggregated_analysis_2025_04_08/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+- [ ] **MEDIUM PRIORITY**: Migrate `get_total_users_in_study.py` → `study_user_count_2025_05_05/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+#### **Phase 3d: Core Analytics Migration**
+- [ ] **HIGH PRIORITY**: Migrate `feed_analytics.py` → `feed_analytics_2025_06_16/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+- [ ] **LOWER PRIORITY**: Migrate `calculate_weekly_thresholds_per_user.py` → `weekly_thresholds_analysis_2025_04_08/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+#### **Phase 3e: Data Consolidation Migration**
+- [ ] **LOWEST PRIORITY**: Migrate `consolidate_feeds.py` → `feed_consolidation_2025_03_10/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+- [ ] **LOWEST PRIORITY**: Migrate `consolidate_user_session_logs.py` → `user_session_consolidation_2025_03_10/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+- [ ] **LOWEST PRIORITY**: Migrate `migrate_feeds_to_db.py` → `feed_migration_2025_03_10/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+- [ ] **LOWEST PRIORITY**: Migrate `migrate_user_session_logs_to_db.py` → `user_session_migration_2025_03_10/`
+  - [ ] Create folder structure
+  - [ ] Move main script
+  - [ ] Update imports to use shared modules
+  - [ ] Create README.md
+  - [ ] Create investigation.ipynb
+  - [ ] Create results/ folder
+  - [ ] Test script functionality
+  - [ ] Validate raw data consistency
+
+#### **Phase 3f: Supporting Files Migration**
+- [ ] Migrate configuration files (constants.py, query_profile.json)
+- [ ] Migrate shell scripts (submit_*.sh)
+- [ ] Migrate test files (test_*.py)
+- [ ] Migrate model definitions (model.py)
+- [ ] Migrate documentation (README.md files)
+
+#### **Phase 3g: Validation & Testing**
 - [ ] **NEW**: Identify all output files from existing scripts
 - [ ] **NEW**: Create validation scripts for output comparison
 - [ ] **NEW**: Run new scripts in Slurm environment (production testing)
@@ -126,7 +267,7 @@
 - [ ] **NEW**: Document validation results and any discrepancies
 - [ ] **NEW**: Keep old scripts available for validation purposes
 
-### **Migration Testing & Validation Planning**
+#### **Phase 3h: Migration Testing & Validation Planning**
 - [ ] **NEW**: Write new analysis files first (before validation begins)
 - [ ] **NEW**: Create a migration testing folder structure
 - [ ] **NEW**: Create a validation checklist with:
@@ -135,6 +276,40 @@
   - [ ] What output file needs to be tested
   - [ ] Validation status (completed/pending)
 - [ ] **NEW**: Note: Detailed validation plan (`met_41_validation_plan.md`) needs to be created manually later
+
+### **MIGRATION PRIORITY SUMMARY**
+
+**HIGH PRIORITY (June 2025 - Recent Activity):**
+- User engagement analysis files (2 files)
+- Feed analytics
+- Binary classification averages
+
+**MEDIUM PRIORITY (May 2025 - Recent Activity):**
+- User engagement experiments
+- Spam handle analysis
+- Study user count
+
+**LOWER PRIORITY (April 2025 - Older Activity):**
+- Weekly user logins
+- Condition aggregated analysis
+- Weekly thresholds analysis
+
+**LOWEST PRIORITY (March 2025 - Older Activity):**
+- Data consolidation scripts (4 files - these may be more stable/complete)
+
+### **FOLDER STRUCTURE TEMPLATE**
+Each analysis folder will contain:
+```
+analyses/
+├── <analysis_name>_<YYYY_MM_DD>/
+│   ├── README.md
+│   ├── main.py (or original script name)
+│   ├── investigation.ipynb
+│   ├── results/
+│   ├── constants.py (if applicable)
+│   ├── submit_*.sh (if applicable)
+│   └── test_*.py (if applicable)
+```
 
 ## Phase 4: Implement Testing & Validation
 
@@ -234,3 +409,4 @@
 - [ ] **Reproducibility**: Results are identical every time
 - [ ] **Performance**: Maintained or improved through simplification
 - [ ] **Testing**: Simpler to test without complex framework mocking
+- [ ] **MET-41 Migration**: All 16 analysis scripts successfully migrated with consistent structure
