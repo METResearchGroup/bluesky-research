@@ -291,7 +291,10 @@ def main():
     dataloader = DataLoader(mode)
     logger.info("📊 DataLoader initialized successfully")
 
-    df: pd.DataFrame = dataloader.load_data()
+    date_condition_uris_map, df = dataloader.load_data()
+    if date_condition_uris_map is not None:
+        print("Successfully loaded date_condition_uris_map for prod run.")
+
     logger.info(f"✅ Data loaded successfully: {len(df)} documents")
 
     # Apply sample size limit if specified
