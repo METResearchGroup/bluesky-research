@@ -70,14 +70,14 @@ def run_bertopic_analysis(
                 },
                 "bertopic": {
                     "top_n_words": 15,
-                    "min_topic_size": 50,  # Much larger for stability
-                    "nr_topics": "auto",
+                    "min_topic_size": 200,  # Much larger for stability - increased from 50
+                    "nr_topics": 50,  # Fixed number instead of "auto" for more manageable analysis
                     "calculate_probabilities": False,  # Disable for memory
                     "verbose": True,
                     # Conservative HDBSCAN for large datasets
                     "hdbscan_model": {
-                        "min_cluster_size": 100,  # Much larger for stability
-                        "min_samples": 50,  # Much larger for stability
+                        "min_cluster_size": 200,  # Much larger for stability - increased from 100
+                        "min_samples": 100,  # Much larger for stability - increased from 50
                         "cluster_selection_method": "leaf",  # More stable for large datasets
                         "prediction_data": True,
                         "gen_min_span_tree": False,  # Disable for memory
@@ -104,23 +104,23 @@ def run_bertopic_analysis(
                 },
                 "bertopic": {
                     "top_n_words": 20,
-                    "min_topic_size": 15,
-                    "nr_topics": "auto",
+                    "min_topic_size": 100,  # Increased from 15 for more stable topics
+                    "nr_topics": 50,  # Fixed number instead of "auto" for manageable analysis
                     "calculate_probabilities": True,
                     "verbose": True,
-                    # Fix HDBSCAN configuration for large datasets
+                    # Conservative HDBSCAN configuration for better stability
                     "hdbscan_model": {
-                        "min_cluster_size": 20,  # Increased from default
-                        "min_samples": 10,  # Increased from default
-                        "cluster_selection_method": "eom",  # More robust for large datasets
+                        "min_cluster_size": 100,  # Increased from 20 for more stable clusters
+                        "min_samples": 50,  # Increased from 10 for more stable clusters
+                        "cluster_selection_method": "leaf",  # More stable than "eom"
                         "prediction_data": True,  # Explicitly enable prediction data
                         "gen_min_span_tree": True,  # Better for large datasets
                     },
-                    # Adjust UMAP for large datasets
+                    # Conservative UMAP for better stability
                     "umap_model": {
-                        "n_neighbors": 15,  # Reduced from default for large datasets
-                        "n_components": 5,  # Reduced dimensions for stability
-                        "min_dist": 0.0,
+                        "n_neighbors": 10,  # Reduced from 15 for more stability
+                        "n_components": 3,  # Reduced from 5 for more stability
+                        "min_dist": 0.1,  # Increased from 0.0 for more stability
                         "metric": "cosine",
                         "random_state": 42,
                     },
