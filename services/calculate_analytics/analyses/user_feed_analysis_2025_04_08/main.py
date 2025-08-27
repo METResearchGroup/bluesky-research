@@ -59,14 +59,17 @@ def do_setup():
     }
 
 
-def do_feed_analytics():
-    pass
-
-
 def do_aggregations_and_export_results():
     # (1) Daily aggregations
     print("[Daily analysis] Getting per-user, per-day feed analysis...")
+
+    def transform_daily_level_feed_content_metrics():
+        pass
+
     daily_level_feed_content_metrics_df: pd.DataFrame = daily_feed_content_aggregation()
+    transformed_daily_level_feed_content_metrics_df: pd.DataFrame = (
+        transform_daily_level_feed_content_metrics(daily_level_feed_content_metrics_df)
+    )
     print(
         f"[Daily analysis] Exporting per-user, per-day feed analysis to {feed_content_daily_aggregated_results_export_fp}..."
     )
@@ -74,7 +77,7 @@ def do_aggregations_and_export_results():
         os.path.dirname(feed_content_daily_aggregated_results_export_fp),
         exist_ok=True,
     )
-    daily_level_feed_content_metrics_df.to_csv(
+    transformed_daily_level_feed_content_metrics_df.to_csv(
         feed_content_daily_aggregated_results_export_fp, index=False
     )
     print(
@@ -83,15 +86,37 @@ def do_aggregations_and_export_results():
 
     # (2) Weekly aggregations
     print("[Weekly analysis] Getting per-user, per-week feed analysis...")
-    # load the daily .csv files from storage and then load and stitch them together.
-    weekly_feed_content_aggregation()
+
+    def transform_weekly_level_feed_content_metrics():
+        pass
+
+    weekly_level_feed_content_metrics_df: pd.DataFrame = (
+        weekly_feed_content_aggregation()
+    )
+    transformed_weekly_level_feed_content_metrics_df: pd.DataFrame = (
+        transform_weekly_level_feed_content_metrics(
+            weekly_level_feed_content_metrics_df
+        )
+    )
+    print(
+        f"[Weekly analysis] Exporting per-user, per-week feed analysis to {feed_content_weekly_aggregated_results_export_fp}..."
+    )
+    os.makedirs(
+        os.path.dirname(feed_content_weekly_aggregated_results_export_fp),
+        exist_ok=True,
+    )
+    transformed_weekly_level_feed_content_metrics_df.to_csv(
+        feed_content_weekly_aggregated_results_export_fp, index=False
+    )
+    print(
+        f"[Weekly analysis] Exported per-user, per-week feed analysis to {feed_content_weekly_aggregated_results_export_fp}..."
+    )
 
 
 def main():
     setup_objs = do_setup()
     # TODO: delete, this is for just ruff linter.
     print(f"Setup complete. Partition dates: {setup_objs['partition_dates']}")
-    do_feed_analytics()
     do_aggregations_and_export_results()
 
 
