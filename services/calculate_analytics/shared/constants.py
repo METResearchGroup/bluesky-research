@@ -68,3 +68,5 @@ STUDY_END_DATE = wave_2_study_end_date_inclusive
 # and I think later feed versions had a 2-3 day lookback.
 STUDY_CONTENT_EARLIEST_LOOKBACK_DATE = "2024-09-15"
 exclude_partition_dates = ["2024-10-08"]
+
+integrations_list = ["perspective_api", "sociopolitical", "ime", "valence_classifier"]

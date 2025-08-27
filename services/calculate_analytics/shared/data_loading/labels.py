@@ -11,12 +11,8 @@ from typing import Literal, Optional
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
-from lib.helper import get_partition_dates
 from lib.log.logger import get_logger
-from services.calculate_analytics.shared.constants import (
-    STUDY_CONTENT_EARLIEST_LOOKBACK_DATE,
-    STUDY_END_DATE,
-)
+from services.calculate_analytics.shared.constants import integrations_list
 
 logger = get_logger(__file__)
 
@@ -91,47 +87,56 @@ def get_labels_for_partition_date(
     return df
 
 
-def get_relevant_probs_for_label(integration: str, label_dict: dict):
+def transform_labels_dict(integration: str, labels_dict: dict):
+    """Transform the labels into a format so that we get the relevant
+    measures. Integration-specific."""
     if integration == "perspective_api":
         return {
-            "prob_toxic": label_dict["prob_toxic"],
-            "prob_constructive": label_dict["prob_constructive"],
+            "prob_toxic": labels_dict["prob_toxic"],
+            "prob_constructive": labels_dict["prob_constructive"],
         }
     elif integration == "sociopolitical":
         return {
-            "is_sociopolitical": label_dict["is_sociopolitical"],
-            "is_not_sociopolitical": not label_dict["is_sociopolitical"],
+            "is_sociopolitical": labels_dict["is_sociopolitical"],
+            "is_not_sociopolitical": not labels_dict["is_sociopolitical"],
             # TODO: need to double-check the formatting of these labels.
-            "is_political_left": (label_dict["political_ideology_label"] == "left"),
-            "is_political_right": (label_dict["political_ideology_label"] == "right"),
+            "is_political_left": (labels_dict["political_ideology_label"] == "left"),
+            "is_political_right": (labels_dict["political_ideology_label"] == "right"),
             "is_political_moderate": (
-                label_dict["political_ideology_label"] == "moderate"
+                labels_dict["political_ideology_label"] == "moderate"
             ),
             "is_political_unclear": (
-                label_dict["political_ideology_label"] == "unclear"
+                labels_dict["political_ideology_label"] == "unclear"
             ),
         }
     elif integration == "ime":
         return {
-            "prob_intergroup": label_dict["prob_intergroup"],
-            "prob_moral": label_dict["prob_moral"],
-            "prob_emotion": label_dict["prob_emotion"],
-            "prob_other": label_dict["prob_other"],
+            "prob_intergroup": labels_dict["prob_intergroup"],
+            "prob_moral": labels_dict["prob_moral"],
+            "prob_emotion": labels_dict["prob_emotion"],
+            "prob_other": labels_dict["prob_other"],
         }
     elif integration == "valence_classifier":
         return {
-            "valence_clf_score": label_dict[
+            "valence_clf_score": labels_dict[
                 "compound"
             ],  # raw score given by valence classifier
-            "is_valence_positive": label_dict["valence_label"] == "positive",
-            "is_valence_negative": label_dict["valence_label"] == "negative",
-            "is_valence_neutral": label_dict["valence_label"] == "neutral",
+            "is_valence_positive": labels_dict["valence_label"] == "positive",
+            "is_valence_negative": labels_dict["valence_label"] == "negative",
+            "is_valence_neutral": labels_dict["valence_label"] == "neutral",
         }
     else:
         raise ValueError(f"Invalid integration for labeling: {integration}")
 
 
-def get_labels_for_engaged_content(engaged_content_uris: list[str]) -> dict:
+# TODO: check if I should return as a pd.DataFrame or as a dict?
+# dict works pretty well for now and I worry about pandas being
+# too expensive. Conversion to pandas is easy, just take the dict
+# and convert to df.
+# TODO: should this be at the day-level? This should work fine and we
+# can test on a smaller subset of data. I'd rather not have to do this
+# on chunks of dates as that complicates orchestration.
+def get_all_labels_for_posts(post_uris: set[str], partition_dates: list[str]) -> dict:
     """For the content engaged with, get their associated labels.
 
     Algorithm:
@@ -167,10 +172,10 @@ def get_labels_for_engaged_content(engaged_content_uris: list[str]) -> dict:
         }
     """
     uri_to_labels_map = {}
-
     uris_to_pending_integrations: dict[str, set[str]] = {}
 
-    for uri in engaged_content_uris:
+    # set up hash maps.
+    for uri in post_uris:
         uri_to_labels_map[uri] = {}
         # pop each of these from the set as they're hydrated.
         uris_to_pending_integrations[uri] = {
@@ -180,55 +185,49 @@ def get_labels_for_engaged_content(engaged_content_uris: list[str]) -> dict:
             "valence_classifier",
         }
 
-    partition_dates: list[str] = get_partition_dates(
-        start_date=STUDY_CONTENT_EARLIEST_LOOKBACK_DATE,
-        end_date=STUDY_END_DATE,
-        exclude_partition_dates=[],
-    )
-
-    for integration in [
-        "perspective_api",
-        "sociopolitical",
-        "ime",
-        "valence_classifier",
-    ]:
-        # load day-by-day labels for each integration, and filter for only the
-        # relevant URIs.
+    # iterate through each integration and add the labels for each URI.
+    for integration in integrations_list:
+        # load day-by-day labels for each integration. Once the labels are
+        # loaded, filter for relevant URIs.
         filtered_uris = set()
         for partition_date in partition_dates:
             labels_df: pd.DataFrame = get_labels_for_partition_date(
                 integration=integration, partition_date=partition_date
             )
-            labels_df = labels_df[labels_df["uri"].isin(engaged_content_uris)]
-            labels = labels_df.to_dict(orient="records")
-            for label_dict in labels:
-                # get the labels formatted in the way that we care about.
-                relevant_label_probs = get_relevant_probs_for_label(
-                    integration=integration, label_dict=label_dict
+            labels_df: pd.DataFrame = labels_df[labels_df["uri"].isin(post_uris)]
+            labels_dicts: list[dict] = labels_df.to_dict(orient="records")
+            for labels_dict in labels_dicts:
+                # get the relevant transformed labels.
+                transformed_labels_dict: dict = transform_labels_dict(
+                    integration=integration, labels_dict=labels_dict
                 )
-                post_uri = label_dict["uri"]
+                post_uri: str = labels_dict["uri"]
                 filtered_uris.add(post_uri)
                 uri_to_labels_map[post_uri] = {
                     **uri_to_labels_map[post_uri],
-                    **relevant_label_probs,
+                    **transformed_labels_dict,
                 }
             del labels_df
             gc.collect()
 
-        # remove from list of pending integrations.
+        # after going through all the labels for the integration, we go through
+        # the URIs that we got labels for, and we update our tracker so we know
+        # which integrations we got labels for, for a given URI.
         for uri in filtered_uris:
             uris_to_pending_integrations[uri].remove(integration)
             if len(uris_to_pending_integrations[uri]) == 0:
                 uris_to_pending_integrations.pop(uri)
 
+    # double-check and log in case we're missing labels for some URIs.
     if len(uris_to_pending_integrations) > 0:
         print(
-            f"We have {len(uris_to_pending_integrations)}/{len(engaged_content_uris)} still missing some integration of some sort."
-        )  # noqa
+            f"We have {len(uris_to_pending_integrations)}/{len(post_uris)} still missing some integration of some sort."
+        )
         integration_to_missing_uris = {}
         for uri, integrations in uris_to_pending_integrations.items():
             for integration in integrations:
                 if integration not in integration_to_missing_uris:
                     integration_to_missing_uris[integration] = []
                 integration_to_missing_uris[integration].append(uri)
+
     return uri_to_labels_map

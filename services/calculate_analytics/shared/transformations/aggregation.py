@@ -21,8 +21,15 @@ def get_per_user_per_day_content_label_proportions(
     pass
 
 
-# could specify it better
-def weekly_aggregation():
+def single_day_engaged_content_aggregation(partition_date: str) -> pd.DataFrame:
+    pass
+
+
+def daily_engaged_content_aggregation(partition_dates: list[str]) -> pd.DataFrame:
+    pass
+
+
+def weekly_engaged_content_aggregation(partition_dates: list[str]) -> pd.DataFrame:
     pass
 
 
