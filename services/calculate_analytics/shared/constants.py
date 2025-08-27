@@ -59,4 +59,12 @@ wave_2_study_end_date_inclusive = "2024-12-01"
 
 STUDY_START_DATE = wave_1_study_start_date_inclusive
 STUDY_END_DATE = wave_2_study_end_date_inclusive
+
+# we set a lookback date to be pretty far back as compared to the date
+# of the first feeds (2024-09-30) in case there are posts from early on that
+# made it on to a feed. I would be surprised and this hasn't been empirically
+# tested; a more accurate lookback would probably just be 5-7 days (I think V1
+# of the feeds had a 5 day lookback for possible posts, but that get stale quickly),
+# and I think later feed versions had a 2-3 day lookback.
+STUDY_CONTENT_EARLIEST_LOOKBACK_DATE = "2024-09-15"
 exclude_partition_dates = ["2024-10-08"]

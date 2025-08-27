@@ -4,6 +4,13 @@ Main script for user engagement analysis.
 
 import pandas as pd
 
+from services.calculate_analytics.shared.data_loading.engagement import (
+    get_content_engaged_with_per_user,
+    get_engaged_content,
+)
+from services.calculate_analytics.shared.data_loading.labels import (
+    get_labels_for_engaged_content,
+)
 from services.calculate_analytics.shared.data_loading.users import (
     load_user_date_to_week_df,
     load_user_demographic_info,
@@ -45,6 +52,12 @@ def load_user_data() -> tuple[pd.DataFrame, pd.DataFrame, set[str]]:
             user_df["bluesky_handle"], user_df["bluesky_user_did"]
         )
     }
+
+    # We have to add the bluesky_user_did to the user + date + week DataFrame
+    # since our engagement data (and frankly, any Bluesky activity data that can
+    # be linked to a specific user) only contains their DID, not their user
+    # handle and the generated `user_date_to_week_df` doesn't originally have that
+    # field available.
     user_date_to_week_df["bluesky_user_did"] = user_date_to_week_df[
         "bluesky_handle"
     ].map(user_handle_to_did_map)
@@ -67,9 +80,42 @@ def main():
     # load users
     user_df, user_date_to_week_df, valid_study_users_dids = load_user_data()
 
-    # get all content engaged with by study users
-    engaged_content = pd.DataFrame()
-    print(f"Shape of engaged content: {engaged_content.shape}")
+    # TODO: prints are just to satisfy linter. Remove later.
+    print(f"Shape of user_df: {user_df.shape}")
+    print(f"Shape of user_date_to_week_df: {user_date_to_week_df.shape}")
+    print(f"Number of valid study user DIDs: {valid_study_users_dids}")
+
+    # get all content engaged with by study users, keyed on the URI of the post.
+    # We do it in this way so that we can track all the ways that a given post is engaged
+    # and by who. This is required since multiple users can engage with the same post, in
+    # multiple different ways (e.g., one user likes a post, one shares it, etc.) and
+    # the same user can even engage with one post in multiple ways (e.g., a user can both
+    # retweet and like a post)
+    engaged_content: dict[str, list[dict]] = get_engaged_content(
+        valid_study_users_dids=valid_study_users_dids
+    )
+    print(f"Total number of posts engaged with in some way: {len(engaged_content)}")  # noqa
+
+    # get all the content engaged with by user, keyed on user DID.
+    # keyed on user, value = another dict, with key = date, value = engagements (like/post/repost/reply)
+    # The idea here is we can know, for each user, on which days they engaged with content
+    # on Bluesky, and for each of those days, what they did those days.
+    user_to_content_engaged_with: dict[str, dict] = get_content_engaged_with_per_user(
+        engaged_content=engaged_content
+    )
+    print(
+        f"Total number of users who engaged with Bluesky content at some point: {len(user_to_content_engaged_with)}"
+    )  # noqa
+
+    # now that we have the engagement data loaded and we've organized it on a
+    # per-user, per-day level, we now load the labels for that engagement data.
+    engaged_content_uris = list(engaged_content.keys())
+    labels_for_engaged_content: dict[str, dict] = get_labels_for_engaged_content(
+        uris=engaged_content_uris
+    )
+    print(
+        f"Loaded {len(labels_for_engaged_content)} labels for {len(engaged_content_uris)} posts engaged with."
+    )  # noqa
 
     # start doing aggregations. First is daily aggregations.
     daily_aggregated = pd.DataFrame()

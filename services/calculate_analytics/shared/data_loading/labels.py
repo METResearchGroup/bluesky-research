@@ -5,17 +5,20 @@ used across the analytics system, eliminating code duplication and
 ensuring consistent data handling patterns.
 """
 
+import gc
 from typing import Literal, Optional
+
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
+from lib.helper import get_partition_dates
 from lib.log.logger import get_logger
-from services.calculate_analytics.shared.config.loader import get_config
+from services.calculate_analytics.shared.constants import (
+    STUDY_CONTENT_EARLIEST_LOOKBACK_DATE,
+    STUDY_END_DATE,
+)
 
 logger = get_logger(__file__)
-
-# Load configuration
-config = get_config()
 
 
 def get_perspective_api_labels(
@@ -75,197 +78,157 @@ def get_perspective_api_labels_for_posts(
     return df
 
 
-def get_sociopolitical_labels_for_posts(
-    posts: pd.DataFrame,
-    partition_date: str,
-    lookback_start_date: str,
-    lookback_end_date: str,
+def get_labels_for_partition_date(
+    integration: str, partition_date: str
 ) -> pd.DataFrame:
-    """Get the sociopolitical labels for a list of posts.
-
-    Args:
-        posts: DataFrame containing posts with 'uri' column
-        partition_date: The partition date
-        lookback_start_date: Start date for lookback period
-        lookback_end_date: End date for lookback period
-
-    Returns:
-        DataFrame containing sociopolitical labels filtered to the given posts
-    """
-    df: pd.DataFrame = load_data_from_local_storage(
-        service="ml_inference_sociopolitical",
+    """Loads deduplicated labels for a given partition date."""
+    df = load_data_from_local_storage(
+        service=f"ml_inference_{integration}",
         directory="cache",
-        start_partition_date=lookback_start_date,
-        end_partition_date=lookback_end_date,
+        partition_date=partition_date,
     )
-    logger.info(
-        f"Loaded {len(df)} sociopolitical labels for partition date {partition_date}"
-    )
-
-    # Filter to only include labels for the given posts
-    df = df[df["uri"].isin(posts["uri"])]
-    logger.info(
-        f"Filtered to {len(df)} sociopolitical labels for partition date {partition_date}"
-    )
+    df = df.drop_duplicates(subset=["uri"])
     return df
 
 
-def get_ime_labels_for_posts(
-    posts: pd.DataFrame,
-    partition_date: str,
-    lookback_start_date: str,
-    lookback_end_date: str,
-) -> pd.DataFrame:
-    """Get the IME labels for a list of posts.
+def get_relevant_probs_for_label(integration: str, label_dict: dict):
+    if integration == "perspective_api":
+        return {
+            "prob_toxic": label_dict["prob_toxic"],
+            "prob_constructive": label_dict["prob_constructive"],
+        }
+    elif integration == "sociopolitical":
+        return {
+            "is_sociopolitical": label_dict["is_sociopolitical"],
+            "is_not_sociopolitical": not label_dict["is_sociopolitical"],
+            # TODO: need to double-check the formatting of these labels.
+            "is_political_left": (label_dict["political_ideology_label"] == "left"),
+            "is_political_right": (label_dict["political_ideology_label"] == "right"),
+            "is_political_moderate": (
+                label_dict["political_ideology_label"] == "moderate"
+            ),
+            "is_political_unclear": (
+                label_dict["political_ideology_label"] == "unclear"
+            ),
+        }
+    elif integration == "ime":
+        return {
+            "prob_intergroup": label_dict["prob_intergroup"],
+            "prob_moral": label_dict["prob_moral"],
+            "prob_emotion": label_dict["prob_emotion"],
+            "prob_other": label_dict["prob_other"],
+        }
+    elif integration == "valence_classifier":
+        return {
+            "valence_clf_score": label_dict[
+                "compound"
+            ],  # raw score given by valence classifier
+            "is_valence_positive": label_dict["valence_label"] == "positive",
+            "is_valence_negative": label_dict["valence_label"] == "negative",
+            "is_valence_neutral": label_dict["valence_label"] == "neutral",
+        }
+    else:
+        raise ValueError(f"Invalid integration for labeling: {integration}")
 
-    Args:
-        posts: DataFrame containing posts with 'uri' column
-        partition_date: The partition date
-        lookback_start_date: Start date for lookback period
-        lookback_end_date: End date for lookback period
 
-    Returns:
-        DataFrame containing IME labels filtered to the given posts
+def get_labels_for_engaged_content(engaged_content_uris: list[str]) -> dict:
+    """For the content engaged with, get their associated labels.
+
+    Algorithm:
+        - Create a hash map:
+            {
+                "<uri>": {
+                    "prob_toxic",
+                    "prob_constructive",
+                    ...
+                }
+            }
+
+        - For each integration
+            - For each partition date range
+                - Load in the labels.
+                - Filter for the subset of labels that are in the
+                'engaged_content' keys.
+                - Update the hash map with the labels from that integration.
+
+    Result should look something like this:
+        {
+            "<uri_1>": {
+                "prob_toxic": 0.001,
+                "prob_constructive": 0.0002,
+                ...
+            },
+            "<uri_2>": {
+                "prob_toxic": 0.0001,
+                "prob_constructive": 0.0002,
+                ...
+            },
+            ...
+        }
     """
-    df: pd.DataFrame = load_data_from_local_storage(
-        service="ml_inference_ime",
-        directory="cache",
-        start_partition_date=lookback_start_date,
-        end_partition_date=lookback_end_date,
+    uri_to_labels_map = {}
+
+    uris_to_pending_integrations: dict[str, set[str]] = {}
+
+    for uri in engaged_content_uris:
+        uri_to_labels_map[uri] = {}
+        # pop each of these from the set as they're hydrated.
+        uris_to_pending_integrations[uri] = {
+            "perspective_api",
+            "sociopolitical",
+            "ime",
+            "valence_classifier",
+        }
+
+    partition_dates: list[str] = get_partition_dates(
+        start_date=STUDY_CONTENT_EARLIEST_LOOKBACK_DATE,
+        end_date=STUDY_END_DATE,
+        exclude_partition_dates=[],
     )
-    logger.info(f"Loaded {len(df)} IME labels for partition date {partition_date}")
 
-    # Filter to only include labels for the given posts
-    df = df[df["uri"].isin(posts["uri"])]
-    logger.info(f"Filtered to {len(df)} IME labels for partition date {partition_date}")
-    return df
-
-
-def get_valence_labels_for_posts(
-    posts: pd.DataFrame,
-    partition_date: str,
-    lookback_start_date: str,
-    lookback_end_date: str,
-) -> pd.DataFrame:
-    """Get the valence labels for a list of posts.
-
-    Args:
-        posts: DataFrame containing posts with 'uri' column
-        partition_date: The partition date
-        lookback_start_date: Start date for lookback period
-        lookback_end_date: End date for lookback period
-
-    Returns:
-        DataFrame containing valence labels filtered to the given posts
-    """
-    df: pd.DataFrame = load_data_from_local_storage(
-        service="ml_inference_valence_classifier",
-        directory="cache",
-        start_partition_date=lookback_start_date,
-        end_partition_date=lookback_end_date,
-    )
-    logger.info(f"Loaded {len(df)} valence labels for partition date {partition_date}")
-
-    # Filter to only include labels for the given posts
-    df = df[df["uri"].isin(posts["uri"])]
-    logger.info(
-        f"Filtered to {len(df)} valence labels for partition date {partition_date}"
-    )
-    return df
-
-
-def load_all_labels_for_posts(
-    posts: pd.DataFrame,
-    partition_date: str,
-    lookback_start_date: str,
-    lookback_end_date: str,
-) -> pd.DataFrame:
-    """Load all available labels for posts and merge them together.
-
-    This function loads all types of ML labels (Perspective API, sociopolitical,
-    IME, valence) and merges them into a single DataFrame with one row per post.
-
-    Args:
-        posts: DataFrame containing posts with 'uri' column
-        partition_date: The partition date
-        lookback_start_date: Start date for lookback period
-        lookback_end_date: End date for lookback period
-
-    Returns:
-        DataFrame containing all labels merged together, with one row per post
-    """
-    if posts.empty:
-        logger.warning("No posts provided, returning empty labels DataFrame")
-        return pd.DataFrame()
-
-    # Load all label types
-    label_dfs = []
-
-    try:
-        # Perspective API labels
-        perspective_df = get_perspective_api_labels_for_posts(
-            posts, partition_date, lookback_start_date, lookback_end_date
-        )
-        if not perspective_df.empty:
-            label_dfs.append(perspective_df)
-    except Exception as e:
-        logger.warning(f"Failed to load Perspective API labels: {e}")
-
-    try:
-        # Sociopolitical labels
-        sociopolitical_df = get_sociopolitical_labels_for_posts(
-            posts, partition_date, lookback_start_date, lookback_end_date
-        )
-        if not sociopolitical_df.empty:
-            label_dfs.append(sociopolitical_df)
-    except Exception as e:
-        logger.warning(f"Failed to load sociopolitical labels: {e}")
-
-    try:
-        # IME labels
-        ime_df = get_ime_labels_for_posts(
-            posts, partition_date, lookback_start_date, lookback_end_date
-        )
-        if not ime_df.empty:
-            label_dfs.append(ime_df)
-    except Exception as e:
-        logger.warning(f"Failed to load IME labels: {e}")
-
-    try:
-        # Valence labels
-        valence_df = get_valence_labels_for_posts(
-            posts, partition_date, lookback_start_date, lookback_end_date
-        )
-        if not valence_df.empty:
-            label_dfs.append(valence_df)
-    except Exception as e:
-        logger.warning(f"Failed to load valence labels: {e}")
-
-    # Merge all labels together
-    if not label_dfs:
-        logger.warning(f"No labels loaded for partition date {partition_date}")
-        return pd.DataFrame()
-
-    # Start with the first label DataFrame
-    merged_labels = label_dfs[0]
-
-    # Merge additional label DataFrames
-    for label_df in label_dfs[1:]:
-        if not label_df.empty:
-            # Use outer merge to keep all posts and labels
-            merged_labels = merged_labels.merge(
-                label_df, on="uri", how="outer", suffixes=("", "_duplicate")
+    for integration in [
+        "perspective_api",
+        "sociopolitical",
+        "ime",
+        "valence_classifier",
+    ]:
+        # load day-by-day labels for each integration, and filter for only the
+        # relevant URIs.
+        filtered_uris = set()
+        for partition_date in partition_dates:
+            labels_df: pd.DataFrame = get_labels_for_partition_date(
+                integration=integration, partition_date=partition_date
             )
+            labels_df = labels_df[labels_df["uri"].isin(engaged_content_uris)]
+            labels = labels_df.to_dict(orient="records")
+            for label_dict in labels:
+                # get the labels formatted in the way that we care about.
+                relevant_label_probs = get_relevant_probs_for_label(
+                    integration=integration, label_dict=label_dict
+                )
+                post_uri = label_dict["uri"]
+                filtered_uris.add(post_uri)
+                uri_to_labels_map[post_uri] = {
+                    **uri_to_labels_map[post_uri],
+                    **relevant_label_probs,
+                }
+            del labels_df
+            gc.collect()
 
-            # Remove duplicate columns (those ending with _duplicate)
-            duplicate_cols = [
-                col for col in merged_labels.columns if col.endswith("_duplicate")
-            ]
-            if duplicate_cols:
-                merged_labels = merged_labels.drop(columns=duplicate_cols)
+        # remove from list of pending integrations.
+        for uri in filtered_uris:
+            uris_to_pending_integrations[uri].remove(integration)
+            if len(uris_to_pending_integrations[uri]) == 0:
+                uris_to_pending_integrations.pop(uri)
 
-    logger.info(
-        f"Successfully merged {len(label_dfs)} label types for partition date {partition_date}"
-    )
-
-    return merged_labels
+    if len(uris_to_pending_integrations) > 0:
+        print(
+            f"We have {len(uris_to_pending_integrations)}/{len(engaged_content_uris)} still missing some integration of some sort."
+        )  # noqa
+        integration_to_missing_uris = {}
+        for uri, integrations in uris_to_pending_integrations.items():
+            for integration in integrations:
+                if integration not in integration_to_missing_uris:
+                    integration_to_missing_uris[integration] = []
+                integration_to_missing_uris[integration].append(uri)
+    return uri_to_labels_map
