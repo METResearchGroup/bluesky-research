@@ -13,9 +13,7 @@ from services.calculate_analytics.shared.constants import (
     STUDY_END_DATE,
     exclude_partition_dates,
 )
-from services.calculate_analytics.shared.data_loading.users import (
-    load_user_demographic_info,
-)
+from services.calculate_analytics.shared.data_loading.users import load_user_data
 from services.calculate_analytics.shared.transformations.aggregation import (
     daily_feed_content_aggregation,
     weekly_feed_content_aggregation,
@@ -37,24 +35,19 @@ feed_content_weekly_aggregated_results_export_fp = os.path.join(
 
 def do_setup():
     """Setup steps for analysis."""
-    # load the user data from DynamoDB.
-    user_df: pd.DataFrame = load_user_demographic_info()
-    user_df = user_df[user_df["is_study_user"]]
-    user_df = user_df[["bluesky_handle", "bluesky_user_did", "condition"]]
 
-    # load weekly thresholds
-    week_thresholds_df = pd.DataFrame()
-
-    # get partition dates
+    # load users and partition dates.
+    user_df, user_date_to_week_df, valid_study_users_dids = load_user_data()
     partition_dates: list[str] = get_partition_dates(
         start_date=STUDY_START_DATE,
         end_date=STUDY_END_DATE,
-        exclude_partition_dates=exclude_partition_dates,
+        exclude_partition_dates=exclude_partition_dates,  # feed generation was broken on this date.
     )
 
     return {
         "user_df": user_df,
-        "week_thresholds_df": week_thresholds_df,
+        "user_date_to_week_df": user_date_to_week_df,
+        "valid_study_users_dids": valid_study_users_dids,
         "partition_dates": partition_dates,
     }
 
