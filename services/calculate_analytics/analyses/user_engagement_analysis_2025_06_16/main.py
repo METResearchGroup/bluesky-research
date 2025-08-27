@@ -187,7 +187,7 @@ def do_aggregations_and_export_results(
         engaged_content_daily_aggregated_results_export_fp, index=False
     )
     print(
-        f"[Daily analysis] Exporting per-user, per-day content label proportions to {engaged_content_daily_aggregated_results_export_fp}..."
+        f"[Daily analysis] Exported per-user, per-day content label proportions to {engaged_content_daily_aggregated_results_export_fp}..."
     )
 
     # (2) Weekly aggregations.
@@ -221,7 +221,7 @@ def do_aggregations_and_export_results(
         engaged_content_weekly_aggregated_results_export_fp, index=False
     )
     print(
-        f"[Weekly analysis] Exporting per-user, per-day content label proportions to {engaged_content_weekly_aggregated_results_export_fp}..."
+        f"[Weekly analysis] Exported per-user, per-day content label proportions to {engaged_content_weekly_aggregated_results_export_fp}..."
     )
 
 

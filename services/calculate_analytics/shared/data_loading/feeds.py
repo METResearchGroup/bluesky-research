@@ -9,6 +9,9 @@ import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
+from services.calculate_analytics.shared.data_loading.posts import (
+    get_posts_with_labels_for_partition_date,
+)
 from services.fetch_posts_used_in_feeds.helper import load_feed_from_json_str
 
 logger = get_logger(__file__)
@@ -82,3 +85,20 @@ def get_feeds_with_post_mapping(
     users_to_posts = map_users_to_posts_used_in_feeds(partition_date)
 
     return feeds_df, users_to_posts
+
+
+def get_feed_posts_with_labels_per_user(partition_date: str) -> dict[str, pd.DataFrame]:
+    """Get the hydrated posts (posts + labels) for a given partition date and
+    map them to the users who posted them.
+    """
+    posts_df: pd.DataFrame = get_posts_with_labels_for_partition_date(
+        partition_date=partition_date
+    )
+    users_to_posts: dict[str, set[str]] = map_users_to_posts_used_in_feeds(
+        partition_date=partition_date
+    )
+    map_user_to_subset_df: dict[str, pd.DataFrame] = {}
+    for user, posts in users_to_posts.items():
+        subset_df = posts_df[posts_df["uri"].isin(posts)]
+        map_user_to_subset_df[user] = subset_df
+    return map_user_to_subset_df
