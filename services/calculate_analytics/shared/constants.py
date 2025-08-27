@@ -1,3 +1,9 @@
+"""Constants for analysis."""
+
+import os
+
+shared_assets_directory = os.path.dirname(os.path.abspath(__file__))
+
 # end dates of each week (inclusive).
 # For example, Week 2 is 2024-10-07 -> 2024-10-13 (inclusive, so all activities
 # from 2024-10-13 count as Week 2).

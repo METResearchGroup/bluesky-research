@@ -5,11 +5,13 @@ demographic information, eliminating code duplication and ensuring
 consistent data handling patterns.
 """
 
+import os
 import pandas as pd
 
 from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
+from services.calculate_analytics.shared.constants import shared_assets_directory
 
 logger = get_logger(__file__)
 
@@ -64,3 +66,14 @@ def get_user_condition_mapping() -> dict[str, str]:
     except Exception as e:
         logger.error(f"Failed to create user condition mapping: {e}")
         raise
+
+
+def load_user_date_to_week_df() -> pd.DataFrame:
+    """Load the user date to week mapping from the database."""
+    fp = os.path.join(
+        shared_assets_directory, "static", "bluesky_per_user_week_assignments.csv"
+    )
+    df = pd.read_csv(fp)
+    df = df[["bluesky_handle", "date", "week_dynamic"]]
+    df = df.rename(columns={"week_dynamic": "week"})
+    return df
