@@ -6,17 +6,27 @@ import os
 
 import pandas as pd
 
-from lib.helper import generate_current_datetime_str
+from lib.helper import generate_current_datetime_str, get_partition_dates
+from services.calculate_analytics.shared.constants import (
+    STUDY_START_DATE,
+    STUDY_END_DATE,
+)
 from services.calculate_analytics.shared.data_loading.engagement import (
     get_content_engaged_with_per_user,
     get_engaged_content,
 )
 from services.calculate_analytics.shared.data_loading.labels import (
-    get_labels_for_engaged_content,
+    get_all_labels_for_posts,
 )
 from services.calculate_analytics.shared.data_loading.users import (
     load_user_date_to_week_df,
     load_user_demographic_info,
+)
+from services.calculate_analytics.shared.analysis.content_analysis import (
+    get_engaged_content_per_user_per_day_metrics,
+    get_engaged_content_per_user_per_week_metrics,
+    transform_engaged_content_per_user_per_day_metrics,
+    transform_engaged_content_per_user_per_week_metrics,
 )
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -100,13 +110,12 @@ def do_setup():
     - 3. Loading the labels for the content that users engaged with. Then we
     transform it to a format suited for our analysis.
     """
-    # load users
+    # load users and partition dates.
     user_df, user_date_to_week_df, valid_study_users_dids = load_user_data()
-
-    # TODO: prints are just to satisfy linter. Remove later.
-    print(f"Shape of user_df: {user_df.shape}")
-    print(f"Shape of user_date_to_week_df: {user_date_to_week_df.shape}")
-    print(f"Number of valid study user DIDs: {valid_study_users_dids}")
+    partition_dates: list[str] = get_partition_dates(
+        start_date=STUDY_START_DATE,
+        end_date=STUDY_END_DATE,
+    )
 
     # get all content engaged with by study users, keyed on the URI of the post.
     # We do it in this way so that we can track all the ways that a given post is engaged
@@ -133,12 +142,19 @@ def do_setup():
     # now that we have the engagement data loaded and we've organized it on a
     # per-user, per-day level, we now load the labels for that engagement data.
     engaged_content_uris = list(engaged_content.keys())
-    labels_for_engaged_content: dict[str, dict] = get_labels_for_engaged_content(
-        uris=engaged_content_uris
+    labels_for_engaged_content: dict[str, dict] = get_all_labels_for_posts(
+        post_uris=engaged_content_uris, partition_dates=partition_dates
     )
     print(
         f"Loaded {len(labels_for_engaged_content)} labels for {len(engaged_content_uris)} posts engaged with."
     )  # noqa
+
+    return {
+        "user_df": user_df,
+        "user_date_to_week_df": user_date_to_week_df,
+        "user_to_content_engaged_with": user_to_content_engaged_with,
+        "labels_for_engaged_content": labels_for_engaged_content,
+    }
 
 
 def do_aggregations_and_export_results(
@@ -157,21 +173,14 @@ def do_aggregations_and_export_results(
     # (1) Daily aggregations
     print("[Daily analysis] Getting per-user, per-day content label proportions...")
 
-    # NOTE: stubs until we actually review these functions closely.
-    def get_per_user_per_day_content_label_proportions():
-        return
-
-    def transform_per_user_per_day_content_label_proportions():
-        return
-
     user_per_day_content_label_proportions = (
-        get_per_user_per_day_content_label_proportions(
+        get_engaged_content_per_user_per_day_metrics(
             user_to_content_engaged_with=user_to_content_engaged_with,
             labels_for_engaged_content=labels_for_engaged_content,
         )
     )
 
-    transformed_per_user_per_day_content_label_proportions: pd.DataFrame = transform_per_user_per_day_content_label_proportions(
+    transformed_per_user_per_day_content_label_proportions: pd.DataFrame = transform_engaged_content_per_user_per_day_metrics(
         user_per_day_content_label_proportions=user_per_day_content_label_proportions,
         users=user_df,
     )
@@ -193,18 +202,11 @@ def do_aggregations_and_export_results(
     # (2) Weekly aggregations.
     print("[Weekly analysis] Getting per-user, per-week content label proportions...")
 
-    # NOTE: stubs until we actually review these functions closely.
-    def get_per_user_to_weekly_content_label_proportions():
-        return
-
-    def transform_per_user_to_weekly_content_label_proportions():
-        return
-
-    user_to_weekly_content_label_proportions: dict = get_per_user_to_weekly_content_label_proportions(
+    user_to_weekly_content_label_proportions: dict = get_engaged_content_per_user_per_week_metrics(
         user_per_day_content_label_proportions=user_per_day_content_label_proportions,
         user_date_to_week_df=user_date_to_week_df,
     )
-    transformed_per_user_to_weekly_content_label_proportions: pd.DataFrame = transform_per_user_to_weekly_content_label_proportions(
+    transformed_per_user_to_weekly_content_label_proportions: pd.DataFrame = transform_engaged_content_per_user_per_week_metrics(
         user_to_weekly_content_label_proportions=user_to_weekly_content_label_proportions,
         users=user_df,
         user_date_to_week_df=user_date_to_week_df,
