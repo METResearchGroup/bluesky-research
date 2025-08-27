@@ -2,8 +2,11 @@
 Main script for user engagement analysis.
 """
 
+import os
+
 import pandas as pd
 
+from lib.helper import generate_current_datetime_str
 from services.calculate_analytics.shared.data_loading.engagement import (
     get_content_engaged_with_per_user,
     get_engaged_content,
@@ -14,6 +17,19 @@ from services.calculate_analytics.shared.data_loading.labels import (
 from services.calculate_analytics.shared.data_loading.users import (
     load_user_date_to_week_df,
     load_user_demographic_info,
+)
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+current_datetime_str: str = generate_current_datetime_str()
+engaged_content_daily_aggregated_results_export_fp = os.path.join(
+    current_dir,
+    "results",
+    f"daily_content_label_proportions_per_user_{current_datetime_str}.csv",
+)
+engaged_content_weekly_aggregated_results_export_fp = os.path.join(
+    current_dir,
+    "results",
+    f"weekly_content_label_proportions_per_user_{current_datetime_str}.csv",
 )
 
 
@@ -76,7 +92,14 @@ def load_user_data() -> tuple[pd.DataFrame, pd.DataFrame, set[str]]:
     return user_df, user_date_to_week_df, valid_study_users_dids
 
 
-def main():
+def do_setup():
+    """Setup steps for analysis. Includes:
+    - 1. Loading users
+    - 2. Loading content that users engaged with. Then we transform it to a
+    format suited for our analysis.
+    - 3. Loading the labels for the content that users engaged with. Then we
+    transform it to a format suited for our analysis.
+    """
     # load users
     user_df, user_date_to_week_df, valid_study_users_dids = load_user_data()
 
@@ -117,15 +140,108 @@ def main():
         f"Loaded {len(labels_for_engaged_content)} labels for {len(engaged_content_uris)} posts engaged with."
     )  # noqa
 
-    # start doing aggregations. First is daily aggregations.
-    daily_aggregated = pd.DataFrame()
-    print(f"Shape of daily aggregated content: {daily_aggregated.shape}")
 
-    # then next is per-week aggregations.
-    weekly_aggregated = pd.DataFrame()
-    print(f"Shape of weekly aggregated: {weekly_aggregated.shape}")
+def do_aggregations_and_export_results(
+    user_df: pd.DataFrame,
+    user_date_to_week_df: pd.DataFrame,
+    user_to_content_engaged_with: dict[str, dict],
+    labels_for_engaged_content: dict[str, dict],
+):
+    """Perform aggregated analyses and export results.
 
-    pass
+    Aggregations are done at two levels:
+    - (1) daily
+    - (2) weekly.
+    """
+
+    # (1) Daily aggregations
+    print("[Daily analysis] Getting per-user, per-day content label proportions...")
+
+    # NOTE: stubs until we actually review these functions closely.
+    def get_per_user_per_day_content_label_proportions():
+        return
+
+    def transform_per_user_per_day_content_label_proportions():
+        return
+
+    user_per_day_content_label_proportions = (
+        get_per_user_per_day_content_label_proportions(
+            user_to_content_engaged_with=user_to_content_engaged_with,
+            labels_for_engaged_content=labels_for_engaged_content,
+        )
+    )
+
+    transformed_per_user_per_day_content_label_proportions: pd.DataFrame = transform_per_user_per_day_content_label_proportions(
+        user_per_day_content_label_proportions=user_per_day_content_label_proportions,
+        users=user_df,
+    )
+
+    print(
+        f"[Daily analysis] Exporting per-user, per-day content label proportions to {engaged_content_daily_aggregated_results_export_fp}..."
+    )
+    os.makedirs(
+        os.path.dirname(engaged_content_daily_aggregated_results_export_fp),
+        exist_ok=True,
+    )
+    transformed_per_user_per_day_content_label_proportions.to_csv(
+        engaged_content_daily_aggregated_results_export_fp, index=False
+    )
+    print(
+        f"[Daily analysis] Exporting per-user, per-day content label proportions to {engaged_content_daily_aggregated_results_export_fp}..."
+    )
+
+    # (2) Weekly aggregations.
+    print("[Weekly analysis] Getting per-user, per-week content label proportions...")
+
+    # NOTE: stubs until we actually review these functions closely.
+    def get_per_user_to_weekly_content_label_proportions():
+        return
+
+    def transform_per_user_to_weekly_content_label_proportions():
+        return
+
+    user_to_weekly_content_label_proportions: dict = get_per_user_to_weekly_content_label_proportions(
+        user_per_day_content_label_proportions=user_per_day_content_label_proportions,
+        user_date_to_week_df=user_date_to_week_df,
+    )
+    transformed_per_user_to_weekly_content_label_proportions: pd.DataFrame = transform_per_user_to_weekly_content_label_proportions(
+        user_to_weekly_content_label_proportions=user_to_weekly_content_label_proportions,
+        users=user_df,
+        user_date_to_week_df=user_date_to_week_df,
+    )
+
+    print(
+        f"[Weekly analysis] Exporting per-user, per-week content label proportions to {engaged_content_weekly_aggregated_results_export_fp}..."
+    )
+    os.makedirs(
+        os.path.dirname(engaged_content_weekly_aggregated_results_export_fp),
+        exist_ok=True,
+    )
+    transformed_per_user_to_weekly_content_label_proportions.to_csv(
+        engaged_content_weekly_aggregated_results_export_fp, index=False
+    )
+    print(
+        f"[Weekly analysis] Exporting per-user, per-day content label proportions to {engaged_content_weekly_aggregated_results_export_fp}..."
+    )
+
+
+def main():
+    """Execute the steps required for doing analysis of the content that users engaged
+    with during the study, both at the daily and weekly aggregation levels."""
+
+    setup_objs = do_setup()
+
+    user_df = setup_objs["user_df"]
+    user_date_to_week_df = setup_objs["user_date_to_week_df"]
+    user_to_content_engaged_with = setup_objs["user_to_content_engaged_with"]
+    labels_for_engaged_content = setup_objs["labels_for_engaged_content"]
+
+    do_aggregations_and_export_results(
+        user_df=user_df,
+        user_date_to_week_df=user_date_to_week_df,
+        user_to_content_engaged_with=user_to_content_engaged_with,
+        labels_for_engaged_content=labels_for_engaged_content,
+    )
 
 
 if __name__ == "__main__":
