@@ -67,7 +67,7 @@ def _init_labels_collection() -> dict[str, list]:
 
 
 def collect_labels_for_post_uris(
-    post_uris: list[str], labels_for_engaged_content: dict[str, dict]
+    post_uris: list[str], labels_for_content: dict[str, dict]
 ) -> dict[str, list]:
     """For the post URIs, collect their labels.
 
@@ -87,7 +87,7 @@ def collect_labels_for_post_uris(
     aggregated_label_to_label_values: dict[str, list] = _init_labels_collection()
 
     for post_uri in post_uris:
-        labels_for_post_uri = labels_for_engaged_content[post_uri]
+        labels_for_post_uri = labels_for_content[post_uri]
         for label, value in labels_for_post_uri.items():
             if value is not None:
                 aggregated_label_to_label_values[label].append(value)
@@ -219,7 +219,15 @@ def transform_metric_field_names(
     Goes through the metrics dict and adds new keys with the correct names
     and then removes the old keys.
 
-    New field names become
+    For interaction type "feed":
+    e.g.,
+        - feed_average_prob_toxic
+        - feed_proportion_prob_sociopolitical
+        - feed_average_is_valence_positive
+        - feed_proportion_is_valence_positive
+        etc.
+
+    For interaction type "engagement":
     e.g.,
         - average_liked_posts_prob_toxic
         - proportion_replied_posts_prob_sociopolitical
@@ -228,33 +236,39 @@ def transform_metric_field_names(
     etc.
     """
     if interaction_type == "feed":
-        raise NotImplementedError("Feed interaction type not implemented yet.")
+        for label, value in metrics.items():
+            new_label = f"feed_{metric_type}_{label}"
+            metrics[new_label] = value
+            metrics.pop(label)
 
-    record_type = args["record_type"]
-    record_type_suffix = (
-        "liked_posts"
-        if record_type == "like"
-        else "posted_posts"
-        if record_type == "post"
-        else "reposted_posts"
-        if record_type == "repost"
-        else "replied_posts"
-        if record_type == "reply"
-        else None
-    )
-    if record_type_suffix is None:
-        raise ValueError(f"Invalid record type: {record_type}")
-    prefix = f"{metric_type}_{record_type_suffix}"  # e.g., average_liked_posts, proportion_replied_posts, etc.
-    for label, value in metrics.items():
-        new_label = f"{prefix}_{label}"  # e.g., average_liked_posts_prob_toxic, proportion_replied_posts_prob_sociopolitical, etc.
-        metrics[new_label] = value
-        metrics.pop(label)
+    elif interaction_type == "engagement":
+        record_type = args["record_type"]
+        record_type_suffix = (
+            "liked_posts"
+            if record_type == "like"
+            else "posted_posts"
+            if record_type == "post"
+            else "reposted_posts"
+            if record_type == "repost"
+            else "replied_posts"
+            if record_type == "reply"
+            else None
+        )
+        if record_type_suffix is None:
+            raise ValueError(f"Invalid record type: {record_type}")
+        prefix = f"{metric_type}_{record_type_suffix}"  # e.g., average_liked_posts, proportion_replied_posts, etc.
+        for label, value in metrics.items():
+            new_label = f"{prefix}_{label}"  # e.g., average_liked_posts_prob_toxic, proportion_replied_posts_prob_sociopolitical, etc.
+            metrics[new_label] = value
+            metrics.pop(label)
+    else:
+        raise ValueError(f"Invalid interaction type: {interaction_type}")
 
     return metrics
 
 
 def calculate_metrics_for_content_labels(
-    record_type: str,
+    record_type: Optional[str],
     interaction_type: Literal["engagement", "feed"],
     aggregated_label_to_label_values: dict[str, list],
 ):
@@ -301,7 +315,23 @@ def get_metrics_for_user_feeds_from_partition_date(
     post_uris: Iterable[str],
     labels_for_feed_content: dict[str, dict],
 ):
-    pass
+    """Get the metrics for the feed content shown to a given user on a given date."""
+    # get aggregated list of labels for the posts, keyed on the label name.
+    # for example, we have a key for "prob_toxic" and a value that is a list of
+    # all the "prob_toxic" scores for the posts.
+    aggregated_label_to_label_values: dict[str, list] = collect_labels_for_post_uris(
+        post_uris=post_uris, labels_for_content=labels_for_feed_content
+    )
+
+    # given the aggregated list of labels, we can now calculate the metrics
+    # for the feed content.
+    metrics: dict[str, Optional[float]] = calculate_metrics_for_content_labels(
+        record_type=None,
+        interaction_type="feed",
+        aggregated_label_to_label_values=aggregated_label_to_label_values,
+    )
+
+    return metrics
 
 
 def get_metrics_for_record_type(
@@ -319,7 +349,7 @@ def get_metrics_for_record_type(
     # for example, we have a key for "prob_toxic" and a value that is a list of
     # all the "prob_toxic" scores for the posts.
     aggregated_label_to_label_values: dict[str, list] = collect_labels_for_post_uris(
-        post_uris=post_uris, labels_for_engaged_content=labels_for_engaged_content
+        post_uris=post_uris, labels_for_content=labels_for_engaged_content
     )
 
     # given the aggregated list of labels, we can now calculate the metrics
