@@ -14,10 +14,6 @@ from services.calculate_analytics.shared.constants import (
     exclude_partition_dates,
 )
 from services.calculate_analytics.shared.data_loading.users import load_user_data
-from services.calculate_analytics.shared.transformations.aggregation import (
-    daily_feed_content_aggregation,
-    weekly_feed_content_aggregation,
-)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 current_datetime_str: str = generate_current_datetime_str()
@@ -52,65 +48,107 @@ def do_setup():
     }
 
 
-def do_aggregations_and_export_results():
+def do_aggregations_and_export_results(
+    user_df: pd.DataFrame,
+    user_date_to_week_df: pd.DataFrame,
+    partition_dates: list[str],
+):
+    """Perform aggregated analyses and export results.
+
+    Aggregations are done at two levels:
+    - (1) daily
+    - (2) weekly.
+    """
     # (1) Daily aggregations
-    print("[Daily analysis] Getting per-user, per-day feed analysis...")
+    print("[Daily analysis] Getting per-user, per-day content label metrics...")
+
+    def get_daily_feed_content_per_user_metrics():
+        pass
+
+    user_per_day_content_label_metrics: dict[
+        str, dict[str, dict[str, float | None]]
+    ] = get_daily_feed_content_per_user_metrics()
 
     def transform_daily_level_feed_content_metrics():
         pass
 
-    daily_level_feed_content_metrics_df: pd.DataFrame = daily_feed_content_aggregation()
-    transformed_daily_level_feed_content_metrics_df: pd.DataFrame = (
-        transform_daily_level_feed_content_metrics(daily_level_feed_content_metrics_df)
+    transformed_per_user_per_day_content_label_metrics: pd.DataFrame = (
+        transform_daily_level_feed_content_metrics(
+            user_per_day_content_label_metrics=user_per_day_content_label_metrics,
+            users=user_df,
+            partition_dates=partition_dates,
+        )
     )
+
     print(
-        f"[Daily analysis] Exporting per-user, per-day feed analysis to {feed_content_daily_aggregated_results_export_fp}..."
+        f"[Daily analysis] Exporting per-user, per-day content label metrics to {feed_content_daily_aggregated_results_export_fp}..."
     )
     os.makedirs(
         os.path.dirname(feed_content_daily_aggregated_results_export_fp),
         exist_ok=True,
     )
-    transformed_daily_level_feed_content_metrics_df.to_csv(
+    transformed_per_user_per_day_content_label_metrics.to_csv(
         feed_content_daily_aggregated_results_export_fp, index=False
     )
     print(
-        f"[Daily analysis] Exported per-user, per-day feed analysis to {feed_content_daily_aggregated_results_export_fp}..."
+        f"[Daily analysis] Exported per-user, per-day content label metrics to {feed_content_daily_aggregated_results_export_fp}..."
     )
 
-    # (2) Weekly aggregations
-    print("[Weekly analysis] Getting per-user, per-week feed analysis...")
+    # (2) Weekly aggregations.
+    print("[Weekly analysis] Getting per-user, per-week content label metrics...")
 
-    def transform_weekly_level_feed_content_metrics():
+    def get_weekly_feed_content_per_user_metrics():
         pass
 
-    weekly_level_feed_content_metrics_df: pd.DataFrame = (
-        weekly_feed_content_aggregation()
+    user_per_week_content_label_metrics: dict[
+        str, dict[str, dict[str, float | None]]
+    ] = get_weekly_feed_content_per_user_metrics(
+        user_per_day_content_label_metrics=user_per_day_content_label_metrics,
+        user_date_to_week_df=user_date_to_week_df,
     )
-    transformed_weekly_level_feed_content_metrics_df: pd.DataFrame = (
-        transform_weekly_level_feed_content_metrics(
-            weekly_level_feed_content_metrics_df
+
+    def transform_weekly_feed_content_per_user_metrics():
+        pass
+
+    transformed_per_user_per_week_feed_content_metrics: pd.DataFrame = (
+        transform_weekly_feed_content_per_user_metrics(
+            user_per_week_content_label_metrics=user_per_week_content_label_metrics,
+            users=user_df,
+            user_date_to_week_df=user_date_to_week_df,
         )
     )
+
     print(
-        f"[Weekly analysis] Exporting per-user, per-week feed analysis to {feed_content_weekly_aggregated_results_export_fp}..."
+        f"[Weekly analysis] Exporting per-user, per-week content label metrics to {feed_content_weekly_aggregated_results_export_fp}..."
     )
     os.makedirs(
         os.path.dirname(feed_content_weekly_aggregated_results_export_fp),
         exist_ok=True,
     )
-    transformed_weekly_level_feed_content_metrics_df.to_csv(
+    transformed_per_user_per_week_feed_content_metrics.to_csv(
         feed_content_weekly_aggregated_results_export_fp, index=False
     )
     print(
-        f"[Weekly analysis] Exported per-user, per-week feed analysis to {feed_content_weekly_aggregated_results_export_fp}..."
+        f"[Weekly analysis] Exported per-user, per-week content label metrics to {feed_content_weekly_aggregated_results_export_fp}..."
     )
 
 
 def main():
+    """Execute the steps required for doing analysis of the content that
+    appeared in users' feeds during the study, both at the daily and weekly
+    aggregation levels.
+    """
     setup_objs = do_setup()
-    # TODO: delete, this is for just ruff linter.
-    print(f"Setup complete. Partition dates: {setup_objs['partition_dates']}")
-    do_aggregations_and_export_results()
+
+    user_df = setup_objs["user_df"]
+    user_date_to_week_df = setup_objs["user_date_to_week_df"]
+    partition_dates = setup_objs["partition_dates"]
+
+    do_aggregations_and_export_results(
+        user_df=user_df,
+        user_date_to_week_df=user_date_to_week_df,
+        partition_dates=partition_dates,
+    )
 
 
 if __name__ == "__main__":

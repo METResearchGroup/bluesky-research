@@ -113,7 +113,7 @@ def do_aggregations_and_export_results(
     """
 
     # (1) Daily aggregations
-    print("[Daily analysis] Getting per-user, per-day content label proportions...")
+    print("[Daily analysis] Getting per-user, per-day content label metrics...")
 
     user_per_day_content_label_metrics: dict[
         str, dict[str, dict[str, float | None]]
@@ -131,7 +131,7 @@ def do_aggregations_and_export_results(
     )
 
     print(
-        f"[Daily analysis] Exporting per-user, per-day content label proportions to {engaged_content_daily_aggregated_results_export_fp}..."
+        f"[Daily analysis] Exporting per-user, per-day content label metrics to {engaged_content_daily_aggregated_results_export_fp}..."
     )
     os.makedirs(
         os.path.dirname(engaged_content_daily_aggregated_results_export_fp),
@@ -141,11 +141,11 @@ def do_aggregations_and_export_results(
         engaged_content_daily_aggregated_results_export_fp, index=False
     )
     print(
-        f"[Daily analysis] Exported per-user, per-day content label proportions to {engaged_content_daily_aggregated_results_export_fp}..."
+        f"[Daily analysis] Exported per-user, per-day content label metrics to {engaged_content_daily_aggregated_results_export_fp}..."
     )
 
     # (2) Weekly aggregations.
-    print("[Weekly analysis] Getting per-user, per-week content label proportions...")
+    print("[Weekly analysis] Getting per-user, per-week content label metrics...")
 
     user_per_week_content_label_metrics: dict[
         str, dict[str, dict[str, float | None]]
@@ -162,7 +162,7 @@ def do_aggregations_and_export_results(
     )
 
     print(
-        f"[Weekly analysis] Exporting per-user, per-week content label proportions to {engaged_content_weekly_aggregated_results_export_fp}..."
+        f"[Weekly analysis] Exporting per-user, per-week content label metrics to {engaged_content_weekly_aggregated_results_export_fp}..."
     )
     os.makedirs(
         os.path.dirname(engaged_content_weekly_aggregated_results_export_fp),
@@ -172,7 +172,7 @@ def do_aggregations_and_export_results(
         engaged_content_weekly_aggregated_results_export_fp, index=False
     )
     print(
-        f"[Weekly analysis] Exported per-user, per-day content label proportions to {engaged_content_weekly_aggregated_results_export_fp}..."
+        f"[Weekly analysis] Exported per-user, per-day content label metrics to {engaged_content_weekly_aggregated_results_export_fp}..."
     )
 
 
