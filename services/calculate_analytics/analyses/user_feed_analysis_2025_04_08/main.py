@@ -13,6 +13,13 @@ from services.calculate_analytics.shared.constants import (
     STUDY_END_DATE,
     exclude_partition_dates,
 )
+from services.calculate_analytics.shared.data_loading.feeds import (
+    get_all_post_uris_used_in_feeds,
+    get_feeds_per_user,
+)
+from services.calculate_analytics.shared.data_loading.labels import (
+    get_all_labels_for_posts,
+)
 from services.calculate_analytics.shared.data_loading.users import load_user_data
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -40,10 +47,25 @@ def do_setup():
         exclude_partition_dates=exclude_partition_dates,  # feed generation was broken on this date.
     )
 
+    # load feeds: per-user, per-date, get list of URIs of posts in feeds.
+    user_to_content_in_feeds: dict[str, dict[str, set[str]]] = get_feeds_per_user(
+        valid_study_users_dids=valid_study_users_dids
+    )
+
+    # load labels for feed content
+    feed_content_uris: set[str] = get_all_post_uris_used_in_feeds(
+        user_to_content_in_feeds=user_to_content_in_feeds
+    )
+    labels_for_feed_content: dict[str, dict] = get_all_labels_for_posts(
+        post_uris=feed_content_uris, partition_dates=partition_dates
+    )
+
     return {
         "user_df": user_df,
         "user_date_to_week_df": user_date_to_week_df,
         "valid_study_users_dids": valid_study_users_dids,
+        "user_to_content_in_feeds": user_to_content_in_feeds,
+        "labels_for_feed_content": labels_for_feed_content,
         "partition_dates": partition_dates,
     }
 
