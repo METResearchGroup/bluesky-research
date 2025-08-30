@@ -2,6 +2,7 @@
 
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
 from services.calculate_analytics.shared.processing.content_label_processing import (
@@ -41,7 +42,7 @@ def transform_weekly_feed_content_per_user_metrics():
 
 def get_daily_engaged_content_per_user_metrics(
     user_to_content_engaged_with: dict[str, dict], labels_for_engaged_content: dict
-) -> dict[str, dict[str, Optional[float]]]:
+) -> dict[str, dict[str, dict[str, float | None]]]:
     """Given a map of user and the content they engaged with,
     as well as the labels for any engaged content, start linking them together.
 
@@ -133,11 +134,6 @@ def get_daily_engaged_content_per_user_metrics(
             }
         }
     }
-
-    NOTE: if I wanted to convert from proportion of posts with a particular
-    label to instead measure probabilities (e.g., the average probability of
-    a user's liked posts on 2024-10-01), that would be trivially easy
-    (just have to remove the averaging step).
     """
     daily_engaged_content_per_user_metrics: dict[str, dict[str, Optional[float]]] = {}
 
@@ -192,13 +188,13 @@ def get_daily_engaged_content_per_user_metrics(
 
 
 def transform_daily_engaged_content_per_user_metrics(
-    user_per_day_content_label_proportions: dict[str, dict[str, Optional[float]]],
+    user_per_day_content_label_metrics: dict[str, dict[str, dict[str, float | None]]],
     users_df: pd.DataFrame,
     partition_dates: list[str],
 ) -> pd.DataFrame:
     """Transform the daily engaged content per user metrics into the output format required.
 
-    user_per_day_content_label_proportions: dict[str, dict[str, Optional[float]]]
+    user_per_day_content_label_proportions: dict[str, dict[str, dict[str, float | None]]]
 
     Example input:
     {
@@ -269,7 +265,7 @@ def transform_daily_engaged_content_per_user_metrics(
         user_handle = user["bluesky_handle"]
         user_condition = user["condition"]
         user_did = user["bluesky_user_did"]
-        metrics = user_per_day_content_label_proportions[user_did]
+        metrics = user_per_day_content_label_metrics[user_did]
 
         # iterate through each date and their metrics.
         for date in partition_dates:
@@ -299,9 +295,178 @@ def transform_daily_engaged_content_per_user_metrics(
     return df
 
 
-def get_weekly_engaged_content_per_user_metrics():
-    pass
+def get_weekly_engaged_content_per_user_metrics(
+    user_per_day_content_label_metrics: dict[str, dict[str, dict[str, float | None]]],
+    user_date_to_week_df: pd.DataFrame,
+) -> dict[str, dict[str, dict[str, float | None]]]:
+    """Get the weekly engaged content per user metrics.
+
+    user_per_day_content_label_metrics: dict[str, dict[str, Optional[float]]]
+    user_date_to_week_df: pd.DataFrame
+
+    Groups by user and week and then aggregates (averages) the values of the
+    metrics across each week.
+
+    Notes on averaging:
+    - We have user + day combinations for days that the user had some form
+    of engagement. We don't have records for days that these combinations don't
+    exist (we impute these as None when we export the daily records,
+    as per 'transform_daily_engaged_content_per_user_metrics', but we
+    dont use them for averaging records).
+    - For us, this means that "average" only refers to records that exist (e.g.,
+    if a user only posted on Monday, then the "average toxicity of posts from the week"
+    only refers to the posts on Monday).
+    - If a user doesn't have any engagement data for a given week, we'll return
+    None for that week.
+    - We have user + date records, but on a given date the user might not have
+    all record types, e.g., they might have likes but not reposts, so any
+    repost_* fields are going to be None. I accounted for NoneType values in
+    the metrics calculation for averages and proportions already (i.e., any None
+    values are filtered out and removed for the purposes of metric calculation).
+    Therefore, if we see any None values here, that literally means that we
+    didn't have any records at all for that user + date + record type combo
+    (e.g., if any reposts_* records are None, this means that on that date for
+    that user, they had 0 reposts).
+    - Therefore, for averaging, we filter out any None values and we only average
+    out across the days that had records.
+
+    The output will look something like this:
+
+    {
+        "<did>": {
+            "<week>": {
+                "prop_posted_posts_toxic": 0.03,
+                "prop_liked_posts_toxic": 0.002,
+                "prop_reposted_posts_toxic": None,
+                "prop_replied_posts_toxic": None,
+                ...
+                "prop_posted_posts_sociopolitical": 0.01,
+                "prop_liked_posts_sociopolitical": 0.05,
+                "prop_reposted_posts_sociopolitical": None,
+                "prop_replied_posts_sociopolitical": None,
+                ...
+            }
+        }
+    }
+    """
+    weekly_engaged_content_per_user_metrics: dict[str, dict[str, Optional[float]]] = {}
+    for user, dates_to_metrics_map in user_per_day_content_label_metrics.items():
+        subset_user_date_to_week_df = user_date_to_week_df[
+            user_date_to_week_df["bluesky_user_did"] == user
+        ]
+        subset_map_date_to_week = dict(
+            zip(
+                subset_user_date_to_week_df["date"],
+                subset_user_date_to_week_df["week"],
+            )
+        )
+        content_metrics_per_week_map: dict = {}
+
+        # iterate through each date and their metrics and add it to a running
+        # aggregate list of metrics for each of the weeks.
+        # TODO: should refactor to a more generic aggregation function at
+        # some point as I'll do something similar for feed content analysis,
+        # but will revisit later.
+        for date, metrics in dates_to_metrics_map.items():
+            week = subset_map_date_to_week[date]
+
+            # if week is not yet in `content_metrics_per_week_map`, initialize
+            # the lists that will store each of the daily averages/proportions
+            # for each of the labels.
+            if week not in content_metrics_per_week_map:
+                content_metrics_per_week_map[week] = {}
+                for metric_name in metrics.keys():
+                    content_metrics_per_week_map[week][metric_name] = []
+
+            # iterate through each label and its daily value for the given date
+            # and add to the running lists for the week.
+            for metric_name, metric_value in metrics.items():
+                # filter out any None values, as described in the docstring.
+                if metric_value is not None:
+                    content_metrics_per_week_map[week][metric_name].append(metric_value)
+
+        # now that we've gone through all the dates and created per-user, per-week
+        # lists of metrics (e.g., we have the average daily toxicity, for each
+        # day, for the posts liked by a user in Week 1), we now average them out.
+        # (e.g, we get the average toxicity of the posts liked by a user in Week 1).
+
+        for week, daily_metrics_map in content_metrics_per_week_map.items():
+            # if week is not yet in `content_metrics_per_week_map`, initialize
+            # the map that will store each of the weekly averages/proportions
+            # for each of the labels.
+            if week not in weekly_engaged_content_per_user_metrics[user]:
+                weekly_engaged_content_per_user_metrics[user][week] = {}
+
+            # iterate through each label and its daily values for the given week
+            # and average them out. Then add to the running map.
+            for metric_name, daily_metric_values in daily_metrics_map.items():
+                if len(daily_metric_values) == 0:
+                    weekly_engaged_content_per_user_metrics[user][week][metric_name] = (
+                        None
+                    )
+                else:
+                    weekly_engaged_content_per_user_metrics[user][week][metric_name] = (
+                        round(np.mean(daily_metric_values), 3)
+                    )
+
+    return weekly_engaged_content_per_user_metrics
 
 
-def transform_weekly_engaged_content_per_user_metrics():
-    pass
+# TODO: should refactor to a more generic aggregation function, since
+# (1) I'll do something similar for feed content analysis, and (2) this is
+# essentially identical logic as `transform_daily_engaged_content_per_user_metrics`.
+# The only slight difference is how weeks are handled. In `transform_daily_engaged_content_per_user_metrics`,
+# we imputed for missing dates, but here we impute for missing weeks.
+def transform_weekly_engaged_content_per_user_metrics(
+    user_per_week_content_label_metrics: dict[str, dict[str, dict[str, float | None]]],
+    users_df: pd.DataFrame,
+    user_date_to_week_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Transform the weekly engaged content per user metrics into the output format required.
+
+    Same format + logic as `transform_daily_engaged_content_per_user_metrics`.
+    """
+    records: list[dict] = []
+
+    # define what weeks we have in the study.
+    weeks = user_date_to_week_df["week"].unique().tolist()
+    weeks = [week for week in weeks if not pd.isna(week) and week is not None]
+    weeks = sorted(weeks, key=str)
+    print(f"Weeks in the study: {weeks}")
+    assert (
+        len(weeks) == 8
+    )  # logical check to make sure we didn't accidentally remove values.
+
+    # iterate through each user and their metrics.
+    for user in users_df.to_dict(orient="records"):
+        user_handle = user["bluesky_handle"]
+        user_condition = user["condition"]
+        user_did = user["bluesky_user_did"]
+        weekly_metrics_for_user: dict[str, dict[str, float | None]] = (
+            user_per_week_content_label_metrics[user_did]
+        )
+
+        # iterate through each week and their metrics.
+        for week in weeks:
+            if week not in weekly_metrics_for_user:
+                weekly_metrics_for_user[week] = {}
+            week_metrics = weekly_metrics_for_user[week]
+            default_fields = {
+                "handle": user_handle,
+                "condition": user_condition,
+                "week": week,
+            }
+            hydrated_metrics = {**default_fields, **week_metrics}
+            records.append(hydrated_metrics)
+
+    # take the flattened records, where one record is the record for each
+    # user + week combo, and convert to a pandas dataframe.
+    df = pd.DataFrame(records)
+
+    # impute any NaNs with None.
+    df = df.fillna(None)
+
+    # sort records.
+    df = df.sort_values(by=["handle", "week"], inplace=False, ascending=[True, True])
+
+    return df

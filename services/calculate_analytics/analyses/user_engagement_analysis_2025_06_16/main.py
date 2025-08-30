@@ -3,7 +3,6 @@ Main script for user engagement analysis.
 """
 
 import os
-from typing import Optional
 
 import pandas as pd
 
@@ -116,17 +115,19 @@ def do_aggregations_and_export_results(
     # (1) Daily aggregations
     print("[Daily analysis] Getting per-user, per-day content label proportions...")
 
-    user_per_day_content_label_proportions: dict[str, dict[str, Optional[float]]] = (
-        get_daily_engaged_content_per_user_metrics(
-            user_to_content_engaged_with=user_to_content_engaged_with,
-            labels_for_engaged_content=labels_for_engaged_content,
-        )
+    user_per_day_content_label_metrics: dict[
+        str, dict[str, dict[str, float | None]]
+    ] = get_daily_engaged_content_per_user_metrics(
+        user_to_content_engaged_with=user_to_content_engaged_with,
+        labels_for_engaged_content=labels_for_engaged_content,
     )
 
-    transformed_per_user_per_day_content_label_proportions: pd.DataFrame = transform_daily_engaged_content_per_user_metrics(
-        user_per_day_content_label_proportions=user_per_day_content_label_proportions,
-        users=user_df,
-        partition_dates=partition_dates,
+    transformed_per_user_per_day_content_label_metrics: pd.DataFrame = (
+        transform_daily_engaged_content_per_user_metrics(
+            user_per_day_content_label_metrics=user_per_day_content_label_metrics,
+            users=user_df,
+            partition_dates=partition_dates,
+        )
     )
 
     print(
@@ -136,7 +137,7 @@ def do_aggregations_and_export_results(
         os.path.dirname(engaged_content_daily_aggregated_results_export_fp),
         exist_ok=True,
     )
-    transformed_per_user_per_day_content_label_proportions.to_csv(
+    transformed_per_user_per_day_content_label_metrics.to_csv(
         engaged_content_daily_aggregated_results_export_fp, index=False
     )
     print(
@@ -146,14 +147,18 @@ def do_aggregations_and_export_results(
     # (2) Weekly aggregations.
     print("[Weekly analysis] Getting per-user, per-week content label proportions...")
 
-    user_to_weekly_content_label_proportions: dict = get_weekly_engaged_content_per_user_metrics(
-        user_per_day_content_label_proportions=user_per_day_content_label_proportions,
+    user_per_week_content_label_metrics: dict[
+        str, dict[str, dict[str, float | None]]
+    ] = get_weekly_engaged_content_per_user_metrics(
+        user_per_day_content_label_metrics=user_per_day_content_label_metrics,
         user_date_to_week_df=user_date_to_week_df,
     )
-    transformed_per_user_to_weekly_content_label_proportions: pd.DataFrame = transform_weekly_engaged_content_per_user_metrics(
-        user_to_weekly_content_label_proportions=user_to_weekly_content_label_proportions,
-        users=user_df,
-        user_date_to_week_df=user_date_to_week_df,
+    transformed_user_per_week_content_label_metrics: pd.DataFrame = (
+        transform_weekly_engaged_content_per_user_metrics(
+            user_per_week_content_label_metrics=user_per_week_content_label_metrics,
+            users=user_df,
+            user_date_to_week_df=user_date_to_week_df,
+        )
     )
 
     print(
@@ -163,7 +168,7 @@ def do_aggregations_and_export_results(
         os.path.dirname(engaged_content_weekly_aggregated_results_export_fp),
         exist_ok=True,
     )
-    transformed_per_user_to_weekly_content_label_proportions.to_csv(
+    transformed_user_per_week_content_label_metrics.to_csv(
         engaged_content_weekly_aggregated_results_export_fp, index=False
     )
     print(
