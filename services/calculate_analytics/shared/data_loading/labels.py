@@ -94,6 +94,26 @@ def transform_labels_dict(integration: str, labels_dict: dict):
         return {
             "prob_toxic": labels_dict["prob_toxic"],
             "prob_constructive": labels_dict["prob_constructive"],
+            "prob_severe_toxic": labels_dict["prob_severe_toxic"],
+            "prob_identity_attack": labels_dict["prob_identity_attack"],
+            "prob_insult": labels_dict["prob_insult"],
+            "prob_profanity": labels_dict["prob_profanity"],
+            "prob_threat": labels_dict["prob_threat"],
+            "prob_affinity": labels_dict["prob_affinity"],
+            "prob_compassion": labels_dict["prob_compassion"],
+            "prob_curiosity": labels_dict["prob_curiosity"],
+            "prob_nuance": labels_dict["prob_nuance"],
+            "prob_personal_story": labels_dict["prob_personal_story"],
+            "prob_reasoning": labels_dict["prob_reasoning"],
+            "prob_respect": labels_dict["prob_respect"],
+            "prob_alienation": labels_dict["prob_alienation"],
+            "prob_fearmongering": labels_dict["prob_fearmongering"],
+            "prob_generalization": labels_dict["prob_generalization"],
+            "prob_moral_outrage": labels_dict["prob_moral_outrage"],
+            "prob_scapegoating": labels_dict["prob_scapegoating"],
+            "prob_sexually_explicit": labels_dict["prob_sexually_explicit"],
+            "prob_flirtation": labels_dict["prob_flirtation"],
+            "prob_spam": labels_dict["prob_spam"],
         }
     elif integration == "sociopolitical":
         return {

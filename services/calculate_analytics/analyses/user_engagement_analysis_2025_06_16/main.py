@@ -22,10 +22,10 @@ from services.calculate_analytics.shared.data_loading.users import (
     load_user_data,
 )
 from services.calculate_analytics.shared.analysis.content_analysis import (
-    get_engaged_content_per_user_per_day_metrics,
-    get_engaged_content_per_user_per_week_metrics,
-    transform_engaged_content_per_user_per_day_metrics,
-    transform_engaged_content_per_user_per_week_metrics,
+    get_daily_engaged_content_per_user_metrics,
+    get_weekly_engaged_content_per_user_metrics,
+    transform_daily_engaged_content_per_user_metrics,
+    transform_weekly_engaged_content_per_user_metrics,
 )
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -113,14 +113,12 @@ def do_aggregations_and_export_results(
     # (1) Daily aggregations
     print("[Daily analysis] Getting per-user, per-day content label proportions...")
 
-    user_per_day_content_label_proportions = (
-        get_engaged_content_per_user_per_day_metrics(
-            user_to_content_engaged_with=user_to_content_engaged_with,
-            labels_for_engaged_content=labels_for_engaged_content,
-        )
+    user_per_day_content_label_proportions = get_daily_engaged_content_per_user_metrics(
+        user_to_content_engaged_with=user_to_content_engaged_with,
+        labels_for_engaged_content=labels_for_engaged_content,
     )
 
-    transformed_per_user_per_day_content_label_proportions: pd.DataFrame = transform_engaged_content_per_user_per_day_metrics(
+    transformed_per_user_per_day_content_label_proportions: pd.DataFrame = transform_daily_engaged_content_per_user_metrics(
         user_per_day_content_label_proportions=user_per_day_content_label_proportions,
         users=user_df,
     )
@@ -142,11 +140,11 @@ def do_aggregations_and_export_results(
     # (2) Weekly aggregations.
     print("[Weekly analysis] Getting per-user, per-week content label proportions...")
 
-    user_to_weekly_content_label_proportions: dict = get_engaged_content_per_user_per_week_metrics(
+    user_to_weekly_content_label_proportions: dict = get_weekly_engaged_content_per_user_metrics(
         user_per_day_content_label_proportions=user_per_day_content_label_proportions,
         user_date_to_week_df=user_date_to_week_df,
     )
-    transformed_per_user_to_weekly_content_label_proportions: pd.DataFrame = transform_engaged_content_per_user_per_week_metrics(
+    transformed_per_user_to_weekly_content_label_proportions: pd.DataFrame = transform_weekly_engaged_content_per_user_metrics(
         user_to_weekly_content_label_proportions=user_to_weekly_content_label_proportions,
         users=user_df,
         user_date_to_week_df=user_date_to_week_df,
