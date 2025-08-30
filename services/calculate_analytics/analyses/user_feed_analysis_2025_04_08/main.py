@@ -10,7 +10,7 @@ import pandas as pd
 from lib.helper import generate_current_datetime_str, get_partition_dates
 from services.calculate_analytics.shared.analysis.content_analysis import (
     get_daily_feed_content_per_user_metrics,
-    get_weekly_feed_content_per_user_metrics,
+    get_weekly_content_per_user_metrics,
     transform_daily_content_per_user_metrics,
     transform_weekly_content_per_user_metrics,
 )
@@ -126,7 +126,7 @@ def do_aggregations_and_export_results(
 
     user_per_week_content_label_metrics: dict[
         str, dict[str, dict[str, float | None]]
-    ] = get_weekly_feed_content_per_user_metrics(
+    ] = get_weekly_content_per_user_metrics(
         user_per_day_content_label_metrics=user_per_day_content_label_metrics,
         user_date_to_week_df=user_date_to_week_df,
     )
