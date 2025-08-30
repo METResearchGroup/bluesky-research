@@ -350,8 +350,7 @@ def flatten_content_metrics_across_record_types(
     """Flattens the metrics across record types, to build a single dictionary
     of metrics for this user and for this date.
     """
-    pass
-
-
-def get_average_metrics_for_record_type():
-    pass
+    metrics = {}
+    for metrics in record_type_to_metrics_map.values():
+        metrics.update(metrics)
+    return metrics

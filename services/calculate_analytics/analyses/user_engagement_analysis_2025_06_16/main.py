@@ -3,6 +3,7 @@ Main script for user engagement analysis.
 """
 
 import os
+from typing import Optional
 
 import pandas as pd
 
@@ -113,9 +114,11 @@ def do_aggregations_and_export_results(
     # (1) Daily aggregations
     print("[Daily analysis] Getting per-user, per-day content label proportions...")
 
-    user_per_day_content_label_proportions = get_daily_engaged_content_per_user_metrics(
-        user_to_content_engaged_with=user_to_content_engaged_with,
-        labels_for_engaged_content=labels_for_engaged_content,
+    user_per_day_content_label_proportions: dict[str, dict[str, Optional[float]]] = (
+        get_daily_engaged_content_per_user_metrics(
+            user_to_content_engaged_with=user_to_content_engaged_with,
+            labels_for_engaged_content=labels_for_engaged_content,
+        )
     )
 
     transformed_per_user_per_day_content_label_proportions: pd.DataFrame = transform_daily_engaged_content_per_user_metrics(
