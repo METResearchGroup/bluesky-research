@@ -24,8 +24,8 @@ from services.calculate_analytics.shared.data_loading.users import (
 from services.calculate_analytics.shared.analysis.content_analysis import (
     get_daily_engaged_content_per_user_metrics,
     get_weekly_engaged_content_per_user_metrics,
-    transform_daily_engaged_content_per_user_metrics,
-    transform_weekly_engaged_content_per_user_metrics,
+    transform_daily_content_per_user_metrics,
+    transform_weekly_content_per_user_metrics,
 )
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -123,7 +123,7 @@ def do_aggregations_and_export_results(
     )
 
     transformed_per_user_per_day_content_label_metrics: pd.DataFrame = (
-        transform_daily_engaged_content_per_user_metrics(
+        transform_daily_content_per_user_metrics(
             user_per_day_content_label_metrics=user_per_day_content_label_metrics,
             users=user_df,
             partition_dates=partition_dates,
@@ -154,7 +154,7 @@ def do_aggregations_and_export_results(
         user_date_to_week_df=user_date_to_week_df,
     )
     transformed_user_per_week_content_label_metrics: pd.DataFrame = (
-        transform_weekly_engaged_content_per_user_metrics(
+        transform_weekly_content_per_user_metrics(
             user_per_week_content_label_metrics=user_per_week_content_label_metrics,
             users=user_df,
             user_date_to_week_df=user_date_to_week_df,

@@ -8,6 +8,12 @@ import os
 import pandas as pd
 
 from lib.helper import generate_current_datetime_str, get_partition_dates
+from services.calculate_analytics.shared.analysis.content_analysis import (
+    get_daily_feed_content_per_user_metrics,
+    get_weekly_feed_content_per_user_metrics,
+    transform_daily_content_per_user_metrics,
+    transform_weekly_content_per_user_metrics,
+)
 from services.calculate_analytics.shared.constants import (
     STUDY_START_DATE,
     STUDY_END_DATE,
@@ -73,6 +79,8 @@ def do_setup():
 def do_aggregations_and_export_results(
     user_df: pd.DataFrame,
     user_date_to_week_df: pd.DataFrame,
+    user_to_content_in_feeds: dict[str, dict[str, set[str]]],
+    labels_for_feed_content: dict[str, dict],
     partition_dates: list[str],
 ):
     """Perform aggregated analyses and export results.
@@ -84,18 +92,15 @@ def do_aggregations_and_export_results(
     # (1) Daily aggregations
     print("[Daily analysis] Getting per-user, per-day content label metrics...")
 
-    def get_daily_feed_content_per_user_metrics():
-        pass
-
     user_per_day_content_label_metrics: dict[
         str, dict[str, dict[str, float | None]]
-    ] = get_daily_feed_content_per_user_metrics()
-
-    def transform_daily_level_feed_content_metrics():
-        pass
+    ] = get_daily_feed_content_per_user_metrics(
+        user_to_content_in_feeds=user_to_content_in_feeds,
+        labels_for_feed_content=labels_for_feed_content,
+    )
 
     transformed_per_user_per_day_content_label_metrics: pd.DataFrame = (
-        transform_daily_level_feed_content_metrics(
+        transform_daily_content_per_user_metrics(
             user_per_day_content_label_metrics=user_per_day_content_label_metrics,
             users=user_df,
             partition_dates=partition_dates,
@@ -119,9 +124,6 @@ def do_aggregations_and_export_results(
     # (2) Weekly aggregations.
     print("[Weekly analysis] Getting per-user, per-week content label metrics...")
 
-    def get_weekly_feed_content_per_user_metrics():
-        pass
-
     user_per_week_content_label_metrics: dict[
         str, dict[str, dict[str, float | None]]
     ] = get_weekly_feed_content_per_user_metrics(
@@ -129,11 +131,8 @@ def do_aggregations_and_export_results(
         user_date_to_week_df=user_date_to_week_df,
     )
 
-    def transform_weekly_feed_content_per_user_metrics():
-        pass
-
     transformed_per_user_per_week_feed_content_metrics: pd.DataFrame = (
-        transform_weekly_feed_content_per_user_metrics(
+        transform_weekly_content_per_user_metrics(
             user_per_week_content_label_metrics=user_per_week_content_label_metrics,
             users=user_df,
             user_date_to_week_df=user_date_to_week_df,
@@ -162,13 +161,19 @@ def main():
     """
     setup_objs = do_setup()
 
-    user_df = setup_objs["user_df"]
-    user_date_to_week_df = setup_objs["user_date_to_week_df"]
-    partition_dates = setup_objs["partition_dates"]
+    user_df: pd.DataFrame = setup_objs["user_df"]
+    user_date_to_week_df: pd.DataFrame = setup_objs["user_date_to_week_df"]
+    user_to_content_in_feeds: dict[str, dict[str, set[str]]] = setup_objs[
+        "user_to_content_in_feeds"
+    ]
+    labels_for_feed_content: dict[str, dict] = setup_objs["labels_for_feed_content"]
+    partition_dates: list[str] = setup_objs["partition_dates"]
 
     do_aggregations_and_export_results(
         user_df=user_df,
         user_date_to_week_df=user_date_to_week_df,
+        user_to_content_in_feeds=user_to_content_in_feeds,
+        labels_for_feed_content=labels_for_feed_content,
         partition_dates=partition_dates,
     )
 

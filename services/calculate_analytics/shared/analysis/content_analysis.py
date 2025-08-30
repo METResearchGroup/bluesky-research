@@ -11,32 +11,84 @@ from services.calculate_analytics.shared.processing.content_label_processing imp
 )
 
 
-# TODO: should be the logic in get_per_user_feed_averages_for_partition_date
-# (but no need to add partition_date) - this can be used for both feed content
-# analysis and engagement content analysis.
+def get_daily_feed_content_per_user_metrics(
+    user_to_content_in_feeds: dict[str, dict[str, set[str]]],
+    labels_for_feed_content: dict[str, dict],
+) -> dict[str, dict[str, dict[str, float | None]]]:
+    """Given a map of user and the content they engaged with,
+    as well as the labels for any engaged content, start linking them together.
 
+    Our input looks like this:
 
-# this should calculate the averages and proportions for each of the labels.
-def calculate_content_label_metrics(posts_df: pd.DataFrame) -> pd.DataFrame:
-    """Takes as input the posts with each of their labels, and then calculates
-    the metrics for each of the labels.
+    user_to_content_in_feeds:
+        {
+            "<did>": {
+                "<date>": {"<uri_1", "<uri_2>", ...}
+            }
+        }
+
+    labels_for_feed_content:
+        {
+            "<uri_1>": {
+                "prob_toxic": 0.001,
+                "prob_constructive": 0.0002,
+                ...
+            },
+            "<uri_2>": {
+                "prob_toxic": 0.0001,
+                "prob_constructive": 0.0002,
+                ...
+            },
+            ...
+        }
+
+    We iterate through this. For each did, date, and record_type combo,
+    we look up the corresponding URIs in the hash map, and then we use this
+    to calculate per-integration averages for each did+date+record_type combo.
+
+    The output will look something like this:
+    {
+        "<did>": {
+            "<date>": {
+                "prop_toxic": 0.3,
+                "prop_sociopolitical": 0.05,
+                ...
+            }
+        }
+    }
     """
+    # TODO: remove (here for ruff linter)
+    print(f"labels_for_feed_content: {labels_for_feed_content}")
+    print(f"user_to_content_in_feeds: {user_to_content_in_feeds}")
     pass
 
 
-def get_daily_feed_content_per_user_metrics():
-    pass
+# TODO: note that we might have to account some days/weeks missing, e.g.,
+# Wave 2 userse won't have feeds on the first week. That might have to
+# be what's accounted for when we aggregate across weeks (though should
+# be taken cared of when we figure out what week each user's feeds fit in).
+# NOTE: actually I might not have to account for anything special since
+# Week # will account for the difference in dates (e.g., irrespective of
+# when Wave 1/2 starts, their dates will be accounted for in their week). Also
+# accounts for the missing 2024-10-08 feeds since the other days will exist.
+def get_weekly_feed_content_per_user_metrics(
+    user_per_day_content_label_metrics: dict[str, dict[str, dict[str, float | None]]],
+    user_date_to_week_df: pd.DataFrame,
+) -> dict[str, dict[str, dict[str, float | None]]]:
+    """Get the weekly feed content per user metrics.
 
+    user_per_day_content_label_metrics: dict[str, dict[str, dict[str, float | None]]]
+    user_date_to_week_df: pd.DataFrame
 
-def transform_daily_feed_content_per_user_metrics():
-    pass
+    Groups by user and week and then aggregates (averages) the values of the
+    metrics across each week.
 
-
-def get_weekly_feed_content_per_user_metrics():
-    pass
-
-
-def transform_weekly_feed_content_per_user_metrics():
+    Simpler averaging logic than `get_weekly_engaged_content_per_user_metrics`
+    since every user will have a feed every day.
+    """
+    # TODO: remove (here for ruff linter)
+    print(f"user_per_day_content_label_metrics: {user_per_day_content_label_metrics}")
+    print(f"user_date_to_week_df: {user_date_to_week_df}")
     pass
 
 
@@ -187,114 +239,6 @@ def get_daily_engaged_content_per_user_metrics(
     return daily_engaged_content_per_user_metrics
 
 
-def transform_daily_engaged_content_per_user_metrics(
-    user_per_day_content_label_metrics: dict[str, dict[str, dict[str, float | None]]],
-    users_df: pd.DataFrame,
-    partition_dates: list[str],
-) -> pd.DataFrame:
-    """Transform the daily engaged content per user metrics into the output format required.
-
-    user_per_day_content_label_proportions: dict[str, dict[str, dict[str, float | None]]]
-
-    Example input:
-    {
-        "<did>": {
-            "<date>": {
-                "prop_posted_posts_toxic": 0.03,
-                "prop_liked_posts_toxic": 0.002,
-                "prop_reposted_posts_toxic": None,
-                "prop_replied_posts_toxic": None,
-                ...
-                "prop_posted_posts_sociopolitical": 0.01,
-                "prop_liked_posts_sociopolitical": 0.05,
-                "prop_reposted_posts_sociopolitical": None,
-                "prop_replied_posts_sociopolitical": None,
-                ...
-            }
-        }
-    }
-
-    users_df: pd.DataFrame of the users.
-    Contains the fields ["bluesky_handle", "bluesky_user_did", "condition"]
-
-    Flattens the nested dictionary into a list of dictionaries of the following format:
-    ```
-    {
-        "handle": "<handle>",
-        "condition": "<condition>",
-        "date": "<date>",
-        "prop_posted_posts_toxic": 0.03,
-        "prop_liked_posts_toxic": 0.002,
-        "prop_reposted_posts_toxic": None,
-        "prop_replied_posts_toxic": None,
-        ...
-    }
-    ```
-
-    Then we convert this to a pandas DataFrame:
-
-    ```
-    index | handle     | condition     | date     | prop_posted_posts_toxic | prop_liked_posts_toxic | prop_reposted_posts_toxic |
-    0     | <handle_1> | <condition_1> | <date_1> | 0.03                    | 0.002                  | None                      |
-    1     | <handle_2> | <condition_2> | <date_2> | 0.01                    | 0.05                   | None                      |
-    ...   | ...        | ...           | ...      | ...                     | ...                    | ...                       |
-    ...   | ...        | ...           | ...      | ...                     | ...                    | ...                       |
-    ```
-
-    For user + date combos without a record, we'll impute an empty dictionary,
-    and then when we create the pandas dataframe, the columns for this date will
-    be NaN.
-
-    Simple reproducible example:
-    ```
-    >>> records = [{"field1": 1, "field2": 2}, {}]
-    >>> df = pd.DataFrame(records)
-    >>> df
-    field1  field2
-    0     1.0     2.0
-    1     NaN     NaN
-    ```
-    """
-    records: list[dict] = []
-
-    # some dates won't have records (e.g., a user might not have engaged with
-    # content on some dates).
-
-    # iterate through each user and their metrics.
-    for user in users_df.to_dict(orient="records"):
-        user_handle = user["bluesky_handle"]
-        user_condition = user["condition"]
-        user_did = user["bluesky_user_did"]
-        metrics = user_per_day_content_label_metrics[user_did]
-
-        # iterate through each date and their metrics.
-        for date in partition_dates:
-            if date not in metrics:
-                # set this as empty dictionary. Then when we create the pandas
-                # dataframe, the columns for this date will be NaN
-                metrics[date] = {}
-            day_metrics = metrics[date]
-            default_fields = {
-                "handle": user_handle,
-                "condition": user_condition,
-                "date": date,
-            }
-            hydrated_metrics = {**default_fields, **day_metrics}
-            records.append(hydrated_metrics)
-
-    # take the flattened records, where one record is the record for each
-    # user + date combo, and convert to a pandas dataframe.
-    df = pd.DataFrame(records)
-
-    # impute any NaNs with None.
-    df = df.fillna(None)
-
-    # sort records.
-    df = df.sort_values(by=["handle", "date"], inplace=False, ascending=[True, True])
-
-    return df
-
-
 def get_weekly_engaged_content_per_user_metrics(
     user_per_day_content_label_metrics: dict[str, dict[str, dict[str, float | None]]],
     user_date_to_week_df: pd.DataFrame,
@@ -412,19 +356,138 @@ def get_weekly_engaged_content_per_user_metrics(
     return weekly_engaged_content_per_user_metrics
 
 
-# TODO: should refactor to a more generic aggregation function, since
-# (1) I'll do something similar for feed content analysis, and (2) this is
-# essentially identical logic as `transform_daily_engaged_content_per_user_metrics`.
-# The only slight difference is how weeks are handled. In `transform_daily_engaged_content_per_user_metrics`,
-# we imputed for missing dates, but here we impute for missing weeks.
-def transform_weekly_engaged_content_per_user_metrics(
+# Shared across both engagement and feed content analysis.
+def transform_daily_content_per_user_metrics(
+    user_per_day_content_label_metrics: dict[str, dict[str, dict[str, float | None]]],
+    users_df: pd.DataFrame,
+    partition_dates: list[str],
+) -> pd.DataFrame:
+    """Transform the daily content per user metrics into the output format required.
+
+    user_per_day_content_label_proportions: dict[str, dict[str, dict[str, float | None]]]
+
+    Example input:
+
+    # For feed content:
+    {
+        "<did>": {
+            "<date>": {
+                "prop_toxic": 0.03,
+                "prop_sociopolitical": 0.01,
+                ...
+            }
+        }
+    }
+
+    # For engagement content:
+    {
+        "<did>": {
+            "<date>": {
+                "prop_posted_posts_toxic": 0.03,
+                "prop_liked_posts_toxic": 0.002,
+                "prop_reposted_posts_toxic": None,
+                "prop_replied_posts_toxic": None,
+                ...
+                "prop_posted_posts_sociopolitical": 0.01,
+                "prop_liked_posts_sociopolitical": 0.05,
+                "prop_reposted_posts_sociopolitical": None,
+                "prop_replied_posts_sociopolitical": None,
+                ...
+            }
+        }
+    }
+
+    users_df: pd.DataFrame of the users.
+    Contains the fields ["bluesky_handle", "bluesky_user_did", "condition"]
+
+    Flattens the nested dictionary into a list of dictionaries of the following format:
+    ```
+    {
+        "handle": "<handle>",
+        "condition": "<condition>",
+        "date": "<date>",
+        "prop_posted_posts_toxic": 0.03,
+        "prop_liked_posts_toxic": 0.002,
+        "prop_reposted_posts_toxic": None,
+        "prop_replied_posts_toxic": None,
+        ...
+    }
+    ```
+
+    Then we convert this to a pandas DataFrame:
+
+    ```
+    index | handle     | condition     | date     | prop_posted_posts_toxic | prop_liked_posts_toxic | prop_reposted_posts_toxic |
+    0     | <handle_1> | <condition_1> | <date_1> | 0.03                    | 0.002                  | None                      |
+    1     | <handle_2> | <condition_2> | <date_2> | 0.01                    | 0.05                   | None                      |
+    ...   | ...        | ...           | ...      | ...                     | ...                    | ...                       |
+    ...   | ...        | ...           | ...      | ...                     | ...                    | ...                       |
+    ```
+
+    For user + date combos without a record, we'll impute an empty dictionary,
+    and then when we create the pandas dataframe, the columns for this date will
+    be NaN.
+
+    Simple reproducible example:
+    ```
+    >>> records = [{"field1": 1, "field2": 2}, {}]
+    >>> df = pd.DataFrame(records)
+    >>> df
+    field1  field2
+    0     1.0     2.0
+    1     NaN     NaN
+    ```
+    """
+    records: list[dict] = []
+
+    # some dates won't have records (e.g., a user might not have engaged with
+    # content on some dates).
+
+    # iterate through each user and their metrics.
+    for user in users_df.to_dict(orient="records"):
+        user_handle = user["bluesky_handle"]
+        user_condition = user["condition"]
+        user_did = user["bluesky_user_did"]
+        metrics = user_per_day_content_label_metrics[user_did]
+
+        # iterate through each date and their metrics.
+        for date in partition_dates:
+            if date not in metrics:
+                # set this as empty dictionary. Then when we create the pandas
+                # dataframe, the columns for this date will be NaN
+                metrics[date] = {}
+            day_metrics = metrics[date]
+            default_fields = {
+                "handle": user_handle,
+                "condition": user_condition,
+                "date": date,
+            }
+            hydrated_metrics = {**default_fields, **day_metrics}
+            records.append(hydrated_metrics)
+
+    # take the flattened records, where one record is the record for each
+    # user + date combo, and convert to a pandas dataframe.
+    df = pd.DataFrame(records)
+
+    # impute any NaNs with None.
+    df = df.fillna(None)
+
+    # sort records.
+    df = df.sort_values(by=["handle", "date"], inplace=False, ascending=[True, True])
+
+    return df
+
+
+# shared across both engagement and feed content analysis.
+def transform_weekly_content_per_user_metrics(
     user_per_week_content_label_metrics: dict[str, dict[str, dict[str, float | None]]],
     users_df: pd.DataFrame,
     user_date_to_week_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """Transform the weekly engaged content per user metrics into the output format required.
 
-    Same format + logic as `transform_daily_engaged_content_per_user_metrics`.
+    Similar format + logic as `transform_daily_content_per_user_metrics`,
+    but now we're iterating through weeks instead of days.
     """
     records: list[dict] = []
 
