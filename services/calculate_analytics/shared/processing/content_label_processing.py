@@ -1,6 +1,6 @@
 """Processes post labels for downstream processing."""
 
-from typing import Literal, Optional
+from typing import Iterable, Literal, Optional
 
 import numpy as np
 
@@ -295,6 +295,13 @@ def calculate_metrics_for_content_labels(
         )
     )
     return {**transformed_average_metrics, **transformed_proportion_metrics}
+
+
+def get_metrics_for_user_feeds_from_partition_date(
+    post_uris: Iterable[str],
+    labels_for_feed_content: dict[str, dict],
+):
+    pass
 
 
 def get_metrics_for_record_type(

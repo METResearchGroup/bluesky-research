@@ -78,20 +78,7 @@ labels_df = load_all_labels_for_posts(
 
 ### Feeds Module (`feeds.py`)
 
-Provides functions for loading feed data and creating user-to-posts mappings:
-
-- `get_feeds_for_partition_date()`: Load feeds for a specific partition date
-- `map_users_to_posts_used_in_feeds()`: Create mapping from users to posts in their feeds
-- `get_feeds_with_post_mapping()`: Convenience function to get both feeds and mapping
-
-**Example Usage:**
-```python
-from services.calculate_analytics.study_analytics.shared.data_loading.feeds import (
-    map_users_to_posts_used_in_feeds
-)
-
-users_to_posts = map_users_to_posts_used_in_feeds("2024-10-15")
-```
+Provides functions for loading feed data.
 
 ### Users Module (`users.py`)
 

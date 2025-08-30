@@ -8,6 +8,7 @@ import pandas as pd
 from services.calculate_analytics.shared.processing.content_label_processing import (
     flatten_content_metrics_across_record_types,
     get_metrics_for_record_types,
+    get_metrics_for_user_feeds_from_partition_date,
 )
 
 
@@ -57,10 +58,37 @@ def get_daily_feed_content_per_user_metrics(
         }
     }
     """
-    # TODO: remove (here for ruff linter)
-    print(f"labels_for_feed_content: {labels_for_feed_content}")
-    print(f"user_to_content_in_feeds: {user_to_content_in_feeds}")
-    pass
+    daily_feed_content_per_user_metrics: dict[
+        str, dict[str, dict[str, float | None]]
+    ] = {}
+
+    for did, content_in_feeds in user_to_content_in_feeds.items():
+        daily_feed_content_per_user_metrics[did] = {}
+
+        # partition date to metrics map. Metrics is a dictionary of <label>: <metric value>.
+        # e.g., {"<date>": {"<label 1>": 0.5, "<label 2>": 0.2", ...}, ...}
+        partition_date_to_metrics_map: dict[str, dict[str, float | None]] = {}
+
+        for partition_date, post_uris in content_in_feeds.items():
+            # get, for the given user + date, the metrics for the posts that
+            # appeared in their feeds.
+            per_user_per_date_content_metrics: dict[str, float | None] = (
+                get_metrics_for_user_feeds_from_partition_date(
+                    post_uris=post_uris, labels_for_feed_content=labels_for_feed_content
+                )
+            )
+
+            # add to the running per-user, per-date metrics map.
+            partition_date_to_metrics_map[partition_date] = (
+                per_user_per_date_content_metrics
+            )
+
+        # now that we've gone through all the feed content from the user,
+        # per day, for a given user, we now add this to the hash map of
+        # per-user, per-date feed content metrics.
+        daily_feed_content_per_user_metrics[did] = partition_date_to_metrics_map
+
+    return daily_feed_content_per_user_metrics
 
 
 # TODO: note that we might have to account some days/weeks missing, e.g.,
