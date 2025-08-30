@@ -95,6 +95,7 @@ def do_setup():
         "user_date_to_week_df": user_date_to_week_df,
         "user_to_content_engaged_with": user_to_content_engaged_with,
         "labels_for_engaged_content": labels_for_engaged_content,
+        "partition_dates": partition_dates,
     }
 
 
@@ -103,6 +104,7 @@ def do_aggregations_and_export_results(
     user_date_to_week_df: pd.DataFrame,
     user_to_content_engaged_with: dict[str, dict],
     labels_for_engaged_content: dict[str, dict],
+    partition_dates: list[str],
 ):
     """Perform aggregated analyses and export results.
 
@@ -124,6 +126,7 @@ def do_aggregations_and_export_results(
     transformed_per_user_per_day_content_label_proportions: pd.DataFrame = transform_daily_engaged_content_per_user_metrics(
         user_per_day_content_label_proportions=user_per_day_content_label_proportions,
         users=user_df,
+        partition_dates=partition_dates,
     )
 
     print(
@@ -178,12 +181,14 @@ def main():
     user_date_to_week_df = setup_objs["user_date_to_week_df"]
     user_to_content_engaged_with = setup_objs["user_to_content_engaged_with"]
     labels_for_engaged_content = setup_objs["labels_for_engaged_content"]
+    partition_dates = setup_objs["partition_dates"]
 
     do_aggregations_and_export_results(
         user_df=user_df,
         user_date_to_week_df=user_date_to_week_df,
         user_to_content_engaged_with=user_to_content_engaged_with,
         labels_for_engaged_content=labels_for_engaged_content,
+        partition_dates=partition_dates,
     )
 
 

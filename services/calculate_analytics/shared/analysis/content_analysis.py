@@ -191,8 +191,112 @@ def get_daily_engaged_content_per_user_metrics(
     return daily_engaged_content_per_user_metrics
 
 
-def transform_daily_engaged_content_per_user_metrics():
-    pass
+def transform_daily_engaged_content_per_user_metrics(
+    user_per_day_content_label_proportions: dict[str, dict[str, Optional[float]]],
+    users_df: pd.DataFrame,
+    partition_dates: list[str],
+) -> pd.DataFrame:
+    """Transform the daily engaged content per user metrics into the output format required.
+
+    user_per_day_content_label_proportions: dict[str, dict[str, Optional[float]]]
+
+    Example input:
+    {
+        "<did>": {
+            "<date>": {
+                "prop_posted_posts_toxic": 0.03,
+                "prop_liked_posts_toxic": 0.002,
+                "prop_reposted_posts_toxic": None,
+                "prop_replied_posts_toxic": None,
+                ...
+                "prop_posted_posts_sociopolitical": 0.01,
+                "prop_liked_posts_sociopolitical": 0.05,
+                "prop_reposted_posts_sociopolitical": None,
+                "prop_replied_posts_sociopolitical": None,
+                ...
+            }
+        }
+    }
+
+    users_df: pd.DataFrame of the users.
+    Contains the fields ["bluesky_handle", "bluesky_user_did", "condition"]
+
+    Flattens the nested dictionary into a list of dictionaries of the following format:
+    ```
+    {
+        "handle": "<handle>",
+        "condition": "<condition>",
+        "date": "<date>",
+        "prop_posted_posts_toxic": 0.03,
+        "prop_liked_posts_toxic": 0.002,
+        "prop_reposted_posts_toxic": None,
+        "prop_replied_posts_toxic": None,
+        ...
+    }
+    ```
+
+    Then we convert this to a pandas DataFrame:
+
+    ```
+    index | handle     | condition     | date     | prop_posted_posts_toxic | prop_liked_posts_toxic | prop_reposted_posts_toxic |
+    0     | <handle_1> | <condition_1> | <date_1> | 0.03                    | 0.002                  | None                      |
+    1     | <handle_2> | <condition_2> | <date_2> | 0.01                    | 0.05                   | None                      |
+    ...   | ...        | ...           | ...      | ...                     | ...                    | ...                       |
+    ...   | ...        | ...           | ...      | ...                     | ...                    | ...                       |
+    ```
+
+    For user + date combos without a record, we'll impute an empty dictionary,
+    and then when we create the pandas dataframe, the columns for this date will
+    be NaN.
+
+    Simple reproducible example:
+    ```
+    >>> records = [{"field1": 1, "field2": 2}, {}]
+    >>> df = pd.DataFrame(records)
+    >>> df
+    field1  field2
+    0     1.0     2.0
+    1     NaN     NaN
+    ```
+    """
+    records: list[dict] = []
+
+    # some dates won't have records (e.g., a user might not have engaged with
+    # content on some dates).
+
+    # iterate through each user and their metrics.
+    for user in users_df.to_dict(orient="records"):
+        user_handle = user["bluesky_handle"]
+        user_condition = user["condition"]
+        user_did = user["bluesky_user_did"]
+        metrics = user_per_day_content_label_proportions[user_did]
+
+        # iterate through each date and their metrics.
+        for date in partition_dates:
+            if date not in metrics:
+                # set this as empty dictionary. Then when we create the pandas
+                # dataframe, the columns for this date will be NaN
+                metrics[date] = {}
+            day_metrics = metrics[date]
+            default_fields = {
+                "handle": user_handle,
+                "condition": user_condition,
+                "date": date,
+            }
+            hydrated_metrics = {**default_fields, **day_metrics}
+            records.append(hydrated_metrics)
+
+    # take the flattened records, where one record is the record for each
+    # user + date combo, and convert to a pandas dataframe.
+    df = pd.DataFrame(records)
+
+    # impute any NaNs with None.
+    df = df.fillna(None)
+
+    # sort records.
+    df = df.sort_values(by=["handle", "date"], inplace=False, ascending=[True, True])
+
+    return df
 
 
 def get_weekly_engaged_content_per_user_metrics():
