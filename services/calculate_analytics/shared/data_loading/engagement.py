@@ -7,7 +7,6 @@ Load content engaged with by study users.
 - Likes: posts liked by study users
 """
 
-import gc
 import json
 
 import pandas as pd
@@ -65,14 +64,20 @@ def get_content_engaged_with(
         end_partition_date=STUDY_END_DATE,
         custom_args=custom_args,
     )
-
-    df = df.drop_duplicates(subset=["uri"])
+    # dropping duplicates here is safe since each record is unique. For example,
+    # a "like" record is unique by URI, and the post liked has its own URI
+    # mentioned within the like record itself (but the like record itself has
+    # its own URI, and that's what's used here). To be safe, just dropping
+    # duplicates on uri + author.
+    df = df.drop_duplicates(subset=["uri", "author"])
     df = df[df["author"].isin(valid_study_users_dids)]
 
     df["partition_date"] = pd.to_datetime(df["synctimestamp"]).dt.date.astype(str)
 
     if record_type == "reply":
         # for simplicity's sake, we'll just take the URI of the post they replied to.
+        # NOTE: JSON-loading here is OK, as the format is defined in this
+        # specific way via the data contract from Bluesky itself.
         df["engaged_post_uris"] = (
             df["reply"].apply(json.loads).apply(lambda x: x["parent"]["uri"])
         )
@@ -81,20 +86,22 @@ def get_content_engaged_with(
         # grab the actual post URI.
         df["engaged_post_uris"] = df["uri"]
     else:
+        # NOTE: JSON-loading here is OK, as the format is defined in this
+        # specific way via the data contract from Bluesky itself.
         df["engaged_post_uris"] = (
             df["subject"].apply(json.loads).apply(lambda x: x["uri"])
         )
 
     content_engaged_with = {}
 
-    for _, row in df.iterrows():
-        uri = row["engaged_post_uris"]
+    for row in df.itertuples():
+        uri = row.engaged_post_uris
         if uri not in content_engaged_with:
             content_engaged_with[uri] = []
         content_engaged_with[uri].append(
             {
-                "did": row["author"],
-                "date": row["partition_date"],
+                "did": row.author,
+                "date": row.partition_date,
                 "record_type": record_type,
             }
         )
@@ -172,7 +179,6 @@ def get_engaged_content(valid_study_users_dids: set[str]):
             map_uri_to_engagements[uri].extend(engagements)
 
     del liked_content, posted_content, reposted_content, replied_content
-    gc.collect()
 
     return map_uri_to_engagements
 

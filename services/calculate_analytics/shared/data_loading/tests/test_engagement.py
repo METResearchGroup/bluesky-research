@@ -10,7 +10,6 @@ This test suite verifies the functionality of engagement data loading functions:
 The tests use mocks to isolate the data loading logic from external dependencies.
 """
 
-import json
 import pytest
 import pandas as pd
 from unittest.mock import Mock, patch, MagicMock
@@ -401,7 +400,7 @@ class TestGetEngagedContent:
         }
         mock_reposted_content = {
             "post3": [
-                {"did:plc:user1", "date": "2024-01-03", "record_type": "repost"}
+                {"did": "did:plc:user1", "date": "2024-01-03", "record_type": "repost"}
             ]
         }
         mock_replied_content = {
@@ -588,12 +587,12 @@ class TestGetEngagedContent:
 
         # Assert
         assert mock_get_content.call_count == 4
-        
+
         # Verify each call was made with correct parameters
         for i, record_type in enumerate(expected_record_types):
             call_args = mock_get_content.call_args_list[i]
-            assert call_args[0][0] == record_type  # First positional argument
-            assert call_args[0][1] == valid_study_users_dids  # Second positional argument
+            assert call_args.kwargs["record_type"] == record_type, f"Expected {record_type}, got {call_args.kwargs['record_type']}"
+            assert call_args.kwargs["valid_study_users_dids"] == valid_study_users_dids, f"Expected {valid_study_users_dids}, got {call_args.kwargs['valid_study_users_dids']}"
 
     def test_raises_exception_on_get_content_engaged_with_failure(self):
         """Test that exceptions from get_content_engaged_with are properly propagated.

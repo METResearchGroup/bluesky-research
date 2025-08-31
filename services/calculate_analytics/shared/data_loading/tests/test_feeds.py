@@ -578,3 +578,4 @@ class TestGetAllPostUrisUsedInFeeds:
         assert isinstance(result, set)
         assert result == expected_uris
         assert len(result) == 5  # post2 appears 3 times but is counted only once
+
