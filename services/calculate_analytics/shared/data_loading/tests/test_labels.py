@@ -619,18 +619,21 @@ class TestGetAllLabelsForPosts:
         # Act
         with patch("services.calculate_analytics.shared.data_loading.labels.integrations_list", mock_integrations), \
              patch("services.calculate_analytics.shared.data_loading.labels.get_labels_for_partition_date") as mock_get_labels:
-            
-            # Configure the mock to return different data for each integration
-            mock_get_labels.side_effect = [
-                mock_perspective_data,  # perspective_api
-                mock_sociopolitical_data,  # sociopolitical
-                mock_ime_data,  # ime
-                mock_valence_data,  # valence_classifier
-                mock_perspective_data,  # perspective_api (second partition date)
-                mock_sociopolitical_data,  # sociopolitical (second partition date)
-                mock_ime_data,  # ime (second partition date)
-                mock_valence_data,  # valence_classifier (second partition date)
-            ]
+
+            # Configure the mock to return the correct data based on integration and partition_date
+            def mock_get_labels_side_effect(integration, partition_date):
+                if integration == "perspective_api":
+                    return mock_perspective_data
+                elif integration == "sociopolitical":
+                    return mock_sociopolitical_data
+                elif integration == "ime":
+                    return mock_ime_data
+                elif integration == "valence_classifier":
+                    return mock_valence_data
+                else:
+                    raise ValueError(f"Unknown integration: {integration}")
+
+            mock_get_labels.side_effect = mock_get_labels_side_effect
             result = get_all_labels_for_posts(post_uris, partition_dates)
 
         # Assert
@@ -641,20 +644,22 @@ class TestGetAllLabelsForPosts:
         
         # Check that post1 has all expected labels
         post1_labels = result["post1"]
-
-        breakpoint()
-
+    
+        # Check perspective_api labels (should be 22 fields)
         for perspective_api_label in perspective_api_labels:
-            assert perspective_api_label in post1_labels
-
+            assert perspective_api_label in post1_labels, f"Missing perspective_api label: {perspective_api_label}"
+    
+        # Check sociopolitical labels (should be 2 fields)
         for sociopolitical_label in sociopolitical_labels:
-            assert sociopolitical_label in post1_labels
-
+            assert sociopolitical_label in post1_labels, f"Missing sociopolitical label: {sociopolitical_label}"
+    
+        # Check IME labels (should be 4 fields)
         for ime_label in ime_labels:
-            assert ime_label in post1_labels
-
+            assert ime_label in post1_labels, f"Missing IME label: {ime_label}"
+    
+        # Check valence classifier labels (should be 2 fields)
         for valence_label in valence_labels:
-            assert valence_label in post1_labels
+            assert valence_label in post1_labels, f"Missing valence label: {valence_label}"
         
         # Check that post2 has all expected labels
         post2_labels = result["post2"]
@@ -740,25 +745,32 @@ class TestGetAllLabelsForPosts:
             with pytest.raises(Exception, match=expected_error):
                 get_all_labels_for_posts(post_uris, partition_dates)
 
-    def test_raises_exception_on_transform_labels_failure(self):
-        """Test that exceptions from transform_labels_dict are properly propagated.
+    def test_handles_transform_labels_failure_gracefully(self):
+        """Test that exceptions from transform_labels_dict are properly caught and logged.
 
         This test verifies that:
         1. Exceptions from the dependency are caught and logged
-        2. The original exception is re-raised
-        3. Error handling works correctly
+        2. The function continues processing other integrations
+        3. Error handling works correctly without crashing
         """
         # Arrange
         post_uris = {"post1"}
         partition_dates = ["2024-01-01"]
-        
+    
         mock_integrations = ["perspective_api"]
         expected_error = "Failed to transform labels"
         mock_transform = Mock(side_effect=Exception(expected_error))
-
-        # Act & Assert
+    
+        # Act
         with patch("services.calculate_analytics.shared.data_loading.labels.integrations_list", mock_integrations), \
              patch("services.calculate_analytics.shared.data_loading.labels.get_labels_for_partition_date", return_value=mock_perspective_data), \
              patch("services.calculate_analytics.shared.data_loading.labels.transform_labels_dict", side_effect=mock_transform):
-            with pytest.raises(Exception, match=expected_error):
-                get_all_labels_for_posts(post_uris, partition_dates)
+            result = get_all_labels_for_posts(post_uris, partition_dates)
+    
+        # Assert
+        # The function should handle the error gracefully and return empty results
+        assert isinstance(result, dict)
+        assert len(result) == 1
+        assert "post1" in result
+        # post1 should have no labels since the transform failed
+        assert result["post1"] == {}

@@ -15,6 +15,7 @@ mock_perspective_data = pd.DataFrame({
     "reason": [None, None],
     "label_timestamp": ["2024-01-01-00:00:00", "2024-01-01-00:00:00"],
     "prob_toxic": [0.8, 0.3],
+    "prob_constructive": [0.6, 0.9],
     "prob_severe_toxic": [0.1, 0.0],
     "prob_identity_attack": [0.2, 0.1],
     "prob_insult": [0.3, 0.2],
@@ -22,7 +23,6 @@ mock_perspective_data = pd.DataFrame({
     "prob_threat": [0.0, 0.0],
     "prob_affinity": [0.7, 0.8],
     "prob_compassion": [0.6, 0.7],
-    "prob_constructive": [0.6, 0.9],
     "prob_curiosity": [0.8, 0.9],
     "prob_nuance": [0.5, 0.6],
     "prob_personal_story": [0.4, 0.5],
@@ -79,7 +79,7 @@ mock_valence_data = pd.DataFrame({
     "compound": [0.7, -0.8],
 })
 
-# Mock data for testing missing labels scenarios
+# Mock data for testing missing labels scenarios (minimal versions)
 mock_perspective_data_minimal = pd.DataFrame({
     "uri": ["post1", "post2"],
     "prob_toxic": [0.8, 0.3],
@@ -126,6 +126,7 @@ mock_valence_data_minimal = pd.DataFrame({
     "valence_label": ["positive", "negative"],
 })
 
+# Label lists for testing - these should match what transform_labels_dict returns
 perspective_api_labels = [
     "prob_toxic", "prob_constructive", "prob_severe_toxic",
     "prob_identity_attack", "prob_insult", "prob_profanity",
@@ -137,7 +138,8 @@ perspective_api_labels = [
 ]
 
 sociopolitical_labels = [
-    "is_sociopolitical", "is_not_sociopolitical", "is_political_left", "is_political_right", "is_political_moderate", "is_political_unclear"
+    "is_sociopolitical", "is_not_sociopolitical", "is_political_left", 
+    "is_political_right", "is_political_moderate", "is_political_unclear"
 ]
 
 ime_labels = [
