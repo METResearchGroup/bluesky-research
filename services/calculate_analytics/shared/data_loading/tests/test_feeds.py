@@ -41,7 +41,7 @@ class TestGetFeedsForPartitionDate:
         mock_feeds_df = pd.DataFrame({
             "user": ["user1", "user2"],
             "feed": ['[{"item": "post1"}]', '[{"item": "post2"}]'],
-            "feed_generation_timestamp": ["2024-01-01T00:00:00", "2024-01-01T00:00:00"]
+            "feed_generation_timestamp": ["2024-01-01-00:00:00", "2024-01-01-00:00:00"]
         })
         expected_count = 2
 
@@ -68,7 +68,7 @@ class TestGetFeedsForPartitionDate:
         mock_feeds_df = pd.DataFrame({
             "user": ["user1"],
             "feed": ['[{"item": "post1"}]'],
-            "feed_generation_timestamp": ["2024-01-15T00:00:00"]
+            "feed_generation_timestamp": ["2024-01-15-00:00:00"]
         })
 
         # Act
@@ -147,7 +147,7 @@ class TestMapUsersToPostsUsedInFeeds:
                 '[{"item": "post3"}]',
                 '[{"item": "post4"}, {"item": "post1"}]'
             ],
-            "feed_generation_timestamp": ["2024-01-01T00:00:00", "2024-01-01T00:00:00", "2024-01-01T00:00:00"]
+            "feed_generation_timestamp": ["2024-01-01-00:00:00", "2024-01-01-00:00:00", "2024-01-01-00:00:00"]
         })
         
         expected_mapping = {
@@ -182,7 +182,7 @@ class TestMapUsersToPostsUsedInFeeds:
                 '[{"item": "post2"}, {"item": "post3"}]',
                 '[{"item": "post1"}, {"item": "post4"}]'
             ],
-            "feed_generation_timestamp": ["2024-01-01T00:00:00", "2024-01-01T00:00:00", "2024-01-01T00:00:00"]
+            "feed_generation_timestamp": ["2024-01-01-00:00:00", "2024-01-01-00:00:00", "2024-01-01-00:00:00"]
         })
         
         expected_posts = {"post1", "post2", "post3", "post4"}
@@ -232,7 +232,7 @@ class TestMapUsersToPostsUsedInFeeds:
         mock_feeds_df = pd.DataFrame({
             "user": ["user1"],
             "feed": ['invalid_json_string'],
-            "feed_generation_timestamp": ["2024-01-01T00:00:00"]
+            "feed_generation_timestamp": ["2024-01-01-00:00:00"]
         })
 
         # Act & Assert
@@ -282,9 +282,9 @@ class TestGetFeedsPerUser:
                 '[{"item": "post4"}]'
             ],
             "feed_generation_timestamp": [
-                "2024-01-01T00:00:00",
-                "2024-01-02T00:00:00",
-                "2024-01-01T00:00:00"
+                "2024-01-01-00:00:00",
+                "2024-01-02-00:00:00",
+                "2024-01-01-00:00:00"
             ]
         })
         
@@ -326,9 +326,9 @@ class TestGetFeedsPerUser:
                 '[{"item": "post3"}]'
             ],
             "feed_generation_timestamp": [
-                "2024-01-01T00:00:00",
-                "2024-01-01T00:00:00",
-                "2024-01-01T00:00:00"
+                "2024-01-01-00:00:00",
+                "2024-01-01-00:00:00",
+                "2024-01-01-00:00:00"
             ]
         })
         
@@ -356,7 +356,7 @@ class TestGetFeedsPerUser:
         mock_feeds_df = pd.DataFrame({
             "bluesky_user_did": ["did:plc:user1"],
             "feed": ['[{"item": "post1"}]'],
-            "feed_generation_timestamp": ["2024-01-01T00:00:00"]
+            "feed_generation_timestamp": ["2024-01-01-00:00:00"]
         })
         
         expected_result = {}
@@ -406,7 +406,7 @@ class TestGetFeedsPerUser:
         mock_feeds_df = pd.DataFrame({
             "bluesky_user_did": ["did:plc:user1"],
             "feed": ['[{"item": "post1"}]'],
-            "feed_generation_timestamp": ["2024-01-01T00:00:00"]
+            "feed_generation_timestamp": ["2024-01-01-00:00:00"]
         })
 
         # Act

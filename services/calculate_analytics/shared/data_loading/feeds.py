@@ -5,7 +5,7 @@ users to posts used in feeds, eliminating code duplication and
 ensuring consistent data handling patterns.
 """
 
-import datetime
+from datetime import datetime
 import json
 
 import pandas as pd
@@ -57,9 +57,9 @@ def map_users_to_posts_used_in_feeds(
     feeds_df: pd.DataFrame = get_feeds_for_partition_date(partition_date)
     users_to_posts: dict[str, set[str]] = {}
 
-    for _, row in feeds_df.iterrows():
-        user = row["user"]
-        feed: list[dict] = load_feed_from_json_str(row["feed"])
+    for row in feeds_df.itertuples():
+        user = row.user
+        feed: list[dict] = load_feed_from_json_str(row.feed)
         post_uris: list[str] = [post["item"] for post in feed]
 
         if user not in users_to_posts:
@@ -123,35 +123,33 @@ def get_feeds_per_user(
         generated_feeds_df["bluesky_user_did"].isin(valid_study_users_dids)
     ]
 
-    # JSON-load the feeds
-    generated_feeds_df["feed"] = generated_feeds_df["feed"].apply(json.loads)
-
-    # get the post URIs for each feed.
-    generated_feeds_df["post_uris"] = generated_feeds_df["feed"].apply(
-        lambda x: [post["item"] for post in x]
-    )
-
-    # get the date of the feed generation.
-    generated_feeds_df["feed_generation_date"] = generated_feeds_df[
-        "feed_generation_timestamp"
-    ].apply(lambda x: datetime.strptime(x, timestamp_format).strftime("%Y-%m-%d"))
-
     feeds_per_user: dict[str, dict[str, set[str]]] = {}
 
-    # iterate through each combination of user DID + date and get the deduplicated
-    # list of URIs of the posts used in their feeds for that date.
-    for (user_did, date), group in generated_feeds_df.groupby(
-        ["bluesky_user_did", "feed_generation_date"]
-    ):
-        # initialize nested structure efficiently.
+    # collect URIs in a single pass across generated_feeds_df.
+    for row in generated_feeds_df.itertuples():
+        # get user DID and the date of the feed generation.
+        user_did = row.bluesky_user_did
+        timestamp = row.feed_generation_timestamp
+        feed_generation_date = datetime.strptime(timestamp, timestamp_format).strftime(
+            "%Y-%m-%d"
+        )
+
+        # load the feeds and the post URIs from the feed.
+        feed_json = row.feed
+        feed = json.loads(feed_json)
+        if not isinstance(feed, list):
+            logger.error(f"Feed data for user {user_did} is not a list: {type(feed)}")
+            raise ValueError(f"Invalid feed structure for user {user_did}")
+        post_uris = [post["item"] for post in feed]
+
+        # start adding the post URIs to the user + date feed structure.
         if user_did not in feeds_per_user:
             feeds_per_user[user_did] = {}
 
-        feeds_per_user[user_did][date] = set()
+        if feed_generation_date not in feeds_per_user[user_did]:
+            feeds_per_user[user_did][feed_generation_date] = set()
 
-        # get the deduplicated list of URIs of the posts used in their feeds for that date.
-        for uris_list in group["post_uris"]:
-            feeds_per_user[user_did][date].update(uris_list)
+        feeds_per_user[user_did][feed_generation_date].update(post_uris)
 
     return feeds_per_user
 
