@@ -123,7 +123,7 @@ def _calculate_average_for_boolean_label(label_values: list):
     return round(np.mean(label_values), 3) if len(label_values) > 0 else None
 
 
-def calculate_average_for_for_label(label: str, label_values: list):
+def calculate_average_for_label(label: str, label_values: list):
     """Calculates the average for a label that is of type 'probability' or 'score'.
 
     For these, we just take the mean of the label values.
@@ -141,7 +141,7 @@ def calculate_averages_for_content_labels(
     aggregated_label_to_label_values: dict[str, list],
 ):
     return {
-        label: calculate_average_for_for_label(label, label_values=label_values)
+        label: calculate_average_for_label(label, label_values=label_values)
         for label, label_values in aggregated_label_to_label_values.items()
     }
 
@@ -152,12 +152,16 @@ def _calculate_proportion_for_probability_label(label_values: list, threshold: f
     For these, we figure out the proportion of the labels that are above a certain
     threshold.
     """
-    return (
-        round(np.array(label_values) > threshold, 3) if len(label_values) > 0 else None
-    )
+    if len(label_values) == 0:
+        return None
+
+    proportion = np.mean(np.array(label_values) >= threshold)
+    return round(proportion, 3)
 
 
 # NOTE: do I really need this? Not really...? Will have to think about if I want to include.
+# NOTE: just keeping this here for a consistent interface and so that I don't have
+# to add filtering elsewhere. But I'll note that this will always be None.
 def _calculate_proportion_for_score_label(label_values: list):
     """Calculates the proportions for a label that is of type 'score'.
 
@@ -187,7 +191,6 @@ def calculate_proportion_for_label(label: str, label_values: list):
             label_values=label_values, threshold=config["threshold"]
         )
     elif config["type"] == "score":
-        # TODO: do I need this? Could skip.
         return _calculate_proportion_for_score_label(label_values=label_values)
     elif config["type"] == "boolean":
         return _calculate_proportion_for_boolean_label(label_values=label_values)
@@ -221,25 +224,26 @@ def transform_metric_field_names(
 
     For interaction type "feed":
     e.g.,
-        - feed_average_prob_toxic
-        - feed_proportion_prob_sociopolitical
+        - feed_average_toxic
+        - feed_proportion_is_sociopolitical
         - feed_average_is_valence_positive
         - feed_proportion_is_valence_positive
         etc.
 
     For interaction type "engagement":
     e.g.,
-        - average_liked_posts_prob_toxic
-        - proportion_replied_posts_prob_sociopolitical
-        - average_reposted_posts_prob_severe_toxic
+        - average_liked_posts_toxic
+        - proportion_replied_posts_is_sociopolitical
+        - average_reposted_posts_severe_toxic
         - proportion_liked_posts_is_valence_positive
     etc.
     """
+    result: dict[str, Optional[float]] = {}
     if interaction_type == "feed":
         for label, value in metrics.items():
+            label = label.replace("prob_", "")
             new_label = f"feed_{metric_type}_{label}"
-            metrics[new_label] = value
-            metrics.pop(label)
+            result[new_label] = value
 
     elif interaction_type == "engagement":
         record_type = args["record_type"]
@@ -256,15 +260,15 @@ def transform_metric_field_names(
         )
         if record_type_suffix is None:
             raise ValueError(f"Invalid record type: {record_type}")
-        prefix = f"{metric_type}_{record_type_suffix}"  # e.g., average_liked_posts, proportion_replied_posts, etc.
+        prefix = f"engagement_{metric_type}_{record_type_suffix}"  # e.g., average_liked_posts, proportion_replied_posts, etc.
         for label, value in metrics.items():
+            label = label.replace("prob_", "")
             new_label = f"{prefix}_{label}"  # e.g., average_liked_posts_prob_toxic, proportion_replied_posts_prob_sociopolitical, etc.
-            metrics[new_label] = value
-            metrics.pop(label)
+            result[new_label] = value
     else:
         raise ValueError(f"Invalid interaction type: {interaction_type}")
 
-    return metrics
+    return result
 
 
 def calculate_metrics_for_content_labels(
@@ -387,7 +391,7 @@ def flatten_content_metrics_across_record_types(
     """Flattens the metrics across record types, to build a single dictionary
     of metrics for this user and for this date.
     """
-    metrics = {}
+    full_metrics = {}
     for metrics in record_type_to_metrics_map.values():
-        metrics.update(metrics)
-    return metrics
+        full_metrics.update(metrics)
+    return full_metrics
