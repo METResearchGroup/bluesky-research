@@ -5,7 +5,6 @@ used across the analytics system, eliminating code duplication and
 ensuring consistent data handling patterns.
 """
 
-import gc
 from typing import Literal, Optional
 
 import pandas as pd
@@ -15,6 +14,8 @@ from lib.log.logger import get_logger
 from services.calculate_analytics.shared.constants import integrations_list
 
 logger = get_logger(__file__)
+
+dataloader_batch_size: int = 10_000
 
 
 def get_perspective_api_labels(
@@ -191,63 +192,175 @@ def get_all_labels_for_posts(post_uris: set[str], partition_dates: list[str]) ->
             ...
         }
     """
-    uri_to_labels_map = {}
-    uris_to_pending_integrations: dict[str, set[str]] = {}
+    # Initialize the result structure for ALL URIs
+    uri_to_labels_map: dict[str, dict[str, float]] = {uri: {} for uri in post_uris}
 
-    # set up hash maps.
-    for uri in post_uris:
-        uri_to_labels_map[uri] = {}
-        # pop each of these from the set as they're hydrated.
-        uris_to_pending_integrations[uri] = {
-            "perspective_api",
-            "sociopolitical",
-            "ime",
-            "valence_classifier",
-        }
+    # Track which integrations we've processed for each URI
+    uri_integration_status: dict[str, set[str]] = {
+        uri: set(integrations_list) for uri in post_uris
+    }
 
     # iterate through each integration and add the labels for each URI.
     for integration in integrations_list:
-        # load day-by-day labels for each integration. Once the labels are
-        # loaded, filter for relevant URIs.
-        filtered_uris = set()
+        logger.info(f"[Get all labels for posts] Processing {integration}...")
         for partition_date in partition_dates:
+            # load the full labels dataset for the integration + date
             labels_df: pd.DataFrame = get_labels_for_partition_date(
                 integration=integration, partition_date=partition_date
             )
-            labels_df: pd.DataFrame = labels_df[labels_df["uri"].isin(post_uris)]
-            labels_dicts: list[dict] = labels_df.to_dict(orient="records")
-            for labels_dict in labels_dicts:
-                # get the relevant transformed labels.
-                transformed_labels_dict: dict = transform_labels_dict(
-                    integration=integration, labels_dict=labels_dict
-                )
-                post_uri: str = labels_dict["uri"]
-                filtered_uris.add(post_uri)
-                uri_to_labels_map[post_uri] = {
-                    **uri_to_labels_map[post_uri],
-                    **transformed_labels_dict,
-                }
+
+            # filter to only the URIs that we care about.
+            relevant_labels_df: pd.DataFrame = labels_df[
+                labels_df["uri"].isin(post_uris)
+            ]
+
             del labels_df
-            gc.collect()
 
-        # after going through all the labels for the integration, we go through
-        # the URIs that we got labels for, and we update our tracker so we know
-        # which integrations we got labels for, for a given URI.
-        for uri in filtered_uris:
-            uris_to_pending_integrations[uri].remove(integration)
-            if len(uris_to_pending_integrations[uri]) == 0:
-                uris_to_pending_integrations.pop(uri)
+            if len(relevant_labels_df) == 0:
+                logger.info(
+                    f"[Get all labels for posts] No labels for {integration} on {partition_date}..."
+                )
+                continue
 
-    # double-check and log in case we're missing labels for some URIs.
-    if len(uris_to_pending_integrations) > 0:
-        print(
-            f"We have {len(uris_to_pending_integrations)}/{len(post_uris)} still missing some integration of some sort."
-        )
-        integration_to_missing_uris = {}
-        for uri, integrations in uris_to_pending_integrations.items():
-            for integration in integrations:
-                if integration not in integration_to_missing_uris:
-                    integration_to_missing_uris[integration] = []
-                integration_to_missing_uris[integration].append(uri)
+            total_rows = len(relevant_labels_df)
+            chunk_size = dataloader_batch_size
+
+            for start_idx in range(0, total_rows, chunk_size):
+                end_idx = min(start_idx + chunk_size, total_rows)
+
+                # get chunk of df as a view.
+                chunk_df: pd.DataFrame = relevant_labels_df.iloc[start_idx:end_idx]
+
+                # process the chunk.
+                # NOTE: itertuples is much faster than iterrows.
+                for row in chunk_df.itertuples():
+                    try:
+                        # Use attribute access for itertuples (row.uri, not row["uri"])
+                        post_uri: str = row.uri
+
+                        # Extract only the fields relevant to this specific integration
+                        labels_dict = _extract_integration_fields(row, integration)
+
+                        transformed_labels_dict: dict = transform_labels_dict(
+                            integration=integration, labels_dict=labels_dict
+                        )
+
+                        # Update the labels for this URI
+                        uri_to_labels_map[post_uri].update(transformed_labels_dict)
+
+                        # Mark this integration as processed for this URI
+                        uri_integration_status[post_uri].discard(integration)
+                    except Exception as e:
+                        # post_uri is now always defined before this point
+                        logger.error(
+                            f"[Get all labels for posts] Error processing {integration} for {post_uri}: {e}"
+                        )
+                        continue
+                # delete chunk data.
+                del chunk_df
+
+            del relevant_labels_df
+
+    # Completeness check and logging
+    _log_completeness_status(uri_integration_status, post_uris)
 
     return uri_to_labels_map
+
+
+def _extract_integration_fields(row, integration: str) -> dict:
+    """Extract only the fields relevant to a specific integration from a DataFrame row.
+
+    This is more efficient than extracting all possible fields since we process
+    one integration at a time and only need specific fields for each.
+    """
+    if integration == "perspective_api":
+        return {
+            "uri": row.uri,
+            "prob_toxic": row.prob_toxic,
+            "prob_constructive": row.prob_constructive,
+            "prob_severe_toxic": row.prob_severe_toxic,
+            "prob_identity_attack": row.prob_identity_attack,
+            "prob_insult": row.prob_insult,
+            "prob_profanity": row.prob_profanity,
+            "prob_threat": row.prob_threat,
+            "prob_affinity": row.prob_affinity,
+            "prob_compassion": row.prob_compassion,
+            "prob_curiosity": row.prob_curiosity,
+            "prob_nuance": row.prob_nuance,
+            "prob_personal_story": row.prob_personal_story,
+            "prob_reasoning": row.prob_reasoning,
+            "prob_respect": row.prob_respect,
+            "prob_alienation": row.prob_alienation,
+            "prob_fearmongering": row.prob_fearmongering,
+            "prob_generalization": row.prob_generalization,
+            "prob_moral_outrage": row.prob_moral_outrage,
+            "prob_scapegoating": row.prob_scapegoating,
+            "prob_sexually_explicit": row.prob_sexually_explicit,
+            "prob_flirtation": row.prob_flirtation,
+            "prob_spam": row.prob_spam,
+        }
+    elif integration == "sociopolitical":
+        return {
+            "uri": row.uri,
+            "is_sociopolitical": row.is_sociopolitical,
+            "political_ideology_label": row.political_ideology_label,
+        }
+    elif integration == "ime":
+        return {
+            "uri": row.uri,
+            "prob_intergroup": row.prob_intergroup,
+            "prob_moral": row.prob_moral,
+            "prob_emotion": row.prob_emotion,
+            "prob_other": row.prob_other,
+        }
+    elif integration == "valence_classifier":
+        return {
+            "uri": row.uri,
+            "compound": row.compound,
+            "valence_label": row.valence_label,
+        }
+    else:
+        raise ValueError(f"Invalid integration for field extraction: {integration}")
+
+
+def _log_completeness_status(
+    uri_integration_status: dict[str, set[str]], post_uris: set[str]
+) -> None:
+    """Log the completeness status of label processing."""
+    total_uris = len(post_uris)
+    complete_uris = sum(
+        1 for status in uri_integration_status.values() if len(status) == 0
+    )
+    incomplete_uris = total_uris - complete_uris
+
+    logger.info(
+        f"[Get all labels for posts] Completeness: {complete_uris}/{total_uris} URIs have all integrations"
+    )
+
+    if incomplete_uris > 0:
+        logger.warning(
+            f"[Get all labels for posts] {incomplete_uris} URIs missing some integrations:"
+        )
+
+        # Group by missing integrations for better debugging
+        missing_integrations: dict[str, list[str]] = {}
+        for uri, missing in uri_integration_status.items():
+            if missing:  # If there are missing integrations
+                for integration in missing:
+                    if integration not in missing_integrations:
+                        missing_integrations[integration] = []
+                    missing_integrations[integration].append(uri)
+
+        # Log missing integrations by type
+        for integration, uris in missing_integrations.items():
+            logger.warning(
+                f"[Get all labels for posts] {integration}: {len(uris)} URIs missing"
+            )
+            if len(uris) <= 5:  # Log individual URIs if not too many
+                logger.warning(
+                    f"[Get all labels for posts] Missing {integration} for: {uris}"
+                )
+            else:
+                logger.warning(
+                    f"[Get all labels for posts] Missing {integration} for: {uris[:5]}... and {len(uris)-5} more"
+                )
