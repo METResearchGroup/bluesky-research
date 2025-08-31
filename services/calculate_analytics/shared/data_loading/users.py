@@ -32,6 +32,12 @@ def load_user_demographic_info() -> pd.DataFrame:
         users: list[UserToBlueskyProfileModel] = get_all_users()
         user_df: pd.DataFrame = pd.DataFrame([user.model_dump() for user in users])
 
+        if len(users) == 0:
+            logger.warning("No users found...")
+            return pd.DataFrame(
+                columns=["bluesky_handle", "bluesky_user_did", "condition"]
+            )
+
         # Drop rows where is_study_user is False to only keep actual study participants
         user_df = user_df[user_df["is_study_user"]]
 
@@ -73,6 +79,8 @@ def load_user_date_to_week_df() -> pd.DataFrame:
     fp = os.path.join(
         shared_assets_directory, "static", "bluesky_per_user_week_assignments.csv"
     )
+    if not os.path.exists(fp):
+        raise FileNotFoundError(f"Week assignments file not found: {fp}")
     df = pd.read_csv(fp)
     df = df[["bluesky_handle", "date", "week_dynamic"]]
     df = df.rename(columns={"week_dynamic": "week"})
@@ -101,7 +109,6 @@ def load_user_data() -> tuple[pd.DataFrame, pd.DataFrame, set[str]]:
 
     # load the user data from DynamoDB.
     user_df: pd.DataFrame = load_user_demographic_info()
-    user_df = user_df[user_df["is_study_user"]]
     user_df = user_df[["bluesky_handle", "bluesky_user_did", "condition"]]
 
     # load mapping of user to date and week. This denotes, for each user and date,

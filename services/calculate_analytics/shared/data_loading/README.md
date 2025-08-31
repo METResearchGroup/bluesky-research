@@ -1,188 +1,154 @@
-# Shared Data Loading Modules
+# Data Loading Module
 
-This directory contains shared data loading modules for the analytics system, providing unified interfaces for loading various types of data used across the analytics system.
+This module provides unified interfaces for loading various types of data used across the analytics system, eliminating code duplication and ensuring consistent data handling patterns.
 
 ## Overview
 
-The shared data loading modules eliminate code duplication and ensure consistent data handling patterns across all analytics scripts. These modules extract the common data loading logic from existing monolithic scripts and provide clean, reusable interfaces.
-
-## Module Structure
-
-```
-shared/data_loading/
-├── __init__.py              # Main module exports
-├── posts.py                 # Post data loading functionality
-├── labels.py                # ML label loading functionality
-├── feeds.py                 # Feed data loading functionality
-├── users.py                 # User data loading functionality
-├── example_usage.py         # Usage examples
-├── test_basic_imports.py    # Import validation tests
-└── README.md                # This file
-```
-
-## Key Benefits
-
-1. **Eliminates Code Duplication**: Common data loading logic is now in one place
-2. **Consistent Patterns**: All scripts use the same data loading interfaces
-3. **Centralized Configuration**: Data loading behavior is configuration-driven
-4. **Easy Maintenance**: Changes to data loading logic only need to be made once
-5. **Better Error Handling**: Centralized error handling and logging
-6. **Reusability**: Functions can be easily imported and reused across scripts
+The data loading module is designed to centralize data access patterns for the Bluesky research analytics system. It provides standardized interfaces for loading user data, engagement data, feed data, and ML labels, with built-in filtering for study participants and proper data transformation.
 
 ## Modules
 
-### Posts Module (`posts.py`)
+### `engagement.py` - User Engagement Data
 
-Provides functions for loading and filtering post data:
+Loads and processes content engagement data from study users, including:
 
-- `load_filtered_preprocessed_posts()`: Load posts with custom filters (e.g., exclude invalid authors)
-- `get_hydrated_posts_for_partition_date()`: Load posts with all available labels and features
-- `load_posts_with_labels()`: Merge posts with their ML labels
+- **Posts written by study users** (posts, replies, shares/retweets)
+- **Likes** - posts liked by study users
+- **Content engagement mapping** - maps URIs to engagement records
 
-**Example Usage:**
+**Key Functions:**
+- `get_content_engaged_with(record_type, valid_study_users_dids)` - Gets content engaged with by record type
+- `get_engaged_content(valid_study_users_dids)` - Loads all engagement content in one operation
+- `get_content_engaged_with_per_user(engaged_content)` - Maps engagements per user per date
+
+**Data Structure:**
+Returns a mapping of post URIs to engagement records, where each engagement contains:
+- `did`: User DID who engaged
+- `date`: Date of engagement
+- `record_type`: Type of engagement (like, post, repost, reply)
+
+### `feeds.py` - Feed Data Management
+
+Handles loading and processing of generated feed data:
+
+- **Feed loading** by partition date
+- **User-to-posts mapping** for feeds
+- **Feed content aggregation** per user per date
+
+**Key Functions:**
+- `get_feeds_for_partition_date(partition_date)` - Loads feeds for a specific date
+- `map_users_to_posts_used_in_feeds(partition_date)` - Maps users to posts in their feeds
+- `get_feeds_per_user(valid_study_users_dids)` - Gets feed content per user per day
+- `get_all_post_uris_used_in_feeds(user_to_content_in_feeds)` - Gets all unique post URIs from feeds
+
+**Data Structure:**
+Returns nested mappings of user DIDs to date-based feed content, with deduplicated post URIs.
+
+### `users.py` - User Data and Demographics
+
+Manages study participant data and demographic information:
+
+- **User demographic loading** from DynamoDB
+- **Study condition mapping** (user DID to condition)
+- **Week assignment data** loading
+- **Valid study user filtering**
+
+**Key Functions:**
+- `load_user_demographic_info()` - Loads user demographics (handle, DID, condition)
+- `get_user_condition_mapping()` - Creates DID-to-condition mapping
+- `load_user_date_to_week_df()` - Loads user date-to-week assignments
+- `load_user_data()` - Comprehensive user data loading with transformations
+
+**Data Structure:**
+Returns DataFrames with user information, week assignments, and a set of valid study user DIDs for filtering.
+
+### `labels.py` - ML Label Data
+
+Loads and transforms various types of ML labels for content analysis:
+
+- **Perspective API labels** (toxicity, constructive content, etc.)
+- **Sociopolitical labels** (political ideology, sociopolitical content)
+- **IME labels** (intergroup, moral, emotion, other)
+- **Valence classifier labels** (positive/negative/neutral sentiment)
+
+**Key Functions:**
+- `get_perspective_api_labels(lookback_start_date, lookback_end_date)` - Loads Perspective API labels
+- `get_labels_for_partition_date(integration, partition_date)` - Loads labels for specific date
+- `transform_labels_dict(integration, labels_dict)` - Transforms raw labels to analysis-ready format
+- `get_all_labels_for_posts(post_uris, partition_dates)` - Comprehensive label loading for posts
+
+**Supported Integrations:**
+- `perspective_api` - Google's Perspective API for content safety
+- `sociopolitical` - Political content classification
+- `ime` - Intergroup Moral Emotions classifier
+- `valence_classifier` - Sentiment analysis
+
+### `posts.py` - Post Data Utilities
+
+*Note: This module is currently a placeholder with minimal implementation.*
+
+## Common Patterns
+
+### Data Filtering
+All modules consistently filter for `valid_study_users_dids` to ensure only study participant data is included in analyses.
+
+### Date Range Handling
+Most functions support date-based filtering using `STUDY_START_DATE` and `STUDY_END_DATE` constants from the shared constants module.
+
+### Memory Management
+The engagement and labels modules include garbage collection (`gc.collect()`) to manage memory when processing large datasets.
+
+### Error Handling
+User and feed modules include comprehensive error handling with logging for debugging and monitoring.
+
+## Usage Examples
+
+### Loading User Data
 ```python
-from services.calculate_analytics.study_analytics.shared.data_loading.posts import (
-    load_filtered_preprocessed_posts
-)
+from services.calculate_analytics.shared.data_loading.users import load_user_data
 
-posts_df = load_filtered_preprocessed_posts(
-    partition_date="2024-10-15",
-    lookback_start_date="2024-10-08",
-    lookback_end_date="2024-10-15"
-)
+user_df, user_date_to_week_df, valid_study_users_dids = load_user_data()
 ```
 
-### Labels Module (`labels.py`)
-
-Provides functions for loading various types of ML labels:
-
-- `get_perspective_api_labels_for_posts()`: Load Perspective API toxicity labels
-- `get_sociopolitical_labels_for_posts()`: Load sociopolitical classification labels
-- `get_ime_labels_for_posts()`: Load IME (Intergroup Moral Evaluation) labels
-- `get_valence_labels_for_posts()`: Load valence classification labels
-- `load_all_labels_for_posts()`: Load and merge all available labels for posts
-
-**Example Usage:**
+### Loading Engagement Data
 ```python
-from services.calculate_analytics.study_analytics.shared.data_loading.labels import (
-    load_all_labels_for_posts
-)
+from services.calculate_analytics.shared.data_loading.engagement import get_engaged_content
 
-labels_df = load_all_labels_for_posts(
-    posts=posts_df,
-    partition_date="2024-10-15",
-    lookback_start_date="2024-10-08",
-    lookback_end_date="2024-10-15"
-)
+engaged_content = get_engaged_content(valid_study_users_dids)
 ```
 
-### Feeds Module (`feeds.py`)
-
-Provides functions for loading feed data.
-
-### Users Module (`users.py`)
-
-Provides functions for loading study user data and demographic information:
-
-- `load_study_users()`: Load all study users
-- `load_user_demographic_info()`: Load user demographic information as DataFrame
-- `get_study_user_manager()`: Get StudyUserManager singleton instance
-- `get_study_user_dids()`: Get set of all study user DIDs
-- `get_in_network_user_dids()`: Get set of in-network user DIDs
-- `get_user_condition_mapping()`: Create mapping from user DID to study condition
-
-**Example Usage:**
+### Loading Feed Data
 ```python
-from services.calculate_analytics.study_analytics.shared.data_loading.users import (
-    load_user_demographic_info
-)
+from services.calculate_analytics.shared.data_loading.feeds import get_feeds_per_user
 
-user_demographics = load_user_demographic_info()
+feeds_per_user = get_feeds_per_user(valid_study_users_dids)
 ```
 
-## Configuration
-
-The data loading modules use the shared configuration system. Key configuration options include:
-
-- **Default columns**: Columns to load for posts (`data_loading.default_columns`)
-- **Invalid author sources**: Sources for filtering out invalid authors
-- **Feature configurations**: Column names and thresholds for different ML features
-
-## Error Handling
-
-All modules include comprehensive error handling:
-
-- **Graceful degradation**: If one label type fails to load, others continue
-- **Detailed logging**: All operations are logged with appropriate detail levels
-- **Exception propagation**: Errors are logged and re-raised for proper handling
-- **Data validation**: Input data is validated before processing
-
-## Testing
-
-The modules include basic import tests to ensure they can be imported without errors:
-
-```bash
-cd services/calculate_analytics/study_analytics/shared/data_loading
-python test_basic_imports.py
-```
-
-## Migration Guide
-
-### From Old Scripts
-
-**Before (old way):**
+### Loading ML Labels
 ```python
-# Direct imports from individual modules
-from services.calculate_analytics.study_analytics.load_data.load_data import (
-    load_filtered_preprocessed_posts
-)
-from services.calculate_analytics.study_analytics.load_data.load_labels import (
-    get_perspective_api_labels_for_posts
-)
+from services.calculate_analytics.shared.data_loading.labels import get_all_labels_for_posts
+
+labels = get_all_labels_for_posts(post_uris, partition_dates)
 ```
 
-**After (new way):**
-```python
-# Single import from shared module
-from services.calculate_analytics.study_analytics.shared.data_loading import (
-    load_filtered_preprocessed_posts,
-    get_perspective_api_labels_for_posts
-)
-```
+## Dependencies
 
-### Benefits of Migration
+- **pandas** - Data manipulation and analysis
+- **lib.db.manage_local_data** - Local data storage management
+- **lib.log.logger** - Logging functionality
+- **services.participant_data** - User data access
+- **services.fetch_posts_used_in_feeds** - Feed data utilities
 
-1. **Cleaner imports**: Single import statement instead of multiple
-2. **Consistent interfaces**: All functions follow the same patterns
-3. **Better error handling**: Centralized error handling and logging
-4. **Configuration-driven**: Behavior can be modified via config files
-5. **Easier maintenance**: Changes only need to be made in one place
+## Data Sources
 
-## Future Enhancements
+- **Local storage** - Parquet files organized by service and partition date
+- **DynamoDB** - User demographic and study data
+- **CSV files** - Static user week assignments
+- **ML inference services** - Various ML model outputs for content labeling
 
-Planned improvements for the data loading modules:
+## Notes
 
-1. **Caching**: Add intelligent caching for frequently accessed data
-2. **Async support**: Add async versions of data loading functions
-3. **Data validation**: Enhanced input/output validation
-4. **Performance monitoring**: Add performance metrics and monitoring
-5. **Batch processing**: Support for batch loading operations
-
-## Contributing
-
-When adding new data loading functionality:
-
-1. **Follow existing patterns**: Use the same function signatures and error handling
-2. **Add comprehensive docstrings**: Include Args, Returns, and Examples sections
-3. **Update tests**: Add tests for new functionality
-4. **Update documentation**: Update this README and example usage
-5. **Use configuration**: Make behavior configurable where appropriate
-
-## Support
-
-For questions or issues with the data loading modules:
-
-1. Check the example usage script (`example_usage.py`)
-2. Review the configuration files
-3. Check the logs for detailed error information
-4. Refer to the original source scripts for context
+- The module is designed for the Bluesky research study context with specific date ranges and user filtering
+- Memory management is important for large datasets, especially in the labels module
+- All functions return data in formats optimized for downstream analytics processing
+- Error handling and logging are built-in for production monitoring
