@@ -17,7 +17,6 @@ logger = get_logger(__file__)
 
 dataloader_batch_size: int = 10_000
 
-
 def get_perspective_api_labels(
     lookback_start_date: str,
     lookback_end_date: str,
