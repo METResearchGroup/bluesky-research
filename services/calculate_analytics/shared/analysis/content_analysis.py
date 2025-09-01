@@ -87,10 +87,14 @@ def get_daily_feed_content_per_user_metrics(
                 per_user_per_date_content_metrics
             )
 
+            del per_user_per_date_content_metrics
+
         # now that we've gone through all the feed content from the user,
         # per day, for a given user, we now add this to the hash map of
         # per-user, per-date feed content metrics.
         daily_feed_content_per_user_metrics[did] = partition_date_to_metrics_map
+
+        del partition_date_to_metrics_map
 
     return daily_feed_content_per_user_metrics
 
@@ -229,10 +233,14 @@ def get_daily_engaged_content_per_user_metrics(
                 )
             )
 
+            del record_type_to_metrics_map
+
             # add to the running per-user, per-date metrics map.
             partition_date_to_metrics_map[partition_date] = (
                 per_user_per_date_content_metrics
             )
+
+            del per_user_per_date_content_metrics
 
         # now that we've gone through all the engagement records from the users,
         # per day, for a given user, we now add this to the hash map of
