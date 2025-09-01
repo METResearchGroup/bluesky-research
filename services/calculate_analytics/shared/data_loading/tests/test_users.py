@@ -308,7 +308,8 @@ class TestLoadUserDateToWeekDf:
         ]
 
         # Act
-        with patch("pandas.read_csv", return_value=mock_csv_data):
+        with patch("os.path.exists", return_value=True), patch("pandas.read_csv") as mock_read_csv:
+            mock_read_csv.return_value = mock_csv_data
             result = load_user_date_to_week_df()
 
         # Assert
