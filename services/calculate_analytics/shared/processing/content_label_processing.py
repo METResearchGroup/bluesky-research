@@ -4,7 +4,10 @@ from typing import Iterable, Literal, Optional
 
 import numpy as np
 
+from lib.log.logger import get_logger
 from services.calculate_analytics.shared.processing.constants import LABELS_CONFIG
+
+logger = get_logger(__file__)
 
 
 def _init_labels_collection() -> dict[str, list]:
@@ -42,6 +45,11 @@ def collect_labels_for_post_uris(
     aggregated_label_to_label_values: dict[str, list] = _init_labels_collection()
 
     for post_uri in post_uris:
+        if post_uri not in labels_for_content:
+            logger.warning(
+                f"[UNEXPECTED] Post URI {post_uri} not found in labels_for_content"
+            )
+            continue
         labels_for_post_uri = labels_for_content[post_uri]
         for label, value in labels_for_post_uri.items():
             if value is not None:
