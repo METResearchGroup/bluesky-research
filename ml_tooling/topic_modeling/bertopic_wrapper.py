@@ -28,6 +28,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Set environment variable to prevent tokenizer parallelism warnings
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 
 class BERTopicWrapper:
     """
@@ -47,112 +50,76 @@ class BERTopicWrapper:
         config_path: Optional[Union[str, Path]] = None,
         config_dict: Optional[Dict[str, Any]] = None,
         random_seed: Optional[int] = None,
+        disable_tokenizer_parallelism: bool = True,
     ):
-        """
-        Initialize the BERTopic wrapper with configuration.
+        # Set random seed first
+        self.random_seed = random_seed or 42
+        random.seed(self.random_seed)
+        np.random.seed(self.random_seed)
 
-        Args:
-            config_path: Path to YAML configuration file
-            config_dict: Dictionary configuration (alternative to config_path)
-            random_seed: Random seed for reproducible results
+        # Configure tokenizer parallelism to prevent warnings
+        if disable_tokenizer_parallelism:
+            self._set_tokenizer_parallelism(False)
+            logger.info("🔧 Tokenizer parallelism disabled to prevent warnings")
 
-        Raises:
-            FileNotFoundError: If config_path doesn't exist
-            yaml.YAMLError: If YAML file is invalid
-            ValueError: If configuration is not a mapping
-        """
+        # Load configuration
         self.config = self._load_config(config_path, config_dict)
-        self.random_seed = random_seed or self.config.get("random_seed", 42)
-
-        # Set random seeds for reproducibility
-        self._set_random_seeds()
 
         # Initialize components
         self.embedding_model = None
         self.topic_model = None
         self.quality_metrics = {}
-        self.training_time = None
+        self.training_time = 0.0
         self._training_results = {}
 
-        # Validate configuration
-        self._validate_config()
+        # Initialize embedding model
+        self._initialize_embedding_model()
 
         logger.info(f"BERTopicWrapper initialized with random seed: {self.random_seed}")
 
-    def _set_random_seeds(self) -> None:
-        """Set all random seeds for reproducibility."""
-        # Python random
-        random.seed(self.random_seed)
+    def _set_tokenizer_parallelism(self, enable: bool) -> None:
+        """
+        Set the TOKENIZERS_PARALLELISM environment variable.
 
-        # NumPy
-        np.random.seed(self.random_seed)
+        Args:
+            enable: Whether to enable tokenizer parallelism
+        """
+        value = "true" if enable else "false"
+        os.environ["TOKENIZERS_PARALLELISM"] = value
+        logger.debug(f"Set TOKENIZERS_PARALLELISM={value}")
 
-        # Environment variable
-        os.environ["PYTHONHASHSEED"] = str(self.random_seed)
+    def enable_tokenizer_parallelism(self) -> None:
+        """Enable tokenizer parallelism (may cause warnings with multiprocessing)."""
+        self._set_tokenizer_parallelism(True)
+        logger.info("✅ Tokenizer parallelism enabled")
 
-        # PyTorch (if available)
-        try:
-            import torch
-
-            torch.manual_seed(self.random_seed)
-            if torch.cuda.is_available():
-                torch.cuda.manual_seed_all(self.random_seed)
-            torch.backends.cudnn.deterministic = True
-            torch.backends.cudnn.benchmark = False
-            logger.info("PyTorch random seeds set for reproducibility")
-        except ImportError:
-            logger.info("PyTorch not available, skipping PyTorch seed setting")
+    def disable_tokenizer_parallelism(self) -> None:
+        """Disable tokenizer parallelism to prevent warnings."""
+        self._set_tokenizer_parallelism(False)
+        logger.info("✅ Tokenizer parallelism disabled")
 
     def _load_config(
         self,
         config_path: Optional[Union[str, Path]] = None,
         config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """
-        Load configuration from YAML file or dictionary.
+        """Load configuration from file or dictionary."""
+        config = {}
 
-        Args:
-            config_path: Path to YAML configuration file
-            config_dict: Dictionary configuration
-
-        Returns:
-            Configuration dictionary with defaults applied
-
-        Raises:
-            ValueError: If configuration is not a mapping
-        """
-        if config_dict is not None:
-            config = config_dict
-        elif config_path is not None:
+        # Load from file if provided
+        if config_path:
             config_path = Path(config_path)
             if not config_path.exists():
                 raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = yaml.safe_load(f)
-            except yaml.YAMLError as e:
-                raise yaml.YAMLError(f"Invalid YAML configuration: {e}")
-        else:
-            # Use default config.yaml file in the same directory
-            default_config_path = Path(__file__).parent / "config.yaml"
-            if not default_config_path.exists():
-                raise FileNotFoundError(
-                    f"Default configuration file not found: {default_config_path}"
-                )
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f)
+                logger.info(f"Loaded configuration from: {config_path}")
 
-            try:
-                with open(default_config_path, "r", encoding="utf-8") as f:
-                    config = yaml.safe_load(f)
-                logger.info(f"Loaded default configuration from {default_config_path}")
-            except yaml.YAMLError as e:
-                raise yaml.YAMLError(f"Invalid default YAML configuration: {e}")
-
-        # Validate that config is a mapping
-        if not isinstance(config, dict):
-            raise ValueError(
-                f"Configuration must be a YAML mapping (dict), got: {type(config)}"
-            )
+        # Override with dictionary if provided
+        if config_dict:
+            config.update(config_dict)
+            logger.info("Configuration updated with dictionary parameters")
 
         # Apply default configuration
         return self._apply_defaults(config)
@@ -179,6 +146,22 @@ class BERTopicWrapper:
                 "nr_topics": "auto",
                 "calculate_probabilities": True,
                 "verbose": True,
+                # UMAP configuration for better performance
+                "umap_model": {
+                    "n_neighbors": 15,
+                    "n_components": 5,
+                    "min_dist": 0.0,
+                    "metric": "cosine",
+                    "n_jobs": 1,
+                    "low_memory": True,
+                },
+                "hdbscan_model": {
+                    "min_cluster_size": 15,
+                    "min_samples": 5,
+                    "metric": "euclidean",
+                    "cluster_selection_method": "eom",
+                    "core_dist_n_jobs": 1,
+                },
             },
             "quality_thresholds": {"c_v_min": 0.4, "c_npmi_min": 0.1},
             "gpu_optimization": {
@@ -189,6 +172,11 @@ class BERTopicWrapper:
             "metrics": {
                 "max_docs": 50000,  # Limit documents for coherence computation
                 "top_k_words": 10,  # Limit words per topic for metrics
+            },
+            "performance": {
+                "enable_progress_logging": True,
+                "progress_log_interval": 10000,
+                "enable_timing_breakdown": True,
             },
             "random_seed": 42,
         }
@@ -578,39 +566,221 @@ class BERTopicWrapper:
             ValueError: If input validation fails
             RuntimeError: If model training fails
         """
-        start_time = time.time()
+        overall_start_time = time.time()
+        stage_times = {}
 
         try:
             # Validate input
+            stage_start = time.time()
             df_cleaned = self._validate_input_data(df, text_column)
+            stage_times["validation"] = time.time() - stage_start
 
             # Extract texts
             texts = df_cleaned[text_column].tolist()
             logger.info(f"Starting BERTopic training on {len(texts)} documents")
 
             # Generate embeddings
+            stage_start = time.time()
+            logger.info("🔧 Generating embeddings...")
             embeddings = self._generate_embeddings(texts)
+            stage_times["embeddings"] = time.time() - stage_start
+            logger.info(
+                f"✅ Embeddings generated in {stage_times['embeddings']:.2f} seconds"
+            )
 
             # Initialize BERTopic model
-            bertopic_config = self.config["bertopic"]
-            self.topic_model = BERTopic(**bertopic_config)
+            stage_start = time.time()
+            bertopic_config = self.config["bertopic"].copy()
 
-            # Train model
-            logger.info("Training BERTopic model...")
+            # Instantiate UMAP and HDBSCAN models from configuration
+            if "umap_model" in bertopic_config:
+                umap_config = bertopic_config.pop("umap_model")
+                try:
+                    import umap
+
+                    umap_model = umap.UMAP(**umap_config)
+                    logger.info("✅ UMAP model instantiated from configuration")
+                    logger.debug(f"UMAP config used: {umap_config}")
+                except Exception as e:
+                    logger.warning(
+                        f"⚠️  Failed to instantiate UMAP model: {e}, using default"
+                    )
+                    logger.debug(f"UMAP config that failed: {umap_config}")
+                    umap_model = None
+            else:
+                umap_model = None
+
+            if "hdbscan_model" in bertopic_config:
+                hdbscan_config = bertopic_config.pop("hdbscan_model")
+                try:
+                    import hdbscan
+
+                    hdbscan_model = hdbscan.HDBSCAN(**hdbscan_config)
+                    logger.info("✅ HDBSCAN model instantiated from configuration")
+                    logger.debug(f"HDBSCAN config used: {hdbscan_config}")
+                except Exception as e:
+                    logger.warning(
+                        f"⚠️  Failed to instantiate HDBSCAN model: {e}, using default"
+                    )
+                    logger.debug(f"HDBSCAN config that failed: {hdbscan_config}")
+                    hdbscan_model = None
+            else:
+                hdbscan_model = None
+
+            # Create BERTopic model with instantiated models
+            self.topic_model = BERTopic(
+                umap_model=umap_model, hdbscan_model=hdbscan_model, **bertopic_config
+            )
+
+            # Debug: Verify model types
+            logger.debug(f"BERTopic model type: {type(self.topic_model)}")
+            if umap_model:
+                logger.debug(f"UMAP model type: {type(umap_model)}")
+            if hdbscan_model:
+                logger.debug(f"HDBSCAN model type: {type(hdbscan_model)}")
+
+            stage_times["initialization"] = time.time() - stage_start
+            logger.info(
+                f"✅ BERTopic model initialized in {stage_times['initialization']:.2f} seconds"
+            )
+
+            # Train model with progress logging
+            stage_start = time.time()
+            logger.info("🤖 Training BERTopic model (clustering phase)...")
+
+            # Add progress callback if enabled
+            if self.config.get("performance", {}).get("enable_progress_logging", True):
+                logger.info(
+                    "📊 Progress logging enabled - monitoring clustering progress..."
+                )
+
+            # Debug: Log model configuration
+            logger.debug(f"BERTopic model type: {type(self.topic_model)}")
+            if hasattr(self.topic_model, "umap_model") and self.topic_model.umap_model:
+                logger.debug(f"UMAP model: {type(self.topic_model.umap_model)}")
+                logger.debug(
+                    f"UMAP n_components: {getattr(self.topic_model.umap_model, 'n_components', 'N/A')}"
+                )
+            if (
+                hasattr(self.topic_model, "hdbscan_model")
+                and self.topic_model.hdbscan_model
+            ):
+                logger.debug(f"HDBSCAN model: {type(self.topic_model.hdbscan_model)}")
+                logger.debug(
+                    f"HDBSCAN min_cluster_size: {getattr(self.topic_model.hdbscan_model, 'min_cluster_size', 'N/A')}"
+                )
+                logger.debug(
+                    f"HDBSCAN min_samples: {getattr(self.topic_model.hdbscan_model, 'min_samples', 'N/A')}"
+                )
+
+            # Debug: Log data shape
+            logger.debug(f"Texts shape: {len(texts)}")
+            logger.debug(f"Embeddings shape: {embeddings.shape}")
+
+            # Debug: Check for data quality issues
+            if len(texts) < 10:
+                logger.warning("⚠️  Very small dataset, clustering may be challenging")
+
+            # Debug: Check embedding quality
+            if embeddings is not None:
+                import numpy as np
+
+                embedding_norms = np.linalg.norm(embeddings, axis=1)
+                logger.debug(
+                    f"Embedding norms - min: {embedding_norms.min():.4f}, max: {embedding_norms.max():.4f}, mean: {embedding_norms.mean():.4f}"
+                )
+
+                # Check for NaN or infinite values
+                if np.any(np.isnan(embeddings)) or np.any(np.isinf(embeddings)):
+                    logger.error("❌ Embeddings contain NaN or infinite values!")
+                    raise ValueError("Embeddings contain NaN or infinite values")
+
+                # Check embedding variance
+                embedding_var = np.var(embeddings, axis=0)
+                logger.debug(
+                    f"Embedding variance - min: {embedding_var.min():.4f}, max: {embedding_var.max():.4f}, mean: {embedding_var.mean():.4f}"
+                )
+
             topics, probs = self.topic_model.fit_transform(texts, embeddings)
+            stage_times["clustering"] = time.time() - stage_start
+            logger.info(
+                f"✅ Clustering completed in {stage_times['clustering']:.2f} seconds"
+            )
+
+            # Debug: Log clustering results
+            logger.debug(
+                f"Topics shape: {len(topics) if topics is not None else 'None'}"
+            )
+            logger.debug(
+                f"Probabilities shape: {probs.shape if probs is not None else 'None'}"
+            )
+            if topics is not None:
+                unique_topics = set(topics)
+                logger.debug(f"Unique topics: {len(unique_topics)}")
+                logger.debug(
+                    f"Topic IDs: {sorted(list(unique_topics))[:10]}..."
+                )  # Show first 10
+
+            # Validate clustering results
+            if topics is None or len(set(topics)) <= 1:
+                logger.warning(
+                    "⚠️  Clustering produced insufficient topics, retrying with more permissive parameters..."
+                )
+
+                # Retry with more permissive HDBSCAN parameters
+                try:
+                    import hdbscan
+
+                    fallback_hdbscan = hdbscan.HDBSCAN(
+                        min_cluster_size=5,  # Very permissive
+                        min_samples=2,  # Very permissive
+                        metric="euclidean",
+                        cluster_selection_method="eom",
+                        core_dist_n_jobs=1,
+                        cluster_selection_epsilon=0.2,  # More flexible
+                        allow_single_cluster=True,
+                    )
+
+                    # Create new BERTopic model with fallback parameters
+                    fallback_model = BERTopic(
+                        hdbscan_model=fallback_hdbscan, verbose=False
+                    )
+
+                    logger.info("🔄 Retrying clustering with fallback parameters...")
+                    topics, probs = fallback_model.fit_transform(texts, embeddings)
+
+                    if topics is not None and len(set(topics)) > 1:
+                        logger.info("✅ Fallback clustering successful!")
+                        self.topic_model = fallback_model  # Use the fallback model
+                    else:
+                        raise RuntimeError("Fallback clustering also failed")
+
+                except Exception as fallback_error:
+                    logger.error(f"❌ Fallback clustering failed: {fallback_error}")
+                    raise RuntimeError(
+                        f"Both primary and fallback clustering failed. Primary error: clustering produced insufficient topics, fallback error: {fallback_error}"
+                    )
 
             # Calculate quality metrics
+            stage_start = time.time()
+            logger.info("📈 Calculating quality metrics...")
             self.quality_metrics = self._calculate_coherence_metrics(
                 self.topic_model, texts, embeddings
             )
+            stage_times["quality_metrics"] = time.time() - stage_start
+            logger.info(
+                f"✅ Quality metrics calculated in {stage_times['quality_metrics']:.2f} seconds"
+            )
 
             # Check quality thresholds
+            stage_start = time.time()
             meets_thresholds, warnings = self._check_quality_thresholds(
                 self.quality_metrics
             )
+            stage_times["threshold_check"] = time.time() - stage_start
 
             # Store results
-            self.training_time = time.time() - start_time
+            self.training_time = time.time() - overall_start_time
             self._training_results = {
                 "topics": topics,
                 "probabilities": probs,
@@ -618,22 +788,32 @@ class BERTopicWrapper:
                 "embeddings": embeddings,
                 "meets_thresholds": meets_thresholds,
                 "warnings": warnings,
+                "stage_times": stage_times,
             }
 
+            # Log comprehensive results
+            logger.info("🎉 BERTopic training completed successfully!")
+            logger.info(f"⏱️  Total training time: {self.training_time:.2f} seconds")
             logger.info(
-                f"BERTopic training completed in {self.training_time:.2f} seconds"
-            )
-            logger.info(
-                f"Generated {len(set(topics)) - (1 if -1 in topics else 0)} topics"
+                f"📊 Generated {len(set(topics)) - (1 if -1 in topics else 0)} topics"
             )
 
+            # Log timing breakdown if enabled
+            if self.config.get("performance", {}).get("enable_timing_breakdown", True):
+                logger.info("📊 Training stage breakdown:")
+                for stage, duration in stage_times.items():
+                    percentage = (duration / self.training_time) * 100
+                    logger.info(
+                        f"   {stage.capitalize()}: {duration:.2f}s ({percentage:.1f}%)"
+                    )
+
             if warnings:
-                logger.warning("Quality warnings: " + "; ".join(warnings))
+                logger.warning("⚠️  Quality warnings: " + "; ".join(warnings))
 
             return self
 
         except Exception as e:
-            logger.error(f"BERTopic training failed: {e}")
+            logger.error(f"❌ BERTopic training failed: {e}")
             raise RuntimeError(f"Model training failed: {e}")
 
     def get_topics(self) -> Dict[int, List[Tuple[str, float]]]:
@@ -702,9 +882,74 @@ class BERTopicWrapper:
                 ),
                 "warnings": self._training_results.get("warnings", []),
                 "random_seed": self.random_seed,
+                "stage_times": self._training_results.get("stage_times", {}),
             }
         )
         return metrics
+
+    def get_timing_breakdown(self) -> Dict[str, float]:
+        """
+        Get detailed timing breakdown for each training stage.
+
+        Returns:
+            Dictionary mapping stage names to execution times in seconds
+        """
+        if not self._training_results:
+            raise RuntimeError("Model must be trained before getting timing breakdown")
+
+        stage_times = self._training_results.get("stage_times", {})
+        if not stage_times:
+            return {"total": self.training_time}
+
+        # Add total time and percentages
+        breakdown = stage_times.copy()
+        breakdown["total"] = self.training_time
+
+        for stage, duration in stage_times.items():
+            if self.training_time > 0:
+                breakdown[f"{stage}_percentage"] = (duration / self.training_time) * 100
+
+        return breakdown
+
+    def get_performance_summary(self) -> str:
+        """
+        Get a formatted performance summary string.
+
+        Returns:
+            Formatted string with performance metrics and timing breakdown
+        """
+        if not self._training_results:
+            return "Model not yet trained"
+
+        metrics = self.get_quality_metrics()
+
+        summary = "🎯 Performance Summary\n"
+        summary += f"{'='*50}\n"
+        summary += f"📊 Total Training Time: {metrics['training_time']:.2f} seconds\n"
+        summary += (
+            f"📈 Documents Processed: {len(self._training_results.get('texts', []))}\n"
+        )
+        summary += f"🏷️  Topics Generated: {len(set(self._training_results.get('topics', []))) - (1 if -1 in self._training_results.get('topics', []) else 0)}\n"
+
+        if "stage_times" in metrics and metrics["stage_times"]:
+            summary += "\n⏱️  Stage Breakdown:\n"
+            for stage, duration in metrics["stage_times"].items():
+                percentage = (
+                    (duration / metrics["training_time"]) * 100
+                    if metrics["training_time"] > 0
+                    else 0
+                )
+                summary += (
+                    f"   {stage.capitalize()}: {duration:.2f}s ({percentage:.1f}%)\n"
+                )
+
+        if "c_v_mean" in metrics:
+            summary += "\n📊 Quality Metrics:\n"
+            summary += f"   c_v coherence: {metrics['c_v_mean']:.3f}\n"
+            if "c_npmi_mean" in metrics:
+                summary += f"   c_npmi coherence: {metrics['c_npmi_mean']:.3f}\n"
+
+        return summary
 
     def save_model(self, filepath: Union[str, Path]) -> None:
         """
