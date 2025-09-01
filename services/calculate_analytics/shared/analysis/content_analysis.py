@@ -482,31 +482,31 @@ def get_weekly_content_per_user_metrics(
         }
     }
     """
+
+    # create index lookup to speed up the lookup of the week for a given user and date.
+    user_date_to_week_df = user_date_to_week_df.set_index(["bluesky_user_did", "date"])[
+        "week"
+    ]
+
     weekly_content_per_user_metrics: dict[str, dict[str, dict[str, float | None]]] = {}
     for user, dates_to_metrics_map in user_per_day_content_label_metrics.items():
-        subset_user_date_to_week_df = user_date_to_week_df[
-            user_date_to_week_df["bluesky_user_did"] == user
-        ]
-        subset_map_date_to_week = dict(
-            zip(
-                subset_user_date_to_week_df["date"],
-                subset_user_date_to_week_df["week"],
-            )
-        )
+        weekly_content_per_user_metrics[user] = {}
         content_metrics_per_week_map: dict = {}
 
         # iterate through each date and their metrics and add it to a running
         # aggregate list of metrics for each of the weeks.
         for date, metrics in dates_to_metrics_map.items():
-            week = subset_map_date_to_week[date]
+            week = user_date_to_week_df.get((user, date))
+            if week is None:
+                continue
 
             # if week is not yet in `content_metrics_per_week_map`, initialize
             # the lists that will store each of the daily averages/proportions
             # for each of the labels.
             if week not in content_metrics_per_week_map:
-                content_metrics_per_week_map[week] = {}
-                for metric_name in metrics.keys():
-                    content_metrics_per_week_map[week][metric_name] = []
+                content_metrics_per_week_map[week] = {
+                    metric: [] for metric in metrics.keys()
+                }
 
             # iterate through each label and its daily value for the given date
             # and add to the running lists for the week.
@@ -520,25 +520,18 @@ def get_weekly_content_per_user_metrics(
         # day, for the posts liked by a user in Week 1), we now average them out.
         # (e.g, we get the average toxicity of the posts liked by a user in Week 1).
         for week, daily_metrics_map in content_metrics_per_week_map.items():
-            # if week is not yet in `content_metrics_per_week_map`, initialize
-            # the map that will store each of the weekly averages/proportions
-            # for each of the labels.
-            if week not in weekly_content_per_user_metrics[user]:
-                weekly_content_per_user_metrics[user][week] = {}
-
             # iterate through each label and its daily values for the given week
             # and average them out. Then add to the running map.
             # NOTE: should only possibly have 'len(daily_metric_values) == 0'
             # for engagement data (since, for example, for a given date, you
             # might have only likes and you might not have reposts, replies, etc.).
             # For feed data, shouldn't ever have this case (feeds are made every day).
-            for metric_name, daily_metric_values in daily_metrics_map.items():
-                if len(daily_metric_values) == 0:
-                    weekly_content_per_user_metrics[user][week][metric_name] = None
-                else:
-                    weekly_content_per_user_metrics[user][week][metric_name] = round(
-                        np.mean(daily_metric_values), 3
-                    )
+            weekly_content_per_user_metrics[user][week] = {
+                metric: round(np.mean(daily_metric_values), 3)
+                if daily_metric_values
+                else None
+                for metric, daily_metric_values in daily_metrics_map.items()
+            }
 
     return weekly_content_per_user_metrics
 

@@ -667,7 +667,7 @@ class TestCalculateProportionForLabel:
 
         This test verifies that:
         1. Probability labels are routed to the correct calculation function
-        2. The threshold from LABEL_PROCESSING_ROLES is used correctly
+        2. The threshold from LABELS_CONFIG is used correctly
         3. The result matches the expected proportion calculation
         """
         # Arrange
@@ -1025,7 +1025,7 @@ class TestGetMetricsForUserFeedsFromPartitionDate:
         )
 
         # Assert
-        # The function returns all labels from LABEL_PROCESSING_ROLES (72 total)
+        # The function returns all labels from LABELS_CONFIG (72 total)
         # We only provided data for 2 labels, so the rest will be None
         # There are 36 labels and we calculate average + proportion for each,
         # hence we have 72 fields.
@@ -1094,7 +1094,7 @@ class TestGetMetricsForRecordType:
         user_to_content_engaged_with = {
             "user1": {"2024-01-01": {"like": ["post1", "post2", "post3"]}}
         }
-        # Comprehensive test data covering all 36 labels from LABEL_PROCESSING_ROLES
+        # Comprehensive test data covering all 36 labels from LABELS_CONFIG
         labels_for_engaged_content = {
             "post1": {
                 # Perspective API labels (probability type)
@@ -1315,7 +1315,7 @@ class TestGetMetricsForRecordType:
         )
 
         # Assert
-        # The function returns all labels from LABEL_PROCESSING_ROLES (72 total)
+        # The function returns all labels from LABELS_CONFIG (72 total)
         # We provided data for all 36 labels, so we should have calculated values
         # There are 36 labels and we calculate average + proportion for each,
         # hence we have 72 fields.
@@ -1387,7 +1387,7 @@ class TestGetMetricsForRecordTypes:
                 "2024-01-01": {"like": ["post1", "post2"], "repost": ["post3", "post4"]}
             }
         }
-        # Comprehensive test data covering all 36 labels from LABEL_PROCESSING_ROLES
+        # Comprehensive test data covering all 36 labels from LABELS_CONFIG
         labels_for_engaged_content = {
             "post1": {
                 # Perspective API labels (probability type)

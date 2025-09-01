@@ -18,6 +18,7 @@ from services.calculate_analytics.shared.analysis.content_analysis import (
     transform_daily_content_per_user_metrics,
     transform_weekly_content_per_user_metrics,
 )
+from services.calculate_analytics.shared.processing.constants import EXPECTED_TOTAL_METRICS
 
 
 class TestGetDailyFeedContentPerUserMetrics:
@@ -52,7 +53,7 @@ class TestGetDailyFeedContentPerUserMetrics:
         # Assert
         assert "user1" in result
         assert "2024-01-01" in result["user1"]
-        assert len(result["user1"]["2024-01-01"]) == 72  # All labels from LABEL_PROCESSING_ROLES
+        assert len(result["user1"]["2024-01-01"]) == EXPECTED_TOTAL_METRICS
         
         # Check specific calculated values
         assert result["user1"]["2024-01-01"]["feed_average_toxic"] == 0.6  # (0.8 + 0.3 + 0.7) / 3
@@ -137,7 +138,7 @@ class TestGetDailyFeedContentPerUserMetrics:
         # Assert
         assert "user1" in result
         assert "2024-01-01" in result["user1"]
-        assert len(result["user1"]["2024-01-01"]) == 72  # All labels from LABEL_PROCESSING_ROLES
+        assert len(result["user1"]["2024-01-01"]) == EXPECTED_TOTAL_METRICS
         
         # All values should be None for empty feed content
         for value in result["user1"]["2024-01-01"].values():

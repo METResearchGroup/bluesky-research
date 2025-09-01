@@ -4,52 +4,7 @@ from typing import Iterable, Literal, Optional
 
 import numpy as np
 
-# TODO: Add IME labels.
-LABEL_PROCESSING_ROLES = {
-    # Perspective API labels (use threshold > 0.5)
-    "prob_toxic": {
-        "type": "probability",
-        "threshold": 0.5,
-    },
-    "prob_constructive": {"type": "probability", "threshold": 0.5},
-    "prob_severe_toxic": {"type": "probability", "threshold": 0.5},
-    "prob_identity_attack": {"type": "probability", "threshold": 0.5},
-    "prob_insult": {"type": "probability", "threshold": 0.5},
-    "prob_profanity": {"type": "probability", "threshold": 0.5},
-    "prob_threat": {"type": "probability", "threshold": 0.5},
-    "prob_affinity": {"type": "probability", "threshold": 0.5},
-    "prob_compassion": {"type": "probability", "threshold": 0.5},
-    "prob_curiosity": {"type": "probability", "threshold": 0.5},
-    "prob_nuance": {"type": "probability", "threshold": 0.5},
-    "prob_personal_story": {"type": "probability", "threshold": 0.5},
-    "prob_reasoning": {"type": "probability", "threshold": 0.5},
-    "prob_respect": {"type": "probability", "threshold": 0.5},
-    "prob_alienation": {"type": "probability", "threshold": 0.5},
-    "prob_fearmongering": {"type": "probability", "threshold": 0.5},
-    "prob_generalization": {"type": "probability", "threshold": 0.5},
-    "prob_moral_outrage": {"type": "probability", "threshold": 0.5},
-    "prob_scapegoating": {"type": "probability", "threshold": 0.5},
-    "prob_sexually_explicit": {"type": "probability", "threshold": 0.5},
-    "prob_flirtation": {"type": "probability", "threshold": 0.5},
-    "prob_spam": {"type": "probability", "threshold": 0.5},
-    # IME labels (use threshold > 0.5)
-    "prob_intergroup": {"type": "probability", "threshold": 0.5},
-    "prob_moral": {"type": "probability", "threshold": 0.5},
-    "prob_emotion": {"type": "probability", "threshold": 0.5},
-    "prob_other": {"type": "probability", "threshold": 0.5},
-    # Valence classifier labels
-    "valence_clf_score": {"type": "score"},
-    "is_valence_positive": {"type": "boolean"},
-    "is_valence_negative": {"type": "boolean"},
-    "is_valence_neutral": {"type": "boolean"},
-    # LLM classifier labels
-    "is_sociopolitical": {"type": "boolean"},
-    "is_not_sociopolitical": {"type": "boolean"},
-    "is_political_left": {"type": "boolean"},
-    "is_political_right": {"type": "boolean"},
-    "is_political_moderate": {"type": "boolean"},
-    "is_political_unclear": {"type": "boolean"},
-}
+from services.calculate_analytics.shared.processing.constants import LABELS_CONFIG
 
 
 def _init_labels_collection() -> dict[str, list]:
@@ -63,7 +18,7 @@ def _init_labels_collection() -> dict[str, list]:
     This function returns a dict where the key is the label name (e.g., prob_toxicity)
     and the value is an empty list.
     """
-    return {key: [] for key in LABEL_PROCESSING_ROLES.keys()}
+    return {key: [] for key in LABELS_CONFIG.keys()}
 
 
 def collect_labels_for_post_uris(
@@ -98,7 +53,7 @@ def collect_labels_for_post_uris(
 # NOTE: yes, _calculate_average_for_{type} is the same in practice for all
 # three cases, but I'm leaving it here for readability and to note that making
 # it the same for all 3 was an intentional design choice.
-def _calculate_average_for_probability_label(label_values: list):
+def _calculate_average_for_probability_label(label_values: list[float]):
     """Calculates the average for a label that is of type 'probability'.
 
     For these, we just take the mean of the label values.
@@ -106,7 +61,7 @@ def _calculate_average_for_probability_label(label_values: list):
     return round(np.mean(label_values), 3) if len(label_values) > 0 else None
 
 
-def _calculate_average_for_score_label(label_values: list):
+def _calculate_average_for_score_label(label_values: list[float]):
     """Calculates the average for a label that is of type 'score'.
 
     For these, we just take the mean of the label values.
@@ -114,7 +69,7 @@ def _calculate_average_for_score_label(label_values: list):
     return round(np.mean(label_values), 3) if len(label_values) > 0 else None
 
 
-def _calculate_average_for_boolean_label(label_values: list):
+def _calculate_average_for_boolean_label(label_values: list[bool]):
     """Calculates the average for a label that is of type 'boolean'.
 
     For these, we just take the mean of the label values, setting True = 1
@@ -128,7 +83,7 @@ def calculate_average_for_label(label: str, label_values: list):
 
     For these, we just take the mean of the label values.
     """
-    config = LABEL_PROCESSING_ROLES[label]
+    config = LABELS_CONFIG[label]
     if config["type"] == "probability":
         return _calculate_average_for_probability_label(label_values=label_values)
     elif config["type"] == "score":
@@ -185,7 +140,7 @@ def _calculate_proportion_for_boolean_label(label_values: list):
 
 
 def calculate_proportion_for_label(label: str, label_values: list):
-    config = LABEL_PROCESSING_ROLES[label]
+    config = LABELS_CONFIG[label]
     if config["type"] == "probability":
         return _calculate_proportion_for_probability_label(
             label_values=label_values, threshold=config["threshold"]
