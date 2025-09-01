@@ -64,6 +64,7 @@ jobs:
           services/repartition_service/tests \
           services/calculate_analytics/tests \
           services/calculate_analytics/study_analytics/calculate_analytics/tests \
+          services/calculate_analytics/shared/processing/tests \
           services/write_cache_buffers_to_db/tests \
           services/sync/jetstream/tests \
           api/integrations_router/tests
