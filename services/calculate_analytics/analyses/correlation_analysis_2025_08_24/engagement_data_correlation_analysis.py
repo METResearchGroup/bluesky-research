@@ -35,22 +35,23 @@ from lib.helper import generate_current_datetime_str
 logger = get_logger(__name__)
 
 # Define the metrics to analyze
+# Note: Using posted_posts metrics as the primary engagement measure
 AVERAGE_METRICS = [
-    "engagement_average_toxic",
-    "engagement_average_constructive",
-    "engagement_average_intergroup",
-    "engagement_average_moral",
-    "engagement_average_moral_outrage",
-    "engagement_average_is_sociopolitical",
+    "engagement_average_posted_posts_toxic",
+    "engagement_average_posted_posts_constructive",
+    "engagement_average_posted_posts_intergroup",
+    "engagement_average_posted_posts_moral",
+    "engagement_average_posted_posts_moral_outrage",
+    "engagement_average_posted_posts_is_sociopolitical",
 ]
 
 PROPORTION_METRICS = [
-    "engagement_proportion_toxic",
-    "engagement_proportion_constructive",
-    "engagement_proportion_intergroup",
-    "engagement_proportion_moral",
-    "engagement_proportion_moral_outrage",
-    "engagement_proportion_is_sociopolitical",
+    "engagement_proportion_posted_posts_toxic",
+    "engagement_proportion_posted_posts_constructive",
+    "engagement_proportion_posted_posts_intergroup",
+    "engagement_proportion_posted_posts_moral",
+    "engagement_proportion_posted_posts_moral_outrage",
+    "engagement_proportion_posted_posts_is_sociopolitical",
 ]
 
 # Results directory path
