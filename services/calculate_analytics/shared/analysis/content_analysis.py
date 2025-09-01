@@ -194,7 +194,9 @@ def get_daily_engaged_content_per_user_metrics(
         }
     }
     """
-    daily_engaged_content_per_user_metrics: dict[str, dict[str, Optional[float]]] = {}
+    daily_engaged_content_per_user_metrics: dict[
+        str, dict[str, dict[str, float | None]]
+    ] = {}
 
     # iterate through each user and the content they engaged with.
     for did, content_engaged_with in user_to_content_engaged_with.items():
