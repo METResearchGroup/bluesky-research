@@ -190,12 +190,8 @@ class TestDoAggregationsAndExportResults:
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_weekly_content_per_user_metrics")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.transform_weekly_content_per_user_metrics")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.os.makedirs")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("pandas.DataFrame.to_csv")
     def test_do_aggregations_and_export_results_completes_successfully(
         self,
-        mock_to_csv,
-        mock_open,
         mock_makedirs,
         mock_transform_weekly,
         mock_get_weekly,
@@ -213,9 +209,18 @@ class TestDoAggregationsAndExportResults:
         """
         # Arrange
         mock_get_daily.return_value = mock_user_per_day_content_label_metrics
-        mock_transform_daily.return_value = mock_transformed_per_user_per_day_content_label_metrics
+        
+        # Create mock DataFrames with to_csv method
+        mock_daily_df = MagicMock()
+        mock_daily_df.to_csv = MagicMock()
+        mock_transform_daily.return_value = mock_daily_df
+        
         mock_get_weekly.return_value = mock_user_per_week_content_label_metrics
-        mock_transform_weekly.return_value = mock_transformed_per_user_per_week_feed_content_metrics
+        
+        # Create mock DataFrames with to_csv method
+        mock_weekly_df = MagicMock()
+        mock_weekly_df.to_csv = MagicMock()
+        mock_transform_weekly.return_value = mock_weekly_df
 
         # Act
         do_aggregations_and_export_results(
@@ -251,19 +256,16 @@ class TestDoAggregationsAndExportResults:
 
         # Verify file operations
         assert mock_makedirs.call_count == 2  # Called for both daily and weekly exports
-        assert mock_to_csv.call_count == 2  # Called for both daily and weekly exports
+        assert mock_daily_df.to_csv.call_count == 1  # Called once for daily export
+        assert mock_weekly_df.to_csv.call_count == 1  # Called once for weekly export
 
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_daily_feed_content_per_user_metrics")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.transform_daily_content_per_user_metrics")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_weekly_content_per_user_metrics")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.transform_weekly_content_per_user_metrics")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.os.makedirs")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("pandas.DataFrame.to_csv")
     def test_do_aggregations_and_export_results_handles_empty_data(
         self,
-        mock_to_csv,
-        mock_open,
         mock_makedirs,
         mock_transform_weekly,
         mock_get_weekly,
@@ -286,8 +288,12 @@ class TestDoAggregationsAndExportResults:
         empty_partition_dates = []
         empty_daily_metrics = {}
         empty_weekly_metrics = {}
-        empty_daily_df = pd.DataFrame()
-        empty_weekly_df = pd.DataFrame()
+        
+        # Create mock DataFrames with to_csv method
+        empty_daily_df = MagicMock()
+        empty_daily_df.to_csv = MagicMock()
+        empty_weekly_df = MagicMock()
+        empty_weekly_df.to_csv = MagicMock()
 
         mock_get_daily.return_value = empty_daily_metrics
         mock_transform_daily.return_value = empty_daily_df
@@ -322,6 +328,11 @@ class TestDoAggregationsAndExportResults:
             users=empty_user_df,
             user_date_to_week_df=empty_user_date_to_week_df,
         )
+        
+        # Verify file operations still occur
+        assert mock_makedirs.call_count == 2
+        assert empty_daily_df.to_csv.call_count == 1
+        assert empty_weekly_df.to_csv.call_count == 1
 
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_daily_feed_content_per_user_metrics")
     def test_do_aggregations_and_export_results_raises_exception_on_daily_metrics_error(
@@ -483,12 +494,8 @@ class TestIntegration:
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_weekly_content_per_user_metrics")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.transform_weekly_content_per_user_metrics")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.os.makedirs")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("pandas.DataFrame.to_csv")
     def test_full_integration_workflow(
         self,
-        mock_to_csv,
-        mock_open,
         mock_makedirs,
         mock_transform_weekly,
         mock_get_weekly,
@@ -520,9 +527,18 @@ class TestIntegration:
         mock_get_all_post_uris_used_in_feeds.return_value = {"post1", "post2", "post3"}
         mock_get_all_labels_for_posts.return_value = mock_labels_for_feed_content
         mock_get_daily.return_value = mock_user_per_day_content_label_metrics
-        mock_transform_daily.return_value = mock_transformed_per_user_per_day_content_label_metrics
+        
+        # Create mock DataFrames with to_csv method
+        mock_daily_df = MagicMock()
+        mock_daily_df.to_csv = MagicMock()
+        mock_transform_daily.return_value = mock_daily_df
+        
         mock_get_weekly.return_value = mock_user_per_week_content_label_metrics
-        mock_transform_weekly.return_value = mock_transformed_per_user_per_week_feed_content_metrics
+        
+        # Create mock DataFrames with to_csv method
+        mock_weekly_df = MagicMock()
+        mock_weekly_df.to_csv = MagicMock()
+        mock_transform_weekly.return_value = mock_weekly_df
 
         # Act
         main()
@@ -567,7 +583,8 @@ class TestIntegration:
 
         # Verify export calls
         assert mock_makedirs.call_count == 2
-        assert mock_to_csv.call_count == 2
+        assert mock_daily_df.to_csv.call_count == 1
+        assert mock_weekly_df.to_csv.call_count == 1
 
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.load_user_data")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_partition_dates")
@@ -579,12 +596,8 @@ class TestIntegration:
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_weekly_content_per_user_metrics")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.transform_weekly_content_per_user_metrics")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.os.makedirs")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("pandas.DataFrame.to_csv")
     def test_integration_with_empty_data(
         self,
-        mock_to_csv,
-        mock_open,
         mock_makedirs,
         mock_transform_weekly,
         mock_get_weekly,
@@ -613,8 +626,12 @@ class TestIntegration:
         empty_partition_dates = []
         empty_daily_metrics = {}
         empty_weekly_metrics = {}
-        empty_daily_df = pd.DataFrame()
-        empty_weekly_df = pd.DataFrame()
+        
+        # Create mock DataFrames with to_csv method
+        empty_daily_df = MagicMock()
+        empty_daily_df.to_csv = MagicMock()
+        empty_weekly_df = MagicMock()
+        empty_weekly_df.to_csv = MagicMock()
 
         mock_load_user_data.return_value = (
             empty_user_df,
@@ -671,4 +688,5 @@ class TestIntegration:
 
         # Verify export operations
         assert mock_makedirs.call_count == 2
-        assert mock_to_csv.call_count == 2
+        assert empty_daily_df.to_csv.call_count == 1
+        assert empty_weekly_df.to_csv.call_count == 1
