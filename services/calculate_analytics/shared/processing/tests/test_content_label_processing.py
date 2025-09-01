@@ -5,10 +5,12 @@ This test suite verifies the functionality of content label processing functions
 - Calculation of averages and proportions for different label types
 - Metric field name transformation
 - Content metrics calculation for feeds and engagement
+- Handling of missing values (None, NAType) in calculations
 """
 
 import pytest
 import numpy as np
+import pandas as pd
 
 from services.calculate_analytics.shared.processing.content_label_processing import (
     collect_labels_for_post_uris,
@@ -193,6 +195,78 @@ class TestCalculateAverageForProbabilityLabel:
         # Assert
         assert result == expected
 
+    def test_handles_none_values(self):
+        """Test handling of None values in probability labels.
+
+        This test verifies that:
+        1. None values are filtered out before calculation
+        2. The average is calculated only from valid values
+        3. The function doesn't crash on None values
+        """
+        # Arrange
+        label_values = [0.8, None, 0.7, 0.9]
+        expected = round(np.mean([0.8, 0.7, 0.9]), 3)
+
+        # Act
+        result = _calculate_average_for_probability_label(label_values)
+
+        # Assert
+        assert result == expected
+
+    def test_handles_pandas_natype_values(self):
+        """Test handling of pandas NAType values in probability labels.
+
+        This test verifies that:
+        1. pandas NAType values are filtered out before calculation
+        2. The average is calculated only from valid values
+        3. The function doesn't crash on NAType values
+        """
+        # Arrange
+        label_values = [0.8, pd.NA, 0.7, 0.9]
+        expected = round(np.mean([0.8, 0.7, 0.9]), 3)
+
+        # Act
+        result = _calculate_average_for_probability_label(label_values)
+
+        # Assert
+        assert result == expected
+
+    def test_handles_mixed_missing_values(self):
+        """Test handling of mixed None and NAType values.
+
+        This test verifies that:
+        1. Both None and NAType values are filtered out
+        2. The average is calculated only from valid values
+        3. The function handles mixed missing value types
+        """
+        # Arrange
+        label_values = [0.8, None, pd.NA, 0.7, 0.9]
+        expected = round(np.mean([0.8, 0.7, 0.9]), 3)
+
+        # Act
+        result = _calculate_average_for_probability_label(label_values)
+
+        # Assert
+        assert result == expected
+
+    def test_returns_none_when_all_values_missing(self):
+        """Test returns None when all values are missing.
+
+        This test verifies that:
+        1. When all values are None or NAType, function returns None
+        2. The function doesn't crash on all-missing data
+        3. Edge case is handled gracefully
+        """
+        # Arrange
+        label_values = [None, pd.NA, None]
+        expected = None
+
+        # Act
+        result = _calculate_average_for_probability_label(label_values)
+
+        # Assert
+        assert result is expected
+
 
 class TestCalculateAverageForScoreLabel:
     """Tests for _calculate_average_for_score_label function."""
@@ -250,6 +324,60 @@ class TestCalculateAverageForScoreLabel:
 
         # Assert
         assert result == expected
+
+    def test_handles_none_values(self):
+        """Test handling of None values in score labels.
+
+        This test verifies that:
+        1. None values are filtered out before calculation
+        2. The average is calculated only from valid values
+        3. The function doesn't crash on None values
+        """
+        # Arrange
+        label_values = [0.5, None, 0.2, 0.9]
+        expected = round(np.mean([0.5, 0.2, 0.9]), 3)
+
+        # Act
+        result = _calculate_average_for_score_label(label_values)
+
+        # Assert
+        assert result == expected
+
+    def test_handles_pandas_natype_values(self):
+        """Test handling of pandas NAType values in score labels.
+
+        This test verifies that:
+        1. pandas NAType values are filtered out before calculation
+        2. The average is calculated only from valid values
+        3. The function doesn't crash on NAType values
+        """
+        # Arrange
+        label_values = [0.5, pd.NA, 0.2, 0.9]
+        expected = round(np.mean([0.5, 0.2, 0.9]), 3)
+
+        # Act
+        result = _calculate_average_for_score_label(label_values)
+
+        # Assert
+        assert result == expected
+
+    def test_returns_none_when_all_values_missing(self):
+        """Test returns None when all values are missing.
+
+        This test verifies that:
+        1. When all values are None or NAType, function returns None
+        2. The function doesn't crash on all-missing data
+        3. Edge case is handled gracefully
+        """
+        # Arrange
+        label_values = [None, pd.NA, None]
+        expected = None
+
+        # Act
+        result = _calculate_average_for_score_label(label_values)
+
+        # Assert
+        assert result is expected
 
 
 class TestCalculateAverageForBooleanLabel:
@@ -342,6 +470,60 @@ class TestCalculateAverageForBooleanLabel:
 
         # Assert
         assert result == expected
+
+    def test_handles_none_values(self):
+        """Test handling of None values in boolean labels.
+
+        This test verifies that:
+        1. None values are filtered out before calculation
+        2. The average is calculated only from valid boolean values
+        3. The function doesn't crash on None values
+        """
+        # Arrange
+        label_values = [True, None, False, True]
+        expected = 0.667  # 2 True, 1 False = 2/3 = 0.667
+
+        # Act
+        result = _calculate_average_for_boolean_label(label_values)
+
+        # Assert
+        assert result == expected
+
+    def test_handles_pandas_natype_values(self):
+        """Test handling of pandas NAType values in boolean labels.
+
+        This test verifies that:
+        1. pandas NAType values are filtered out before calculation
+        2. The average is calculated only from valid boolean values
+        3. The function doesn't crash on NAType values
+        """
+        # Arrange
+        label_values = [True, pd.NA, False, True]
+        expected = 0.667  # 2 True, 1 False = 2/3 = 0.667
+
+        # Act
+        result = _calculate_average_for_boolean_label(label_values)
+
+        # Assert
+        assert result == expected
+
+    def test_returns_none_when_all_values_missing(self):
+        """Test returns None when all values are missing.
+
+        This test verifies that:
+        1. When all values are None or NAType, function returns None
+        2. The function doesn't crash on all-missing data
+        3. Edge case is handled gracefully
+        """
+        # Arrange
+        label_values = [None, pd.NA, None]
+        expected = None
+
+        # Act
+        result = _calculate_average_for_boolean_label(label_values)
+
+        # Assert
+        assert result is expected
 
 
 class TestCalculateAverageForLabel:
@@ -488,17 +670,18 @@ class TestCalculateProportionForProbabilityLabel:
     """Tests for _calculate_proportion_for_probability_label function."""
 
     def test_calculates_proportion_above_threshold(self):
-        """Test proportion calculation above threshold.
+        """Test proportion calculation for probability labels.
 
         This test verifies that:
         1. The proportion of values above the threshold is calculated correctly
-        2. The result is rounded to three decimal places
-        3. The calculation matches the expected mathematical result
+        2. The threshold comparison works as expected
+        3. The result is rounded to three decimal places
         """
         # Arrange
         label_values = [0.8, 0.3, 0.7, 0.9]
         threshold = 0.5
-        expected = round(np.mean(np.array([0.8, 0.3, 0.7, 0.9]) > threshold), 3)
+        # Values above 0.5: [0.8, 0.7, 0.9] = 3/4 = 0.75
+        expected = round(np.mean(np.array([0.8, 0.3, 0.7, 0.9]) >= 0.5), 3)
 
         # Act
         result = _calculate_proportion_for_probability_label(label_values, threshold)
@@ -525,24 +708,64 @@ class TestCalculateProportionForProbabilityLabel:
         # Assert
         assert result is expected
 
-    def test_handles_all_values_below_threshold(self):
-        """Test handling when all values are below threshold.
+    def test_handles_none_values(self):
+        """Test handling of None values in probability labels.
 
         This test verifies that:
-        1. When all values are below threshold, proportion is 0.0
-        2. The calculation works correctly for edge cases
-        3. Results are properly rounded
+        1. None values are filtered out before calculation
+        2. The proportion is calculated only from valid values
+        3. The function doesn't crash on None values
         """
         # Arrange
-        label_values = [0.1, 0.2, 0.3]
+        label_values = [0.8, None, 0.3, 0.7]
         threshold = 0.5
-        expected = round(np.mean(np.array([0.1, 0.2, 0.3]) > threshold), 3)
+        # Values above 0.5: [0.8, 0.7] = 2/3 = 0.667
+        expected = round(np.mean(np.array([0.8, 0.3, 0.7]) >= 0.5), 3)
 
         # Act
         result = _calculate_proportion_for_probability_label(label_values, threshold)
 
         # Assert
         assert result == expected
+
+    def test_handles_pandas_natype_values(self):
+        """Test handling of pandas NAType values in probability labels.
+
+        This test verifies that:
+        1. pandas NAType values are filtered out before calculation
+        2. The proportion is calculated only from valid values
+        3. The function doesn't crash on NAType values
+        """
+        # Arrange
+        label_values = [0.8, pd.NA, 0.3, 0.7]
+        threshold = 0.5
+        # Values above 0.5: [0.8, 0.7] = 2/3 = 0.667
+        expected = round(np.mean(np.array([0.8, 0.3, 0.7]) >= 0.5), 3)
+
+        # Act
+        result = _calculate_proportion_for_probability_label(label_values, threshold)
+
+        # Assert
+        assert result == expected
+
+    def test_returns_none_when_all_values_missing(self):
+        """Test returns None when all values are missing.
+
+        This test verifies that:
+        1. When all values are None or NAType, function returns None
+        2. The function doesn't crash on all-missing data
+        3. Edge case is handled gracefully
+        """
+        # Arrange
+        label_values = [None, pd.NA, None]
+        threshold = 0.5
+        expected = None
+
+        # Act
+        result = _calculate_proportion_for_probability_label(label_values, threshold)
+
+        # Assert
+        assert result is expected
 
 
 class TestCalculateProportionForScoreLabel:
@@ -657,6 +880,60 @@ class TestCalculateProportionForBooleanLabel:
 
         # Assert
         assert result == expected
+
+    def test_handles_none_values(self):
+        """Test handling of None values in boolean labels.
+
+        This test verifies that:
+        1. None values are filtered out before calculation
+        2. The proportion is calculated only from valid boolean values
+        3. The function doesn't crash on None values
+        """
+        # Arrange
+        label_values = [True, None, False, True]
+        expected = 0.667  # 2 True, 1 False = 2/3 = 0.667
+
+        # Act
+        result = _calculate_proportion_for_boolean_label(label_values)
+
+        # Assert
+        assert result == expected
+
+    def test_handles_pandas_natype_values(self):
+        """Test handling of pandas NAType values in boolean labels.
+
+        This test verifies that:
+        1. pandas NAType values are filtered out before calculation
+        2. The proportion is calculated only from valid boolean values
+        3. The function doesn't crash on NAType values
+        """
+        # Arrange
+        label_values = [True, pd.NA, False, True]
+        expected = 0.667  # 2 True, 1 False = 2/3 = 0.667
+
+        # Act
+        result = _calculate_proportion_for_boolean_label(label_values)
+
+        # Assert
+        assert result == expected
+
+    def test_returns_none_when_all_values_missing(self):
+        """Test returns None when all values are missing.
+
+        This test verifies that:
+        1. When all values are None or NAType, function returns None
+        2. The function doesn't crash on all-missing data
+        3. Edge case is handled gracefully
+        """
+        # Arrange
+        label_values = [None, pd.NA, None]
+        expected = None
+
+        # Act
+        result = _calculate_proportion_for_boolean_label(label_values)
+
+        # Assert
+        assert result is expected
 
 
 class TestCalculateProportionForLabel:

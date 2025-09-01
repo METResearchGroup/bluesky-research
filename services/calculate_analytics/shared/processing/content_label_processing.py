@@ -3,6 +3,7 @@
 from typing import Iterable, Literal, Optional
 
 import numpy as np
+import pandas as pd
 
 from lib.log.logger import get_logger
 from services.calculate_analytics.shared.processing.constants import LABELS_CONFIG
@@ -65,16 +66,24 @@ def _calculate_average_for_probability_label(label_values: list[float]):
     """Calculates the average for a label that is of type 'probability'.
 
     For these, we just take the mean of the label values.
+
+    Handles missing values (None, NAType) by filtering them out before averaging.
     """
-    return round(np.mean(label_values), 3) if len(label_values) > 0 else None
+    # Filter out None and pandas NAType values to prevent crashes
+    clean_values = [v for v in label_values if v is not None and not pd.isna(v)]
+    return round(np.mean(clean_values), 3) if len(clean_values) > 0 else None
 
 
 def _calculate_average_for_score_label(label_values: list[float]):
     """Calculates the average for a label that is of type 'score'.
 
     For these, we just take the mean of the label values.
+
+    Handles missing values (None, NAType) by filtering them out before averaging.
     """
-    return round(np.mean(label_values), 3) if len(label_values) > 0 else None
+    # Filter out None and pandas NAType values to prevent crashes
+    clean_values = [v for v in label_values if v is not None and not pd.isna(v)]
+    return round(np.mean(clean_values), 3) if len(clean_values) > 0 else None
 
 
 def _calculate_average_for_boolean_label(label_values: list[bool]):
@@ -82,8 +91,12 @@ def _calculate_average_for_boolean_label(label_values: list[bool]):
 
     For these, we just take the mean of the label values, setting True = 1
     and False = 0.
+
+    Handles missing values (None, NAType) by filtering them out before averaging.
     """
-    return round(np.mean(label_values), 3) if len(label_values) > 0 else None
+    # Filter out None and pandas NAType values to prevent crashes
+    clean_values = [v for v in label_values if v is not None and not pd.isna(v)]
+    return round(np.mean(clean_values), 3) if len(clean_values) > 0 else None
 
 
 def calculate_average_for_label(label: str, label_values: list):
@@ -114,11 +127,16 @@ def _calculate_proportion_for_probability_label(label_values: list, threshold: f
 
     For these, we figure out the proportion of the labels that are above a certain
     threshold.
+
+    Handles missing values (None, NAType) by filtering them out before calculating.
     """
-    if len(label_values) == 0:
+    # Filter out None and pandas NAType values to prevent crashes
+    clean_values = [v for v in label_values if v is not None and not pd.isna(v)]
+
+    if len(clean_values) == 0:
         return None
 
-    proportion = np.mean(np.array(label_values) >= threshold)
+    proportion = np.mean(np.array(clean_values) >= threshold)
     return round(proportion, 3)
 
 
@@ -143,8 +161,12 @@ def _calculate_proportion_for_boolean_label(label_values: list):
     """Calculates the proportions for a label that is of type 'boolean'.
 
     For these, we figure out the proportion of the labels that are True.
+
+    Handles missing values (None, NAType) by filtering them out before calculating.
     """
-    return round(np.mean(label_values), 3) if len(label_values) > 0 else None
+    # Filter out None and pandas NAType values to prevent crashes
+    clean_values = [v for v in label_values if v is not None and not pd.isna(v)]
+    return round(np.mean(clean_values), 3) if len(clean_values) > 0 else None
 
 
 def calculate_proportion_for_label(label: str, label_values: list):
