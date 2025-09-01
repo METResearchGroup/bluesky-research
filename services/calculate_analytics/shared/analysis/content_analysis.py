@@ -454,7 +454,6 @@ def transform_daily_content_per_user_metrics(
     ]
 
     df = pd.DataFrame(records)
-    df = df.fillna(None)
     return df.sort_values(by=["handle", "date"], inplace=False, ascending=[True, True])
 
 
@@ -494,5 +493,4 @@ def transform_weekly_content_per_user_metrics(
     ]
 
     df = pd.DataFrame(records)
-    df = df.fillna(None)
     return df.sort_values(by=["handle", "week"], inplace=False, ascending=[True, True])
