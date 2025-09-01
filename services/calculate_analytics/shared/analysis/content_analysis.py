@@ -444,12 +444,25 @@ def transform_daily_content_per_user_metrics(
         ["bluesky_handle", "condition"]
     ].to_dict("index")
 
+    # CRITICAL DATA FLOW NOTE:
+    # There's a subtle but important mismatch between user sets:
+    # - `users` (user_info.keys()) contains ALL valid study users (e.g., 500 users)
+    # - `user_per_day_content_label_metrics` only contains users who had engagements
+    #   during the analysis period (e.g., 200-400 users depending on date range)
+    #
+    # This happens because:
+    # 1. get_content_engaged_with_per_user() only creates entries for users with actual engagement records
+    # 2. get_daily_engaged_content_per_user_metrics() only processes users from user_to_content_engaged_with
+    # 3. Users with zero engagements (no likes, posts, reposts, replies) are missing from the metrics dict
+    #
+    # The double .get() safely handles missing users by returning empty dict → NaN columns in DataFrame
+    # This is especially important for subset date ranges where more users have zero engagement activity.
     records: list[dict] = [
         {
             "handle": user_info[user_did]["bluesky_handle"],
             "condition": user_info[user_did]["condition"],
             "date": date,
-            **user_per_day_content_label_metrics[user_did].get(date, {}),
+            **user_per_day_content_label_metrics.get(user_did, {}).get(date, {}),
         }
         for user_did in user_info.keys()
         for date in partition_dates
@@ -483,12 +496,15 @@ def transform_weekly_content_per_user_metrics(
         ["bluesky_handle", "condition"]
     ].to_dict("index")
 
+    # CRITICAL DATA FLOW NOTE (same issue as daily transform):
+    # `user_per_week_content_label_metrics` only contains users who had engagements,
+    # but we iterate over ALL valid study users. The double .get() handles missing users safely.
     records: list[dict] = [
         {
             "handle": user_info[user_did]["bluesky_handle"],
             "condition": user_info[user_did]["condition"],
             "week": week,
-            **user_per_week_content_label_metrics[user_did].get(week, {}),
+            **user_per_week_content_label_metrics.get(user_did, {}).get(week, {}),
         }
         for user_did in user_info.keys()
         for week in weeks

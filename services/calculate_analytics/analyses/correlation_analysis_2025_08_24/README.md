@@ -1,107 +1,114 @@
-# Correlation Analysis 2025-08-24
+# Feed Correlation Analysis
 
-## Overview
-This directory contains the implementation code for the **Toxicity-Constructiveness Correlation Analysis** project, which investigates correlations between toxicity and constructiveness scores in Bluesky posts to determine whether these are real data patterns, algorithmic selection biases, or calculation artifacts.
+This directory contains scripts for analyzing correlations between various feed metrics from the user feed analysis results.
 
-**Linear Project**: [MET-47: Toxicity-Constructiveness Correlation Analysis](https://linear.app/metresearch/issue/MET-47/toxicity-constructiveness-correlation-analysis)
+## Scripts
 
-## Analysis Summary Table
+### `feed_correlation_analysis.py`
+Main analysis script that:
+- Automatically finds the latest daily and weekly CSV files from the results directory
+- Calculates correlations between feed metrics across study conditions
+- Generates correlation matrix heatmaps (PNG files)
+- Organizes all outputs in timestamped subdirectories
 
-| Analysis | Status | Linear Ticket | Date | Purpose | Key Results |
-|----------|---------|---------------|------|---------|-------------|
-| **Baseline Correlation** | ✅ COMPLETED | [MET-48](https://linear.app/metresearch/issue/MET-48/phase-1-implement-shared-correlation-analysis-framework) | 2025-08-25 | Establish baseline correlations across all posts | Negative correlation confirmed: -0.108 Pearson, -0.085 Spearman across 18.4M posts |
-| **Feed Selection Bias** | ✅ COMPLETED | [MET-49](https://linear.app/metresearch/issue/MET-49/feed-selection-bias-analysis) | 2025-08-25 | Investigate algorithmic selection biases | Algorithmic bias ruled out as source of correlations |
-| **Calculation Logic Review** | ⏭️ SKIPPED | [MET-50](https://linear.app/metresearch/issue/MET-50/daily-proportion-calculation-logic-review) | N/A | Review daily proportion calculations | Phase skipped - requires deeper analytics refactor |
+### `test_visualization.py`
+Test script to verify the heatmap generation functionality works correctly.
 
-## File Structure
+### Shell Scripts
+- `submit_feed_correlation_analysis.sh` - Submit the analysis job to Slurm
 
-### Core Analysis Scripts
+## Output Structure
+
+Each analysis run creates a timestamped subdirectory in `results/` with the following structure:
+
 ```
-├── baseline_correlation_analysis.py      # Phase 1: Baseline correlation analysis
-├── feed_selection_bias_analysis.py       # Phase 2: Feed selection bias investigation  
-├── daily_proportion_calculation_review.py # Phase 3: Calculation logic review (skeleton)
+results/
+└── feed_correlation_analysis_YYYY-MM-DD_HH-MM-SS/
+    ├── feed_correlation_analysis_YYYY-MM-DD_HH:MM:SS.json  # Combined results
+    ├── daily_feed_correlations_YYYY-MM-DD_HH:MM:SS.json    # Daily analysis results
+    ├── weekly_feed_correlations_YYYY-MM-DD_HH:MM:SS.json   # Weekly analysis results
+    ├── daily_average_all_conditions_correlations_YYYY-MM-DD_HH:MM:SS.png
+    ├── daily_average_condition_X_correlations_YYYY-MM-DD_HH:MM:SS.png
+    ├── daily_proportion_all_conditions_correlations_YYYY-MM-DD_HH:MM:SS.png
+    ├── daily_proportion_condition_X_correlations_YYYY-MM-DD_HH:MM:SS.png
+    ├── weekly_average_all_conditions_correlations_YYYY-MM-DD_HH:MM:SS.png
+    ├── weekly_average_condition_X_correlations_YYYY-MM-DD_HH:MM:SS.png
+    ├── weekly_proportion_all_conditions_correlations_YYYY-MM-DD_HH:MM:SS.png
+    └── weekly_proportion_condition_X_correlations_YYYY-MM-DD_HH:MM:SS.png
 ```
 
-### Execution Scripts
-```
-├── submit_baseline_correlation_analysis.sh    # Slurm job for Phase 1
-├── submit_feed_selection_bias_analysis.sh     # Slurm job for Phase 2
-```
+## Metrics Analyzed
 
-### Supporting Files
-```
-├── query_profile.json        # Query performance profiling data
-├── results/                  # Analysis output files and results
-└── README.md                 # This file
-```
+### Average Metrics
+- `feed_average_toxic`
+- `feed_average_constructive`
+- `feed_average_intergroup`
+- `feed_average_moral`
+- `feed_average_moral_outrage`
+- `feed_average_is_sociopolitical`
 
-## Analysis Details
+### Proportion Metrics
+- `feed_proportion_toxic`
+- `feed_proportion_constructive`
+- `feed_proportion_intergroup`
+- `feed_proportion_moral`
+- `feed_proportion_moral_outrage`
+- `feed_proportion_is_sociopolitical`
 
-### 1. Baseline Correlation Analysis ✅ COMPLETED
-**File**: `baseline_correlation_analysis.py`  
-**Purpose**: Establish baseline correlations between toxicity and constructiveness across all available posts  
-**Sample Size**: 18,420,828 posts  
-**Key Finding**: Confirmed expected negative correlation between toxicity and constructiveness  
-**Results**: 
-- Pearson Correlation: -0.108
-- Spearman Correlation: -0.085
-- Toxicity Mean: 0.124
-- Constructiveness Mean: 0.178
+## Usage
 
-### 2. Feed Selection Bias Analysis ✅ COMPLETED
-**File**: `feed_selection_bias_analysis.py`  
-**Purpose**: Investigate whether algorithmic selection biases create artificial correlations  
-**Method**: 7-step data collection pipeline analyzing posts used in feeds  
-**Conditions Analyzed**: 
-- reverse_chronological
-- engagement  
-- representative_diversification
-**Key Finding**: Algorithmic selection biases are NOT the source of observed correlations
-
-### 3. Daily Proportion Calculation Review ⏭️ SKIPPED
-**File**: `daily_proportion_calculation_review.py`  
-**Purpose**: Review daily probability/proportion calculation logic  
-**Status**: Skeleton only - phase skipped due to deeper analytics refactor requirements  
-**Rationale**: Systematic calculation errors would affect entire system uniformly
-
-## Execution
-
-### Running Baseline Analysis
+### Run Analysis
 ```bash
-# Submit to Slurm cluster
-sbatch submit_baseline_correlation_analysis.sh
+# Submit to Slurm
+./submit_feed_correlation_analysis.sh
 
-# Or run locally (if data available)
-python baseline_correlation_analysis.py
+# Or run directly
+python feed_correlation_analysis.py
 ```
 
-### Running Feed Bias Analysis
+### Test Visualization
 ```bash
-# Submit to Slurm cluster  
-sbatch submit_feed_selection_bias_analysis.sh
-
-# Or run locally (if data available)
-python feed_selection_bias_analysis.py
+python test_visualization.py
 ```
 
 ## Dependencies
 
-### Shared Modules
-- `services/calculate_analytics/shared/analysis/correlations.py` - Correlation calculation functions
-- `services/calculate_analytics/study_analytics/` - Data loading and processing utilities
+The script requires:
+- pandas
+- numpy
+- matplotlib
+- seaborn
+- Standard library modules (os, glob, json, datetime, pathlib, typing)
 
-### Environment
-- Python 3.12+
-- bluesky_research conda environment
-- Access to Bluesky data (local or production)
+## Input Data
 
-## Results Location
-All analysis outputs are stored in the `results/` directory, including:
-- Correlation results in JSON format
-- Performance metrics and profiling data
-- Analysis artifacts and intermediate files
+The script expects CSV files in:
+`/Users/mark/Documents/work/bluesky-research/services/calculate_analytics/analyses/user_feed_analysis_2025_04_08/results/`
 
-## Project Status
-**✅ COMPLETED** - Core research questions about toxicity-constructiveness correlations have been successfully answered. The project confirmed that these correlations are real data patterns, not artifacts of algorithmic selection or data processing.
+Required columns:
+- `user_id`
+- `condition`
+- All average and proportion metric columns listed above
 
-**Next Steps**: Future work on daily proportion calculations should be integrated into a broader analytics system refactor.
+## Output Files
+
+### JSON Files
+- **Combined results**: Complete analysis summary with all correlations
+- **Daily/Weekly results**: Individual file analysis results
+- Contains correlation matrices, pairwise correlations, and summary statistics
+
+### PNG Files
+- **Correlation heatmaps**: Visual representation of correlation matrices
+- Lower triangular format (like the example image)
+- Color-coded: red (negative), white (neutral), blue (positive)
+- High resolution (300 DPI) for publication quality
+
+## Analysis Features
+
+1. **Automatic file detection**: Finds latest daily and weekly CSV files
+2. **Condition-based analysis**: Analyzes correlations within each study condition
+3. **Comprehensive metrics**: Both average and proportion-based correlations
+4. **Visual output**: Publication-ready correlation heatmaps
+5. **Organized output**: All assets grouped in timestamped directories
+6. **Error handling**: Graceful handling of missing columns or data issues
+7. **Detailed logging**: Comprehensive progress and result reporting
