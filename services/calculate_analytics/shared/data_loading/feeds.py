@@ -6,7 +6,6 @@ ensuring consistent data handling patterns.
 """
 
 from datetime import datetime
-import json
 
 import pandas as pd
 
@@ -136,7 +135,7 @@ def get_feeds_per_user(
 
         # load the feeds and the post URIs from the feed.
         feed_json = row.feed
-        feed = json.loads(feed_json)
+        feed = load_feed_from_json_str(feed_json)
         if not isinstance(feed, list):
             logger.error(f"Feed data for user {user_did} is not a list: {type(feed)}")
             raise ValueError(f"Invalid feed structure for user {user_did}")
