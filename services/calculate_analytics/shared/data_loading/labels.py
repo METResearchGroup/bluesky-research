@@ -119,7 +119,7 @@ def transform_labels_dict(integration: str, labels_dict: dict):
     elif integration == "sociopolitical":
         return {
             "is_sociopolitical": labels_dict["is_sociopolitical"],
-            "is_not_sociopolitical": not labels_dict["is_sociopolitical"],
+            "is_not_sociopolitical": (labels_dict["is_sociopolitical"] is False),
             # TODO: need to double-check the formatting of these labels.
             "is_political_left": (labels_dict["political_ideology_label"] == "left"),
             "is_political_right": (labels_dict["political_ideology_label"] == "right"),
