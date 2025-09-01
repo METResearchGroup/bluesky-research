@@ -59,6 +59,7 @@ wave_2_study_end_date_inclusive = "2024-12-01"
 
 STUDY_START_DATE = wave_1_study_start_date_inclusive
 STUDY_END_DATE = wave_2_study_end_date_inclusive
+TOTAL_STUDY_WEEKS_PER_USER = 8
 
 # we set a lookback date to be pretty far back as compared to the date
 # of the first feeds (2024-09-30) in case there are posts from early on that

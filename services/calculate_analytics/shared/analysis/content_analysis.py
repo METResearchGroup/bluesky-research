@@ -5,11 +5,15 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from lib.log.logger import get_logger
 from services.calculate_analytics.shared.processing.content_label_processing import (
     flatten_content_metrics_across_record_types,
     get_metrics_for_record_types,
     get_metrics_for_user_feeds_from_partition_date,
 )
+from services.calculate_analytics.shared.constants import TOTAL_STUDY_WEEKS_PER_USER
+
+logger = get_logger(__file__)
 
 
 def get_daily_feed_content_per_user_metrics(
@@ -457,47 +461,30 @@ def transform_weekly_content_per_user_metrics(
     Similar format + logic as `transform_daily_content_per_user_metrics`,
     but now we're iterating through weeks instead of days.
     """
-    records: list[dict] = []
 
     # define what weeks we have in the study.
     weeks = user_date_to_week_df["week"].unique().tolist()
     weeks = [week for week in weeks if not pd.isna(week) and week is not None]
     weeks = sorted(weeks, key=str)
-    print(f"Weeks in the study: {weeks}")
-    assert (
-        len(weeks) == 8
-    )  # logical check to make sure we didn't accidentally remove values.
 
-    # iterate through each user and their metrics.
-    for user in users_df.to_dict(orient="records"):
-        user_handle = user["bluesky_handle"]
-        user_condition = user["condition"]
-        user_did = user["bluesky_user_did"]
-        weekly_metrics_for_user: dict[str, dict[str, float | None]] = (
-            user_per_week_content_label_metrics[user_did]
-        )
+    if len(weeks) != TOTAL_STUDY_WEEKS_PER_USER:
+        logger.warning(f"Expected 8 weeks, found {len(weeks)}: {weeks}")
 
-        # iterate through each week and their metrics.
-        for week in weeks:
-            if week not in weekly_metrics_for_user:
-                weekly_metrics_for_user[week] = {}
-            week_metrics = weekly_metrics_for_user[week]
-            default_fields = {
-                "handle": user_handle,
-                "condition": user_condition,
-                "week": week,
-            }
-            hydrated_metrics = {**default_fields, **week_metrics}
-            records.append(hydrated_metrics)
+    user_info: dict[str, dict[str, str]] = users_df.set_index("bluesky_user_did")[
+        ["bluesky_handle", "condition"]
+    ].to_dict("index")
 
-    # take the flattened records, where one record is the record for each
-    # user + week combo, and convert to a pandas dataframe.
+    records: list[dict] = [
+        {
+            "handle": user_info[user_did]["bluesky_handle"],
+            "condition": user_info[user_did]["condition"],
+            "week": week,
+            **user_per_week_content_label_metrics[user_did].get(week, {}),
+        }
+        for user_did in user_info.keys()
+        for week in weeks
+    ]
+
     df = pd.DataFrame(records)
-
-    # impute any NaNs with None.
     df = df.fillna(None)
-
-    # sort records.
-    df = df.sort_values(by=["handle", "week"], inplace=False, ascending=[True, True])
-
-    return df
+    return df.sort_values(by=["handle", "week"], inplace=False, ascending=[True, True])
