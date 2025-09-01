@@ -1,23 +1,23 @@
 """
-Feed Correlation Analysis for User Feed Analysis Results
+Engagement Data Correlation Analysis for User Engagement Analysis Results
 
-This script analyzes correlations between various feed metrics from the user feed analysis results.
+This script analyzes correlations between various engagement metrics from the user engagement analysis results.
 It processes the latest daily and weekly CSV files from the results directory and calculates
-correlations between different feed metrics across study conditions.
+correlations between different engagement metrics across study conditions.
 
 The analysis includes:
-- Correlation analysis for average columns (feed_average_toxic, feed_average_constructive, etc.)
-- Correlation analysis for proportion columns (feed_proportion_toxic, feed_proportion_constructive, etc.)
+- Correlation analysis for average columns (engagement_average_toxic, engagement_average_constructive, etc.)
+- Correlation analysis for proportion columns (engagement_proportion_toxic, engagement_proportion_constructive, etc.)
 - Analysis across all study conditions
 - Automatic detection of the latest CSV files
 
 Metrics analyzed:
-- feed_average_toxic
-- feed_average_constructive
-- feed_average_intergroup
-- feed_average_moral
-- feed_average_moral_outrage
-- feed_average_is_sociopolitical
+- engagement_average_toxic
+- engagement_average_constructive
+- engagement_average_intergroup
+- engagement_average_moral
+- engagement_average_moral_outrage
+- engagement_average_is_sociopolitical
 """
 
 import os
@@ -36,26 +36,26 @@ logger = get_logger(__name__)
 
 # Define the metrics to analyze
 AVERAGE_METRICS = [
-    "feed_average_toxic",
-    "feed_average_constructive",
-    "feed_average_intergroup",
-    "feed_average_moral",
-    "feed_average_moral_outrage",
-    "feed_average_is_sociopolitical",
+    "engagement_average_toxic",
+    "engagement_average_constructive",
+    "engagement_average_intergroup",
+    "engagement_average_moral",
+    "engagement_average_moral_outrage",
+    "engagement_average_is_sociopolitical",
 ]
 
 PROPORTION_METRICS = [
-    "feed_proportion_toxic",
-    "feed_proportion_constructive",
-    "feed_proportion_intergroup",
-    "feed_proportion_moral",
-    "feed_proportion_moral_outrage",
-    "feed_proportion_is_sociopolitical",
+    "engagement_proportion_toxic",
+    "engagement_proportion_constructive",
+    "engagement_proportion_intergroup",
+    "engagement_proportion_moral",
+    "engagement_proportion_moral_outrage",
+    "engagement_proportion_is_sociopolitical",
 ]
 
 # Results directory path
-RESULTS_DIR = "/Users/mark/Documents/work/bluesky-research/services/calculate_analytics/analyses/user_feed_analysis_2025_04_08/results"
-BASE_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "results", "feed")
+RESULTS_DIR = "/Users/mark/Documents/work/bluesky-research/services/calculate_analytics/analyses/user_engagement_analysis_2025_06_16/results"
+BASE_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "results", "engagement")
 
 
 def create_timestamped_output_dir(timestamp: str) -> str:
@@ -71,7 +71,7 @@ def create_timestamped_output_dir(timestamp: str) -> str:
     # Clean timestamp for directory name (replace colons with dashes)
     clean_timestamp = timestamp.replace(":", "-")
     output_dir = os.path.join(
-        BASE_OUTPUT_DIR, f"feed_correlation_analysis_{clean_timestamp}"
+        BASE_OUTPUT_DIR, f"engagement_correlation_analysis_{clean_timestamp}"
     )
 
     os.makedirs(output_dir, exist_ok=True)
@@ -91,9 +91,9 @@ def find_latest_csv_files() -> Tuple[Optional[str], Optional[str]]:
         logger.error(f"Results directory not found: {RESULTS_DIR}")
         return None, None
 
-    # Hard-coded filenames for feed data
-    daily_filename = "daily_feed_content_aggregated_results_per_user.csv"
-    weekly_filename = "weekly_feed_content_aggregated_results_per_user.csv"
+    # Hard-coded filenames for engagement data
+    daily_filename = "daily_content_label_proportions_per_user.csv"
+    weekly_filename = "weekly_content_label_proportions_per_user.csv"
 
     daily_file = os.path.join(RESULTS_DIR, daily_filename)
     weekly_file = os.path.join(RESULTS_DIR, weekly_filename)
@@ -340,7 +340,7 @@ def generate_heatmaps(
             corr_df = pd.DataFrame(corr_dict)
 
             # Create title
-            title = f"{file_type.title()} Feed {metric_type.title()} Correlations"
+            title = f"{file_type.title()} Engagement {metric_type.title()} Correlations"
             if condition_name != "all_conditions":
                 condition_display = (
                     condition_name.replace("condition_", "").replace("_", " ").title()
@@ -439,9 +439,9 @@ def save_results(results: Dict, output_file: str):
 
 def main():
     """
-    Main execution function for feed correlation analysis.
+    Main execution function for engagement data correlation analysis.
     """
-    logger.info("Starting feed correlation analysis")
+    logger.info("Starting engagement data correlation analysis")
 
     # Find latest CSV files
     daily_file, weekly_file = find_latest_csv_files()
@@ -468,7 +468,7 @@ def main():
 
         # Save individual daily results
         daily_output = os.path.join(
-            output_dir, f"daily_feed_correlations_{timestamp}.json"
+            output_dir, f"daily_engagement_correlations_{timestamp}.json"
         )
         save_results(daily_results, daily_output)
 
@@ -479,18 +479,18 @@ def main():
 
         # Save individual weekly results
         weekly_output = os.path.join(
-            output_dir, f"weekly_feed_correlations_{timestamp}.json"
+            output_dir, f"weekly_engagement_correlations_{timestamp}.json"
         )
         save_results(weekly_results, weekly_output)
 
     # Save combined results
     combined_output = os.path.join(
-        output_dir, f"feed_correlation_analysis_{timestamp}.json"
+        output_dir, f"engagement_correlation_analysis_{timestamp}.json"
     )
     save_results(all_results, combined_output)
 
     # Print summary
-    logger.info("=== CORRELATION ANALYSIS SUMMARY ===")
+    logger.info("=== ENGAGEMENT CORRELATION ANALYSIS SUMMARY ===")
     for file_result in all_results["files_analyzed"]:
         if "error" in file_result:
             logger.error(f"{file_result['file_type']}: {file_result['error']}")
@@ -528,11 +528,11 @@ def main():
     logger.info(f"Combined JSON results: {combined_output}")
     if daily_file:
         logger.info(
-            f"Daily JSON: {os.path.join(output_dir, f'daily_feed_correlations_{timestamp}.json')}"
+            f"Daily JSON: {os.path.join(output_dir, f'daily_engagement_correlations_{timestamp}.json')}"
         )
     if weekly_file:
         logger.info(
-            f"Weekly JSON: {os.path.join(output_dir, f'weekly_feed_correlations_{timestamp}.json')}"
+            f"Weekly JSON: {os.path.join(output_dir, f'weekly_engagement_correlations_{timestamp}.json')}"
         )
 
     # Count PNG files generated
@@ -543,7 +543,7 @@ def main():
 
     logger.info(f"\nAll analysis assets saved in: {output_dir}")
 
-    logger.info("Feed correlation analysis complete")
+    logger.info("Engagement data correlation analysis complete")
 
 
 if __name__ == "__main__":
