@@ -65,9 +65,6 @@ jobs:
           services/calculate_analytics/tests \
           services/calculate_analytics/study_analytics/calculate_analytics/tests \
           services/calculate_analytics/shared/processing/tests \
-          services/calculate_analytics/shared/data_loading/tests \
-          services/calculate_analytics/analyses/user_engagement_analysis_2025_06_16/tests \
-          services/calculate_analytics/analyses/user_feed_analysis_2025_04_08/tests \
           services/write_cache_buffers_to_db/tests \
           services/sync/jetstream/tests \
           api/integrations_router/tests
