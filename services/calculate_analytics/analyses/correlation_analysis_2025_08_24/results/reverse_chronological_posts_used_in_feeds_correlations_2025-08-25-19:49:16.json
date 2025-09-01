@@ -1,7 +1,0 @@
-{
-  "pearson_correlation": -0.09266833940275256,
-  "spearman_correlation": -0.06491148281297944,
-  "sample_size": 1807722,
-  "toxicity_mean": 0.12240613334720274,
-  "constructiveness_mean": 0.1674351886166948
-}
