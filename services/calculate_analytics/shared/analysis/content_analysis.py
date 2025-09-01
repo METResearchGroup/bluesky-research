@@ -356,7 +356,7 @@ def get_weekly_content_per_user_metrics(
 # Shared across both engagement and feed content analysis.
 def transform_daily_content_per_user_metrics(
     user_per_day_content_label_metrics: dict[str, dict[str, dict[str, float | None]]],
-    users_df: pd.DataFrame,
+    users: pd.DataFrame,
     partition_dates: list[str],
 ) -> pd.DataFrame:
     """Transform the daily content per user metrics into the output format required.
@@ -394,7 +394,7 @@ def transform_daily_content_per_user_metrics(
         }
     }
 
-    users_df: pd.DataFrame of the users.
+    users: pd.DataFrame of the users.
     Contains the fields ["bluesky_handle", "bluesky_user_did", "condition"]
 
     Flattens the nested dictionary into a list of dictionaries of the following format:
@@ -438,7 +438,7 @@ def transform_daily_content_per_user_metrics(
 
     # Pre-compute user info for O(1) lookup.
     # Returns a lookup map of user DID to their handle and condition.
-    user_info: dict[str, dict[str, str]] = users_df.set_index("bluesky_user_did")[
+    user_info: dict[str, dict[str, str]] = users.set_index("bluesky_user_did")[
         ["bluesky_handle", "condition"]
     ].to_dict("index")
 
@@ -460,7 +460,7 @@ def transform_daily_content_per_user_metrics(
 # shared across both engagement and feed content analysis.
 def transform_weekly_content_per_user_metrics(
     user_per_week_content_label_metrics: dict[str, dict[str, dict[str, float | None]]],
-    users_df: pd.DataFrame,
+    users: pd.DataFrame,
     user_date_to_week_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """Transform the weekly engaged content per user metrics into the output format required.
@@ -477,7 +477,7 @@ def transform_weekly_content_per_user_metrics(
     if len(weeks) != TOTAL_STUDY_WEEKS_PER_USER:
         logger.warning(f"Expected 8 weeks, found {len(weeks)}: {weeks}")
 
-    user_info: dict[str, dict[str, str]] = users_df.set_index("bluesky_user_did")[
+    user_info: dict[str, dict[str, str]] = users.set_index("bluesky_user_did")[
         ["bluesky_handle", "condition"]
     ].to_dict("index")
 
