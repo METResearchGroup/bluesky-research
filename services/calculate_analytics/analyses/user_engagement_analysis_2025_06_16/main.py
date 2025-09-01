@@ -10,8 +10,8 @@ from lib.helper import generate_current_datetime_str, get_partition_dates
 from lib.log.logger import get_logger
 from services.calculate_analytics.shared.constants import (
     STUDY_START_DATE,
-    STUDY_END_DATE,
 )
+from datetime import datetime, timedelta
 from services.calculate_analytics.shared.data_loading.engagement import (
     get_content_engaged_with_per_user,
     get_engaged_content,
@@ -56,9 +56,18 @@ def do_setup():
     # load users and partition dates.
     try:
         user_df, user_date_to_week_df, valid_study_users_dids = load_user_data()
+
+        # FOR TESTING: Use limited date range (STUDY_START_DATE + 5 days)
+        test_end_date = (
+            datetime.strptime(STUDY_START_DATE, "%Y-%m-%d") + timedelta(days=5)
+        ).strftime("%Y-%m-%d")
+        logger.info(
+            f"[TEST MODE] Running analysis for limited date range: {STUDY_START_DATE} to {test_end_date}"
+        )
+
         partition_dates: list[str] = get_partition_dates(
             start_date=STUDY_START_DATE,
-            end_date=STUDY_END_DATE,
+            end_date=test_end_date,
         )
     except Exception as e:
         logger.error(f"Failed to load user data and/or partition dates: {e}")
