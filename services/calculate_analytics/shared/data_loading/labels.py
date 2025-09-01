@@ -11,11 +11,17 @@ import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
+from services.backfill.posts_used_in_feeds.load_data import (
+    calculate_start_end_date_for_lookback,
+    default_num_days_lookback,
+    default_min_lookback_date,
+)
 from services.calculate_analytics.shared.constants import integrations_list
 
 logger = get_logger(__file__)
 
 dataloader_batch_size: int = 10_000
+
 
 def get_perspective_api_labels(
     lookback_start_date: str,
@@ -77,13 +83,42 @@ def get_perspective_api_labels_for_posts(
 def get_labels_for_partition_date(
     integration: str, partition_date: str
 ) -> pd.DataFrame:
-    """Loads deduplicated labels for a given partition date."""
+    """Loads deduplicated labels for a given partition date with lookback.
+
+    Uses a 5-day lookback window to ensure we capture labels for posts that
+    were processed on different dates than their partition date. This addresses
+    temporal misalignment between post creation and ML inference processing.
+    """
+    # Calculate lookback window to capture labels from multiple dates
+    lookback_start_date, lookback_end_date = calculate_start_end_date_for_lookback(
+        partition_date=partition_date,
+        num_days_lookback=default_num_days_lookback,
+        min_lookback_date=default_min_lookback_date,
+    )
+
+    logger.info(
+        f"[Get labels for partition date] Loading {integration} labels with lookback: "
+        f"{lookback_start_date} to {lookback_end_date} for partition_date: {partition_date}"
+    )
+
     df = load_data_from_local_storage(
         service=f"ml_inference_{integration}",
         directory="cache",
-        partition_date=partition_date,
+        start_partition_date=lookback_start_date,
+        end_partition_date=lookback_end_date,
     )
+
+    logger.info(
+        f"[Get labels for partition date] Loaded {len(df)} {integration} labels "
+        f"across lookback period, {df['uri'].nunique()} unique URIs"
+    )
+
     df = df.drop_duplicates(subset=["uri"])
+
+    logger.info(
+        f"[Get labels for partition date] After deduplication: {len(df)} {integration} labels"
+    )
+
     return df
 
 
