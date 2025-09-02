@@ -191,7 +191,11 @@ def transform_labels_dict(integration: str, labels_dict: dict):
 # TODO: should this be at the day-level? This should work fine and we
 # can test on a smaller subset of data. I'd rather not have to do this
 # on chunks of dates as that complicates orchestration.
-def get_all_labels_for_posts(post_uris: set[str], partition_dates: list[str]) -> dict:
+def get_all_labels_for_posts(
+    post_uris: Optional[set[str]],
+    partition_dates: list[str],
+    load_all_labels: bool = False,
+) -> dict:
     """For the content engaged with, get their associated labels.
 
     Algorithm:
@@ -226,13 +230,21 @@ def get_all_labels_for_posts(post_uris: set[str], partition_dates: list[str]) ->
             ...
         }
     """
-    # Initialize the result structure for ALL URIs
-    uri_to_labels_map: dict[str, dict[str, float]] = {uri: {} for uri in post_uris}
-
-    # Track which integrations we've processed for each URI
-    uri_integration_status: dict[str, set[str]] = {
-        uri: set(integrations_list) for uri in post_uris
-    }
+    # Handle the case where we want to load all labels (baseline analysis)
+    if load_all_labels and post_uris is None:
+        # We'll collect all URIs as we process each integration and partition date
+        all_uris = set()
+        uri_to_labels_map: dict[str, dict[str, float]] = {}
+        uri_integration_status: dict[str, set[str]] = {}
+    else:
+        # Normal case: filter by specific URIs
+        if post_uris is None:
+            raise ValueError("post_uris cannot be None unless load_all_labels=True")
+        all_uris = post_uris
+        uri_to_labels_map: dict[str, dict[str, float]] = {uri: {} for uri in post_uris}
+        uri_integration_status: dict[str, set[str]] = {
+            uri: set(integrations_list) for uri in post_uris
+        }
 
     # iterate through each integration and add the labels for each URI.
     for integration in integrations_list:
@@ -243,10 +255,21 @@ def get_all_labels_for_posts(post_uris: set[str], partition_dates: list[str]) ->
                 integration=integration, partition_date=partition_date
             )
 
-            # filter to only the URIs that we care about.
-            relevant_labels_df: pd.DataFrame = labels_df[
-                labels_df["uri"].isin(post_uris)
-            ]
+            # filter to only the URIs that we care about (or use all if loading all labels)
+            if load_all_labels and post_uris is None:
+                relevant_labels_df = labels_df
+                # Add new URIs to our tracking sets
+                new_uris = set(labels_df["uri"].unique())
+                all_uris.update(new_uris)
+                for uri in new_uris:
+                    if uri not in uri_to_labels_map:
+                        uri_to_labels_map[uri] = {}
+                    if uri not in uri_integration_status:
+                        uri_integration_status[uri] = set(integrations_list)
+            else:
+                relevant_labels_df: pd.DataFrame = labels_df[
+                    labels_df["uri"].isin(all_uris)
+                ]
 
             del labels_df
 
@@ -296,7 +319,7 @@ def get_all_labels_for_posts(post_uris: set[str], partition_dates: list[str]) ->
             del relevant_labels_df
 
     # Completeness check and logging
-    _log_completeness_status(uri_integration_status, post_uris)
+    _log_completeness_status(uri_integration_status, all_uris)
 
     return uri_to_labels_map
 
@@ -358,10 +381,10 @@ def _extract_integration_fields(row, integration: str) -> dict:
 
 
 def _log_completeness_status(
-    uri_integration_status: dict[str, set[str]], post_uris: set[str]
+    uri_integration_status: dict[str, set[str]], all_uris: set[str]
 ) -> None:
     """Log the completeness status of label processing."""
-    total_uris = len(post_uris)
+    total_uris = len(all_uris)
     complete_uris = sum(
         1 for status in uri_integration_status.values() if len(status) == 0
     )

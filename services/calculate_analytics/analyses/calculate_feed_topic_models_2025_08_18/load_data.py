@@ -32,6 +32,63 @@ class DataLoader:
     def __init__(self, mode: str):
         self.mode = mode
 
+    def _canonicalize_text(self, text: str) -> str:
+        """Canonicalize text for stable hashing and deduplication."""
+        if text is None:
+            return ""
+        # Normalize whitespace and lowercase; avoid heavy transforms to preserve semantics
+        return " ".join(str(text).split()).lower()
+
+    def _compute_doc_id(self, text: str) -> str:
+        """Compute stable doc_id from text."""
+        canon = self._canonicalize_text(text)
+        return hashlib.sha256(canon.encode("utf-8")).hexdigest()
+
+    def _postprocess_documents(
+        self, raw_data: pd.DataFrame, has_uris: bool = False
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Postprocess raw document data into standardized format.
+
+        Args:
+            raw_data: DataFrame with at least 'text' column, optionally 'uri' and 'partition_date'
+            has_uris: Whether the data includes URI information for mapping
+
+        Returns:
+            tuple: (documents_df, uri_doc_map)
+                - documents_df: DataFrame with columns [doc_id, text] (deduplicated documents)
+                - uri_doc_map: DataFrame with columns [uri, partition_date, doc_id] (empty if has_uris=False)
+        """
+        # Create documents DataFrame with doc_id
+        documents_df = raw_data[["text"]].copy()
+        documents_df["doc_id"] = documents_df["text"].apply(self._compute_doc_id)
+        documents_df = documents_df.drop_duplicates(subset=["doc_id"])[
+            ["doc_id", "text"]
+        ]
+
+        # Create URI-document mapping if URIs are available
+        if (
+            has_uris
+            and "uri" in raw_data.columns
+            and "partition_date" in raw_data.columns
+        ):
+            uri_doc_rows = []
+            for row in raw_data.itertuples(index=False):
+                uri = row.uri
+                text = row.text
+                partition_date = row.partition_date
+                doc_id = self._compute_doc_id(text)
+                uri_doc_rows.append(
+                    {"uri": uri, "partition_date": partition_date, "doc_id": doc_id}
+                )
+            uri_doc_map = pd.DataFrame(
+                uri_doc_rows, columns=["uri", "partition_date", "doc_id"]
+            )
+        else:
+            # No URIs in local mode; return empty mapping with expected columns
+            uri_doc_map = pd.DataFrame(columns=["uri", "partition_date", "doc_id"])
+
+        return documents_df, uri_doc_map
+
     def _load_local_data(self) -> pd.DataFrame:
         """Local data loader. Just loads preprocessed posts."""
         table_columns = ["text", "partition_date"]
@@ -123,18 +180,6 @@ class DataLoader:
             f"{sort_filter}"
         ).strip()
 
-        # Helpers for stable text hashing and canonicalization
-        def _canonicalize_text(text: str) -> str:
-            """Canonicalize text for stable hashing and deduplication."""
-            if text is None:
-                return ""
-            # Normalize whitespace and lowercase; avoid heavy transforms to preserve semantics
-            return " ".join(str(text).split()).lower()
-
-        def _compute_doc_id(text: str) -> str:
-            canon = _canonicalize_text(text)
-            return hashlib.sha256(canon.encode("utf-8")).hexdigest()
-
         # Collect unique documents and the uri->doc mapping
         # documents_map: doc_id -> text (first observed canonical representative)
         documents_map: dict[str, str] = {}
@@ -169,9 +214,8 @@ class DataLoader:
             all_post_uris = set()
             for condition, post_uris in condition_to_post_uris.items():
                 all_post_uris.update(post_uris)
-            all_post_uris_df = pd.DataFrame(list(all_post_uris), columns=["uri"])
             all_post_texts_df: pd.DataFrame = load_preprocessed_posts_by_uris(
-                uris=all_post_uris_df,
+                uris=all_post_uris,
                 partition_date=partition_date,
                 duckdb_query=query,
                 query_metadata={
@@ -184,7 +228,7 @@ class DataLoader:
             for row in all_post_texts_df.itertuples(index=False):
                 uri = row.uri
                 text = row.text
-                doc_id = _compute_doc_id(text)
+                doc_id = self._compute_doc_id(text)
                 # Preserve first seen raw text for the doc_id
                 if doc_id not in documents_map:
                     documents_map[doc_id] = text
@@ -217,26 +261,15 @@ class DataLoader:
 
     def load_data(self):
         if self.mode == "local":
-            # Keep local path backward-compatible but align to new return signature
+            # Load raw data from local source
             base_df = self._load_local_data()
 
-            def _canonicalize_text(text: str) -> str:
-                if text is None:
-                    return ""
-                return " ".join(str(text).split()).lower()
+            # Use abstracted postprocessing for local data (no URIs)
+            documents_df, uri_doc_map = self._postprocess_documents(
+                base_df, has_uris=False
+            )
 
-            def _compute_doc_id(text: str) -> str:
-                canon = _canonicalize_text(text)
-                return hashlib.sha256(canon.encode("utf-8")).hexdigest()
-
-            documents_df = base_df[["text"]].copy()
-            documents_df["doc_id"] = documents_df["text"].apply(_compute_doc_id)
-            documents_df = documents_df.drop_duplicates(subset=["doc_id"])[
-                ["doc_id", "text"]
-            ]
-
-            # No URIs in local mode; return empty mapping with expected columns
-            uri_doc_map = pd.DataFrame(columns=["uri", "partition_date", "doc_id"])
+            # No date_condition_uris_map for local mode
             return dict(), documents_df, uri_doc_map
         elif self.mode == "prod":
             return self._load_prod_data()
