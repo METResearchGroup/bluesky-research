@@ -82,6 +82,9 @@ class BERTopicWrapper:
         self.quality_metrics = {}
         self.training_time = 0.0
         self._training_results = {}
+        self.processed_documents_df = (
+            None  # Store processed documents for topic assignment
+        )
 
         # Initialize embedding model
         self._initialize_embedding_model()
@@ -714,6 +717,9 @@ class BERTopicWrapper:
 
             stage_times["preprocessing"] = time.time() - stage_start
 
+            # Store processed documents for topic assignment
+            self.processed_documents_df = df_cleaned.copy()
+
             # Extract texts
             texts = df_cleaned[text_column].tolist()
             logger.info(f"Starting BERTopic training on {len(texts)} documents")
@@ -1089,6 +1095,15 @@ class BERTopicWrapper:
                 summary += f"   c_npmi coherence: {metrics['c_npmi_mean']:.3f}\n"
 
         return summary
+
+    def get_processed_documents_df(self) -> Optional[pd.DataFrame]:
+        """
+        Get the processed documents DataFrame that was used for training.
+
+        Returns:
+            DataFrame with processed documents, or None if not trained yet
+        """
+        return self.processed_documents_df
 
     def get_document_topics(self, documents: Optional[List[str]] = None) -> List[int]:
         """

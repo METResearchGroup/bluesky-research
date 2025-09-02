@@ -97,18 +97,23 @@ def compute_doc_topic_assignments(
         )
 
     # Get topic assignments from BERTopic
-    # The documents were trained in the same order as documents_df
     topics = bertopic.get_document_topics()
 
-    if len(topics) != len(documents_df):
+    # Get the processed documents that were actually used for training
+    processed_documents_df = bertopic.get_processed_documents_df()
+    if processed_documents_df is None:
+        raise ValueError("BERTopic model has not been trained yet")
+
+    # Use processed documents for topic assignment (these match the topic assignments)
+    if len(topics) != len(processed_documents_df):
         raise ValueError(
-            f"Topic assignments length ({len(topics)}) doesn't match documents_df length ({len(documents_df)})"
+            f"Topic assignments length ({len(topics)}) doesn't match processed documents length ({len(processed_documents_df)})"
         )
 
-    # Create doc_id -> topic_id mapping
+    # Create doc_id -> topic_id mapping using processed documents
     doc_topic_assignments = []
     for i, (doc_id, _) in enumerate(
-        documents_df[["doc_id", "text"]].itertuples(index=False)
+        processed_documents_df[["doc_id", "text"]].itertuples(index=False)
     ):
         topic_id = topics[i]
         doc_topic_assignments.append({"doc_id": doc_id, "topic_id": topic_id})

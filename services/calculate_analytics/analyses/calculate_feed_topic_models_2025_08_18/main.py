@@ -303,8 +303,7 @@ def do_analysis_and_export_results(
     logger.info("💾 Saving trained model...")
     try:
         # Save model to the same timestamped directory with consistent naming
-        model_path = os.path.join(output_dir, f"feed_topic_model_{timestamp}")
-        bertopic.save_model(model_path)
+        model_path = bertopic.save_model_with_timestamp(output_dir, "feed_topic_model")
         logger.info(f"✅ Model saved to: {model_path}")
     except Exception as e:
         logger.warning(f"Failed to save model (continuing anyway): {e}")
