@@ -29,6 +29,12 @@ from services.calculate_analytics.shared.constants import (
 from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.load_data import (
     DataLoader,
 )
+from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.topic_analysis_helpers import (
+    compute_doc_topic_assignments,
+    aggregate_topic_distributions_by_slice,
+    export_stratified_analysis_results,
+    get_topic_evolution_analysis,
+)
 
 output_dir = os.path.join(os.path.dirname(__file__), "results")
 logger = get_logger(__name__)
@@ -70,14 +76,14 @@ def run_bertopic_analysis(
                 },
                 "bertopic": {
                     "top_n_words": 15,
-                    "min_topic_size": 50,  # Much larger for stability
-                    "nr_topics": "auto",
+                    "min_topic_size": 200,  # Much larger for stability - increased from 50
+                    "nr_topics": 50,  # Fixed number instead of "auto" for more manageable analysis
                     "calculate_probabilities": False,  # Disable for memory
                     "verbose": True,
                     # Conservative HDBSCAN for large datasets
                     "hdbscan_model": {
-                        "min_cluster_size": 100,  # Much larger for stability
-                        "min_samples": 50,  # Much larger for stability
+                        "min_cluster_size": 200,  # Much larger for stability - increased from 100
+                        "min_samples": 100,  # Much larger for stability - increased from 50
                         "cluster_selection_method": "leaf",  # More stable for large datasets
                         "prediction_data": True,
                         "gen_min_span_tree": False,  # Disable for memory
@@ -104,23 +110,23 @@ def run_bertopic_analysis(
                 },
                 "bertopic": {
                     "top_n_words": 20,
-                    "min_topic_size": 15,
-                    "nr_topics": "auto",
+                    "min_topic_size": 100,  # Increased from 15 for more stable topics
+                    "nr_topics": 50,  # Fixed number instead of "auto" for manageable analysis
                     "calculate_probabilities": True,
                     "verbose": True,
-                    # Fix HDBSCAN configuration for large datasets
+                    # Conservative HDBSCAN configuration for better stability
                     "hdbscan_model": {
-                        "min_cluster_size": 20,  # Increased from default
-                        "min_samples": 10,  # Increased from default
-                        "cluster_selection_method": "eom",  # More robust for large datasets
+                        "min_cluster_size": 100,  # Increased from 20 for more stable clusters
+                        "min_samples": 50,  # Increased from 10 for more stable clusters
+                        "cluster_selection_method": "leaf",  # More stable than "eom"
                         "prediction_data": True,  # Explicitly enable prediction data
                         "gen_min_span_tree": True,  # Better for large datasets
                     },
-                    # Adjust UMAP for large datasets
+                    # Conservative UMAP for better stability
                     "umap_model": {
-                        "n_neighbors": 15,  # Reduced from default for large datasets
-                        "n_components": 5,  # Reduced dimensions for stability
-                        "min_dist": 0.0,
+                        "n_neighbors": 10,  # Reduced from 15 for more stability
+                        "n_components": 3,  # Reduced from 5 for more stability
+                        "min_dist": 0.1,  # Increased from 0.0 for more stability
                         "metric": "cosine",
                         "random_state": 42,
                     },
@@ -153,29 +159,43 @@ def run_bertopic_analysis(
         logger.info(f"📝 Text column nulls: {df['text'].isnull().sum()}")
         logger.info(f"📝 Empty text count: {(df['text'] == '').sum()}")
 
-        # Check if it's a memory issue
-        import psutil
+        # Check if it's a memory issue (optional dependency)
+        try:
+            import psutil  # type: ignore
 
-        memory_info = psutil.virtual_memory()
-        logger.info(
-            f"💾 Memory usage: {memory_info.percent}% used, {memory_info.available / (1024**3):.1f} GB available"
-        )
+            memory_info = psutil.virtual_memory()
+            logger.info(
+                f"💾 Memory usage: {memory_info.percent}% used, {memory_info.available / (1024**3):.1f} GB available"
+            )
+        except Exception:
+            logger.info("🔎 psutil not available; skipping memory diagnostics")
 
         raise RuntimeError(f"BERTopic training failed: {e}")
 
     return bertopic
 
 
-def export_results(bertopic: BERTopicWrapper):
+def export_results(
+    bertopic: BERTopicWrapper,
+    documents_df: pd.DataFrame = None,
+    date_condition_uris_map: dict = None,
+    uri_doc_map: pd.DataFrame = None,
+    run_stratified_analysis: bool = True,
+):
     """
     Export results to files.
 
     - Topics: CSV format (tabular data)
     - Quality metrics: JSON format (structured data, easier to read)
     - Summary: JSON format (structured data, easier to read)
+    - Stratified Analysis: CSV format (MET-46 slice-level topic distributions)
 
     Args:
         bertopic: Trained BERTopicWrapper instance
+        documents_df: Optional documents DataFrame for stratified analysis
+        date_condition_uris_map: Optional mapping for stratified analysis
+        uri_doc_map: Optional URI mapping for stratified analysis
+        run_stratified_analysis: Whether to compute and export stratified analysis
     """
     logger.info("📁 Exporting results...")
 
@@ -220,6 +240,66 @@ def export_results(bertopic: BERTopicWrapper):
     logger.info(f"   📋 Topics: {os.path.basename(topic_file)} (CSV)")
     logger.info(f"   📈 Quality: {os.path.basename(metrics_file)} (JSON)")
     logger.info(f"   📋 Summary: {os.path.basename(summary_file)} (JSON)")
+
+    # MET-46 Stratified Analysis
+    if (
+        run_stratified_analysis
+        and documents_df is not None
+        and date_condition_uris_map is not None
+        and uri_doc_map is not None
+        and len(date_condition_uris_map) > 0
+    ):
+        logger.info("🎯 Running MET-46 stratified topic analysis...")
+
+        try:
+            # Compute doc_id -> topic_id assignments
+            doc_topic_assignments = compute_doc_topic_assignments(
+                bertopic, documents_df
+            )
+
+            # Aggregate topic distributions by slice
+            topic_distributions = aggregate_topic_distributions_by_slice(
+                date_condition_uris_map=date_condition_uris_map,
+                uri_doc_map=uri_doc_map,
+                doc_topic_assignments=doc_topic_assignments,
+                include_temporal_slices=True,
+            )
+
+            # Export stratified results
+            export_stratified_analysis_results(
+                topic_distributions=topic_distributions,
+                output_dir=str(output_path),
+                timestamp=timestamp,
+            )
+
+            # Topic evolution analysis
+            topic_evolution = get_topic_evolution_analysis(
+                topic_distributions=topic_distributions, topic_info=topic_info
+            )
+
+            if not topic_evolution.empty:
+                evolution_file = os.path.join(
+                    output_path, f"topic_evolution_{timestamp}.csv"
+                )
+                topic_evolution.to_csv(evolution_file, index=False)
+                logger.info(
+                    f"   📈 Evolution: {os.path.basename(evolution_file)} (CSV)"
+                )
+
+            logger.info(
+                f"✅ MET-46 stratified analysis completed: {len(topic_distributions)} slices"
+            )
+
+        except Exception as e:
+            logger.error(f"❌ Stratified analysis failed: {e}")
+            logger.error("📝 Continuing with basic results export...")
+
+    elif run_stratified_analysis:
+        logger.info(
+            "ℹ️ Skipping stratified analysis (missing required data or local mode)"
+        )
+    else:
+        logger.info("ℹ️ Stratified analysis disabled")
 
 
 def display_results(bertopic: BERTopicWrapper):
@@ -291,36 +371,60 @@ def main():
     dataloader = DataLoader(mode)
     logger.info("📊 DataLoader initialized successfully")
 
-    df: pd.DataFrame = dataloader.load_data()
-    logger.info(f"✅ Data loaded successfully: {len(df)} documents")
+    # New return signature: (date_condition_uris_map, documents_df, uri_doc_map)
+    load_result = dataloader.load_data()
+    if isinstance(load_result, tuple) and len(load_result) == 3:
+        date_condition_uris_map, documents_df, uri_doc_map = load_result
+    else:
+        # Backward compatibility fallback (should not occur with current DataLoader)
+        date_condition_uris_map, documents_df = load_result
+        uri_doc_map = None
+
+    if date_condition_uris_map is not None and len(date_condition_uris_map) > 0:
+        print("Successfully loaded date_condition_uris_map for prod run.")
+
+    logger.info(
+        f"✅ Data loaded successfully: {len(documents_df)} unique documents for training"
+    )
 
     # Apply sample size limit if specified
-    if args.sample_size and len(df) > args.sample_size:
+    if args.sample_size and len(documents_df) > args.sample_size:
         logger.warning(
-            f"📊 Sampling dataset from {len(df)} to {args.sample_size} documents for testing"
+            f"📊 Sampling dataset from {len(documents_df)} to {args.sample_size} documents for testing"
         )
-        df = df.sample(n=args.sample_size, random_state=42).reset_index(drop=True)
-        logger.info(f"✅ Dataset sampled to {len(df)} documents")
+        documents_df = documents_df.sample(
+            n=args.sample_size, random_state=42
+        ).reset_index(drop=True)
+        logger.info(f"✅ Dataset sampled to {len(documents_df)} documents")
 
     # 2. Run BERTopic (using existing wrapper)
     logger.info("🤖 Step 2: Running BERTopic analysis...")
 
     # Auto-detect if we need fallback config for large datasets
-    use_fallback = args.force_fallback or len(df) > 100000
+    use_fallback = args.force_fallback or len(documents_df) > 100000
     if use_fallback:
         if args.force_fallback:
             logger.warning("⚠️ Using fallback configuration (forced via command line)")
         else:
             logger.warning(
-                f"📊 Large dataset detected ({len(df)} documents), will use conservative configuration"
+                f"📊 Large dataset detected ({len(documents_df)} documents), will use conservative configuration"
             )
 
-    bertopic = run_bertopic_analysis(df, use_fallback_config=use_fallback)
+    # Train on deduplicated documents_df (columns: [doc_id, text])
+    bertopic = run_bertopic_analysis(
+        documents_df[["text"]].copy(), use_fallback_config=use_fallback
+    )
     logger.info("✅ BERTopic analysis completed successfully")
 
-    # 3. Export results (simple CSV export)
+    # 3. Export results (simple CSV export + MET-46 stratified analysis)
     logger.info("📁 Step 3: Exporting results...")
-    export_results(bertopic)
+    export_results(
+        bertopic=bertopic,
+        documents_df=documents_df,
+        date_condition_uris_map=date_condition_uris_map,
+        uri_doc_map=uri_doc_map,
+        run_stratified_analysis=True,
+    )
     logger.info("✅ Results exported successfully")
 
     # 4. Display results (simple console output)

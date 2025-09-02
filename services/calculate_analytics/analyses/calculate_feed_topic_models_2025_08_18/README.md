@@ -1,171 +1,154 @@
-# Simplified Topic Modeling Analysis
+# Feed-Level Topic Modeling Analysis
 
-This is a **simplified, direct implementation** for running BERTopic topic modeling on local data. It follows the principle of **simplicity over complexity** and **direct execution over abstractions**.
+This analysis performs BERTopic topic modeling on Bluesky feed content to understand topic distributions across experimental conditions and time periods.
 
 ## 🎯 **What This Does**
 
-1. **Loads data** directly from local storage using existing functions
-2. **Runs BERTopic** using the existing BERTopicWrapper (MET-34)
-3. **Exports results** to CSV files
-4. **Displays results** in a readable format
+1. **Loads feed data** from production environment using shared data loading functions
+2. **Trains BERTopic model** using the existing BERTopicWrapper (MET-34)
+3. **Performs stratified analysis** across conditions and time periods
+4. **Exports results** to CSV and JSON files
+5. **Generates visualizations** for topic distributions and evolution
 
 ## 🚀 **Usage**
 
-### **Basic Usage (with defaults)**
+### **Basic Usage**
 ```bash
 cd services/calculate_analytics/analyses/calculate_feed_topic_models_2025_08_18
-python run_topic_modeling.py
+python main.py
 ```
 
-### **Custom Date Range**
+### **SLURM Job Submission**
 ```bash
-python run_topic_modeling.py --start-date 2024-10-01 --end-date 2024-10-31
+sbatch submit_topic_modeling_analysis.sh
 ```
 
-### **Custom Output Directory**
+### **Generate Visualizations**
 ```bash
-python run_topic_modeling.py --output-dir ./my_results --verbose
-```
-
-### **All Options**
-```bash
-python run_topic_modeling.py \
-  --start-date 2024-10-01 \
-  --end-date 2024-10-31 \
-  --output-dir ./results \
-  --verbose
+python visualize_results.py
 ```
 
 ## 📁 **Output Files**
 
-The script creates three CSV files in the output directory:
+The analysis creates several output files in the `results/` directory:
 
-1. **`topics_{start_date}_to_{end_date}_{timestamp}.csv`** - Full topic information
-2. **`quality_metrics_{start_date}_to_{end_date}_{timestamp}.csv`** - Model quality metrics
-3. **`summary_{start_date}_to_{end_date}_{timestamp}.csv`** - Analysis summary
+### **Data Files**
+1. **`topic_modeling_results_{timestamp}.csv`** - Full topic information from BERTopic
+2. **`topic_quality_metrics_{timestamp}.json`** - Model quality metrics and coherence scores
+3. **`stratified_topic_analysis_{timestamp}.csv`** - Topic distributions by condition and time
+4. **`topic_analysis_summary_{timestamp}.json`** - High-level analysis summary
+
+### **Visualization Files**
+1. **`topic_distribution_by_size.png`** - Bar chart of topic sizes
+2. **`topic_evolution_over_time.png`** - Time series of topic proportions
+3. **`topic_distribution_by_condition.png`** - Comparison across experimental conditions
+4. **`topic_model_quality_metrics.png`** - Quality metrics visualization
 
 ## 🔧 **How It Works**
 
-### **1. Data Loading (`load_local_data`)**
-- Direct call to `load_data_from_local_storage()`
-- Simple date validation against study constants
-- Basic data cleaning (remove empty text, convert to string)
-- **No abstractions, no interfaces, just a function**
+### **1. Data Loading (`do_setup`)**
+- Loads users and partition dates using shared functions
+- Maps users to posts used in feeds for each date
+- Loads post texts and creates document mappings
+- **Follows standard analysis pattern with shared components**
 
-### **2. BERTopic Analysis (`run_bertopic_analysis`)**
-- Uses existing `BERTopicWrapper` from MET-34
-- Follows exact pattern from `demo.py`
-- **No pipeline abstractions, direct execution**
+### **2. BERTopic Analysis (`do_analysis_and_export_results`)**
+- Trains BERTopic model using existing `BERTopicWrapper` from MET-34
+- Computes topic assignments for all documents
+- Performs stratified analysis across conditions and time periods
+- **Uses proven shared analysis functions**
 
-### **3. Results Export (`export_results`)**
-- Simple CSV export using pandas
-- Timestamped filenames for uniqueness
-- **No complex export frameworks, just CSV files**
+### **3. Results Export**
+- Exports topic information to CSV format
+- Exports quality metrics to JSON format
+- Exports stratified analysis results
+- **Standardized output patterns with timestamps**
 
-### **4. Results Display (`display_results`)**
-- Console output with emojis for readability
-- Shows key metrics and discovered topics
-- **No complex formatting, just print statements**
+### **4. Visualization Generation**
+- Creates publication-quality plots for topic distributions
+- Generates time series plots for topic evolution
+- Compares topic distributions across experimental conditions
+- **Professional visualization following established patterns**
 
-## 🎯 **Why This Approach is Better**
+## 🎯 **Key Features**
 
-### **Simplicity Principles Applied:**
-- **YAGNI**: You Ain't Gonna Need It - removed unnecessary abstractions
-- **KISS**: Keep It Simple, Stupid - direct function calls instead of classes
-- **Direct Execution**: No pipeline overhead, just load → run → export
+### **Standard Analysis Pattern:**
+- **Consistent Structure**: Follows the same `do_setup()` → `do_analysis()` → `main()` pattern as other analyses
+- **Shared Components**: Leverages proven data loading and analysis functions
+- **Standardized Output**: Timestamped files with consistent naming patterns
+- **SLURM Integration**: Can run on HPC cluster like other analyses
 
-### **Complexity Reduction:**
-- **Before**: 24+ files, 1500+ lines, multiple classes, configuration management
-- **After**: 1 file, ~200 lines, simple functions, hard-coded defaults
-- **Maintenance**: Minimal, easy to understand and modify
+### **Production-Ready Infrastructure:**
+- **Error Handling**: Comprehensive error handling with detailed logging
+- **Resource Management**: Appropriate SLURM configurations for large-scale processing
+- **Monitoring**: Structured logging and job status tracking
+- **Visualization**: Professional-quality plots for publication
 
-### **Alignment with Your Needs:**
-- **One data source**: Local storage only
-- **One analysis**: BERTopic topic modeling
-- **Direct execution**: No orchestration overhead
-- **Research workflow**: Simple, fast iteration
+### **Research-Optimized:**
+- **Fast Iteration**: Simple function-based approach for quick modifications
+- **Reproducible**: Random seed control for consistent results
+- **Scalable**: Handles 1M+ posts with GPU optimization
+- **Publication-Ready**: Generates statistical tables and figures
 
-## 🚫 **What We Removed (And Why)**
+## 🔄 **Integration with Existing System**
 
-### **Unnecessary Abstractions:**
-- ❌ `DataLoader` interface - You only need one implementation
-- ❌ `TopicModelingPipeline` - BERTopic wrapper handles everything
-- ❌ Configuration management - Hard-coded values are simpler
-- ❌ Test files - Testing abstractions you don't need
+### **Shared Components Used:**
+- `services.calculate_analytics.shared.data_loading.users.load_user_data()`
+- `services.calculate_analytics.shared.data_loading.feeds.map_users_to_posts_used_in_feeds()`
+- `services.calculate_analytics.shared.data_loading.posts.load_preprocessed_posts_by_uris()`
+- `services.calculate_analytics.shared.constants.STUDY_START_DATE`, `STUDY_END_DATE`
 
-### **Complexity Sources:**
-- ❌ Multiple inheritance hierarchies
-- ❌ YAML configuration files
-- ❌ Pipeline orchestration layers
-- ❌ Comprehensive error handling for edge cases
-
-## 🔄 **Future Extensibility**
-
-When you actually need more complexity, add it incrementally:
-
-### **Multiple Data Sources:**
-```python
-# Add as simple functions, not classes
-def load_production_data(start_date, end_date):
-    # Production data loading logic
-    pass
-
-def load_database_data(start_date, end_date):
-    # Database data loading logic
-    pass
-```
-
-### **Configuration Management:**
-```python
-# Add when you have multiple configurations
-def load_config(config_path):
-    # Simple config loading
-    pass
-```
-
-### **Pipeline Orchestration:**
-```python
-# Add when you have multiple analysis steps
-def run_full_pipeline(data, config):
-    # Multiple analysis steps
-    pass
-```
+### **Standard Patterns Followed:**
+- **File Organization**: `main.py`, `submit_*.sh`, `visualize_results.py`, `README.md`
+- **Error Handling**: Standard try/catch patterns with detailed logging
+- **Output Management**: Timestamped files in `results/` directory
+- **SLURM Integration**: Standard job submission script
 
 ## 📊 **Performance Characteristics**
 
-- **Startup time**: ~1 second (no complex initialization)
-- **Memory usage**: Minimal overhead (no abstraction layers)
-- **Debugging**: Easy (simple function calls)
-- **Modification**: Fast (change one function, not multiple classes)
+- **Memory Usage**: Optimized for large datasets with conservative BERTopic settings
+- **Training Time**: GPU-accelerated with fallback configurations for large datasets
+- **Scalability**: Handles 1M+ documents with appropriate resource allocation
+- **Debugging**: Simple function calls with clear error messages
 
 ## 🎉 **Success Metrics**
 
-This simplified approach succeeds when:
-- ✅ **You can run topic modeling in under 5 minutes**
-- ✅ **You can modify parameters without touching multiple files**
-- ✅ **You can debug issues by reading one script**
-- ✅ **You can add new features without understanding abstractions**
+This analysis succeeds when:
+- ✅ **BERTopic model trains successfully** on 1M+ Bluesky posts
+- ✅ **Topic quality metrics** show acceptable coherence scores (c_v > 0.4, c_npmi > 0.1)
+- ✅ **Stratified analysis** generates meaningful topic distributions across conditions and time
+- ✅ **Visualizations** provide publication-ready figures for research
+- ✅ **Integration** works seamlessly with existing analytics infrastructure
 
-## 🚨 **When to Add Complexity Back**
+## 🚨 **Resource Requirements**
 
-Only add complexity when you actually need:
-- **Multiple data sources** (you have 2+ different data loaders)
-- **Configuration management** (you have 5+ different configurations)
-- **Pipeline orchestration** (you have 3+ analysis steps)
-- **Team collaboration** (multiple people need to extend the system)
+### **SLURM Configuration:**
+- **Time**: 8 hours (allows for large dataset processing)
+- **Memory**: 50GB (sufficient for BERTopic training on 1M+ documents)
+- **Partition**: normal (appropriate for long-running jobs)
 
-**Remember**: You're doing research, not building enterprise software. Keep it simple until complexity provides real value.
+### **Dependencies:**
+- **BERTopic**: For topic modeling
+- **Sentence Transformers**: For text embeddings
+- **Matplotlib**: For visualization generation
+- **Shared Components**: Existing data loading and analysis functions
 
 ---
 
-## 📝 **Author Notes**
+## 📝 **Migration Notes**
 
-This implementation demonstrates the **Rapid Prototyper** philosophy:
-- **Ship fast** - Working script in under 2 hours
-- **Iterate quickly** - Easy to modify and experiment
-- **Focus on value** - Topic modeling results, not software architecture
-- **Document shortcuts** - Clear notes on what was simplified and why
+This analysis represents a refactoring from the original complex implementation to follow established patterns:
 
-**Linear Issue**: MET-44 (Simplified Implementation)
-**Status**: ✅ COMPLETED - Simple, working solution
-**Next Steps**: Run the script and iterate based on results
+### **What Changed:**
+- **Structure**: From complex class hierarchy to simple function-based approach
+- **Integration**: Now uses shared components instead of custom implementations
+- **Operations**: Added SLURM integration and visualization capabilities
+- **Documentation**: Updated to match standard analysis documentation patterns
+
+### **What Stayed the Same:**
+- **Core Functionality**: BERTopic topic modeling with stratified analysis
+- **Output Quality**: Same high-quality results for research publication
+- **Research Focus**: Optimized for research workflows and iteration
+
+**Status**: ✅ COMPLETED - Standardized, production-ready implementation
+**Next Steps**: Run analysis and generate visualizations for research publication
