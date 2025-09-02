@@ -191,8 +191,19 @@ def transform_labels_dict(integration: str, labels_dict: dict):
 # TODO: should this be at the day-level? This should work fine and we
 # can test on a smaller subset of data. I'd rather not have to do this
 # on chunks of dates as that complicates orchestration.
-def get_all_labels_for_posts(post_uris: set[str], partition_dates: list[str]) -> dict:
+def get_all_labels_for_posts(
+    post_uris: set[str] | None,
+    partition_dates: list[str],
+    load_all_labels: bool = False,
+) -> dict:
     """For the content engaged with, get their associated labels.
+
+    Args:
+        post_uris: Set of post URIs to filter labels for. If None and load_all_labels=True,
+                   loads all labels without filtering.
+        partition_dates: List of partition dates to process.
+        load_all_labels: If True and post_uris is None, loads all labels without filtering.
+                        Requires both conditions to be met for safety.
 
     Algorithm:
         - Create a hash map:
@@ -208,7 +219,7 @@ def get_all_labels_for_posts(post_uris: set[str], partition_dates: list[str]) ->
             - For each partition date range
                 - Load in the labels.
                 - Filter for the subset of labels that are in the
-                'engaged_content' keys.
+                'engaged_content' keys (unless loading all labels).
                 - Update the hash map with the labels from that integration.
 
     Result should look something like this:
@@ -226,13 +237,25 @@ def get_all_labels_for_posts(post_uris: set[str], partition_dates: list[str]) ->
             ...
         }
     """
-    # Initialize the result structure for ALL URIs
-    uri_to_labels_map: dict[str, dict[str, float]] = {uri: {} for uri in post_uris}
+    # Validate parameters for loading all labels
+    if load_all_labels and post_uris is not None:
+        raise ValueError("Cannot specify both post_uris and load_all_labels=True")
+    if load_all_labels and post_uris is None:
+        logger.warning(
+            "Loading ALL labels across all posts - this may be memory intensive!"
+        )
 
-    # Track which integrations we've processed for each URI
-    uri_integration_status: dict[str, set[str]] = {
-        uri: set(integrations_list) for uri in post_uris
-    }
+    # Initialize the result structure
+    if load_all_labels and post_uris is None:
+        # We'll build this dynamically as we encounter URIs
+        uri_to_labels_map: dict[str, dict[str, float]] = {}
+        uri_integration_status: dict[str, set[str]] = {}
+    else:
+        # Initialize the result structure for specific URIs
+        uri_to_labels_map: dict[str, dict[str, float]] = {uri: {} for uri in post_uris}
+        uri_integration_status: dict[str, set[str]] = {
+            uri: set(integrations_list) for uri in post_uris
+        }
 
     # iterate through each integration and add the labels for each URI.
     for integration in integrations_list:
@@ -243,10 +266,13 @@ def get_all_labels_for_posts(post_uris: set[str], partition_dates: list[str]) ->
                 integration=integration, partition_date=partition_date
             )
 
-            # filter to only the URIs that we care about.
-            relevant_labels_df: pd.DataFrame = labels_df[
-                labels_df["uri"].isin(post_uris)
-            ]
+            # filter to only the URIs that we care about (unless loading all labels)
+            if load_all_labels and post_uris is None:
+                relevant_labels_df: pd.DataFrame = labels_df
+            else:
+                relevant_labels_df: pd.DataFrame = labels_df[
+                    labels_df["uri"].isin(post_uris)
+                ]
 
             del labels_df
 
@@ -272,6 +298,14 @@ def get_all_labels_for_posts(post_uris: set[str], partition_dates: list[str]) ->
                         # Use attribute access for itertuples (row.uri, not row["uri"])
                         post_uri: str = row.uri
 
+                        # For loading all labels, initialize URI if not seen before
+                        if load_all_labels and post_uris is None:
+                            if post_uri not in uri_to_labels_map:
+                                uri_to_labels_map[post_uri] = {}
+                                uri_integration_status[post_uri] = set(
+                                    integrations_list
+                                )
+
                         # Extract only the fields relevant to this specific integration
                         labels_dict = _extract_integration_fields(row, integration)
 
@@ -296,7 +330,10 @@ def get_all_labels_for_posts(post_uris: set[str], partition_dates: list[str]) ->
             del relevant_labels_df
 
     # Completeness check and logging
-    _log_completeness_status(uri_integration_status, post_uris)
+    if load_all_labels and post_uris is None:
+        _log_completeness_status(uri_integration_status, set(uri_to_labels_map.keys()))
+    else:
+        _log_completeness_status(uri_integration_status, post_uris)
 
     return uri_to_labels_map
 
