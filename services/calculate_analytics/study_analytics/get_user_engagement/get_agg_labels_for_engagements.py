@@ -530,6 +530,7 @@ def get_per_user_per_day_content_label_proportions(
     """
     per_user_per_day_content_label_proportions = {}
 
+    # NOTE: also consider how to either (1) remove the nested loops or (2) vectorize.
     for did, labels_per_day in user_to_content_engaged_with.items():
         per_user_per_day_content_label_proportions[did] = {}
         partition_date_to_proportions_map = {}
@@ -544,6 +545,8 @@ def get_per_user_per_day_content_label_proportions(
                 # liked posts for did A for date 2024-10-01.
 
                 uris = user_to_content_engaged_with[did][partition_date][record_type]
+
+                # TODO: refactor this.
                 labels_collection: dict[str, list] = {
                     "prob_toxic": [],
                     "prob_constructive": [],

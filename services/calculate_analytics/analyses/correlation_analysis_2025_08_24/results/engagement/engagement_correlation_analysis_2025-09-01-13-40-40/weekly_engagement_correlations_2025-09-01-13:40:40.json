@@ -1,0 +1,1287 @@
+{
+  "file_type": "weekly",
+  "file_name": "weekly_content_label_proportions_per_user.csv",
+  "analysis_timestamp": "2025-09-01-13:40:40",
+  "total_users": 16200,
+  "conditions": [
+    "representative_diversification",
+    "reverse_chronological",
+    "engagement"
+  ],
+  "average_metrics": {
+    "all_conditions": {
+      "condition": null,
+      "n_users": 519,
+      "metrics": [
+        "engagement_average_posted_posts_toxic",
+        "engagement_average_posted_posts_constructive",
+        "engagement_average_posted_posts_intergroup",
+        "engagement_average_posted_posts_moral",
+        "engagement_average_posted_posts_moral_outrage",
+        "engagement_average_posted_posts_is_sociopolitical"
+      ],
+      "correlation_matrix": {
+        "engagement_average_posted_posts_toxic": {
+          "engagement_average_posted_posts_toxic": 1.0,
+          "engagement_average_posted_posts_constructive": -0.06952318873061644,
+          "engagement_average_posted_posts_intergroup": -0.20675471041769874,
+          "engagement_average_posted_posts_moral": 0.06975178652448648,
+          "engagement_average_posted_posts_moral_outrage": 0.4102016766700001,
+          "engagement_average_posted_posts_is_sociopolitical": 0.17561819125358993
+        },
+        "engagement_average_posted_posts_constructive": {
+          "engagement_average_posted_posts_toxic": -0.06952318873061644,
+          "engagement_average_posted_posts_constructive": 1.0,
+          "engagement_average_posted_posts_intergroup": 0.1060793554987982,
+          "engagement_average_posted_posts_moral": -0.16862830328425088,
+          "engagement_average_posted_posts_moral_outrage": -0.2701351096648716,
+          "engagement_average_posted_posts_is_sociopolitical": 0.17001198897312506
+        },
+        "engagement_average_posted_posts_intergroup": {
+          "engagement_average_posted_posts_toxic": -0.20675471041769874,
+          "engagement_average_posted_posts_constructive": 0.1060793554987982,
+          "engagement_average_posted_posts_intergroup": 1.0,
+          "engagement_average_posted_posts_moral": -0.13509248787573833,
+          "engagement_average_posted_posts_moral_outrage": -0.061974110526642034,
+          "engagement_average_posted_posts_is_sociopolitical": 0.04826168690539471
+        },
+        "engagement_average_posted_posts_moral": {
+          "engagement_average_posted_posts_toxic": 0.06975178652448648,
+          "engagement_average_posted_posts_constructive": -0.16862830328425088,
+          "engagement_average_posted_posts_intergroup": -0.13509248787573833,
+          "engagement_average_posted_posts_moral": 1.0,
+          "engagement_average_posted_posts_moral_outrage": 0.45010134745307023,
+          "engagement_average_posted_posts_is_sociopolitical": 0.22505732218120783
+        },
+        "engagement_average_posted_posts_moral_outrage": {
+          "engagement_average_posted_posts_toxic": 0.4102016766700001,
+          "engagement_average_posted_posts_constructive": -0.2701351096648716,
+          "engagement_average_posted_posts_intergroup": -0.061974110526642034,
+          "engagement_average_posted_posts_moral": 0.45010134745307023,
+          "engagement_average_posted_posts_moral_outrage": 1.0,
+          "engagement_average_posted_posts_is_sociopolitical": 0.38612976225482387
+        },
+        "engagement_average_posted_posts_is_sociopolitical": {
+          "engagement_average_posted_posts_toxic": 0.17561819125358993,
+          "engagement_average_posted_posts_constructive": 0.17001198897312506,
+          "engagement_average_posted_posts_intergroup": 0.04826168690539471,
+          "engagement_average_posted_posts_moral": 0.22505732218120783,
+          "engagement_average_posted_posts_moral_outrage": 0.38612976225482387,
+          "engagement_average_posted_posts_is_sociopolitical": 1.0
+        }
+      },
+      "pairwise_correlations": [
+        {
+          "metric1": "engagement_average_posted_posts_moral",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": 0.45010134745307023,
+          "abs_correlation": 0.45010134745307023
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": 0.4102016766700001,
+          "abs_correlation": 0.4102016766700001
+        },
+        {
+          "metric1": "engagement_average_posted_posts_moral_outrage",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.38612976225482387,
+          "abs_correlation": 0.38612976225482387
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": -0.2701351096648716,
+          "abs_correlation": 0.2701351096648716
+        },
+        {
+          "metric1": "engagement_average_posted_posts_moral",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.22505732218120783,
+          "abs_correlation": 0.22505732218120783
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_intergroup",
+          "correlation": -0.20675471041769874,
+          "abs_correlation": 0.20675471041769874
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.17561819125358993,
+          "abs_correlation": 0.17561819125358993
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.17001198897312506,
+          "abs_correlation": 0.17001198897312506
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_moral",
+          "correlation": -0.16862830328425088,
+          "abs_correlation": 0.16862830328425088
+        },
+        {
+          "metric1": "engagement_average_posted_posts_intergroup",
+          "metric2": "engagement_average_posted_posts_moral",
+          "correlation": -0.13509248787573833,
+          "abs_correlation": 0.13509248787573833
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_intergroup",
+          "correlation": 0.1060793554987982,
+          "abs_correlation": 0.1060793554987982
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_moral",
+          "correlation": 0.06975178652448648,
+          "abs_correlation": 0.06975178652448648
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_constructive",
+          "correlation": -0.06952318873061644,
+          "abs_correlation": 0.06952318873061644
+        },
+        {
+          "metric1": "engagement_average_posted_posts_intergroup",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": -0.061974110526642034,
+          "abs_correlation": 0.061974110526642034
+        },
+        {
+          "metric1": "engagement_average_posted_posts_intergroup",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.04826168690539471,
+          "abs_correlation": 0.04826168690539471
+        }
+      ],
+      "summary_stats": {
+        "mean_correlation": 0.07527368048097856,
+        "max_correlation": 0.45010134745307023,
+        "min_correlation": -0.2701351096648716
+      }
+    },
+    "condition_representative_diversification": {
+      "condition": "representative_diversification",
+      "n_users": 168,
+      "metrics": [
+        "engagement_average_posted_posts_toxic",
+        "engagement_average_posted_posts_constructive",
+        "engagement_average_posted_posts_intergroup",
+        "engagement_average_posted_posts_moral",
+        "engagement_average_posted_posts_moral_outrage",
+        "engagement_average_posted_posts_is_sociopolitical"
+      ],
+      "correlation_matrix": {
+        "engagement_average_posted_posts_toxic": {
+          "engagement_average_posted_posts_toxic": 1.0,
+          "engagement_average_posted_posts_constructive": -0.049973692374395105,
+          "engagement_average_posted_posts_intergroup": -0.12548565049719687,
+          "engagement_average_posted_posts_moral": 0.21243467589175447,
+          "engagement_average_posted_posts_moral_outrage": 0.46479277361452676,
+          "engagement_average_posted_posts_is_sociopolitical": 0.33062522368280306
+        },
+        "engagement_average_posted_posts_constructive": {
+          "engagement_average_posted_posts_toxic": -0.049973692374395105,
+          "engagement_average_posted_posts_constructive": 1.0,
+          "engagement_average_posted_posts_intergroup": 0.16202554564729663,
+          "engagement_average_posted_posts_moral": -0.2365977075462349,
+          "engagement_average_posted_posts_moral_outrage": -0.45045045389568,
+          "engagement_average_posted_posts_is_sociopolitical": -0.12400419462287217
+        },
+        "engagement_average_posted_posts_intergroup": {
+          "engagement_average_posted_posts_toxic": -0.12548565049719687,
+          "engagement_average_posted_posts_constructive": 0.16202554564729663,
+          "engagement_average_posted_posts_intergroup": 1.0,
+          "engagement_average_posted_posts_moral": -0.03407543344141768,
+          "engagement_average_posted_posts_moral_outrage": -0.028576252596893215,
+          "engagement_average_posted_posts_is_sociopolitical": 0.05139031245837759
+        },
+        "engagement_average_posted_posts_moral": {
+          "engagement_average_posted_posts_toxic": 0.21243467589175447,
+          "engagement_average_posted_posts_constructive": -0.2365977075462349,
+          "engagement_average_posted_posts_intergroup": -0.03407543344141768,
+          "engagement_average_posted_posts_moral": 1.0,
+          "engagement_average_posted_posts_moral_outrage": 0.5293431747081185,
+          "engagement_average_posted_posts_is_sociopolitical": 0.3004720749599836
+        },
+        "engagement_average_posted_posts_moral_outrage": {
+          "engagement_average_posted_posts_toxic": 0.46479277361452676,
+          "engagement_average_posted_posts_constructive": -0.45045045389568,
+          "engagement_average_posted_posts_intergroup": -0.028576252596893215,
+          "engagement_average_posted_posts_moral": 0.5293431747081185,
+          "engagement_average_posted_posts_moral_outrage": 1.0,
+          "engagement_average_posted_posts_is_sociopolitical": 0.478049220889352
+        },
+        "engagement_average_posted_posts_is_sociopolitical": {
+          "engagement_average_posted_posts_toxic": 0.33062522368280306,
+          "engagement_average_posted_posts_constructive": -0.12400419462287217,
+          "engagement_average_posted_posts_intergroup": 0.05139031245837759,
+          "engagement_average_posted_posts_moral": 0.3004720749599836,
+          "engagement_average_posted_posts_moral_outrage": 0.478049220889352,
+          "engagement_average_posted_posts_is_sociopolitical": 1.0
+        }
+      },
+      "pairwise_correlations": [
+        {
+          "metric1": "engagement_average_posted_posts_moral",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": 0.5293431747081185,
+          "abs_correlation": 0.5293431747081185
+        },
+        {
+          "metric1": "engagement_average_posted_posts_moral_outrage",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.478049220889352,
+          "abs_correlation": 0.478049220889352
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": 0.46479277361452676,
+          "abs_correlation": 0.46479277361452676
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": -0.45045045389568,
+          "abs_correlation": 0.45045045389568
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.33062522368280306,
+          "abs_correlation": 0.33062522368280306
+        },
+        {
+          "metric1": "engagement_average_posted_posts_moral",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.3004720749599836,
+          "abs_correlation": 0.3004720749599836
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_moral",
+          "correlation": -0.2365977075462349,
+          "abs_correlation": 0.2365977075462349
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_moral",
+          "correlation": 0.21243467589175447,
+          "abs_correlation": 0.21243467589175447
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_intergroup",
+          "correlation": 0.16202554564729663,
+          "abs_correlation": 0.16202554564729663
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_intergroup",
+          "correlation": -0.12548565049719687,
+          "abs_correlation": 0.12548565049719687
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": -0.12400419462287217,
+          "abs_correlation": 0.12400419462287217
+        },
+        {
+          "metric1": "engagement_average_posted_posts_intergroup",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.05139031245837759,
+          "abs_correlation": 0.05139031245837759
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_constructive",
+          "correlation": -0.049973692374395105,
+          "abs_correlation": 0.049973692374395105
+        },
+        {
+          "metric1": "engagement_average_posted_posts_intergroup",
+          "metric2": "engagement_average_posted_posts_moral",
+          "correlation": -0.03407543344141768,
+          "abs_correlation": 0.03407543344141768
+        },
+        {
+          "metric1": "engagement_average_posted_posts_intergroup",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": -0.028576252596893215,
+          "abs_correlation": 0.028576252596893215
+        }
+      ],
+      "summary_stats": {
+        "mean_correlation": 0.09866464112516819,
+        "max_correlation": 0.5293431747081185,
+        "min_correlation": -0.45045045389568
+      }
+    },
+    "condition_reverse_chronological": {
+      "condition": "reverse_chronological",
+      "n_users": 214,
+      "metrics": [
+        "engagement_average_posted_posts_toxic",
+        "engagement_average_posted_posts_constructive",
+        "engagement_average_posted_posts_intergroup",
+        "engagement_average_posted_posts_moral",
+        "engagement_average_posted_posts_moral_outrage",
+        "engagement_average_posted_posts_is_sociopolitical"
+      ],
+      "correlation_matrix": {
+        "engagement_average_posted_posts_toxic": {
+          "engagement_average_posted_posts_toxic": 1.0,
+          "engagement_average_posted_posts_constructive": -0.1029444835865741,
+          "engagement_average_posted_posts_intergroup": -0.2324165549562607,
+          "engagement_average_posted_posts_moral": 0.01950593658206587,
+          "engagement_average_posted_posts_moral_outrage": 0.3863351968599182,
+          "engagement_average_posted_posts_is_sociopolitical": 0.10376318283393142
+        },
+        "engagement_average_posted_posts_constructive": {
+          "engagement_average_posted_posts_toxic": -0.1029444835865741,
+          "engagement_average_posted_posts_constructive": 1.0,
+          "engagement_average_posted_posts_intergroup": 0.09215607218217538,
+          "engagement_average_posted_posts_moral": -0.08665652854557795,
+          "engagement_average_posted_posts_moral_outrage": -0.1428051803160397,
+          "engagement_average_posted_posts_is_sociopolitical": 0.37502585285896367
+        },
+        "engagement_average_posted_posts_intergroup": {
+          "engagement_average_posted_posts_toxic": -0.2324165549562607,
+          "engagement_average_posted_posts_constructive": 0.09215607218217538,
+          "engagement_average_posted_posts_intergroup": 1.0,
+          "engagement_average_posted_posts_moral": -0.1560140389621228,
+          "engagement_average_posted_posts_moral_outrage": -0.026220907202911543,
+          "engagement_average_posted_posts_is_sociopolitical": 0.17389129031835193
+        },
+        "engagement_average_posted_posts_moral": {
+          "engagement_average_posted_posts_toxic": 0.01950593658206587,
+          "engagement_average_posted_posts_constructive": -0.08665652854557795,
+          "engagement_average_posted_posts_intergroup": -0.1560140389621228,
+          "engagement_average_posted_posts_moral": 1.0,
+          "engagement_average_posted_posts_moral_outrage": 0.4562809745750254,
+          "engagement_average_posted_posts_is_sociopolitical": 0.25975061456063836
+        },
+        "engagement_average_posted_posts_moral_outrage": {
+          "engagement_average_posted_posts_toxic": 0.3863351968599182,
+          "engagement_average_posted_posts_constructive": -0.1428051803160397,
+          "engagement_average_posted_posts_intergroup": -0.026220907202911543,
+          "engagement_average_posted_posts_moral": 0.4562809745750254,
+          "engagement_average_posted_posts_moral_outrage": 1.0,
+          "engagement_average_posted_posts_is_sociopolitical": 0.32083464514654886
+        },
+        "engagement_average_posted_posts_is_sociopolitical": {
+          "engagement_average_posted_posts_toxic": 0.10376318283393142,
+          "engagement_average_posted_posts_constructive": 0.37502585285896367,
+          "engagement_average_posted_posts_intergroup": 0.17389129031835193,
+          "engagement_average_posted_posts_moral": 0.25975061456063836,
+          "engagement_average_posted_posts_moral_outrage": 0.32083464514654886,
+          "engagement_average_posted_posts_is_sociopolitical": 1.0
+        }
+      },
+      "pairwise_correlations": [
+        {
+          "metric1": "engagement_average_posted_posts_moral",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": 0.4562809745750254,
+          "abs_correlation": 0.4562809745750254
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": 0.3863351968599182,
+          "abs_correlation": 0.3863351968599182
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.37502585285896367,
+          "abs_correlation": 0.37502585285896367
+        },
+        {
+          "metric1": "engagement_average_posted_posts_moral_outrage",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.32083464514654886,
+          "abs_correlation": 0.32083464514654886
+        },
+        {
+          "metric1": "engagement_average_posted_posts_moral",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.25975061456063836,
+          "abs_correlation": 0.25975061456063836
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_intergroup",
+          "correlation": -0.2324165549562607,
+          "abs_correlation": 0.2324165549562607
+        },
+        {
+          "metric1": "engagement_average_posted_posts_intergroup",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.17389129031835193,
+          "abs_correlation": 0.17389129031835193
+        },
+        {
+          "metric1": "engagement_average_posted_posts_intergroup",
+          "metric2": "engagement_average_posted_posts_moral",
+          "correlation": -0.1560140389621228,
+          "abs_correlation": 0.1560140389621228
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": -0.1428051803160397,
+          "abs_correlation": 0.1428051803160397
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.10376318283393142,
+          "abs_correlation": 0.10376318283393142
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_constructive",
+          "correlation": -0.1029444835865741,
+          "abs_correlation": 0.1029444835865741
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_intergroup",
+          "correlation": 0.09215607218217538,
+          "abs_correlation": 0.09215607218217538
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_moral",
+          "correlation": -0.08665652854557795,
+          "abs_correlation": 0.08665652854557795
+        },
+        {
+          "metric1": "engagement_average_posted_posts_intergroup",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": -0.026220907202911543,
+          "abs_correlation": 0.026220907202911543
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_moral",
+          "correlation": 0.01950593658206587,
+          "abs_correlation": 0.01950593658206587
+        }
+      ],
+      "summary_stats": {
+        "mean_correlation": 0.09603240482320882,
+        "max_correlation": 0.4562809745750254,
+        "min_correlation": -0.2324165549562607
+      }
+    },
+    "condition_engagement": {
+      "condition": "engagement",
+      "n_users": 137,
+      "metrics": [
+        "engagement_average_posted_posts_toxic",
+        "engagement_average_posted_posts_constructive",
+        "engagement_average_posted_posts_intergroup",
+        "engagement_average_posted_posts_moral",
+        "engagement_average_posted_posts_moral_outrage",
+        "engagement_average_posted_posts_is_sociopolitical"
+      ],
+      "correlation_matrix": {
+        "engagement_average_posted_posts_toxic": {
+          "engagement_average_posted_posts_toxic": 1.0,
+          "engagement_average_posted_posts_constructive": -0.1040429715132604,
+          "engagement_average_posted_posts_intergroup": -0.22355313550477263,
+          "engagement_average_posted_posts_moral": 0.0180599735818556,
+          "engagement_average_posted_posts_moral_outrage": 0.35933179397357023,
+          "engagement_average_posted_posts_is_sociopolitical": 0.05254209776233177
+        },
+        "engagement_average_posted_posts_constructive": {
+          "engagement_average_posted_posts_toxic": -0.1040429715132604,
+          "engagement_average_posted_posts_constructive": 1.0,
+          "engagement_average_posted_posts_intergroup": 0.11543272959112622,
+          "engagement_average_posted_posts_moral": -0.19944160449301407,
+          "engagement_average_posted_posts_moral_outrage": -0.33146553630613773,
+          "engagement_average_posted_posts_is_sociopolitical": 0.02058064142459196
+        },
+        "engagement_average_posted_posts_intergroup": {
+          "engagement_average_posted_posts_toxic": -0.22355313550477263,
+          "engagement_average_posted_posts_constructive": 0.11543272959112622,
+          "engagement_average_posted_posts_intergroup": 1.0,
+          "engagement_average_posted_posts_moral": -0.23510683243190508,
+          "engagement_average_posted_posts_moral_outrage": -0.14091741031674823,
+          "engagement_average_posted_posts_is_sociopolitical": -0.12513416773954844
+        },
+        "engagement_average_posted_posts_moral": {
+          "engagement_average_posted_posts_toxic": 0.0180599735818556,
+          "engagement_average_posted_posts_constructive": -0.19944160449301407,
+          "engagement_average_posted_posts_intergroup": -0.23510683243190508,
+          "engagement_average_posted_posts_moral": 1.0,
+          "engagement_average_posted_posts_moral_outrage": 0.4387130665870378,
+          "engagement_average_posted_posts_is_sociopolitical": 0.20904528852428114
+        },
+        "engagement_average_posted_posts_moral_outrage": {
+          "engagement_average_posted_posts_toxic": 0.35933179397357023,
+          "engagement_average_posted_posts_constructive": -0.33146553630613773,
+          "engagement_average_posted_posts_intergroup": -0.14091741031674823,
+          "engagement_average_posted_posts_moral": 0.4387130665870378,
+          "engagement_average_posted_posts_moral_outrage": 1.0,
+          "engagement_average_posted_posts_is_sociopolitical": 0.34788368206528303
+        },
+        "engagement_average_posted_posts_is_sociopolitical": {
+          "engagement_average_posted_posts_toxic": 0.05254209776233177,
+          "engagement_average_posted_posts_constructive": 0.02058064142459196,
+          "engagement_average_posted_posts_intergroup": -0.12513416773954844,
+          "engagement_average_posted_posts_moral": 0.20904528852428114,
+          "engagement_average_posted_posts_moral_outrage": 0.34788368206528303,
+          "engagement_average_posted_posts_is_sociopolitical": 1.0
+        }
+      },
+      "pairwise_correlations": [
+        {
+          "metric1": "engagement_average_posted_posts_moral",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": 0.4387130665870378,
+          "abs_correlation": 0.4387130665870378
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": 0.35933179397357023,
+          "abs_correlation": 0.35933179397357023
+        },
+        {
+          "metric1": "engagement_average_posted_posts_moral_outrage",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.34788368206528303,
+          "abs_correlation": 0.34788368206528303
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": -0.33146553630613773,
+          "abs_correlation": 0.33146553630613773
+        },
+        {
+          "metric1": "engagement_average_posted_posts_intergroup",
+          "metric2": "engagement_average_posted_posts_moral",
+          "correlation": -0.23510683243190508,
+          "abs_correlation": 0.23510683243190508
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_intergroup",
+          "correlation": -0.22355313550477263,
+          "abs_correlation": 0.22355313550477263
+        },
+        {
+          "metric1": "engagement_average_posted_posts_moral",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.20904528852428114,
+          "abs_correlation": 0.20904528852428114
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_moral",
+          "correlation": -0.19944160449301407,
+          "abs_correlation": 0.19944160449301407
+        },
+        {
+          "metric1": "engagement_average_posted_posts_intergroup",
+          "metric2": "engagement_average_posted_posts_moral_outrage",
+          "correlation": -0.14091741031674823,
+          "abs_correlation": 0.14091741031674823
+        },
+        {
+          "metric1": "engagement_average_posted_posts_intergroup",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": -0.12513416773954844,
+          "abs_correlation": 0.12513416773954844
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_intergroup",
+          "correlation": 0.11543272959112622,
+          "abs_correlation": 0.11543272959112622
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_constructive",
+          "correlation": -0.1040429715132604,
+          "abs_correlation": 0.1040429715132604
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.05254209776233177,
+          "abs_correlation": 0.05254209776233177
+        },
+        {
+          "metric1": "engagement_average_posted_posts_constructive",
+          "metric2": "engagement_average_posted_posts_is_sociopolitical",
+          "correlation": 0.02058064142459196,
+          "abs_correlation": 0.02058064142459196
+        },
+        {
+          "metric1": "engagement_average_posted_posts_toxic",
+          "metric2": "engagement_average_posted_posts_moral",
+          "correlation": 0.0180599735818556,
+          "abs_correlation": 0.0180599735818556
+        }
+      ],
+      "summary_stats": {
+        "mean_correlation": 0.01346184101364608,
+        "max_correlation": 0.4387130665870378,
+        "min_correlation": -0.33146553630613773
+      }
+    }
+  },
+  "proportion_metrics": {
+    "all_conditions": {
+      "condition": null,
+      "n_users": 519,
+      "metrics": [
+        "engagement_proportion_posted_posts_toxic",
+        "engagement_proportion_posted_posts_constructive",
+        "engagement_proportion_posted_posts_intergroup",
+        "engagement_proportion_posted_posts_moral",
+        "engagement_proportion_posted_posts_moral_outrage",
+        "engagement_proportion_posted_posts_is_sociopolitical"
+      ],
+      "correlation_matrix": {
+        "engagement_proportion_posted_posts_toxic": {
+          "engagement_proportion_posted_posts_toxic": 1.0,
+          "engagement_proportion_posted_posts_constructive": -0.008990187917022278,
+          "engagement_proportion_posted_posts_intergroup": -0.023344099143261722,
+          "engagement_proportion_posted_posts_moral": -0.0297059697250071,
+          "engagement_proportion_posted_posts_moral_outrage": 0.24907575423349762,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.05795691292204659
+        },
+        "engagement_proportion_posted_posts_constructive": {
+          "engagement_proportion_posted_posts_toxic": -0.008990187917022278,
+          "engagement_proportion_posted_posts_constructive": 1.0,
+          "engagement_proportion_posted_posts_intergroup": -0.027361668219925202,
+          "engagement_proportion_posted_posts_moral": -0.03261338697697281,
+          "engagement_proportion_posted_posts_moral_outrage": -0.005340229238375226,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.19127108128726916
+        },
+        "engagement_proportion_posted_posts_intergroup": {
+          "engagement_proportion_posted_posts_toxic": -0.023344099143261722,
+          "engagement_proportion_posted_posts_constructive": -0.027361668219925202,
+          "engagement_proportion_posted_posts_intergroup": 1.0,
+          "engagement_proportion_posted_posts_moral": -0.01105320762070357,
+          "engagement_proportion_posted_posts_moral_outrage": -0.0009654363219660963,
+          "engagement_proportion_posted_posts_is_sociopolitical": -0.0014186376328373532
+        },
+        "engagement_proportion_posted_posts_moral": {
+          "engagement_proportion_posted_posts_toxic": -0.0297059697250071,
+          "engagement_proportion_posted_posts_constructive": -0.03261338697697281,
+          "engagement_proportion_posted_posts_intergroup": -0.01105320762070357,
+          "engagement_proportion_posted_posts_moral": 1.0,
+          "engagement_proportion_posted_posts_moral_outrage": 0.21684984327814258,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.10812521473415707
+        },
+        "engagement_proportion_posted_posts_moral_outrage": {
+          "engagement_proportion_posted_posts_toxic": 0.24907575423349762,
+          "engagement_proportion_posted_posts_constructive": -0.005340229238375226,
+          "engagement_proportion_posted_posts_intergroup": -0.0009654363219660963,
+          "engagement_proportion_posted_posts_moral": 0.21684984327814258,
+          "engagement_proportion_posted_posts_moral_outrage": 1.0,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.4197636783373544
+        },
+        "engagement_proportion_posted_posts_is_sociopolitical": {
+          "engagement_proportion_posted_posts_toxic": 0.05795691292204659,
+          "engagement_proportion_posted_posts_constructive": 0.19127108128726916,
+          "engagement_proportion_posted_posts_intergroup": -0.0014186376328373532,
+          "engagement_proportion_posted_posts_moral": 0.10812521473415707,
+          "engagement_proportion_posted_posts_moral_outrage": 0.4197636783373544,
+          "engagement_proportion_posted_posts_is_sociopolitical": 1.0
+        }
+      },
+      "pairwise_correlations": [
+        {
+          "metric1": "engagement_proportion_posted_posts_moral_outrage",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.4197636783373544,
+          "abs_correlation": 0.4197636783373544
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": 0.24907575423349762,
+          "abs_correlation": 0.24907575423349762
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_moral",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": 0.21684984327814258,
+          "abs_correlation": 0.21684984327814258
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.19127108128726916,
+          "abs_correlation": 0.19127108128726916
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_moral",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.10812521473415707,
+          "abs_correlation": 0.10812521473415707
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.05795691292204659,
+          "abs_correlation": 0.05795691292204659
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_moral",
+          "correlation": -0.03261338697697281,
+          "abs_correlation": 0.03261338697697281
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_moral",
+          "correlation": -0.0297059697250071,
+          "abs_correlation": 0.0297059697250071
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_intergroup",
+          "correlation": -0.027361668219925202,
+          "abs_correlation": 0.027361668219925202
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_intergroup",
+          "correlation": -0.023344099143261722,
+          "abs_correlation": 0.023344099143261722
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_intergroup",
+          "metric2": "engagement_proportion_posted_posts_moral",
+          "correlation": -0.01105320762070357,
+          "abs_correlation": 0.01105320762070357
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_constructive",
+          "correlation": -0.008990187917022278,
+          "abs_correlation": 0.008990187917022278
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": -0.005340229238375226,
+          "abs_correlation": 0.005340229238375226
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_intergroup",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": -0.0014186376328373532,
+          "abs_correlation": 0.0014186376328373532
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_intergroup",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": -0.0009654363219660963,
+          "abs_correlation": 0.0009654363219660963
+        }
+      ],
+      "summary_stats": {
+        "mean_correlation": 0.07348331079975973,
+        "max_correlation": 0.4197636783373544,
+        "min_correlation": -0.03261338697697281
+      }
+    },
+    "condition_representative_diversification": {
+      "condition": "representative_diversification",
+      "n_users": 168,
+      "metrics": [
+        "engagement_proportion_posted_posts_toxic",
+        "engagement_proportion_posted_posts_constructive",
+        "engagement_proportion_posted_posts_intergroup",
+        "engagement_proportion_posted_posts_moral",
+        "engagement_proportion_posted_posts_moral_outrage",
+        "engagement_proportion_posted_posts_is_sociopolitical"
+      ],
+      "correlation_matrix": {
+        "engagement_proportion_posted_posts_toxic": {
+          "engagement_proportion_posted_posts_toxic": 1.0,
+          "engagement_proportion_posted_posts_constructive": 0.16248219092188815,
+          "engagement_proportion_posted_posts_intergroup": -0.0163985423092196,
+          "engagement_proportion_posted_posts_moral": -0.0188604605140493,
+          "engagement_proportion_posted_posts_moral_outrage": 0.3644267299278615,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.2172452824299493
+        },
+        "engagement_proportion_posted_posts_constructive": {
+          "engagement_proportion_posted_posts_toxic": 0.16248219092188815,
+          "engagement_proportion_posted_posts_constructive": 1.0,
+          "engagement_proportion_posted_posts_intergroup": -0.019382466087239893,
+          "engagement_proportion_posted_posts_moral": -0.01912235102459325,
+          "engagement_proportion_posted_posts_moral_outrage": 0.03439334807684712,
+          "engagement_proportion_posted_posts_is_sociopolitical": -0.0445688018069947
+        },
+        "engagement_proportion_posted_posts_intergroup": {
+          "engagement_proportion_posted_posts_toxic": -0.0163985423092196,
+          "engagement_proportion_posted_posts_constructive": -0.019382466087239893,
+          "engagement_proportion_posted_posts_intergroup": 1.0,
+          "engagement_proportion_posted_posts_moral": -0.010019071587897258,
+          "engagement_proportion_posted_posts_moral_outrage": -0.032343709876668146,
+          "engagement_proportion_posted_posts_is_sociopolitical": -0.03922712957273404
+        },
+        "engagement_proportion_posted_posts_moral": {
+          "engagement_proportion_posted_posts_toxic": -0.0188604605140493,
+          "engagement_proportion_posted_posts_constructive": -0.01912235102459325,
+          "engagement_proportion_posted_posts_intergroup": -0.010019071587897258,
+          "engagement_proportion_posted_posts_moral": 1.0,
+          "engagement_proportion_posted_posts_moral_outrage": 0.32277249164704963,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.11890063173229823
+        },
+        "engagement_proportion_posted_posts_moral_outrage": {
+          "engagement_proportion_posted_posts_toxic": 0.3644267299278615,
+          "engagement_proportion_posted_posts_constructive": 0.03439334807684712,
+          "engagement_proportion_posted_posts_intergroup": -0.032343709876668146,
+          "engagement_proportion_posted_posts_moral": 0.32277249164704963,
+          "engagement_proportion_posted_posts_moral_outrage": 1.0,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.5752996418930696
+        },
+        "engagement_proportion_posted_posts_is_sociopolitical": {
+          "engagement_proportion_posted_posts_toxic": 0.2172452824299493,
+          "engagement_proportion_posted_posts_constructive": -0.0445688018069947,
+          "engagement_proportion_posted_posts_intergroup": -0.03922712957273404,
+          "engagement_proportion_posted_posts_moral": 0.11890063173229823,
+          "engagement_proportion_posted_posts_moral_outrage": 0.5752996418930696,
+          "engagement_proportion_posted_posts_is_sociopolitical": 1.0
+        }
+      },
+      "pairwise_correlations": [
+        {
+          "metric1": "engagement_proportion_posted_posts_moral_outrage",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.5752996418930696,
+          "abs_correlation": 0.5752996418930696
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": 0.3644267299278615,
+          "abs_correlation": 0.3644267299278615
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_moral",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": 0.32277249164704963,
+          "abs_correlation": 0.32277249164704963
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.2172452824299493,
+          "abs_correlation": 0.2172452824299493
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_constructive",
+          "correlation": 0.16248219092188815,
+          "abs_correlation": 0.16248219092188815
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_moral",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.11890063173229823,
+          "abs_correlation": 0.11890063173229823
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": -0.0445688018069947,
+          "abs_correlation": 0.0445688018069947
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_intergroup",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": -0.03922712957273404,
+          "abs_correlation": 0.03922712957273404
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": 0.03439334807684712,
+          "abs_correlation": 0.03439334807684712
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_intergroup",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": -0.032343709876668146,
+          "abs_correlation": 0.032343709876668146
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_intergroup",
+          "correlation": -0.019382466087239893,
+          "abs_correlation": 0.019382466087239893
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_moral",
+          "correlation": -0.01912235102459325,
+          "abs_correlation": 0.01912235102459325
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_moral",
+          "correlation": -0.0188604605140493,
+          "abs_correlation": 0.0188604605140493
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_intergroup",
+          "correlation": -0.0163985423092196,
+          "abs_correlation": 0.0163985423092196
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_intergroup",
+          "metric2": "engagement_proportion_posted_posts_moral",
+          "correlation": -0.010019071587897258,
+          "abs_correlation": 0.010019071587897258
+        }
+      ],
+      "summary_stats": {
+        "mean_correlation": 0.10637318558997116,
+        "max_correlation": 0.5752996418930696,
+        "min_correlation": -0.0445688018069947
+      }
+    },
+    "condition_reverse_chronological": {
+      "condition": "reverse_chronological",
+      "n_users": 214,
+      "metrics": [
+        "engagement_proportion_posted_posts_toxic",
+        "engagement_proportion_posted_posts_constructive",
+        "engagement_proportion_posted_posts_intergroup",
+        "engagement_proportion_posted_posts_moral",
+        "engagement_proportion_posted_posts_moral_outrage",
+        "engagement_proportion_posted_posts_is_sociopolitical"
+      ],
+      "correlation_matrix": {
+        "engagement_proportion_posted_posts_toxic": {
+          "engagement_proportion_posted_posts_toxic": 1.0,
+          "engagement_proportion_posted_posts_constructive": -0.08000291496327509,
+          "engagement_proportion_posted_posts_intergroup": -0.031470861924857284,
+          "engagement_proportion_posted_posts_moral": -0.026775015299797488,
+          "engagement_proportion_posted_posts_moral_outrage": 0.26997798558726993,
+          "engagement_proportion_posted_posts_is_sociopolitical": -0.002125520008021218
+        },
+        "engagement_proportion_posted_posts_constructive": {
+          "engagement_proportion_posted_posts_toxic": -0.08000291496327509,
+          "engagement_proportion_posted_posts_constructive": 1.0,
+          "engagement_proportion_posted_posts_intergroup": -0.03716947420013026,
+          "engagement_proportion_posted_posts_moral": -0.0382772545773747,
+          "engagement_proportion_posted_posts_moral_outrage": 0.0051267210899702785,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.3624713465334394
+        },
+        "engagement_proportion_posted_posts_intergroup": {
+          "engagement_proportion_posted_posts_toxic": -0.031470861924857284,
+          "engagement_proportion_posted_posts_constructive": -0.03716947420013026,
+          "engagement_proportion_posted_posts_intergroup": 1.0,
+          "engagement_proportion_posted_posts_moral": -0.01342374456173307,
+          "engagement_proportion_posted_posts_moral_outrage": 0.037170473325508165,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.030733637787791923
+        },
+        "engagement_proportion_posted_posts_moral": {
+          "engagement_proportion_posted_posts_toxic": -0.026775015299797488,
+          "engagement_proportion_posted_posts_constructive": -0.0382772545773747,
+          "engagement_proportion_posted_posts_intergroup": -0.01342374456173307,
+          "engagement_proportion_posted_posts_moral": 1.0,
+          "engagement_proportion_posted_posts_moral_outrage": -0.02783191200234462,
+          "engagement_proportion_posted_posts_is_sociopolitical": -0.053020474995758106
+        },
+        "engagement_proportion_posted_posts_moral_outrage": {
+          "engagement_proportion_posted_posts_toxic": 0.26997798558726993,
+          "engagement_proportion_posted_posts_constructive": 0.0051267210899702785,
+          "engagement_proportion_posted_posts_intergroup": 0.037170473325508165,
+          "engagement_proportion_posted_posts_moral": -0.02783191200234462,
+          "engagement_proportion_posted_posts_moral_outrage": 1.0,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.3740453242300766
+        },
+        "engagement_proportion_posted_posts_is_sociopolitical": {
+          "engagement_proportion_posted_posts_toxic": -0.002125520008021218,
+          "engagement_proportion_posted_posts_constructive": 0.3624713465334394,
+          "engagement_proportion_posted_posts_intergroup": 0.030733637787791923,
+          "engagement_proportion_posted_posts_moral": -0.053020474995758106,
+          "engagement_proportion_posted_posts_moral_outrage": 0.3740453242300766,
+          "engagement_proportion_posted_posts_is_sociopolitical": 1.0
+        }
+      },
+      "pairwise_correlations": [
+        {
+          "metric1": "engagement_proportion_posted_posts_moral_outrage",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.3740453242300766,
+          "abs_correlation": 0.3740453242300766
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.3624713465334394,
+          "abs_correlation": 0.3624713465334394
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": 0.26997798558726993,
+          "abs_correlation": 0.26997798558726993
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_constructive",
+          "correlation": -0.08000291496327509,
+          "abs_correlation": 0.08000291496327509
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_moral",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": -0.053020474995758106,
+          "abs_correlation": 0.053020474995758106
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_moral",
+          "correlation": -0.0382772545773747,
+          "abs_correlation": 0.0382772545773747
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_intergroup",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": 0.037170473325508165,
+          "abs_correlation": 0.037170473325508165
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_intergroup",
+          "correlation": -0.03716947420013026,
+          "abs_correlation": 0.03716947420013026
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_intergroup",
+          "correlation": -0.031470861924857284,
+          "abs_correlation": 0.031470861924857284
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_intergroup",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.030733637787791923,
+          "abs_correlation": 0.030733637787791923
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_moral",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": -0.02783191200234462,
+          "abs_correlation": 0.02783191200234462
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_moral",
+          "correlation": -0.026775015299797488,
+          "abs_correlation": 0.026775015299797488
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_intergroup",
+          "metric2": "engagement_proportion_posted_posts_moral",
+          "correlation": -0.01342374456173307,
+          "abs_correlation": 0.01342374456173307
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": 0.0051267210899702785,
+          "abs_correlation": 0.0051267210899702785
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": -0.002125520008021218,
+          "abs_correlation": 0.002125520008021218
+        }
+      ],
+      "summary_stats": {
+        "mean_correlation": 0.05129522106805096,
+        "max_correlation": 0.3740453242300766,
+        "min_correlation": -0.08000291496327509
+      }
+    },
+    "condition_engagement": {
+      "condition": "engagement",
+      "n_users": 137,
+      "metrics": [
+        "engagement_proportion_posted_posts_toxic",
+        "engagement_proportion_posted_posts_constructive",
+        "engagement_proportion_posted_posts_intergroup",
+        "engagement_proportion_posted_posts_moral",
+        "engagement_proportion_posted_posts_moral_outrage",
+        "engagement_proportion_posted_posts_is_sociopolitical"
+      ],
+      "correlation_matrix": {
+        "engagement_proportion_posted_posts_toxic": {
+          "engagement_proportion_posted_posts_toxic": 1.0,
+          "engagement_proportion_posted_posts_constructive": -0.047268977652290135,
+          "engagement_proportion_posted_posts_intergroup": -0.021562516036793666,
+          "engagement_proportion_posted_posts_moral": -0.04146236282134313,
+          "engagement_proportion_posted_posts_moral_outrage": 0.0982661771431205,
+          "engagement_proportion_posted_posts_is_sociopolitical": -0.04610506893023236
+        },
+        "engagement_proportion_posted_posts_constructive": {
+          "engagement_proportion_posted_posts_toxic": -0.047268977652290135,
+          "engagement_proportion_posted_posts_constructive": 1.0,
+          "engagement_proportion_posted_posts_intergroup": -0.022407117514915774,
+          "engagement_proportion_posted_posts_moral": -0.04308643919840345,
+          "engagement_proportion_posted_posts_moral_outrage": -0.07332438836749108,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.01707581199635905
+        },
+        "engagement_proportion_posted_posts_intergroup": {
+          "engagement_proportion_posted_posts_toxic": -0.021562516036793666,
+          "engagement_proportion_posted_posts_constructive": -0.022407117514915774,
+          "engagement_proportion_posted_posts_intergroup": 1.0,
+          "engagement_proportion_posted_posts_moral": -0.014138902637456378,
+          "engagement_proportion_posted_posts_moral_outrage": -0.032920564406125105,
+          "engagement_proportion_posted_posts_is_sociopolitical": -0.035980165593131525
+        },
+        "engagement_proportion_posted_posts_moral": {
+          "engagement_proportion_posted_posts_toxic": -0.04146236282134313,
+          "engagement_proportion_posted_posts_constructive": -0.04308643919840345,
+          "engagement_proportion_posted_posts_intergroup": -0.014138902637456378,
+          "engagement_proportion_posted_posts_moral": 1.0,
+          "engagement_proportion_posted_posts_moral_outrage": 0.26839487193423806,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.2500652504825686
+        },
+        "engagement_proportion_posted_posts_moral_outrage": {
+          "engagement_proportion_posted_posts_toxic": 0.0982661771431205,
+          "engagement_proportion_posted_posts_constructive": -0.07332438836749108,
+          "engagement_proportion_posted_posts_intergroup": -0.032920564406125105,
+          "engagement_proportion_posted_posts_moral": 0.26839487193423806,
+          "engagement_proportion_posted_posts_moral_outrage": 1.0,
+          "engagement_proportion_posted_posts_is_sociopolitical": 0.2955766616701693
+        },
+        "engagement_proportion_posted_posts_is_sociopolitical": {
+          "engagement_proportion_posted_posts_toxic": -0.04610506893023236,
+          "engagement_proportion_posted_posts_constructive": 0.01707581199635905,
+          "engagement_proportion_posted_posts_intergroup": -0.035980165593131525,
+          "engagement_proportion_posted_posts_moral": 0.2500652504825686,
+          "engagement_proportion_posted_posts_moral_outrage": 0.2955766616701693,
+          "engagement_proportion_posted_posts_is_sociopolitical": 1.0
+        }
+      },
+      "pairwise_correlations": [
+        {
+          "metric1": "engagement_proportion_posted_posts_moral_outrage",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.2955766616701693,
+          "abs_correlation": 0.2955766616701693
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_moral",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": 0.26839487193423806,
+          "abs_correlation": 0.26839487193423806
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_moral",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.2500652504825686,
+          "abs_correlation": 0.2500652504825686
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": 0.0982661771431205,
+          "abs_correlation": 0.0982661771431205
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": -0.07332438836749108,
+          "abs_correlation": 0.07332438836749108
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_constructive",
+          "correlation": -0.047268977652290135,
+          "abs_correlation": 0.047268977652290135
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": -0.04610506893023236,
+          "abs_correlation": 0.04610506893023236
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_moral",
+          "correlation": -0.04308643919840345,
+          "abs_correlation": 0.04308643919840345
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_moral",
+          "correlation": -0.04146236282134313,
+          "abs_correlation": 0.04146236282134313
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_intergroup",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": -0.035980165593131525,
+          "abs_correlation": 0.035980165593131525
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_intergroup",
+          "metric2": "engagement_proportion_posted_posts_moral_outrage",
+          "correlation": -0.032920564406125105,
+          "abs_correlation": 0.032920564406125105
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_intergroup",
+          "correlation": -0.022407117514915774,
+          "abs_correlation": 0.022407117514915774
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_toxic",
+          "metric2": "engagement_proportion_posted_posts_intergroup",
+          "correlation": -0.021562516036793666,
+          "abs_correlation": 0.021562516036793666
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_constructive",
+          "metric2": "engagement_proportion_posted_posts_is_sociopolitical",
+          "correlation": 0.01707581199635905,
+          "abs_correlation": 0.01707581199635905
+        },
+        {
+          "metric1": "engagement_proportion_posted_posts_intergroup",
+          "metric2": "engagement_proportion_posted_posts_moral",
+          "correlation": -0.014138902637456378,
+          "abs_correlation": 0.014138902637456378
+        }
+      ],
+      "summary_stats": {
+        "mean_correlation": 0.0367414846712182,
+        "max_correlation": 0.2955766616701693,
+        "min_correlation": -0.07332438836749108
+      }
+    }
+  }
+}
