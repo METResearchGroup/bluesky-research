@@ -2,6 +2,7 @@
 This module contains the DataLoader class, which is used to load data from the local or production environment.
 """
 
+import hashlib
 import pandas as pd
 
 from lib.helper import get_partition_dates
@@ -54,7 +55,9 @@ class DataLoader:
         )
         return df
 
-    def _load_prod_data(self) -> tuple[dict[str, dict[str, set[str]]], pd.DataFrame]:
+    def _load_prod_data(
+        self,
+    ) -> tuple[dict[str, dict[str, set[str]]], pd.DataFrame, pd.DataFrame]:
         """
         Accumulate posts used in feeds for each condition and date.
 
@@ -63,7 +66,15 @@ class DataLoader:
             user_condition_mapping: mapping from user DID to condition
 
         Returns:
-            tuple[dict[str, dict[str, set[str]]], pd.DataFrame]: mapping from date to mapping from condition to set of post URIs, and a dataframe of all texts.
+            tuple[
+                dict[str, dict[str, set[str]]],
+                pd.DataFrame,
+                pd.DataFrame,
+            ]: (
+                date_condition_uris_map,  # mapping from date to mapping from condition to set of post URIs
+                documents_df,             # deduplicated documents for training: columns [doc_id, text]
+                uri_doc_map,              # lookup to reconstruct slices: columns [uri, partition_date, doc_id]
+            )
 
         We need to also make sure that these posts also have associated metadata
         so that we can slice them by condition, etc.
@@ -87,7 +98,8 @@ class DataLoader:
         Return a tuple of:
         - date_condition_uris_map: dict[str, dict[str, set[str]]]: mapping from date to mapping from condition to set of post URIs.
             - We will use this to splice the topic model to analyze by date and condition.
-        - all_texts: set[str]: set of all texts across all partition dates. This is what we'll use to train the topic model.
+        - documents_df: unique texts across all dates (deduped by stable doc_id) for model training.
+        - uri_doc_map: mapping from uri(+partition_date) to doc_id to reconstruct slice-level aggregations.
         """
         # load users.
         user_condition_mapping: dict[str, str] = get_user_condition_mapping()
@@ -111,8 +123,22 @@ class DataLoader:
             f"{sort_filter}"
         ).strip()
 
-        # keep a running set of all texts.
-        all_texts = set()
+        # Helpers for stable text hashing and canonicalization
+        def _canonicalize_text(text: str) -> str:
+            """Canonicalize text for stable hashing and deduplication."""
+            if text is None:
+                return ""
+            # Normalize whitespace and lowercase; avoid heavy transforms to preserve semantics
+            return " ".join(str(text).split()).lower()
+
+        def _compute_doc_id(text: str) -> str:
+            canon = _canonicalize_text(text)
+            return hashlib.sha256(canon.encode("utf-8")).hexdigest()
+
+        # Collect unique documents and the uri->doc mapping
+        # documents_map: doc_id -> text (first observed canonical representative)
+        documents_map: dict[str, str] = {}
+        uri_doc_rows: list[dict[str, str]] = []
 
         date_condition_uris_map: dict[str, dict[str, set[str]]] = {}
         for partition_date in partition_dates:
@@ -153,12 +179,21 @@ class DataLoader:
                 },
                 export_format="duckdb",
             )
-            total_posts_before_adding_new_posts = len(all_texts)
-            for text in all_post_texts_df["text"]:
-                all_texts.add(text)
-            total_posts_after_adding_new_posts = len(all_texts)
+            # Build documents and uri->doc_id mapping for this partition_date
+            total_docs_before = len(documents_map)
+            for row in all_post_texts_df.itertuples(index=False):
+                uri = row.uri
+                text = row.text
+                doc_id = _compute_doc_id(text)
+                # Preserve first seen raw text for the doc_id
+                if doc_id not in documents_map:
+                    documents_map[doc_id] = text
+                uri_doc_rows.append(
+                    {"uri": uri, "partition_date": partition_date, "doc_id": doc_id}
+                )
+            total_docs_after = len(documents_map)
             logger.info(
-                f"[{partition_date}] Total posts before adding new posts: {total_posts_before_adding_new_posts}\tTotal posts after adding new posts: {total_posts_after_adding_new_posts}"
+                f"[{partition_date}] Unique documents before: {total_docs_before}\tafter: {total_docs_after}"
             )
 
             # then, add the condition_to_post_uris to the date_condition_uris_map.
@@ -170,12 +205,39 @@ class DataLoader:
                 f"[{partition_date}] Total URIs for partition date {partition_date}, by condition: {condition_to_post_uris_count}\tTotal invalid users for partition date {partition_date}: {len(invalid_users)}"
             )
 
-        text_df = pd.DataFrame(list(all_texts), columns=["text"])
-        return date_condition_uris_map, text_df
+        # Finalize DataFrames
+        documents_df = pd.DataFrame(
+            [(doc_id, text) for doc_id, text in documents_map.items()],
+            columns=["doc_id", "text"],
+        )
+        uri_doc_map = pd.DataFrame(
+            uri_doc_rows, columns=["uri", "partition_date", "doc_id"]
+        )
+        return date_condition_uris_map, documents_df, uri_doc_map
 
     def load_data(self):
         if self.mode == "local":
-            return dict(), self._load_local_data()
+            # Keep local path backward-compatible but align to new return signature
+            base_df = self._load_local_data()
+
+            def _canonicalize_text(text: str) -> str:
+                if text is None:
+                    return ""
+                return " ".join(str(text).split()).lower()
+
+            def _compute_doc_id(text: str) -> str:
+                canon = _canonicalize_text(text)
+                return hashlib.sha256(canon.encode("utf-8")).hexdigest()
+
+            documents_df = base_df[["text"]].copy()
+            documents_df["doc_id"] = documents_df["text"].apply(_compute_doc_id)
+            documents_df = documents_df.drop_duplicates(subset=["doc_id"])[
+                ["doc_id", "text"]
+            ]
+
+            # No URIs in local mode; return empty mapping with expected columns
+            uri_doc_map = pd.DataFrame(columns=["uri", "partition_date", "doc_id"])
+            return dict(), documents_df, uri_doc_map
         elif self.mode == "prod":
             return self._load_prod_data()
         else:
