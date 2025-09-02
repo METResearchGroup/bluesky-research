@@ -8,6 +8,7 @@ import argparse
 import os
 import json
 import hashlib
+import yaml
 
 import pandas as pd
 
@@ -68,6 +69,31 @@ def compute_doc_id(text: str) -> str:
     return hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
 
+def load_bertopic_config_from_yaml() -> dict:
+    """Load BERTopic configuration from YAML file.
+
+    Returns:
+        Configuration dictionary from config.yaml
+    """
+    # Navigate from current file to project root, then to config file
+    current_file_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(current_file_dir)))
+    )
+    config_path = os.path.join(
+        project_root, "ml_tooling", "topic_modeling", "config.yaml"
+    )
+
+    try:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+        logger.info(f"✅ Loaded BERTopic configuration from: {config_path}")
+        return config
+    except Exception as e:
+        logger.error(f"❌ Failed to load config from {config_path}: {e}")
+        raise
+
+
 def get_bertopic_config(dataset_size: int, force_fallback: bool = False) -> dict:
     """Get BERTopic configuration based on dataset size and requirements.
 
@@ -78,6 +104,9 @@ def get_bertopic_config(dataset_size: int, force_fallback: bool = False) -> dict
     Returns:
         Configuration dictionary for BERTopicWrapper
     """
+    # Load base configuration from YAML file (includes text preprocessing)
+    config = load_bertopic_config_from_yaml()
+
     use_fallback = force_fallback or dataset_size > 100000
 
     if use_fallback:
@@ -87,71 +116,39 @@ def get_bertopic_config(dataset_size: int, force_fallback: bool = False) -> dict
             logger.warning(
                 f"📊 Large dataset detected ({dataset_size} documents), using conservative configuration"
             )
-        config = {
-            "embedding_model": {
-                "name": "all-MiniLM-L6-v2",
-                "device": "auto",
-                "batch_size": 16,  # Reduced batch size for memory
-            },
-            "bertopic": {
-                "top_n_words": 15,
-                "min_topic_size": 200,  # Much larger for stability
-                "nr_topics": 50,  # Fixed number for manageable analysis
-                "calculate_probabilities": False,  # Disable for memory
-                "verbose": True,
-                # Conservative HDBSCAN for large datasets
-                "hdbscan_model": {
-                    "min_cluster_size": 200,  # Much larger for stability
-                    "min_samples": 100,  # Much larger for stability
-                    "cluster_selection_method": "leaf",  # More stable for large datasets
-                    "prediction_data": True,
-                    "gen_min_span_tree": False,  # Disable for memory
-                    "core_dist_n_jobs": 1,  # Single thread for stability
-                },
-                # Conservative UMAP for large datasets
-                "umap_model": {
-                    "n_neighbors": 10,  # Reduced for stability
-                    "n_components": 3,  # Fewer dimensions for stability
-                    "min_dist": 0.1,  # Increased for stability
-                    "metric": "cosine",
-                    "random_state": 42,
-                    "low_memory": True,  # Enable low memory mode
-                },
-            },
-            "random_seed": 42,
+
+        # Override specific settings for fallback mode while preserving text preprocessing
+        config["embedding_model"]["batch_size"] = 16  # Reduced batch size for memory
+        config["bertopic"]["top_n_words"] = 15
+        config["bertopic"]["min_topic_size"] = 200  # Much larger for stability
+        config["bertopic"]["nr_topics"] = 50  # Fixed number for manageable analysis
+        config["bertopic"]["calculate_probabilities"] = False  # Disable for memory
+        config["bertopic"]["verbose"] = True
+
+        # Conservative HDBSCAN for large datasets
+        config["bertopic"]["hdbscan_model"] = {
+            "min_cluster_size": 200,  # Much larger for stability
+            "min_samples": 100,  # Much larger for stability
+            "cluster_selection_method": "leaf",  # More stable for large datasets
+            "prediction_data": True,
+            "gen_min_span_tree": False,  # Disable for memory
+            "core_dist_n_jobs": 1,  # Single thread for stability
+        }
+
+        # Conservative UMAP for large datasets
+        config["bertopic"]["umap_model"] = {
+            "n_neighbors": 10,  # Reduced for stability
+            "n_components": 3,  # Fewer dimensions for stability
+            "min_dist": 0.1,  # Increased for stability
+            "metric": "cosine",
+            "random_state": 42,
+            "low_memory": True,  # Enable low memory mode
         }
     else:
-        config = {
-            "embedding_model": {
-                "name": "all-MiniLM-L6-v2",
-                "device": "auto",  # Will auto-detect GPU if available
-                "batch_size": 32,
-            },
-            "bertopic": {
-                "top_n_words": 20,
-                "min_topic_size": 100,  # Increased from 15 for more stable topics
-                "nr_topics": 50,  # Fixed number instead of "auto" for manageable analysis
-                "calculate_probabilities": True,
-                "verbose": True,
-                # Conservative HDBSCAN configuration for better stability
-                "hdbscan_model": {
-                    "min_cluster_size": 100,  # Increased from 20 for more stable clusters
-                    "min_samples": 50,  # Increased from 10 for more stable clusters
-                    "cluster_selection_method": "leaf",  # More stable than "eom"
-                    "prediction_data": True,  # Explicitly enable prediction data
-                    "gen_min_span_tree": True,  # Better for large datasets
-                },
-                # Conservative UMAP for better stability
-                "umap_model": {
-                    "n_neighbors": 10,  # Reduced from 15 for more stability
-                    "n_components": 3,  # Reduced from 5 for more stability
-                    "min_dist": 0.1,  # Increased from 0.0 for more stability
-                    "metric": "cosine",
-                    "random_state": 42,
-                },
-            },
-            "random_seed": 42,
-        }
+        # Use YAML config as-is for normal mode (includes text preprocessing)
+        logger.info(
+            "📋 Using standard configuration from YAML file (includes text preprocessing)"
+        )
 
     return config
 
@@ -290,8 +287,8 @@ def do_analysis_and_export_results(
     # Generate timestamp for unique filenames
     timestamp = generate_current_datetime_str()
 
-    # Create output directory
-    output_dir = os.path.join(current_dir, "results")
+    # Create timestamped output directory
+    output_dir = os.path.join(current_dir, "results", timestamp)
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. Train BERTopic model
@@ -305,9 +302,9 @@ def do_analysis_and_export_results(
     # 2. Save the trained model for future use
     logger.info("💾 Saving trained model...")
     try:
-        results_dir = os.path.join(os.path.dirname(__file__), "results")
-        os.makedirs(results_dir, exist_ok=True)
-        model_path = bertopic.save_model_with_timestamp(results_dir, "feed_topic_model")
+        # Save model to the same timestamped directory with consistent naming
+        model_path = os.path.join(output_dir, f"feed_topic_model_{timestamp}")
+        bertopic.save_model(model_path)
         logger.info(f"✅ Model saved to: {model_path}")
     except Exception as e:
         logger.warning(f"Failed to save model (continuing anyway): {e}")
@@ -385,7 +382,7 @@ def do_analysis_and_export_results(
             topic_evolution.to_csv(evolution_file, index=False)
             logger.info(f"📈 Evolution: {os.path.basename(evolution_file)} (CSV)")
 
-        logger.info(f"📊 Results exported to {output_dir}")
+        logger.info(f"📊 Results exported to timestamped directory: {output_dir}")
         logger.info(
             f"✅ MET-46 stratified analysis completed: {len(topic_distributions)} slices"
         )

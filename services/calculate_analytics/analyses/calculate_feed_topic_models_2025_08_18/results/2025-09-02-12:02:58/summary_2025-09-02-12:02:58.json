@@ -3,8 +3,8 @@
   "end_date": "2024-12-01",
   "total_documents": 16809,
   "total_topics": 24,
-  "training_time_seconds": 35.38404393196106,
+  "training_time_seconds": 40.424818992614746,
   "c_v_coherence": "0.7054644",
   "c_npmi_coherence": 0.1400564253581119,
-  "export_timestamp": "2025-09-02-10:02:40"
+  "export_timestamp": "2025-09-02-12:02:58"
 }

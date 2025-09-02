@@ -47,3 +47,37 @@ performance:
   enable_timing_breakdown: true
 
 random_seed: 42
+
+# Text preprocessing configuration
+text_preprocessing:
+  enable: true
+  remove_stopwords: true
+  language: "english"
+  min_word_length: 2
+  remove_urls: true
+  remove_emojis: true
+  custom_stopwords:
+    # Social media specific stopwords
+    - "rt"
+    - "via"
+    - "amp"
+    - "u"
+    - "ur"
+    - "im"
+    - "ill"
+    - "ive"
+    - "id"
+    - "dont"
+    - "cant"
+    - "wont"
+    - "wouldnt"
+    - "couldnt"
+    - "shouldnt"
+    - "thats"
+    - "theres"
+    - "theyre"
+    - "youre"
+    - "were"
+    - "shes"
+    - "hes"
+    - "its"

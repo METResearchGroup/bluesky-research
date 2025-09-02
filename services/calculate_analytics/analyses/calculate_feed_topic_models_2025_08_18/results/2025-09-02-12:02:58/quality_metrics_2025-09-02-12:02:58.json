@@ -54,16 +54,17 @@
   ],
   "docs_used": 16809,
   "total_docs": 16809,
-  "training_time": 38.627206802368164,
+  "training_time": 40.424818992614746,
   "meets_thresholds": "True",
   "warnings": [],
   "random_seed": 42,
   "stage_times": {
-    "validation": 0.010591983795166016,
-    "embeddings": 22.415649890899658,
-    "initialization": 0.01056671142578125,
-    "clustering": 14.824790000915527,
-    "quality_metrics": 1.3650341033935547,
-    "threshold_check": 3.790855407714844e-05
+    "validation": 0.009511947631835938,
+    "preprocessing": 2.3126602172851562e-05,
+    "embeddings": 23.973512887954712,
+    "initialization": 0.010450124740600586,
+    "clustering": 14.989666938781738,
+    "quality_metrics": 1.440809965133667,
+    "threshold_check": 3.314018249511719e-05
   }
 }

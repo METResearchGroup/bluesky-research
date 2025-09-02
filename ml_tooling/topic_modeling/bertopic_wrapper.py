@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import random
+import re
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -23,6 +24,16 @@ import yaml
 from bertopic import BERTopic
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+
+# Optional NLTK imports for text preprocessing
+try:
+    import nltk
+    from nltk.corpus import stopwords
+    from nltk.tokenize import word_tokenize
+
+    NLTK_AVAILABLE = True
+except ImportError:
+    NLTK_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -74,6 +85,9 @@ class BERTopicWrapper:
 
         # Initialize embedding model
         self._initialize_embedding_model()
+
+        # Initialize text preprocessing
+        self._initialize_text_preprocessing()
 
         logger.info(f"BERTopicWrapper initialized with random seed: {self.random_seed}")
 
@@ -285,6 +299,95 @@ class BERTopicWrapper:
         except Exception as e:
             logger.error(f"Failed to initialize embedding model: {e}")
             raise
+
+    def _initialize_text_preprocessing(self) -> None:
+        """
+        Initialize text preprocessing components including NLTK resources.
+        """
+        if not self.config.get("text_preprocessing", {}).get("enable", False):
+            logger.info("Text preprocessing disabled in configuration")
+            return
+
+        if not NLTK_AVAILABLE:
+            logger.warning("NLTK not available - text preprocessing will be limited")
+            return
+
+        # Download required NLTK resources
+        try:
+            nltk.data.find("tokenizers/punkt")
+        except LookupError:
+            logger.info("Downloading NLTK punkt tokenizer...")
+            nltk.download("punkt", quiet=True)
+
+        try:
+            nltk.data.find("corpora/stopwords")
+        except LookupError:
+            logger.info("Downloading NLTK stopwords...")
+            nltk.download("stopwords", quiet=True)
+
+        logger.info("Text preprocessing initialized successfully")
+
+    def _preprocess_text(self, text: str) -> str:
+        """
+        Preprocess a single text string according to configuration.
+
+        Args:
+            text: Input text string
+
+        Returns:
+            Preprocessed text string
+        """
+        if not isinstance(text, str) or not text.strip():
+            return ""
+
+        config = self.config.get("text_preprocessing", {})
+        if not config.get("enable", False):
+            return text
+
+        # Convert to lowercase
+        text = text.lower()
+
+        # Remove URLs if enabled
+        if config.get("remove_urls", True):
+            text = re.sub(
+                r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
+                "",
+                text,
+            )
+
+        # Remove emojis and special characters if enabled
+        if config.get("remove_emojis", True):
+            text = re.sub(r"[^\w\s]", "", text)
+
+        # Remove stopwords if enabled and NLTK is available
+        if config.get("remove_stopwords", True) and NLTK_AVAILABLE:
+            try:
+                # Tokenize
+                tokens = word_tokenize(text)
+
+                # Get stopwords
+                language = config.get("language", "english")
+                stop_words = set(stopwords.words(language))
+
+                # Add custom stopwords
+                custom_stops = set(config.get("custom_stopwords", []))
+                stop_words.update(custom_stops)
+
+                # Filter tokens
+                min_length = config.get("min_word_length", 2)
+                filtered_tokens = [
+                    token
+                    for token in tokens
+                    if token.lower() not in stop_words and len(token) >= min_length
+                ]
+
+                # Join back into text
+                text = " ".join(filtered_tokens)
+
+            except Exception as e:
+                logger.warning(f"Stopwords removal failed, using original text: {e}")
+
+        return text.strip()
 
     def _validate_input_data(self, df: pd.DataFrame, text_column: str) -> pd.DataFrame:
         """
@@ -574,6 +677,42 @@ class BERTopicWrapper:
             stage_start = time.time()
             df_cleaned = self._validate_input_data(df, text_column)
             stage_times["validation"] = time.time() - stage_start
+
+            # Preprocess texts if enabled
+            stage_start = time.time()
+            if self.config.get("text_preprocessing", {}).get("enable", False):
+                logger.info("🔧 Preprocessing texts (removing stopwords, cleaning)...")
+                original_texts = df_cleaned[text_column].copy()
+                df_cleaned[text_column] = df_cleaned[text_column].apply(
+                    self._preprocess_text
+                )
+
+                # Remove documents that became empty after preprocessing
+                initial_count = len(df_cleaned)
+                df_cleaned = df_cleaned[df_cleaned[text_column].str.len() > 0]
+                final_count = len(df_cleaned)
+
+                if initial_count != final_count:
+                    logger.info(
+                        f"Removed {initial_count - final_count} documents that became empty after preprocessing"
+                    )
+
+                # Log preprocessing example
+                if len(df_cleaned) > 0:
+                    sample_idx = 0
+                    original = original_texts.iloc[sample_idx]
+                    processed = df_cleaned[text_column].iloc[sample_idx]
+                    logger.info("Text preprocessing example:")
+                    logger.info(
+                        f"  Original: {original[:100]}{'...' if len(original) > 100 else ''}"
+                    )
+                    logger.info(
+                        f"  Processed: {processed[:100]}{'...' if len(processed) > 100 else ''}"
+                    )
+            else:
+                logger.info("Text preprocessing disabled - using original texts")
+
+            stage_times["preprocessing"] = time.time() - stage_start
 
             # Extract texts
             texts = df_cleaned[text_column].tolist()
