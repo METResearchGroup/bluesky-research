@@ -24,7 +24,7 @@ The analysis provides baseline measures by:
 
 ### **Data Flow**
 
-```
+```text
 All Labeled Posts → Day-by-Day Processing → Calculate Baseline Metrics → 
 Daily/Weekly Aggregation → CSV Export
 ```
@@ -82,14 +82,31 @@ This analysis provides:
 
 ## File Structure
 
-```
+```text
 get_baseline_measures_across_all_posts_2025_09_02/
 ├── main.py                              # Main analysis script
+├── summarize_results_across_study.py    # Summarization script for total averages
+├── visualize_results.py                 # Visualization script for time series plots
 ├── submit_baseline_measures_analysis.sh # Slurm script for cluster execution
 ├── README.md                            # This documentation
 └── results/                             # Output directory
     ├── daily_baseline_content_label_metrics_{timestamp}.csv
-    └── weekly_baseline_content_label_metrics_{timestamp}.csv
+    ├── weekly_baseline_content_label_metrics_{timestamp}.csv
+    ├── total_average_baseline_content_label_metrics_{timestamp}.csv
+    └── visualizations/                  # Visualization output directory
+        └── {timestamp}/                 # Timestamped visualization run
+            ├── daily/                   # Daily time series plots
+            │   ├── average/             # Average metrics plots
+            │   │   ├── toxic/           # Toxicity plots
+            │   │   ├── constructive/    # Constructiveness plots
+            │   │   └── ...              # Other traits
+            │   └── proportion/          # Proportion metrics plots
+            │       ├── is_sociopolitical/
+            │       ├── is_valence_positive/
+            │       └── ...
+            └── weekly/                  # Weekly time series plots
+                ├── average/             # Average metrics plots
+                └── proportion/          # Proportion metrics plots
 ```
 
 ## Dependencies
@@ -115,6 +132,76 @@ If running locally without Slurm:
 ```bash
 cd services/calculate_analytics/analyses/get_baseline_measures_across_all_posts_2025_09_02
 python main.py
+```
+
+### **Running the Summarization Script**
+
+After the main analysis has completed and generated daily baseline results, you can run the summarization script to calculate total averages across all study days:
+
+```bash
+cd services/calculate_analytics/analyses/get_baseline_measures_across_all_posts_2025_09_02
+python summarize_results_across_study.py
+```
+
+This script will:
+- Automatically find the most recent daily baseline results CSV file
+- Calculate the average of each baseline metric across all study days
+- Export a single CSV file with total average baseline metrics
+- Provide summary statistics about the analysis
+
+## Visualization
+
+### **Creating Time Series Plots**
+
+After running the main analysis, you can generate time series visualizations using the `visualize_results.py` script:
+
+```bash
+cd services/calculate_analytics/analyses/get_baseline_measures_across_all_posts_2025_09_02
+python visualize_results.py
+```
+
+### **Visualization Features**
+
+The visualization script automatically:
+
+1. **Finds Latest Results**: Locates the most recent analysis output files
+2. **Creates Organized Structure**: Generates plots in the organized folder structure:
+
+   ```text
+   results/visualizations/<timestamp>/<daily/weekly>/<average/proportion>/<trait>.png
+   ```
+3. **Generates Time Series**: Creates publication-ready time series plots for each metric
+4. **Includes Error Bars**: Shows standard deviation when available
+5. **Proper Formatting**: Applies consistent styling and formatting
+
+### **Visualization Output**
+
+The script generates:
+- **Daily Time Series**: Shows how baseline metrics change day-by-day
+- **Weekly Time Series**: Shows weekly aggregated trends
+- **Separate Plots**: One plot per metric type (average vs proportion) and trait
+- **Organized Structure**: Easy to navigate folder organization by time period and metric type
+
+### **Example Output Files**
+
+```text
+results/visualizations/2025-09-02-10-30-45/
+├── daily/
+│   ├── average/
+│   │   ├── toxic/daily_toxic_baseline.png
+│   │   ├── constructive/daily_constructive_baseline.png
+│   │   └── ...
+│   └── proportion/
+│       ├── is_sociopolitical/daily_is_sociopolitical_baseline.png
+│       ├── is_valence_positive/daily_is_valence_positive_baseline.png
+│       └── ...
+└── weekly/
+    ├── average/
+    │   ├── toxic/weekly_toxic_baseline.png
+    │   └── ...
+    └── proportion/
+        ├── is_sociopolitical/weekly_is_sociopolitical_baseline.png
+        └── ...
 ```
 
 ## Technical Details
