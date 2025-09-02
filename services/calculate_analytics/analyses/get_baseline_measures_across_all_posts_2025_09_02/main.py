@@ -121,7 +121,10 @@ def calculate_baseline_metrics_per_day(
             # Load all labels for this specific partition date
             # We pass None for post_uris and True for load_all_labels to load all labels
             labels_for_partition_date: dict[str, dict] = get_all_labels_for_posts(
-                post_uris=None, partition_dates=[partition_date], load_all_labels=True
+                post_uris=None,
+                partition_dates=[partition_date],
+                load_all_labels=True,
+                num_days_lookback=0,
             )
 
             logger.info(

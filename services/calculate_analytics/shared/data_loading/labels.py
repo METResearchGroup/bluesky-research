@@ -81,7 +81,9 @@ def get_perspective_api_labels_for_posts(
 
 
 def get_labels_for_partition_date(
-    integration: str, partition_date: str
+    integration: str,
+    partition_date: str,
+    num_days_lookback: int = default_num_days_lookback,
 ) -> pd.DataFrame:
     """Loads deduplicated labels for a given partition date with lookback.
 
@@ -92,7 +94,7 @@ def get_labels_for_partition_date(
     # Calculate lookback window to capture labels from multiple dates
     lookback_start_date, lookback_end_date = calculate_start_end_date_for_lookback(
         partition_date=partition_date,
-        num_days_lookback=default_num_days_lookback,
+        num_days_lookback=num_days_lookback,
         min_lookback_date=default_min_lookback_date,
     )
 
@@ -195,6 +197,7 @@ def get_all_labels_for_posts(
     post_uris: set[str] | None,
     partition_dates: list[str],
     load_all_labels: bool = False,
+    num_days_lookback: int = default_num_days_lookback,
 ) -> dict:
     """For the content engaged with, get their associated labels.
 
@@ -263,7 +266,9 @@ def get_all_labels_for_posts(
         for partition_date in partition_dates:
             # load the full labels dataset for the integration + date
             labels_df: pd.DataFrame = get_labels_for_partition_date(
-                integration=integration, partition_date=partition_date
+                integration=integration,
+                partition_date=partition_date,
+                num_days_lookback=num_days_lookback,
             )
 
             # filter to only the URIs that we care about (unless loading all labels)
