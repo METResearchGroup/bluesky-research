@@ -81,7 +81,9 @@ def get_perspective_api_labels_for_posts(
 
 
 def get_labels_for_partition_date(
-    integration: str, partition_date: str
+    integration: str,
+    partition_date: str,
+    num_days_lookback: int = default_num_days_lookback,
 ) -> pd.DataFrame:
     """Loads deduplicated labels for a given partition date with lookback.
 
@@ -92,7 +94,7 @@ def get_labels_for_partition_date(
     # Calculate lookback window to capture labels from multiple dates
     lookback_start_date, lookback_end_date = calculate_start_end_date_for_lookback(
         partition_date=partition_date,
-        num_days_lookback=default_num_days_lookback,
+        num_days_lookback=num_days_lookback,
         min_lookback_date=default_min_lookback_date,
     )
 
@@ -192,11 +194,19 @@ def transform_labels_dict(integration: str, labels_dict: dict):
 # can test on a smaller subset of data. I'd rather not have to do this
 # on chunks of dates as that complicates orchestration.
 def get_all_labels_for_posts(
-    post_uris: Optional[set[str]],
+    post_uris: set[str] | None,
     partition_dates: list[str],
     load_all_labels: bool = False,
+    num_days_lookback: int = default_num_days_lookback,
 ) -> dict:
     """For the content engaged with, get their associated labels.
+
+    Args:
+        post_uris: Set of post URIs to filter labels for. If None and load_all_labels=True,
+                   loads all labels without filtering.
+        partition_dates: List of partition dates to process.
+        load_all_labels: If True and post_uris is None, loads all labels without filtering.
+                        Requires both conditions to be met for safety.
 
     Algorithm:
         - Create a hash map:
@@ -212,7 +222,7 @@ def get_all_labels_for_posts(
             - For each partition date range
                 - Load in the labels.
                 - Filter for the subset of labels that are in the
-                'engaged_content' keys.
+                'engaged_content' keys (unless loading all labels).
                 - Update the hash map with the labels from that integration.
 
     Result should look something like this:
@@ -230,17 +240,21 @@ def get_all_labels_for_posts(
             ...
         }
     """
-    # Handle the case where we want to load all labels (baseline analysis)
+    # Validate parameters for loading all labels
+    if load_all_labels and post_uris is not None:
+        raise ValueError("Cannot specify both post_uris and load_all_labels=True")
     if load_all_labels and post_uris is None:
-        # We'll collect all URIs as we process each integration and partition date
-        all_uris = set()
+        logger.warning(
+            "Loading ALL labels across all posts - this may be memory intensive!"
+        )
+
+    # Initialize the result structure
+    if load_all_labels and post_uris is None:
+        # We'll build this dynamically as we encounter URIs
         uri_to_labels_map: dict[str, dict[str, float]] = {}
         uri_integration_status: dict[str, set[str]] = {}
     else:
-        # Normal case: filter by specific URIs
-        if post_uris is None:
-            raise ValueError("post_uris cannot be None unless load_all_labels=True")
-        all_uris = post_uris
+        # Initialize the result structure for specific URIs
         uri_to_labels_map: dict[str, dict[str, float]] = {uri: {} for uri in post_uris}
         uri_integration_status: dict[str, set[str]] = {
             uri: set(integrations_list) for uri in post_uris
@@ -252,23 +266,17 @@ def get_all_labels_for_posts(
         for partition_date in partition_dates:
             # load the full labels dataset for the integration + date
             labels_df: pd.DataFrame = get_labels_for_partition_date(
-                integration=integration, partition_date=partition_date
+                integration=integration,
+                partition_date=partition_date,
+                num_days_lookback=num_days_lookback,
             )
 
-            # filter to only the URIs that we care about (or use all if loading all labels)
+            # filter to only the URIs that we care about (unless loading all labels)
             if load_all_labels and post_uris is None:
-                relevant_labels_df = labels_df
-                # Add new URIs to our tracking sets
-                new_uris = set(labels_df["uri"].unique())
-                all_uris.update(new_uris)
-                for uri in new_uris:
-                    if uri not in uri_to_labels_map:
-                        uri_to_labels_map[uri] = {}
-                    if uri not in uri_integration_status:
-                        uri_integration_status[uri] = set(integrations_list)
+                relevant_labels_df: pd.DataFrame = labels_df
             else:
                 relevant_labels_df: pd.DataFrame = labels_df[
-                    labels_df["uri"].isin(all_uris)
+                    labels_df["uri"].isin(post_uris)
                 ]
 
             del labels_df
@@ -295,6 +303,14 @@ def get_all_labels_for_posts(
                         # Use attribute access for itertuples (row.uri, not row["uri"])
                         post_uri: str = row.uri
 
+                        # For loading all labels, initialize URI if not seen before
+                        if load_all_labels and post_uris is None:
+                            if post_uri not in uri_to_labels_map:
+                                uri_to_labels_map[post_uri] = {}
+                                uri_integration_status[post_uri] = set(
+                                    integrations_list
+                                )
+
                         # Extract only the fields relevant to this specific integration
                         labels_dict = _extract_integration_fields(row, integration)
 
@@ -319,7 +335,10 @@ def get_all_labels_for_posts(
             del relevant_labels_df
 
     # Completeness check and logging
-    _log_completeness_status(uri_integration_status, all_uris)
+    if load_all_labels and post_uris is None:
+        _log_completeness_status(uri_integration_status, set(uri_to_labels_map.keys()))
+    else:
+        _log_completeness_status(uri_integration_status, post_uris)
 
     return uri_to_labels_map
 

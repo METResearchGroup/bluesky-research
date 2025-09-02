@@ -1,0 +1,37 @@
+label,prevalence_percentage,formatted_label
+is_not_sociopolitical,75.7,Is Not Sociopolitical
+respect,73.3,Respect
+affinity,58.3,Affinity
+personal_story,54.3,Personal Story
+fearmongering,50.4,Fearmongering
+is_political_unclear,49.5,Is Political Unclear
+is_valence_positive,47.1,Is Valence Positive
+is_political_left,43.7,Is Political Left
+scapegoating,32.3,Scapegoating
+is_valence_neutral,27.7,Is Valence Neutral
+compassion,27.1,Compassion
+is_valence_negative,25.2,Is Valence Negative
+curiosity,25.0,Curiosity
+is_sociopolitical,24.2,Is Sociopolitical
+generalization,21.8,Generalization
+spam,19.4,Spam
+alienation,17.5,Alienation
+other,15.1,Other
+moral_outrage,13.7,Moral Outrage
+flirtation,12.9,Flirtation
+reasoning,9.1,Reasoning
+constructive,9.0,Constructive
+emotion,7.8,Emotion
+is_political_right,6.8,Is Political Right
+toxic,6.3,Toxic
+nuance,5.6,Nuance
+profanity,5.0,Profanity
+insult,2.9,Insult
+moral,1.0,Moral
+sexually_explicit,0.8,Sexually Explicit
+intergroup,0.6,Intergroup
+identity_attack,0.4,Identity Attack
+threat,0.4,Threat
+severe_toxic,0.1,Severe Toxic
+valence_clf_score,0.0,Valence Clf Score
+is_political_moderate,0.0,Is Political Moderate

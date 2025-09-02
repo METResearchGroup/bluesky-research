@@ -302,7 +302,17 @@ def do_analysis_and_export_results(
         logger.error(f"Failed to train BERTopic model: {e}")
         raise
 
-    # 2. Compute topic assignments
+    # 2. Save the trained model for future use
+    logger.info("💾 Saving trained model...")
+    try:
+        results_dir = os.path.join(os.path.dirname(__file__), "results")
+        os.makedirs(results_dir, exist_ok=True)
+        model_path = bertopic.save_model_with_timestamp(results_dir, "feed_topic_model")
+        logger.info(f"✅ Model saved to: {model_path}")
+    except Exception as e:
+        logger.warning(f"Failed to save model (continuing anyway): {e}")
+
+    # 3. Compute topic assignments
     logger.info("🎯 Computing topic assignments...")
     try:
         doc_topic_assignments = compute_doc_topic_assignments(bertopic, documents_df)

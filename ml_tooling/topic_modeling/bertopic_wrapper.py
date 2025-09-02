@@ -951,6 +951,55 @@ class BERTopicWrapper:
 
         return summary
 
+    def get_document_topics(self, documents: Optional[List[str]] = None) -> List[int]:
+        """
+        Get topic assignments for documents.
+
+        Args:
+            documents: Optional list of documents to get topics for.
+                      If None, returns topics for the documents used during training.
+
+        Returns:
+            List of topic IDs for each document
+
+        Raises:
+            RuntimeError: If model hasn't been trained yet
+        """
+        if self.topic_model is None:
+            raise RuntimeError("Model must be trained before getting document topics")
+
+        if documents is None:
+            # Return topics for the documents used during training
+            # The topics are stored in the model after fit_transform
+            if (
+                hasattr(self.topic_model, "topics_")
+                and self.topic_model.topics_ is not None
+            ):
+                topics = self.topic_model.topics_
+                # Handle both numpy array and list cases
+                if hasattr(topics, "tolist"):
+                    return topics.tolist()
+                elif isinstance(topics, list):
+                    return topics
+                else:
+                    # Convert to list if it's some other iterable
+                    return list(topics)
+            else:
+                raise RuntimeError(
+                    "No training topics available. Model may not have been properly trained."
+                )
+        else:
+            # Get topics for new documents using transform
+            topics, _ = self.topic_model.transform(documents)
+            # Handle both numpy array and list cases
+            if hasattr(topics, "tolist"):
+                return topics.tolist()
+            elif isinstance(topics, list):
+                return topics
+            else:
+                # Convert to list if it's some other iterable
+                return list(topics)
+
     def save_model(self, filepath: Union[str, Path]) -> None:
         """
         Save the trained model to disk using safe, non-pickle persistence.
@@ -1017,6 +1066,32 @@ class BERTopicWrapper:
         except Exception as e:
             logger.error(f"Failed to save model: {e}")
             raise RuntimeError(f"Model saving failed: {e}")
+
+    def save_model_with_timestamp(
+        self, base_path: Union[str, Path], prefix: str = "bertopic_model"
+    ) -> str:
+        """
+        Save the trained model with a timestamp in the filename.
+
+        Args:
+            base_path: Base directory where to save the model
+            prefix: Prefix for the model filename
+
+        Returns:
+            Path to the saved model directory
+
+        Raises:
+            RuntimeError: If model hasn't been trained or saving fails
+        """
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_name = f"{prefix}_{timestamp}"
+        model_path = Path(base_path) / model_name
+
+        self.save_model(model_path)
+        logger.info(f"Model saved with timestamp: {model_path}")
+        return str(model_path)
 
     @classmethod
     def load_model(cls, filepath: Union[str, Path]) -> "BERTopicWrapper":

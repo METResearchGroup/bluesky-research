@@ -21,6 +21,23 @@ from ml_tooling.topic_modeling.bertopic_wrapper import BERTopicWrapper
 logger = get_logger(__name__)
 
 
+def sanitize_slice_name(slice_name: str) -> str:
+    """
+    Sanitize slice name for safe use in file paths.
+
+    Args:
+        slice_name: Original slice name
+
+    Returns:
+        Sanitized slice name safe for file paths
+    """
+    # Replace problematic characters with underscores
+    sanitized = str(slice_name).replace("/", "_").replace("\\", "_").replace(":", "_")
+    # Remove any other potentially problematic characters
+    sanitized = "".join(c if c.isalnum() or c in "_-" else "_" for c in sanitized)
+    return sanitized
+
+
 def canonicalize_text(text: str) -> str:
     """
     Canonicalize text for stable hashing and deduplication.
@@ -222,7 +239,9 @@ def aggregate_topic_distributions_by_slice(
                     "slice_value": str(week_period),
                 }
             )
-            results[f"week_{week_period}"] = week_df
+            # Convert period to string and sanitize for file paths
+            week_str = sanitize_slice_name(week_period)
+            results[f"week_{week_str}"] = week_df
 
     # 4. Pre/post election analysis
     logger.info(
@@ -277,7 +296,9 @@ def aggregate_topic_distributions_by_slice(
                         "slice_value": f"{condition}_{week_period}",
                     }
                 )
-                results[f"condition_{condition}_week_{week_period}"] = interaction_df
+                # Sanitize week period for file paths
+                week_str = sanitize_slice_name(week_period)
+                results[f"condition_{condition}_week_{week_str}"] = interaction_df
 
     # Condition × Election period interactions
     for condition, uris in condition_uri_sets.items():
@@ -334,8 +355,10 @@ def export_stratified_analysis_results(
 
     # Export individual slice results
     for slice_name, slice_df in topic_distributions.items():
+        # Sanitize slice name for use in file path
+        safe_slice_name = sanitize_slice_name(slice_name)
         slice_file = os.path.join(
-            output_path, f"topic_distribution_{slice_name}_{timestamp}.csv"
+            output_path, f"topic_distribution_{safe_slice_name}_{timestamp}.csv"
         )
         slice_df.to_csv(slice_file, index=False)
 
