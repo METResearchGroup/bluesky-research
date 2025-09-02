@@ -22,7 +22,7 @@ from services.calculate_analytics.shared.constants import (
 )
 from services.calculate_analytics.shared.data_loading.feeds import (
     get_all_post_uris_used_in_feeds,
-    get_feeds_per_user,
+    get_post_uris_used_in_feeds_per_user_per_day,
 )
 from services.calculate_analytics.shared.data_loading.labels import (
     get_all_labels_for_posts,
@@ -62,8 +62,10 @@ def do_setup():
 
     # load feeds: per-user, per-date, get list of URIs of posts in feeds.
     try:
-        user_to_content_in_feeds: dict[str, dict[str, set[str]]] = get_feeds_per_user(
-            valid_study_users_dids=valid_study_users_dids
+        user_to_content_in_feeds: dict[str, dict[str, set[str]]] = (
+            get_post_uris_used_in_feeds_per_user_per_day(
+                valid_study_users_dids=valid_study_users_dids
+            )
         )
     except Exception as e:
         logger.error(f"Failed to get feeds per user: {e}")

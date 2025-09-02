@@ -38,7 +38,7 @@ Handles loading and processing of generated feed data:
 **Key Functions:**
 - `get_feeds_for_partition_date(partition_date)` - Loads feeds for a specific date
 - `map_users_to_posts_used_in_feeds(partition_date)` - Maps users to posts in their feeds
-- `get_feeds_per_user(valid_study_users_dids)` - Gets feed content per user per day
+- `get_post_uris_used_in_feeds_per_user_per_day(valid_study_users_dids)` - Gets feed content per user per day
 - `get_all_post_uris_used_in_feeds(user_to_content_in_feeds)` - Gets all unique post URIs from feeds
 
 **Data Structure:**
@@ -119,9 +119,9 @@ engaged_content = get_engaged_content(valid_study_users_dids)
 
 ### Loading Feed Data
 ```python
-from services.calculate_analytics.shared.data_loading.feeds import get_feeds_per_user
+from services.calculate_analytics.shared.data_loading.feeds import get_post_uris_used_in_feeds_per_user_per_day
 
-feeds_per_user = get_feeds_per_user(valid_study_users_dids)
+feeds_per_user = get_post_uris_used_in_feeds_per_user_per_day(valid_study_users_dids)
 ```
 
 ### Loading ML Labels
