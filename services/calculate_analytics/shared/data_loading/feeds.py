@@ -71,31 +71,7 @@ def map_users_to_posts_used_in_feeds(
     return users_to_posts
 
 
-def get_feeds_per_user(
-    valid_study_users_dids: set[str],
-) -> dict[str, dict[str, set[str]]]:
-    """Gets the posts used in feeds generated per user per day.
-
-    Returns a map of something like:
-
-    {
-        "<did>": {
-             "<date>": {"<uri_1>", "<uri_2>", ...}  # Set of URIs
-        }
-    }
-
-    Where for each user DID + date, we get a deduplicated list of post URIs for
-    posts used in feeds from that date.
-
-    Note that this only returns did + date combinations that have feeds. This is
-    important to consider for downstream analyses for combinations of date + user
-    that may not have feeds. This is generally unlikely, and the only expected
-    examples are:
-    - Feeds from the 1st week, for users in Wave 2 (since they start in Week 2).
-    - Feeds from the 9th week, for users in Wave 1 (since they end in Week 8).
-    - Feeds from 2024-10-08 (there was an outage on this date and feed generation
-    was broken).
-    """
+def get_feeds_per_user(valid_study_users_dids: set[str]) -> pd.DataFrame:
     query = (
         "SELECT bluesky_user_did, feed, feed_generation_timestamp FROM generated_feeds"
     )
@@ -121,6 +97,35 @@ def get_feeds_per_user(
     generated_feeds_df = generated_feeds_df[
         generated_feeds_df["bluesky_user_did"].isin(valid_study_users_dids)
     ]
+    return generated_feeds_df
+
+
+def get_post_uris_used_in_feeds_per_user_per_day(
+    valid_study_users_dids: set[str],
+) -> dict[str, dict[str, set[str]]]:
+    """Gets the posts used in feeds generated per user per day.
+
+    Returns a map of something like:
+
+    {
+        "<did>": {
+             "<date>": {"<uri_1>", "<uri_2>", ...}  # Set of URIs
+        }
+    }
+
+    Where for each user DID + date, we get a deduplicated list of post URIs for
+    posts used in feeds from that date.
+
+    Note that this only returns did + date combinations that have feeds. This is
+    important to consider for downstream analyses for combinations of date + user
+    that may not have feeds. This is generally unlikely, and the only expected
+    examples are:
+    - Feeds from the 1st week, for users in Wave 2 (since they start in Week 2).
+    - Feeds from the 9th week, for users in Wave 1 (since they end in Week 8).
+    - Feeds from 2024-10-08 (there was an outage on this date and feed generation
+    was broken).
+    """
+    generated_feeds_df: pd.DataFrame = get_feeds_per_user(valid_study_users_dids)
 
     feeds_per_user: dict[str, dict[str, set[str]]] = {}
 

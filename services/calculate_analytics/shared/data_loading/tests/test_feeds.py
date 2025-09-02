@@ -18,7 +18,7 @@ from datetime import datetime
 from services.calculate_analytics.shared.data_loading.feeds import (
     get_feeds_for_partition_date,
     map_users_to_posts_used_in_feeds,
-    get_feeds_per_user,
+    get_post_uris_used_in_feeds_per_user_per_day,
     get_all_post_uris_used_in_feeds,
 )
 
@@ -260,7 +260,7 @@ class TestMapUsersToPostsUsedInFeeds:
 
 
 class TestGetFeedsPerUser:
-    """Tests for get_feeds_per_user function."""
+    """Tests for get_post_uris_used_in_feeds_per_user_per_day function."""
 
     def test_gets_feeds_per_user_correctly(self):
         """Test correct retrieval of feeds per user with date organization.
@@ -300,7 +300,7 @@ class TestGetFeedsPerUser:
 
         # Act
         with patch("services.calculate_analytics.shared.data_loading.feeds.load_data_from_local_storage", return_value=mock_feeds_df):
-            result = get_feeds_per_user(valid_study_users_dids)
+            result = get_post_uris_used_in_feeds_per_user_per_day(valid_study_users_dids)
 
         # Assert
         assert isinstance(result, dict)
@@ -337,7 +337,7 @@ class TestGetFeedsPerUser:
 
         # Act
         with patch("services.calculate_analytics.shared.data_loading.feeds.load_data_from_local_storage", return_value=mock_feeds_df):
-            result = get_feeds_per_user(valid_study_users_dids)
+            result = get_post_uris_used_in_feeds_per_user_per_day(valid_study_users_dids)
 
         # Assert
         assert set(result.keys()) == expected_users
@@ -363,7 +363,7 @@ class TestGetFeedsPerUser:
 
         # Act
         with patch("services.calculate_analytics.shared.data_loading.feeds.load_data_from_local_storage", return_value=mock_feeds_df):
-            result = get_feeds_per_user(valid_study_users_dids)
+            result = get_post_uris_used_in_feeds_per_user_per_day(valid_study_users_dids)
 
         # Assert
         assert result == expected_result
@@ -385,7 +385,7 @@ class TestGetFeedsPerUser:
 
         # Act
         with patch("services.calculate_analytics.shared.data_loading.feeds.load_data_from_local_storage", return_value=mock_feeds_df):
-            result = get_feeds_per_user(valid_study_users_dids)
+            result = get_post_uris_used_in_feeds_per_user_per_day(valid_study_users_dids)
 
         # Assert
         assert result == expected_result
@@ -412,7 +412,7 @@ class TestGetFeedsPerUser:
         # Act
         with patch("services.calculate_analytics.shared.data_loading.feeds.load_data_from_local_storage") as mock_load_data:
             mock_load_data.return_value = mock_feeds_df
-            result = get_feeds_per_user(valid_study_users_dids)
+            result = get_post_uris_used_in_feeds_per_user_per_day(valid_study_users_dids)
 
         # Assert
         mock_load_data.assert_called_once()
@@ -441,7 +441,7 @@ class TestGetFeedsPerUser:
         # Act & Assert
         with patch("services.calculate_analytics.shared.data_loading.feeds.load_data_from_local_storage", side_effect=mock_load_data):
             with pytest.raises(Exception, match=expected_error):
-                get_feeds_per_user(valid_study_users_dids)
+                get_post_uris_used_in_feeds_per_user_per_day(valid_study_users_dids)
 
 
 class TestGetAllPostUrisUsedInFeeds:

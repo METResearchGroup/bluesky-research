@@ -45,14 +45,14 @@ class TestDoSetup:
 
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.load_user_data")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_partition_dates")
-    @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_feeds_per_user")
+    @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_post_uris_used_in_feeds_per_user_per_day")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_all_post_uris_used_in_feeds")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_all_labels_for_posts")
     def test_do_setup_returns_expected_structure(
         self,
         mock_get_all_labels_for_posts,
         mock_get_all_post_uris_used_in_feeds,
-        mock_get_feeds_per_user,
+        mock_get_post_uris_used_in_feeds_per_user_per_day,
         mock_get_partition_dates,
         mock_load_user_data,
     ):
@@ -71,7 +71,7 @@ class TestDoSetup:
             mock_valid_study_users_dids,
         )
         mock_get_partition_dates.return_value = mock_partition_dates
-        mock_get_feeds_per_user.return_value = mock_user_to_content_in_feeds
+        mock_get_post_uris_used_in_feeds_per_user_per_day.return_value = mock_user_to_content_in_feeds
         mock_get_all_post_uris_used_in_feeds.return_value = {"post1", "post2", "post3"}
         mock_get_all_labels_for_posts.return_value = mock_labels_for_feed_content
 
@@ -104,7 +104,7 @@ class TestDoSetup:
             end_date=STUDY_END_DATE,
             exclude_partition_dates=exclude_partition_dates,
         )
-        mock_get_feeds_per_user.assert_called_once_with(
+        mock_get_post_uris_used_in_feeds_per_user_per_day.assert_called_once_with(
             valid_study_users_dids=mock_valid_study_users_dids
         )
         mock_get_all_post_uris_used_in_feeds.assert_called_once_with(
@@ -116,14 +116,14 @@ class TestDoSetup:
 
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.load_user_data")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_partition_dates")
-    @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_feeds_per_user")
+    @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_post_uris_used_in_feeds_per_user_per_day")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_all_post_uris_used_in_feeds")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_all_labels_for_posts")
     def test_do_setup_handles_empty_data(
         self,
         mock_get_all_labels_for_posts,
         mock_get_all_post_uris_used_in_feeds,
-        mock_get_feeds_per_user,
+        mock_get_post_uris_used_in_feeds_per_user_per_day,
         mock_get_partition_dates,
         mock_load_user_data,
     ):
@@ -149,7 +149,7 @@ class TestDoSetup:
             empty_valid_study_users_dids,
         )
         mock_get_partition_dates.return_value = empty_partition_dates
-        mock_get_feeds_per_user.return_value = empty_user_to_content_in_feeds
+        mock_get_post_uris_used_in_feeds_per_user_per_day.return_value = empty_user_to_content_in_feeds
         mock_get_all_post_uris_used_in_feeds.return_value = set()
         mock_get_all_labels_for_posts.return_value = empty_labels_for_feed_content
 
@@ -486,7 +486,7 @@ class TestIntegration:
 
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.load_user_data")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_partition_dates")
-    @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_feeds_per_user")
+    @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_post_uris_used_in_feeds_per_user_per_day")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_all_post_uris_used_in_feeds")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_all_labels_for_posts")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_daily_feed_content_per_user_metrics")
@@ -503,7 +503,7 @@ class TestIntegration:
         mock_get_daily,
         mock_get_all_labels_for_posts,
         mock_get_all_post_uris_used_in_feeds,
-        mock_get_feeds_per_user,
+        mock_get_post_uris_used_in_feeds_per_user_per_day,
         mock_get_partition_dates,
         mock_load_user_data,
     ):
@@ -523,7 +523,7 @@ class TestIntegration:
             mock_valid_study_users_dids,
         )
         mock_get_partition_dates.return_value = mock_partition_dates
-        mock_get_feeds_per_user.return_value = mock_user_to_content_in_feeds
+        mock_get_post_uris_used_in_feeds_per_user_per_day.return_value = mock_user_to_content_in_feeds
         mock_get_all_post_uris_used_in_feeds.return_value = {"post1", "post2", "post3"}
         mock_get_all_labels_for_posts.return_value = mock_labels_for_feed_content
         mock_get_daily.return_value = mock_user_per_day_content_label_metrics
@@ -551,7 +551,7 @@ class TestIntegration:
             end_date=STUDY_END_DATE,
             exclude_partition_dates=exclude_partition_dates,
         )
-        mock_get_feeds_per_user.assert_called_once_with(
+        mock_get_post_uris_used_in_feeds_per_user_per_day.assert_called_once_with(
             valid_study_users_dids=mock_valid_study_users_dids
         )
         mock_get_all_post_uris_used_in_feeds.assert_called_once_with(
@@ -588,7 +588,7 @@ class TestIntegration:
 
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.load_user_data")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_partition_dates")
-    @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_feeds_per_user")
+    @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_post_uris_used_in_feeds_per_user_per_day")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_all_post_uris_used_in_feeds")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_all_labels_for_posts")
     @patch("services.calculate_analytics.analyses.user_feed_analysis_2025_04_08.main.get_daily_feed_content_per_user_metrics")
@@ -605,7 +605,7 @@ class TestIntegration:
         mock_get_daily,
         mock_get_all_labels_for_posts,
         mock_get_all_post_uris_used_in_feeds,
-        mock_get_feeds_per_user,
+        mock_get_post_uris_used_in_feeds_per_user_per_day,
         mock_get_partition_dates,
         mock_load_user_data,
     ):
@@ -639,7 +639,7 @@ class TestIntegration:
             empty_valid_study_users_dids,
         )
         mock_get_partition_dates.return_value = empty_partition_dates
-        mock_get_feeds_per_user.return_value = empty_user_to_content_in_feeds
+        mock_get_post_uris_used_in_feeds_per_user_per_day.return_value = empty_user_to_content_in_feeds
         mock_get_all_post_uris_used_in_feeds.return_value = set()
         mock_get_all_labels_for_posts.return_value = empty_labels_for_feed_content
         mock_get_daily.return_value = empty_daily_metrics
@@ -658,7 +658,7 @@ class TestIntegration:
             end_date=STUDY_END_DATE,
             exclude_partition_dates=exclude_partition_dates,
         )
-        mock_get_feeds_per_user.assert_called_once_with(
+        mock_get_post_uris_used_in_feeds_per_user_per_day.assert_called_once_with(
             valid_study_users_dids=empty_valid_study_users_dids
         )
         mock_get_all_post_uris_used_in_feeds.assert_called_once_with(
