@@ -10,6 +10,7 @@ from services.calculate_analytics.shared.processing.content_label_processing imp
     flatten_content_metrics_across_record_types,
     get_metrics_for_record_types,
     get_metrics_for_user_feeds_from_partition_date,
+    get_metrics_for_baseline_content,
 )
 from services.calculate_analytics.shared.constants import TOTAL_STUDY_WEEKS_PER_USER
 
@@ -250,6 +251,76 @@ def get_daily_engaged_content_per_user_metrics(
         daily_engaged_content_per_user_metrics[did] = partition_date_to_metrics_map
 
     return daily_engaged_content_per_user_metrics
+
+
+def get_daily_baseline_content_metrics(
+    labels_for_content: dict[str, dict],
+) -> dict[str, float | None]:
+    """Calculate baseline metrics across all labeled posts for a given day.
+
+    This function calculates metrics across all labeled posts without any user-specific
+    filtering, providing baseline measures for the entire dataset on a given day.
+
+    Args:
+        labels_for_content: Dictionary mapping post URIs to their label dictionaries
+
+    Returns:
+        Dictionary of baseline metrics with keys like:
+        - baseline_average_toxic
+        - baseline_proportion_is_sociopolitical
+        - baseline_average_is_valence_positive
+        - baseline_proportion_is_valence_positive
+        etc.
+    """
+    return get_metrics_for_baseline_content(labels_for_content=labels_for_content)
+
+
+def get_weekly_baseline_content_metrics(
+    baseline_per_day_content_label_metrics: dict[str, dict[str, float | None]],
+    date_to_week_mapping: dict[str, int],
+) -> dict[int, dict[str, float | None]]:
+    """Get the weekly baseline content metrics.
+
+    Groups daily baseline metrics by week and aggregates (averages) the values
+    across each week.
+
+    Args:
+        baseline_per_day_content_label_metrics: Dictionary mapping dates to their baseline metrics
+        date_to_week_mapping: Dictionary mapping dates to week numbers
+
+    Returns:
+        Dictionary mapping week numbers to their aggregated baseline metrics
+    """
+    weekly_baseline_metrics: dict[int, dict[str, float | None]] = {}
+
+    # Group daily metrics by week
+    for date, daily_metrics in baseline_per_day_content_label_metrics.items():
+        if date not in date_to_week_mapping:
+            continue
+
+        week_number = date_to_week_mapping[date]
+
+        # Initialize week if not seen before
+        if week_number not in weekly_baseline_metrics:
+            weekly_baseline_metrics[week_number] = {
+                metric: [] for metric in daily_metrics.keys()
+            }
+
+        # Add daily metrics to the week's collection
+        for metric_name, metric_value in daily_metrics.items():
+            if metric_value is not None:
+                weekly_baseline_metrics[week_number][metric_name].append(metric_value)
+
+    # Calculate weekly averages
+    for week_number, daily_metrics_map in weekly_baseline_metrics.items():
+        weekly_baseline_metrics[week_number] = {
+            metric: round(np.mean(daily_metric_values), 3)
+            if daily_metric_values
+            else None
+            for metric, daily_metric_values in daily_metrics_map.items()
+        }
+
+    return weekly_baseline_metrics
 
 
 def get_weekly_content_per_user_metrics(

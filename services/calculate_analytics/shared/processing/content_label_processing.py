@@ -195,7 +195,7 @@ def calculate_proportions_for_content_labels(
 def transform_metric_field_names(
     metrics: dict[str, Optional[float]],
     metric_type: Literal["average", "proportion"],
-    interaction_type: Literal["engagement", "feed"],
+    interaction_type: Literal["engagement", "feed", "baseline"],
     args: dict,
 ) -> dict[str, Optional[float]]:
     """Transforms the metric field names to be more readable, by adding the
@@ -222,6 +222,14 @@ def transform_metric_field_names(
         - average_reposted_posts_severe_toxic
         - proportion_liked_posts_is_valence_positive
     etc.
+
+    For interaction type "baseline":
+    e.g.,
+        - baseline_average_toxic
+        - baseline_proportion_is_sociopolitical
+        - baseline_average_is_valence_positive
+        - baseline_proportion_is_valence_positive
+        etc.
     """
     result: dict[str, Optional[float]] = {}
     if interaction_type == "feed":
@@ -250,6 +258,11 @@ def transform_metric_field_names(
             label = label.replace("prob_", "")
             new_label = f"{prefix}_{label}"  # e.g., average_liked_posts_prob_toxic, proportion_replied_posts_prob_sociopolitical, etc.
             result[new_label] = value
+    elif interaction_type == "baseline":
+        for label, value in metrics.items():
+            label = label.replace("prob_", "")
+            new_label = f"baseline_{metric_type}_{label}"
+            result[new_label] = value
     else:
         raise ValueError(f"Invalid interaction type: {interaction_type}")
 
@@ -258,7 +271,7 @@ def transform_metric_field_names(
 
 def calculate_metrics_for_content_labels(
     record_type: Optional[str],
-    interaction_type: Literal["engagement", "feed"],
+    interaction_type: Literal["engagement", "feed", "baseline"],
     aggregated_label_to_label_values: dict[str, list],
 ):
     """Calculate the metrics for the content labels.
@@ -380,3 +393,29 @@ def flatten_content_metrics_across_record_types(
     for metrics in record_type_to_metrics_map.values():
         full_metrics.update(metrics)
     return full_metrics
+
+
+def get_metrics_for_baseline_content(
+    labels_for_content: dict[str, dict],
+) -> dict[str, Optional[float]]:
+    """Get the metrics for baseline content across all posts.
+
+    This function calculates metrics across all labeled posts without any user-specific
+    filtering, providing baseline measures for the entire dataset.
+    """
+    # Get all post URIs from the labels
+    post_uris = list(labels_for_content.keys())
+
+    # Get aggregated list of labels for all posts, keyed on the label name
+    aggregated_label_to_label_values: dict[str, list] = collect_labels_for_post_uris(
+        post_uris=post_uris, labels_for_content=labels_for_content
+    )
+
+    # Calculate metrics for baseline content
+    metrics: dict[str, Optional[float]] = calculate_metrics_for_content_labels(
+        record_type=None,
+        interaction_type="baseline",
+        aggregated_label_to_label_values=aggregated_label_to_label_values,
+    )
+
+    return metrics

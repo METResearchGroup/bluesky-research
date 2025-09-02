@@ -276,6 +276,80 @@ def calculate_start_end_date_for_lookback(
     return start_date, end_date
 
 
+def calculate_week_number_for_date(
+    date: str,
+    study_start_date: str,
+    study_end_date: str,
+) -> int:
+    """Calculate the week number (1-9) for a given date based on study period.
+
+    Args:
+        date: Date in YYYY-MM-DD format
+        study_start_date: Study start date in YYYY-MM-DD format
+        study_end_date: Study end date in YYYY-MM-DD format
+
+    Returns:
+        Week number (1-9) for the given date
+
+    Raises:
+        ValueError: If date is outside the study period
+    """
+    date_dt = datetime.strptime(date, "%Y-%m-%d")
+    start_dt = datetime.strptime(study_start_date, "%Y-%m-%d")
+    end_dt = datetime.strptime(study_end_date, "%Y-%m-%d")
+
+    # Check if date is within study period
+    if date_dt < start_dt or date_dt > end_dt:
+        raise ValueError(
+            f"Date {date} is outside study period ({study_start_date} to {study_end_date})"
+        )
+
+    # Calculate days since study start
+    days_since_start = (date_dt - start_dt).days
+
+    # Calculate week number (1-based, 7 days per week)
+    week_number = (days_since_start // 7) + 1
+
+    # Ensure week number is within valid range (1-9)
+    if week_number < 1 or week_number > 9:
+        raise ValueError(
+            f"Calculated week number {week_number} is outside valid range (1-9)"
+        )
+
+    return week_number
+
+
+def create_date_to_week_mapping(
+    partition_dates: list[str],
+    study_start_date: str,
+    study_end_date: str,
+) -> dict[str, int]:
+    """Create a mapping from dates to week numbers for baseline analysis.
+
+    Args:
+        partition_dates: List of dates in YYYY-MM-DD format
+        study_start_date: Study start date in YYYY-MM-DD format
+        study_end_date: Study end date in YYYY-MM-DD format
+
+    Returns:
+        Dictionary mapping dates to week numbers
+    """
+    date_to_week = {}
+    for date in partition_dates:
+        try:
+            week_number = calculate_week_number_for_date(
+                date=date,
+                study_start_date=study_start_date,
+                study_end_date=study_end_date,
+            )
+            date_to_week[date] = week_number
+        except ValueError:
+            # Skip dates outside study period
+            continue
+
+    return date_to_week
+
+
 P = ParamSpec("P")
 R = TypeVar("R")
 
