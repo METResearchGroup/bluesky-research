@@ -22,6 +22,7 @@ calculate_feed_topic_models_2025_08_18/
 │   └── load_data.py            # DataLoader class with sampling logic
 ├── train/                       # Training components
 │   ├── train.py                # Training script for hybrid approach
+│   ├── run_training_local.sh   # Local training script for quick testing
 │   └── submit_topic_modeling_training.sh  # SLURM script for training
 ├── inference/                   # Inference components
 │   ├── inference.py            # Inference script for trained models
@@ -65,6 +66,22 @@ python inference.py \
     --metadata-path ./trained_models/model_metadata_feed_topic_model_20250119_143022.json \
     --mode full --data-mode prod
 ```
+
+### **Local Training (Quick Testing)**
+
+For quick local testing and development:
+
+```bash
+# Run local training with hardcoded parameters
+./train/run_training_local.sh
+```
+
+This script automatically:
+- Uses local mode data
+- Samples 500 documents per day
+- Saves to `./trained_models/local/`
+- Activates the `bluesky_research` conda environment
+- Provides clear success/failure feedback
 
 ### **Complete Analysis (Original Behavior)**
 ```bash

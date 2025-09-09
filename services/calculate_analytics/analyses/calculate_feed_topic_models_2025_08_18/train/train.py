@@ -113,9 +113,12 @@ def train_and_save_model(
     os.makedirs(model_output_dir, exist_ok=True)
 
     try:
-        model_path = bertopic.save_model_with_timestamp(
-            model_output_dir, "feed_topic_model"
-        )
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_name = f"feed_topic_model_{timestamp}"
+        model_path = os.path.join(model_output_dir, model_name)
+        bertopic.topic_model.save(model_path)
         logger.info(f"✅ Model saved to: {model_path}")
     except Exception as e:
         logger.error(f"Failed to save model: {e}")
