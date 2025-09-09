@@ -19,10 +19,10 @@ from services.calculate_analytics.shared.constants import (
     STUDY_START_DATE,
     STUDY_END_DATE,
 )
-from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.load_data import (
+from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.load.load_data import (
     DataLoader,
 )
-from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.topic_analysis_helpers import (
+from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.helper.topic_analysis_helpers import (
     compute_doc_topic_assignments,
     aggregate_topic_distributions_by_slice,
     export_stratified_analysis_results,
@@ -36,6 +36,26 @@ logger = get_logger(__name__)
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Feed-level topic modeling analysis")
+    parser.add_argument(
+        "--run-mode",
+        choices=["train", "inference", "full"],
+        default="full",
+        help="Run mode: 'train' to train and save model, 'inference' to run inference, 'full' for complete analysis",
+    )
+    parser.add_argument(
+        "--model-path",
+        help="Path to trained model directory (required for 'inference' mode)",
+    )
+    parser.add_argument(
+        "--metadata-path",
+        help="Path to model metadata JSON file (required for 'inference' mode)",
+    )
+    parser.add_argument(
+        "--sample-per-day",
+        type=int,
+        default=500,
+        help="Number of documents to sample per day for training (used in 'train' mode)",
+    )
     parser.add_argument(
         "--force-fallback",
         action="store_true",
@@ -215,22 +235,24 @@ def train_bertopic_model(
     return bertopic
 
 
-def do_setup(mode: str = "prod", sample_size: int = None):
+def do_setup(mode: str = "prod", sample_size: int = None, run_mode: str = "full"):
     """Setup steps for topic modeling analysis.
 
     Args:
         mode: Data loading mode ('local' or 'prod')
         sample_size: Optional sample size for testing
+        run_mode: Run mode ('train', 'inference', or 'full')
 
     Returns:
         Dictionary containing loaded data
     """
     logger.info("📁 Step 1: Loading data...")
     logger.info(f"🔧 Data loading mode: {mode}")
+    logger.info(f"🔧 Run mode: {run_mode}")
 
     try:
         # Use DataLoader for both local and production modes
-        dataloader = DataLoader(mode)
+        dataloader = DataLoader(mode, run_mode=run_mode)
         logger.info("📊 DataLoader initialized successfully")
 
         # Load data using DataLoader
@@ -457,6 +479,8 @@ def main():
     args = parse_arguments()
 
     logger.info("🚀 Starting Topic Modeling Analysis")
+    logger.info(f"🔧 Run mode: {args.run_mode}")
+
     if args.force_fallback:
         logger.warning("⚠️ Force fallback configuration enabled via command line")
     if args.sample_size:
@@ -464,30 +488,88 @@ def main():
             f"⚠️ Sample size limit set to {args.sample_size} documents for testing"
         )
 
-    try:
-        setup_objs = do_setup(mode=args.mode, sample_size=args.sample_size)
+    if args.run_mode == "train":
+        # Training mode - train and save model
+        logger.info("🎓 Training mode: Training model on representative sample")
 
-        documents_df: pd.DataFrame = setup_objs["documents_df"]
-        date_condition_uris_map: dict[str, dict[str, set[str]]] = setup_objs[
-            "date_condition_uris_map"
-        ]
-        uri_doc_map: pd.DataFrame = setup_objs["uri_doc_map"]
-    except Exception as e:
-        logger.error(f"Failed to setup: {e}")
-        raise
+        try:
+            from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.train.train import (
+                train_and_save_model,
+            )
 
-    try:
-        do_analysis_and_export_results(
-            documents_df=documents_df,
-            date_condition_uris_map=date_condition_uris_map,
-            uri_doc_map=uri_doc_map,
-            force_fallback=args.force_fallback,
-        )
-    except Exception as e:
-        logger.error(f"Failed to do analysis and export results: {e}")
-        raise
+            model_path, metadata_path = train_and_save_model(
+                mode=args.mode,
+                sample_per_day=args.sample_per_day,
+                model_output_dir=None,  # Use default directory
+                force_fallback=args.force_fallback,
+            )
 
-    logger.info("🎉 Analysis completed successfully!")
+            logger.info("🎉 Training completed successfully!")
+            logger.info(f"📁 Model saved to: {model_path}")
+            logger.info(f"📋 Metadata saved to: {metadata_path}")
+
+        except Exception as e:
+            logger.error(f"❌ Training failed: {e}")
+            raise
+
+    elif args.run_mode == "inference":
+        # Inference mode - load model and run inference
+        logger.info("🔍 Inference mode: Running inference on trained model")
+
+        if not args.model_path or not args.metadata_path:
+            raise ValueError(
+                "--model-path and --metadata-path are required for inference mode"
+            )
+
+        try:
+            from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.inference.inference import (
+                run_inference_on_full_dataset,
+            )
+
+            doc_topic_assignments, bertopic = run_inference_on_full_dataset(
+                model_path=args.model_path,
+                metadata_path=args.metadata_path,
+                mode=args.mode,
+                output_dir=None,  # Use default directory
+            )
+
+            logger.info("🎉 Inference completed successfully!")
+            logger.info(f"📊 Processed {len(doc_topic_assignments)} documents")
+
+        except Exception as e:
+            logger.error(f"❌ Inference failed: {e}")
+            raise
+
+    else:  # full mode
+        # Full mode - existing behavior (complete analysis)
+        logger.info("🔄 Full mode: Complete analysis with training and inference")
+
+        try:
+            setup_objs = do_setup(
+                mode=args.mode, sample_size=args.sample_size, run_mode="full"
+            )
+
+            documents_df: pd.DataFrame = setup_objs["documents_df"]
+            date_condition_uris_map: dict[str, dict[str, set[str]]] = setup_objs[
+                "date_condition_uris_map"
+            ]
+            uri_doc_map: pd.DataFrame = setup_objs["uri_doc_map"]
+        except Exception as e:
+            logger.error(f"Failed to setup: {e}")
+            raise
+
+        try:
+            do_analysis_and_export_results(
+                documents_df=documents_df,
+                date_condition_uris_map=date_condition_uris_map,
+                uri_doc_map=uri_doc_map,
+                force_fallback=args.force_fallback,
+            )
+        except Exception as e:
+            logger.error(f"Failed to do analysis and export results: {e}")
+            raise
+
+        logger.info("🎉 Analysis completed successfully!")
 
 
 if __name__ == "__main__":

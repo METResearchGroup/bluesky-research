@@ -29,8 +29,10 @@ logger = get_logger(__name__)
 class DataLoader:
     """DataLoader for topic modeling analysis."""
 
-    def __init__(self, mode: str):
+    def __init__(self, mode: str, run_mode: str = "full"):
         self.mode = mode
+        self.run_mode = run_mode  # "train" or "inference" or "full"
+        self.sample_per_day = 500  # Hardcoded sampling for training mode
 
     def _canonicalize_text(self, text: str) -> str:
         """Canonicalize text for stable hashing and deduplication."""
@@ -223,6 +225,19 @@ class DataLoader:
                 },
                 export_format="duckdb",
             )
+
+            # Apply sampling for training mode
+            if (
+                self.run_mode == "train"
+                and len(all_post_texts_df) > self.sample_per_day
+            ):
+                all_post_texts_df = all_post_texts_df.sample(
+                    n=self.sample_per_day, random_state=42
+                ).reset_index(drop=True)
+                logger.info(
+                    f"[{partition_date}] Sampled {len(all_post_texts_df)} posts for training (from {len(all_post_uris)} total URIs)"
+                )
+
             # Build documents and uri->doc_id mapping for this partition_date
             total_docs_before = len(documents_map)
             for row in all_post_texts_df.itertuples(index=False):

@@ -26,10 +26,10 @@ from services.calculate_analytics.shared.constants import (
     STUDY_START_DATE,
     STUDY_END_DATE,
 )
-from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.load_data import (
+from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.load.load_data import (
     DataLoader,
 )
-from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.topic_analysis_helpers import (
+from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.helper.topic_analysis_helpers import (
     compute_doc_topic_assignments,
     aggregate_topic_distributions_by_slice,
     export_stratified_analysis_results,

@@ -10,39 +10,163 @@ This analysis performs BERTopic topic modeling on Bluesky feed content to unders
 4. **Exports results** to CSV and JSON files
 5. **Generates visualizations** for topic distributions and evolution
 
+## 📁 **Project Structure**
+
+The project is organized into logical folders for better maintainability:
+
+```
+calculate_feed_topic_models_2025_08_18/
+├── README.md                    # This documentation
+├── main.py                      # Main entry point with train/inference/full modes
+├── load/                        # Data loading components
+│   └── load_data.py            # DataLoader class with sampling logic
+├── train/                       # Training components
+│   ├── train.py                # Training script for hybrid approach
+│   └── submit_topic_modeling_training.sh  # SLURM script for training
+├── inference/                   # Inference components
+│   ├── inference.py            # Inference script for trained models
+│   └── submit_topic_modeling_inference.sh # SLURM script for inference
+└── helper/                      # Helper utilities and tools
+    ├── topic_analysis_helpers.py    # Analysis helper functions
+    ├── visualize_results.py         # Visualization generation
+    ├── use_saved_model.py           # Model usage utilities
+    ├── run_topic_modeling.py        # Alternative runner script
+    ├── load_testing.py              # Performance testing
+    ├── LOAD_TESTING_README.md       # Load testing documentation
+    └── submit_topic_modeling_analysis.sh  # Original full analysis SLURM script
+```
+
 ## 🚀 **Usage**
 
-### **Basic Usage**
+### **Training and Inference Workflow (Recommended for Large Datasets)**
+
+For datasets with 1M+ documents, use the hybrid approach that separates training and inference:
+
+#### **1. Training Phase (Run Once)**
 ```bash
-cd services/calculate_analytics/analyses/calculate_feed_topic_models_2025_08_18
-python main.py
+# Train model on representative sample (500 posts per day)
+python main.py --run-mode train --mode prod --sample-per-day 500
+
+# Or use standalone training script
+python train.py --mode prod --sample-per-day 500 --output-dir ./trained_models
+```
+
+#### **2. Inference Phase (Run Multiple Times)**
+```bash
+# Run inference on full dataset using trained model
+python main.py --run-mode infer \
+    --model-path ./trained_models/feed_topic_model_20250119_143022 \
+    --metadata-path ./trained_models/model_metadata_feed_topic_model_20250119_143022.json \
+    --mode prod
+
+# Or use standalone inference script
+python inference.py \
+    --model-path ./trained_models/feed_topic_model_20250119_143022 \
+    --metadata-path ./trained_models/model_metadata_feed_topic_model_20250119_143022.json \
+    --mode full --data-mode prod
+```
+
+### **Complete Analysis (Original Behavior)**
+```bash
+# Full analysis: training + inference in one run (for smaller datasets)
+python main.py --run-mode full --mode prod
 ```
 
 ### **SLURM Job Submission**
+
+#### **Training Job (Hybrid Approach)**
 ```bash
-sbatch submit_topic_modeling_analysis.sh
+# Basic training
+sbatch train/submit_topic_modeling_training.sh
+
+# Training with custom parameters
+sbatch train/submit_topic_modeling_training.sh --mode prod --sample-per-day 500 --output-dir ./my_models
+
+# Training with fallback configuration
+sbatch train/submit_topic_modeling_training.sh --force-fallback
+```
+
+#### **Inference Job (Hybrid Approach)**
+```bash
+# Inference (requires trained model)
+sbatch inference/submit_topic_modeling_inference.sh --model-path ./trained_models/feed_topic_model_20250119_143022 --metadata-path ./trained_models/model_metadata_feed_topic_model_20250119_143022.json
+
+# Inference with custom output directory
+sbatch inference/submit_topic_modeling_inference.sh --model-path ./trained_models/feed_topic_model_20250119_143022 --metadata-path ./trained_models/model_metadata_feed_topic_model_20250119_143022.json --output-dir ./my_results
+```
+
+#### **Full Analysis (Original Approach)**
+```bash
+sbatch helper/submit_topic_modeling_analysis.sh
 ```
 
 ### **Generate Visualizations**
 ```bash
-python visualize_results.py
+python helper/visualize_results.py
 ```
 
 ### **Load Testing**
 For performance testing across different dataset sizes, see the comprehensive load testing documentation:
-- **📋 [Load Testing Guide](LOAD_TESTING_README.md)** - Complete guide for performance testing
-- **🧪 Run Load Tests**: `python load_testing.py --sample-sizes 1000 10000 100000`
+- **📋 [Load Testing Guide](helper/LOAD_TESTING_README.md)** - Complete guide for performance testing
+- **🧪 Run Load Tests**: `python helper/load_testing.py --sample-sizes 1000 10000 100000`
 - **⚡ Quick Test**: `python main.py --sample-size 10000 --mode local`
+
+## 🔧 **Command-Line Arguments**
+
+### **Main Script (`main.py`)**
+```bash
+python main.py [OPTIONS]
+
+Options:
+  --run-mode {train,infer,full}    Run mode (default: full)
+  --model-path PATH                Path to trained model (required for infer mode)
+  --metadata-path PATH             Path to model metadata (required for infer mode)
+  --sample-per-day INT             Documents per day for training (default: 500)
+  --force-fallback                 Force conservative configuration
+  --sample-size INT                Sample size for testing
+  --mode {local,prod}              Data loading mode (default: prod)
+```
+
+### **Training Script (`train/train.py`)**
+```bash
+python train/train.py [OPTIONS]
+
+Options:
+  --mode {local,prod}              Data loading mode (default: prod)
+  --sample-per-day INT             Documents per day for training (default: 500)
+  --output-dir PATH                Directory to save trained model
+  --force-fallback                 Force conservative configuration
+```
+
+### **Inference Script (`inference/inference.py`)**
+```bash
+python inference/inference.py [OPTIONS]
+
+Options:
+  --model-path PATH                Path to trained model directory (required)
+  --metadata-path PATH             Path to model metadata JSON file (required)
+  --mode {full,file}               Inference mode (default: full)
+  --documents-file PATH            Path to CSV file with documents (for file mode)
+  --data-mode {local,prod}         Data loading mode for full mode (default: prod)
+  --output-dir PATH                Directory to save inference results
+```
 
 ## 📁 **Output Files**
 
-The analysis creates several output files in the `results/` directory:
+### **Training Output (trained_models/ directory)**
+1. **`feed_topic_model_{timestamp}/`** - Trained BERTopic model directory
+   - `bertopic_model/` - BERTopic model files
+   - `wrapper_meta.json` - Wrapper metadata
+   - `training_results.json` - Training results
+2. **`model_metadata_feed_topic_model_{timestamp}.json`** - Model metadata and training info
 
-### **Data Files**
-1. **`topic_modeling_results_{timestamp}.csv`** - Full topic information from BERTopic
-2. **`topic_quality_metrics_{timestamp}.json`** - Model quality metrics and coherence scores
-3. **`stratified_topic_analysis_{timestamp}.csv`** - Topic distributions by condition and time
-4. **`topic_analysis_summary_{timestamp}.json`** - High-level analysis summary
+### **Analysis Output (results/ directory)**
+1. **`topics_{timestamp}.csv`** - Full topic information from BERTopic
+2. **`quality_metrics_{timestamp}.json`** - Model quality metrics and coherence scores
+3. **`topic_assignments_{timestamp}.csv`** - Document-to-topic assignments
+4. **`stratified_topic_analysis_{timestamp}.csv`** - Topic distributions by condition and time
+5. **`topic_evolution_{timestamp}.csv`** - Topic evolution over time
+6. **`summary_{timestamp}.json`** - High-level analysis summary
 
 ### **Visualization Files**
 1. **`topic_distribution_by_size.png`** - Bar chart of topic sizes
@@ -52,49 +176,31 @@ The analysis creates several output files in the `results/` directory:
 
 ## 🔧 **How It Works**
 
-### **1. Data Loading (`do_setup`)**
-- Loads users and partition dates using shared functions
-- Maps users to posts used in feeds for each date
-- Loads post texts and creates document mappings
-- **Follows standard analysis pattern with shared components**
+### **Training Mode (`train.py` or `--run-mode train`)**
+1. **Data Loading**: Loads full dataset using shared functions
+2. **Representative Sampling**: Creates stratified sample (500 posts per day by default)
+3. **Model Training**: Trains BERTopic model on representative sample
+4. **Model Saving**: Saves trained model and metadata for later inference
 
-### **2. BERTopic Analysis (`do_analysis_and_export_results`)**
-- Trains BERTopic model using existing `BERTopicWrapper` from MET-34
-- Computes topic assignments for all documents
-- Performs stratified analysis across conditions and time periods
-- **Uses proven shared analysis functions**
+### **Inference Mode (`inference.py` or `--run-mode infer`)**
+1. **Model Loading**: Loads pre-trained model and metadata
+2. **Data Loading**: Loads full dataset or new documents
+3. **Topic Assignment**: Assigns topics to documents using trained model
+4. **Stratified Analysis**: Performs analysis across conditions and time periods
+5. **Results Export**: Exports all results in standardized format
 
-### **3. Results Export**
-- Exports topic information to CSV format
-- Exports quality metrics to JSON format
-- Exports stratified analysis results
-- **Standardized output patterns with timestamps**
+### **Full Mode (`--run-mode full` - Original Behavior)**
+1. **Data Loading**: Loads users and partition dates using shared functions
+2. **Model Training**: Trains BERTopic model on full dataset
+3. **Topic Assignment**: Computes topic assignments for all documents
+4. **Stratified Analysis**: Performs analysis across conditions and time periods
+5. **Results Export**: Exports topic information, quality metrics, and analysis results
 
-### **4. Visualization Generation**
-- Creates publication-quality plots for topic distributions
-- Generates time series plots for topic evolution
-- Compares topic distributions across experimental conditions
-- **Professional visualization following established patterns**
-
-## 🎯 **Key Features**
-
-### **Standard Analysis Pattern:**
-- **Consistent Structure**: Follows the same `do_setup()` → `do_analysis()` → `main()` pattern as other analyses
-- **Shared Components**: Leverages proven data loading and analysis functions
+### **Key Components**
+- **Shared Data Loading**: Uses proven shared functions for data access
+- **BERTopicWrapper**: Leverages existing implementation
+- **Stratified Analysis**: Uses shared analysis functions for consistency
 - **Standardized Output**: Timestamped files with consistent naming patterns
-- **SLURM Integration**: Can run on HPC cluster like other analyses
-
-### **Production-Ready Infrastructure:**
-- **Error Handling**: Comprehensive error handling with detailed logging
-- **Resource Management**: Appropriate SLURM configurations for large-scale processing
-- **Monitoring**: Structured logging and job status tracking
-- **Visualization**: Professional-quality plots for publication
-
-### **Research-Optimized:**
-- **Fast Iteration**: Simple function-based approach for quick modifications
-- **Reproducible**: Random seed control for consistent results
-- **Scalable**: Handles 1M+ posts with GPU optimization
-- **Publication-Ready**: Generates statistical tables and figures
 
 ## 🔄 **Integration with Existing System**
 
@@ -109,52 +215,3 @@ The analysis creates several output files in the `results/` directory:
 - **Error Handling**: Standard try/catch patterns with detailed logging
 - **Output Management**: Timestamped files in `results/` directory
 - **SLURM Integration**: Standard job submission script
-
-## 📊 **Performance Characteristics**
-
-- **Memory Usage**: Optimized for large datasets with conservative BERTopic settings
-- **Training Time**: GPU-accelerated with fallback configurations for large datasets
-- **Scalability**: Handles 1M+ documents with appropriate resource allocation
-- **Debugging**: Simple function calls with clear error messages
-
-## 🎉 **Success Metrics**
-
-This analysis succeeds when:
-- ✅ **BERTopic model trains successfully** on 1M+ Bluesky posts
-- ✅ **Topic quality metrics** show acceptable coherence scores (c_v > 0.4, c_npmi > 0.1)
-- ✅ **Stratified analysis** generates meaningful topic distributions across conditions and time
-- ✅ **Visualizations** provide publication-ready figures for research
-- ✅ **Integration** works seamlessly with existing analytics infrastructure
-
-## 🚨 **Resource Requirements**
-
-### **SLURM Configuration:**
-- **Time**: 8 hours (allows for large dataset processing)
-- **Memory**: 50GB (sufficient for BERTopic training on 1M+ documents)
-- **Partition**: normal (appropriate for long-running jobs)
-
-### **Dependencies:**
-- **BERTopic**: For topic modeling
-- **Sentence Transformers**: For text embeddings
-- **Matplotlib**: For visualization generation
-- **Shared Components**: Existing data loading and analysis functions
-
----
-
-## 📝 **Migration Notes**
-
-This analysis represents a refactoring from the original complex implementation to follow established patterns:
-
-### **What Changed:**
-- **Structure**: From complex class hierarchy to simple function-based approach
-- **Integration**: Now uses shared components instead of custom implementations
-- **Operations**: Added SLURM integration and visualization capabilities
-- **Documentation**: Updated to match standard analysis documentation patterns
-
-### **What Stayed the Same:**
-- **Core Functionality**: BERTopic topic modeling with stratified analysis
-- **Output Quality**: Same high-quality results for research publication
-- **Research Focus**: Optimized for research workflows and iteration
-
-**Status**: ✅ COMPLETED - Standardized, production-ready implementation
-**Next Steps**: Run analysis and generate visualizations for research publication
