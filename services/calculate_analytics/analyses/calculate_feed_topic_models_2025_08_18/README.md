@@ -28,6 +28,12 @@ sbatch submit_topic_modeling_analysis.sh
 python visualize_results.py
 ```
 
+### **Load Testing**
+For performance testing across different dataset sizes, see the comprehensive load testing documentation:
+- **📋 [Load Testing Guide](LOAD_TESTING_README.md)** - Complete guide for performance testing
+- **🧪 Run Load Tests**: `python load_testing.py --sample-sizes 1000 10000 100000`
+- **⚡ Quick Test**: `python main.py --sample-size 10000 --mode local`
+
 ## 📁 **Output Files**
 
 The analysis creates several output files in the `results/` directory:

@@ -246,14 +246,33 @@ def do_setup(mode: str = "prod", sample_size: int = None):
             logger.info("Successfully loaded date_condition_uris_map for prod run.")
 
         # Apply sample size limit if specified
-        if sample_size and len(documents_df) > sample_size:
-            logger.warning(
-                f"📊 Sampling dataset from {len(documents_df)} to {sample_size} documents for testing"
-            )
-            documents_df = documents_df.sample(
-                n=sample_size, random_state=42
-            ).reset_index(drop=True)
-            logger.info(f"✅ Dataset sampled to {len(documents_df)} documents")
+        original_size = len(documents_df)
+        if sample_size:
+            if original_size > sample_size:
+                logger.warning(
+                    f"📊 Truncating dataset from {original_size} to {sample_size} documents for testing"
+                )
+                documents_df = documents_df.sample(
+                    n=sample_size, random_state=42
+                ).reset_index(drop=True)
+                logger.info(f"✅ Dataset truncated to {len(documents_df)} documents")
+            elif original_size < sample_size:
+                logger.warning(
+                    f"📊 Upsampling dataset from {original_size} to {sample_size} documents for testing"
+                )
+                # Upsample by sampling with replacement
+                additional_samples_needed = sample_size - original_size
+                additional_samples = documents_df.sample(
+                    n=additional_samples_needed, random_state=42, replace=True
+                )
+                documents_df = pd.concat(
+                    [documents_df, additional_samples], ignore_index=True
+                )
+                logger.info(f"✅ Dataset upsampled to {len(documents_df)} documents")
+            else:
+                logger.info(
+                    f"📊 Dataset size ({original_size}) matches target sample size ({sample_size})"
+                )
 
         logger.info(
             f"✅ Data loaded successfully: {len(documents_df)} unique documents for training"
