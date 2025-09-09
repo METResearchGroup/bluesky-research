@@ -123,6 +123,14 @@ def run_inference_on_full_dataset(
         {"doc_id": documents_df["doc_id"], "topic_id": topic_assignments}
     )
 
+    # Set default output directory if none provided
+    if output_dir is None:
+        current_dir = os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))
+        )  # Go up to analysis root
+        timestamp = generate_current_datetime_str()
+        output_dir = os.path.join(current_dir, "results", mode, timestamp)
+
     # Perform stratified analysis if metadata available
     if "date_condition_uris_map" in metadata and "uri_doc_map" in metadata:
         logger.info("📊 Performing stratified analysis...")
@@ -137,50 +145,49 @@ def run_inference_on_full_dataset(
         )
 
         # Export results
-        if output_dir:
-            os.makedirs(output_dir, exist_ok=True)
-            timestamp = generate_current_datetime_str()
+        os.makedirs(output_dir, exist_ok=True)
+        timestamp = generate_current_datetime_str()
 
-            # Export stratified analysis results
-            export_stratified_analysis_results(
-                topic_distributions=topic_distributions,
-                output_dir=output_dir,
-                timestamp=timestamp,
+        # Export stratified analysis results
+        export_stratified_analysis_results(
+            topic_distributions=topic_distributions,
+            output_dir=output_dir,
+            timestamp=timestamp,
+        )
+
+        # Topic evolution analysis
+        topic_info = bertopic.get_topic_info()
+        topic_evolution = get_topic_evolution_analysis(
+            topic_distributions=topic_distributions, topic_info=topic_info
+        )
+
+        if not topic_evolution.empty:
+            evolution_file = os.path.join(
+                output_dir, f"topic_evolution_{timestamp}.csv"
             )
+            topic_evolution.to_csv(evolution_file, index=False)
+            logger.info(f"📈 Evolution: {os.path.basename(evolution_file)} (CSV)")
 
-            # Topic evolution analysis
-            topic_info = bertopic.get_topic_info()
-            topic_evolution = get_topic_evolution_analysis(
-                topic_distributions=topic_distributions, topic_info=topic_info
-            )
+        # Export topic assignments
+        assignments_file = os.path.join(
+            output_dir, f"topic_assignments_{timestamp}.csv"
+        )
+        doc_topic_assignments.to_csv(assignments_file, index=False)
+        logger.info(f"🎯 Assignments: {os.path.basename(assignments_file)} (CSV)")
 
-            if not topic_evolution.empty:
-                evolution_file = os.path.join(
-                    output_dir, f"topic_evolution_{timestamp}.csv"
-                )
-                topic_evolution.to_csv(evolution_file, index=False)
-                logger.info(f"📈 Evolution: {os.path.basename(evolution_file)} (CSV)")
+        # Export topic information
+        topic_file = os.path.join(output_dir, f"topics_{timestamp}.csv")
+        topic_info.to_csv(topic_file, index=False)
+        logger.info(f"📋 Topics: {os.path.basename(topic_file)} (CSV)")
 
-            # Export topic assignments
-            assignments_file = os.path.join(
-                output_dir, f"topic_assignments_{timestamp}.csv"
-            )
-            doc_topic_assignments.to_csv(assignments_file, index=False)
-            logger.info(f"🎯 Assignments: {os.path.basename(assignments_file)} (CSV)")
+        # Export quality metrics
+        quality_metrics = bertopic.get_quality_metrics()
+        metrics_file = os.path.join(output_dir, f"quality_metrics_{timestamp}.json")
+        with open(metrics_file, "w") as f:
+            json.dump(quality_metrics, f, indent=2, default=str)
+        logger.info(f"📈 Quality: {os.path.basename(metrics_file)} (JSON)")
 
-            # Export topic information
-            topic_file = os.path.join(output_dir, f"topics_{timestamp}.csv")
-            topic_info.to_csv(topic_file, index=False)
-            logger.info(f"📋 Topics: {os.path.basename(topic_file)} (CSV)")
-
-            # Export quality metrics
-            quality_metrics = bertopic.get_quality_metrics()
-            metrics_file = os.path.join(output_dir, f"quality_metrics_{timestamp}.json")
-            with open(metrics_file, "w") as f:
-                json.dump(quality_metrics, f, indent=2, default=str)
-            logger.info(f"📈 Quality: {os.path.basename(metrics_file)} (JSON)")
-
-            logger.info(f"📊 Results exported to: {output_dir}")
+        logger.info(f"📊 Results exported to: {output_dir}")
 
     return doc_topic_assignments, bertopic
 
@@ -220,12 +227,18 @@ def infer_from_new_documents(
     )
 
     # Save results
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
+    if output_dir is None:
+        current_dir = os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))
+        )  # Go up to analysis root
         timestamp = generate_current_datetime_str()
-        results_file = os.path.join(output_dir, f"inference_results_{timestamp}.csv")
-        results_df.to_csv(results_file, index=False)
-        logger.info(f"💾 Results saved to: {results_file}")
+        output_dir = os.path.join(current_dir, "results", "inference", timestamp)
+
+    os.makedirs(output_dir, exist_ok=True)
+    timestamp = generate_current_datetime_str()
+    results_file = os.path.join(output_dir, f"inference_results_{timestamp}.csv")
+    results_df.to_csv(results_file, index=False)
+    logger.info(f"💾 Results saved to: {results_file}")
 
     return results_df
 

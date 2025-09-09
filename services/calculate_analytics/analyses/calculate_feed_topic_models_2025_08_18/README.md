@@ -80,7 +80,7 @@ python main.py --run-mode full --mode prod
 sbatch train/submit_topic_modeling_training.sh
 
 # Training with custom parameters
-sbatch train/submit_topic_modeling_training.sh --mode prod --sample-per-day 500 --output-dir ./my_models
+sbatch train/submit_topic_modeling_training.sh --mode prod --sample-per-day 500 --output-dir ./my_models/prod
 
 # Training with fallback configuration
 sbatch train/submit_topic_modeling_training.sh --force-fallback
@@ -89,10 +89,10 @@ sbatch train/submit_topic_modeling_training.sh --force-fallback
 #### **Inference Job (Hybrid Approach)**
 ```bash
 # Inference (requires trained model)
-sbatch inference/submit_topic_modeling_inference.sh --model-path ./trained_models/feed_topic_model_20250119_143022 --metadata-path ./trained_models/model_metadata_feed_topic_model_20250119_143022.json
+sbatch inference/submit_topic_modeling_inference.sh --model-path ./trained_models/prod/feed_topic_model_20250119_143022 --metadata-path ./trained_models/prod/model_metadata_feed_topic_model_20250119_143022.json
 
 # Inference with custom output directory
-sbatch inference/submit_topic_modeling_inference.sh --model-path ./trained_models/feed_topic_model_20250119_143022 --metadata-path ./trained_models/model_metadata_feed_topic_model_20250119_143022.json --output-dir ./my_results
+sbatch inference/submit_topic_modeling_inference.sh --model-path ./trained_models/prod/feed_topic_model_20250119_143022 --metadata-path ./trained_models/prod/model_metadata_feed_topic_model_20250119_143022.json --output-dir ./my_results
 ```
 
 #### **Full Analysis (Original Approach)**
@@ -154,19 +154,40 @@ Options:
 ## 📁 **Output Files**
 
 ### **Training Output (trained_models/ directory)**
-1. **`feed_topic_model_{timestamp}/`** - Trained BERTopic model directory
-   - `bertopic_model/` - BERTopic model files
-   - `wrapper_meta.json` - Wrapper metadata
-   - `training_results.json` - Training results
-2. **`model_metadata_feed_topic_model_{timestamp}.json`** - Model metadata and training info
+```
+trained_models/
+├── local/                          # Local mode training results
+│   └── feed_topic_model_{timestamp}/
+│       ├── bertopic_model/         # BERTopic model files
+│       ├── wrapper_meta.json       # Wrapper metadata
+│       └── training_results.json   # Training results
+└── prod/                           # Production mode training results
+    └── feed_topic_model_{timestamp}/
+        ├── bertopic_model/         # BERTopic model files
+        ├── wrapper_meta.json       # Wrapper metadata
+        └── training_results.json   # Training results
+```
 
 ### **Analysis Output (results/ directory)**
-1. **`topics_{timestamp}.csv`** - Full topic information from BERTopic
-2. **`quality_metrics_{timestamp}.json`** - Model quality metrics and coherence scores
-3. **`topic_assignments_{timestamp}.csv`** - Document-to-topic assignments
-4. **`stratified_topic_analysis_{timestamp}.csv`** - Topic distributions by condition and time
-5. **`topic_evolution_{timestamp}.csv`** - Topic evolution over time
-6. **`summary_{timestamp}.json`** - High-level analysis summary
+```
+results/
+├── local/                          # Local mode analysis results
+│   └── {timestamp}/
+│       ├── topics_{timestamp}.csv
+│       ├── quality_metrics_{timestamp}.json
+│       ├── topic_assignments_{timestamp}.csv
+│       ├── stratified_topic_analysis_{timestamp}.csv
+│       ├── topic_evolution_{timestamp}.csv
+│       └── summary_{timestamp}.json
+└── prod/                           # Production mode analysis results
+    └── {timestamp}/
+        ├── topics_{timestamp}.csv
+        ├── quality_metrics_{timestamp}.json
+        ├── topic_assignments_{timestamp}.csv
+        ├── stratified_topic_analysis_{timestamp}.csv
+        ├── topic_evolution_{timestamp}.csv
+        └── summary_{timestamp}.json
+```
 
 ### **Visualization Files**
 1. **`topic_distribution_by_size.png`** - Bar chart of topic sizes

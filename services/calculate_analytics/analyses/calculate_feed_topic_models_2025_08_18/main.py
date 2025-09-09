@@ -316,6 +316,7 @@ def do_analysis_and_export_results(
     date_condition_uris_map: dict[str, dict[str, set[str]]],
     uri_doc_map: pd.DataFrame,
     force_fallback: bool = False,
+    mode: str = "prod",
 ):
     """Perform topic modeling analysis and export results.
 
@@ -328,8 +329,8 @@ def do_analysis_and_export_results(
     # Generate timestamp for unique filenames
     timestamp = generate_current_datetime_str()
 
-    # Create timestamped output directory
-    output_dir = os.path.join(current_dir, "results", timestamp)
+    # Create mode-specific timestamped output directory
+    output_dir = os.path.join(current_dir, "results", mode, timestamp)
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. Train BERTopic model
@@ -564,6 +565,7 @@ def main():
                 date_condition_uris_map=date_condition_uris_map,
                 uri_doc_map=uri_doc_map,
                 force_fallback=args.force_fallback,
+                mode=args.mode,
             )
         except Exception as e:
             logger.error(f"Failed to do analysis and export results: {e}")

@@ -108,7 +108,7 @@ def train_and_save_model(
     # Save model
     if model_output_dir is None:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        model_output_dir = os.path.join(current_dir, "trained_models")
+        model_output_dir = os.path.join(current_dir, "trained_models", mode)
 
     os.makedirs(model_output_dir, exist_ok=True)
 
