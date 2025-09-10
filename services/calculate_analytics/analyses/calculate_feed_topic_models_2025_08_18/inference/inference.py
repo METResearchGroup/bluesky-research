@@ -233,6 +233,12 @@ def run_inference_on_full_dataset(
     topic_dist_df.to_csv(topic_dist_file, index=False)
     logger.info(f"📊 Topic distribution saved to: {topic_dist_file}")
 
+    # Export detailed topic assignments
+    timestamp = generate_current_datetime_str()
+    assignments_file = os.path.join(output_dir, f"topic_assignments_{timestamp}.csv")
+    doc_topic_assignments.to_csv(assignments_file, index=False)
+    logger.info(f"🎯 Topic assignments saved to: {assignments_file}")
+
     return doc_topic_assignments, bertopic
 
 
