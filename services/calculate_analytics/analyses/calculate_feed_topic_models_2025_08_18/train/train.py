@@ -5,6 +5,7 @@ and saves it for later inference on the full dataset.
 """
 
 import argparse
+from datetime import datetime
 import json
 import os
 
@@ -113,20 +114,20 @@ def train_and_save_model(
     os.makedirs(model_output_dir, exist_ok=True)
 
     try:
-        from datetime import datetime
-
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         timestamp_dir = os.path.join(model_output_dir, timestamp)
 
         # Create timestamped directory structure
         os.makedirs(timestamp_dir, exist_ok=True)
+
+        # Save model using BERTopicWrapper's save method - it will create its own subdirectory
+        model_file_path = os.path.join(timestamp_dir, "model")
+        bertopic.save_model(model_file_path)
+        logger.info(f"✅ Model saved to: {model_file_path}")
+
+        # Create metadata directory for our custom metadata
         metadata_dir = os.path.join(timestamp_dir, "metadata")
         os.makedirs(metadata_dir, exist_ok=True)
-
-        # Save model as a file in the timestamped directory
-        model_file_path = os.path.join(timestamp_dir, "model")
-        bertopic.topic_model.save(model_file_path)
-        logger.info(f"✅ Model saved to: {model_file_path}")
 
         # Update model_path to point to the timestamped directory for metadata saving
         model_path = timestamp_dir

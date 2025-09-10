@@ -45,10 +45,11 @@ def find_latest_model():
         return None, None
 
     # Find all timestamp directories (they should be directories with timestamp names)
+    # Timestamp format: YYYYMMDD_HHMMSS (15 characters with underscore)
     timestamp_dirs = [
         d
         for d in models_dir.iterdir()
-        if d.is_dir() and len(d.name) == 15 and d.name.isdigit()
+        if d.is_dir() and len(d.name) == 15 and d.name.replace("_", "").isdigit()
     ]
 
     if not timestamp_dirs:

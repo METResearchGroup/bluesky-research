@@ -5,10 +5,20 @@ This analysis performs BERTopic topic modeling on Bluesky feed content to unders
 ## 🎯 **What This Does**
 
 1. **Loads feed data** from production environment using shared data loading functions
-2. **Trains BERTopic model** using the existing BERTopicWrapper (MET-34)
+2. **Trains BERTopic model** using the existing BERTopicWrapper (MET-34) with hybrid approach
 3. **Performs stratified analysis** across conditions and time periods
-4. **Exports results** to CSV and JSON files
+4. **Exports results** to CSV and JSON files with structured metadata
 5. **Generates visualizations** for topic distributions and evolution
+
+## ✨ **Key Features**
+
+- **Hybrid Training/Inference Approach**: Separate training on representative samples and inference on full datasets
+- **Automatic Sampling**: Built-in stratified sampling (500 posts per day) during training
+- **Model Persistence**: Structured model saving with metadata and topic exports
+- **Compatibility Fixes**: Resolved BERTopic/SentenceTransformer interface issues
+- **Local Testing**: Easy local training and inference scripts for development
+- **Structured Output**: Consistent directory structure for both training and inference results
+- **Performance Optimized**: Batch processing and memory-efficient data loading
 
 ## 📁 **Project Structure**
 
@@ -56,14 +66,14 @@ python train.py --mode prod --sample-per-day 500 --output-dir ./trained_models
 ```bash
 # Run inference on full dataset using trained model
 python main.py --run-mode infer \
-    --model-path ./trained_models/feed_topic_model_20250119_143022 \
-    --metadata-path ./trained_models/model_metadata_feed_topic_model_20250119_143022.json \
+    --model-path ./train/trained_models/prod/20250119_143022/model \
+    --metadata-path ./train/trained_models/prod/20250119_143022/metadata/model_metadata.json \
     --mode prod
 
 # Or use standalone inference script
-python inference.py \
-    --model-path ./trained_models/feed_topic_model_20250119_143022 \
-    --metadata-path ./trained_models/model_metadata_feed_topic_model_20250119_143022.json \
+python inference/inference.py \
+    --model-path ./train/trained_models/prod/20250119_143022/model \
+    --metadata-path ./train/trained_models/prod/20250119_143022/metadata/model_metadata.json \
     --mode full --data-mode prod
 ```
 
@@ -79,8 +89,24 @@ For quick local testing and development:
 This script automatically:
 - Uses local mode data
 - Samples 500 documents per day
-- Saves to `./trained_models/local/`
+- Saves to `./train/trained_models/local/{timestamp}/`
 - Activates the `bluesky_research` conda environment
+- Provides clear success/failure feedback
+
+### **Local Inference (Quick Testing)**
+
+For quick local inference testing:
+
+```bash
+# Run local inference with automatic model detection
+python inference/run_inference_local.py
+```
+
+This script automatically:
+- Finds the latest trained model in `./train/trained_models/local/`
+- Loads the model and metadata
+- Runs inference on local data
+- Saves results to `./results/local/{timestamp}/`
 - Provides clear success/failure feedback
 
 ### **Complete Analysis (Original Behavior)**
@@ -106,10 +132,10 @@ sbatch train/submit_topic_modeling_training.sh --force-fallback
 #### **Inference Job (Hybrid Approach)**
 ```bash
 # Inference (requires trained model)
-sbatch inference/submit_topic_modeling_inference.sh --model-path ./trained_models/prod/feed_topic_model_20250119_143022 --metadata-path ./trained_models/prod/model_metadata_feed_topic_model_20250119_143022.json
+sbatch inference/submit_topic_modeling_inference.sh --model-path ./train/trained_models/prod/20250119_143022/model --metadata-path ./train/trained_models/prod/20250119_143022/metadata/model_metadata.json
 
 # Inference with custom output directory
-sbatch inference/submit_topic_modeling_inference.sh --model-path ./trained_models/prod/feed_topic_model_20250119_143022 --metadata-path ./trained_models/prod/model_metadata_feed_topic_model_20250119_143022.json --output-dir ./my_results
+sbatch inference/submit_topic_modeling_inference.sh --model-path ./train/trained_models/prod/20250119_143022/model --metadata-path ./train/trained_models/prod/20250119_143022/metadata/model_metadata.json --output-dir ./my_results
 ```
 
 #### **Full Analysis (Original Approach)**
@@ -170,40 +196,52 @@ Options:
 
 ## 📁 **Output Files**
 
-### **Training Output (trained_models/ directory)**
+### **Training Output (train/trained_models/ directory)**
 ```
-trained_models/
+train/trained_models/
 ├── local/                          # Local mode training results
-│   └── feed_topic_model_{timestamp}/
-│       ├── bertopic_model/         # BERTopic model files
-│       ├── wrapper_meta.json       # Wrapper metadata
-│       └── training_results.json   # Training results
+│   └── {timestamp}/                # Timestamped model directory
+│       ├── metadata/
+│       │   └── model_metadata.json # Training metadata (samples, topics, coherence, etc.)
+│       ├── model/                  # BERTopic model directory
+│       │   ├── bertopic_model      # Main BERTopic model file
+│       │   ├── wrapper_meta.json   # BERTopicWrapper metadata
+│       │   └── training_results.json # Training results
+│       └── topics.csv              # Topic information export
 └── prod/                           # Production mode training results
-    └── feed_topic_model_{timestamp}/
-        ├── bertopic_model/         # BERTopic model files
-        ├── wrapper_meta.json       # Wrapper metadata
-        └── training_results.json   # Training results
+    └── {timestamp}/                # Timestamped model directory
+        ├── metadata/
+        │   └── model_metadata.json # Training metadata
+        ├── model/                  # BERTopic model directory
+        │   ├── bertopic_model      # Main BERTopic model file
+        │   ├── wrapper_meta.json   # BERTopicWrapper metadata
+        │   └── training_results.json # Training results
+        └── topics.csv              # Topic information export
 ```
 
-### **Analysis Output (results/ directory)**
+### **Inference Output (results/ directory)**
 ```
 results/
-├── local/                          # Local mode analysis results
+├── local/                          # Local mode inference results
 │   └── {timestamp}/
-│       ├── topics_{timestamp}.csv
-│       ├── quality_metrics_{timestamp}.json
-│       ├── topic_assignments_{timestamp}.csv
-│       ├── stratified_topic_analysis_{timestamp}.csv
-│       ├── topic_evolution_{timestamp}.csv
-│       └── summary_{timestamp}.json
-└── prod/                           # Production mode analysis results
+│       ├── metadata/
+│       │   └── inference_metadata.json # Inference metadata (samples, time, topics, etc.)
+│       ├── topic_distribution.csv      # Document count per topic
+│       ├── topics_{timestamp}.csv      # Topic information (if stratified analysis)
+│       ├── quality_metrics_{timestamp}.json # Quality metrics (if stratified analysis)
+│       ├── topic_assignments_{timestamp}.csv # Document-topic assignments (if stratified analysis)
+│       ├── stratified_topic_analysis_{timestamp}.csv # Stratified analysis results (if available)
+│       └── topic_evolution_{timestamp}.csv # Topic evolution over time (if available)
+└── prod/                           # Production mode inference results
     └── {timestamp}/
-        ├── topics_{timestamp}.csv
-        ├── quality_metrics_{timestamp}.json
-        ├── topic_assignments_{timestamp}.csv
-        ├── stratified_topic_analysis_{timestamp}.csv
-        ├── topic_evolution_{timestamp}.csv
-        └── summary_{timestamp}.json
+        ├── metadata/
+        │   └── inference_metadata.json # Inference metadata
+        ├── topic_distribution.csv      # Document count per topic
+        ├── topics_{timestamp}.csv      # Topic information (if stratified analysis)
+        ├── quality_metrics_{timestamp}.json # Quality metrics (if stratified analysis)
+        ├── topic_assignments_{timestamp}.csv # Document-topic assignments (if stratified analysis)
+        ├── stratified_topic_analysis_{timestamp}.csv # Stratified analysis results (if available)
+        └── topic_evolution_{timestamp}.csv # Topic evolution over time (if available)
 ```
 
 ### **Visualization Files**
@@ -214,18 +252,24 @@ results/
 
 ## 🔧 **How It Works**
 
-### **Training Mode (`train.py` or `--run-mode train`)**
-1. **Data Loading**: Loads full dataset using shared functions
-2. **Representative Sampling**: Creates stratified sample (500 posts per day by default)
-3. **Model Training**: Trains BERTopic model on representative sample
-4. **Model Saving**: Saves trained model and metadata for later inference
+### **Training Mode (`train/train.py` or `--run-mode train`)**
+1. **Data Loading**: Loads full dataset using shared functions with built-in sampling
+2. **Representative Sampling**: Automatically samples 500 posts per day during data loading
+3. **Model Training**: Trains BERTopic model on representative sample using BERTopicWrapper
+4. **Model Saving**: Saves trained model in structured format:
+   - `train/trained_models/{mode}/{timestamp}/model/` - BERTopic model files
+   - `train/trained_models/{mode}/{timestamp}/metadata/model_metadata.json` - Training metadata
+   - `train/trained_models/{mode}/{timestamp}/topics.csv` - Topic information export
 
-### **Inference Mode (`inference.py` or `--run-mode infer`)**
-1. **Model Loading**: Loads pre-trained model and metadata
-2. **Data Loading**: Loads full dataset or new documents
-3. **Topic Assignment**: Assigns topics to documents using trained model
-4. **Stratified Analysis**: Performs analysis across conditions and time periods
-5. **Results Export**: Exports all results in standardized format
+### **Inference Mode (`inference/inference.py` or `--run-mode infer`)**
+1. **Model Loading**: Loads pre-trained BERTopic model with embedding adapter for compatibility
+2. **Data Loading**: Loads full dataset using DataLoader with inference mode (no sampling)
+3. **Topic Assignment**: Assigns topics to documents using trained model with batch processing
+4. **Stratified Analysis**: Performs analysis across conditions and time periods (if metadata available)
+5. **Results Export**: Exports results in structured format:
+   - `results/{mode}/{timestamp}/metadata/inference_metadata.json` - Inference metadata
+   - `results/{mode}/{timestamp}/topic_distribution.csv` - Document count per topic
+   - Additional analysis files if stratified analysis is performed
 
 ### **Full Mode (`--run-mode full` - Original Behavior)**
 1. **Data Loading**: Loads users and partition dates using shared functions

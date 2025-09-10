@@ -7,8 +7,8 @@ to assign topic labels. It can process the full dataset or new documents.
 import argparse
 import json
 import os
+import time
 
-from bertopic import BERTopic
 import pandas as pd
 
 from lib.helper import generate_current_datetime_str
@@ -41,13 +41,12 @@ def load_trained_model(model_path: str, metadata_path: str):
         tuple: (bertopic_model, metadata)
     """
     logger.info(f"📂 Loading trained model from: {model_path}")
-    topic_model = BERTopic.load(model_path)
 
-    # Create a minimal wrapper for compatibility
-    bertopic = BERTopicWrapper()
-    bertopic.topic_model = topic_model
+    # Use BERTopicWrapper's load_model method for proper compatibility
+    # model_path already points to the model directory created by the wrapper
+    bertopic = BERTopicWrapper.load_model(model_path)
 
-    logger.info("✅ BERTopic model loaded directly (native format)")
+    logger.info("✅ BERTopic model loaded with embedding model")
 
     # Load metadata
     with open(metadata_path, "r") as f:
@@ -59,7 +58,7 @@ def load_trained_model(model_path: str, metadata_path: str):
     )
     logger.info(f"🏷️  Model has {metadata['total_topics']} topics")
     logger.info(
-        f"📈 Training coherence: c_v={metadata['c_v_coherence']:.3f}, c_npmi={metadata['c_npmi_coherence']:.3f}"
+        f"📈 Training coherence: c_v={float(metadata['c_v_coherence']):.3f}, c_npmi={float(metadata['c_npmi_coherence']):.3f}"
     )
 
     return bertopic, metadata
@@ -111,6 +110,7 @@ def run_inference_on_full_dataset(
         tuple: (doc_topic_assignments, bertopic_model)
     """
     logger.info("🔄 Running inference on full dataset...")
+    start_time = time.time()
 
     # Load model and metadata
     bertopic, metadata = load_trained_model(model_path, metadata_path)
@@ -197,6 +197,41 @@ def run_inference_on_full_dataset(
         logger.info(f"📈 Quality: {os.path.basename(metrics_file)} (JSON)")
 
         logger.info(f"📊 Results exported to: {output_dir}")
+
+    # Save inference metadata
+    inference_metadata = {
+        "inference_mode": mode,
+        "samples_processed": len(doc_topic_assignments),
+        "total_docs": len(doc_topic_assignments),
+        "inference_time_seconds": time.time() - start_time,
+        "total_topics": len([t for t in bertopic.get_topics().keys() if t != -1]),
+        "model_path": model_path,
+        "metadata_path": metadata_path,
+        "inference_timestamp": generate_current_datetime_str(),
+    }
+
+    # Add topic distribution summary
+    topic_counts = doc_topic_assignments["topic_id"].value_counts().to_dict()
+    inference_metadata["topic_distribution"] = topic_counts
+
+    # Save inference metadata
+    metadata_dir = os.path.join(output_dir, "metadata")
+    os.makedirs(metadata_dir, exist_ok=True)
+    metadata_file = os.path.join(metadata_dir, "inference_metadata.json")
+    with open(metadata_file, "w") as f:
+        json.dump(inference_metadata, f, indent=2, default=str)
+    logger.info(f"📋 Inference metadata saved to: {metadata_file}")
+
+    # Export topic distribution as CSV
+    topic_dist_df = pd.DataFrame(
+        [
+            {"topic_id": topic_id, "document_count": count}
+            for topic_id, count in topic_counts.items()
+        ]
+    ).sort_values("topic_id")
+    topic_dist_file = os.path.join(output_dir, "topic_distribution.csv")
+    topic_dist_df.to_csv(topic_dist_file, index=False)
+    logger.info(f"📊 Topic distribution saved to: {topic_dist_file}")
 
     return doc_topic_assignments, bertopic
 

@@ -1176,7 +1176,7 @@ class BERTopicWrapper:
             model_dir.mkdir(parents=True, exist_ok=True)
 
             # Save BERTopic model to the directory
-            self.topic_model.save(str(model_dir))
+            self.topic_model.save(str(model_dir / "bertopic_model"))
 
             # Save wrapper metadata
             metadata = {
@@ -1279,7 +1279,27 @@ class BERTopicWrapper:
             )
 
             # Load BERTopic model from the directory
-            instance.topic_model = BERTopic.load(str(model_dir))
+            instance.topic_model = BERTopic.load(str(model_dir / "bertopic_model"))
+
+            # Create an adapter for the embedding model to provide embed_documents method
+            class EmbeddingAdapter:
+                def __init__(self, sentence_transformer):
+                    self.sentence_transformer = sentence_transformer
+
+                def embed_documents(self, documents, verbose=False):
+                    return self.sentence_transformer.encode(
+                        documents, show_progress_bar=verbose
+                    )
+
+                def embed_words(self, words, verbose=False):
+                    return self.sentence_transformer.encode(
+                        words, show_progress_bar=verbose
+                    )
+
+            # Set the adapted embedding model on the loaded topic model
+            instance.topic_model.embedding_model = EmbeddingAdapter(
+                instance.embedding_model
+            )
 
             # Restore metadata
             instance.training_time = metadata["training_time"]
