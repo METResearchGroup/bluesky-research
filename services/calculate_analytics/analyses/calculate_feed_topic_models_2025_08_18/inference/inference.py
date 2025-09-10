@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 
+from bertopic import BERTopic
 import pandas as pd
 
 from lib.helper import generate_current_datetime_str
@@ -28,17 +29,25 @@ logger = get_logger(__name__)
 def load_trained_model(model_path: str, metadata_path: str):
     """Load trained model and metadata.
 
+    Expects the following structure:
+    - model_path: Path to the model file (e.g., /path/to/timestamp/model)
+    - metadata_path: Path to metadata file (e.g., /path/to/timestamp/metadata/model_metadata.json)
+
     Args:
-        model_path: Path to trained model directory
+        model_path: Path to trained model file
         metadata_path: Path to model metadata JSON file
 
     Returns:
         tuple: (bertopic_model, metadata)
     """
     logger.info(f"📂 Loading trained model from: {model_path}")
+    topic_model = BERTopic.load(model_path)
 
-    # Load model
-    bertopic = BERTopicWrapper.load_model(model_path)
+    # Create a minimal wrapper for compatibility
+    bertopic = BERTopicWrapper()
+    bertopic.topic_model = topic_model
+
+    logger.info("✅ BERTopic model loaded directly (native format)")
 
     # Load metadata
     with open(metadata_path, "r") as f:
@@ -288,10 +297,14 @@ def main():
         description="Run topic inference using trained model"
     )
     parser.add_argument(
-        "--model-path", required=True, help="Path to trained model directory"
+        "--model-path",
+        required=True,
+        help="Path to trained model file (e.g., /path/to/timestamp/model)",
     )
     parser.add_argument(
-        "--metadata-path", required=True, help="Path to model metadata JSON file"
+        "--metadata-path",
+        required=True,
+        help="Path to model metadata JSON file (e.g., /path/to/timestamp/metadata/model_metadata.json)",
     )
     parser.add_argument(
         "--mode",

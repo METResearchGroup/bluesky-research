@@ -116,10 +116,20 @@ def train_and_save_model(
         from datetime import datetime
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        model_name = f"feed_topic_model_{timestamp}"
-        model_path = os.path.join(model_output_dir, model_name)
-        bertopic.topic_model.save(model_path)
-        logger.info(f"✅ Model saved to: {model_path}")
+        timestamp_dir = os.path.join(model_output_dir, timestamp)
+
+        # Create timestamped directory structure
+        os.makedirs(timestamp_dir, exist_ok=True)
+        metadata_dir = os.path.join(timestamp_dir, "metadata")
+        os.makedirs(metadata_dir, exist_ok=True)
+
+        # Save model as a file in the timestamped directory
+        model_file_path = os.path.join(timestamp_dir, "model")
+        bertopic.topic_model.save(model_file_path)
+        logger.info(f"✅ Model saved to: {model_file_path}")
+
+        # Update model_path to point to the timestamped directory for metadata saving
+        model_path = timestamp_dir
     except Exception as e:
         logger.error(f"Failed to save model: {e}")
         raise
@@ -140,19 +150,22 @@ def train_and_save_model(
             "total_topics": len([t for t in bertopic.get_topics().keys() if t != -1]),
             "model_path": model_path,
             "training_timestamp": generate_current_datetime_str(),
-            "date_condition_uris_map": date_condition_uris_map,  # Save for inference
-            "uri_doc_map": uri_doc_map.to_dict("records")
-            if uri_doc_map is not None
-            else [],  # Convert to serializable format
         }
 
-        metadata_path = os.path.join(
-            model_output_dir, f"model_metadata_{os.path.basename(model_path)}.json"
-        )
+        metadata_path = os.path.join(model_path, "metadata", "model_metadata.json")
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2, default=str)
 
         logger.info(f"📋 Metadata saved to: {metadata_path}")
+
+        # Export topic information as separate CSV
+        try:
+            topic_info = bertopic.get_topic_info()
+            topics_file = os.path.join(timestamp_dir, "topics.csv")
+            topic_info.to_csv(topics_file, index=False)
+            logger.info(f"🏷️  Topics exported to: {topics_file}")
+        except Exception as e:
+            logger.warning(f"Failed to export topics: {e}")
 
     except Exception as e:
         logger.error(f"Failed to save metadata: {e}")
