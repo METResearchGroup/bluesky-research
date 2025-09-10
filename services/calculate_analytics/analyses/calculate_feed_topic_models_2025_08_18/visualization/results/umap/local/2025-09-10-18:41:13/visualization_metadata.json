@@ -1,0 +1,42 @@
+{
+  "visualization_type": "umap",
+  "model_path": "train/trained_models/local/20250910_110001/model",
+  "metadata_path": "train/trained_models/local/20250910_110001/metadata/model_metadata.json",
+  "results_path": "results/local/2025-09-10-18:23:10",
+  "umap_parameters": {
+    "n_neighbors": 15,
+    "min_dist": 0.1,
+    "n_components": 2,
+    "metric": "cosine",
+    "random_state": 42
+  },
+  "figure_parameters": {
+    "figsize": [
+      12,
+      10
+    ],
+    "dpi": 300,
+    "facecolor": "white"
+  },
+  "n_documents": 45882,
+  "n_topics": 7,
+  "topic_distribution": {
+    "-1": 28224,
+    "0": 16828,
+    "1": 358,
+    "3": 179,
+    "2": 151,
+    "4": 84,
+    "5": 58
+  },
+  "creation_timestamp": "2025-09-10-18:41:13",
+  "color_palette": [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2"
+  ]
+}

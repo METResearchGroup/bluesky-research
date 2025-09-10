@@ -400,10 +400,10 @@ def _extract_integration_fields(row, integration: str) -> dict:
 
 
 def _log_completeness_status(
-    uri_integration_status: dict[str, set[str]], post_uris: set[str]
+    uri_integration_status: dict[str, set[str]], all_uris: set[str]
 ) -> None:
     """Log the completeness status of label processing."""
-    total_uris = len(post_uris)
+    total_uris = len(all_uris)
     complete_uris = sum(
         1 for status in uri_integration_status.values() if len(status) == 0
     )
