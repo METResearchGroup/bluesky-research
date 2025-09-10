@@ -84,6 +84,7 @@ class UMAPVisualizer:
         self.metadata = None
         self.documents = None
         self.topic_assignments = None
+        self.topic_names = None
 
     def load_model_and_results(self) -> None:
         """Load trained model and inference results."""
@@ -101,6 +102,10 @@ class UMAPVisualizer:
         # Initialize embedding model separately to avoid UMAP conflicts
         self._initialize_embedding_model()
         logger.info("✅ Embedding model initialized successfully")
+
+        # Load topic names if available
+        self._load_topic_names()
+        logger.info("✅ Topic names loaded successfully")
 
     def _load_inference_results(self) -> None:
         """Load documents and topic assignments from inference results."""
@@ -175,6 +180,25 @@ class UMAPVisualizer:
         self.embedding_model = SentenceTransformer(model_name, device=device)
         logger.info(f"🔮 Initialized embedding model: {model_name} on {device}")
 
+    def _load_topic_names(self) -> None:
+        """Load generated topic names if available."""
+        # Try to find topic names file in the model directory
+        model_dir = Path(
+            self.model_path
+        ).parent  # Go up one level from model file to timestamp dir
+
+        topic_names_file = model_dir / "topic_names.csv"
+        if topic_names_file.exists():
+            logger.info(f"📄 Loading topic names from: {topic_names_file}")
+            topic_names_df = pd.read_csv(topic_names_file)
+            self.topic_names = dict(
+                zip(topic_names_df["topic_id"], topic_names_df["generated_name"])
+            )
+            logger.info(f"📊 Loaded {len(self.topic_names)} topic names")
+        else:
+            logger.info("📄 No topic names file found, using default topic labels")
+            self.topic_names = {}
+
     def generate_embeddings(self) -> np.ndarray:
         """Generate embeddings for documents using the trained model."""
         logger.info("🔮 Generating embeddings for documents...")
@@ -229,12 +253,20 @@ class UMAPVisualizer:
             # Get indices for this topic
             topic_mask = self.topic_assignments["topic_id"] == topic_id
 
+            # Get topic label (use generated name if available, otherwise default)
+            if topic_id == -1:
+                topic_label = "Outliers"
+            elif self.topic_names and topic_id in self.topic_names:
+                topic_label = self.topic_names[topic_id]
+            else:
+                topic_label = f"Topic {topic_id}"
+
             # Plot points for this topic
             ax.scatter(
                 umap_embeddings[topic_mask, 0],
                 umap_embeddings[topic_mask, 1],
                 c=[colors[i]],
-                label=f"Topic {topic_id}" if topic_id != -1 else "Outliers",
+                label=topic_label,
                 alpha=0.7,
                 s=20,
                 edgecolors="none",

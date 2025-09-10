@@ -1,0 +1,19 @@
+{
+  "inference_mode": "local",
+  "samples_processed": 45882,
+  "total_docs": 45882,
+  "inference_time_seconds": 90.93845200538635,
+  "total_topics": 6,
+  "model_path": "/Users/mark/Documents/work/bluesky-research/services/calculate_analytics/analyses/calculate_feed_topic_models_2025_08_18/train/trained_models/local/20250910_120024/model",
+  "metadata_path": "/Users/mark/Documents/work/bluesky-research/services/calculate_analytics/analyses/calculate_feed_topic_models_2025_08_18/train/trained_models/local/20250910_120024/metadata/model_metadata.json",
+  "inference_timestamp": "2025-09-10-19:03:32",
+  "topic_distribution": {
+    "-1": 28224,
+    "0": 16828,
+    "1": 358,
+    "3": 179,
+    "2": 151,
+    "4": 84,
+    "5": 58
+  }
+}

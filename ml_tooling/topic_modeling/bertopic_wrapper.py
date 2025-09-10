@@ -1352,6 +1352,87 @@ class BERTopicWrapper:
 
         logger.info("Configuration updated successfully")
 
+    def generate_topic_names(self, model: str = "gpt-4o-mini") -> List[Dict[str, str]]:
+        """
+        Generate meaningful topic names from topic keywords using OpenAI.
+
+        Args:
+            model: OpenAI model to use (default: gpt-4o-mini)
+
+        Returns:
+            List of dictionaries with topic_id and generated_name
+
+        Raises:
+            RuntimeError: If model hasn't been trained
+            ImportError: If OpenAI is not available
+        """
+        if self.topic_model is None:
+            raise RuntimeError("Model must be trained before generating topic names")
+
+        try:
+            from ml_tooling.llm.openai import run_query
+        except ImportError:
+            raise ImportError(
+                "OpenAI integration not available. Please ensure ml_tooling.llm.openai is accessible."
+            )
+
+        # Get all topics
+        all_topics = self.get_topics()
+        topic_keywords = []
+
+        for topic_id, words in all_topics.items():
+            # Skip outlier topics (topic_id == -1)
+            if topic_id == -1:
+                topic_keywords.append(
+                    {"topic_id": topic_id, "keywords": ["outlier", "noise", "random"]}
+                )
+                continue
+
+            # Extract top 10 keywords
+            keywords = [word for word, _ in words[:10]]
+            topic_keywords.append({"topic_id": topic_id, "keywords": keywords})
+
+        # Generate names for each topic
+        results = []
+        for topic_info in topic_keywords:
+            topic_id = topic_info["topic_id"]
+            keywords = topic_info["keywords"]
+
+            # Skip outlier topics (topic_id == -1)
+            if topic_id == -1:
+                results.append({"topic_id": topic_id, "generated_name": "Outliers"})
+                continue
+
+            # Create prompt for topic name generation
+            keywords_str = ", ".join(keywords[:10])  # Use top 10 keywords
+            prompt = f"""Based on these keywords from a social media topic model, generate a brief, descriptive category name (2-4 words) that captures the main theme:
+
+Keywords: {keywords_str}
+
+Examples of good category names:
+- "Sports and Athletics"
+- "Left-leaning Politics" 
+- "Pet Humor and Cuteness"
+- "Technology News"
+- "Food and Cooking"
+- "Travel and Adventure"
+
+Generate a concise category name that best describes this topic:"""
+
+            try:
+                generated_name = run_query(
+                    prompt, model=model, max_tokens=50, temperature=0.3
+                )
+                results.append({"topic_id": topic_id, "generated_name": generated_name})
+            except Exception as e:
+                # Fallback to generic name if API fails
+                logger.warning(f"Failed to generate name for topic {topic_id}: {e}")
+                results.append(
+                    {"topic_id": topic_id, "generated_name": f"Topic {topic_id}"}
+                )
+
+        return results
+
     def __repr__(self) -> str:
         """String representation of the wrapper."""
         status = "trained" if self.topic_model is not None else "untrained"

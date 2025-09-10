@@ -15,6 +15,7 @@ This analysis performs BERTopic topic modeling on Bluesky feed content to unders
 - **Hybrid Training/Inference Approach**: Separate training on representative samples and inference on full datasets
 - **Automatic Sampling**: Built-in stratified sampling (500 posts per day) during training
 - **Model Persistence**: Structured model saving with metadata and topic exports
+- **OpenAI Topic Name Generation**: Automatic generation of meaningful topic names using GPT-4o-mini
 - **Compatibility Fixes**: Resolved BERTopic/SentenceTransformer interface issues
 - **Local Testing**: Easy local training and inference scripts for development
 - **Structured Output**: Consistent directory structure for both training and inference results
@@ -207,7 +208,8 @@ train/trained_models/
 │       │   ├── bertopic_model      # Main BERTopic model file
 │       │   ├── wrapper_meta.json   # BERTopicWrapper metadata
 │       │   └── training_results.json # Training results
-│       └── topics.csv              # Topic information export
+│       ├── topics.csv              # Topic information export (with generated names)
+│       └── topic_names.csv         # OpenAI-generated topic names
 └── prod/                           # Production mode training results
     └── {timestamp}/                # Timestamped model directory
         ├── metadata/
@@ -216,7 +218,8 @@ train/trained_models/
         │   ├── bertopic_model      # Main BERTopic model file
         │   ├── wrapper_meta.json   # BERTopicWrapper metadata
         │   └── training_results.json # Training results
-        └── topics.csv              # Topic information export
+        ├── topics.csv              # Topic information export (with generated names)
+        └── topic_names.csv         # OpenAI-generated topic names
 ```
 
 ### **Inference Output (results/ directory)**
@@ -256,10 +259,12 @@ results/
 1. **Data Loading**: Loads full dataset using shared functions with built-in sampling
 2. **Representative Sampling**: Automatically samples 500 posts per day during data loading
 3. **Model Training**: Trains BERTopic model on representative sample using BERTopicWrapper
-4. **Model Saving**: Saves trained model in structured format:
+4. **OpenAI Topic Name Generation**: Generates meaningful topic names using GPT-4o-mini
+5. **Model Saving**: Saves trained model in structured format:
    - `train/trained_models/{mode}/{timestamp}/model/` - BERTopic model files
    - `train/trained_models/{mode}/{timestamp}/metadata/model_metadata.json` - Training metadata
-   - `train/trained_models/{mode}/{timestamp}/topics.csv` - Topic information export
+   - `train/trained_models/{mode}/{timestamp}/topics.csv` - Topic information export (with generated names)
+   - `train/trained_models/{mode}/{timestamp}/topic_names.csv` - OpenAI-generated topic names
 
 ### **Inference Mode (`inference/inference.py` or `--run-mode infer`)**
 1. **Model Loading**: Loads pre-trained BERTopic model with embedding adapter for compatibility
@@ -283,6 +288,27 @@ results/
 - **BERTopicWrapper**: Leverages existing implementation
 - **Stratified Analysis**: Uses shared analysis functions for consistency
 - **Standardized Output**: Timestamped files with consistent naming patterns
+
+## 🤖 **OpenAI Integration**
+
+The system includes automatic topic name generation using OpenAI's GPT-4o-mini model:
+
+### **Features:**
+- **Automatic Generation**: Topic names are generated during training using the top keywords from each topic
+- **Meaningful Categories**: Generates descriptive names like "Sports and Athletics", "Left-leaning Politics", "Pet Humor and Cuteness"
+- **Fallback Handling**: Falls back to generic names (e.g., "Topic 0") if OpenAI API is unavailable
+- **Cost Efficient**: Uses GPT-4o-mini for cost-effective generation
+- **Configurable**: Can specify different OpenAI models via the BERTopicWrapper method
+
+### **Implementation:**
+- **BERTopicWrapper Method**: `generate_topic_names()` method integrated into the BERTopicWrapper class
+- **Generic OpenAI Module**: `ml_tooling/llm/openai.py` provides the `run_query()` function for general OpenAI API usage
+- **API Key Management**: Uses `OPENAI_API_KEY` from `lib/helper.py`
+- **Error Handling**: Graceful fallback to generic names if API calls fail
+
+### **Output Files:**
+- **`topic_names.csv`**: Contains `topic_id` and `generated_name` columns
+- **Updated `topics.csv`**: Includes both original and generated topic names
 
 ## 🔄 **Integration with Existing System**
 

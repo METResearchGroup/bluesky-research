@@ -9,6 +9,8 @@ from datetime import datetime
 import json
 import os
 
+import pandas as pd
+
 
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
@@ -165,6 +167,35 @@ def train_and_save_model(
             topics_file = os.path.join(timestamp_dir, "topics.csv")
             topic_info.to_csv(topics_file, index=False)
             logger.info(f"🏷️  Topics exported to: {topics_file}")
+
+            # Generate meaningful topic names using OpenAI
+            try:
+                logger.info("🤖 Generating topic names using OpenAI...")
+
+                # Generate topic names using BERTopicWrapper method
+                generated_names = bertopic.generate_topic_names()
+
+                # Create DataFrame with topic names
+                topic_names_df = pd.DataFrame(generated_names)
+                topic_names_file = os.path.join(timestamp_dir, "topic_names.csv")
+                topic_names_df.to_csv(topic_names_file, index=False)
+                logger.info(f"🏷️  Generated topic names saved to: {topic_names_file}")
+
+                # Also update the main topics.csv with generated names
+                topic_info_with_names = topic_info.merge(
+                    topic_names_df, left_on="Topic", right_on="topic_id", how="left"
+                )
+                # Replace missing names with original topic names
+                topic_info_with_names["generated_name"] = topic_info_with_names[
+                    "generated_name"
+                ].fillna(topic_info_with_names["Name"])
+                topic_info_with_names.to_csv(topics_file, index=False)
+                logger.info("🏷️  Updated topics.csv with generated names")
+
+            except Exception as e:
+                logger.warning(f"Failed to generate topic names with OpenAI: {e}")
+                logger.info("Continuing with original topic names...")
+
         except Exception as e:
             logger.warning(f"Failed to export topics: {e}")
 
