@@ -5,7 +5,7 @@ embedding_model:
 
 bertopic:
   top_n_words: 20
-  min_topic_size: 50  # Increased for stability with large datasets
+  min_topic_size: 20  # Reduced from 50 to improve topic coverage and reduce outliers
   nr_topics: "auto"
   calculate_probabilities: true
   verbose: true
@@ -17,10 +17,10 @@ bertopic:
     metric: "cosine"
     n_jobs: 1  # Disable UMAP multiprocessing
     low_memory: true  # Reduce memory usage
-  # HDBSCAN configuration optimized for large datasets
+  # HDBSCAN configuration optimized for better topic coverage
   hdbscan_model:
-    min_cluster_size: 50  # Increased for stability with large datasets
-    min_samples: 25  # Increased for stability with large datasets
+    min_cluster_size: 20  # Reduced from 50 to allow more granular topics
+    min_samples: 10  # Reduced from 25 to allow smaller but meaningful clusters
     metric: "euclidean"
     cluster_selection_method: "leaf"  # More stable than "eom" for large datasets
     prediction_data: true  # REQUIRED for BERTopic to generate prediction data
