@@ -1,0 +1,31 @@
+# Topic Modeling Analysis Dependencies
+# Core ML and Topic Modeling Packages
+bertopic>=0.15.0
+umap-learn>=0.5.4
+sentence-transformers>=2.2.2
+scikit-learn>=1.3.0
+hdbscan>=0.8.33
+
+# Data Processing and Analysis
+pandas>=2.2.2
+numpy>=1.24.0
+pyarrow>=17.0.0
+
+# Visualization
+matplotlib>=3.8.3
+seaborn>=0.12.0
+
+# Configuration and Utilities
+pyyaml>=6.0
+tqdm>=4.65.0
+
+# Optional: Text Processing (if NLTK preprocessing is enabled)
+nltk>=3.8.1
+
+# Optional: GPU acceleration (if CUDA is available)
+# torch>=2.0.0  # Uncomment if using GPU acceleration
+# torchvision>=0.15.0  # Uncomment if using GPU acceleration
+
+# Development and Testing (optional)
+# pytest>=7.4.0
+# jupyter>=1.0.0
