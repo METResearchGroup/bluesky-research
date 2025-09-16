@@ -23,6 +23,9 @@ CONDA_PATH="/hpc/software/mamba/23.1.0/etc/profile.d/conda.sh"
 # Set pythonpath
 PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 
+# Build python command for training
+PYTHON_CMD="/projects/p32375/bluesky-research/services/calculate_analytics/analyses/calculate_feed_topic_models_2025_08_18/train/train.py"
+
 # Hardcoded production training parameters
 MODE="prod"
 SAMPLE_PER_DAY=500
@@ -36,6 +39,7 @@ echo "Sample per day: $SAMPLE_PER_DAY"
 echo "Output dir: ${OUTPUT_DIR:-'./trained_models/prod (default)'}"
 echo "Force fallback: ${FORCE_FALLBACK:-'no'}"
 echo "SLURM Job ID: $SLURM_JOB_ID"
+echo "Running python command: $PYTHON_CMD"
 echo ""
 
 # Change to script directory
@@ -46,7 +50,7 @@ source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTH
 
 # Run the training
 echo "🤖 Starting production training..."
-python train.py --mode "$MODE" --sample-per-day "$SAMPLE_PER_DAY" $OUTPUT_DIR $FORCE_FALLBACK
+python $PYTHON_CMD --mode "$MODE" --sample-per-day "$SAMPLE_PER_DAY" $OUTPUT_DIR $FORCE_FALLBACK
 
 # Check exit code
 exit_code=$?
