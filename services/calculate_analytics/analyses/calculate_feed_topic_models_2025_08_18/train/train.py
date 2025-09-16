@@ -96,6 +96,12 @@ def train_and_save_model(
         logger.info(
             f"✅ Data loaded successfully: {len(documents_df)} documents (sampled at data loading level)"
         )
+        if mode == "prod":
+            # if prod data, we want to export to local path.
+            logger.info(
+                f"✅ Date condition URIs map loaded successfully: {len(date_condition_uris_map)} dates x {len(date_condition_uris_map[list(date_condition_uris_map.keys())[0]])} conditions"
+            )
+            logger.info(f"✅ URI doc map loaded successfully: {len(uri_doc_map)} URIs")
     except Exception as e:
         logger.error(f"Failed to load data: {e}")
         raise

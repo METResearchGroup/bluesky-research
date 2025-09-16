@@ -20,6 +20,9 @@ This analysis performs BERTopic topic modeling on Bluesky feed content to unders
 - **Local Testing**: Easy local training and inference scripts for development
 - **Structured Output**: Consistent directory structure for both training and inference results
 - **Performance Optimized**: Batch processing and memory-efficient data loading
+- **Data Export**: Export sociopolitical posts data for efficient reuse across runs
+- **Sliced UMAP Visualizations**: Create targeted visualizations by condition, date range, or combinations
+- **Production-Only Features**: Export and visualization features only available in prod mode (no local labels/feed data)
 
 ## 📁 **Project Structure**
 
@@ -30,7 +33,7 @@ calculate_feed_topic_models_2025_08_18/
 ├── README.md                    # This documentation
 ├── main.py                      # Main entry point with train/inference/full modes
 ├── load/                        # Data loading components
-│   └── load_data.py            # DataLoader class with sampling logic
+│   └── load_data.py            # DataLoader class with sampling logic and export functionality
 ├── train/                       # Training components
 │   ├── train.py                # Training script for hybrid approach
 │   ├── run_training_local.sh   # Local training script for quick testing
@@ -38,6 +41,9 @@ calculate_feed_topic_models_2025_08_18/
 ├── inference/                   # Inference components
 │   ├── inference.py            # Inference script for trained models
 │   └── submit_topic_modeling_inference.sh # SLURM script for inference
+├── visualization/               # Visualization components (prod mode only)
+│   ├── create_umap_visualization.py      # Original UMAP visualization
+│   └── sliced_umap_visualization.py     # Sliced UMAP visualization for exported data
 └── helper/                      # Helper utilities and tools
     ├── topic_analysis_helpers.py    # Analysis helper functions
     ├── visualize_results.py         # Visualization generation
@@ -50,20 +56,93 @@ calculate_feed_topic_models_2025_08_18/
 
 ## 🚀 **Usage**
 
-### **Training and Inference Workflow (Recommended for Large Datasets)**
+There are two distinct workflows depending on your data environment:
 
-For datasets with 1M+ documents, use the hybrid approach that separates training and inference:
+## 🏠 **Local Workflow** (Development & Testing)
 
-#### **1. Training Phase (Run Once)**
+For local development and testing with sample data:
+
+### **Local Training**
+```bash
+# Quick local training with hardcoded parameters
+./train/run_training_local.sh
+
+# Or manual local training
+python main.py --run-mode train --mode local --sample-per-day 500
+```
+
+### **Local Inference**
+```bash
+# Quick local inference with automatic model detection
+python inference/run_inference_local.py
+
+# Or manual local inference
+python main.py --run-mode infer \
+    --model-path ./train/trained_models/local/20250119_143022/model \
+    --metadata-path ./train/trained_models/local/20250119_143022/metadata/model_metadata.json \
+    --mode local
+```
+
+### **Local Visualizations**
+```bash
+# Generate traditional visualizations
+python helper/visualize_results.py
+```
+
+**Note**: Local mode does not have access to sociopolitical labels or feed data, so export functionality and sliced UMAP visualizations are not available.
+
+---
+
+## 🏭 **Production Workflow** (Full Analysis)
+
+For production datasets with sociopolitical labels and feed data:
+
+### **1. Export Sociopolitical Posts Data (Run Once)**
+```bash
+# Export sociopolitical posts data for efficient reuse
+python -c "
+from load.load_data import DataLoader
+dataloader = DataLoader(mode='prod', run_mode='inference')
+export_path = dataloader.export_sociopolitical_posts_data(
+    include_by_date_condition=True
+)
+print(f'Data exported to: {export_path}')
+"
+```
+
+This creates a timestamped directory with:
+- `documents_df.parquet`: Deduplicated documents for training/inference
+- `uri_doc_map.parquet`: URI to doc_id mapping for reconstruction
+- `date_condition_uris_map.json`: Slicing structure for analysis
+- `metadata.json`: Study configuration and export info
+- `by_date_condition/`: Organized by date/condition folders
+
+### **2. Training Phase (Run Once)**
 ```bash
 # Train model on representative sample (500 posts per day)
 python main.py --run-mode train --mode prod --sample-per-day 500
 
 # Or use standalone training script
-python train.py --mode prod --sample-per-day 500 --output-dir ./trained_models
+python train/train.py --mode prod --sample-per-day 500 --output-dir ./trained_models
 ```
 
-#### **2. Inference Phase (Run Multiple Times)**
+### **3. Inference Phase (Run Multiple Times)**
+
+**Option A: Use Exported Data (Recommended - Faster)**
+```bash
+# Run inference on exported data for efficiency
+python -c "
+from inference.inference import run_inference_on_exported_data
+doc_topic_assignments, bertopic = run_inference_on_exported_data(
+    model_path='./train/trained_models/prod/20250119_143022/model',
+    metadata_path='./train/trained_models/prod/20250119_143022/metadata/model_metadata.json',
+    exported_data_path='./sociopolitical_posts_used_in_feeds/20250119_143022'
+)
+print('Inference completed successfully!')
+"
+```
+
+**Option B: Load Data Fresh (Legacy)**
 ```bash
 # Run inference on full dataset using trained model
 python main.py --run-mode infer \
@@ -78,37 +157,31 @@ python inference/inference.py \
     --mode full --data-mode prod
 ```
 
-### **Local Training (Quick Testing)**
-
-For quick local testing and development:
-
+### **4. Sliced UMAP Visualizations (Production Only)**
 ```bash
-# Run local training with hardcoded parameters
-./train/run_training_local.sh
+# Create visualizations for specific conditions and date ranges
+python -c "
+from visualization.sliced_umap_visualization import SlicedUMAPVisualizer
+visualizer = SlicedUMAPVisualizer(
+    model_path='./train/trained_models/prod/20250119_143022/model',
+    metadata_path='./train/trained_models/prod/20250119_143022/metadata/model_metadata.json',
+    exported_data_path='./sociopolitical_posts_used_in_feeds/20250119_143022'
+)
+visualizer.load_exported_data()
+visualizer.load_model_and_assignments()
+
+# Create visualization for control condition, specific week
+fig, ax = visualizer.create_sliced_visualization(
+    condition='control',
+    date_range=['2024-01-15', '2024-01-21'],
+    output_path='./visualizations/control_week1_umap.png'
+)
+"
 ```
 
-This script automatically:
-- Uses local mode data
-- Samples 500 documents per day
-- Saves to `./train/trained_models/local/{timestamp}/`
-- Activates the `bluesky_research` conda environment
-- Provides clear success/failure feedback
+---
 
-### **Local Inference (Quick Testing)**
-
-For quick local inference testing:
-
-```bash
-# Run local inference with automatic model detection
-python inference/run_inference_local.py
-```
-
-This script automatically:
-- Finds the latest trained model in `./train/trained_models/local/`
-- Loads the model and metadata
-- Runs inference on local data
-- Saves results to `./results/local/{timestamp}/`
-- Provides clear success/failure feedback
+## 🔄 **Legacy Workflows**
 
 ### **Complete Analysis (Original Behavior)**
 ```bash
@@ -145,8 +218,39 @@ sbatch helper/submit_topic_modeling_analysis.sh
 ```
 
 ### **Generate Visualizations**
+
+#### **Traditional Visualizations**
 ```bash
 python helper/visualize_results.py
+```
+
+#### **Sliced UMAP Visualizations (Production Only)**
+```bash
+# Create multiple slice visualizations
+python -c "
+from visualization.sliced_umap_visualization import SlicedUMAPVisualizer
+visualizer = SlicedUMAPVisualizer(
+    model_path='./train/trained_models/prod/20250119_143022/model',
+    metadata_path='./train/trained_models/prod/20250119_143022/metadata/model_metadata.json',
+    exported_data_path='./sociopolitical_posts_used_in_feeds/20250119_143022'
+)
+visualizer.load_exported_data()
+visualizer.load_model_and_assignments()
+
+# Define visualization slices
+slice_configs = [
+    {'condition': 'control', 'date_range': None, 'title_suffix': 'Control Only'},
+    {'condition': 'treatment', 'date_range': None, 'title_suffix': 'Treatment Only'},
+    {'condition': None, 'date_range': ['2024-01-15', '2024-01-21'], 'title_suffix': 'Week 1'},
+    {'condition': 'control', 'date_range': ['2024-01-15', '2024-01-21'], 'title_suffix': 'Control Week 1'},
+]
+
+# Create all visualizations
+visualizer.create_multiple_slice_visualizations(
+    slice_configs=slice_configs,
+    output_dir='./visualizations/slices'
+)
+"
 ```
 
 ### **Load Testing**

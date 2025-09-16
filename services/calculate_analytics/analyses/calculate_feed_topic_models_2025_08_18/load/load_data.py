@@ -3,9 +3,12 @@ This module contains the DataLoader class, which is used to load data from the l
 """
 
 import hashlib
+import json
+import os
+from typing import Optional
 import pandas as pd
 
-from lib.helper import get_partition_dates
+from lib.helper import get_partition_dates, generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.calculate_analytics.shared.constants import (
     STUDY_START_DATE,
@@ -376,6 +379,141 @@ class DataLoader:
             uri_doc_rows, columns=["uri", "partition_date", "doc_id"]
         )
         return date_condition_uris_map, documents_df, uri_doc_map
+
+    def export_sociopolitical_posts_data(
+        self,
+        output_dir: Optional[str] = None,
+        include_by_date_condition: bool = False,
+    ) -> str:
+        """Export sociopolitical posts data for later use in inference and visualization.
+
+        Args:
+            output_dir: Directory to save exported data. If None, creates timestamped directory.
+            include_by_date_condition: Whether to also save data organized by date/condition.
+
+        Returns:
+            str: Path to the exported data directory
+
+        Exports:
+            - documents_df.parquet: [doc_id, text] - deduplicated documents
+            - uri_doc_map.parquet: [uri, partition_date, doc_id] - URI to doc_id mapping
+            - date_condition_uris_map.json: {date: {condition: {uris}}} - slicing structure
+            - metadata.json: Study configuration and export info
+            - by_date_condition/ (optional): Organized by date/condition folders
+        """
+        logger.info("📦 Exporting sociopolitical posts data...")
+
+        # Load data first
+        date_condition_uris_map, documents_df, uri_doc_map = self.load_data()
+
+        # Set up output directory
+        if output_dir is None:
+            timestamp = generate_current_datetime_str()
+            output_dir = f"sociopolitical_posts_used_in_feeds/{timestamp}"
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Export core data structures
+        logger.info(f"💾 Saving documents_df ({len(documents_df)} documents)...")
+        documents_df.to_parquet(f"{output_dir}/documents_df.parquet", index=False)
+
+        logger.info(f"💾 Saving uri_doc_map ({len(uri_doc_map)} mappings)...")
+        uri_doc_map.to_parquet(f"{output_dir}/uri_doc_map.parquet", index=False)
+
+        logger.info(
+            f"💾 Saving date_condition_uris_map ({len(date_condition_uris_map)} dates)..."
+        )
+        # Convert sets to lists for JSON serialization
+        serializable_map = {}
+        for date, condition_map in date_condition_uris_map.items():
+            serializable_map[date] = {}
+            for condition, uris in condition_map.items():
+                serializable_map[date][condition] = list(uris)
+
+        with open(f"{output_dir}/date_condition_uris_map.json", "w") as f:
+            json.dump(serializable_map, f, indent=2)
+
+        # Export metadata
+        metadata = {
+            "export_timestamp": generate_current_datetime_str(),
+            "data_loader_mode": self.mode,
+            "data_loader_run_mode": self.run_mode,
+            "study_start_date": STUDY_START_DATE,
+            "study_end_date": STUDY_END_DATE,
+            "exclude_partition_dates": exclude_partition_dates,
+            "total_documents": len(documents_df),
+            "total_uri_mappings": len(uri_doc_map),
+            "total_dates": len(date_condition_uris_map),
+            "conditions": list(
+                set(
+                    condition
+                    for date_map in date_condition_uris_map.values()
+                    for condition in date_map.keys()
+                )
+            ),
+            "date_range": {
+                "start": min(date_condition_uris_map.keys())
+                if date_condition_uris_map
+                else None,
+                "end": max(date_condition_uris_map.keys())
+                if date_condition_uris_map
+                else None,
+            },
+        }
+
+        logger.info("💾 Saving metadata...")
+        with open(f"{output_dir}/metadata.json", "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        # Optional: Export by date/condition structure
+        if include_by_date_condition:
+            logger.info("💾 Saving by_date_condition structure...")
+            self._export_by_date_condition(
+                date_condition_uris_map, uri_doc_map, documents_df, output_dir
+            )
+
+        logger.info(f"✅ Export completed successfully: {output_dir}")
+        return output_dir
+
+    def _export_by_date_condition(
+        self,
+        date_condition_uris_map: dict[str, dict[str, set[str]]],
+        uri_doc_map: pd.DataFrame,
+        documents_df: pd.DataFrame,
+        output_dir: str,
+    ) -> None:
+        """Export data organized by date/condition folders."""
+        by_date_condition_dir = f"{output_dir}/by_date_condition"
+        os.makedirs(by_date_condition_dir, exist_ok=True)
+
+        for date, condition_map in date_condition_uris_map.items():
+            date_dir = f"{by_date_condition_dir}/{date}"
+            os.makedirs(date_dir, exist_ok=True)
+
+            for condition, uris in condition_map.items():
+                condition_dir = f"{date_dir}/{condition}"
+                os.makedirs(condition_dir, exist_ok=True)
+
+                # Get doc_ids for this condition/date
+                condition_doc_ids = uri_doc_map[uri_doc_map["uri"].isin(uris)][
+                    "doc_id"
+                ].unique()
+
+                # Get documents and URI mappings for this slice
+                condition_documents_df = documents_df[
+                    documents_df["doc_id"].isin(condition_doc_ids)
+                ]
+                condition_uri_doc_map = uri_doc_map[uri_doc_map["uri"].isin(uris)]
+
+                # Merge to create comprehensive posts file
+                posts_df = condition_uri_doc_map.merge(
+                    condition_documents_df, on="doc_id", how="left"
+                )[["uri", "text", "partition_date", "doc_id"]]
+
+                # Save posts for this condition/date
+                posts_df.to_parquet(f"{condition_dir}/posts.parquet", index=False)
+
+                logger.info(f"💾 Saved {len(posts_df)} posts for {date}/{condition}")
 
     def load_data(self):
         if self.mode == "local":
