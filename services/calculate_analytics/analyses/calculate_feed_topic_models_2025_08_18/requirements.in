@@ -6,6 +6,11 @@ sentence-transformers>=2.2.2
 scikit-learn>=1.3.0
 hdbscan>=0.8.33
 
+# PyTorch ecosystem - pin compatible versions to avoid torchvision issues
+torch>=2.0.0,<2.9.0
+torchvision>=0.15.0,<0.19.0
+transformers>=4.30.0,<4.60.0
+
 # Data Processing and Analysis
 pandas>=2.2.2
 numpy>=1.24.0
@@ -21,10 +26,6 @@ tqdm>=4.65.0
 
 # Optional: Text Processing (if NLTK preprocessing is enabled)
 nltk>=3.8.1
-
-# Optional: GPU acceleration (if CUDA is available)
-# torch>=2.0.0  # Uncomment if using GPU acceleration
-# torchvision>=0.15.0  # Uncomment if using GPU acceleration
 
 # Development and Testing (optional)
 # pytest>=7.4.0
