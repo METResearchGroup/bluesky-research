@@ -211,7 +211,7 @@ class DataLoader:
         )
 
         # given these URIs, load the posts and add to the running set of all texts.
-        table_columns = ["uri", "text", "partition_date"]
+        table_columns = ["uri", "text", "partition_date", "is_sociopolitical"]
         table_columns_str = ", ".join(table_columns)
 
         # Load sociopolitical labels, but only for posts that are labeled
