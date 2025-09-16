@@ -6,6 +6,9 @@ This script generates publication-ready UMAP scatter plots showing documents
 in semantic space, colored by their assigned topics. It processes inference
 results and creates visualizations similar to standard topic modeling papers.
 
+Outliers (topic -1) are excluded from visualization for clarity and better
+analysis of meaningful topic clusters.
+
 Author: AI Agent implementing Scientific Visualization Specialist
 Date: 2025-09-10
 """
@@ -34,6 +37,9 @@ class UMAPVisualizer:
     Creates publication-ready scatter plots showing documents in 2D semantic space,
     colored by their assigned topics. Follows scientific visualization best practices
     including accessibility, typography, and layout standards.
+
+    Outliers (topic -1) are automatically excluded from visualization for clarity
+    and better analysis of meaningful topic clusters.
     """
 
     def __init__(self, model_path: str, metadata_path: str, results_path: str):
@@ -124,6 +130,17 @@ class UMAPVisualizer:
         # Load topic assignments
         self.topic_assignments = pd.read_csv(assignments_file)
         logger.info(f"📊 Loaded {len(self.topic_assignments)} topic assignments")
+
+        # Filter out outliers (topic -1) for visualization
+        original_count = len(self.topic_assignments)
+        self.topic_assignments = self.topic_assignments[
+            self.topic_assignments["topic_id"] != -1
+        ]
+        filtered_count = len(self.topic_assignments)
+        outliers_count = original_count - filtered_count
+
+        logger.info(f"🔍 Filtered out {outliers_count} outliers (topic -1)")
+        logger.info(f"📊 Using {filtered_count} documents for visualization")
 
         # Load documents from the original data
         # We need to get the documents that correspond to these assignments
@@ -227,12 +244,14 @@ class UMAPVisualizer:
     def create_visualization(
         self, umap_embeddings: np.ndarray
     ) -> Tuple[plt.Figure, plt.Axes]:
-        """Create UMAP scatter plot with topic-based coloring."""
-        logger.info("🎨 Creating UMAP visualization...")
+        """Create UMAP scatter plot with topic-based coloring (excluding outliers)."""
+        logger.info("🎨 Creating UMAP visualization (excluding outliers)...")
 
-        # Get unique topics and create color mapping
+        # Get unique topics and create color mapping (no outliers since they're filtered)
         unique_topics = sorted(self.topic_assignments["topic_id"].unique())
         n_topics = len(unique_topics)
+
+        logger.info(f"📊 Visualizing {n_topics} topics (outliers excluded)")
 
         # Create color map
         if n_topics <= len(self.color_palette):
@@ -254,9 +273,7 @@ class UMAPVisualizer:
             topic_mask = self.topic_assignments["topic_id"] == topic_id
 
             # Get topic label (use generated name if available, otherwise default)
-            if topic_id == -1:
-                topic_label = "Outliers"
-            elif self.topic_names and topic_id in self.topic_names:
+            if self.topic_names and topic_id in self.topic_names:
                 topic_label = self.topic_names[topic_id]
             else:
                 topic_label = f"Topic {topic_id}"
@@ -284,7 +301,7 @@ class UMAPVisualizer:
         """Apply scientific visualization standards to the plot."""
         # Set title
         ax.set_title(
-            "Responses in Semantic Space, Classified by Their Topic",
+            "Responses in Semantic Space, Classified by Their Topic\n(Outliers Excluded)",
             fontsize=16,
             fontweight="bold",
             pad=20,
@@ -379,6 +396,8 @@ class UMAPVisualizer:
             "color_palette": self.color_palette[
                 : len(self.topic_assignments["topic_id"].unique())
             ],
+            "outliers_excluded": True,
+            "note": "Outliers (topic -1) are excluded from visualization for clarity",
         }
 
         metadata_path = output_dir / "visualization_metadata.json"
