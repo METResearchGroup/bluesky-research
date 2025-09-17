@@ -288,9 +288,17 @@ class SlicedUMAPVisualizer:
 
         logger.info(f"   📄 Processing {len(slice_documents_df)} documents")
 
-        # Generate embeddings
+        # Generate embeddings with optimized batch size for GPU
+        batch_size = 128 if self.embedding_model.device.type == "cuda" else 32
+        logger.info(
+            f"   🔮 Computing embeddings with batch size {batch_size} on {self.embedding_model.device}"
+        )
+
         embeddings = self.embedding_model.encode(
-            slice_documents_df["text"].tolist(), batch_size=32, show_progress_bar=True
+            slice_documents_df["text"].tolist(),
+            batch_size=batch_size,
+            show_progress_bar=True,
+            convert_to_numpy=True,
         )
 
         # Compute UMAP

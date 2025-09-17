@@ -1,11 +1,12 @@
 #!/bin/bash
 
 #SBATCH -A p32375
-#SBATCH -p normal
+#SBATCH -p gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 2:00:00
-#SBATCH --mem=32G
+#SBATCH --gres=gpu:1
+#SBATCH -t 4:00:00
+#SBATCH --mem=64G
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --job-name=topic_modeling_umap_prod_%j
@@ -30,6 +31,9 @@ echo "🎨 Starting Production UMAP Visualizations"
 echo "=========================================="
 echo "SLURM Job ID: $SLURM_JOB_ID"
 echo "Running python command: $PYTHON_CMD"
+echo "GPU Resources: $CUDA_VISIBLE_DEVICES"
+echo "Memory: $SLURM_MEM_PER_NODE MB"
+echo "Time Limit: $SLURM_TIME_LIMIT"
 echo ""
 
 # Change to script directory
