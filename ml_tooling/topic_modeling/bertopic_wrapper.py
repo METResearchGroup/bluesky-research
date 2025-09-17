@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import random
+import re
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -23,6 +24,16 @@ import yaml
 from bertopic import BERTopic
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+
+# Optional NLTK imports for text preprocessing
+try:
+    import nltk
+    from nltk.corpus import stopwords
+    from nltk.tokenize import word_tokenize
+
+    NLTK_AVAILABLE = True
+except ImportError:
+    NLTK_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -71,9 +82,15 @@ class BERTopicWrapper:
         self.quality_metrics = {}
         self.training_time = 0.0
         self._training_results = {}
+        self.processed_documents_df = (
+            None  # Store processed documents for topic assignment
+        )
 
         # Initialize embedding model
         self._initialize_embedding_model()
+
+        # Initialize text preprocessing
+        self._initialize_text_preprocessing()
 
         logger.info(f"BERTopicWrapper initialized with random seed: {self.random_seed}")
 
@@ -285,6 +302,95 @@ class BERTopicWrapper:
         except Exception as e:
             logger.error(f"Failed to initialize embedding model: {e}")
             raise
+
+    def _initialize_text_preprocessing(self) -> None:
+        """
+        Initialize text preprocessing components including NLTK resources.
+        """
+        if not self.config.get("text_preprocessing", {}).get("enable", False):
+            logger.info("Text preprocessing disabled in configuration")
+            return
+
+        if not NLTK_AVAILABLE:
+            logger.warning("NLTK not available - text preprocessing will be limited")
+            return
+
+        # Download required NLTK resources
+        try:
+            nltk.data.find("tokenizers/punkt")
+        except LookupError:
+            logger.info("Downloading NLTK punkt tokenizer...")
+            nltk.download("punkt", quiet=True)
+
+        try:
+            nltk.data.find("corpora/stopwords")
+        except LookupError:
+            logger.info("Downloading NLTK stopwords...")
+            nltk.download("stopwords", quiet=True)
+
+        logger.info("Text preprocessing initialized successfully")
+
+    def _preprocess_text(self, text: str) -> str:
+        """
+        Preprocess a single text string according to configuration.
+
+        Args:
+            text: Input text string
+
+        Returns:
+            Preprocessed text string
+        """
+        if not isinstance(text, str) or not text.strip():
+            return ""
+
+        config = self.config.get("text_preprocessing", {})
+        if not config.get("enable", False):
+            return text
+
+        # Convert to lowercase
+        text = text.lower()
+
+        # Remove URLs if enabled
+        if config.get("remove_urls", True):
+            text = re.sub(
+                r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
+                "",
+                text,
+            )
+
+        # Remove emojis and special characters if enabled
+        if config.get("remove_emojis", True):
+            text = re.sub(r"[^\w\s]", "", text)
+
+        # Remove stopwords if enabled and NLTK is available
+        if config.get("remove_stopwords", True) and NLTK_AVAILABLE:
+            try:
+                # Tokenize
+                tokens = word_tokenize(text)
+
+                # Get stopwords
+                language = config.get("language", "english")
+                stop_words = set(stopwords.words(language))
+
+                # Add custom stopwords
+                custom_stops = set(config.get("custom_stopwords", []))
+                stop_words.update(custom_stops)
+
+                # Filter tokens
+                min_length = config.get("min_word_length", 2)
+                filtered_tokens = [
+                    token
+                    for token in tokens
+                    if token.lower() not in stop_words and len(token) >= min_length
+                ]
+
+                # Join back into text
+                text = " ".join(filtered_tokens)
+
+            except Exception as e:
+                logger.warning(f"Stopwords removal failed, using original text: {e}")
+
+        return text.strip()
 
     def _validate_input_data(self, df: pd.DataFrame, text_column: str) -> pd.DataFrame:
         """
@@ -574,6 +680,45 @@ class BERTopicWrapper:
             stage_start = time.time()
             df_cleaned = self._validate_input_data(df, text_column)
             stage_times["validation"] = time.time() - stage_start
+
+            # Preprocess texts if enabled
+            stage_start = time.time()
+            if self.config.get("text_preprocessing", {}).get("enable", False):
+                logger.info("🔧 Preprocessing texts (removing stopwords, cleaning)...")
+                original_texts = df_cleaned[text_column].copy()
+                df_cleaned[text_column] = df_cleaned[text_column].apply(
+                    self._preprocess_text
+                )
+
+                # Remove documents that became empty after preprocessing
+                initial_count = len(df_cleaned)
+                df_cleaned = df_cleaned[df_cleaned[text_column].str.len() > 0]
+                final_count = len(df_cleaned)
+
+                if initial_count != final_count:
+                    logger.info(
+                        f"Removed {initial_count - final_count} documents that became empty after preprocessing"
+                    )
+
+                # Log preprocessing example
+                if len(df_cleaned) > 0:
+                    sample_idx = 0
+                    original = original_texts.iloc[sample_idx]
+                    processed = df_cleaned[text_column].iloc[sample_idx]
+                    logger.info("Text preprocessing example:")
+                    logger.info(
+                        f"  Original: {original[:100]}{'...' if len(original) > 100 else ''}"
+                    )
+                    logger.info(
+                        f"  Processed: {processed[:100]}{'...' if len(processed) > 100 else ''}"
+                    )
+            else:
+                logger.info("Text preprocessing disabled - using original texts")
+
+            stage_times["preprocessing"] = time.time() - stage_start
+
+            # Store processed documents for topic assignment
+            self.processed_documents_df = df_cleaned.copy()
 
             # Extract texts
             texts = df_cleaned[text_column].tolist()
@@ -951,6 +1096,64 @@ class BERTopicWrapper:
 
         return summary
 
+    def get_processed_documents_df(self) -> Optional[pd.DataFrame]:
+        """
+        Get the processed documents DataFrame that was used for training.
+
+        Returns:
+            DataFrame with processed documents, or None if not trained yet
+        """
+        return self.processed_documents_df
+
+    def get_document_topics(self, documents: Optional[List[str]] = None) -> List[int]:
+        """
+        Get topic assignments for documents.
+
+        Args:
+            documents: Optional list of documents to get topics for.
+                      If None, returns topics for the documents used during training.
+
+        Returns:
+            List of topic IDs for each document
+
+        Raises:
+            RuntimeError: If model hasn't been trained yet
+        """
+        if self.topic_model is None:
+            raise RuntimeError("Model must be trained before getting document topics")
+
+        if documents is None:
+            # Return topics for the documents used during training
+            # The topics are stored in the model after fit_transform
+            if (
+                hasattr(self.topic_model, "topics_")
+                and self.topic_model.topics_ is not None
+            ):
+                topics = self.topic_model.topics_
+                # Handle both numpy array and list cases
+                if hasattr(topics, "tolist"):
+                    return topics.tolist()
+                elif isinstance(topics, list):
+                    return topics
+                else:
+                    # Convert to list if it's some other iterable
+                    return list(topics)
+            else:
+                raise RuntimeError(
+                    "No training topics available. Model may not have been properly trained."
+                )
+        else:
+            # Get topics for new documents using transform
+            topics, _ = self.topic_model.transform(documents)
+            # Handle both numpy array and list cases
+            if hasattr(topics, "tolist"):
+                return topics.tolist()
+            elif isinstance(topics, list):
+                return topics
+            else:
+                # Convert to list if it's some other iterable
+                return list(topics)
+
     def save_model(self, filepath: Union[str, Path]) -> None:
         """
         Save the trained model to disk using safe, non-pickle persistence.
@@ -973,7 +1176,7 @@ class BERTopicWrapper:
             model_dir.mkdir(parents=True, exist_ok=True)
 
             # Save BERTopic model to the directory
-            self.topic_model.save(str(model_dir))
+            self.topic_model.save(str(model_dir / "bertopic_model"))
 
             # Save wrapper metadata
             metadata = {
@@ -1018,6 +1221,32 @@ class BERTopicWrapper:
             logger.error(f"Failed to save model: {e}")
             raise RuntimeError(f"Model saving failed: {e}")
 
+    def save_model_with_timestamp(
+        self, base_path: Union[str, Path], prefix: str = "bertopic_model"
+    ) -> str:
+        """
+        Save the trained model with a timestamp in the filename.
+
+        Args:
+            base_path: Base directory where to save the model
+            prefix: Prefix for the model filename
+
+        Returns:
+            Path to the saved model directory
+
+        Raises:
+            RuntimeError: If model hasn't been trained or saving fails
+        """
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_name = f"{prefix}_{timestamp}"
+        model_path = Path(base_path) / model_name
+
+        self.save_model(model_path)
+        logger.info(f"Model saved with timestamp: {model_path}")
+        return str(model_path)
+
     @classmethod
     def load_model(cls, filepath: Union[str, Path]) -> "BERTopicWrapper":
         """
@@ -1050,7 +1279,27 @@ class BERTopicWrapper:
             )
 
             # Load BERTopic model from the directory
-            instance.topic_model = BERTopic.load(str(model_dir))
+            instance.topic_model = BERTopic.load(str(model_dir / "bertopic_model"))
+
+            # Create an adapter for the embedding model to provide embed_documents method
+            class EmbeddingAdapter:
+                def __init__(self, sentence_transformer):
+                    self.sentence_transformer = sentence_transformer
+
+                def embed_documents(self, documents, verbose=False):
+                    return self.sentence_transformer.encode(
+                        documents, show_progress_bar=verbose
+                    )
+
+                def embed_words(self, words, verbose=False):
+                    return self.sentence_transformer.encode(
+                        words, show_progress_bar=verbose
+                    )
+
+            # Set the adapted embedding model on the loaded topic model
+            instance.topic_model.embedding_model = EmbeddingAdapter(
+                instance.embedding_model
+            )
 
             # Restore metadata
             instance.training_time = metadata["training_time"]
@@ -1102,6 +1351,87 @@ class BERTopicWrapper:
             raise ValueError(f"Invalid configuration update: {e}")
 
         logger.info("Configuration updated successfully")
+
+    def generate_topic_names(self, model: str = "gpt-4o-mini") -> List[Dict[str, str]]:
+        """
+        Generate meaningful topic names from topic keywords using OpenAI.
+
+        Args:
+            model: OpenAI model to use (default: gpt-4o-mini)
+
+        Returns:
+            List of dictionaries with topic_id and generated_name
+
+        Raises:
+            RuntimeError: If model hasn't been trained
+            ImportError: If OpenAI is not available
+        """
+        if self.topic_model is None:
+            raise RuntimeError("Model must be trained before generating topic names")
+
+        try:
+            from ml_tooling.llm.openai import run_query
+        except ImportError:
+            raise ImportError(
+                "OpenAI integration not available. Please ensure ml_tooling.llm.openai is accessible."
+            )
+
+        # Get all topics
+        all_topics = self.get_topics()
+        topic_keywords = []
+
+        for topic_id, words in all_topics.items():
+            # Skip outlier topics (topic_id == -1)
+            if topic_id == -1:
+                topic_keywords.append(
+                    {"topic_id": topic_id, "keywords": ["outlier", "noise", "random"]}
+                )
+                continue
+
+            # Extract top 10 keywords
+            keywords = [word for word, _ in words[:10]]
+            topic_keywords.append({"topic_id": topic_id, "keywords": keywords})
+
+        # Generate names for each topic
+        results = []
+        for topic_info in topic_keywords:
+            topic_id = topic_info["topic_id"]
+            keywords = topic_info["keywords"]
+
+            # Skip outlier topics (topic_id == -1)
+            if topic_id == -1:
+                results.append({"topic_id": topic_id, "generated_name": "Outliers"})
+                continue
+
+            # Create prompt for topic name generation
+            keywords_str = ", ".join(keywords[:10])  # Use top 10 keywords
+            prompt = f"""Based on these keywords from a social media topic model, generate a brief, descriptive category name (2-4 words) that captures the main theme:
+
+Keywords: {keywords_str}
+
+Examples of good category names:
+- "Sports and Athletics"
+- "Left-leaning Politics" 
+- "Pet Humor and Cuteness"
+- "Technology News"
+- "Food and Cooking"
+- "Travel and Adventure"
+
+Generate a concise category name that best describes this topic:"""
+
+            try:
+                generated_name = run_query(
+                    prompt, model=model, max_tokens=50, temperature=0.3
+                )
+                results.append({"topic_id": topic_id, "generated_name": generated_name})
+            except Exception as e:
+                # Fallback to generic name if API fails
+                logger.warning(f"Failed to generate name for topic {topic_id}: {e}")
+                results.append(
+                    {"topic_id": topic_id, "generated_name": f"Topic {topic_id}"}
+                )
+
+        return results
 
     def __repr__(self) -> str:
         """String representation of the wrapper."""

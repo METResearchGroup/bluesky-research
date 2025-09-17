@@ -80,6 +80,86 @@ def get_perspective_api_labels_for_posts(
     return df
 
 
+def get_sociopolitical_labels_for_posts(
+    posts: pd.DataFrame,
+    lookback_start_date: str,
+    lookback_end_date: str,
+    duckdb_query: Optional[str] = None,
+    query_metadata: Optional[dict] = None,
+    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
+) -> pd.DataFrame:
+    """Get the sociopolitical labels for a list of posts.
+
+    Args:
+        posts: DataFrame containing posts with 'uri' column
+        lookback_start_date: Start date for lookback period
+        lookback_end_date: End date for lookback period
+        duckdb_query: Optional DuckDB query to filter data
+        query_metadata: Optional metadata for the query
+        export_format: Format to export data in
+
+    Returns:
+        DataFrame containing sociopolitical labels filtered to the given posts
+    """
+    df: pd.DataFrame = load_data_from_local_storage(
+        service="ml_inference_sociopolitical",
+        directory="cache",
+        start_partition_date=lookback_start_date,
+        end_partition_date=lookback_end_date,
+        duckdb_query=duckdb_query,
+        query_metadata=query_metadata,
+        export_format=export_format,
+    )
+
+    logger.info(
+        f"Loaded {len(df)} sociopolitical labels for lookback period {lookback_start_date} to {lookback_end_date}"
+    )
+
+    # Filter to only include labels for the given posts
+    df = df[df["uri"].isin(posts["uri"])]
+    logger.info(
+        f"Filtered to {len(df)} sociopolitical labels for lookback period {lookback_start_date} to {lookback_end_date}"
+    )
+    return df
+
+
+def load_sociopolitical_labels_by_uris(
+    uris: set[str],
+    partition_date: str,
+    duckdb_query: Optional[str] = None,
+    query_metadata: Optional[dict] = None,
+    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
+) -> pd.DataFrame:
+    """Load sociopolitical labels data filtered by specific URIs and partition date.
+
+    Args:
+        uris: Set of post URIs to filter by
+        partition_date: The partition date to load labels for
+        duckdb_query: Optional SQL query for DuckDB format
+        query_metadata: Optional metadata for DuckDB query
+        export_format: Format of the data files
+
+    Returns:
+        DataFrame containing sociopolitical labels data filtered by URIs
+    """
+    df: pd.DataFrame = load_data_from_local_storage(
+        service="ml_inference_sociopolitical",
+        directory="cache",
+        partition_date=partition_date,
+        duckdb_query=duckdb_query,
+        query_metadata=query_metadata,
+        export_format=export_format,
+    )
+
+    # Filter to only include labels with the specified URIs
+    df = df[df["uri"].isin(uris)]
+
+    logger.info(
+        f"Loaded {len(df)} sociopolitical labels for {len(uris)} URIs on partition date {partition_date}"
+    )
+    return df
+
+
 def get_labels_for_partition_date(
     integration: str,
     partition_date: str,
@@ -400,10 +480,10 @@ def _extract_integration_fields(row, integration: str) -> dict:
 
 
 def _log_completeness_status(
-    uri_integration_status: dict[str, set[str]], post_uris: set[str]
+    uri_integration_status: dict[str, set[str]], all_uris: set[str]
 ) -> None:
     """Log the completeness status of label processing."""
-    total_uris = len(post_uris)
+    total_uris = len(all_uris)
     complete_uris = sum(
         1 for status in uri_integration_status.values() if len(status) == 0
     )

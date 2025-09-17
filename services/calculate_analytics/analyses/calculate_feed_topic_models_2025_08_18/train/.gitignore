@@ -1,0 +1,11 @@
+# Ignore trained model files
+trained_models/
+*.pkl
+*.joblib
+*.model
+*.bin
+*.safetensors
+
+
+
+

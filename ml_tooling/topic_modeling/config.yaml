@@ -5,7 +5,7 @@ embedding_model:
 
 bertopic:
   top_n_words: 20
-  min_topic_size: 15
+  min_topic_size: 20  # Reduced from 50 to improve topic coverage and reduce outliers
   nr_topics: "auto"
   calculate_probabilities: true
   verbose: true
@@ -17,12 +17,13 @@ bertopic:
     metric: "cosine"
     n_jobs: 1  # Disable UMAP multiprocessing
     low_memory: true  # Reduce memory usage
-  # HDBSCAN configuration optimized for large datasets
+  # HDBSCAN configuration optimized for better topic coverage
   hdbscan_model:
-    min_cluster_size: 10  # Reduced from 15 to 10 for more clusters
-    min_samples: 3  # Reduced from 5 to 3 for less restrictive clustering
+    min_cluster_size: 20  # Reduced from 50 to allow more granular topics
+    min_samples: 10  # Reduced from 25 to allow smaller but meaningful clusters
     metric: "euclidean"
-    cluster_selection_method: "eom"
+    cluster_selection_method: "leaf"  # More stable than "eom" for large datasets
+    prediction_data: true  # REQUIRED for BERTopic to generate prediction data
     core_dist_n_jobs: 1  # Disable HDBSCAN multiprocessing
     # Additional parameters for better clustering
     cluster_selection_epsilon: 0.1  # Allow more flexible cluster selection
@@ -47,3 +48,37 @@ performance:
   enable_timing_breakdown: true
 
 random_seed: 42
+
+# Text preprocessing configuration
+text_preprocessing:
+  enable: true
+  remove_stopwords: true
+  language: "english"
+  min_word_length: 2
+  remove_urls: true
+  remove_emojis: true
+  custom_stopwords:
+    # Social media specific stopwords
+    - "rt"
+    - "via"
+    - "amp"
+    - "u"
+    - "ur"
+    - "im"
+    - "ill"
+    - "ive"
+    - "id"
+    - "dont"
+    - "cant"
+    - "wont"
+    - "wouldnt"
+    - "couldnt"
+    - "shouldnt"
+    - "thats"
+    - "theres"
+    - "theyre"
+    - "youre"
+    - "were"
+    - "shes"
+    - "hes"
+    - "its"
