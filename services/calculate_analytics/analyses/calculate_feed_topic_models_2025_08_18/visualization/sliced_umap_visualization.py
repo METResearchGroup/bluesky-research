@@ -13,7 +13,7 @@ Date: 2025-09-16
 import json
 import os
 from pathlib import Path
-from typing import List, Tuple, Dict, Optional, Union
+from typing import List, Tuple, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -87,6 +87,11 @@ class SlicedUMAPVisualizer:
         self.embedding_model = None
         self.topic_names = None
 
+        # Cached embeddings for efficient slicing
+        self.all_embeddings = None
+        self.all_umap_embeddings = None
+        self.embeddings_computed = False
+
     def load_exported_data(self) -> None:
         """Load the exported data structures."""
         logger.info("📂 Loading exported data structures...")
@@ -141,6 +146,9 @@ class SlicedUMAPVisualizer:
 
         logger.info("✅ Model and assignments loaded successfully")
 
+        # Compute all embeddings once for efficient slicing
+        self._compute_all_embeddings()
+
     def _initialize_embedding_model(self) -> None:
         """Initialize embedding model from metadata."""
         from sentence_transformers import SentenceTransformer
@@ -172,6 +180,36 @@ class SlicedUMAPVisualizer:
 
         logger.info(f"🔮 Initializing embedding model: {model_name} on {device}")
         self.embedding_model = SentenceTransformer(model_name, device=device)
+
+    def _compute_all_embeddings(self) -> None:
+        """Compute embeddings for all documents once and cache them."""
+        if self.embeddings_computed:
+            logger.info("✅ Embeddings already computed, skipping...")
+            return
+
+        logger.info("🔮 Computing embeddings for all documents...")
+        logger.info(f"   📄 Processing {len(self.documents_df)} documents")
+
+        # Optimize batch size for GPU
+        batch_size = 128 if self.embedding_model.device.type == "cuda" else 32
+        logger.info(
+            f"   🔮 Using batch size {batch_size} on {self.embedding_model.device}"
+        )
+
+        # Compute embeddings for all documents
+        self.all_embeddings = self.embedding_model.encode(
+            self.documents_df["text"].tolist(),
+            batch_size=batch_size,
+            show_progress_bar=True,
+            convert_to_numpy=True,
+        )
+
+        # Compute UMAP embeddings for all documents
+        logger.info("🗺️ Computing UMAP embeddings for all documents...")
+        self.all_umap_embeddings = self._compute_umap_embeddings(self.all_embeddings)
+
+        self.embeddings_computed = True
+        logger.info("✅ All embeddings computed and cached successfully!")
 
     def _load_topic_assignments(self) -> None:
         """Load topic assignments from inference results."""
@@ -288,26 +326,27 @@ class SlicedUMAPVisualizer:
 
         logger.info(f"   📄 Processing {len(slice_documents_df)} documents")
 
-        # Generate embeddings with optimized batch size for GPU
-        batch_size = 128 if self.embedding_model.device.type == "cuda" else 32
-        logger.info(
-            f"   🔮 Computing embeddings with batch size {batch_size} on {self.embedding_model.device}"
-        )
+        # Use cached embeddings instead of recomputing
+        if not self.embeddings_computed:
+            raise ValueError(
+                "Embeddings must be computed first. Call _compute_all_embeddings()."
+            )
 
-        embeddings = self.embedding_model.encode(
-            slice_documents_df["text"].tolist(),
-            batch_size=batch_size,
-            show_progress_bar=True,
-            convert_to_numpy=True,
-        )
+        # Get indices of documents in the slice
+        slice_indices = self.documents_df[
+            self.documents_df["doc_id"].isin(slice_doc_ids)
+        ].index
 
-        # Compute UMAP
-        umap_embeddings = self._compute_umap_embeddings(embeddings)
+        # Extract cached embeddings for this slice
+        _ = self.all_embeddings[slice_indices]
+        slice_umap_embeddings = self.all_umap_embeddings[slice_indices]
+
+        logger.info(f"   🔮 Using cached embeddings for {len(slice_indices)} documents")
 
         # Create visualization
         if slice_topic_assignments is not None:
             fig, ax = self._create_topic_colored_visualization(
-                umap_embeddings,
+                slice_umap_embeddings,
                 slice_topic_assignments,
                 condition,
                 date_range,
@@ -315,7 +354,7 @@ class SlicedUMAPVisualizer:
             )
         else:
             fig, ax = self._create_simple_visualization(
-                umap_embeddings, condition, date_range, title_suffix
+                slice_umap_embeddings, condition, date_range, title_suffix
             )
 
         # Save if output path provided
@@ -324,6 +363,56 @@ class SlicedUMAPVisualizer:
             logger.info(f"💾 Visualization saved to: {output_path}")
 
         return fig, ax
+
+    def create_multiple_slice_visualizations(
+        self, slice_configs: List[dict], output_dir: str
+    ) -> List[Tuple[plt.Figure, plt.Axes]]:
+        """
+        Create multiple slice visualizations efficiently using cached embeddings.
+
+        Args:
+            slice_configs: List of slice configurations
+            output_dir: Directory to save visualizations
+
+        Returns:
+            List of (figure, axes) tuples
+        """
+        logger.info(f"🎨 Creating {len(slice_configs)} slice visualizations...")
+
+        # Ensure embeddings are computed
+        if not self.embeddings_computed:
+            logger.info("🔮 Computing embeddings for all documents first...")
+            self._compute_all_embeddings()
+
+        results = []
+        for i, config in enumerate(slice_configs, 1):
+            try:
+                logger.info(
+                    f"🎨 Creating visualization {i}/{len(slice_configs)}: {config['title_suffix']}"
+                )
+
+                output_path = f"{output_dir}/{config['title_suffix'].lower().replace(' ', '_').replace('-', '_')}_umap.png"
+
+                fig, ax = self.create_sliced_visualization(
+                    condition=config.get("condition"),
+                    date_range=config.get("date_range"),
+                    title_suffix=config["title_suffix"],
+                    output_path=output_path,
+                )
+
+                results.append((fig, ax))
+                logger.info(f"✅ Created: {output_path}")
+
+            except Exception as e:
+                logger.warning(
+                    f"⚠️ Failed to create visualization for {config['title_suffix']}: {e}"
+                )
+                continue
+
+        logger.info(
+            f"🎉 Successfully created {len(results)}/{len(slice_configs)} visualizations"
+        )
+        return results
 
     def _get_uris_for_slice(
         self, condition: Optional[str], date_range: Optional[List[str]]
@@ -505,61 +594,6 @@ class SlicedUMAPVisualizer:
 
         title = " - ".join(title_parts)
         ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
-
-    def create_multiple_slice_visualizations(
-        self,
-        slice_configs: List[Dict[str, Union[str, List[str]]]],
-        output_dir: str,
-    ) -> List[Tuple[plt.Figure, plt.Axes]]:
-        """
-        Create multiple slice visualizations.
-
-        Args:
-            slice_configs: List of dictionaries with 'condition', 'date_range', 'title_suffix' keys
-            output_dir: Directory to save visualizations
-
-        Returns:
-            List of (figure, axes) tuples
-        """
-        os.makedirs(output_dir, exist_ok=True)
-        visualizations = []
-
-        for i, config in enumerate(slice_configs):
-            logger.info(
-                f"🎨 Creating visualization {i+1}/{len(slice_configs)}: {config}"
-            )
-
-            condition = config.get("condition")
-            date_range = config.get("date_range")
-            title_suffix = config.get("title_suffix", "")
-
-            # Create visualization
-            fig, ax = self.create_sliced_visualization(
-                condition=condition,
-                date_range=date_range,
-                title_suffix=title_suffix,
-            )
-
-            # Save with descriptive filename
-            filename_parts = []
-            if condition:
-                filename_parts.append(condition)
-            if date_range:
-                if len(date_range) == 1:
-                    filename_parts.append(date_range[0])
-                else:
-                    filename_parts.append(f"{date_range[0]}_to_{date_range[1]}")
-
-            filename = "_".join(filename_parts) if filename_parts else f"slice_{i+1}"
-            output_path = f"{output_dir}/{filename}_umap.png"
-
-            fig.savefig(output_path, dpi=300, bbox_inches="tight")
-            logger.info(f"💾 Saved: {output_path}")
-
-            visualizations.append((fig, ax))
-            plt.close(fig)  # Close to free memory
-
-        return visualizations
 
 
 def main():

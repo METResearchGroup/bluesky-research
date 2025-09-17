@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-Production UMAP Visualization Runner for Topic Modeling
+Production Topic Proportion Visualization Runner
 
-This script automatically finds the latest trained model and exported data
-and runs sliced UMAP visualizations for production results.
+This script automatically finds the latest trained model and inference results
+and runs topic proportion visualizations for production results.
 
 Usage:
-    python run_umap_prod.py
+    python run_topic_proportions_prod.py
 
 The script will:
 1. Find the latest model in train/trained_models/prod/
 2. Find the corresponding metadata file
-3. Find the exported data directory
-4. Run sliced UMAP visualizations with default settings
+3. Find the latest inference results
+4. Run topic proportion visualizations with default settings
 """
 
 import os
@@ -20,7 +20,6 @@ import sys
 import json
 import logging
 from pathlib import Path
-from datetime import datetime
 
 # Configure logging
 logging.basicConfig(
@@ -79,48 +78,38 @@ def find_latest_prod_model():
     return str(model_file_path), str(metadata_path)
 
 
-def find_exported_data(model_path):
+def find_latest_inference_results():
     """
-    Look for exported data in the same directory as the model
-
-    Args:
-        model_path: Path to the trained model
+    Find the latest inference results in inference/results/prod/
 
     Returns:
-        str or None: Path to exported data directory if found
+        str or None: Path to latest inference results directory if found
     """
-    model_dir = Path(model_path).parent
-    exported_data_dir = model_dir / "exported_data"
+    # Get the script directory
+    script_dir = Path(__file__).parent
+    inference_dir = script_dir.parent / "inference"
+    results_dir = inference_dir / "results" / "prod"
 
-    if (
-        exported_data_dir.exists()
-        and (exported_data_dir / "documents_df.parquet").exists()
-    ):
-        logger.info(f"Found exported data: {exported_data_dir}")
-        return str(exported_data_dir)
+    if not results_dir.exists():
+        logger.error(f"Production inference results directory not found: {results_dir}")
+        return None
 
-    # Also check for sociopolitical_posts_used_in_feeds directory
-    analysis_dir = Path(__file__).parent.parent
-    sociopolitical_dir = analysis_dir / "sociopolitical_posts_used_in_feeds"
+    # Find all timestamp directories
+    timestamp_dirs = [
+        d
+        for d in results_dir.iterdir()
+        if d.is_dir() and len(d.name) == 19  # YYYY-MM-DD-HH:MM:SS format
+    ]
 
-    if sociopolitical_dir.exists():
-        # Find the latest timestamp directory
-        timestamp_dirs = [
-            d
-            for d in sociopolitical_dir.iterdir()
-            if d.is_dir() and len(d.name) == 19  # YYYY-MM-DD_HH:MM:SS format
-        ]
+    if not timestamp_dirs:
+        logger.error(f"No production inference results found in {results_dir}")
+        return None
 
-        if timestamp_dirs:
-            latest_dir = max(timestamp_dirs, key=lambda x: x.stat().st_mtime)
-            if (latest_dir / "documents_df.parquet").exists():
-                logger.info(f"Found exported data: {latest_dir}")
-                return str(latest_dir)
+    # Sort by modification time to get the latest
+    latest_dir = max(timestamp_dirs, key=lambda x: x.stat().st_mtime)
 
-    logger.error(
-        "No exported data found - sliced UMAP visualizations require exported data"
-    )
-    return None
+    logger.info(f"Found latest inference results: {latest_dir}")
+    return str(latest_dir)
 
 
 def validate_model_and_metadata(model_path, metadata_path):
@@ -166,136 +155,126 @@ def create_default_slice_configs():
         # Overall visualization
         {"condition": None, "date_range": None, "title_suffix": "Overall"},
         # By condition
-        {"condition": "control", "date_range": None, "title_suffix": "Control"},
-        {"condition": "treatment1", "date_range": None, "title_suffix": "Treatment 1"},
-        {"condition": "treatment2", "date_range": None, "title_suffix": "Treatment 2"},
+        {
+            "condition": "reverse_chronological",
+            "date_range": None,
+            "title_suffix": "Reverse Chronological",
+        },
+        {
+            "condition": "representative_diversification",
+            "date_range": None,
+            "title_suffix": "Representative Diversification",
+        },
+        {"condition": "engagement", "date_range": None, "title_suffix": "Engagement"},
         # By time period (assuming 4-week study)
         {
             "condition": None,
-            "date_range": "2024-10-01_to_2024-10-07",
+            "date_range": ["2024-10-01", "2024-10-07"],
             "title_suffix": "Week 1",
         },
         {
             "condition": None,
-            "date_range": "2024-10-08_to_2024-10-14",
+            "date_range": ["2024-10-08", "2024-10-14"],
             "title_suffix": "Week 2",
         },
         {
             "condition": None,
-            "date_range": "2024-10-15_to_2024-10-21",
+            "date_range": ["2024-10-15", "2024-10-21"],
             "title_suffix": "Week 3",
         },
         {
             "condition": None,
-            "date_range": "2024-10-22_to_2024-10-28",
+            "date_range": ["2024-10-22", "2024-10-28"],
             "title_suffix": "Week 4",
         },
         # Pre/post election
         {
             "condition": None,
-            "date_range": "2024-10-01_to_2024-11-04",
+            "date_range": ["2024-10-01", "2024-11-04"],
             "title_suffix": "Pre-Election",
         },
         {
             "condition": None,
-            "date_range": "2024-11-05_to_2024-11-28",
+            "date_range": ["2024-11-05", "2024-11-28"],
             "title_suffix": "Post-Election",
         },
         # Condition × Time combinations
         {
-            "condition": "control",
-            "date_range": "2024-10-01_to_2024-10-07",
-            "title_suffix": "Control Week 1",
+            "condition": "reverse_chronological",
+            "date_range": ["2024-10-01", "2024-10-07"],
+            "title_suffix": "Reverse Chronological Week 1",
         },
         {
-            "condition": "treatment1",
-            "date_range": "2024-10-01_to_2024-10-07",
-            "title_suffix": "Treatment 1 Week 1",
+            "condition": "representative_diversification",
+            "date_range": ["2024-10-01", "2024-10-07"],
+            "title_suffix": "Representative Diversification Week 1",
         },
         {
-            "condition": "control",
-            "date_range": "2024-11-05_to_2024-11-28",
-            "title_suffix": "Control Post-Election",
+            "condition": "reverse_chronological",
+            "date_range": ["2024-11-05", "2024-11-28"],
+            "title_suffix": "Reverse Chronological Post-Election",
         },
         {
-            "condition": "treatment1",
-            "date_range": "2024-11-05_to_2024-11-28",
-            "title_suffix": "Treatment 1 Post-Election",
+            "condition": "representative_diversification",
+            "date_range": ["2024-11-05", "2024-11-28"],
+            "title_suffix": "Representative Diversification Post-Election",
         },
     ]
 
 
-def run_umap_visualizations(model_path, metadata_path, exported_data_path):
+def run_topic_proportion_visualizations(model_path, metadata_path, results_path):
     """
-    Run the sliced UMAP visualization script with default configurations
+    Run the topic proportion visualization script with default configurations
 
     Args:
         model_path: Path to the trained model
         metadata_path: Path to the metadata file
-        exported_data_path: Path to the exported data directory
+        results_path: Path to the inference results
     """
     # Get the script directory
     script_dir = Path(__file__).parent
-    visualization_script = script_dir / "sliced_umap_visualization.py"
+    visualization_script = script_dir / "topic_proportion_visualization.py"
 
     if not visualization_script.exists():
         logger.error(f"Visualization script not found: {visualization_script}")
         return False
 
-    # Create output directory with timestamp
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    output_dir = script_dir / "results" / "prod" / timestamp
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Get default slice configurations
-    slice_configs = create_default_slice_configs()
-
-    logger.info("🎨 Starting sliced UMAP visualizations...")
-    logger.info(f"📁 Output directory: {output_dir}")
-    logger.info(f"📊 Will create {len(slice_configs)} visualizations")
+    logger.info("📊 Starting topic proportion visualizations...")
 
     try:
-        # Import the SlicedUMAPVisualizer class
+        # Import the TopicProportionVisualizer class
         sys.path.append(str(script_dir))
-        from sliced_umap_visualization import SlicedUMAPVisualizer
+        from topic_proportion_visualization import TopicProportionVisualizer
 
         # Initialize visualizer
-        visualizer = SlicedUMAPVisualizer(
+        visualizer = TopicProportionVisualizer(
             model_path=model_path,
             metadata_path=metadata_path,
-            exported_data_path=exported_data_path,
+            results_path=results_path,
         )
 
-        # Load exported data
-        visualizer.load_exported_data()
-        logger.info("✅ Exported data loaded successfully")
+        # Get default slice configurations
+        slice_configs = create_default_slice_configs()
 
-        # Load model and compute topic assignments
-        visualizer.load_model_and_assignments()
-        logger.info("✅ Model loaded and topic assignments computed")
+        logger.info(f"📊 Will create visualizations for {len(slice_configs)} slices")
 
-        # Create all visualizations efficiently using cached embeddings
-        results = visualizer.create_multiple_slice_visualizations(
-            slice_configs, str(output_dir)
-        )
+        # Run visualization
+        output_dir = visualizer.run_visualization(slice_configs)
 
-        successful_visualizations = len(results)
-        logger.info(
-            f"🎉 Successfully created {successful_visualizations}/{len(slice_configs)} visualizations"
-        )
+        logger.info("✅ Topic proportion visualizations completed successfully!")
         logger.info(f"📁 All visualizations saved to: {output_dir}")
 
         return True
 
     except Exception as e:
-        logger.error(f"❌ Failed to run UMAP visualizations: {e}")
+        logger.error(f"❌ Failed to run topic proportion visualizations: {e}")
         return False
 
 
 def main():
-    """Main function to run production UMAP visualizations"""
-    logger.info("🎨 Production UMAP Visualization Runner")
-    logger.info("=" * 50)
+    """Main function to run production topic proportion visualizations"""
+    logger.info("📊 Production Topic Proportion Visualization Runner")
+    logger.info("=" * 60)
 
     # Find the latest model
     model_path, metadata_path = find_latest_prod_model()
@@ -309,24 +288,25 @@ def main():
         logger.error("❌ Model or metadata validation failed")
         sys.exit(1)
 
-    # Find exported data
-    exported_data_path = find_exported_data(model_path)
+    # Find latest inference results
+    results_path = find_latest_inference_results()
 
-    if not exported_data_path:
-        logger.error(
-            "❌ Could not find exported data - sliced UMAP visualizations require exported data"
-        )
-        logger.error("💡 Make sure you ran training with data export enabled")
+    if not results_path:
+        logger.error("❌ Could not find inference results")
         sys.exit(1)
 
-    # Run UMAP visualizations
-    success = run_umap_visualizations(model_path, metadata_path, exported_data_path)
+    # Run topic proportion visualizations
+    success = run_topic_proportion_visualizations(
+        model_path, metadata_path, results_path
+    )
 
     if success:
-        logger.info("🎉 Production UMAP visualizations completed successfully!")
+        logger.info(
+            "🎉 Production topic proportion visualizations completed successfully!"
+        )
         sys.exit(0)
     else:
-        logger.error("❌ Production UMAP visualizations failed!")
+        logger.error("❌ Production topic proportion visualizations failed!")
         sys.exit(1)
 
 
