@@ -128,7 +128,7 @@ class SlicedUMAPVisualizer:
         # Load BERTopic model
         from ml_tooling.topic_modeling.bertopic_wrapper import BERTopicWrapper
 
-        self.bertopic = BERTopicWrapper.load(self.model_path)
+        self.bertopic = BERTopicWrapper.load_model(self.model_path)
 
         # Initialize embedding model
         self._initialize_embedding_model()
