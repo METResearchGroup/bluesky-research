@@ -175,9 +175,41 @@ class SlicedUMAPVisualizer:
 
     def _load_topic_assignments(self) -> None:
         """Load topic assignments from inference results."""
-        # Look for topic assignments in the exported data or inference results
-        assignments_file = f"{self.exported_data_path}/doc_topic_assignments.csv"
+        # Look for topic assignments in inference results directory
+        # Get the analysis directory (parent of visualization directory)
+        analysis_dir = Path(__file__).parent.parent
+        inference_results_dir = analysis_dir / "inference" / "results"
 
+        # Find the latest inference results directory
+        if inference_results_dir.exists():
+            # Look for prod subdirectory
+            prod_dir = inference_results_dir / "prod"
+            if prod_dir.exists():
+                # Find the latest timestamp directory
+                timestamp_dirs = [
+                    d
+                    for d in prod_dir.iterdir()
+                    if d.is_dir() and len(d.name) == 19  # YYYY-MM-DD-HH:MM:SS format
+                ]
+
+                if timestamp_dirs:
+                    latest_dir = max(timestamp_dirs, key=lambda x: x.stat().st_mtime)
+
+                    # Look for topic assignments file (pattern: topic_assignments_YYYY-MM-DD-HH:MM:SS.csv)
+                    assignments_files = list(latest_dir.glob("topic_assignments_*.csv"))
+
+                    if assignments_files:
+                        assignments_file = assignments_files[
+                            0
+                        ]  # Take the first (should be only one)
+                        logger.info(
+                            f"📊 Loading topic assignments from: {assignments_file}"
+                        )
+                        self.doc_topic_assignments = pd.read_csv(assignments_file)
+                        return
+
+        # Fallback: look in exported data directory (legacy)
+        assignments_file = f"{self.exported_data_path}/doc_topic_assignments.csv"
         if os.path.exists(assignments_file):
             logger.info(f"📊 Loading topic assignments from: {assignments_file}")
             self.doc_topic_assignments = pd.read_csv(assignments_file)
