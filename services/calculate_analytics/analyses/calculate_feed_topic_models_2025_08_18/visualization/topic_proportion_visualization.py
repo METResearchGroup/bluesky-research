@@ -5,7 +5,7 @@ Topic Proportion Visualization for Topic Modeling Results
 This script generates structured topic proportion visualizations with:
 - Consistent top 10 topics across all visualizations
 - Separate subfolders for each visualization type
-- Pre/post election analysis with correct date (2025-11-05)
+- Pre/post election analysis with correct date (2024-11-05)
 - Condition-specific analysis
 
 Author: AI Agent implementing Scientific Visualization Specialist
@@ -48,7 +48,7 @@ class TopicProportionVisualizer:
         self.model_path = model_path
         self.metadata_path = metadata_path
         self.results_path = results_path
-        self.election_date = "2025-11-05"  # Correct election date
+        self.election_date = "2024-11-05"  # Correct election date
 
         # Scientific visualization settings
         self.figure_params = {"figsize": (12, 8), "dpi": 300, "facecolor": "white"}
