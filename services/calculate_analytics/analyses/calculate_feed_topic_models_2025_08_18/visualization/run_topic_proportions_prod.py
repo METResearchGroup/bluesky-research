@@ -3,7 +3,7 @@
 Production Topic Proportion Visualization Runner
 
 This script automatically finds the latest trained model and inference results
-and runs topic proportion visualizations for production results.
+and runs structured topic proportion visualizations for production results.
 
 Usage:
     python run_topic_proportions_prod.py
@@ -12,7 +12,7 @@ The script will:
 1. Find the latest model in train/trained_models/prod/
 2. Find the corresponding metadata file
 3. Find the latest inference results
-4. Run topic proportion visualizations with default settings
+4. Run structured topic proportion visualizations with consistent top 10 topics
 """
 
 import os
@@ -144,87 +144,9 @@ def validate_model_and_metadata(model_path, metadata_path):
         return False
 
 
-def create_default_slice_configs():
-    """
-    Create default slice configurations for visualization
-
-    Returns:
-        list: List of slice configurations
-    """
-    return [
-        # Overall visualization
-        {"condition": None, "date_range": None, "title_suffix": "Overall"},
-        # By condition
-        {
-            "condition": "reverse_chronological",
-            "date_range": None,
-            "title_suffix": "Reverse Chronological",
-        },
-        {
-            "condition": "representative_diversification",
-            "date_range": None,
-            "title_suffix": "Representative Diversification",
-        },
-        {"condition": "engagement", "date_range": None, "title_suffix": "Engagement"},
-        # By time period (assuming 4-week study)
-        {
-            "condition": None,
-            "date_range": ["2024-10-01", "2024-10-07"],
-            "title_suffix": "Week 1",
-        },
-        {
-            "condition": None,
-            "date_range": ["2024-10-08", "2024-10-14"],
-            "title_suffix": "Week 2",
-        },
-        {
-            "condition": None,
-            "date_range": ["2024-10-15", "2024-10-21"],
-            "title_suffix": "Week 3",
-        },
-        {
-            "condition": None,
-            "date_range": ["2024-10-22", "2024-10-28"],
-            "title_suffix": "Week 4",
-        },
-        # Pre/post election
-        {
-            "condition": None,
-            "date_range": ["2024-10-01", "2024-11-04"],
-            "title_suffix": "Pre-Election",
-        },
-        {
-            "condition": None,
-            "date_range": ["2024-11-05", "2024-11-28"],
-            "title_suffix": "Post-Election",
-        },
-        # Condition × Time combinations
-        {
-            "condition": "reverse_chronological",
-            "date_range": ["2024-10-01", "2024-10-07"],
-            "title_suffix": "Reverse Chronological Week 1",
-        },
-        {
-            "condition": "representative_diversification",
-            "date_range": ["2024-10-01", "2024-10-07"],
-            "title_suffix": "Representative Diversification Week 1",
-        },
-        {
-            "condition": "reverse_chronological",
-            "date_range": ["2024-11-05", "2024-11-28"],
-            "title_suffix": "Reverse Chronological Post-Election",
-        },
-        {
-            "condition": "representative_diversification",
-            "date_range": ["2024-11-05", "2024-11-28"],
-            "title_suffix": "Representative Diversification Post-Election",
-        },
-    ]
-
-
 def run_topic_proportion_visualizations(model_path, metadata_path, results_path):
     """
-    Run the topic proportion visualization script with default configurations
+    Run the topic proportion visualization script
 
     Args:
         model_path: Path to the trained model
@@ -253,13 +175,8 @@ def run_topic_proportion_visualizations(model_path, metadata_path, results_path)
             results_path=results_path,
         )
 
-        # Get default slice configurations
-        slice_configs = create_default_slice_configs()
-
-        logger.info(f"📊 Will create visualizations for {len(slice_configs)} slices")
-
         # Run visualization
-        output_dir = visualizer.run_visualization(slice_configs)
+        output_dir = visualizer.run_visualization()
 
         logger.info("✅ Topic proportion visualizations completed successfully!")
         logger.info(f"📁 All visualizations saved to: {output_dir}")
@@ -274,7 +191,7 @@ def run_topic_proportion_visualizations(model_path, metadata_path, results_path)
 def main():
     """Main function to run production topic proportion visualizations"""
     logger.info("📊 Production Topic Proportion Visualization Runner")
-    logger.info("=" * 60)
+    logger.info("=" * 65)
 
     # Find the latest model
     model_path, metadata_path = find_latest_prod_model()

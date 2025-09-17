@@ -12,7 +12,7 @@
 #SBATCH --output=/projects/p32375/bluesky-research/lib/log/study_analytics/topic_proportions_prod-%j.log
 
 # Production Topic Proportion Visualization script for topic modeling
-# This script runs topic proportion visualizations on SLURM with production data
+# This script runs structured topic proportion visualizations on SLURM with production data
 
 # Set script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,7 +27,7 @@ PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
 PYTHON_CMD="/projects/p32375/bluesky-research/services/calculate_analytics/analyses/calculate_feed_topic_models_2025_08_18/visualization/run_topic_proportions_prod.py"
 
 echo "📊 Starting Production Topic Proportion Visualizations"
-echo "======================================================"
+echo "========================================================="
 echo "SLURM Job ID: $SLURM_JOB_ID"
 echo "Running python command: $PYTHON_CMD"
 echo "Memory: $SLURM_MEM_PER_NODE MB"
@@ -50,7 +50,8 @@ if [ $exit_code -eq 0 ]; then
     echo ""
     echo "🎉 Production topic proportion visualizations completed successfully!"
     echo "📁 Check the visualization/results/topic_proportions/prod/ directory for results"
-    echo "📊 Both stacked and grouped bar charts created"
+    echo "📊 Structured visualizations created with consistent top 10 topics"
+    echo "📂 Subfolders: overall/, condition/, election_date/, election_date/by_condition/"
 else
     echo ""
     echo "❌ Production topic proportion visualizations failed with exit code $exit_code"

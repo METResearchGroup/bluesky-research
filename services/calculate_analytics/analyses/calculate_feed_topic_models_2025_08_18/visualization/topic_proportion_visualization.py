@@ -2,19 +2,21 @@
 """
 Topic Proportion Visualization for Topic Modeling Results
 
-This script generates publication-ready visualizations showing the distribution
-of topics across different slices (conditions, time periods, etc.). It creates
-both stacked bar charts and grouped bar charts to analyze topic proportions.
+This script generates structured topic proportion visualizations with:
+- Consistent top 10 topics across all visualizations
+- Separate subfolders for each visualization type
+- Pre/post election analysis with correct date (2025-11-05)
+- Condition-specific analysis
 
 Author: AI Agent implementing Scientific Visualization Specialist
-Date: 2025-01-17
+Date: 2025-09-17
 """
 
 import argparse
 import json
 import time
 from pathlib import Path
-from typing import List, Tuple, Dict, Optional, Union
+from typing import List, Dict, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,11 +30,10 @@ logger = get_logger(__name__)
 
 class TopicProportionVisualizer:
     """
-    Generates topic proportion visualizations for topic modeling results.
+    Generates structured topic proportion visualizations for topic modeling results.
 
-    Creates publication-ready charts showing the relative distribution of topics
-    across different slices (conditions, time periods, etc.). Supports both
-    stacked bar charts and grouped bar charts for different analytical needs.
+    Creates publication-ready charts with consistent top 10 topics across all
+    visualization types, organized in separate subfolders.
     """
 
     def __init__(self, model_path: str, metadata_path: str, results_path: str):
@@ -47,11 +48,12 @@ class TopicProportionVisualizer:
         self.model_path = model_path
         self.metadata_path = metadata_path
         self.results_path = results_path
+        self.election_date = "2025-11-05"  # Correct election date
 
         # Scientific visualization settings
-        self.figure_params = {"figsize": (14, 8), "dpi": 300, "facecolor": "white"}
+        self.figure_params = {"figsize": (12, 8), "dpi": 300, "facecolor": "white"}
 
-        # Colorblind-friendly color palette
+        # Colorblind-friendly color palette for top 10 topics
         self.color_palette = [
             "#1f77b4",  # blue
             "#ff7f0e",  # orange
@@ -63,16 +65,6 @@ class TopicProportionVisualizer:
             "#7f7f7f",  # gray
             "#bcbd22",  # olive
             "#17becf",  # cyan
-            "#aec7e8",  # light blue
-            "#ffbb78",  # light orange
-            "#98df8a",  # light green
-            "#ff9896",  # light red
-            "#c5b0d5",  # light purple
-            "#ffcc99",  # light orange 2
-            "#c7c7c7",  # light gray
-            "#d4a5a5",  # light brown
-            "#e1b3e1",  # light purple 2
-            "#b3d9b3",  # light green 2
         ]
 
         self.metadata = None
@@ -81,6 +73,7 @@ class TopicProportionVisualizer:
         self.documents_df = None
         self.uri_doc_map = None
         self.date_condition_uris_map = None
+        self.top_10_topics = None
 
     def load_model_and_results(self) -> None:
         """Load trained model and inference results."""
@@ -102,6 +95,10 @@ class TopicProportionVisualizer:
         # Load exported data for slicing
         self._load_exported_data()
         logger.info("✅ Exported data loaded successfully")
+
+        # Determine top 10 topics overall
+        self._determine_top_10_topics()
+        logger.info("✅ Top 10 topics determined")
 
     def _load_inference_results(self) -> None:
         """Load topic assignments from inference results."""
@@ -181,83 +178,25 @@ class TopicProportionVisualizer:
         else:
             logger.warning("⚠️ No exported data found - slicing capabilities limited")
 
-    def compute_topic_proportions_by_slice(
-        self, slice_configs: List[Dict[str, Union[str, List[str]]]]
-    ) -> pd.DataFrame:
-        """
-        Compute topic proportions for each slice configuration.
+    def _determine_top_10_topics(self) -> None:
+        """Determine the top 10 topics overall for consistent visualization."""
+        logger.info("🔍 Determining top 10 topics overall...")
 
-        Args:
-            slice_configs: List of slice configurations with 'condition', 'date_range', 'title_suffix' keys
+        # Count topics across all documents
+        topic_counts = self.topic_assignments["topic_id"].value_counts()
 
-        Returns:
-            DataFrame with columns: slice_name, topic_id, topic_name, proportion, count, total_documents
-        """
-        logger.info(
-            f"📊 Computing topic proportions for {len(slice_configs)} slices..."
-        )
+        # Get top 10 topics
+        self.top_10_topics = topic_counts.head(10).index.tolist()
 
-        results = []
+        logger.info(f"📊 Top 10 topics: {self.top_10_topics}")
 
-        for config in slice_configs:
-            slice_name = config.get("title_suffix", "Unknown")
-            condition = config.get("condition")
-            date_range = config.get("date_range")
-
-            logger.info(f"   📊 Processing slice: {slice_name}")
-
-            # Get URIs for this slice
-            slice_uris = self._get_uris_for_slice(condition, date_range)
-
-            if len(slice_uris) == 0:
-                logger.warning(f"   ⚠️ No URIs found for slice: {slice_name}")
-                continue
-
-            # Get doc_ids for this slice
-            slice_doc_ids = self.uri_doc_map[self.uri_doc_map["uri"].isin(slice_uris)][
-                "doc_id"
-            ].unique()
-
-            # Filter topic assignments for this slice
-            slice_assignments = self.topic_assignments[
-                self.topic_assignments["doc_id"].isin(slice_doc_ids)
-            ]
-
-            if len(slice_assignments) == 0:
-                logger.warning(
-                    f"   ⚠️ No topic assignments found for slice: {slice_name}"
-                )
-                continue
-
-            # Compute topic proportions
-            topic_counts = slice_assignments["topic_id"].value_counts().sort_index()
-            total_documents = len(slice_assignments)
-
-            for topic_id, count in topic_counts.items():
-                proportion = count / total_documents
-
-                # Get topic name
-                topic_name = self.topic_names.get(topic_id, f"Topic {topic_id}")
-
-                results.append(
-                    {
-                        "slice_name": slice_name,
-                        "topic_id": topic_id,
-                        "topic_name": topic_name,
-                        "proportion": proportion,
-                        "count": count,
-                        "total_documents": total_documents,
-                    }
-                )
-
-            logger.info(f"   ✅ Processed {total_documents} documents for {slice_name}")
-
-        results_df = pd.DataFrame(results)
-        logger.info(
-            f"📊 Computed proportions for {len(results_df)} topic-slice combinations"
-        )
-
-        return results_df
+        # Log topic names if available
+        for i, topic_id in enumerate(self.top_10_topics, 1):
+            topic_name = self.topic_names.get(topic_id, f"Topic {topic_id}")
+            count = topic_counts[topic_id]
+            logger.info(
+                f"   {i:2d}. Topic {topic_id}: {topic_name} ({count} documents)"
+            )
 
     def _get_uris_for_slice(
         self, condition: Optional[str], date_range: Optional[List[str]]
@@ -294,32 +233,89 @@ class TopicProportionVisualizer:
 
         return slice_uris
 
-    def create_stacked_bar_chart(
-        self, proportions_df: pd.DataFrame
-    ) -> Tuple[plt.Figure, plt.Axes]:
+    def _get_uris_for_election_period(self, period: str) -> set:
+        """Get URIs for pre/post election period."""
+        if not self.date_condition_uris_map:
+            logger.warning("⚠️ No date-condition mapping available, returning all URIs")
+            return set(self.uri_doc_map["uri"].unique())
+
+        slice_uris = set()
+
+        for date, condition_map in self.date_condition_uris_map.items():
+            if period == "pre" and date <= self.election_date:
+                for condition_uris in condition_map.values():
+                    slice_uris.update(condition_uris)
+            elif period == "post" and date > self.election_date:
+                for condition_uris in condition_map.values():
+                    slice_uris.update(condition_uris)
+
+        return slice_uris
+
+    def compute_topic_proportions_for_slice(
+        self, slice_name: str, slice_uris: set
+    ) -> Dict[int, float]:
         """
-        Create stacked bar chart showing topic proportions by slice.
+        Compute topic proportions for a specific slice using top 10 topics.
 
         Args:
-            proportions_df: DataFrame with topic proportion data
+            slice_name: Name of the slice
+            slice_uris: URIs for this slice
 
         Returns:
-            Tuple of (figure, axes)
+            Dictionary mapping topic_id to proportion
         """
-        logger.info("🎨 Creating stacked bar chart...")
+        logger.info(f"   📊 Computing proportions for: {slice_name}")
 
-        # Pivot data for stacked bar chart
-        pivot_df = proportions_df.pivot(
-            index="slice_name", columns="topic_id", values="proportion"
-        ).fillna(0)
+        if len(slice_uris) == 0:
+            logger.warning(f"   ⚠️ No URIs found for slice: {slice_name}")
+            return {topic_id: 0.0 for topic_id in self.top_10_topics}
 
-        # Sort topics by overall frequency
-        topic_frequencies = (
-            proportions_df.groupby("topic_id")["count"]
-            .sum()
-            .sort_values(ascending=False)
-        )
-        pivot_df = pivot_df[topic_frequencies.index]
+        # Get doc_ids for this slice
+        slice_doc_ids = self.uri_doc_map[self.uri_doc_map["uri"].isin(slice_uris)][
+            "doc_id"
+        ].unique()
+
+        # Filter topic assignments for this slice
+        slice_assignments = self.topic_assignments[
+            self.topic_assignments["doc_id"].isin(slice_doc_ids)
+        ]
+
+        if len(slice_assignments) == 0:
+            logger.warning(f"   ⚠️ No topic assignments found for slice: {slice_name}")
+            return {topic_id: 0.0 for topic_id in self.top_10_topics}
+
+        # Compute topic proportions
+        topic_counts = slice_assignments["topic_id"].value_counts()
+        total_documents = len(slice_assignments)
+
+        # Create proportions dict for top 10 topics
+        proportions = {}
+        for topic_id in self.top_10_topics:
+            count = topic_counts.get(topic_id, 0)
+            proportions[topic_id] = count / total_documents
+
+        logger.info(f"   ✅ Processed {total_documents} documents for {slice_name}")
+        return proportions
+
+    def create_topic_proportion_chart(
+        self,
+        proportions_data: Dict[str, Dict[int, float]],
+        title: str,
+        output_path: str,
+    ) -> None:
+        """
+        Create a topic proportion chart.
+
+        Args:
+            proportions_data: Dictionary mapping slice names to topic proportions
+            title: Chart title
+            output_path: Path to save the chart
+        """
+        logger.info(f"🎨 Creating chart: {title}")
+
+        # Prepare data for plotting
+        slice_names = list(proportions_data.keys())
+        n_slices = len(slice_names)
 
         # Create figure
         fig, ax = plt.subplots(
@@ -329,100 +325,45 @@ class TopicProportionVisualizer:
         )
 
         # Create stacked bar chart
-        bottom = np.zeros(len(pivot_df))
-        colors = self.color_palette[: len(pivot_df.columns)]
+        bottom = np.zeros(n_slices)
 
-        for i, topic_id in enumerate(pivot_df.columns):
+        for i, topic_id in enumerate(self.top_10_topics):
             topic_name = self.topic_names.get(topic_id, f"Topic {topic_id}")
+            proportions = [
+                proportions_data[slice_name][topic_id] for slice_name in slice_names
+            ]
+
             ax.bar(
-                pivot_df.index,
-                pivot_df[topic_id],
+                slice_names,
+                proportions,
                 bottom=bottom,
                 label=topic_name,
-                color=colors[i % len(colors)],
+                color=self.color_palette[i],
                 alpha=0.8,
                 edgecolor="white",
                 linewidth=0.5,
             )
-            bottom += pivot_df[topic_id]
+            bottom += proportions
 
         # Apply styling
-        self._apply_stacked_bar_styling(fig, ax, pivot_df)
+        self._apply_chart_styling(fig, ax, title, slice_names)
 
-        logger.info("✅ Stacked bar chart created successfully")
-        return fig, ax
+        # Save chart
+        fig.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="white")
+        logger.info(f"💾 Chart saved to: {output_path}")
 
-    def create_grouped_bar_chart(
-        self, proportions_df: pd.DataFrame
-    ) -> Tuple[plt.Figure, plt.Axes]:
-        """
-        Create grouped bar chart showing topic proportions by slice.
+        # Close figure to free memory
+        plt.close(fig)
 
-        Args:
-            proportions_df: DataFrame with topic proportion data
-
-        Returns:
-            Tuple of (figure, axes)
-        """
-        logger.info("🎨 Creating grouped bar chart...")
-
-        # Pivot data for grouped bar chart
-        pivot_df = proportions_df.pivot(
-            index="topic_id", columns="slice_name", values="proportion"
-        ).fillna(0)
-
-        # Sort topics by overall frequency
-        topic_frequencies = (
-            proportions_df.groupby("topic_id")["count"]
-            .sum()
-            .sort_values(ascending=False)
-        )
-        pivot_df = pivot_df.reindex(topic_frequencies.index)
-
-        # Create figure
-        fig, ax = plt.subplots(
-            figsize=self.figure_params["figsize"],
-            dpi=self.figure_params["dpi"],
-            facecolor=self.figure_params["facecolor"],
-        )
-
-        # Create grouped bar chart
-        x = np.arange(len(pivot_df))
-        width = 0.8 / len(pivot_df.columns)
-        colors = self.color_palette[: len(pivot_df.columns)]
-
-        for i, slice_name in enumerate(pivot_df.columns):
-            ax.bar(
-                x + i * width,
-                pivot_df[slice_name],
-                width,
-                label=slice_name,
-                color=colors[i % len(colors)],
-                alpha=0.8,
-                edgecolor="white",
-                linewidth=0.5,
-            )
-
-        # Apply styling
-        self._apply_grouped_bar_styling(fig, ax, pivot_df)
-
-        logger.info("✅ Grouped bar chart created successfully")
-        return fig, ax
-
-    def _apply_stacked_bar_styling(
-        self, fig: plt.Figure, ax: plt.Axes, pivot_df: pd.DataFrame
+    def _apply_chart_styling(
+        self, fig: plt.Figure, ax: plt.Axes, title: str, slice_names: List[str]
     ) -> None:
-        """Apply scientific styling to stacked bar chart."""
+        """Apply scientific styling to chart."""
         # Set title
-        ax.set_title(
-            "Topic Distribution by Condition/Time Period\n(Stacked Bar Chart)",
-            fontsize=16,
-            fontweight="bold",
-            pad=20,
-        )
+        ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
 
         # Set axis labels
-        ax.set_xlabel("Slice Category", fontsize=12, fontweight="bold")
+        ax.set_xlabel("Category", fontsize=12, fontweight="bold")
         ax.set_ylabel("Proportion", fontsize=12, fontweight="bold")
 
         # Set y-axis to percentage
@@ -433,172 +374,163 @@ class TopicProportionVisualizer:
         ax.grid(True, alpha=0.3, linestyle="-", linewidth=0.5, axis="y")
 
         # Set legend
-        handles, labels = ax.get_legend_handles_labels()
-        n_topics = len(labels)
-        if n_topics <= 15:
-            ax.legend(
-                handles,
-                labels,
-                bbox_to_anchor=(1.05, 1),
-                loc="upper left",
-                fontsize=9,
-                frameon=True,
-                fancybox=True,
-                shadow=True,
-                title="Topics",
-            )
-        else:
-            # Show only top 10 topics
-            top_topics = pivot_df.sum().nlargest(10).index
-            top_handles = [
-                handles[labels.index(f"Topic {tid}")]
-                for tid in top_topics
-                if f"Topic {tid}" in labels
-            ]
-            top_labels = [
-                f"Topic {tid}" for tid in top_topics if f"Topic {tid}" in labels
-            ]
-            ax.legend(
-                top_handles,
-                top_labels,
-                bbox_to_anchor=(1.05, 1),
-                loc="upper left",
-                fontsize=9,
-                frameon=True,
-                fancybox=True,
-                shadow=True,
-                title="Top 10 Topics",
-            )
+        ax.legend(
+            bbox_to_anchor=(1.05, 1),
+            loc="upper left",
+            fontsize=9,
+            frameon=True,
+            fancybox=True,
+            shadow=True,
+            title="Top 10 Topics",
+        )
 
         # Rotate x-axis labels if needed
-        if len(pivot_df.index) > 5:
+        if len(slice_names) > 5:
             plt.xticks(rotation=45, ha="right")
 
         # Tight layout
         plt.tight_layout()
 
-    def _apply_grouped_bar_styling(
-        self, fig: plt.Figure, ax: plt.Axes, pivot_df: pd.DataFrame
-    ) -> None:
-        """Apply scientific styling to grouped bar chart."""
-        # Set title
-        ax.set_title(
-            "Topic Distribution by Condition/Time Period\n(Grouped Bar Chart)",
-            fontsize=16,
-            fontweight="bold",
-            pad=20,
+    def create_overall_visualization(self, output_dir: Path) -> None:
+        """Create overall topic proportion visualization."""
+        logger.info("📊 Creating overall visualization...")
+
+        # Get all URIs
+        all_uris = self._get_uris_for_slice(None, None)
+
+        # Compute proportions
+        proportions = self.compute_topic_proportions_for_slice("Overall", all_uris)
+
+        # Create chart
+        proportions_data = {"Overall": proportions}
+        title = "Topic Distribution - Overall"
+        output_path = output_dir / "topic_proportions.png"
+
+        self.create_topic_proportion_chart(proportions_data, title, str(output_path))
+
+    def create_condition_visualization(self, output_dir: Path) -> None:
+        """Create condition-based topic proportion visualization."""
+        logger.info("📊 Creating condition visualization...")
+
+        # Get conditions from the data
+        conditions = set()
+        for date, condition_map in self.date_condition_uris_map.items():
+            conditions.update(condition_map.keys())
+
+        conditions = sorted(list(conditions))
+        logger.info(f"📊 Found conditions: {conditions}")
+
+        # Compute proportions for each condition
+        proportions_data = {}
+        for condition in conditions:
+            condition_uris = self._get_uris_for_slice(condition, None)
+            proportions = self.compute_topic_proportions_for_slice(
+                condition, condition_uris
+            )
+            proportions_data[condition] = proportions
+
+        # Create chart
+        title = "Topic Distribution by Condition"
+        output_path = output_dir / "topic_proportions.png"
+
+        self.create_topic_proportion_chart(proportions_data, title, str(output_path))
+
+    def create_election_date_visualization(self, output_dir: Path) -> None:
+        """Create pre/post election topic proportion visualization."""
+        logger.info("📊 Creating election date visualization...")
+
+        # Compute proportions for pre/post election
+        proportions_data = {}
+
+        # Pre-election
+        pre_uris = self._get_uris_for_election_period("pre")
+        pre_proportions = self.compute_topic_proportions_for_slice(
+            "Before Election", pre_uris
         )
+        proportions_data["Before Election"] = pre_proportions
 
-        # Set axis labels
-        ax.set_xlabel("Topic", fontsize=12, fontweight="bold")
-        ax.set_ylabel("Proportion", fontsize=12, fontweight="bold")
-
-        # Set y-axis to percentage
-        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"{x*100:.0f}%"))
-
-        # Set axis properties
-        ax.tick_params(axis="both", which="major", labelsize=10)
-        ax.grid(True, alpha=0.3, linestyle="-", linewidth=0.5, axis="y")
-
-        # Set x-axis labels
-        topic_labels = [self.topic_names.get(tid, f"T{tid}") for tid in pivot_df.index]
-        ax.set_xticks(range(len(pivot_df)))
-        ax.set_xticklabels(topic_labels, rotation=45, ha="right")
-
-        # Set legend
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(
-            handles,
-            labels,
-            bbox_to_anchor=(1.05, 1),
-            loc="upper left",
-            fontsize=10,
-            frameon=True,
-            fancybox=True,
-            shadow=True,
-            title="Slice Category",
+        # Post-election
+        post_uris = self._get_uris_for_election_period("post")
+        post_proportions = self.compute_topic_proportions_for_slice(
+            "After Election", post_uris
         )
+        proportions_data["After Election"] = post_proportions
 
-        # Tight layout
-        plt.tight_layout()
+        # Create chart
+        title = f"Topic Distribution by Election Date (Election: {self.election_date})"
+        output_path = output_dir / "topic_proportions.png"
 
-    def save_results(
-        self,
-        stacked_fig: plt.Figure,
-        grouped_fig: plt.Figure,
-        proportions_df: pd.DataFrame,
-    ) -> str:
-        """Save visualization results and metadata."""
-        logger.info("💾 Saving visualization results...")
+        self.create_topic_proportion_chart(proportions_data, title, str(output_path))
 
-        # Create output directory
-        mode = "local" if "local" in self.results_path else "prod"
-        timestamp = generate_current_datetime_str()
-        output_dir = Path("visualization/results/topic_proportions") / mode / timestamp
-        output_dir.mkdir(parents=True, exist_ok=True)
+    def create_election_date_by_condition_visualization(self, output_dir: Path) -> None:
+        """Create pre/post election topic proportion visualization by condition."""
+        logger.info("📊 Creating election date by condition visualization...")
 
-        # Save figures
-        stacked_path = output_dir / "topic_proportions_stacked.png"
-        stacked_fig.savefig(
-            stacked_path, dpi=300, bbox_inches="tight", facecolor="white"
-        )
-        logger.info(f"📊 Stacked bar chart saved to: {stacked_path}")
+        # Get conditions from the data
+        conditions = set()
+        for date, condition_map in self.date_condition_uris_map.items():
+            conditions.update(condition_map.keys())
 
-        grouped_path = output_dir / "topic_proportions_grouped.png"
-        grouped_fig.savefig(
-            grouped_path, dpi=300, bbox_inches="tight", facecolor="white"
-        )
-        logger.info(f"📊 Grouped bar chart saved to: {grouped_path}")
+        conditions = sorted(list(conditions))
 
-        # Save high-resolution versions
-        stacked_path_hires = output_dir / "topic_proportions_stacked_hires.png"
-        stacked_fig.savefig(
-            stacked_path_hires, dpi=600, bbox_inches="tight", facecolor="white"
-        )
-        logger.info(f"📊 High-res stacked chart saved to: {stacked_path_hires}")
+        # Create by_condition subdirectory
+        by_condition_dir = output_dir / "by_condition"
+        by_condition_dir.mkdir(exist_ok=True)
 
-        grouped_path_hires = output_dir / "topic_proportions_grouped_hires.png"
-        grouped_fig.savefig(
-            grouped_path_hires, dpi=600, bbox_inches="tight", facecolor="white"
-        )
-        logger.info(f"📊 High-res grouped chart saved to: {grouped_path_hires}")
+        # Create visualization for each condition
+        for condition in conditions:
+            logger.info(
+                f"📊 Creating election date visualization for condition: {condition}"
+            )
 
-        # Save data
-        data_path = output_dir / "topic_proportions_data.csv"
-        proportions_df.to_csv(data_path, index=False)
-        logger.info(f"📊 Data saved to: {data_path}")
+            # Compute proportions for pre/post election for this condition
+            proportions_data = {}
 
-        # Save summary statistics
-        summary_stats = (
-            proportions_df.groupby("slice_name")
-            .agg({"total_documents": "first", "count": "sum"})
-            .reset_index()
-        )
-        summary_stats["unique_topics"] = (
-            proportions_df.groupby("slice_name")["topic_id"].nunique().values
-        )
+            # Pre-election for this condition
+            pre_uris = set()
+            for date, condition_map in self.date_condition_uris_map.items():
+                if date <= self.election_date and condition in condition_map:
+                    pre_uris.update(condition_map[condition])
 
-        summary_path = output_dir / "slice_summary_stats.csv"
-        summary_stats.to_csv(summary_path, index=False)
-        logger.info(f"📊 Summary statistics saved to: {summary_path}")
+            pre_proportions = self.compute_topic_proportions_for_slice(
+                "Before Election", pre_uris
+            )
+            proportions_data["Before Election"] = pre_proportions
 
-        # Save metadata
+            # Post-election for this condition
+            post_uris = set()
+            for date, condition_map in self.date_condition_uris_map.items():
+                if date > self.election_date and condition in condition_map:
+                    post_uris.update(condition_map[condition])
+
+            post_proportions = self.compute_topic_proportions_for_slice(
+                "After Election", post_uris
+            )
+            proportions_data["After Election"] = post_proportions
+
+            # Create chart
+            title = f"Topic Distribution by Election Date - {condition}"
+            output_path = by_condition_dir / f"{condition}.png"
+
+            self.create_topic_proportion_chart(
+                proportions_data, title, str(output_path)
+            )
+
+    def save_metadata(self, output_dir: Path) -> None:
+        """Save visualization metadata."""
+        logger.info("💾 Saving metadata...")
+
         metadata = {
             "visualization_type": "topic_proportions",
             "model_path": self.model_path,
             "metadata_path": self.metadata_path,
             "results_path": self.results_path,
+            "election_date": self.election_date,
+            "top_10_topics": self.top_10_topics,
+            "topic_names": {str(k): v for k, v in self.topic_names.items()},
             "figure_parameters": self.figure_params,
-            "n_slices": len(proportions_df["slice_name"].unique()),
-            "n_topics": len(proportions_df["topic_id"].unique()),
-            "total_documents": proportions_df["total_documents"].sum(),
-            "slice_summary": proportions_df.groupby("slice_name")["total_documents"]
-            .first()
-            .to_dict(),
-            "topic_summary": proportions_df.groupby("topic_id")["count"]
-            .sum()
-            .to_dict(),
-            "creation_timestamp": timestamp,
+            "total_documents": len(self.topic_assignments),
+            "creation_timestamp": generate_current_datetime_str(),
             "color_palette": self.color_palette,
             "outliers_excluded": True,
             "note": "Outliers (topic -1) are excluded from visualization for clarity",
@@ -609,11 +541,7 @@ class TopicProportionVisualizer:
             json.dump(metadata, f, indent=2, default=str)
         logger.info(f"📋 Metadata saved to: {metadata_path}")
 
-        return str(output_dir)
-
-    def run_visualization(
-        self, slice_configs: List[Dict[str, Union[str, List[str]]]]
-    ) -> str:
+    def run_visualization(self) -> str:
         """Run the complete topic proportion visualization pipeline."""
         start_time = time.time()
 
@@ -622,111 +550,51 @@ class TopicProportionVisualizer:
         # Load model and results
         self.load_model_and_results()
 
-        # Compute topic proportions
-        proportions_df = self.compute_topic_proportions_by_slice(slice_configs)
-
-        if len(proportions_df) == 0:
-            raise ValueError(
-                "No data found for visualization. Check slice configurations."
-            )
+        # Create output directory structure
+        mode = "local" if "local" in self.results_path else "prod"
+        timestamp = generate_current_datetime_str()
+        base_output_dir = (
+            Path("visualization/results/topic_proportions") / mode / timestamp
+        )
+        base_output_dir.mkdir(parents=True, exist_ok=True)
 
         # Create visualizations
-        stacked_fig, stacked_ax = self.create_stacked_bar_chart(proportions_df)
-        grouped_fig, grouped_ax = self.create_grouped_bar_chart(proportions_df)
+        logger.info("📊 Creating structured visualizations...")
 
-        # Save results
-        output_dir = self.save_results(stacked_fig, grouped_fig, proportions_df)
+        # 1. Overall visualization
+        overall_dir = base_output_dir / "overall"
+        overall_dir.mkdir(exist_ok=True)
+        self.create_overall_visualization(overall_dir)
 
-        # Close figures to free memory
-        plt.close(stacked_fig)
-        plt.close(grouped_fig)
+        # 2. Condition visualization
+        condition_dir = base_output_dir / "condition"
+        condition_dir.mkdir(exist_ok=True)
+        self.create_condition_visualization(condition_dir)
+
+        # 3. Election date visualization
+        election_dir = base_output_dir / "election_date"
+        election_dir.mkdir(exist_ok=True)
+        self.create_election_date_visualization(election_dir)
+
+        # 4. Election date by condition visualization
+        self.create_election_date_by_condition_visualization(election_dir)
+
+        # Save metadata
+        self.save_metadata(base_output_dir)
 
         elapsed_time = time.time() - start_time
         logger.info(
             f"🎉 Topic proportion visualization completed in {elapsed_time:.2f} seconds"
         )
-        logger.info(f"📁 Results saved to: {output_dir}")
+        logger.info(f"📁 Results saved to: {base_output_dir}")
 
-        return output_dir
-
-
-def create_default_slice_configs() -> List[Dict[str, Union[str, List[str]]]]:
-    """Create default slice configurations for visualization."""
-    return [
-        # Overall visualization
-        {"condition": None, "date_range": None, "title_suffix": "Overall"},
-        # By condition
-        {
-            "condition": "reverse_chronological",
-            "date_range": None,
-            "title_suffix": "Reverse Chronological",
-        },
-        {
-            "condition": "representative_diversification",
-            "date_range": None,
-            "title_suffix": "Representative Diversification",
-        },
-        {"condition": "engagement", "date_range": None, "title_suffix": "Engagement"},
-        # By time period (assuming 4-week study)
-        {
-            "condition": None,
-            "date_range": ["2024-10-01", "2024-10-07"],
-            "title_suffix": "Week 1",
-        },
-        {
-            "condition": None,
-            "date_range": ["2024-10-08", "2024-10-14"],
-            "title_suffix": "Week 2",
-        },
-        {
-            "condition": None,
-            "date_range": ["2024-10-15", "2024-10-21"],
-            "title_suffix": "Week 3",
-        },
-        {
-            "condition": None,
-            "date_range": ["2024-10-22", "2024-10-28"],
-            "title_suffix": "Week 4",
-        },
-        # Pre/post election
-        {
-            "condition": None,
-            "date_range": ["2024-10-01", "2024-11-04"],
-            "title_suffix": "Pre-Election",
-        },
-        {
-            "condition": None,
-            "date_range": ["2024-11-05", "2024-11-28"],
-            "title_suffix": "Post-Election",
-        },
-        # Condition × Time combinations
-        {
-            "condition": "reverse_chronological",
-            "date_range": ["2024-10-01", "2024-10-07"],
-            "title_suffix": "Reverse Chronological Week 1",
-        },
-        {
-            "condition": "representative_diversification",
-            "date_range": ["2024-10-01", "2024-10-07"],
-            "title_suffix": "Representative Diversification Week 1",
-        },
-        {
-            "condition": "reverse_chronological",
-            "date_range": ["2024-11-05", "2024-11-28"],
-            "title_suffix": "Reverse Chronological Post-Election",
-        },
-        {
-            "condition": "representative_diversification",
-            "date_range": ["2024-11-05", "2024-11-28"],
-            "title_suffix": "Representative Diversification Post-Election",
-        },
-    ]
+        return str(base_output_dir)
 
 
 def main():
     """Main function for command-line usage."""
     parser = argparse.ArgumentParser(
-        description="Generate topic proportion visualizations for topic modeling results"
+        description="Generate structured topic proportion visualizations for topic modeling results"
     )
     parser.add_argument(
         "--model-path",
@@ -746,20 +614,8 @@ def main():
         required=True,
         help="Path to inference results directory",
     )
-    parser.add_argument(
-        "--slice-configs",
-        type=str,
-        help="Path to JSON file with custom slice configurations",
-    )
 
     args = parser.parse_args()
-
-    # Load slice configurations
-    if args.slice_configs:
-        with open(args.slice_configs, "r") as f:
-            slice_configs = json.load(f)
-    else:
-        slice_configs = create_default_slice_configs()
 
     # Create visualizer
     visualizer = TopicProportionVisualizer(
@@ -770,7 +626,7 @@ def main():
 
     # Run visualization
     try:
-        output_dir = visualizer.run_visualization(slice_configs)
+        output_dir = visualizer.run_visualization()
         print("✅ Topic proportion visualization completed successfully!")
         print(f"📁 Results saved to: {output_dir}")
     except Exception as e:

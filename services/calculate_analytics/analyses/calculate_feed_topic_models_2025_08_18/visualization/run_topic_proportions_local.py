@@ -3,7 +3,7 @@
 Local Topic Proportion Visualization Runner
 
 This script automatically finds the latest local inference results and trained model,
-then runs topic proportion visualization on them. Designed for quick local testing and development.
+then runs structured topic proportion visualization on them. Designed for quick local testing and development.
 
 Author: AI Agent implementing Scientific Visualization Specialist
 Date: 2025-01-17
@@ -67,7 +67,7 @@ def find_latest_results():
 def main():
     """Main function to run topic proportion visualization with latest local results."""
     print("📊 Local Topic Proportion Visualization Runner")
-    print("=" * 60)
+    print("=" * 65)
 
     try:
         # Find latest model and results
