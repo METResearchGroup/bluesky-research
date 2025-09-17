@@ -144,11 +144,31 @@ class SlicedUMAPVisualizer:
     def _initialize_embedding_model(self) -> None:
         """Initialize embedding model from metadata."""
         from sentence_transformers import SentenceTransformer
+        import torch
 
         # Get embedding model configuration from metadata
         embedding_config = self.metadata.get("embedding_model", {})
         model_name = embedding_config.get("name", "all-MiniLM-L6-v2")
-        device = embedding_config.get("device", "mps")
+
+        # Smart device selection: prefer CUDA if available, otherwise CPU
+        if torch.cuda.is_available():
+            device = "cuda"
+        else:
+            device = "cpu"
+
+        # Override with metadata device if specified and available
+        metadata_device = embedding_config.get("device")
+        if metadata_device:
+            if metadata_device == "mps" and torch.backends.mps.is_available():
+                device = "mps"
+            elif metadata_device == "cuda" and torch.cuda.is_available():
+                device = "cuda"
+            elif metadata_device == "cpu":
+                device = "cpu"
+            else:
+                logger.warning(
+                    f"⚠️ Requested device '{metadata_device}' not available, using '{device}'"
+                )
 
         logger.info(f"🔮 Initializing embedding model: {model_name} on {device}")
         self.embedding_model = SentenceTransformer(model_name, device=device)
