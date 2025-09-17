@@ -110,6 +110,48 @@ def validate_model_and_metadata(model_path, metadata_path):
         return False
 
 
+def find_exported_data(model_path):
+    """
+    Look for exported data in the same directory as the model
+
+    Args:
+        model_path: Path to the trained model
+
+    Returns:
+        str or None: Path to exported data directory if found
+    """
+    model_dir = Path(model_path).parent
+    exported_data_dir = model_dir / "exported_data"
+
+    if (
+        exported_data_dir.exists()
+        and (exported_data_dir / "documents_df.parquet").exists()
+    ):
+        logger.info(f"Found exported data: {exported_data_dir}")
+        return str(exported_data_dir)
+
+    # Also check for sociopolitical_posts_used_in_feeds directory
+    analysis_dir = Path(__file__).parent.parent
+    sociopolitical_dir = analysis_dir / "sociopolitical_posts_used_in_feeds"
+
+    if sociopolitical_dir.exists():
+        # Find the latest timestamp directory
+        timestamp_dirs = [
+            d
+            for d in sociopolitical_dir.iterdir()
+            if d.is_dir() and len(d.name) == 19  # YYYY-MM-DD_HH:MM:SS format
+        ]
+
+        if timestamp_dirs:
+            latest_dir = max(timestamp_dirs, key=lambda x: x.stat().st_mtime)
+            if (latest_dir / "documents_df.parquet").exists():
+                logger.info(f"Found exported data: {latest_dir}")
+                return str(latest_dir)
+
+    logger.info("No exported data found, will use fresh data loading")
+    return None
+
+
 def run_inference(model_path, metadata_path):
     """
     Run the inference.py script with the correct arguments for production mode
@@ -126,19 +168,37 @@ def run_inference(model_path, metadata_path):
         logger.error(f"Inference script not found: {inference_script}")
         return False
 
-    # Build the command for production mode
-    cmd = [
-        sys.executable,  # Use the same Python interpreter
-        str(inference_script),
-        "--model-path",
-        model_path,
-        "--metadata-path",
-        metadata_path,
-        "--mode",
-        "full",  # Use full mode for complete dataset
-        "--data-mode",
-        "prod",  # Use production data
-    ]
+    # Check for exported data first
+    exported_data_path = find_exported_data(model_path)
+
+    if exported_data_path:
+        # Use exported data for faster inference
+        logger.info("📦 Using exported data for inference...")
+        cmd = [
+            sys.executable,  # Use the same Python interpreter
+            str(inference_script),
+            "--model-path",
+            model_path,
+            "--metadata-path",
+            metadata_path,
+            "--exported-data-path",
+            exported_data_path,
+        ]
+    else:
+        # Use fresh data loading
+        logger.info("🔄 Using fresh data loading for inference...")
+        cmd = [
+            sys.executable,  # Use the same Python interpreter
+            str(inference_script),
+            "--model-path",
+            model_path,
+            "--metadata-path",
+            metadata_path,
+            "--mode",
+            "full",  # Use full mode for complete dataset
+            "--data-mode",
+            "prod",  # Use production data
+        ]
 
     logger.info("🚀 Starting production inference...")
     logger.info(f"Command: {' '.join(cmd)}")

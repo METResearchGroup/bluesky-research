@@ -209,6 +209,35 @@ def train_and_save_model(
         logger.error(f"Failed to save metadata: {e}")
         raise
 
+    # Export data for efficient inference (production mode only)
+    if mode == "prod":
+        try:
+            logger.info(
+                "📦 Exporting sociopolitical posts data for efficient inference..."
+            )
+
+            # Create export directory next to the model
+            model_dir = os.path.dirname(model_path)
+            export_dir = os.path.join(model_dir, "exported_data")
+
+            # Export the data using the same dataloader instance
+            exported_path = dataloader.export_sociopolitical_posts_data(
+                output_dir=export_dir, include_by_date_condition=True
+            )
+
+            logger.info(f"✅ Data exported successfully to: {exported_path}")
+            logger.info("🚀 Exported data ready for fast inference!")
+
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to export data: {e}")
+            logger.warning(
+                "Inference will use fresh data loading (slower but still functional)"
+            )
+    else:
+        logger.info(
+            "ℹ️ Local mode: Skipping data export (not needed for local inference)"
+        )
+
     # Display training results
     logger.info("📊 Training Results Summary:")
     logger.info(

@@ -466,6 +466,10 @@ def main():
         default="prod",
         help="Data loading mode for 'full' mode",
     )
+    parser.add_argument(
+        "--exported-data-path",
+        help="Path to exported data directory (uses run_inference_on_exported_data if provided)",
+    )
     parser.add_argument("--output-dir", help="Directory to save inference results")
 
     args = parser.parse_args()
@@ -475,7 +479,19 @@ def main():
         raise ValueError("--documents-file is required for 'file' mode")
 
     try:
-        if args.mode == "full":
+        if args.exported_data_path:
+            # Run inference on exported data (faster)
+            doc_topic_assignments, bertopic = run_inference_on_exported_data(
+                model_path=args.model_path,
+                metadata_path=args.metadata_path,
+                exported_data_path=args.exported_data_path,
+                output_dir=args.output_dir,
+            )
+
+            logger.info("🎉 Exported data inference completed successfully!")
+            logger.info(f"📊 Processed {len(doc_topic_assignments)} documents")
+
+        elif args.mode == "full":
             # Run inference on full dataset
             doc_topic_assignments, bertopic = run_inference_on_full_dataset(
                 model_path=args.model_path,
