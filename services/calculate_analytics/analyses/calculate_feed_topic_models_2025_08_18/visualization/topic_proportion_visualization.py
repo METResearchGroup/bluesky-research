@@ -16,7 +16,7 @@ import argparse
 import json
 import time
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -183,6 +183,9 @@ class TopicProportionVisualizer:
         logger.info("🔍 Determining top 10 topics overall...")
 
         # Count topics across all documents
+        if self.topic_assignments is None:
+            raise ValueError("Topic assignments not loaded")
+
         topic_counts = self.topic_assignments["topic_id"].value_counts()
 
         # Get top 10 topics
@@ -192,7 +195,11 @@ class TopicProportionVisualizer:
 
         # Log topic names if available
         for i, topic_id in enumerate(self.top_10_topics, 1):
-            topic_name = self.topic_names.get(topic_id, f"Topic {topic_id}")
+            topic_name = (
+                self.topic_names.get(topic_id, f"Topic {topic_id}")
+                if self.topic_names
+                else f"Topic {topic_id}"
+            )
             count = topic_counts[topic_id]
             logger.info(
                 f"   {i:2d}. Topic {topic_id}: {topic_name} ({count} documents)"
@@ -204,7 +211,11 @@ class TopicProportionVisualizer:
         """Get URIs for a specific condition and date range."""
         if not self.date_condition_uris_map:
             logger.warning("⚠️ No date-condition mapping available, returning all URIs")
-            return set(self.uri_doc_map["uri"].unique())
+            return (
+                set(self.uri_doc_map["uri"].unique())
+                if self.uri_doc_map is not None
+                else set()
+            )
 
         slice_uris = set()
 
@@ -237,7 +248,11 @@ class TopicProportionVisualizer:
         """Get URIs for pre/post election period."""
         if not self.date_condition_uris_map:
             logger.warning("⚠️ No date-condition mapping available, returning all URIs")
-            return set(self.uri_doc_map["uri"].unique())
+            return (
+                set(self.uri_doc_map["uri"].unique())
+                if self.uri_doc_map is not None
+                else set()
+            )
 
         slice_uris = set()
 
@@ -253,7 +268,7 @@ class TopicProportionVisualizer:
 
     def compute_topic_proportions_for_slice(
         self, slice_name: str, slice_uris: set
-    ) -> Dict[int, float]:
+    ) -> Tuple[Dict[int, float], int]:
         """
         Compute topic proportions for a specific slice using top 10 topics.
 
@@ -262,15 +277,18 @@ class TopicProportionVisualizer:
             slice_uris: URIs for this slice
 
         Returns:
-            Dictionary mapping topic_id to proportion
+            Tuple of (proportions dict, sample size)
         """
         logger.info(f"   📊 Computing proportions for: {slice_name}")
 
         if len(slice_uris) == 0:
             logger.warning(f"   ⚠️ No URIs found for slice: {slice_name}")
-            return {topic_id: 0.0 for topic_id in self.top_10_topics}
+            return {topic_id: 0.0 for topic_id in (self.top_10_topics or [])}, 0
 
         # Get doc_ids for this slice
+        if self.uri_doc_map is None or self.topic_assignments is None:
+            raise ValueError("Required data not loaded")
+
         slice_doc_ids = self.uri_doc_map[self.uri_doc_map["uri"].isin(slice_uris)][
             "doc_id"
         ].unique()
@@ -282,7 +300,7 @@ class TopicProportionVisualizer:
 
         if len(slice_assignments) == 0:
             logger.warning(f"   ⚠️ No topic assignments found for slice: {slice_name}")
-            return {topic_id: 0.0 for topic_id in self.top_10_topics}
+            return {topic_id: 0.0 for topic_id in (self.top_10_topics or [])}, 0
 
         # Compute topic proportions
         topic_counts = slice_assignments["topic_id"].value_counts()
@@ -290,18 +308,19 @@ class TopicProportionVisualizer:
 
         # Create proportions dict for top 10 topics
         proportions = {}
-        for topic_id in self.top_10_topics:
+        for topic_id in self.top_10_topics or []:
             count = topic_counts.get(topic_id, 0)
             proportions[topic_id] = count / total_documents
 
         logger.info(f"   ✅ Processed {total_documents} documents for {slice_name}")
-        return proportions
+        return proportions, total_documents
 
     def create_topic_proportion_chart(
         self,
         proportions_data: Dict[str, Dict[int, float]],
         title: str,
         output_path: str,
+        sample_sizes: Optional[Dict[str, int]] = None,
     ) -> None:
         """
         Create a topic proportion chart.
@@ -310,6 +329,7 @@ class TopicProportionVisualizer:
             proportions_data: Dictionary mapping slice names to topic proportions
             title: Chart title
             output_path: Path to save the chart
+            sample_sizes: Optional dictionary mapping slice names to sample sizes
         """
         logger.info(f"🎨 Creating chart: {title}")
 
@@ -327,8 +347,15 @@ class TopicProportionVisualizer:
         # Create stacked bar chart
         bottom = np.zeros(n_slices)
 
+        if self.top_10_topics is None:
+            raise ValueError("Top 10 topics not determined")
+
         for i, topic_id in enumerate(self.top_10_topics):
-            topic_name = self.topic_names.get(topic_id, f"Topic {topic_id}")
+            topic_name = (
+                self.topic_names.get(topic_id, f"Topic {topic_id}")
+                if self.topic_names
+                else f"Topic {topic_id}"
+            )
             proportions = [
                 proportions_data[slice_name][topic_id] for slice_name in slice_names
             ]
@@ -345,8 +372,46 @@ class TopicProportionVisualizer:
             )
             bottom += proportions
 
+        # Add percentage labels for "Political Opinions and Perspectives" (first topic)
+        if self.top_10_topics:
+            political_topic_id = self.top_10_topics[
+                0
+            ]  # Assuming this is the political topic
+            political_topic_name = (
+                self.topic_names.get(political_topic_id, f"Topic {political_topic_id}")
+                if self.topic_names
+                else f"Topic {political_topic_id}"
+            )
+
+            # Check if this is the political topic
+            if (
+                "political" in political_topic_name.lower()
+                or "opinion" in political_topic_name.lower()
+            ):
+                political_proportions = [
+                    proportions_data[slice_name][political_topic_id]
+                    for slice_name in slice_names
+                ]
+
+                # Add percentage labels on top of the political topic bars
+                for i, (slice_name, proportion) in enumerate(
+                    zip(slice_names, political_proportions)
+                ):
+                    if proportion > 0.05:  # Only show label if proportion is > 5%
+                        ax.text(
+                            i,
+                            proportion
+                            / 2,  # Position at middle of the political topic bar
+                            f"{proportion*100:.1f}%",
+                            ha="center",
+                            va="center",
+                            fontsize=10,
+                            fontweight="bold",
+                            color="white",
+                        )
+
         # Apply styling
-        self._apply_chart_styling(fig, ax, title, slice_names)
+        self._apply_chart_styling(fig, ax, title, slice_names, sample_sizes)
 
         # Save chart
         fig.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="white")
@@ -356,9 +421,24 @@ class TopicProportionVisualizer:
         plt.close(fig)
 
     def _apply_chart_styling(
-        self, fig: plt.Figure, ax: plt.Axes, title: str, slice_names: List[str]
+        self,
+        fig: plt.Figure,
+        ax: plt.Axes,
+        title: str,
+        slice_names: List[str],
+        sample_sizes: Optional[Dict[str, int]] = None,
     ) -> None:
         """Apply scientific styling to chart."""
+        # Fix title capitalization
+        title = self._fix_title_capitalization(title)
+
+        # Add sample sizes to title if provided
+        if sample_sizes:
+            sample_info = " | ".join(
+                [f"{name}: n={size:,}" for name, size in sample_sizes.items()]
+            )
+            title = f"{title}\n({sample_info})"
+
         # Set title
         ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
 
@@ -391,6 +471,150 @@ class TopicProportionVisualizer:
         # Tight layout
         plt.tight_layout()
 
+    def _fix_title_capitalization(self, title: str) -> str:
+        """Fix title capitalization for presentation."""
+        # Common words that should be capitalized
+        words_to_capitalize = {
+            "engagement": "Engagement",
+            "condition": "Condition",
+            "election": "Election",
+            "date": "Date",
+            "topic": "Topic",
+            "distribution": "Distribution",
+            "overall": "Overall",
+            "political": "Political",
+            "opinions": "Opinions",
+            "perspectives": "Perspectives",
+        }
+
+        # Split title and fix capitalization
+        words = title.split()
+        fixed_words = []
+
+        for word in words:
+            # Remove punctuation for checking
+            clean_word = word.strip("()[]{}.,!?;:")
+            if clean_word.lower() in words_to_capitalize:
+                # Replace the word while preserving punctuation
+                if word == clean_word:
+                    fixed_words.append(words_to_capitalize[clean_word.lower()])
+                else:
+                    # Handle punctuation
+                    punctuation = word[len(clean_word) :]
+                    fixed_words.append(
+                        words_to_capitalize[clean_word.lower()] + punctuation
+                    )
+            else:
+                fixed_words.append(word)
+
+        return " ".join(fixed_words)
+
+    def create_binary_topic_chart(
+        self,
+        proportions_data: Dict[str, Dict[int, float]],
+        title: str,
+        output_path: str,
+        sample_sizes: Optional[Dict[str, int]] = None,
+    ) -> None:
+        """
+        Create a binary chart showing Political Opinions vs Other Categories.
+
+        Args:
+            proportions_data: Dictionary mapping slice names to topic proportions
+            title: Chart title
+            output_path: Path to save the chart
+            sample_sizes: Optional dictionary mapping slice names to sample sizes
+        """
+        logger.info(f"🎨 Creating binary chart: {title}")
+
+        # Prepare data for plotting
+        slice_names = list(proportions_data.keys())
+
+        # Create figure
+        fig, ax = plt.subplots(
+            figsize=self.figure_params["figsize"],
+            dpi=self.figure_params["dpi"],
+            facecolor=self.figure_params["facecolor"],
+        )
+
+        if self.top_10_topics is None:
+            raise ValueError("Top 10 topics not determined")
+
+        # Find political topic (assuming it's the first topic or contains "political")
+        political_topic_id = None
+        for topic_id in self.top_10_topics:
+            topic_name = (
+                self.topic_names.get(topic_id, f"Topic {topic_id}")
+                if self.topic_names
+                else f"Topic {topic_id}"
+            )
+            if "political" in topic_name.lower() or "opinion" in topic_name.lower():
+                political_topic_id = topic_id
+                break
+
+        if political_topic_id is None:
+            # Fallback to first topic if no political topic found
+            political_topic_id = self.top_10_topics[0]
+
+        # Calculate binary proportions
+        political_proportions = []
+        other_proportions = []
+
+        for slice_name in slice_names:
+            political_prop = proportions_data[slice_name].get(political_topic_id, 0.0)
+            other_prop = 1.0 - political_prop  # All other topics combined
+
+            political_proportions.append(political_prop)
+            other_proportions.append(other_prop)
+
+        # Create stacked bar chart
+        ax.bar(
+            slice_names,
+            political_proportions,
+            label="Political Opinions and Perspectives",
+            color=self.color_palette[0],  # Blue
+            alpha=0.8,
+            edgecolor="white",
+            linewidth=0.5,
+        )
+
+        ax.bar(
+            slice_names,
+            other_proportions,
+            bottom=political_proportions,
+            label="Other Categories",
+            color="#cccccc",  # Light gray
+            alpha=0.8,
+            edgecolor="white",
+            linewidth=0.5,
+        )
+
+        # Add percentage labels for political topic
+        for i, (slice_name, proportion) in enumerate(
+            zip(slice_names, political_proportions)
+        ):
+            if proportion > 0.05:  # Only show label if proportion is > 5%
+                ax.text(
+                    i,
+                    proportion / 2,  # Position at middle of the political topic bar
+                    f"{proportion*100:.1f}%",
+                    ha="center",
+                    va="center",
+                    fontsize=12,
+                    fontweight="bold",
+                    color="white",
+                )
+
+        # Apply styling
+        self._apply_chart_styling(fig, ax, title, slice_names, sample_sizes)
+
+        # Save chart
+        fig.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="white")
+        logger.info(f"💾 Binary chart saved to: {output_path}")
+
+        # Close figure to free memory
+        plt.close(fig)
+
     def create_overall_visualization(self, output_dir: Path) -> None:
         """Create overall topic proportion visualization."""
         logger.info("📊 Creating overall visualization...")
@@ -398,21 +622,36 @@ class TopicProportionVisualizer:
         # Get all URIs
         all_uris = self._get_uris_for_slice(None, None)
 
-        # Compute proportions
-        proportions = self.compute_topic_proportions_for_slice("Overall", all_uris)
+        # Compute proportions and sample size
+        proportions, sample_size = self.compute_topic_proportions_for_slice(
+            "Overall", all_uris
+        )
 
         # Create chart
         proportions_data = {"Overall": proportions}
+        sample_sizes = {"Overall": sample_size}
         title = "Topic Distribution - Overall"
         output_path = output_dir / "topic_proportions.png"
 
-        self.create_topic_proportion_chart(proportions_data, title, str(output_path))
+        self.create_topic_proportion_chart(
+            proportions_data, title, str(output_path), sample_sizes
+        )
+
+        # Create binary chart
+        binary_title = "Political Opinions vs Other Categories - Overall"
+        binary_output_path = output_dir / "binary_topic_proportions.png"
+        self.create_binary_topic_chart(
+            proportions_data, binary_title, str(binary_output_path), sample_sizes
+        )
 
     def create_condition_visualization(self, output_dir: Path) -> None:
         """Create condition-based topic proportion visualization."""
         logger.info("📊 Creating condition visualization...")
 
         # Get conditions from the data
+        if self.date_condition_uris_map is None:
+            raise ValueError("Date condition mapping not loaded")
+
         conditions = set()
         for date, condition_map in self.date_condition_uris_map.items():
             conditions.update(condition_map.keys())
@@ -422,18 +661,29 @@ class TopicProportionVisualizer:
 
         # Compute proportions for each condition
         proportions_data = {}
+        sample_sizes = {}
         for condition in conditions:
             condition_uris = self._get_uris_for_slice(condition, None)
-            proportions = self.compute_topic_proportions_for_slice(
+            proportions, sample_size = self.compute_topic_proportions_for_slice(
                 condition, condition_uris
             )
             proportions_data[condition] = proportions
+            sample_sizes[condition] = sample_size
 
         # Create chart
         title = "Topic Distribution by Condition"
         output_path = output_dir / "topic_proportions.png"
 
-        self.create_topic_proportion_chart(proportions_data, title, str(output_path))
+        self.create_topic_proportion_chart(
+            proportions_data, title, str(output_path), sample_sizes
+        )
+
+        # Create binary chart
+        binary_title = "Political Opinions vs Other Categories by Condition"
+        binary_output_path = output_dir / "binary_topic_proportions.png"
+        self.create_binary_topic_chart(
+            proportions_data, binary_title, str(binary_output_path), sample_sizes
+        )
 
     def create_election_date_visualization(self, output_dir: Path) -> None:
         """Create pre/post election topic proportion visualization."""
@@ -441,32 +691,47 @@ class TopicProportionVisualizer:
 
         # Compute proportions for pre/post election
         proportions_data = {}
+        sample_sizes = {}
 
         # Pre-election
         pre_uris = self._get_uris_for_election_period("pre")
-        pre_proportions = self.compute_topic_proportions_for_slice(
+        pre_proportions, pre_sample_size = self.compute_topic_proportions_for_slice(
             "Before Election", pre_uris
         )
         proportions_data["Before Election"] = pre_proportions
+        sample_sizes["Before Election"] = pre_sample_size
 
         # Post-election
         post_uris = self._get_uris_for_election_period("post")
-        post_proportions = self.compute_topic_proportions_for_slice(
+        post_proportions, post_sample_size = self.compute_topic_proportions_for_slice(
             "After Election", post_uris
         )
         proportions_data["After Election"] = post_proportions
+        sample_sizes["After Election"] = post_sample_size
 
         # Create chart
         title = f"Topic Distribution by Election Date (Election: {self.election_date})"
         output_path = output_dir / "topic_proportions.png"
 
-        self.create_topic_proportion_chart(proportions_data, title, str(output_path))
+        self.create_topic_proportion_chart(
+            proportions_data, title, str(output_path), sample_sizes
+        )
+
+        # Create binary chart
+        binary_title = f"Political Opinions vs Other Categories by Election Date (Election: {self.election_date})"
+        binary_output_path = output_dir / "binary_topic_proportions.png"
+        self.create_binary_topic_chart(
+            proportions_data, binary_title, str(binary_output_path), sample_sizes
+        )
 
     def create_election_date_by_condition_visualization(self, output_dir: Path) -> None:
         """Create pre/post election topic proportion visualization by condition."""
         logger.info("📊 Creating election date by condition visualization...")
 
         # Get conditions from the data
+        if self.date_condition_uris_map is None:
+            raise ValueError("Date condition mapping not loaded")
+
         conditions = set()
         for date, condition_map in self.date_condition_uris_map.items():
             conditions.update(condition_map.keys())
@@ -485,6 +750,7 @@ class TopicProportionVisualizer:
 
             # Compute proportions for pre/post election for this condition
             proportions_data = {}
+            sample_sizes = {}
 
             # Pre-election for this condition
             pre_uris = set()
@@ -492,10 +758,11 @@ class TopicProportionVisualizer:
                 if date <= self.election_date and condition in condition_map:
                     pre_uris.update(condition_map[condition])
 
-            pre_proportions = self.compute_topic_proportions_for_slice(
+            pre_proportions, pre_sample_size = self.compute_topic_proportions_for_slice(
                 "Before Election", pre_uris
             )
             proportions_data["Before Election"] = pre_proportions
+            sample_sizes["Before Election"] = pre_sample_size
 
             # Post-election for this condition
             post_uris = set()
@@ -503,17 +770,27 @@ class TopicProportionVisualizer:
                 if date > self.election_date and condition in condition_map:
                     post_uris.update(condition_map[condition])
 
-            post_proportions = self.compute_topic_proportions_for_slice(
-                "After Election", post_uris
+            post_proportions, post_sample_size = (
+                self.compute_topic_proportions_for_slice("After Election", post_uris)
             )
             proportions_data["After Election"] = post_proportions
+            sample_sizes["After Election"] = post_sample_size
 
             # Create chart
             title = f"Topic Distribution by Election Date - {condition}"
             output_path = by_condition_dir / f"{condition}.png"
 
             self.create_topic_proportion_chart(
-                proportions_data, title, str(output_path)
+                proportions_data, title, str(output_path), sample_sizes
+            )
+
+            # Create binary chart
+            binary_title = (
+                f"Political Opinions vs Other Categories by Election Date - {condition}"
+            )
+            binary_output_path = by_condition_dir / f"binary_{condition}.png"
+            self.create_binary_topic_chart(
+                proportions_data, binary_title, str(binary_output_path), sample_sizes
             )
 
     def save_metadata(self, output_dir: Path) -> None:
@@ -527,9 +804,14 @@ class TopicProportionVisualizer:
             "results_path": self.results_path,
             "election_date": self.election_date,
             "top_10_topics": self.top_10_topics,
-            "topic_names": {str(k): v for k, v in self.topic_names.items()},
+            "topic_names": {
+                str(k): v
+                for k, v in (self.topic_names.items() if self.topic_names else {})
+            },
             "figure_parameters": self.figure_params,
-            "total_documents": len(self.topic_assignments),
+            "total_documents": len(self.topic_assignments)
+            if self.topic_assignments is not None
+            else 0,
             "creation_timestamp": generate_current_datetime_str(),
             "color_palette": self.color_palette,
             "outliers_excluded": True,
