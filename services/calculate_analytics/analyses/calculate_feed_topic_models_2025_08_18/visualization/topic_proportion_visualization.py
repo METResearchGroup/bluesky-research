@@ -432,12 +432,7 @@ class TopicProportionVisualizer:
         # Fix title capitalization
         title = self._fix_title_capitalization(title)
 
-        # Add sample sizes to title if provided
-        if sample_sizes:
-            sample_info = " | ".join(
-                [f"{name}: n={size:,}" for name, size in sample_sizes.items()]
-            )
-            title = f"{title}\n({sample_info})"
+        # Sample sizes removed per user request
 
         # Set title
         ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
