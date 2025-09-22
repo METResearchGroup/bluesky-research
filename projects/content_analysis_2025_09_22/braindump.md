@@ -22,16 +22,23 @@ content_analysis_2025_09_22/
   - By Pre/Post Election periods
 - **Integration**: Use existing topic modeling results from `calculate_feed_topic_models_2025_08_18`
 - **Data Source**: Load posts filtered by topic assignment from existing results
+- **CSV Export Schema**: `post_id, user_id, topic, tfidf_vector (or vector components as separate columns), top_terms, timestamp_YYYY-MM-DD_HH:MM:SS, condition, period`
+- **Reproducibility**: Fixed random_seed, library and version (scikit-learn X.Y.Z), tokenizer/settings, n_features, ngram_range, hashing/normalization choices, serialization instructions (pickle or joblib with versioned filename)
+- **Output Metadata**: Timestamped output filenames with explicit metadata file recording generation_time, source_topic_model_version (calculate_feed_topic_models_2025_08_18 commit/hash), data_query_parameters, CSV schema version
 
 #### NER Analysis
 - **Scope**: All posts used in feeds (not topic-filtered)
 - **Entity Types**: People, Organizations, Locations, Dates (focused on political/sociopolitical content)
-- **Data Structure**: Hash map format: `{"<date>": {"<condition>": [{"entity": "<keyword>", "count": <count>}]}}`
+- **Entity Normalization**: Case-folding, strip surrounding punctuation, simple lemmatization/canonicalization, map common aliases, record both normalized and original surface forms
+- **Frequency Filtering**: Configurable frequency_threshold parameter to filter low-frequency entities before producing top-N lists
+- **Data Structure**: Extended hash map format: `{"<date>": {"<condition>": [{"entity_normalized":"<keyword>","entity_raws":["..."],"count":<count>}]}}`
 - **Analysis Levels**:
   - Top 10 entities overall
   - Top 10 entities pre/post election
   - Top 10 entities per condition
   - Top 10 entities per condition pre/post election
+- **CSV Output**: Standardized CSV files with consistent column headers: `date, condition, entity_normalized, entity_raws (comma-separated), count, pre_post_flag`
+- **Filename Pattern**: Clear pattern for each analysis level: `top10_overall_YYYY-MM-DD_HH:MM:SS.csv`
 - **Output**: Save results in `named_entity_recognition/results/` folder structure
 
 ### Technical Context
@@ -123,6 +130,8 @@ content_analysis_2025_09_22/
 - **Extensibility**: Allow easy addition of other text analysis methods
 - **Testing**: Need comprehensive testing on both local and production data
 - **Documentation**: Clear documentation for new analysis components
+- **PII Handling**: Redaction/pseudonymization workflows, retention policy (storage duration, deletion/archival procedures), access controls and encryption (least-privilege, audit logging), IRB/consent tracking (consent capture, provenance, approval notes)
+- **Data Governance**: Document redaction methods, storage locations, downstream data sharing constraints
 
 ## Implementation Details
 

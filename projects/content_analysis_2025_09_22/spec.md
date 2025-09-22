@@ -45,6 +45,15 @@
 - Mention analysis on all posts used in feeds
 - Analysis by experimental conditions (control, treatment, etc.)
 - Analysis by pre/post election periods (election date: 2024-11-05)
+- Standardized CSV export with exact schema: `post_id, user_id, topic, tfidf_vector (or vector components as separate columns), top_terms, timestamp_YYYY-MM-DD_HH:MM:SS, condition, period`
+- Timestamped output filenames and explicit output metadata files with generation_time, source_topic_model_version, data_query_parameters, and CSV schema version
+- Vectorizer reproducibility: fixed random_seed, library and version (scikit-learn X.Y.Z), tokenizer/settings, n_features, ngram_range, hashing/normalization choices, and serialization instructions (pickle or joblib with versioned filename)
+- NER entity normalization: case-folding, strip surrounding punctuation, simple lemmatization/canonicalization, map common aliases, record both normalized and original surface forms
+- Configurable frequency_threshold parameter to filter low-frequency entities before producing top-N lists
+- Extended hash map with normalized keys: `{"<date>": {"<condition>": [{"entity_normalized":"<keyword>","entity_raws":["..."],"count":<count>}]}}`
+- Standardized CSV files with consistent column headers: `date, condition, entity_normalized, entity_raws (comma-separated), count, pre_post_flag`
+- Filenames follow clear pattern: `top10_overall_YYYY-MM-DD_HH:MM:SS.csv`
+- PII handling: redaction/pseudonymization workflows, retention policy (storage duration, deletion/archival procedures), access controls and encryption (least-privilege, audit logging), IRB/consent tracking (consent capture, provenance, approval notes)
 - Publication-quality PNG visualizations with professional styling
 - Integration with existing topic modeling data and export patterns
 - Pre-sliced CSV files with condition/pre-post election columns for easy analysis
