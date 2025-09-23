@@ -1,0 +1,16 @@
+{
+  "analysis_type": "hashtag_analysis",
+  "timestamp": "2025-09-23-15:08:04",
+  "election_date": "2024-11-05",
+  "min_hashtag_frequency": 5,
+  "total_hashtags": 21,
+  "total_records": 36,
+  "conditions": [
+    "control",
+    "treatment"
+  ],
+  "election_periods": [
+    "pre_election",
+    "post_election"
+  ]
+}
