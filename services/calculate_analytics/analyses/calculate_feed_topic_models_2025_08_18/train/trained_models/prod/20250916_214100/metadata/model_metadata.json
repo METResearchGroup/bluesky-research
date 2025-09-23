@@ -1,0 +1,12 @@
+{
+  "training_mode": "prod",
+  "sample_per_day": 500,
+  "representative_docs_count": 27288,
+  "total_docs_count": 27288,
+  "training_time_seconds": 294.4440484046936,
+  "c_v_coherence": "0.54343104",
+  "c_npmi_coherence": 0.39118185151653423,
+  "total_topics": 33,
+  "model_path": "/projects/p32375/bluesky-research/services/calculate_analytics/analyses/calculate_feed_topic_models_2025_08_18/train/trained_models/prod/20250916_214100",
+  "training_timestamp": "2025-09-17-02:41:12"
+}

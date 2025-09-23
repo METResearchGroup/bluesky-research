@@ -1,0 +1,22 @@
+{
+  "export_timestamp": "2025-09-17-02:44:17",
+  "data_loader_mode": "prod",
+  "data_loader_run_mode": "train",
+  "study_start_date": "2024-09-30",
+  "study_end_date": "2024-12-01",
+  "exclude_partition_dates": [
+    "2024-10-08"
+  ],
+  "total_documents": 27288,
+  "total_uri_mappings": 29578,
+  "total_dates": 62,
+  "conditions": [
+    "reverse_chronological",
+    "representative_diversification",
+    "engagement"
+  ],
+  "date_range": {
+    "start": "2024-09-30",
+    "end": "2024-12-01"
+  }
+}
