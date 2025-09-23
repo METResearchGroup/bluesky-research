@@ -610,6 +610,238 @@ class TopicProportionVisualizer:
         # Close figure to free memory
         plt.close(fig)
 
+    def create_combined_condition_election_chart(
+        self,
+        proportions_data: Dict[str, Dict[int, float]],
+        title: str,
+        output_path: str,
+        sample_sizes: Optional[Dict[str, int]] = None,
+    ) -> None:
+        """
+        Create a combined chart showing all conditions with pre/post election comparison.
+
+        Args:
+            proportions_data: Dictionary mapping slice names to topic proportions
+            title: Chart title
+            output_path: Path to save the chart
+            sample_sizes: Optional dictionary mapping slice names to sample sizes
+        """
+        logger.info(f"🎨 Creating combined condition-election chart: {title}")
+
+        # Condition name mapping
+        condition_name_mapping = {
+            "reverse_chronological": "Reverse Chronological (RC)",
+            "engagement": "Engagement-Based (EB)",
+            "representative_diversification": "Diversified Extremity (DE)",
+        }
+
+        # Prepare data for plotting
+        slice_names = list(proportions_data.keys())
+
+        # Separate pre and post election data
+        pre_election_data = {}
+        post_election_data = {}
+
+        for slice_name in slice_names:
+            if "Before Election" in slice_name:
+                # Extract condition name from slice name
+                condition = slice_name.replace(" - Before Election", "")
+                friendly_name = condition_name_mapping.get(condition, condition)
+                pre_election_data[friendly_name] = proportions_data[slice_name]
+            elif "After Election" in slice_name:
+                # Extract condition name from slice name
+                condition = slice_name.replace(" - After Election", "")
+                friendly_name = condition_name_mapping.get(condition, condition)
+                post_election_data[friendly_name] = proportions_data[slice_name]
+
+        # Ensure we have data for all conditions
+        all_conditions = set(pre_election_data.keys()) | set(post_election_data.keys())
+        all_conditions = sorted(list(all_conditions))
+
+        # Create figure
+        fig, ax = plt.subplots(
+            figsize=self.figure_params["figsize"],
+            dpi=self.figure_params["dpi"],
+            facecolor=self.figure_params["facecolor"],
+        )
+
+        if self.top_10_topics is None:
+            raise ValueError("Top 10 topics not determined")
+
+        # Find political topic (assuming it's the first topic or contains "political")
+        political_topic_id = None
+        for topic_id in self.top_10_topics:
+            topic_name = (
+                self.topic_names.get(topic_id, f"Topic {topic_id}")
+                if self.topic_names
+                else f"Topic {topic_id}"
+            )
+            if "political" in topic_name.lower() or "opinion" in topic_name.lower():
+                political_topic_id = topic_id
+                break
+
+        if political_topic_id is None:
+            # Fallback to first topic if no political topic found
+            political_topic_id = self.top_10_topics[0]
+
+        # Calculate binary proportions for each condition and election period
+        pre_political_proportions = []
+        pre_other_proportions = []
+        post_political_proportions = []
+        post_other_proportions = []
+
+        for condition in all_conditions:
+            # Pre-election data
+            pre_political_prop = pre_election_data.get(condition, {}).get(
+                political_topic_id, 0.0
+            )
+            pre_other_prop = 1.0 - pre_political_prop
+            pre_political_proportions.append(pre_political_prop)
+            pre_other_proportions.append(pre_other_prop)
+
+            # Post-election data
+            post_political_prop = post_election_data.get(condition, {}).get(
+                political_topic_id, 0.0
+            )
+            post_other_prop = 1.0 - post_political_prop
+            post_political_proportions.append(post_political_prop)
+            post_other_proportions.append(post_other_prop)
+
+        # Set up bar positions
+        x = np.arange(len(all_conditions))
+        width = 0.35  # Width of bars
+
+        # Create grouped bars
+        # Pre-election bars (lighter hue)
+        ax.bar(
+            x - width / 2,
+            pre_political_proportions,
+            width,
+            label="Political Opinions and Perspectives (Pre-Election)",
+            color=self.color_palette[0],  # Blue
+            alpha=0.6,  # Lighter hue
+            edgecolor="white",
+            linewidth=0.5,
+        )
+
+        ax.bar(
+            x - width / 2,
+            pre_other_proportions,
+            width,
+            bottom=pre_political_proportions,
+            label="Other Categories (Pre-Election)",
+            color="#cccccc",  # Light gray
+            alpha=0.6,  # Lighter hue
+            edgecolor="white",
+            linewidth=0.5,
+        )
+
+        # Post-election bars (darker hue)
+        ax.bar(
+            x + width / 2,
+            post_political_proportions,
+            width,
+            label="Political Opinions and Perspectives (Post-Election)",
+            color=self.color_palette[0],  # Blue
+            alpha=0.9,  # Darker hue
+            edgecolor="white",
+            linewidth=0.5,
+        )
+
+        ax.bar(
+            x + width / 2,
+            post_other_proportions,
+            width,
+            bottom=post_political_proportions,
+            label="Other Categories (Post-Election)",
+            color="#cccccc",  # Light gray
+            alpha=0.9,  # Darker hue
+            edgecolor="white",
+            linewidth=0.5,
+        )
+
+        # Add percentage labels for political topic
+        for i, condition in enumerate(all_conditions):
+            # Pre-election label
+            if pre_political_proportions[i] > 0.05:  # Only show if > 5%
+                ax.text(
+                    i - width / 2,
+                    pre_political_proportions[i] / 2,
+                    f"{pre_political_proportions[i]*100:.1f}%",
+                    ha="center",
+                    va="center",
+                    fontsize=10,
+                    fontweight="bold",
+                    color="white",
+                )
+
+            # Post-election label
+            if post_political_proportions[i] > 0.05:  # Only show if > 5%
+                ax.text(
+                    i + width / 2,
+                    post_political_proportions[i] / 2,
+                    f"{post_political_proportions[i]*100:.1f}%",
+                    ha="center",
+                    va="center",
+                    fontsize=10,
+                    fontweight="bold",
+                    color="white",
+                )
+
+        # Apply styling
+        self._apply_combined_chart_styling(fig, ax, title, all_conditions, sample_sizes)
+
+        # Save chart
+        fig.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="white")
+        logger.info(f"💾 Combined chart saved to: {output_path}")
+
+        # Close figure to free memory
+        plt.close(fig)
+
+    def _apply_combined_chart_styling(
+        self,
+        fig: plt.Figure,
+        ax: plt.Axes,
+        title: str,
+        condition_names: List[str],
+        sample_sizes: Optional[Dict[str, int]] = None,
+    ) -> None:
+        """Apply scientific styling to combined chart."""
+        # Fix title capitalization
+        title = self._fix_title_capitalization(title)
+
+        # Set title
+        ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
+
+        # Set axis labels
+        ax.set_xlabel("Condition", fontsize=12, fontweight="bold")
+        ax.set_ylabel("Percentage", fontsize=12, fontweight="bold")
+
+        # Set x-axis ticks
+        ax.set_xticks(range(len(condition_names)))
+        ax.set_xticklabels(condition_names)
+
+        # Set y-axis to percentage
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"{x*100:.0f}%"))
+
+        # Set axis properties
+        ax.tick_params(axis="both", which="major", labelsize=10)
+        ax.grid(True, alpha=0.3, linestyle="-", linewidth=0.5, axis="y")
+
+        # Set legend
+        ax.legend(
+            bbox_to_anchor=(1.05, 1),
+            loc="upper left",
+            fontsize=9,
+            frameon=True,
+            fancybox=True,
+            shadow=True,
+            title="Categories",
+        )
+
+        # Tight layout
+        plt.tight_layout()
+
     def create_overall_visualization(self, output_dir: Path) -> None:
         """Create overall topic proportion visualization."""
         logger.info("📊 Creating overall visualization...")
@@ -788,6 +1020,61 @@ class TopicProportionVisualizer:
                 proportions_data, binary_title, str(binary_output_path), sample_sizes
             )
 
+    def create_combined_condition_election_visualization(
+        self, output_dir: Path
+    ) -> None:
+        """Create combined visualization showing all conditions with pre/post election comparison."""
+        logger.info("📊 Creating combined condition-election visualization...")
+
+        # Get conditions from the data
+        if self.date_condition_uris_map is None:
+            raise ValueError("Date condition mapping not loaded")
+
+        conditions = set()
+        for date, condition_map in self.date_condition_uris_map.items():
+            conditions.update(condition_map.keys())
+
+        conditions = sorted(list(conditions))
+
+        # Compute proportions for pre/post election for each condition
+        proportions_data = {}
+        sample_sizes = {}
+
+        for condition in conditions:
+            # Pre-election for this condition
+            pre_uris = set()
+            for date, condition_map in self.date_condition_uris_map.items():
+                if date <= self.election_date and condition in condition_map:
+                    pre_uris.update(condition_map[condition])
+
+            pre_proportions, pre_sample_size = self.compute_topic_proportions_for_slice(
+                f"{condition} - Before Election", pre_uris
+            )
+            proportions_data[f"{condition} - Before Election"] = pre_proportions
+            sample_sizes[f"{condition} - Before Election"] = pre_sample_size
+
+            # Post-election for this condition
+            post_uris = set()
+            for date, condition_map in self.date_condition_uris_map.items():
+                if date > self.election_date and condition in condition_map:
+                    post_uris.update(condition_map[condition])
+
+            post_proportions, post_sample_size = (
+                self.compute_topic_proportions_for_slice(
+                    f"{condition} - After Election", post_uris
+                )
+            )
+            proportions_data[f"{condition} - After Election"] = post_proportions
+            sample_sizes[f"{condition} - After Election"] = post_sample_size
+
+        # Create combined chart
+        title = "Political Opinions vs Other Categories by Condition and Election Date"
+        output_path = output_dir / "combined_condition_election_chart.png"
+
+        self.create_combined_condition_election_chart(
+            proportions_data, title, str(output_path), sample_sizes
+        )
+
     def save_metadata(self, output_dir: Path) -> None:
         """Save visualization metadata."""
         logger.info("💾 Saving metadata...")
@@ -855,6 +1142,11 @@ class TopicProportionVisualizer:
 
         # 4. Election date by condition visualization
         self.create_election_date_by_condition_visualization(election_dir)
+
+        # 5. Combined condition-election visualization
+        combined_dir = base_output_dir / "combined_conditions"
+        combined_dir.mkdir(exist_ok=True)
+        self.create_combined_condition_election_visualization(combined_dir)
 
         # Save metadata
         self.save_metadata(base_output_dir)
