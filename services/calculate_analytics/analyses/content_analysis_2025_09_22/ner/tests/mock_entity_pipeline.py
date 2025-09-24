@@ -74,7 +74,7 @@ def create_mock_user_df() -> pd.DataFrame:
         user_did = f"did:plc:mock_user_{i+1}"
         condition = conditions[i % 3]
         users_data.append({
-            "user_did": user_did,
+            "bluesky_user_did": user_did,
             "condition": condition,
             "created_at": "2024-01-01T00:00:00Z",
             "updated_at": "2024-01-01T00:00:00Z"
@@ -107,7 +107,7 @@ def create_mock_user_to_content_in_feeds() -> Dict[str, Dict[str, Set[str]]]:
     feed_dates = ["2024-10-01", "2024-11-25"]  # pre-election, post-election
 
     for _, user_row in user_df.iterrows():
-        user_did = user_row["user_did"]
+        user_did = user_row["bluesky_user_did"]
         user_to_content_in_feeds[user_did] = {}
         
         # Assign different posts to pre/post periods
@@ -144,7 +144,7 @@ def run_mock_entity_pipeline():
     user_df = create_mock_user_df()
     print(f"Created {len(user_df)} mock users:")
     for _, row in user_df.iterrows():
-        print(f"  {row['user_did']}: {row['condition']}")
+        print(f"  {row['bluesky_user_did']}: {row['condition']}")
     
     user_to_content_in_feeds = create_mock_user_to_content_in_feeds()
     print(f"\nCreated feeds for {len(user_to_content_in_feeds)} users:")

@@ -1,0 +1,94 @@
+{
+  "visualization_type": "named_entity_recognition",
+  "creation_timestamp": "2025-09-24-22:23:23",
+  "election_date": "2024-11-05",
+  "total_conditions": 3,
+  "conditions": [
+    "reverse_chronological",
+    "engagement",
+    "representative_diversification"
+  ],
+  "top_10_entities_by_condition": {
+    "reverse_chronological": [
+      "trump",
+      "biden",
+      "texas",
+      "harris",
+      "department of justice",
+      "blinken",
+      "massachusetts",
+      "new york",
+      "pentagon",
+      "afghanistan"
+    ],
+    "engagement": [
+      "biden",
+      "trump",
+      "texas",
+      "pentagon",
+      "mcconnell",
+      "kentucky",
+      "blinken",
+      "european union",
+      "brussels",
+      "this week"
+    ],
+    "representative_diversification": [
+      "biden",
+      "trump",
+      "texas",
+      "blinken",
+      "european union",
+      "abbott",
+      "pentagon",
+      "the federal reserve",
+      "california",
+      "today"
+    ]
+  },
+  "top_10_entities_pre_election": [
+    "trump",
+    "biden",
+    "european union",
+    "texas",
+    "harris",
+    "pentagon",
+    "afghanistan",
+    "brussels",
+    "this week",
+    "california"
+  ],
+  "top_10_entities_post_election": [
+    "biden",
+    "trump",
+    "texas",
+    "department of justice",
+    "blinken",
+    "mcconnell",
+    "kentucky",
+    "abbott",
+    "new york",
+    "pentagon"
+  ],
+  "figure_parameters": {
+    "figsize": [
+      12,
+      8
+    ],
+    "dpi": 300,
+    "facecolor": "white"
+  },
+  "color_palette": [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf"
+  ],
+  "note": "NER analysis with spaCy en_core_web_sm model focusing on PERSON, ORG, GPE, DATE entities"
+}

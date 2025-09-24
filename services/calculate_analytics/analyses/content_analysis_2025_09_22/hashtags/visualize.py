@@ -323,31 +323,19 @@ def create_rank_change_visualization(
                 }
             )
 
-    # Sort by magnitude of change (descending)
-    hashtags_data.sort(key=lambda x: abs(x["change"]), reverse=True)
+    # Sort by change value (positive at top, negative at bottom)
+    # For tornado chart: highest positive at top, most negative at bottom
+    # Use ascending order so matplotlib plots positive values at top
+    hashtags_data.sort(key=lambda x: x["change"], reverse=False)
 
     # Create tornado chart
     fig, ax = plt.subplots(figsize=(14, 10))
 
-    # Separate hashtags by status
-    improved_hashtags = [h for h in hashtags_data if h["status"] == "improved"]
-    declined_hashtags = [h for h in hashtags_data if h["status"] == "declined"]
-    dropped_hashtags = [h for h in hashtags_data if h["status"] == "dropped"]
-    new_hashtags = [h for h in hashtags_data if h["status"] == "new"]
-    unchanged_hashtags = [h for h in hashtags_data if h["status"] == "unchanged"]
-
-    # Combine all hashtags for y-axis positioning
-    all_hashtags = (
-        improved_hashtags
-        + declined_hashtags
-        + dropped_hashtags
-        + new_hashtags
-        + unchanged_hashtags
-    )
-    y_positions = range(len(all_hashtags))
+    # Use the sorted hashtags directly for y-axis positioning
+    y_positions = range(len(hashtags_data))
 
     # Create horizontal bars
-    for i, hashtag_data in enumerate(all_hashtags):
+    for i, hashtag_data in enumerate(hashtags_data):
         hashtag = hashtag_data["hashtag"]
         change = hashtag_data["change"]
         status = hashtag_data["status"]
@@ -412,7 +400,7 @@ def create_rank_change_visualization(
 
     # Set y-axis labels
     ax.set_yticks(y_positions)
-    ax.set_yticklabels([f"#{h['hashtag']}" for h in all_hashtags])
+    ax.set_yticklabels([f"#{h['hashtag']}" for h in hashtags_data])
 
     # Set x-axis
     ax.set_xlabel("Δ Rank (Positive = Improved)")

@@ -312,31 +312,19 @@ def create_rank_change_visualization(
                 }
             )
 
-    # Sort by magnitude of change (descending)
-    entities_data.sort(key=lambda x: abs(x["change"]), reverse=True)
+    # Sort by change value (positive at top, negative at bottom)
+    # For tornado chart: highest positive at top, most negative at bottom
+    # Use ascending order so matplotlib plots positive values at top
+    entities_data.sort(key=lambda x: x["change"], reverse=False)
 
     # Create tornado chart
     fig, ax = plt.subplots(figsize=(14, 10))
 
-    # Separate entities by status
-    improved_entities = [e for e in entities_data if e["status"] == "improved"]
-    declined_entities = [e for e in entities_data if e["status"] == "declined"]
-    dropped_entities = [e for e in entities_data if e["status"] == "dropped"]
-    new_entities = [e for e in entities_data if e["status"] == "new"]
-    unchanged_entities = [e for e in entities_data if e["status"] == "unchanged"]
-
-    # Combine all entities for y-axis positioning
-    all_entities = (
-        improved_entities
-        + declined_entities
-        + dropped_entities
-        + new_entities
-        + unchanged_entities
-    )
-    y_positions = range(len(all_entities))
+    # Use the sorted entities directly for y-axis positioning
+    y_positions = range(len(entities_data))
 
     # Create horizontal bars
-    for i, entity_data in enumerate(all_entities):
+    for i, entity_data in enumerate(entities_data):
         entity = entity_data["entity"]
         change = entity_data["change"]
         status = entity_data["status"]
@@ -401,7 +389,7 @@ def create_rank_change_visualization(
 
     # Set y-axis labels
     ax.set_yticks(y_positions)
-    ax.set_yticklabels([e["entity"] for e in all_entities])
+    ax.set_yticklabels([e["entity"] for e in entities_data])
 
     # Set x-axis
     ax.set_xlabel("Δ Rank (Positive = Improved)")
