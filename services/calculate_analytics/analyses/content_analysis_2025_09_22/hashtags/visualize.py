@@ -10,6 +10,7 @@ import csv
 import matplotlib.pyplot as plt
 from typing import Dict
 from lib.helper import generate_current_datetime_str
+from lib.constants import project_home_directory
 
 
 def export_top_hashtags_to_csv(
@@ -529,7 +530,11 @@ def create_all_visualizations(aggregated_data: Dict) -> str:
 
     # Create output directory structure
     timestamp = generate_current_datetime_str()
-    base_output_dir = "services/calculate_analytics/analyses/content_analysis_2025_09_22/hashtags/results"
+    # Use project home directory with relative path
+    base_output_dir = os.path.join(
+        project_home_directory,
+        "services/calculate_analytics/analyses/content_analysis_2025_09_22/hashtags/results",
+    )
     output_dir = os.path.join(base_output_dir, timestamp)
 
     # Create subdirectories

@@ -13,6 +13,7 @@ import numpy as np
 from collections import Counter
 from typing import Dict, Optional
 from lib.helper import generate_current_datetime_str
+from lib.constants import project_home_directory
 
 
 def export_top_entities_to_csv(
@@ -624,7 +625,11 @@ def create_all_visualizations(
     # Create timestamped directory structure
     timestamp = generate_current_datetime_str()
     if output_dir is None:
-        output_dir = f"services/calculate_analytics/analyses/content_analysis_2025_09_22/ner/results/{timestamp}"
+        # Use project home directory with relative path
+        output_dir = os.path.join(
+            project_home_directory,
+            f"services/calculate_analytics/analyses/content_analysis_2025_09_22/ner/results/{timestamp}",
+        )
 
     base_dir = output_dir
 
