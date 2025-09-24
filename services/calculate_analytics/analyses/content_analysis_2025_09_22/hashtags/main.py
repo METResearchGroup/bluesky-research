@@ -23,6 +23,9 @@ from services.calculate_analytics.analyses.content_analysis_2025_09_22.hashtags.
 from services.calculate_analytics.analyses.content_analysis_2025_09_22.hashtags.transform import (
     aggregate_hashtags_by_condition_and_pre_post,
 )
+from services.calculate_analytics.analyses.content_analysis_2025_09_22.hashtags.visualize import (
+    create_all_visualizations,
+)
 
 logger = get_logger(__file__)
 
@@ -94,14 +97,23 @@ def do_hashtag_analysis_and_export_results(
 
     # aggregate hashtags by condition and pre/post-election
     try:
-        aggregated_data = aggregate_hashtags_by_condition_and_pre_post(uri_to_hashtags)
+        aggregated_data = aggregate_hashtags_by_condition_and_pre_post(
+            uri_to_hashtags, user_df, user_to_content_in_feeds
+        )
     except Exception as e:
         logger.error(
             f"Failed to aggregate hashtags by condition and pre/post-election: {e}"
         )
         raise
 
-    # TODO: create visualizations
+    # create visualizations
+    try:
+        output_dir = create_all_visualizations(aggregated_data)
+        logger.info(f"Visualizations created in: {output_dir}")
+    except Exception as e:
+        logger.error(f"Failed to create visualizations: {e}")
+        raise
+
     return uri_to_hashtags, aggregated_data
 
 
