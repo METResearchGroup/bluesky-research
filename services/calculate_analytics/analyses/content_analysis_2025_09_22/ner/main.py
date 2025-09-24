@@ -20,6 +20,12 @@ from services.calculate_analytics.shared.data_loading.posts import (
     load_preprocessed_posts_by_uris,
 )
 from services.calculate_analytics.shared.data_loading.users import load_user_data
+from services.calculate_analytics.analyses.content_analysis_2025_09_22.ner.transform import (
+    aggregate_entities_by_condition_and_pre_post,
+)
+from services.calculate_analytics.analyses.content_analysis_2025_09_22.ner.visualize import (
+    create_all_visualizations,
+)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 current_datetime_str: str = generate_current_datetime_str()
@@ -84,18 +90,40 @@ def do_ner_and_export_results(
     user_df: pd.DataFrame,
     user_to_content_in_feeds: dict[str, dict[str, set[str]]],
 ):
-    """Extract entities for all posts."""
+    """Extract entities for all posts and create visualizations."""
     # get entities for all posts.
     try:
         uri_to_entities_map: dict[str, list[dict[str, str]]] = get_entities_for_posts(
             uri_to_text
         )
+        logger.info(f"Extracted entities for {len(uri_to_entities_map)} posts")
     except Exception as e:
         logger.error(f"Failed to get entities for posts: {e}")
         raise
 
-    # slice entities by condition and pre/post-election.
-    return uri_to_entities_map
+    # Aggregate entities by condition and pre/post-election
+    try:
+        aggregated_data = aggregate_entities_by_condition_and_pre_post(
+            uri_to_entities_map=uri_to_entities_map,
+            user_df=user_df,
+            user_to_content_in_feeds=user_to_content_in_feeds,
+            top_n=20,
+            election_cutoff_date="2024-11-05",
+        )
+        logger.info("Successfully aggregated entities by condition and election period")
+    except Exception as e:
+        logger.error(f"Failed to aggregate entities: {e}")
+        raise
+
+    # Create visualizations
+    try:
+        output_dir = create_all_visualizations(aggregated_data)
+        logger.info(f"Visualizations created successfully at: {output_dir}")
+    except Exception as e:
+        logger.error(f"Failed to create visualizations: {e}")
+        raise
+
+    return uri_to_entities_map, aggregated_data
 
 
 def main():
