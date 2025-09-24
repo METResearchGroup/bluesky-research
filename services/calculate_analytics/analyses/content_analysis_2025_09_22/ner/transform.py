@@ -58,7 +58,7 @@ def aggregate_entities_by_condition_and_pre_post(
     # Get user conditions mapping
     user_conditions = {}
     for _, row in user_df.iterrows():
-        user_conditions[row["user_did"]] = row["condition"]
+        user_conditions[row["bluesky_user_did"]] = row["condition"]
 
     # Process each user's feeds
     for user_did, feeds_by_date in user_to_content_in_feeds.items():
