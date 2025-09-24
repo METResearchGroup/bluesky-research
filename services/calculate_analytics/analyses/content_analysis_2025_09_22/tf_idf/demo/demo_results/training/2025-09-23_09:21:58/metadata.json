@@ -1,0 +1,55 @@
+{
+  "run_timestamp": "2025-09-23_09:21:58",
+  "mode": "demo",
+  "topic_id": 0,
+  "total_documents_analyzed": 600,
+  "tfidf_model_params": {
+    "max_features": 500,
+    "ngram_range": [
+      1,
+      2
+    ],
+    "min_df": 3,
+    "max_df": 0.8,
+    "stop_words": "english"
+  },
+  "vectorizer_path": "demo_results/training/2025-09-23_09:21:58/vectorizer.pkl",
+  "feature_names_path": "demo_results/training/2025-09-23_09:21:58/feature_names.json",
+  "study_start_date": "2024-01-01",
+  "study_end_date": "2024-12-31",
+  "election_date": "2024-11-05",
+  "output_schema": "post_id, user_id, topic, tfidf_vector, top_terms, timestamp_YYYY-MM-DD_HH:MM:SS, condition, period",
+  "n_posts_per_group": 100,
+  "sources": [
+    "A",
+    "B",
+    "C"
+  ],
+  "time_periods": [
+    "pre",
+    "post"
+  ],
+  "global_features": 500,
+  "group_features": {
+    "A_pre": 200,
+    "A_post": 200,
+    "B_pre": 182,
+    "B_post": 200,
+    "C_pre": 169,
+    "C_post": 192
+  },
+  "analysis_types": [
+    "overall",
+    "condition_control",
+    "condition_treatment",
+    "condition_engagement",
+    "period_pre",
+    "period_post",
+    "group_A_pre",
+    "group_A_post",
+    "group_B_pre",
+    "group_B_post",
+    "group_C_pre",
+    "group_C_post"
+  ]
+}
