@@ -56,46 +56,132 @@ def create_condition_visualizations(aggregated_data: Dict, output_dir: str):
             entities_dict, csv_path, f"Top Entities - {condition_labels[condition]}"
         )
 
-    # Create grouped bar chart
-    fig, ax = plt.subplots(figsize=(14, 10))
+    # Create horizontal bar chart with top 10 entities per condition overlaid
+    fig, ax = plt.subplots(figsize=(16, 12))
 
-    # Prepare data for grouped bar chart
     conditions = list(condition_data.keys())
-    all_entities = set()
-    for top_entities_obj in condition_data.values():
-        all_entities.update(top_entities_obj.get_top_n(10).keys())
 
-    # Get top 10 entities across all conditions
-    entity_counts = Counter()
-    for top_entities_obj in condition_data.values():
-        entities_dict = top_entities_obj.get_top_n(10)
-        for entity, count in entities_dict.items():
-            entity_counts[entity] += count
+    # Get top 10 entities for each condition
+    condition_top_entities = {}
+    for condition, top_entities_obj in condition_data.items():
+        top_entities = top_entities_obj.get_top_n(10)
+        condition_top_entities[condition] = top_entities
 
-    top_entities = [entity for entity, _ in entity_counts.most_common(10)]
+    # Create horizontal bars for each condition
+    y_positions = []
+    entity_labels = []
+    bar_colors = []
+    bar_width = 0.6
 
-    # Create grouped bar chart
-    x = np.arange(len(top_entities))
-    width = 0.25
+    # Calculate max frequency for scaling
+    max_freq = max(
+        max(entities.values()) if entities else 0
+        for entities in condition_top_entities.values()
+    )
 
+    # Create bars for each condition
     for i, condition in enumerate(conditions):
-        entities_dict = condition_data[condition].get_top_n(10)
-        counts = [entities_dict.get(entity, 0) for entity in top_entities]
-        color = condition_colors[condition]
-        label = condition_labels[condition]
-        ax.bar(x + i * width, counts, width, label=label, color=color, alpha=0.8)
+        entities = condition_top_entities[condition]
+        if entities:
+            # Sort entities by frequency (descending)
+            sorted_entities = sorted(entities.items(), key=lambda x: x[1], reverse=True)
 
-    ax.set_xlabel("Entities")
-    ax.set_ylabel("Frequency")
+            for j, (entity_name, frequency) in enumerate(sorted_entities):
+                y_pos = i * 10 + j  # Offset each condition by 10 positions
+                y_positions.append(y_pos)
+                entity_labels.append(entity_name)
+                bar_colors.append(condition_colors[condition])
+
+                # Create horizontal bar
+                ax.barh(
+                    y_pos,
+                    frequency,
+                    bar_width,
+                    color=condition_colors[condition],
+                    alpha=0.8,
+                )
+
+                # Add entity name and frequency as text
+                ax.text(
+                    frequency + max_freq * 0.02,
+                    y_pos,
+                    f"{entity_name} ({frequency})",
+                    va="center",
+                    fontsize=9,
+                    fontweight="bold",
+                )
+
+    # Set y-axis labels and ticks
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels(entity_labels)
+    ax.set_xlabel("Frequency")
     ax.set_title("Top 10 Entities by Condition")
-    ax.set_xticks(x + width)
-    ax.set_xticklabels(top_entities, rotation=45, ha="right")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+    ax.grid(True, alpha=0.3, axis="x")
+
+    # Set x-axis limit with some padding
+    ax.set_xlim(0, max_freq * 1.3)
+
+    # Create legend
+    legend_elements = []
+    for condition in conditions:
+        legend_elements.append(
+            plt.Rectangle(
+                (0, 0),
+                1,
+                1,
+                facecolor=condition_colors[condition],
+                alpha=0.8,
+                label=condition_labels[condition],
+            )
+        )
+    ax.legend(handles=legend_elements, loc="upper right")
 
     plt.tight_layout()
     plt.savefig(
         os.path.join(output_dir, "top_10_entities_by_condition.png"),
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.close()
+
+    # Create a separate detailed chart showing top 5 entities per condition
+    fig, axes = plt.subplots(1, 3, figsize=(18, 8))
+
+    for i, condition in enumerate(conditions):
+        entities = condition_top_entities[condition]
+        if entities:
+            # Get top 5 entities for this condition
+            top_5 = dict(list(entities.items())[:5])
+
+            entity_names = list(top_5.keys())
+            frequencies = list(top_5.values())
+
+            # Create horizontal bar chart for this condition
+            axes[i].barh(
+                range(len(entity_names)),
+                frequencies,
+                color=condition_colors[condition],
+                alpha=0.8,
+            )
+            axes[i].set_yticks(range(len(entity_names)))
+            axes[i].set_yticklabels(entity_names)
+            axes[i].set_xlabel("Frequency")
+            axes[i].set_title(f"Top 5 Entities - {condition_labels[condition]}")
+            axes[i].grid(True, alpha=0.3, axis="x")
+        else:
+            axes[i].text(
+                0.5,
+                0.5,
+                "No entities found",
+                ha="center",
+                va="center",
+                transform=axes[i].transAxes,
+            )
+            axes[i].set_title(f"Top 5 Entities - {condition_labels[condition]}")
+
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(output_dir, "top_5_entities_by_condition_detailed.png"),
         dpi=300,
         bbox_inches="tight",
     )
@@ -180,9 +266,12 @@ def create_rank_change_visualization(
 
     # Prepare data for rank movement analysis
     pre_to_post = ranking_comparison["pre_to_post"]
+    post_to_pre = ranking_comparison["post_to_pre"]
 
     # Collect all entities with their rank changes
     entities_data = []
+
+    # Process pre-to-post changes
     for entity, data in pre_to_post.items():
         if isinstance(data["change"], int):
             entities_data.append(
@@ -209,19 +298,41 @@ def create_rank_change_visualization(
                 }
             )
 
+    # Process post-to-pre changes (for new entities)
+    for entity, data in post_to_pre.items():
+        if isinstance(data["change"], int) and data["change"] > 0:
+            # This entity appeared in post-election but not in pre-election top 10
+            entities_data.append(
+                {
+                    "entity": entity,
+                    "change": 20,  # Large positive for visualization
+                    "pre_rank": 15,  # Off chart
+                    "post_rank": data["post_rank"],
+                    "status": "new",
+                }
+            )
+
     # Sort by magnitude of change (descending)
     entities_data.sort(key=lambda x: abs(x["change"]), reverse=True)
 
     # Create tornado chart
     fig, ax = plt.subplots(figsize=(14, 10))
 
-    # Separate improved and declined entities
+    # Separate entities by status
     improved_entities = [e for e in entities_data if e["status"] == "improved"]
     declined_entities = [e for e in entities_data if e["status"] == "declined"]
     dropped_entities = [e for e in entities_data if e["status"] == "dropped"]
+    new_entities = [e for e in entities_data if e["status"] == "new"]
+    unchanged_entities = [e for e in entities_data if e["status"] == "unchanged"]
 
     # Combine all entities for y-axis positioning
-    all_entities = improved_entities + declined_entities + dropped_entities
+    all_entities = (
+        improved_entities
+        + declined_entities
+        + dropped_entities
+        + new_entities
+        + unchanged_entities
+    )
     y_positions = range(len(all_entities))
 
     # Create horizontal bars
@@ -231,8 +342,8 @@ def create_rank_change_visualization(
         status = entity_data["status"]
 
         if status == "improved":
-            # Bar extending to the right (positive)
-            ax.barh(i, change, color="darkgreen", alpha=0.8)
+            # Bar extending to the right (positive) - light green
+            ax.barh(i, change, color="lightgreen", alpha=0.8)
             ax.text(
                 change + 0.5,
                 i,
@@ -242,8 +353,8 @@ def create_rank_change_visualization(
                 fontweight="bold",
             )
         elif status == "declined":
-            # Bar extending to the left (negative)
-            ax.barh(i, change, color="darkred", alpha=0.8)
+            # Bar extending to the left (negative) - light red
+            ax.barh(i, change, color="lightcoral", alpha=0.8)
             ax.text(
                 change - 0.5,
                 i,
@@ -253,8 +364,8 @@ def create_rank_change_visualization(
                 fontsize=9,
                 fontweight="bold",
             )
-        else:  # dropped
-            # Bar extending to the left (negative)
+        elif status == "dropped":
+            # Bar extending to the left (negative) - dark red
             ax.barh(i, change, color="darkred", alpha=0.8)
             ax.text(
                 change - 0.5,
@@ -262,6 +373,28 @@ def create_rank_change_visualization(
                 "Dropped",
                 va="center",
                 ha="right",
+                fontsize=9,
+                fontweight="bold",
+            )
+        elif status == "new":
+            # Bar extending to the right (positive) - dark green
+            ax.barh(i, change, color="darkgreen", alpha=0.8)
+            ax.text(
+                change + 0.5,
+                i,
+                "New",
+                va="center",
+                fontsize=9,
+                fontweight="bold",
+            )
+        else:  # unchanged
+            # Bar extending to the right (zero) - grey
+            ax.barh(i, change, color="grey", alpha=0.8)
+            ax.text(
+                change + 0.5,
+                i,
+                "No Change",
+                va="center",
                 fontsize=9,
                 fontweight="bold",
             )
@@ -285,17 +418,21 @@ def create_rank_change_visualization(
         pad=20,
     )
 
-    # Add legend
+    # Add legend with more categories
     legend_elements = [
         plt.Rectangle(
-            (0, 0), 1, 1, facecolor="darkgreen", alpha=0.8, label="Improved Rank"
+            (0, 0), 1, 1, facecolor="lightgreen", alpha=0.8, label="Improved Rank"
         ),
         plt.Rectangle(
-            (0, 0), 1, 1, facecolor="darkred", alpha=0.8, label="Declined Rank"
+            (0, 0), 1, 1, facecolor="lightcoral", alpha=0.8, label="Declined Rank"
+        ),
+        plt.Rectangle(
+            (0, 0), 1, 1, facecolor="darkgreen", alpha=0.8, label="New (Post Only)"
         ),
         plt.Rectangle(
             (0, 0), 1, 1, facecolor="darkred", alpha=0.8, label="Dropped (Pre Only)"
         ),
+        plt.Rectangle((0, 0), 1, 1, facecolor="grey", alpha=0.8, label="No Change"),
     ]
     ax.legend(handles=legend_elements, loc="upper right")
 
