@@ -70,9 +70,9 @@ def do_setup():
                 if row.uri not in uri_to_text:
                     uri_to_text[row.uri] = row.text
 
-        logger.info(f"Loaded {len(uri_to_text)} texts for NER.")
+        logger.info(f"Loaded {len(uri_to_text)} texts for Hashtag Analysis.")
     except Exception as e:
-        logger.error(f"Failed to get posts for NER: {e}")
+        logger.error(f"Failed to get posts for Hashtag Analysis: {e}")
         raise
 
     return {
