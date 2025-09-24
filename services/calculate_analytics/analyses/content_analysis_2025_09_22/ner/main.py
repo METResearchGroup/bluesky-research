@@ -1,0 +1,125 @@
+"""Main script for running NER on feed posts dataset."""
+
+import os
+
+import pandas as pd
+
+from lib.helper import generate_current_datetime_str, get_partition_dates
+from lib.log.logger import get_logger
+from ml_tooling.ner.model import get_entities_for_posts
+from services.calculate_analytics.shared.constants import (
+    STUDY_START_DATE,
+    STUDY_END_DATE,
+    exclude_partition_dates,
+)
+from services.calculate_analytics.shared.data_loading.feeds import (
+    get_all_post_uris_used_in_feeds,
+    get_post_uris_used_in_feeds_per_user_per_day,
+)
+from services.calculate_analytics.shared.data_loading.posts import (
+    load_preprocessed_posts_by_uris,
+)
+from services.calculate_analytics.shared.data_loading.users import load_user_data
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+current_datetime_str: str = generate_current_datetime_str()
+
+logger = get_logger(__file__)
+
+
+def do_setup():
+    """Setup steps for analysis."""
+
+    # load users and partition dates.
+    try:
+        user_df, _, valid_study_users_dids = load_user_data()
+        partition_dates: list[str] = get_partition_dates(
+            start_date=STUDY_START_DATE,
+            end_date=STUDY_END_DATE,
+            exclude_partition_dates=exclude_partition_dates,  # feed generation was broken on this date.
+        )
+    except Exception as e:
+        logger.error(f"Failed to load user data and/or partition dates: {e}")
+        raise
+
+    # load feeds: per-user, per-date, get list of URIs of posts in feeds.
+    try:
+        user_to_content_in_feeds: dict[str, dict[str, set[str]]] = (
+            get_post_uris_used_in_feeds_per_user_per_day(
+                valid_study_users_dids=valid_study_users_dids
+            )
+        )
+    except Exception as e:
+        logger.error(f"Failed to get feeds per user: {e}")
+        raise
+
+    # load posts as hashmap of URI to text.
+    try:
+        feed_content_uris: set[str] = get_all_post_uris_used_in_feeds(
+            user_to_content_in_feeds=user_to_content_in_feeds
+        )
+        uri_to_text: dict[str, str] = {}
+        for partition_date in partition_dates:
+            preprocessed_posts: pd.DataFrame = load_preprocessed_posts_by_uris(
+                uris=feed_content_uris, partition_date=partition_date
+            )
+            for row in preprocessed_posts.itertuples():
+                if row.uri not in uri_to_text:
+                    uri_to_text[row.uri] = row.text
+
+        logger.info(f"Loaded {len(uri_to_text)} texts for NER.")
+    except Exception as e:
+        logger.error(f"Failed to get posts for NER: {e}")
+        raise
+
+    return {
+        "user_df": user_df,
+        "user_to_content_in_feeds": user_to_content_in_feeds,
+        "uri_to_text": uri_to_text,
+    }
+
+
+def do_ner_and_export_results(
+    uri_to_text: dict[str, str],
+    user_df: pd.DataFrame,
+    user_to_content_in_feeds: dict[str, dict[str, set[str]]],
+):
+    """Extract entities for all posts."""
+    # get entities for all posts.
+    try:
+        uri_to_entities_map: dict[str, list[dict[str, str]]] = get_entities_for_posts(
+            uri_to_text
+        )
+    except Exception as e:
+        logger.error(f"Failed to get entities for posts: {e}")
+        raise
+
+    # slice entities by condition and pre/post-election.
+    return uri_to_entities_map
+
+
+def main():
+    try:
+        setup_objs = do_setup()
+        user_df: pd.DataFrame = setup_objs["user_df"]
+        user_to_content_in_feeds: dict[str, dict[str, set[str]]] = setup_objs[
+            "user_to_content_in_feeds"
+        ]
+        uri_to_text: dict[str, str] = setup_objs["uri_to_text"]
+    except Exception as e:
+        logger.error(f"Failed to setup: {e}")
+        raise
+
+    try:
+        do_ner_and_export_results(
+            uri_to_text=uri_to_text,
+            user_df=user_df,
+            user_to_content_in_feeds=user_to_content_in_feeds,
+        )
+    except Exception as e:
+        logger.error(f"Failed to do aggregations and export results: {e}")
+        raise
+
+
+if __name__ == "__main__":
+    main()
