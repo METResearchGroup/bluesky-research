@@ -1,43 +1,87 @@
 #!/bin/bash
-#SBATCH --job-name=hashtag_analysis_prod
-#SBATCH --output=hashtag_analysis_prod_%j.out
-#SBATCH --error=hashtag_analysis_prod_%j.err
-#SBATCH --time=2:00:00
+
+#SBATCH -A p32375
+#SBATCH -p normal
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH -t 2:00:00
 #SBATCH --mem=16G
-#SBATCH --cpus-per-task=4
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=mark@example.com
+#SBATCH --mail-user=markptorres1@gmail.com
+#SBATCH --job-name=hashtag_analysis_prod_%j
+#SBATCH --output=/projects/p32375/bluesky-research/lib/log/study_analytics/hashtag_analysis_prod-%j.log
 
-# Set up environment
-export PYTHONPATH="/Users/mark/Documents/work/bluesky-research:$PYTHONPATH"
+# Production Hashtag Analysis script for hashtag extraction and visualization
+# This script runs hashtag analysis on SLURM with production data
+# Includes regex-based hashtag extraction and comprehensive visualizations
 
-# Activate conda environment
-source ~/miniconda3/etc/profile.d/conda.sh
-conda activate bluesky_research
+# Set script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Navigate to project directory
-cd /Users/mark/Documents/work/bluesky-research
+# Load conda environment
+CONDA_PATH="/hpc/software/mamba/23.1.0/etc/profile.d/conda.sh"
 
-# Log start time
-echo "Starting hashtag analysis at $(date)"
-echo "Job ID: $SLURM_JOB_ID"
-echo "Node: $SLURM_NODELIST"
-echo "CPUs: $SLURM_CPUS_PER_TASK"
+# Set pythonpath
+PYTHONPATH="/projects/p32375/bluesky-research/:$PYTHONPATH"
+
+# Build python command for hashtag analysis
+PYTHON_CMD="/projects/p32375/bluesky-research/services/calculate_analytics/analyses/content_analysis_2025_09_22/hashtags/main.py"
+
+echo "🏷️ Starting Production Hashtag Analysis"
+echo "======================================="
+echo "SLURM Job ID: $SLURM_JOB_ID"
+echo "Running python command: $PYTHON_CMD"
 echo "Memory: $SLURM_MEM_PER_NODE MB"
+echo "Time Limit: $SLURM_TIME_LIMIT"
+echo ""
+
+# Change to script directory
+cd "$SCRIPT_DIR"
+
+# Activate conda environment and set PYTHONPATH
+source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTHONPATH
 
 # Run the hashtag analysis
-echo "Running hashtag analysis..."
-python -m services.calculate_analytics.analyses.content_analysis_2025_09_22.hashtags.main
+echo "🏷️ Starting production hashtag analysis..."
+echo "📊 Features:"
+echo "  - Regex-based hashtag extraction (#hashtag format)"
+echo "  - Case normalization and canonicalization"
+echo "  - Frequency threshold filtering (default: 5 occurrences)"
+echo "  - Condition-based analysis (Reverse Chronological, Engagement, Diversified)"
+echo "  - Pre/post election period analysis"
+echo "  - Comprehensive visualizations and CSV exports"
+echo ""
 
-# Check exit status
-if [ $? -eq 0 ]; then
-    echo "Hashtag analysis completed successfully at $(date)"
-    echo "Results saved to: services/calculate_analytics/analyses/content_analysis_2025_09_22/hashtags/results/"
+python $PYTHON_CMD
+
+# Check exit code
+exit_code=$?
+if [ $exit_code -eq 0 ]; then
+    echo ""
+    echo "🎉 Production hashtag analysis completed successfully!"
+    echo "📁 Check the results directory for outputs:"
+    echo "  - Hashtag frequency analysis by condition"
+    echo "  - Pre/post election hashtag comparisons"
+    echo "  - Rank change visualizations (tornado charts)"
+    echo "  - CSV exports of top hashtags"
+    echo "  - Comprehensive visualization metadata"
+    echo ""
+    echo "📊 Analysis includes:"
+    echo "  - Top 10 hashtags per condition"
+    echo "  - Election period stratification (cutoff: 2024-11-05)"
+    echo "  - Hashtag normalization and canonicalization"
+    echo "  - Professional visualizations with consistent styling"
 else
-    echo "Hashtag analysis failed with exit code $? at $(date)"
-    exit 1
+    echo ""
+    echo "❌ Production hashtag analysis failed with exit code $exit_code"
+    echo "📋 Check the log file for details: /projects/p32375/bluesky-research/lib/log/study_analytics/hashtag_analysis_prod-$SLURM_JOB_ID.log"
+    echo ""
+    echo "🔧 Common troubleshooting:"
+    echo "  - Check data availability and permissions"
+    echo "  - Verify conda environment has all required packages"
+    echo "  - Ensure regex processing libraries are available"
+    exit $exit_code
 fi
 
-# Log completion
-echo "Job completed at $(date)"
-echo "Total runtime: $SECONDS seconds"
+echo "✅ SLURM job completed successfully"
+exit 0
