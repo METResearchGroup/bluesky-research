@@ -1,5 +1,6 @@
 """Main script for running NER on feed posts dataset."""
 
+import json
 import os
 
 import pandas as pd
@@ -85,6 +86,19 @@ def do_setup():
     }
 
 
+def export_user_posts(user_to_content_in_feeds, uri_to_text):
+    """Exports user posts to local storage."""
+    timestamp = generate_current_datetime_str()
+    user_to_content_feeds_fp = os.path.join(
+        current_dir, timestamp, "user_to_content_in_feeds.json"
+    )
+    uri_to_text_fp = os.path.join(current_dir, timestamp, "uri_to_text.json")
+    with open(user_to_content_feeds_fp, "w") as f:
+        json.dump(user_to_content_in_feeds, f)
+    with open(uri_to_text_fp, "w") as f:
+        json.dump(uri_to_text, f)
+
+
 def do_ner_and_export_results(
     uri_to_text: dict[str, str],
     user_df: pd.DataFrame,
@@ -136,6 +150,15 @@ def main():
         uri_to_text: dict[str, str] = setup_objs["uri_to_text"]
     except Exception as e:
         logger.error(f"Failed to setup: {e}")
+        raise
+
+    try:
+        export_user_posts(
+            user_to_content_in_feeds=user_to_content_in_feeds,
+            uri_to_text=uri_to_text,
+        )
+    except Exception as e:
+        logger.error(f"Failed to export user posts: {e}")
         raise
 
     try:

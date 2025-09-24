@@ -1,8 +1,11 @@
 """Hashtag analysis."""
 
+import json
+import os
+
 import pandas as pd
 
-from lib.helper import get_partition_dates
+from lib.helper import get_partition_dates, generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.calculate_analytics.shared.constants import (
     STUDY_START_DATE,
@@ -28,6 +31,7 @@ from services.calculate_analytics.analyses.content_analysis_2025_09_22.hashtags.
 )
 
 logger = get_logger(__file__)
+current_dir = os.path.dirname(os.path.abspath(__file__))
 
 
 def do_setup():
@@ -80,6 +84,19 @@ def do_setup():
         "user_to_content_in_feeds": user_to_content_in_feeds,
         "uri_to_text": uri_to_text,
     }
+
+
+def export_user_posts(user_to_content_in_feeds, uri_to_text):
+    """Exports user posts to local storage."""
+    timestamp = generate_current_datetime_str()
+    user_to_content_feeds_fp = os.path.join(
+        current_dir, timestamp, "user_to_content_in_feeds.json"
+    )
+    uri_to_text_fp = os.path.join(current_dir, timestamp, "uri_to_text.json")
+    with open(user_to_content_feeds_fp, "w") as f:
+        json.dump(user_to_content_in_feeds, f)
+    with open(uri_to_text_fp, "w") as f:
+        json.dump(uri_to_text, f)
 
 
 def do_hashtag_analysis_and_export_results(
