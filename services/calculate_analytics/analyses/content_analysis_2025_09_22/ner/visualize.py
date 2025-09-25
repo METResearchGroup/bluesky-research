@@ -1,0 +1,680 @@
+"""Visualization module for NER analysis results.
+
+This module creates visualizations similar to the experimental results,
+consuming the structured data from transform.py.
+"""
+
+import os
+import json
+import csv
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+from collections import Counter
+from typing import Dict, Optional
+from lib.helper import generate_current_datetime_str
+from lib.constants import project_home_directory
+
+# Configuration constants
+TOP_N = 30  # Number of top entities to analyze
+
+
+def export_top_entities_to_csv(
+    entities_dict: Dict[str, int], output_path: str, title: str
+):
+    """Export top entities to CSV file sorted by count (descending)."""
+    # Sort entities by count (descending)
+    sorted_entities = sorted(entities_dict.items(), key=lambda x: x[1], reverse=True)
+
+    with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["term", "count"])
+        for entity, count in sorted_entities:
+            writer.writerow([entity, count])
+
+
+def create_condition_visualizations(aggregated_data: Dict, output_dir: str):
+    """Create visualizations for condition-based analysis."""
+
+    # Condition mapping for presentation
+    condition_labels = {
+        "reverse_chronological": "Reverse Chronological",
+        "engagement": "Engagement-Based",
+        "representative_diversification": "Diversified Extremity",
+    }
+
+    # Color palette
+    condition_colors = {
+        "reverse_chronological": "grey",
+        "engagement": "red",
+        "representative_diversification": "green",
+    }
+
+    condition_data = aggregated_data["condition"]
+
+    # Export CSV for each condition
+    for condition, top_entities_obj in condition_data.items():
+        entities_dict = top_entities_obj.get_top_n(TOP_N)
+        csv_path = os.path.join(output_dir, f"top_{TOP_N}_entities_{condition}.csv")
+        export_top_entities_to_csv(
+            entities_dict, csv_path, f"Top Entities - {condition_labels[condition]}"
+        )
+
+    # Create horizontal bar chart with top N entities per condition overlaid
+    fig, ax = plt.subplots(figsize=(16, 12))
+
+    conditions = list(condition_data.keys())
+
+    # Get top N entities for each condition
+    condition_top_entities = {}
+    for condition, top_entities_obj in condition_data.items():
+        top_entities = top_entities_obj.get_top_n(TOP_N)
+        condition_top_entities[condition] = top_entities
+
+    # Create horizontal bars for each condition
+    y_positions = []
+    entity_labels = []
+    bar_colors = []
+    bar_width = 0.6
+
+    # Calculate max frequency for scaling
+    max_freq = max(
+        max(entities.values()) if entities else 0
+        for entities in condition_top_entities.values()
+    )
+
+    # Create bars for each condition
+    for i, condition in enumerate(conditions):
+        entities = condition_top_entities[condition]
+        if entities:
+            # Sort entities by frequency (descending)
+            sorted_entities = sorted(entities.items(), key=lambda x: x[1], reverse=True)
+
+            for j, (entity_name, frequency) in enumerate(sorted_entities):
+                y_pos = i * TOP_N + j  # Offset each condition by TOP_N positions
+                y_positions.append(y_pos)
+                entity_labels.append(entity_name)
+                bar_colors.append(condition_colors[condition])
+
+                # Create horizontal bar
+                ax.barh(
+                    y_pos,
+                    frequency,
+                    bar_width,
+                    color=condition_colors[condition],
+                    alpha=0.8,
+                )
+
+                # Add entity name and frequency as text
+                ax.text(
+                    frequency + max_freq * 0.02,
+                    y_pos,
+                    f"{entity_name} ({frequency})",
+                    va="center",
+                    fontsize=9,
+                    fontweight="bold",
+                )
+
+    # Set y-axis labels and ticks
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels(entity_labels)
+    ax.set_xlabel("Frequency")
+    ax.set_title(f"Top {TOP_N} Entities by Condition")
+    ax.grid(True, alpha=0.3, axis="x")
+
+    # Set x-axis limit with some padding
+    ax.set_xlim(0, max_freq * 1.3)
+
+    # Create legend
+    legend_elements = []
+    for condition in conditions:
+        legend_elements.append(
+            plt.Rectangle(
+                (0, 0),
+                1,
+                1,
+                facecolor=condition_colors[condition],
+                alpha=0.8,
+                label=condition_labels[condition],
+            )
+        )
+    ax.legend(handles=legend_elements, loc="upper right")
+
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(output_dir, f"top_{TOP_N}_entities_by_condition.png"),
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.close()
+
+    # Create a separate detailed chart showing top 5 entities per condition
+    fig, axes = plt.subplots(1, 3, figsize=(18, 8))
+
+    for i, condition in enumerate(conditions):
+        entities = condition_top_entities[condition]
+        if entities:
+            # Get top 5 entities for this condition
+            top_5 = dict(list(entities.items())[:5])
+
+            entity_names = list(top_5.keys())
+            frequencies = list(top_5.values())
+
+            # Create horizontal bar chart for this condition
+            axes[i].barh(
+                range(len(entity_names)),
+                frequencies,
+                color=condition_colors[condition],
+                alpha=0.8,
+            )
+            axes[i].set_yticks(range(len(entity_names)))
+            axes[i].set_yticklabels(entity_names)
+            axes[i].set_xlabel("Frequency")
+            axes[i].set_title(f"Top 5 Entities - {condition_labels[condition]}")
+            axes[i].grid(True, alpha=0.3, axis="x")
+        else:
+            axes[i].text(
+                0.5,
+                0.5,
+                "No entities found",
+                ha="center",
+                va="center",
+                transform=axes[i].transAxes,
+            )
+            axes[i].set_title(f"Top 5 Entities - {condition_labels[condition]}")
+
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(output_dir, "top_5_entities_by_condition_detailed.png"),
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.close()
+
+
+def create_election_date_visualizations(
+    aggregated_data: Dict, ranking_comparison: Dict, output_dir: str
+):
+    """Create visualizations for election date analysis."""
+
+    election_data = aggregated_data["election_date"]
+
+    # Export CSV files for pre/post election entities
+    pre_entities_dict = election_data["pre_election"].get_top_n(TOP_N)
+    pre_csv_path = os.path.join(output_dir, f"top_{TOP_N}_entities_pre_election.csv")
+    export_top_entities_to_csv(
+        pre_entities_dict, pre_csv_path, "Top Entities - Pre-Election"
+    )
+
+    post_entities_dict = election_data["post_election"].get_top_n(TOP_N)
+    post_csv_path = os.path.join(output_dir, f"top_{TOP_N}_entities_post_election.csv")
+    export_top_entities_to_csv(
+        post_entities_dict, post_csv_path, "Top Entities - Post-Election"
+    )
+
+    # Create side-by-side bar chart
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+
+    # Pre-election
+    pre_entities = list(pre_entities_dict.keys())
+    pre_counts = list(pre_entities_dict.values())
+
+    ax1.barh(
+        range(len(pre_entities)),
+        pre_counts,
+        color="lightblue",
+        alpha=0.8,
+        edgecolor="navy",
+    )
+    ax1.set_yticks(range(len(pre_entities)))
+    ax1.set_yticklabels(pre_entities)
+    ax1.set_xlabel("Frequency")
+    ax1.set_title(f"Top {TOP_N} Entities - Pre-Election (≤ 2024-11-05)")
+    ax1.grid(True, alpha=0.3)
+
+    # Post-election
+    post_entities = list(post_entities_dict.keys())
+    post_counts = list(post_entities_dict.values())
+
+    ax2.barh(
+        range(len(post_entities)),
+        post_counts,
+        color="darkblue",
+        alpha=0.8,
+        edgecolor="navy",
+    )
+    ax2.set_yticks(range(len(post_entities)))
+    ax2.set_yticklabels(post_entities)
+    ax2.set_xlabel("Frequency")
+    ax2.set_title(f"Top {TOP_N} Entities - Post-Election (> 2024-11-05)")
+    ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(output_dir, f"top_{TOP_N}_entities_pre_post_election.png"),
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.close()
+
+    # Create rank change visualization (tornado chart)
+    create_rank_change_visualization(
+        ranking_comparison, output_dir, "overall_rank_change"
+    )
+
+
+def create_rank_change_visualization(
+    ranking_comparison: Dict, output_dir: str, filename_prefix: str
+):
+    """Create rank movement analysis visualization (tornado chart style)."""
+
+    # Prepare data for rank movement analysis
+    pre_to_post = ranking_comparison["pre_to_post"]
+    post_to_pre = ranking_comparison["post_to_pre"]
+
+    # Collect all entities with their rank changes
+    entities_data = []
+
+    # Process pre-to-post changes
+    for entity, data in pre_to_post.items():
+        if isinstance(data["change"], int):
+            entities_data.append(
+                {
+                    "entity": entity,
+                    "change": data["change"],
+                    "pre_rank": data["pre_rank"],
+                    "post_rank": data["post_rank"],
+                    "status": "improved"
+                    if data["change"] > 0
+                    else "declined"
+                    if data["change"] < 0
+                    else "unchanged",
+                }
+            )
+        else:  # N/A - entity disappeared
+            entities_data.append(
+                {
+                    "entity": entity,
+                    "change": -20,  # Large negative for visualization
+                    "pre_rank": data["pre_rank"],
+                    "post_rank": 15,  # Off chart
+                    "status": "dropped",
+                }
+            )
+
+    # Process post-to-pre changes (for new entities)
+    for entity, data in post_to_pre.items():
+        if isinstance(data["change"], int) and data["change"] > 0:
+            # This entity appeared in post-election but not in pre-election top N
+            entities_data.append(
+                {
+                    "entity": entity,
+                    "change": 20,  # Large positive for visualization
+                    "pre_rank": 15,  # Off chart
+                    "post_rank": data["post_rank"],
+                    "status": "new",
+                }
+            )
+
+    # Sort by change value (positive at top, negative at bottom)
+    # For tornado chart: highest positive at top, most negative at bottom
+    # Use ascending order so matplotlib plots positive values at top
+    entities_data.sort(key=lambda x: x["change"], reverse=False)
+
+    # Create tornado chart
+    fig, ax = plt.subplots(figsize=(14, 12))
+
+    # Use the sorted entities directly for y-axis positioning
+    y_positions = range(len(entities_data))
+
+    # Create horizontal bars
+    for i, entity_data in enumerate(entities_data):
+        entity = entity_data["entity"]
+        change = entity_data["change"]
+        status = entity_data["status"]
+
+        if status == "improved":
+            # Bar extending to the right (positive) - light green
+            ax.barh(i, change, color="lightgreen", alpha=0.8)
+            ax.text(
+                change + 0.5,
+                i,
+                f"+{change}",
+                va="center",
+                fontsize=9,
+                fontweight="bold",
+            )
+        elif status == "declined":
+            # Bar extending to the left (negative) - light red
+            ax.barh(i, change, color="lightcoral", alpha=0.8)
+            ax.text(
+                change - 0.5,
+                i,
+                str(change),
+                va="center",
+                ha="right",
+                fontsize=9,
+                fontweight="bold",
+            )
+        elif status == "dropped":
+            # Bar extending to the left (negative) - dark red
+            ax.barh(i, change, color="darkred", alpha=0.8)
+            ax.text(
+                change - 0.5,
+                i,
+                "Dropped",
+                va="center",
+                ha="right",
+                fontsize=9,
+                fontweight="bold",
+            )
+        elif status == "new":
+            # Bar extending to the right (positive) - dark green
+            ax.barh(i, change, color="darkgreen", alpha=0.8)
+            ax.text(
+                change + 0.5,
+                i,
+                "New",
+                va="center",
+                fontsize=9,
+                fontweight="bold",
+            )
+        else:  # unchanged
+            # Bar extending to the right (zero) - grey
+            ax.barh(i, change, color="grey", alpha=0.8)
+            ax.text(
+                change + 0.5,
+                i,
+                "No Change",
+                va="center",
+                fontsize=9,
+                fontweight="bold",
+            )
+
+    # Set y-axis labels
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels([e["entity"] for e in entities_data])
+
+    # Set x-axis
+    ax.set_xlabel("Δ Rank (Positive = Improved)")
+    ax.set_xlim(-25, 25)
+
+    # Add vertical line at zero
+    ax.axvline(x=0, color="black", linestyle="-", alpha=0.3)
+
+    # Add title
+    ax.set_title(
+        "Pre → Post Election Rank Movement Analysis\nRank Movement Magnitude",
+        fontsize=14,
+        fontweight="bold",
+        pad=20,
+    )
+
+    # Add legend with more categories
+    legend_elements = [
+        plt.Rectangle(
+            (0, 0), 1, 1, facecolor="lightgreen", alpha=0.8, label="Improved Rank"
+        ),
+        plt.Rectangle(
+            (0, 0), 1, 1, facecolor="lightcoral", alpha=0.8, label="Declined Rank"
+        ),
+        plt.Rectangle(
+            (0, 0), 1, 1, facecolor="darkgreen", alpha=0.8, label="New (Post Only)"
+        ),
+        plt.Rectangle(
+            (0, 0), 1, 1, facecolor="darkred", alpha=0.8, label="Dropped (Pre Only)"
+        ),
+        plt.Rectangle((0, 0), 1, 1, facecolor="grey", alpha=0.8, label="No Change"),
+    ]
+    ax.legend(handles=legend_elements, loc="upper right")
+
+    # Add grid
+    ax.grid(True, alpha=0.3, axis="x")
+
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(output_dir, f"{filename_prefix}.png"), dpi=300, bbox_inches="tight"
+    )
+    plt.close()
+
+
+def create_overall_visualizations(
+    aggregated_data: Dict, ranking_comparison: Dict, output_dir: str
+):
+    """Create overall summary visualizations."""
+
+    # Condition mapping for presentation
+    condition_labels = {
+        "reverse_chronological": "Reverse Chronological",
+        "engagement": "Engagement-Based",
+        "representative_diversification": "Diversified Extremity",
+    }
+
+    # Color palette
+    condition_colors = {
+        "reverse_chronological": "grey",
+        "engagement": "red",
+        "representative_diversification": "green",
+    }
+
+    # Create summary dashboard
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+
+    # Top entities across all conditions
+    all_entities = Counter()
+    condition_data = aggregated_data["condition"]
+    for top_entities_obj in condition_data.values():
+        entities_dict = top_entities_obj.get_top_n(TOP_N)
+        for entity, count in entities_dict.items():
+            all_entities[entity] += count
+
+    top_overall = all_entities.most_common(TOP_N)
+    entities, counts = zip(*top_overall)
+
+    ax1.barh(range(len(entities)), counts, color="steelblue")
+    ax1.set_yticks(range(len(entities)))
+    ax1.set_yticklabels(entities)
+    ax1.set_xlabel("Total Frequency")
+    ax1.set_title(f"Top {TOP_N} Entities Overall")
+    ax1.grid(True, alpha=0.3)
+
+    # Pre vs Post comparison
+    election_data = aggregated_data["election_date"]
+    pre_counts = list(election_data["pre_election"].get_top_n(TOP_N).values())
+    post_counts = list(election_data["post_election"].get_top_n(TOP_N).values())
+
+    x = np.arange(len(pre_counts))
+    width = 0.35
+
+    ax2.bar(
+        x - width / 2,
+        pre_counts,
+        width,
+        label="Pre-Election",
+        color="lightblue",
+        alpha=0.8,
+        edgecolor="navy",
+    )
+    ax2.bar(
+        x + width / 2,
+        post_counts,
+        width,
+        label="Post-Election",
+        color="darkblue",
+        alpha=0.8,
+        edgecolor="navy",
+    )
+
+    ax2.set_xlabel("Rank")
+    ax2.set_ylabel("Frequency")
+    ax2.set_title("Pre vs Post-Election Entity Frequencies")
+    ax2.set_xticks(x)
+    ax2.set_xticklabels([f"#{i+1}" for i in range(len(pre_counts))])
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+
+    # Condition distribution with new colors
+    condition_counts = [
+        sum(top_entities_obj.get_top_n(TOP_N).values())
+        for top_entities_obj in condition_data.values()
+    ]
+    condition_names = [condition_labels[cond] for cond in condition_data.keys()]
+    condition_colors_list = [condition_colors[cond] for cond in condition_data.keys()]
+
+    ax3.pie(
+        condition_counts,
+        labels=condition_names,
+        colors=condition_colors_list,
+        autopct="%1.1f%%",
+        startangle=90,
+    )
+    ax3.set_title("Entity Distribution by Condition")
+
+    # Rank change summary
+    pre_to_post = ranking_comparison["pre_to_post"]
+    improved = sum(
+        1
+        for data in pre_to_post.values()
+        if isinstance(data["change"], int) and data["change"] > 0
+    )
+    declined = sum(
+        1
+        for data in pre_to_post.values()
+        if isinstance(data["change"], int) and data["change"] < 0
+    )
+    unchanged = sum(
+        1
+        for data in pre_to_post.values()
+        if isinstance(data["change"], int) and data["change"] == 0
+    )
+    disappeared = sum(1 for data in pre_to_post.values() if data["change"] == "N/A")
+
+    categories = ["Improved", "Declined", "Unchanged", "Disappeared"]
+    values = [improved, declined, unchanged, disappeared]
+    colors = ["green", "red", "blue", "gray"]
+
+    ax4.bar(categories, values, color=colors)
+    ax4.set_ylabel("Number of Entities")
+    ax4.set_title("Rank Change Summary (Pre → Post)")
+    ax4.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(output_dir, "overall_summary_dashboard.png"),
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.close()
+
+
+def create_visualization_metadata(base_dir: str, timestamp: str, aggregated_data: Dict):
+    """Create visualization metadata JSON file."""
+
+    condition_data = aggregated_data["condition"]
+    election_data = aggregated_data["election_date"]
+
+    metadata = {
+        "visualization_type": "named_entity_recognition",
+        "creation_timestamp": timestamp,
+        "election_date": "2024-11-05",
+        "total_conditions": len(condition_data),
+        "conditions": list(condition_data.keys()),
+        f"top_{TOP_N}_entities_by_condition": {
+            condition: list(top_entities_obj.get_top_n(TOP_N).keys())
+            for condition, top_entities_obj in condition_data.items()
+        },
+        f"top_{TOP_N}_entities_pre_election": list(
+            election_data["pre_election"].get_top_n(TOP_N).keys()
+        ),
+        f"top_{TOP_N}_entities_post_election": list(
+            election_data["post_election"].get_top_n(TOP_N).keys()
+        ),
+        "figure_parameters": {"figsize": [12, 8], "dpi": 300, "facecolor": "white"},
+        "color_palette": [
+            "#1f77b4",
+            "#ff7f0e",
+            "#2ca02c",
+            "#d62728",
+            "#9467bd",
+            "#8c564b",
+            "#e377c2",
+            "#7f7f7f",
+            "#bcbd22",
+            "#17becf",
+        ],
+        "note": "NER analysis with spaCy en_core_web_sm model focusing on PERSON, ORG, GPE, DATE entities",
+    }
+
+    metadata_path = os.path.join(base_dir, "visualization_metadata.json")
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    print(f"Visualization metadata saved to: {metadata_path}")
+
+
+def create_all_visualizations(
+    aggregated_data: Dict, output_dir: Optional[str] = None
+) -> str:
+    """
+    Create comprehensive visualizations for NER analysis results.
+
+    Args:
+        aggregated_data: Structured data from aggregate_entities_by_condition_and_pre_post
+        output_dir: Base output directory (optional)
+
+    Returns:
+        Path to the created visualization directory
+    """
+    # Create timestamped directory structure
+    timestamp = generate_current_datetime_str()
+    if output_dir is None:
+        # Use project home directory with relative path
+        output_dir = os.path.join(
+            project_home_directory,
+            f"services/calculate_analytics/analyses/content_analysis_2025_09_22/ner/results/{timestamp}",
+        )
+
+    base_dir = output_dir
+
+    # Create directory structure
+    directories = [
+        os.path.join(base_dir, "condition"),
+        os.path.join(base_dir, "election_date"),
+        os.path.join(base_dir, "overall"),
+    ]
+
+    for directory in directories:
+        os.makedirs(directory, exist_ok=True)
+
+    # Set up plotting style
+    plt.style.use("default")
+    sns.set_palette("husl")
+
+    # Create ranking comparison
+    from .transform import create_ranking_comparison
+
+    ranking_comparison = create_ranking_comparison(aggregated_data["election_date"])
+
+    # 1. Top N entities by condition
+    print("Creating condition-based visualizations...")
+    create_condition_visualizations(
+        aggregated_data, os.path.join(base_dir, "condition")
+    )
+
+    # 2. Pre/post-election visualizations
+    print("Creating election date visualizations...")
+    create_election_date_visualizations(
+        aggregated_data, ranking_comparison, os.path.join(base_dir, "election_date")
+    )
+
+    # 3. Overall visualizations
+    print("Creating overall visualizations...")
+    create_overall_visualizations(
+        aggregated_data, ranking_comparison, os.path.join(base_dir, "overall")
+    )
+
+    # 4. Create visualization metadata
+    create_visualization_metadata(base_dir, timestamp, aggregated_data)
+
+    print(f"All visualizations saved to: {base_dir}")
+    return base_dir

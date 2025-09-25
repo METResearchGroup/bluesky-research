@@ -1,0 +1,19 @@
+# TF-IDF Configuration for Political Content Analysis
+# This configuration optimizes TF-IDF parameters for social media text analysis
+
+# Document frequency filtering
+# NOTE: Demo uses upsampling (x100) to meet min_df requirements with small datasets
+min_df: 100  # Minimum document frequency - drop terms appearing in < 100 posts
+max_df: 0.95  # Maximum document frequency - drop terms appearing in >= 95% of posts
+
+# Vocabulary size limit
+max_features: 10000  # Maximum number of features to keep
+
+# Text preprocessing
+lowercase: true
+stop_words: "english"
+norm: "l2"  # L2 normalization
+ngram_range: [1, 1]  # Focus on unigrams only
+
+# Analysis parameters
+top_n_terms: 20  # Number of top terms to return in analysis

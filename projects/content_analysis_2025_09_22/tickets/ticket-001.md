@@ -66,8 +66,10 @@ See `/projects/content_analysis_2025_09_22/spec.md` for complete requirements an
 tf_idf/
 ├── load_data.py                    # DataLoader class for loading topic modeling results
 ├── model.py                        # TfidfModel class with vectorizer and analysis logic
-├── train.py                        # Training script and pipeline orchestration
-├── visualizations.py               # Visualization generation and export
+├── train.py                        # Pure TF-IDF training functionality
+├── visualize_results.py            # Visualization script (standalone executable)
+├── main.py                         # Main orchestration script (CLI entry point)
+├── visualizations.py               # Visualization utility functions
 ├── tests/                          # Unit tests
 │   └── test_tfidf_analysis.py
 ├── results/                        # All analysis outputs
@@ -77,8 +79,17 @@ tf_idf/
 │   │       ├── vectorizer.pkl      # Serialized TfidfVectorizer for reproducibility
 │   │       ├── feature_names.json  # Vocabulary and feature mapping
 │   │       ├── training_log.txt    # Processing logs and performance metrics
-│   │       └── data_summary.json   # Dataset statistics and filtering results
-│   └── visualization/              # Generated visualizations
+│   │       ├── data_summary.json   # Dataset statistics and filtering results
+│   │       ├── overall/            # Overall TF-IDF results
+│   │       │   └── top_keywords_overall.csv
+│   │       ├── condition/          # Results by experimental condition
+│   │       │   ├── top_keywords_control.csv
+│   │       │   ├── top_keywords_treatment.csv
+│   │       │   └── top_keywords_engagement.csv
+│   │       └── election_period/    # Pre/post election results
+│   │           ├── top_keywords_pre.csv
+│   │           └── top_keywords_post.csv
+│   └── visualizations/             # Generated visualizations
 │       └── <timestamp_YYYY_MM_DD_HH_MM_SS>/
 │           ├── metadata.json       # Visualization run metadata
 │           ├── condition/          # Analysis by experimental condition
@@ -104,12 +115,14 @@ tf_idf/
 1. **Data Integration**: Implement `DataLoader` class in `load_data.py` to leverage existing topic modeling infrastructure
 2. **Topic Filtering**: Create efficient filtering by "Political Opinions and Perspectives" topic assignment
 3. **TF-IDF Pipeline**: Implement `TfidfModel` class in `model.py` with scikit-learn's TfidfVectorizer, fixed random seed, and configuration management
-4. **Training Orchestration**: Create `train.py` script for pipeline execution and result management
-5. **Stratified Analysis**: Implement condition and temporal period analysis within the model class
-6. **CSV Export**: Create standardized schema export with timestamp formatting in results directories
-7. **Visualization**: Implement `TfidfVisualizer` in `visualizations.py` for comparative charts using matplotlib/seaborn
-8. **Metadata Tracking**: Create comprehensive metadata files for audit trail and reproducibility tracking
-9. **Integration**: Ensure seamless integration with existing project patterns and file organization
+4. **Training Module**: Implement `train.py` with pure training functionality (data loading, model training, result export)
+5. **Visualization Module**: Implement `visualize_results.py` as standalone visualization script following existing patterns
+6. **Main Orchestration**: Create `main.py` as CLI entry point that imports and orchestrates training and visualization
+7. **Utility Functions**: Implement `visualizations.py` with reusable visualization utility functions
+8. **Stratified Analysis**: Implement condition and temporal period analysis within the model class
+9. **CSV Export**: Create standardized schema export with timestamp formatting in results directories
+10. **Metadata Tracking**: Create comprehensive metadata files for audit trail and reproducibility tracking
+11. **Integration**: Ensure seamless integration with existing project patterns and file organization
 
 ## Effort Estimate
 - **Estimated effort**: **6 hours**

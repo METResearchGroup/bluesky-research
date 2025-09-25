@@ -1,0 +1,36 @@
+{
+  "run_timestamp": "2025-09-23_09:32:32",
+  "mode": "demo",
+  "source_training_data": "training/2025-09-23_09:32:16",
+  "visualization_types": [
+    "overall_top_keywords",
+    "condition_comparison",
+    "period_comparison",
+    "cross_dimensional_heatmap",
+    "individual_condition_analysis",
+    "individual_period_analysis"
+  ],
+  "chart_style": {
+    "figsize": [
+      12,
+      8
+    ],
+    "dpi": 300,
+    "facecolor": "white"
+  },
+  "condition_colors": {
+    "control": "#1f77b4",
+    "treatment": "#ff7f0e",
+    "engagement": "#2ca02c"
+  },
+  "source_colors": {
+    "A": "#1f77b4",
+    "B": "#ff7f0e",
+    "C": "#2ca02c"
+  },
+  "period_colors": {
+    "pre": "#d62728",
+    "post": "#9467bd"
+  },
+  "output_directory": "demo_results/visualizations/2025-09-23_09:32:30"
+}

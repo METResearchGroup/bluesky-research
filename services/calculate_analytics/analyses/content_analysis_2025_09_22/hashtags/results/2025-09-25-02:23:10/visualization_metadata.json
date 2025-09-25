@@ -1,0 +1,21 @@
+{
+  "timestamp": "2025-09-25-02:23:10",
+  "analysis_type": "hashtag_analysis",
+  "total_conditions": 3,
+  "election_cutoff_date": "2024-11-05",
+  "visualizations_created": [
+    "top_10_hashtags_by_condition.png",
+    "top_5_hashtags_by_condition_detailed.png",
+    "top_10_hashtags_pre_post_election.png",
+    "overall_rank_change.png",
+    "overall_summary_dashboard.png"
+  ],
+  "csv_exports": [
+    "top_10_hashtags_reverse_chronological.csv",
+    "top_10_hashtags_engagement.csv",
+    "top_10_hashtags_representative_diversification.csv",
+    "top_10_hashtags_pre_election.csv",
+    "top_10_hashtags_post_election.csv",
+    "top_20_hashtags_overall.csv"
+  ]
+}

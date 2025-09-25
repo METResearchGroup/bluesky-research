@@ -1,0 +1,19 @@
+# Content Analysis Extension Requirements
+
+# Core analysis libraries
+scikit-learn>=1.3.0
+spacy>=3.7.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Text processing
+nltk>=3.8.0
+
+# Utilities
+tqdm>=4.65.0

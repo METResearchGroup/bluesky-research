@@ -8,7 +8,7 @@ See `/projects/content_analysis_2025_09_22/spec.md` for complete requirements an
 ## Detailed Description & Requirements
 
 ### Functional Requirements:
-- **Inputs**: All posts used in feeds (not topic-filtered) from existing topic modeling results
+- **Inputs**: All posts used in feeds 
 - **Processing**: 
   - Apply spaCy NER pipeline with en_core_web_sm model
   - Implement entity normalization (case-folding, punctuation stripping, lemmatization, alias mapping)

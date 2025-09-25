@@ -1,0 +1,94 @@
+{
+  "visualization_type": "named_entity_recognition",
+  "creation_timestamp": "2025-09-24-21:07:11",
+  "election_date": "2024-11-05",
+  "total_conditions": 3,
+  "conditions": [
+    "reverse_chronological",
+    "engagement",
+    "representative_diversification"
+  ],
+  "top_10_entities_by_condition": {
+    "reverse_chronological": [
+      "cruz",
+      "texas",
+      "sanders",
+      "vermont",
+      "medicare",
+      "the department of justice",
+      "the supreme court",
+      "mississippi",
+      "yesterday",
+      "the federal bureau of investigation"
+    ],
+    "engagement": [
+      "the department of transportation",
+      "blinken",
+      "european union",
+      "brussels",
+      "the federal bureau of investigation",
+      "new york",
+      "los angeles",
+      "wheeler",
+      "portland",
+      "the supreme court"
+    ],
+    "representative_diversification": [
+      "mcconnell",
+      "kentucky",
+      "the department of health and human services",
+      "desantis",
+      "florida",
+      "today",
+      "the supreme court",
+      "mississippi",
+      "yesterday",
+      "the environmental protection agency"
+    ]
+  },
+  "top_10_entities_pre_election": [
+    "the supreme court",
+    "mississippi",
+    "yesterday",
+    "texas",
+    "cruz",
+    "the federal bureau of investigation",
+    "the department of transportation",
+    "blinken",
+    "european union",
+    "brussels"
+  ],
+  "top_10_entities_post_election": [
+    "the supreme court",
+    "mississippi",
+    "yesterday",
+    "texas",
+    "cruz",
+    "the federal bureau of investigation",
+    "the department of transportation",
+    "blinken",
+    "european union",
+    "brussels"
+  ],
+  "figure_parameters": {
+    "figsize": [
+      12,
+      8
+    ],
+    "dpi": 300,
+    "facecolor": "white"
+  },
+  "color_palette": [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf"
+  ],
+  "note": "NER analysis with spaCy en_core_web_sm model focusing on PERSON, ORG, GPE, DATE entities"
+}

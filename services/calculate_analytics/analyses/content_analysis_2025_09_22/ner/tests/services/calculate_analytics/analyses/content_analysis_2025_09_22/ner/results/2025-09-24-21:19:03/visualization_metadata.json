@@ -1,0 +1,94 @@
+{
+  "visualization_type": "named_entity_recognition",
+  "creation_timestamp": "2025-09-24-21:19:03",
+  "election_date": "2024-11-05",
+  "total_conditions": 3,
+  "conditions": [
+    "reverse_chronological",
+    "engagement",
+    "representative_diversification"
+  ],
+  "top_10_entities_by_condition": {
+    "reverse_chronological": [
+      "trump",
+      "biden",
+      "texas",
+      "new york",
+      "the environmental protection agency",
+      "pentagon",
+      "donald trump",
+      "arizona",
+      "georgia",
+      "the supreme court"
+    ],
+    "engagement": [
+      "biden",
+      "trump",
+      "california",
+      "today",
+      "the supreme court",
+      "texas",
+      "the environmental protection agency",
+      "chicago",
+      "pentagon",
+      "harris"
+    ],
+    "representative_diversification": [
+      "biden",
+      "trump",
+      "the white house",
+      "the department of justice",
+      "european union",
+      "harris",
+      "massachusetts",
+      "new york",
+      "the supreme court",
+      "sanders"
+    ]
+  },
+  "top_10_entities_pre_election": [
+    "trump",
+    "biden",
+    "new york",
+    "the supreme court",
+    "texas",
+    "donald trump",
+    "arizona",
+    "georgia",
+    "california",
+    "today"
+  ],
+  "top_10_entities_post_election": [
+    "biden",
+    "trump",
+    "texas",
+    "the environmental protection agency",
+    "pentagon",
+    "new york",
+    "sanders",
+    "vermont",
+    "medicare",
+    "chicago"
+  ],
+  "figure_parameters": {
+    "figsize": [
+      12,
+      8
+    ],
+    "dpi": 300,
+    "facecolor": "white"
+  },
+  "color_palette": [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf"
+  ],
+  "note": "NER analysis with spaCy en_core_web_sm model focusing on PERSON, ORG, GPE, DATE entities"
+}
