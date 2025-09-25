@@ -4,9 +4,11 @@ import os
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from typing import Tuple
+from typing import Tuple, Optional
 
 import spacy
+
+from lib.log.logger import get_logger
 
 # Entity normalization mappings (common aliases)
 ENTITY_ALIASES = {
@@ -55,6 +57,8 @@ ENTITY_ALIASES = {
     "eu": "european union",
 }
 
+logger = get_logger(__file__)
+
 
 def normalize_entity(entity_text: str) -> str:
     """
@@ -92,7 +96,7 @@ def get_entities_for_post(post: str, nlp_model=None) -> list[dict[str, str]]:
         try:
             nlp_model = spacy.load("en_core_web_sm")
         except OSError:
-            print(
+            logger.info(
                 "Model en_core_web_sm not found. Please install with: python -m spacy download en_core_web_sm"
             )
             return []
@@ -116,7 +120,7 @@ def get_entities_for_post(post: str, nlp_model=None) -> list[dict[str, str]]:
 
 def get_entities_for_posts(
     uri_to_text: dict[str, str],
-    max_workers: int = None,
+    max_workers: Optional[int] = None,
     use_parallel: bool = True,
 ) -> dict[str, list[dict[str, str]]]:
     """Extract entities for all posts using spaCy NER.
@@ -143,25 +147,27 @@ def _get_entities_for_posts_sequential(
     """Sequential entity extraction (fallback for small datasets)."""
     uri_to_entities_map: dict[str, list[dict[str, str]]] = {}
 
-    print(f"Processing {len(uri_to_text)} posts sequentially...")
+    logger.info(f"Processing {len(uri_to_text)} posts sequentially...")
 
     # Load model once
     try:
         nlp_model = spacy.load("en_core_web_sm")
     except OSError:
-        print(
+        logger.info(
             "Model en_core_web_sm not found. Please install with: python -m spacy download en_core_web_sm"
         )
         return {}
 
     for i, (uri, text) in enumerate(uri_to_text.items()):
         if i % 1000 == 0:  # Progress indicator
-            print(f"Processed {i}/{len(uri_to_text)} posts...")
+            logger.info(f"Processed {i}/{len(uri_to_text)} posts...")
 
         entities: list[dict[str, str]] = get_entities_for_post(text, nlp_model)
         uri_to_entities_map[uri] = entities
 
-    print(f"Entity extraction complete. Processed {len(uri_to_entities_map)} posts.")
+    logger.info(
+        f"Entity extraction complete. Processed {len(uri_to_entities_map)} posts."
+    )
     return uri_to_entities_map
 
 
@@ -179,7 +185,7 @@ def _get_entities_for_posts_parallel(
             try:
                 thread_local.nlp = spacy.load("en_core_web_sm")
             except OSError:
-                print(
+                logger.info(
                     "Model en_core_web_sm not found. Please install with: python -m spacy download en_core_web_sm"
                 )
                 thread_local.nlp = None
@@ -198,14 +204,14 @@ def _get_entities_for_posts_parallel(
             entities = get_entities_for_post(text, nlp_model)
             return uri, entities
         except Exception as e:
-            print(f"Error processing post {uri}: {e}")
+            logger.info(f"Error processing post {uri}: {e}")
             return uri, []
 
     # Determine optimal worker count
     if max_workers is None:
         max_workers = min(32, (os.cpu_count() or 1) + 4)
 
-    print(
+    logger.info(
         f"Processing {len(uri_to_text)} posts in parallel with {max_workers} workers..."
     )
 
@@ -222,13 +228,13 @@ def _get_entities_for_posts_parallel(
         completed = 0
         for future in future_to_uri:
             if completed % 1000 == 0:  # Progress indicator
-                print(f"Processed {completed}/{len(uri_to_text)} posts...")
+                logger.info(f"Processed {completed}/{len(uri_to_text)} posts...")
 
             uri, entities = future.result()
             uri_to_entities_map[uri] = entities
             completed += 1
 
-    print(
+    logger.info(
         f"Parallel entity extraction complete. Processed {len(uri_to_entities_map)} posts."
     )
     return uri_to_entities_map

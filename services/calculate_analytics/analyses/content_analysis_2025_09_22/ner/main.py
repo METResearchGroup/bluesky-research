@@ -121,8 +121,9 @@ def do_ner_and_export_results(
     """Extract entities for all posts and create visualizations."""
     # get entities for all posts.
     try:
+        logger.info(f"Extracting entities for {len(uri_to_text)} posts...")
         uri_to_entities_map: dict[str, list[dict[str, str]]] = get_entities_for_posts(
-            uri_to_text
+            uri_to_text=uri_to_text
         )
         logger.info(f"Extracted entities for {len(uri_to_entities_map)} posts")
     except Exception as e:
