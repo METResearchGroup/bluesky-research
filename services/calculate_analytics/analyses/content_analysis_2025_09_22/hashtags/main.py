@@ -12,8 +12,8 @@ from services.calculate_analytics.shared.constants import (
     STUDY_END_DATE,
     exclude_partition_dates,
 )
-from services.calculate_analytics.shared.data_loading.posts import (
-    load_preprocessed_posts_by_uris,
+from services.calculate_analytics.shared.data_loading.labels import (
+    load_sociopolitical_labels_by_uris,
 )
 from services.calculate_analytics.shared.data_loading.users import load_user_data
 from services.calculate_analytics.shared.data_loading.feeds import (
@@ -67,11 +67,15 @@ def do_setup():
         )
         uri_to_text: dict[str, str] = {}
         for partition_date in partition_dates:
-            preprocessed_posts: pd.DataFrame = load_preprocessed_posts_by_uris(
+            preprocessed_posts: pd.DataFrame = load_sociopolitical_labels_by_uris(
                 uris=feed_content_uris, partition_date=partition_date
             )
             for row in preprocessed_posts.itertuples():
-                if row.uri not in uri_to_text:
+                if (
+                    bool(row.was_successfully_labeled)
+                    and bool(row.is_sociopolitical)
+                    and (row.uri not in uri_to_text)
+                ):
                     uri_to_text[row.uri] = row.text
 
         logger.info(f"Loaded {len(uri_to_text)} texts for Hashtag Analysis.")
