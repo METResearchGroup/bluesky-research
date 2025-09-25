@@ -14,6 +14,9 @@ CANONICAL_HASHTAG_REPRESENTATIONS = {
     "gavinnewsom": "newsom",
 }
 
+# exclude noisy/NSFW hashtags
+EXCLUDELIST_HASHTAGS = ["#1", "#2", "#furry", "#bydhttmwdi"]
+
 
 def canonicalize_text(text: str) -> str:
     """Returns a canonicalized version of text for hashtag analysis."""
@@ -25,15 +28,23 @@ def canonicalize_text(text: str) -> str:
     return text
 
 
-def preprocess_text(text: str) -> str:
+def filter_text(text: str) -> str:
+    """Filters text for hashtag analysis."""
+    for exclude_hashtag in EXCLUDELIST_HASHTAGS:
+        text = text.replace(exclude_hashtag, "")
+    return text
+
+
+def preprocess_filter_text(text: str) -> str:
     """Returns a preprocessed version of text for hashtag analysis."""
     lowercased_text = text.lower()
-    canonicalized_text = canonicalize_text(lowercased_text)
+    filtered_text = filter_text(lowercased_text)
+    canonicalized_text = canonicalize_text(filtered_text)
     return canonicalized_text
 
 
 def process_hashtags_for_post(post: str) -> dict:
-    preprocessed_text = preprocess_text(post)
+    preprocessed_text = preprocess_filter_text(post)
     hashtags = re.findall(r"#(\w+)", preprocessed_text)
     hashtag_to_count = {}
     for hashtag in hashtags:
