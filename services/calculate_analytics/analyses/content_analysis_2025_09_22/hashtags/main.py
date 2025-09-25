@@ -1,6 +1,7 @@
 """Hashtag analysis."""
 
-import json
+import pickle
+import gzip
 import os
 
 import pandas as pd
@@ -91,20 +92,22 @@ def do_setup():
 
 
 def export_user_posts(user_to_content_in_feeds, uri_to_text):
-    """Exports user posts to local storage."""
+    """Exports user posts to local storage as compressed pickle files."""
     timestamp = generate_current_datetime_str()
     export_dir = os.path.join(current_dir, timestamp)
 
     # Create the export directory if it doesn't exist
     os.makedirs(export_dir, exist_ok=True)
 
-    user_to_content_feeds_fp = os.path.join(export_dir, "user_to_content_in_feeds.json")
-    uri_to_text_fp = os.path.join(export_dir, "uri_to_text.json")
+    user_to_content_feeds_fp = os.path.join(
+        export_dir, "user_to_content_in_feeds.pkl.gz"
+    )
+    uri_to_text_fp = os.path.join(export_dir, "uri_to_text.pkl.gz")
 
-    with open(user_to_content_feeds_fp, "w") as f:
-        json.dump(user_to_content_in_feeds, f)
-    with open(uri_to_text_fp, "w") as f:
-        json.dump(uri_to_text, f)
+    with gzip.open(user_to_content_feeds_fp, "wb") as f:
+        pickle.dump(user_to_content_in_feeds, f)
+    with gzip.open(uri_to_text_fp, "wb") as f:
+        pickle.dump(uri_to_text, f)
 
 
 def do_hashtag_analysis_and_export_results(
