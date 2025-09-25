@@ -89,10 +89,14 @@ def do_setup():
 def export_user_posts(user_to_content_in_feeds, uri_to_text):
     """Exports user posts to local storage."""
     timestamp = generate_current_datetime_str()
-    user_to_content_feeds_fp = os.path.join(
-        current_dir, timestamp, "user_to_content_in_feeds.json"
-    )
-    uri_to_text_fp = os.path.join(current_dir, timestamp, "uri_to_text.json")
+    export_dir = os.path.join(current_dir, timestamp)
+
+    # Create the export directory if it doesn't exist
+    os.makedirs(export_dir, exist_ok=True)
+
+    user_to_content_feeds_fp = os.path.join(export_dir, "user_to_content_in_feeds.json")
+    uri_to_text_fp = os.path.join(export_dir, "uri_to_text.json")
+
     with open(user_to_content_feeds_fp, "w") as f:
         json.dump(user_to_content_in_feeds, f)
     with open(uri_to_text_fp, "w") as f:
