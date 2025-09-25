@@ -29,6 +29,9 @@ from services.calculate_analytics.analyses.content_analysis_2025_09_22.ner.visua
     create_all_visualizations,
 )
 
+# Configuration constants
+TOP_N = 30  # Number of top entities to analyze
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 current_datetime_str: str = generate_current_datetime_str()
 
@@ -132,7 +135,7 @@ def do_ner_and_export_results(
             uri_to_entities_map=uri_to_entities_map,
             user_df=user_df,
             user_to_content_in_feeds=user_to_content_in_feeds,
-            top_n=20,
+            top_n=TOP_N,
             election_cutoff_date="2024-11-05",
         )
         logger.info("Successfully aggregated entities by condition and election period")

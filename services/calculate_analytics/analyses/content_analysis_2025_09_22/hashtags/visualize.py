@@ -12,6 +12,9 @@ from typing import Dict
 from lib.helper import generate_current_datetime_str
 from lib.constants import project_home_directory
 
+# Configuration constants
+TOP_N = 30  # Number of top hashtags to analyze
+
 
 def export_top_hashtags_to_csv(
     hashtags_dict: Dict[str, int], output_path: str, title: str
@@ -48,21 +51,21 @@ def create_condition_visualizations(aggregated_data: Dict, output_dir: str):
 
     # Export CSV for each condition
     for condition, top_hashtags_obj in condition_data.items():
-        hashtags_dict = top_hashtags_obj.get_top_n(10)
-        csv_path = os.path.join(output_dir, f"top_10_hashtags_{condition}.csv")
+        hashtags_dict = top_hashtags_obj.get_top_n(TOP_N)
+        csv_path = os.path.join(output_dir, f"top_{TOP_N}_hashtags_{condition}.csv")
         export_top_hashtags_to_csv(
             hashtags_dict, csv_path, f"Top Hashtags - {condition_labels[condition]}"
         )
 
-    # Create horizontal bar chart with top 10 hashtags per condition overlaid
+    # Create horizontal bar chart with top N hashtags per condition overlaid
     fig, ax = plt.subplots(figsize=(16, 12))
 
     conditions = list(condition_data.keys())
 
-    # Get top 10 hashtags for each condition
+    # Get top N hashtags for each condition
     condition_top_hashtags = {}
     for condition, top_hashtags_obj in condition_data.items():
-        top_hashtags = top_hashtags_obj.get_top_n(10)
+        top_hashtags = top_hashtags_obj.get_top_n(TOP_N)
         condition_top_hashtags[condition] = top_hashtags
 
     # Create horizontal bars for each condition
@@ -85,7 +88,7 @@ def create_condition_visualizations(aggregated_data: Dict, output_dir: str):
             sorted_hashtags = sorted(hashtags.items(), key=lambda x: x[1], reverse=True)
 
             for j, (hashtag_name, frequency) in enumerate(sorted_hashtags):
-                y_pos = i * 10 + j  # Offset each condition by 10 positions
+                y_pos = i * TOP_N + j  # Offset each condition by TOP_N positions
                 y_positions.append(y_pos)
                 hashtag_labels.append(f"#{hashtag_name}")
                 bar_colors.append(condition_colors[condition])
@@ -113,7 +116,7 @@ def create_condition_visualizations(aggregated_data: Dict, output_dir: str):
     ax.set_yticks(y_positions)
     ax.set_yticklabels(hashtag_labels)
     ax.set_xlabel("Frequency")
-    ax.set_title("Top 10 Hashtags by Condition")
+    ax.set_title(f"Top {TOP_N} Hashtags by Condition")
     ax.grid(True, alpha=0.3, axis="x")
 
     # Set x-axis limit with some padding
@@ -136,7 +139,7 @@ def create_condition_visualizations(aggregated_data: Dict, output_dir: str):
 
     plt.tight_layout()
     plt.savefig(
-        os.path.join(output_dir, "top_10_hashtags_by_condition.png"),
+        os.path.join(output_dir, f"top_{TOP_N}_hashtags_by_condition.png"),
         dpi=300,
         bbox_inches="tight",
     )
@@ -193,18 +196,18 @@ def create_election_date_visualizations(aggregated_data: Dict, output_dir: str):
     ranking_comparison = aggregated_data["ranking_comparison"]
 
     # Get pre and post election hashtags
-    pre_hashtags = election_data["pre_election"].get_top_n(10)
-    post_hashtags = election_data["post_election"].get_top_n(10)
+    pre_hashtags = election_data["pre_election"].get_top_n(TOP_N)
+    post_hashtags = election_data["post_election"].get_top_n(TOP_N)
 
     # Export CSV files
     export_top_hashtags_to_csv(
         pre_hashtags,
-        os.path.join(output_dir, "top_10_hashtags_pre_election.csv"),
+        os.path.join(output_dir, f"top_{TOP_N}_hashtags_pre_election.csv"),
         "Top Hashtags - Pre Election",
     )
     export_top_hashtags_to_csv(
         post_hashtags,
-        os.path.join(output_dir, "top_10_hashtags_post_election.csv"),
+        os.path.join(output_dir, f"top_{TOP_N}_hashtags_post_election.csv"),
         "Top Hashtags - Post Election",
     )
 
@@ -220,7 +223,7 @@ def create_election_date_visualizations(aggregated_data: Dict, output_dir: str):
         ax1.set_yticks(range(len(pre_names)))
         ax1.set_yticklabels(pre_names)
         ax1.set_xlabel("Frequency")
-        ax1.set_title("Top 10 Hashtags - Pre Election")
+        ax1.set_title(f"Top {TOP_N} Hashtags - Pre Election")
         ax1.grid(True, alpha=0.3, axis="x")
 
         # Add frequency labels
@@ -243,7 +246,7 @@ def create_election_date_visualizations(aggregated_data: Dict, output_dir: str):
         ax2.set_yticks(range(len(post_names)))
         ax2.set_yticklabels(post_names)
         ax2.set_xlabel("Frequency")
-        ax2.set_title("Top 10 Hashtags - Post Election")
+        ax2.set_title(f"Top {TOP_N} Hashtags - Post Election")
         ax2.grid(True, alpha=0.3, axis="x")
 
         # Add frequency labels
@@ -259,7 +262,7 @@ def create_election_date_visualizations(aggregated_data: Dict, output_dir: str):
 
     plt.tight_layout()
     plt.savefig(
-        os.path.join(output_dir, "top_10_hashtags_pre_post_election.png"),
+        os.path.join(output_dir, f"top_{TOP_N}_hashtags_pre_post_election.png"),
         dpi=300,
         bbox_inches="tight",
     )
@@ -313,7 +316,7 @@ def create_rank_change_visualization(
     # Process post-to-pre changes (for new hashtags)
     for hashtag, data in post_to_pre.items():
         if isinstance(data["change"], int) and data["change"] > 0:
-            # This hashtag appeared in post-election but not in pre-election top 10
+            # This hashtag appeared in post-election but not in pre-election top N
             hashtags_data.append(
                 {
                     "hashtag": hashtag,
@@ -330,7 +333,7 @@ def create_rank_change_visualization(
     hashtags_data.sort(key=lambda x: x["change"], reverse=False)
 
     # Create tornado chart
-    fig, ax = plt.subplots(figsize=(14, 10))
+    fig, ax = plt.subplots(figsize=(14, 12))
 
     # Use the sorted hashtags directly for y-axis positioning
     y_positions = range(len(hashtags_data))
@@ -464,14 +467,14 @@ def create_overall_visualizations(aggregated_data: Dict, output_dir: str):
 
     # Top 20 hashtags overall
     if overall_hashtags:
-        hashtag_names = [f"#{name}" for name in list(overall_hashtags.keys())[:10]]
-        hashtag_freqs = list(overall_hashtags.values())[:10]
+        hashtag_names = [f"#{name}" for name in list(overall_hashtags.keys())[:TOP_N]]
+        hashtag_freqs = list(overall_hashtags.values())[:TOP_N]
 
         ax1.barh(range(len(hashtag_names)), hashtag_freqs, color="steelblue", alpha=0.8)
         ax1.set_yticks(range(len(hashtag_names)))
         ax1.set_yticklabels(hashtag_names)
         ax1.set_xlabel("Frequency")
-        ax1.set_title("Top 10 Hashtags - Overall")
+        ax1.set_title(f"Top {TOP_N} Hashtags - Overall")
         ax1.grid(True, alpha=0.3, axis="x")
 
     # Condition comparison pie chart
@@ -558,18 +561,18 @@ def create_all_visualizations(aggregated_data: Dict) -> str:
         "total_conditions": len(aggregated_data["condition"]),
         "election_cutoff_date": "2024-11-05",
         "visualizations_created": [
-            "top_10_hashtags_by_condition.png",
+            f"top_{TOP_N}_hashtags_by_condition.png",
             "top_5_hashtags_by_condition_detailed.png",
-            "top_10_hashtags_pre_post_election.png",
+            f"top_{TOP_N}_hashtags_pre_post_election.png",
             "overall_rank_change.png",
             "overall_summary_dashboard.png",
         ],
         "csv_exports": [
-            "top_10_hashtags_reverse_chronological.csv",
-            "top_10_hashtags_engagement.csv",
-            "top_10_hashtags_representative_diversification.csv",
-            "top_10_hashtags_pre_election.csv",
-            "top_10_hashtags_post_election.csv",
+            f"top_{TOP_N}_hashtags_reverse_chronological.csv",
+            f"top_{TOP_N}_hashtags_engagement.csv",
+            f"top_{TOP_N}_hashtags_representative_diversification.csv",
+            f"top_{TOP_N}_hashtags_pre_election.csv",
+            f"top_{TOP_N}_hashtags_post_election.csv",
             "top_20_hashtags_overall.csv",
         ],
     }

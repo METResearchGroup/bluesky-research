@@ -31,6 +31,9 @@ from services.calculate_analytics.analyses.content_analysis_2025_09_22.hashtags.
     create_all_visualizations,
 )
 
+# Configuration constants
+TOP_N = 30  # Number of top hashtags to analyze
+
 logger = get_logger(__file__)
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -126,7 +129,7 @@ def do_hashtag_analysis_and_export_results(
     # aggregate hashtags by condition and pre/post-election
     try:
         aggregated_data = aggregate_hashtags_by_condition_and_pre_post(
-            uri_to_hashtags, user_df, user_to_content_in_feeds
+            uri_to_hashtags, user_df, user_to_content_in_feeds, top_n=TOP_N
         )
     except Exception as e:
         logger.error(

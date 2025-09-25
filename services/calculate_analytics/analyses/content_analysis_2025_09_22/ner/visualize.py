@@ -15,6 +15,9 @@ from typing import Dict, Optional
 from lib.helper import generate_current_datetime_str
 from lib.constants import project_home_directory
 
+# Configuration constants
+TOP_N = 30  # Number of top entities to analyze
+
 
 def export_top_entities_to_csv(
     entities_dict: Dict[str, int], output_path: str, title: str
@@ -51,21 +54,21 @@ def create_condition_visualizations(aggregated_data: Dict, output_dir: str):
 
     # Export CSV for each condition
     for condition, top_entities_obj in condition_data.items():
-        entities_dict = top_entities_obj.get_top_n(10)
-        csv_path = os.path.join(output_dir, f"top_10_entities_{condition}.csv")
+        entities_dict = top_entities_obj.get_top_n(TOP_N)
+        csv_path = os.path.join(output_dir, f"top_{TOP_N}_entities_{condition}.csv")
         export_top_entities_to_csv(
             entities_dict, csv_path, f"Top Entities - {condition_labels[condition]}"
         )
 
-    # Create horizontal bar chart with top 10 entities per condition overlaid
+    # Create horizontal bar chart with top N entities per condition overlaid
     fig, ax = plt.subplots(figsize=(16, 12))
 
     conditions = list(condition_data.keys())
 
-    # Get top 10 entities for each condition
+    # Get top N entities for each condition
     condition_top_entities = {}
     for condition, top_entities_obj in condition_data.items():
-        top_entities = top_entities_obj.get_top_n(10)
+        top_entities = top_entities_obj.get_top_n(TOP_N)
         condition_top_entities[condition] = top_entities
 
     # Create horizontal bars for each condition
@@ -88,7 +91,7 @@ def create_condition_visualizations(aggregated_data: Dict, output_dir: str):
             sorted_entities = sorted(entities.items(), key=lambda x: x[1], reverse=True)
 
             for j, (entity_name, frequency) in enumerate(sorted_entities):
-                y_pos = i * 10 + j  # Offset each condition by 10 positions
+                y_pos = i * TOP_N + j  # Offset each condition by TOP_N positions
                 y_positions.append(y_pos)
                 entity_labels.append(entity_name)
                 bar_colors.append(condition_colors[condition])
@@ -116,7 +119,7 @@ def create_condition_visualizations(aggregated_data: Dict, output_dir: str):
     ax.set_yticks(y_positions)
     ax.set_yticklabels(entity_labels)
     ax.set_xlabel("Frequency")
-    ax.set_title("Top 10 Entities by Condition")
+    ax.set_title(f"Top {TOP_N} Entities by Condition")
     ax.grid(True, alpha=0.3, axis="x")
 
     # Set x-axis limit with some padding
@@ -139,7 +142,7 @@ def create_condition_visualizations(aggregated_data: Dict, output_dir: str):
 
     plt.tight_layout()
     plt.savefig(
-        os.path.join(output_dir, "top_10_entities_by_condition.png"),
+        os.path.join(output_dir, f"top_{TOP_N}_entities_by_condition.png"),
         dpi=300,
         bbox_inches="tight",
     )
@@ -197,14 +200,14 @@ def create_election_date_visualizations(
     election_data = aggregated_data["election_date"]
 
     # Export CSV files for pre/post election entities
-    pre_entities_dict = election_data["pre_election"].get_top_n(10)
-    pre_csv_path = os.path.join(output_dir, "top_10_entities_pre_election.csv")
+    pre_entities_dict = election_data["pre_election"].get_top_n(TOP_N)
+    pre_csv_path = os.path.join(output_dir, f"top_{TOP_N}_entities_pre_election.csv")
     export_top_entities_to_csv(
         pre_entities_dict, pre_csv_path, "Top Entities - Pre-Election"
     )
 
-    post_entities_dict = election_data["post_election"].get_top_n(10)
-    post_csv_path = os.path.join(output_dir, "top_10_entities_post_election.csv")
+    post_entities_dict = election_data["post_election"].get_top_n(TOP_N)
+    post_csv_path = os.path.join(output_dir, f"top_{TOP_N}_entities_post_election.csv")
     export_top_entities_to_csv(
         post_entities_dict, post_csv_path, "Top Entities - Post-Election"
     )
@@ -226,7 +229,7 @@ def create_election_date_visualizations(
     ax1.set_yticks(range(len(pre_entities)))
     ax1.set_yticklabels(pre_entities)
     ax1.set_xlabel("Frequency")
-    ax1.set_title("Top 10 Entities - Pre-Election (≤ 2024-11-05)")
+    ax1.set_title(f"Top {TOP_N} Entities - Pre-Election (≤ 2024-11-05)")
     ax1.grid(True, alpha=0.3)
 
     # Post-election
@@ -243,12 +246,12 @@ def create_election_date_visualizations(
     ax2.set_yticks(range(len(post_entities)))
     ax2.set_yticklabels(post_entities)
     ax2.set_xlabel("Frequency")
-    ax2.set_title("Top 10 Entities - Post-Election (> 2024-11-05)")
+    ax2.set_title(f"Top {TOP_N} Entities - Post-Election (> 2024-11-05)")
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
     plt.savefig(
-        os.path.join(output_dir, "top_10_entities_pre_post_election.png"),
+        os.path.join(output_dir, f"top_{TOP_N}_entities_pre_post_election.png"),
         dpi=300,
         bbox_inches="tight",
     )
@@ -302,7 +305,7 @@ def create_rank_change_visualization(
     # Process post-to-pre changes (for new entities)
     for entity, data in post_to_pre.items():
         if isinstance(data["change"], int) and data["change"] > 0:
-            # This entity appeared in post-election but not in pre-election top 10
+            # This entity appeared in post-election but not in pre-election top N
             entities_data.append(
                 {
                     "entity": entity,
@@ -319,7 +322,7 @@ def create_rank_change_visualization(
     entities_data.sort(key=lambda x: x["change"], reverse=False)
 
     # Create tornado chart
-    fig, ax = plt.subplots(figsize=(14, 10))
+    fig, ax = plt.subplots(figsize=(14, 12))
 
     # Use the sorted entities directly for y-axis positioning
     y_positions = range(len(entities_data))
@@ -461,24 +464,24 @@ def create_overall_visualizations(
     all_entities = Counter()
     condition_data = aggregated_data["condition"]
     for top_entities_obj in condition_data.values():
-        entities_dict = top_entities_obj.get_top_n(10)
+        entities_dict = top_entities_obj.get_top_n(TOP_N)
         for entity, count in entities_dict.items():
             all_entities[entity] += count
 
-    top_overall = all_entities.most_common(10)
+    top_overall = all_entities.most_common(TOP_N)
     entities, counts = zip(*top_overall)
 
     ax1.barh(range(len(entities)), counts, color="steelblue")
     ax1.set_yticks(range(len(entities)))
     ax1.set_yticklabels(entities)
     ax1.set_xlabel("Total Frequency")
-    ax1.set_title("Top 10 Entities Overall")
+    ax1.set_title(f"Top {TOP_N} Entities Overall")
     ax1.grid(True, alpha=0.3)
 
     # Pre vs Post comparison
     election_data = aggregated_data["election_date"]
-    pre_counts = list(election_data["pre_election"].get_top_n(10).values())
-    post_counts = list(election_data["post_election"].get_top_n(10).values())
+    pre_counts = list(election_data["pre_election"].get_top_n(TOP_N).values())
+    post_counts = list(election_data["post_election"].get_top_n(TOP_N).values())
 
     x = np.arange(len(pre_counts))
     width = 0.35
@@ -512,7 +515,7 @@ def create_overall_visualizations(
 
     # Condition distribution with new colors
     condition_counts = [
-        sum(top_entities_obj.get_top_n(10).values())
+        sum(top_entities_obj.get_top_n(TOP_N).values())
         for top_entities_obj in condition_data.values()
     ]
     condition_names = [condition_labels[cond] for cond in condition_data.keys()]
@@ -576,15 +579,15 @@ def create_visualization_metadata(base_dir: str, timestamp: str, aggregated_data
         "election_date": "2024-11-05",
         "total_conditions": len(condition_data),
         "conditions": list(condition_data.keys()),
-        "top_10_entities_by_condition": {
-            condition: list(top_entities_obj.get_top_n(10).keys())
+        f"top_{TOP_N}_entities_by_condition": {
+            condition: list(top_entities_obj.get_top_n(TOP_N).keys())
             for condition, top_entities_obj in condition_data.items()
         },
-        "top_10_entities_pre_election": list(
-            election_data["pre_election"].get_top_n(10).keys()
+        f"top_{TOP_N}_entities_pre_election": list(
+            election_data["pre_election"].get_top_n(TOP_N).keys()
         ),
-        "top_10_entities_post_election": list(
-            election_data["post_election"].get_top_n(10).keys()
+        f"top_{TOP_N}_entities_post_election": list(
+            election_data["post_election"].get_top_n(TOP_N).keys()
         ),
         "figure_parameters": {"figsize": [12, 8], "dpi": 300, "facecolor": "white"},
         "color_palette": [
@@ -652,7 +655,7 @@ def create_all_visualizations(
 
     ranking_comparison = create_ranking_comparison(aggregated_data["election_date"])
 
-    # 1. Top 10 entities by condition
+    # 1. Top N entities by condition
     print("Creating condition-based visualizations...")
     create_condition_visualizations(
         aggregated_data, os.path.join(base_dir, "condition")
