@@ -29,14 +29,7 @@ def load_entities_from_csv(csv_file: str) -> Dict[str, int]:
 
 
 def create_condition_tables_visualization(ner_results_dir: str, output_dir: str):
-    """Create 3 separate tables for top 10 entities by condition (most frequent on top)."""
-
-    # Condition mapping for presentation
-    condition_labels = {
-        "reverse_chronological": "Reverse Chronological",
-        "engagement": "Engagement-Based",
-        "representative_diversification": "Diversified Extremity",
-    }
+    """Create stacked chart with all 3 conditions (most frequent on top)."""
 
     # Color palette
     condition_colors = {
@@ -69,64 +62,70 @@ def create_condition_tables_visualization(ner_results_dir: str, output_dir: str)
         )
         condition_data[condition] = top_10
 
-    # Create 3 separate subplots (tables)
-    fig, axes = plt.subplots(1, 3, figsize=(20, 10))
+    # Create single stacked chart
+    fig, ax = plt.subplots(figsize=(16, 12))
 
+    # Prepare data for stacking
+    y_positions = []
+    entity_labels = []
+    frequencies = []
+    bar_colors = []
+
+    # No spacing between conditions - they should be directly adjacent
+    current_y = 0
     for i, condition in enumerate(conditions):
         entities = condition_data[condition]
 
         if entities:
-            # Prepare data - entities are already sorted by frequency (descending)
+            # Add entities for this condition (no condition label bar)
             entity_names = list(entities.keys())
-            frequencies = list(entities.values())
+            entity_freqs = list(entities.values())
 
-            # Create horizontal bar chart (most frequent at top)
-            y_positions = range(len(entity_names))
-            axes[i].barh(
-                y_positions, frequencies, color=condition_colors[condition], alpha=0.8
-            )
+            for j, (name, freq) in enumerate(zip(entity_names, entity_freqs)):
+                entity_labels.append(name)
+                frequencies.append(freq)
+                bar_colors.append(condition_colors[condition])
+                y_positions.append(current_y)
+                current_y += 2  # Increased spacing between bars (was 1, now 2)
 
-            # Set y-axis labels (entity names)
-            axes[i].set_yticks(y_positions)
-            axes[i].set_yticklabels(entity_names, fontsize=10)
+    # Create horizontal bar chart
+    ax.barh(y_positions, frequencies, color=bar_colors, alpha=0.8)
 
-            # Invert y-axis so most frequent appears at top
-            axes[i].invert_yaxis()
+    # Set y-axis labels
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels(entity_labels, fontsize=15)
 
-            axes[i].set_xlabel("Frequency", fontsize=12)
-            axes[i].set_xlim(0, 500000)  # Set X-axis limit to 500,000
-            axes[i].set_title(
-                f"Top 10 Entities - {condition_labels[condition]}",
-                fontsize=14,
-                fontweight="bold",
-            )
-            axes[i].grid(True, alpha=0.3, axis="x")
+    # Invert y-axis so most frequent appears at top
+    ax.invert_yaxis()
 
-            # Add frequency labels on bars
-            for j, freq in enumerate(frequencies):
-                axes[i].text(
-                    freq + max(frequencies) * 0.01,
-                    j,
-                    str(freq),
-                    va="center",
-                    fontsize=9,
-                    fontweight="bold",
-                )
-        else:
-            axes[i].text(
-                0.5,
-                0.5,
-                "No entities found",
-                ha="center",
+    # Set labels and limits
+    ax.set_xlabel("Frequency", fontsize=12)
+    ax.set_xlim(0, 500000)  # Set X-axis limit to 500,000
+    ax.set_title("Top 10 Entities by Condition", fontsize=16, fontweight="bold")
+    ax.grid(True, alpha=0.3, axis="x")
+
+    # Add frequency labels on bars - properly aligned
+    for i, (freq, color) in enumerate(zip(frequencies, bar_colors)):
+        if color != "white" and freq > 0:  # Only add labels to actual data bars
+            ax.text(
+                freq + max([f for f in frequencies if f > 0]) * 0.01,
+                y_positions[i],
+                str(freq),
                 va="center",
-                transform=axes[i].transAxes,
-                fontsize=12,
-            )
-            axes[i].set_title(
-                f"Top 10 Entities - {condition_labels[condition]}",
-                fontsize=14,
+                ha="left",
+                fontsize=10,
                 fontweight="bold",
             )
+
+    # Add legend for conditions
+    from matplotlib.patches import Patch
+
+    legend_elements = [
+        Patch(facecolor="grey", alpha=0.8, label="Reverse Chronological"),
+        Patch(facecolor="red", alpha=0.8, label="Engagement-Based"),
+        Patch(facecolor="green", alpha=0.8, label="Diversified Extremity"),
+    ]
+    ax.legend(handles=legend_elements, loc="upper right", fontsize=12)
 
     plt.tight_layout()
 
@@ -167,7 +166,7 @@ def create_election_period_visualization(ner_results_dir: str, output_dir: str):
         y_positions = range(len(pre_names))
         ax1.barh(y_positions, pre_freqs, color="lightblue", alpha=0.8, edgecolor="navy")
         ax1.set_yticks(y_positions)
-        ax1.set_yticklabels(pre_names, fontsize=10)
+        ax1.set_yticklabels(pre_names, fontsize=15)
         ax1.invert_yaxis()  # Most frequent at top
         ax1.set_xlabel("Frequency", fontsize=12)
         ax1.set_xlim(0, 500000)  # Set X-axis limit to 500,000
@@ -197,7 +196,7 @@ def create_election_period_visualization(ner_results_dir: str, output_dir: str):
         y_positions = range(len(post_names))
         ax2.barh(y_positions, post_freqs, color="darkblue", alpha=0.8, edgecolor="navy")
         ax2.set_yticks(y_positions)
-        ax2.set_yticklabels(post_names, fontsize=10)
+        ax2.set_yticklabels(post_names, fontsize=15)
         ax2.invert_yaxis()  # Most frequent at top
         ax2.set_xlabel("Frequency", fontsize=12)
         ax2.set_xlim(0, 500000)  # Set X-axis limit to 500,000
