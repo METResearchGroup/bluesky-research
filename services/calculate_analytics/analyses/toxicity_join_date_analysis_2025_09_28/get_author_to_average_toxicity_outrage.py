@@ -15,7 +15,10 @@ def main():
         end_date=STUDY_END_DATE,
         exclude_partition_dates=exclude_partition_dates,
     )
-    get_and_export_daily_author_to_average_toxicity_outrage(partition_dates)
+    # Use sequential mode by default to avoid memory issues
+    get_and_export_daily_author_to_average_toxicity_outrage(
+        partition_dates, mode="sequential"
+    )
 
 
 if __name__ == "__main__":

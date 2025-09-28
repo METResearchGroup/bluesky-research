@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH -t 2:00:00
-#SBATCH --mem=16G
+#SBATCH --mem=24G
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=markptorres1@gmail.com
 #SBATCH --job-name=toxicity_analysis_prod_%j
@@ -44,7 +44,7 @@ source $CONDA_PATH && conda activate bluesky_research && export PYTHONPATH=$PYTH
 # Run the toxicity analysis
 echo "🧪 Starting production toxicity analysis..."
 echo "📊 Features:"
-echo "  - Multithreaded processing of daily Perspective API posts"
+echo "  - Sequential processing of daily Perspective API posts (memory-safe)"
 echo "  - Author-to-average toxicity/outrage score calculation"
 echo "  - User join date correlation analysis"
 echo "  - Data quality validation and monitoring"
@@ -69,7 +69,7 @@ if [ $exit_code -eq 0 ]; then
     echo "  - User posting frequency analysis"
     echo "  - Join date correlation calculations"
     echo "  - Data integrity validation"
-    echo "  - Multithreaded processing for performance"
+    echo "  - Sequential processing for memory safety"
 else
     echo ""
     echo "❌ Production toxicity analysis failed with exit code $exit_code"

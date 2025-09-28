@@ -185,9 +185,34 @@ def get_and_export_author_to_average_toxicity_outrage_for_partition_date(
     )
 
 
-def get_and_export_daily_author_to_average_toxicity_outrage(partition_dates: list[str]):
-    """Multithreaded version of getting author to total posts per day,
-    one thread per day."""
+def get_and_export_daily_author_to_average_toxicity_outrage_sequential(
+    partition_dates: list[str],
+):
+    """Sequential version of getting author to average toxicity and outrage per day,
+    processing one partition date at a time."""
+    completed = 0
+    for partition_date in partition_dates:
+        if completed % 10 == 0:
+            logger.info(
+                f"Processed {completed}/{len(partition_dates)} partition dates..."
+            )
+        try:
+            get_and_export_author_to_average_toxicity_outrage_for_partition_date(
+                partition_date
+            )
+        except Exception as e:
+            logger.error(f"Error processing partition date {partition_date}: {e}")
+        completed += 1
+
+    logger.info(f"Processed {completed}/{len(partition_dates)} partition dates...")
+    logger.info("Finished processing all partition dates.")
+
+
+def get_and_export_daily_author_to_average_toxicity_outrage_parallel(
+    partition_dates: list[str],
+):
+    """Parallel version of getting author to average toxicity and outrage per day,
+    using multithreading with one thread per partition date."""
     max_workers = None
     if max_workers is None:
         max_workers = min(32, (os.cpu_count() or 1) + 4)
@@ -213,3 +238,26 @@ def get_and_export_daily_author_to_average_toxicity_outrage(partition_dates: lis
 
     logger.info(f"Processed {completed}/{len(partition_dates)} partition dates...")
     logger.info("Finished processing all partition dates.")
+
+
+def get_and_export_daily_author_to_average_toxicity_outrage(
+    partition_dates: list[str], mode: str = "sequential"
+):
+    """Gets author to average toxicity and outrage per day for multiple partition dates.
+
+    Args:
+        partition_dates: List of partition dates to process
+        mode: Processing mode - "sequential" (default) or "parallel"
+    """
+    if mode == "sequential":
+        logger.info("Running in sequential mode (single-threaded)")
+        get_and_export_daily_author_to_average_toxicity_outrage_sequential(
+            partition_dates
+        )
+    elif mode == "parallel":
+        logger.info("Running in parallel mode (multithreaded)")
+        get_and_export_daily_author_to_average_toxicity_outrage_parallel(
+            partition_dates
+        )
+    else:
+        raise ValueError(f"Invalid mode '{mode}'. Must be 'sequential' or 'parallel'.")
