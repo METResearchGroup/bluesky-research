@@ -13,11 +13,12 @@ This analysis will help understand:
 
 ## Pipeline Overview
 
-The analysis follows a three-stage pipeline:
+The analysis follows a four-stage pipeline:
 
 1. **Daily Processing**: Calculate author-to-average toxicity/outrage scores for each study day
 2. **Aggregation**: Combine daily results into weighted averages across the entire study period
 3. **Visualization**: Analyze and visualize posting patterns to understand data distribution
+4. **Sampling**: Extract a representative sample of top users for detailed analysis
 
 ## Files and Execution Order
 
@@ -81,6 +82,26 @@ python aggregate_author_to_average_toxicity_across_days.py
 python visualize_number_posts_per_author.py
 ```
 
+### 4. `sample_top_users.py`
+**Purpose**: Samples the top 10% of users (by post count) for detailed analysis, particularly useful for join date retrieval and correlation analysis.
+
+**What it does**:
+- Loads the aggregated author-to-average toxicity/outrage data
+- Removes outliers using the same IQR method as the visualization script
+- Identifies the top 10% of users by post count (≥77 posts in current dataset)
+- Randomly samples 1000 users from this top 10% group
+- Saves the sampled data with user DIDs, toxicity/outrage scores, and post counts
+
+**Key outputs**:
+- Parquet file with columns: `author_did`, `average_toxicity`, `average_outrage`, `total_labeled_posts`
+- Saved to `sampled_users/<timestamp>/top_10_percent_sampled_users.parquet`
+- Console output with detailed statistics about the sampling process
+
+**Execution**: Run fourth to prepare user sample for analysis
+```bash
+python sample_top_users.py
+```
+
 ## Data Flow
 
 ```
@@ -97,6 +118,10 @@ Perspective API Labels + Preprocessed Posts
     Posting Pattern Analysis (visualize_number_posts_per_author.py)
            ↓
     Distribution Visualizations (visualizations/number_of_posts_per_author/<timestamp>/)
+           ↓
+    Top User Sampling (sample_top_users.py)
+           ↓
+    Sampled User Data (sampled_users/<timestamp>/top_10_percent_sampled_users.parquet)
 ```
 
 ## Study Parameters
