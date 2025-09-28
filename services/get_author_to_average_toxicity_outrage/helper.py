@@ -69,8 +69,7 @@ def get_author_to_average_toxicity_outrage(partition_date: str) -> pd.DataFrame:
     perspective_api_labels_df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_perspective_api",
         directory="cache",
-        start_partition_date=partition_date,
-        end_partition_date=partition_date,
+        partition_date=partition_date,
         duckdb_query=perspective_api_query,
         query_metadata=perspective_api_query_metadata,
         export_format="duckdb",
