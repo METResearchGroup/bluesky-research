@@ -118,8 +118,32 @@ def get_author_to_average_toxicity_outrage(partition_date: str) -> pd.DataFrame:
     joined_df = pd.merge(
         preprocessed_posts_df, perspective_api_labels_df, on="uri", how="inner"
     )
-    joined_df.drop_duplicates(subset=["author_did", "partition_date"], inplace=True)
+
+    # Handle duplicate partition_date columns after merge
+    if (
+        "partition_date_x" in joined_df.columns
+        and "partition_date_y" in joined_df.columns
+    ):
+        # Both columns should have the same values, so we can drop one and rename the other
+        joined_df.drop(columns=["partition_date_y"], inplace=True)
+        joined_df.rename(columns={"partition_date_x": "partition_date"}, inplace=True)
+
+    # Remove any duplicate rows based on all columns (in case of exact duplicates)
+    joined_df.drop_duplicates(inplace=True)
     joined_df.reset_index(drop=True, inplace=True)
+
+    # If no data after join, return empty dataframe with correct columns
+    if len(joined_df) == 0:
+        logger.warning(f"No data after join for partition date {partition_date}")
+        return pd.DataFrame(
+            columns=[
+                "author_did",
+                "partition_date",
+                "average_toxicity",
+                "average_outrage",
+                "total_labeled_posts",
+            ]
+        )
 
     # group by author_did and calculate the average toxicity and outrage as well
     # as the total number of posts.
