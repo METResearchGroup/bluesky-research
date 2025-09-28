@@ -13,12 +13,13 @@ This analysis will help understand:
 
 ## Pipeline Overview
 
-The analysis follows a four-stage pipeline:
+The analysis follows a five-stage pipeline:
 
 1. **Daily Processing**: Calculate author-to-average toxicity/outrage scores for each study day
 2. **Aggregation**: Combine daily results into weighted averages across the entire study period
 3. **Visualization**: Analyze and visualize posting patterns to understand data distribution
 4. **Sampling**: Extract a representative sample of top users for detailed analysis
+5. **Profile Fetching**: Retrieve Bluesky profile data including join dates for correlation analysis
 
 ## Files and Execution Order
 
@@ -102,6 +103,27 @@ python visualize_number_posts_per_author.py
 python sample_top_users.py
 ```
 
+### 5. `get_bsky_profiles_for_sampled_users.py`
+**Purpose**: Fetches Bluesky profile data for sampled users to obtain join dates and other profile information needed for correlation analysis.
+
+**What it does**:
+- Loads the sampled user data from the most recent sampling run
+- Checks for existing profile data to avoid re-fetching
+- Fetches Bluesky profiles via API using `get_author_record()` from `bluesky_helper.py`
+- Processes users in configurable chunks (default: 100) with rate limiting
+- Combines toxicity/outrage data with profile information including join dates
+- Handles API errors gracefully (invalid DIDs, network issues, etc.)
+
+**Key outputs**:
+- Parquet files with columns: `author_did`, `average_toxicity`, `average_outrage`, `total_labeled_posts`, `created_at`, `description`, `display_name`, `followers_count`, `follows_count`, `handle`, `posts_count`
+- Saved to `sampled_user_profiles/<timestamp>/user_profiles_chunk_XXX.parquet`
+- Console output with detailed progress and summary statistics
+
+**Execution**: Run fifth to fetch profile data for correlation analysis
+```bash
+python get_bsky_profiles_for_sampled_users.py
+```
+
 ## Data Flow
 
 ```
@@ -122,6 +144,10 @@ Perspective API Labels + Preprocessed Posts
     Top User Sampling (sample_top_users.py)
            ↓
     Sampled User Data (sampled_users/<timestamp>/top_10_percent_sampled_users.parquet)
+           ↓
+    Profile Data Fetching (get_bsky_profiles_for_sampled_users.py)
+           ↓
+    Combined Toxicity + Profile Data (sampled_user_profiles/<timestamp>/user_profiles_chunk_XXX.parquet)
 ```
 
 ## Study Parameters
