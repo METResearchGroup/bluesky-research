@@ -13,10 +13,11 @@ This analysis will help understand:
 
 ## Pipeline Overview
 
-The analysis follows a two-stage pipeline:
+The analysis follows a three-stage pipeline:
 
 1. **Daily Processing**: Calculate author-to-average toxicity/outrage scores for each study day
 2. **Aggregation**: Combine daily results into weighted averages across the entire study period
+3. **Visualization**: Analyze and visualize posting patterns to understand data distribution
 
 ## Files and Execution Order
 
@@ -60,6 +61,26 @@ python get_author_to_average_toxicity_outrage.py
 python aggregate_author_to_average_toxicity_across_days.py
 ```
 
+### 3. `visualize_number_posts_per_author.py`
+**Purpose**: Creates visualizations to understand the distribution of posting behavior across authors in the aggregated dataset.
+
+**What it does**:
+- Loads the aggregated author-to-average toxicity/outrage data
+- Removes outliers using the IQR method (statistically sound box-and-whisker plot definition)
+- Creates a histogram showing the distribution of posts per author
+- Adds vertical lines marking the top percentiles (0.1%, 1%, 5%, 10%) in different red hues
+- Includes comprehensive statistics and insights about posting patterns
+
+**Key outputs**:
+- Histogram visualization saved as PNG in `visualizations/number_of_posts_per_author/<timestamp>/`
+- Console output with detailed statistics about posting distribution
+- Outlier removal statistics and percentile thresholds
+
+**Execution**: Run third to analyze posting patterns
+```bash
+python visualize_number_posts_per_author.py
+```
+
 ## Data Flow
 
 ```
@@ -72,6 +93,10 @@ Perspective API Labels + Preprocessed Posts
     Cross-Day Aggregation (aggregate_author_to_average_toxicity_across_days.py)
            ↓
     Final Weighted Averages (results/<timestamp>/aggregated_author_toxicity_outrage.parquet)
+           ↓
+    Posting Pattern Analysis (visualize_number_posts_per_author.py)
+           ↓
+    Distribution Visualizations (visualizations/number_of_posts_per_author/<timestamp>/)
 ```
 
 ## Study Parameters
