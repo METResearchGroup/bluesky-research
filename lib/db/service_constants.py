@@ -783,11 +783,12 @@ MAP_SERVICE_TO_METADATA = {
         "s3_prefix": "author_to_average_toxicity_outrage",
         "glue_table_name": "author_to_average_toxicity_outrage",
         "primary_key": "author_did",
-        "timestamp_field": "partition_date",
+        "timestamp_field": "preprocessing_timestamp",
         "skip_deduping": True,
         "pydantic_model": "",
         "dtypes_map": {
             "author_did": "string",
+            "preprocessing_timestamp": "string",
             "partition_date": "string",
             "total_labeled_posts": "Int64",
             "average_toxicity": "Float64",

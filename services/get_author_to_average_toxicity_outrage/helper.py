@@ -17,23 +17,23 @@ service_name = "author_to_average_toxicity_outrage"
 
 
 def get_author_to_average_toxicity_outrage(partition_date: str) -> pd.DataFrame:
-    """Gets author to total posts per day for a given partition date.
+    """Gets author to average toxicity and outrage for a given partition date.
 
     Returns a pandas dataframe with the following columns:
     - author_did: str
-    - date: str
+    - preprocessing_timestamp: str
     - total_labeled_posts: int
     - average_toxicity: float
     - average_outrage: float
 
     Three-phase algorithm:
     1. Load the labeled posts for the given partition date. Get the post URIs.
-    2. Use the post URIs to get the preprocessed posts. Load the URI and author_did
-    for the preprocessed posts.
+    2. Use the post URIs to get the preprocessed posts. Load the URI, author_did,
+    and preprocessing_timestamp for the preprocessed posts.
     3. Join the two dataframes on the URI column and for each author_did,
     calculate the following:
         - author_did: str
-        - partition_date: str
+        - preprocessing_timestamp: str (from preprocessed_posts)
         - total_labeled_posts: int
         - average_toxicity: float
         - average_outrage: float
@@ -47,10 +47,9 @@ def get_author_to_average_toxicity_outrage(partition_date: str) -> pd.DataFrame:
         "text",
         "prob_toxic",
         "prob_moral_outrage",
-        "partition_date",
     ]
     perspective_api_table_columns_str = ", ".join(perspective_api_table_columns)
-    perspective_api_sort_filter = "ORDER BY partition_date ASC"
+    perspective_api_sort_filter = ""
     perspective_api_query = (
         f"SELECT {perspective_api_table_columns_str} "
         f"FROM ml_inference_perspective_api "
@@ -83,9 +82,14 @@ def get_author_to_average_toxicity_outrage(partition_date: str) -> pd.DataFrame:
     # for the preprocessed posts. ###
 
     # load preprocessed posts.
-    preprocessed_posts_table_columns = ["author_did", "text", "uri", "partition_date"]
+    preprocessed_posts_table_columns = [
+        "author_did",
+        "text",
+        "uri",
+        "preprocessing_timestamp",
+    ]
     preprocessed_posts_table_columns_str = ", ".join(preprocessed_posts_table_columns)
-    preprocessed_posts_sort_filter = "ORDER BY partition_date ASC"
+    preprocessed_posts_sort_filter = ""
     preprocessed_posts_query = (
         f"SELECT {preprocessed_posts_table_columns_str} "
         f"FROM preprocessed_posts "
@@ -118,14 +122,17 @@ def get_author_to_average_toxicity_outrage(partition_date: str) -> pd.DataFrame:
         preprocessed_posts_df, perspective_api_labels_df, on="uri", how="inner"
     )
 
-    # Handle duplicate partition_date columns after merge
-    if (
-        "partition_date_x" in joined_df.columns
-        and "partition_date_y" in joined_df.columns
-    ):
-        # Both columns should have the same values, so we can drop one and rename the other
-        joined_df.drop(columns=["partition_date_y"], inplace=True)
-        joined_df.rename(columns={"partition_date_x": "partition_date"}, inplace=True)
+    # Add partition_date back since we're grouping by it but not loading it from DB
+    joined_df["partition_date"] = partition_date
+
+    # Handle preprocessing_timestamp - it should only come from preprocessed_posts
+    if "preprocessing_timestamp_x" in joined_df.columns:
+        joined_df.rename(
+            columns={"preprocessing_timestamp_x": "preprocessing_timestamp"},
+            inplace=True,
+        )
+    if "preprocessing_timestamp_y" in joined_df.columns:
+        joined_df.drop(columns=["preprocessing_timestamp_y"], inplace=True)
 
     # Remove any duplicate rows based on all columns (in case of exact duplicates)
     joined_df.drop_duplicates(inplace=True)
@@ -137,18 +144,25 @@ def get_author_to_average_toxicity_outrage(partition_date: str) -> pd.DataFrame:
         return pd.DataFrame(
             columns=[
                 "author_did",
-                "partition_date",
+                "preprocessing_timestamp",
                 "average_toxicity",
                 "average_outrage",
                 "total_labeled_posts",
             ]
         )
 
-    # group by author_did and calculate the average toxicity and outrage as well
-    # as the total number of posts.
+    # group by author_did and partition_date, keeping the first preprocessing_timestamp
+    # and calculating the average toxicity and outrage as well as the total number of posts.
     joined_df = (
         joined_df.groupby(["author_did", "partition_date"])
-        .agg({"prob_toxic": "mean", "prob_moral_outrage": "mean", "uri": "count"})
+        .agg(
+            {
+                "prob_toxic": "mean",
+                "prob_moral_outrage": "mean",
+                "uri": "count",
+                "preprocessing_timestamp": "first",  # Take the first preprocessing_timestamp for each group
+            }
+        )
         .reset_index()
     )
     joined_df.rename(columns={"uri": "total_labeled_posts"}, inplace=True)

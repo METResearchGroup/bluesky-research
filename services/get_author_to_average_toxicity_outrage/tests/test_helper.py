@@ -23,14 +23,13 @@ class TestGetAuthorToAverageToxicityOutrage:
             "text": ["text1", "text2", "text3", "text4"],  # Add text column
             "prob_toxic": [0.1, 0.2, 0.3, 0.4],
             "prob_moral_outrage": [0.05, 0.15, 0.25, 0.35],
-            "partition_date": ["2024-10-01", "2024-10-01", "2024-10-01", "2024-10-01"]
         })
 
         preprocessed_posts_data = pd.DataFrame({
             "author_did": ["author1", "author1", "author2", "author2"],
             "text": ["text1", "text2", "text3", "text4"],  # Add text column
             "uri": ["uri1", "uri2", "uri3", "uri4"],
-            "partition_date": ["2024-10-01", "2024-10-01", "2024-10-01", "2024-10-01"]
+            "preprocessing_timestamp": ["2024-10-01T10:00:00Z", "2024-10-01T11:00:00Z", "2024-10-01T12:00:00Z", "2024-10-01T13:00:00Z"]
         })
 
         expected_result = pd.DataFrame({
@@ -38,7 +37,8 @@ class TestGetAuthorToAverageToxicityOutrage:
             "partition_date": ["2024-10-01", "2024-10-01"],
             "average_toxicity": [0.15, 0.35],  # (0.1+0.2)/2, (0.3+0.4)/2
             "average_outrage": [0.10, 0.30],   # (0.05+0.15)/2, (0.25+0.35)/2
-            "total_labeled_posts": [2, 2]
+            "total_labeled_posts": [2, 2],
+            "preprocessing_timestamp": ["2024-10-01T10:00:00Z", "2024-10-01T12:00:00Z"],  # First timestamp for each author
         })
 
         def mock_load_side_effect(service, **kwargs):
@@ -75,8 +75,8 @@ class TestGetAuthorToAverageToxicityOutrage:
     def test_get_author_to_average_toxicity_outrage_empty_data(self, mock_load_data):
         """Test handling of empty data."""
         # Arrange
-        empty_df = pd.DataFrame(columns=["uri", "text", "prob_toxic", "prob_moral_outrage", "partition_date"])
-        expected_result = pd.DataFrame(columns=["author_did", "partition_date", "average_toxicity", "average_outrage", "total_labeled_posts"])
+        empty_df = pd.DataFrame(columns=["uri", "text", "prob_toxic", "prob_moral_outrage"])
+        expected_result = pd.DataFrame(columns=["author_did", "preprocessing_timestamp", "average_toxicity", "average_outrage", "total_labeled_posts"])
         
         # Mock both services to return empty data
         def mock_load_side_effect(service, **kwargs):
@@ -100,17 +100,16 @@ class TestGetAuthorToAverageToxicityOutrage:
             "text": ["text1", "text2"],  # Add text column
             "prob_toxic": [0.1, 0.2],
             "prob_moral_outrage": [0.05, 0.15],
-            "partition_date": ["2024-10-01", "2024-10-01"]
         })
 
         preprocessed_posts_data = pd.DataFrame({
             "author_did": ["author1", "author2"],
             "text": ["text1", "text2"],  # Add text column
             "uri": ["uri3", "uri4"],  # Different URIs
-            "partition_date": ["2024-10-01", "2024-10-01"]
+            "preprocessing_timestamp": ["2024-10-01T10:00:00Z", "2024-10-01T11:00:00Z"]
         })
 
-        expected_result = pd.DataFrame(columns=["author_did", "partition_date", "average_toxicity", "average_outrage", "total_labeled_posts"])
+        expected_result = pd.DataFrame(columns=["author_did", "preprocessing_timestamp", "average_toxicity", "average_outrage", "total_labeled_posts"])
 
         def mock_load_side_effect(service, **kwargs):
             if service == "ml_inference_perspective_api":
@@ -137,19 +136,19 @@ class TestGetAuthorToAverageToxicityOutrage:
             "text": ["text1", "text2", "text3"],  # Add text column
             "prob_toxic": [0.1, 0.2, 0.3],
             "prob_moral_outrage": [0.05, 0.15, 0.25],
-            "partition_date": ["2024-10-01", "2024-10-01", "2024-10-01"]
         })
 
         preprocessed_posts_data = pd.DataFrame({
             "author_did": ["author1", "author1", "author1"],
             "text": ["text1", "text2", "text3"],  # Add text column
             "uri": ["uri1", "uri2", "uri3"],
-            "partition_date": ["2024-10-01", "2024-10-01", "2024-10-01"]
+            "preprocessing_timestamp": ["2024-10-01T10:00:00Z", "2024-10-01T11:00:00Z", "2024-10-01T12:00:00Z"]
         })
 
         expected_result = pd.DataFrame({
             "author_did": ["author1"],
             "partition_date": ["2024-10-01"],
+            "preprocessing_timestamp": ["2024-10-01T10:00:00Z"],  # First timestamp
             "average_toxicity": [0.2],  # (0.1 + 0.2 + 0.3) / 3
             "average_outrage": [0.15],  # (0.05 + 0.15 + 0.25) / 3
             "total_labeled_posts": [3]
@@ -186,7 +185,6 @@ class TestGetAuthorToAverageToxicityOutrage:
             "text": [f"text{i:02d}" for i in range(1, 26)],
             "prob_toxic": [0.1 + (i % 10) * 0.05 for i in range(1, 26)],  # 0.1 to 0.55
             "prob_moral_outrage": [0.05 + (i % 8) * 0.05 for i in range(1, 26)],  # 0.05 to 0.4
-            "partition_date": ["2024-10-01"] * 15 + ["2024-10-02"] * 10
         })
 
         preprocessed_posts_data = pd.DataFrame({
@@ -199,25 +197,19 @@ class TestGetAuthorToAverageToxicityOutrage:
             ),
             "text": [f"text{i:02d}" for i in range(1, 26)],
             "uri": [f"uri{i:02d}" for i in range(1, 26)],
-            "partition_date": ["2024-10-01"] * 15 + ["2024-10-02"] * 10
+            "preprocessing_timestamp": [f"2024-10-01T{i:02d}:00:00Z" for i in range(1, 26)]
         })
 
-        expected_author_count = 12  # 6 single-date authors + 6 multi-date authors (only for 2024-10-01)
-        expected_total_posts = 15  # Only posts from 2024-10-01: 6 + 6 + 3 = 15 (actual count from test)
+        expected_author_count = 12  # 6 single-date authors + 6 multi-date authors
+        expected_total_posts = 25  # All posts since we're not filtering by partition_date anymore
 
         def mock_load_side_effect(service, **kwargs):
             if service == "ml_inference_perspective_api":
-                # Filter by partition_date if provided
-                data = perspective_api_data.copy()
-                if "partition_date" in kwargs:
-                    data = data[data["partition_date"] == kwargs["partition_date"]]
-                return data
+                # No filtering needed since we don't load partition_date from DB anymore
+                return perspective_api_data.copy()
             elif service == "preprocessed_posts":
-                # Filter by partition_date if provided
-                data = preprocessed_posts_data.copy()
-                if "partition_date" in kwargs:
-                    data = data[data["partition_date"] == kwargs["partition_date"]]
-                return data
+                # No filtering needed since we don't load partition_date from DB anymore
+                return preprocessed_posts_data.copy()
             return pd.DataFrame()
 
         mock_load_data.side_effect = mock_load_side_effect
@@ -230,12 +222,12 @@ class TestGetAuthorToAverageToxicityOutrage:
         assert actual_result["total_labeled_posts"].sum() == expected_total_posts
         
         # Verify all expected columns exist
-        expected_columns = ["author_did", "partition_date", "average_toxicity", "average_outrage", "total_labeled_posts"]
+        expected_columns = ["author_did", "partition_date", "average_toxicity", "average_outrage", "total_labeled_posts", "preprocessing_timestamp"]
         assert list(actual_result.columns) == expected_columns
         
         # Verify data types
         assert actual_result["author_did"].dtype == "object"
-        assert actual_result["partition_date"].dtype == "object"
+        assert actual_result["preprocessing_timestamp"].dtype == "object"
         assert actual_result["average_toxicity"].dtype in ["float64", "float32"]
         assert actual_result["average_outrage"].dtype in ["float64", "float32"]
         assert actual_result["total_labeled_posts"].dtype in ["int64", "int32"]
@@ -302,7 +294,7 @@ class TestGetAndExportAuthorToAverageToxicityOutrageForPartitionDate:
         # Arrange - Create large mock dataset
         large_mock_data = pd.DataFrame({
             "author_did": [f"author{i:03d}" for i in range(1, 51)],  # 50 authors
-            "partition_date": ["2024-10-01"] * 50,
+            "preprocessing_timestamp": [f"2024-10-01T{i:02d}:00:00Z" for i in range(1, 51)],
             "average_toxicity": [0.1 + (i % 10) * 0.05 for i in range(1, 51)],  # 0.1 to 0.55
             "average_outrage": [0.05 + (i % 8) * 0.05 for i in range(1, 51)],  # 0.05 to 0.4
             "total_labeled_posts": [1 + (i % 5) for i in range(1, 51)]  # 1 to 5 posts per author
@@ -323,7 +315,7 @@ class TestGetAndExportAuthorToAverageToxicityOutrageForPartitionDate:
         # Verify the exported data has correct structure
         exported_df = mock_export_data.call_args[1]["df"]
         assert len(exported_df) == 50
-        assert list(exported_df.columns) == ["author_did", "partition_date", "average_toxicity", "average_outrage", "total_labeled_posts"]
+        assert list(exported_df.columns) == ["author_did", "preprocessing_timestamp", "average_toxicity", "average_outrage", "total_labeled_posts"]
         assert exported_df["total_labeled_posts"].sum() >= 50  # At least 50 total posts
 
 
@@ -413,14 +405,13 @@ class TestDataValidation:
             "text": ["text1", "text2", "text3"],  # Add text column
             "prob_toxic": [0.1, None, 0.3],
             "prob_moral_outrage": [0.05, 0.15, None],
-            "partition_date": ["2024-10-01", "2024-10-01", "2024-10-01"]
         })
 
         preprocessed_posts_data = pd.DataFrame({
             "author_did": ["author1", "author2", "author3"],
             "text": ["text1", "text2", "text3"],  # Add text column
             "uri": ["uri1", "uri2", "uri3"],
-            "partition_date": ["2024-10-01", "2024-10-01", "2024-10-01"]
+            "preprocessing_timestamp": ["2024-10-01T10:00:00Z", "2024-10-01T11:00:00Z", "2024-10-01T12:00:00Z"]
         })
 
         def mock_load_side_effect(service, **kwargs):
@@ -452,14 +443,13 @@ class TestDataValidation:
             "text": ["text1", "text2", "text3"],  # Add text column
             "prob_toxic": [0.1, 0.2, 0.3],
             "prob_moral_outrage": [0.05, 0.15, 0.25],
-            "partition_date": ["2024-10-01", "2024-10-01", "2024-10-01"]
         })
 
         preprocessed_posts_data = pd.DataFrame({
             "author_did": ["author1", "author1", "author2"],
             "text": ["text1", "text2", "text3"],  # Add text column
             "uri": ["uri1", "uri1", "uri2"],  # Duplicate uri1
-            "partition_date": ["2024-10-01", "2024-10-01", "2024-10-01"]
+            "preprocessing_timestamp": ["2024-10-01T10:00:00Z", "2024-10-01T11:00:00Z", "2024-10-01T12:00:00Z"]
         })
 
         expected_unique_authors = 2
@@ -503,7 +493,6 @@ class TestDataValidation:
                 0.5, None, 0.08, 0.18, 0.28, 0.38, 0.48, 0.58, 0.68, 0.78,
                 0.88, 0.02, 0.12, 0.22, 0.32, 0.42, 0.52, 0.62, 0.72, 0.82
             ],
-            "partition_date": ["2024-10-01"] * 30
         })
 
         preprocessed_posts_data = pd.DataFrame({
@@ -517,7 +506,7 @@ class TestDataValidation:
             ),
             "text": [f"text{i:02d}" for i in range(1, 31)],
             "uri": [f"uri{i:02d}" for i in range(1, 31)],
-            "partition_date": ["2024-10-01"] * 30
+            "preprocessing_timestamp": [f"2024-10-01T{i:02d}:00:00Z" for i in range(1, 31)]
         })
 
         expected_author_count = 15
@@ -563,7 +552,7 @@ class TestDataValidation:
         assert post_counts[3] == 5  # 5 authors with 3 posts each
         
         # Verify all expected columns exist
-        expected_columns = ["author_did", "partition_date", "average_toxicity", "average_outrage", "total_labeled_posts"]
+        expected_columns = ["author_did", "partition_date", "average_toxicity", "average_outrage", "total_labeled_posts", "preprocessing_timestamp"]
         assert list(actual_result.columns) == expected_columns
 
 
