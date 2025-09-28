@@ -1,0 +1,94 @@
+{
+  "visualization_type": "named_entity_recognition",
+  "creation_timestamp": "2025-09-24-18:52:20",
+  "election_date": "2024-11-05",
+  "total_conditions": 3,
+  "conditions": [
+    "reverse_chronological",
+    "engagement",
+    "representative_diversification"
+  ],
+  "top_10_entities_by_condition": {
+    "reverse_chronological": [
+      "biden",
+      "harris",
+      "warren",
+      "massachusetts",
+      "the supreme court",
+      "mississippi",
+      "yesterday",
+      "arizona",
+      "georgia",
+      "desantis"
+    ],
+    "engagement": [
+      "biden",
+      "harris",
+      "blinken",
+      "european union",
+      "brussels",
+      "arizona",
+      "georgia",
+      "cruz",
+      "texas",
+      "pentagon"
+    ],
+    "representative_diversification": [
+      "pentagon",
+      "afghanistan",
+      "warren",
+      "massachusetts",
+      "cruz",
+      "texas",
+      "blinken",
+      "european union",
+      "brussels",
+      "desantis"
+    ]
+  },
+  "top_10_entities_pre_election": [
+    "cruz",
+    "texas",
+    "biden",
+    "harris",
+    "arizona",
+    "georgia",
+    "desantis",
+    "florida",
+    "today",
+    "warren"
+  ],
+  "top_10_entities_post_election": [
+    "warren",
+    "massachusetts",
+    "blinken",
+    "european union",
+    "brussels",
+    "biden",
+    "harris",
+    "pentagon",
+    "afghanistan",
+    "desantis"
+  ],
+  "figure_parameters": {
+    "figsize": [
+      12,
+      8
+    ],
+    "dpi": 300,
+    "facecolor": "white"
+  },
+  "color_palette": [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf"
+  ],
+  "note": "NER analysis with spaCy en_core_web_sm model focusing on PERSON, ORG, GPE, DATE entities"
+}
