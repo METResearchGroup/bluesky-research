@@ -13,13 +13,14 @@ This analysis will help understand:
 
 ## Pipeline Overview
 
-The analysis follows a five-stage pipeline:
+The analysis follows a six-stage pipeline:
 
 1. **Daily Processing**: Calculate author-to-average toxicity/outrage scores for each study day
 2. **Aggregation**: Combine daily results into weighted averages across the entire study period
 3. **Visualization**: Analyze and visualize posting patterns to understand data distribution
 4. **Sampling**: Extract a representative sample of top users for detailed analysis
 5. **Profile Fetching**: Retrieve Bluesky profile data including join dates for correlation analysis
+6. **Join Date Analysis**: Visualize toxicity/outrage patterns by user join date
 
 ## Files and Execution Order
 
@@ -124,6 +125,49 @@ python sample_top_users.py
 python get_bsky_profiles_for_sampled_users.py
 ```
 
+### 6. `visualize_toxicity_by_join_date.py`
+**Purpose**: Analyzes and visualizes toxicity/outrage patterns by user join date to understand how platform behavior correlates with join timing.
+
+**What it does**:
+- Loads all profile data from `sampled_user_profiles/` across all timestamp directories
+- Converts join dates to YYYY-MM format (groups pre-2024 dates as "2023-12")
+- Calculates average toxicity and outrage scores for each join month
+- Creates line graphs showing toxicity/outrage trends over time
+- Adds vertical red markers for the study period (2024-10 to 2024-12)
+- Generates separate and combined visualizations
+- Creates user count histogram by join date
+
+**Key outputs**:
+- `toxicity_outrage_by_join_date.png` - Separate line plots for toxicity and outrage
+- `combined_toxicity_outrage_by_join_date.png` - Combined line plot with dual y-axes
+- `user_count_by_join_date.png` - Histogram of user counts by join month
+- Saved to `visualizations/toxicity_by_join_date/<timestamp>/`
+- Console output with detailed statistics and study period comparisons
+
+**Execution**: Run sixth to analyze toxicity patterns by join date
+```bash
+python visualize_toxicity_by_join_date.py
+```
+
+### Debug Tools
+
+#### `debug_user_join_counts.py`
+**Purpose**: Debug visualization to show user join counts by month for troubleshooting data loading issues.
+
+**What it does**:
+- Loads all profile data from `sampled_user_profiles/` with detailed logging
+- Creates histogram of user counts per join month
+- Provides verbose output for debugging data loading across timestamp directories
+
+**Key outputs**:
+- Debug histogram saved to `visualizations/debug_join_counts/`
+- Detailed console logs showing file loading progress
+
+**Usage**: For troubleshooting data loading issues
+```bash
+python debug_user_join_counts.py
+```
+
 ## Data Flow
 
 ```
@@ -148,6 +192,10 @@ Perspective API Labels + Preprocessed Posts
     Profile Data Fetching (get_bsky_profiles_for_sampled_users.py)
            ↓
     Combined Toxicity + Profile Data (sampled_user_profiles/<timestamp>/user_profiles_chunk_XXX.parquet)
+           ↓
+    Join Date Analysis (visualize_toxicity_by_join_date.py)
+           ↓
+    Toxicity by Join Date Visualizations (visualizations/toxicity_by_join_date/<timestamp>/)
 ```
 
 ## Study Parameters
