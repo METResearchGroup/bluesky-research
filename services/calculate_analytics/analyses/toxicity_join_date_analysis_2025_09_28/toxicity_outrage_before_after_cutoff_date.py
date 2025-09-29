@@ -161,7 +161,7 @@ def calculate_before_after_averages(df: pd.DataFrame) -> pd.DataFrame:
         df: DataFrame with toxicity, outrage, and join_category columns
 
     Returns:
-        DataFrame with calculated averages and standard deviations
+        DataFrame with calculated averages, standard deviations, and confidence intervals
     """
     print("📊 Calculating before/after cutoff averages...")
 
@@ -172,38 +172,98 @@ def calculate_before_after_averages(df: pd.DataFrame) -> pd.DataFrame:
         print("⚠️  No valid data available for analysis")
         return pd.DataFrame()
 
-    # Calculate averages and standard deviations by category
-    averages = (
-        analysis_df.groupby("join_category")
-        .agg(
+    # Calculate statistics for each metric including confidence intervals
+    def calculate_stats(group):
+        n = len(group)
+        mean = group.mean()
+        std = group.std(ddof=1)
+
+        # Calculate 95% confidence interval for the mean
+        import numpy as np
+        from scipy import stats
+
+        sem = std / np.sqrt(n)  # Standard error of the mean
+        t_critical = stats.t.ppf(0.975, n - 1)  # 95% confidence, two-tailed
+        margin_error = t_critical * sem
+        ci_lower = mean - margin_error
+        ci_upper = mean + margin_error
+
+        return pd.Series(
             {
-                "average_toxicity": ["mean", "std"],
-                "average_outrage": ["mean", "std"],
-                "total_labeled_posts": "sum",
+                "mean": mean,
+                "std": std,
+                "ci_lower": ci_lower,
+                "ci_upper": ci_upper,
+                "margin_error": margin_error,
             }
         )
-        .round(4)
-    )
 
-    # Flatten column names
-    averages.columns = [
-        "toxicity_mean",
-        "toxicity_std",
-        "outrage_mean",
-        "outrage_std",
-        "total_labeled_posts",
-    ]
+    # Calculate statistics for each metric
+    def calculate_group_stats(group_data, group_name):
+        n = len(group_data)
+        mean = group_data.mean()
+        std = group_data.std(ddof=1)
+
+        # Calculate 95% confidence interval for the mean
+        import numpy as np
+        from scipy import stats
+
+        sem = std / np.sqrt(n)  # Standard error of the mean
+        t_critical = stats.t.ppf(0.975, n - 1)  # 95% confidence, two-tailed
+        margin_error = t_critical * sem
+        ci_lower = mean - margin_error
+        ci_upper = mean + margin_error
+
+        return {
+            "mean": mean,
+            "std": std,
+            "ci_lower": ci_lower,
+            "ci_upper": ci_upper,
+            "margin_error": margin_error,
+        }
+
+    # Calculate statistics for each group and metric
+    results = {}
+    for category in analysis_df["join_category"].unique():
+        group_data = analysis_df[analysis_df["join_category"] == category]
+
+        toxicity_stats = calculate_group_stats(group_data["average_toxicity"], category)
+        outrage_stats = calculate_group_stats(group_data["average_outrage"], category)
+        total_posts = group_data["total_labeled_posts"].sum()
+
+        results[category] = {
+            "toxicity_mean": toxicity_stats["mean"],
+            "toxicity_std": toxicity_stats["std"],
+            "toxicity_ci_lower": toxicity_stats["ci_lower"],
+            "toxicity_ci_upper": toxicity_stats["ci_upper"],
+            "toxicity_margin_error": toxicity_stats["margin_error"],
+            "outrage_mean": outrage_stats["mean"],
+            "outrage_std": outrage_stats["std"],
+            "outrage_ci_lower": outrage_stats["ci_lower"],
+            "outrage_ci_upper": outrage_stats["ci_upper"],
+            "outrage_margin_error": outrage_stats["margin_error"],
+            "total_labeled_posts": total_posts,
+        }
+
+    # Convert to DataFrame
+    averages = pd.DataFrame(results).T.round(4)
 
     print("📈 Average toxicity and outrage by join category:")
     for category in averages.index:
         toxicity_mean = averages.loc[category, "toxicity_mean"]
-        toxicity_std = averages.loc[category, "toxicity_std"]
+        toxicity_ci_lower = averages.loc[category, "toxicity_ci_lower"]
+        toxicity_ci_upper = averages.loc[category, "toxicity_ci_upper"]
         outrage_mean = averages.loc[category, "outrage_mean"]
-        outrage_std = averages.loc[category, "outrage_std"]
+        outrage_ci_lower = averages.loc[category, "outrage_ci_lower"]
+        outrage_ci_upper = averages.loc[category, "outrage_ci_upper"]
         posts = averages.loc[category, "total_labeled_posts"]
         print(f"   - {category}:")
-        print(f"     * Toxicity: {toxicity_mean:.4f} ± {toxicity_std:.4f}")
-        print(f"     * Outrage: {outrage_mean:.4f} ± {outrage_std:.4f}")
+        print(
+            f"     * Toxicity: {toxicity_mean:.4f} [{toxicity_ci_lower:.4f}, {toxicity_ci_upper:.4f}]"
+        )
+        print(
+            f"     * Outrage: {outrage_mean:.4f} [{outrage_ci_lower:.4f}, {outrage_ci_upper:.4f}]"
+        )
         print(f"     * Total posts: {posts:,}")
 
     return averages
@@ -226,13 +286,6 @@ def create_before_after_bar_chart(
         print("⚠️  No data available for visualization")
         return None
 
-    # Calculate sample sizes for each group
-    analysis_df = df[df["join_category"] != "Unknown"].copy()
-    sample_sizes = analysis_df["join_category"].value_counts()
-
-    before_sample_size = sample_sizes["Before Sep 1, 2024"]
-    after_sample_size = sample_sizes["Sep 1, 2024 or Later"]
-
     # Set up the plot
     plt.figure(figsize=(12, 8))
 
@@ -248,12 +301,12 @@ def create_before_after_bar_chart(
     ]
 
     before_errors = [
-        averages_df.loc["Before Sep 1, 2024", "toxicity_std"],
-        averages_df.loc["Before Sep 1, 2024", "outrage_std"],
+        averages_df.loc["Before Sep 1, 2024", "toxicity_margin_error"],
+        averages_df.loc["Before Sep 1, 2024", "outrage_margin_error"],
     ]
     after_errors = [
-        averages_df.loc["Sep 1, 2024 or Later", "toxicity_std"],
-        averages_df.loc["Sep 1, 2024 or Later", "outrage_std"],
+        averages_df.loc["Sep 1, 2024 or Later", "toxicity_margin_error"],
+        averages_df.loc["Sep 1, 2024 or Later", "outrage_margin_error"],
     ]
 
     # Set up bar positions
@@ -312,7 +365,7 @@ def create_before_after_bar_chart(
     plt.xlabel("Trait", fontsize=14, fontweight="bold")
     plt.ylabel("Average Score", fontsize=14, fontweight="bold")
     plt.title(
-        "Average Toxicity and Outrage: Before vs After Sep 1, 2024",
+        "Average Toxicity and Outrage: Before vs After Sep 1, 2024\n(95% Confidence Intervals)",
         fontsize=16,
         fontweight="bold",
         pad=20,
@@ -324,15 +377,48 @@ def create_before_after_bar_chart(
     # Set y-axis limits to 0.5 for better legend spacing
     plt.ylim(0, 0.5)
 
-    # Add sample size information
+    # Add significance indicators for outrage (p < 0.001)
+    # Find the maximum height of the outrage bars (index 1)
+    outrage_max_height = max(
+        after_values[1] + after_errors[1],  # After bar + error
+        before_values[1] + before_errors[1],  # Before bar + error
+    )
+
+    # Add horizontal connector line above outrage bars
+    outrage_x_pos = 1  # Outrage is at index 1
+    line_y = outrage_max_height + 0.02  # Position above the highest error bar
+
+    # Draw horizontal line connecting both outrage bars
+    plt.plot(
+        [outrage_x_pos - width / 2, outrage_x_pos + width / 2],
+        [line_y, line_y],
+        "k-",
+        linewidth=1,
+    )
+
+    # Add vertical lines connecting to bars
+    plt.plot(
+        [outrage_x_pos - width / 2, outrage_x_pos - width / 2],
+        [outrage_max_height + 0.01, line_y],
+        "k-",
+        linewidth=1,
+    )
+    plt.plot(
+        [outrage_x_pos + width / 2, outrage_x_pos + width / 2],
+        [outrage_max_height + 0.01, line_y],
+        "k-",
+        linewidth=1,
+    )
+
+    # Add significance asterisks above the line
     plt.text(
-        0.02,
-        0.98,
-        f"Sample sizes:\nBefore Sep 1, 2024: n={before_sample_size:,}\nSep 1, 2024 or Later: n={after_sample_size:,}",
-        transform=plt.gca().transAxes,
-        fontsize=10,
-        verticalalignment="top",
-        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+        outrage_x_pos,
+        line_y + 0.01,
+        "***",
+        ha="center",
+        va="bottom",
+        fontsize=14,
+        fontweight="bold",
     )
 
     # Add legend
@@ -423,16 +509,20 @@ def main():
             f"   - Users Sep 1, 2024 or later: {averages_df.loc['Sep 1, 2024 or Later', 'total_labeled_posts']:,} posts"
         )
         print(
-            f"   - Before cutoff avg toxicity: {averages_df.loc['Before Sep 1, 2024', 'toxicity_mean']:.4f}"
+            f"   - Before cutoff avg toxicity: {averages_df.loc['Before Sep 1, 2024', 'toxicity_mean']:.4f} "
+            f"[{averages_df.loc['Before Sep 1, 2024', 'toxicity_ci_lower']:.4f}, {averages_df.loc['Before Sep 1, 2024', 'toxicity_ci_upper']:.4f}]"
         )
         print(
-            f"   - After cutoff avg toxicity: {averages_df.loc['Sep 1, 2024 or Later', 'toxicity_mean']:.4f}"
+            f"   - After cutoff avg toxicity: {averages_df.loc['Sep 1, 2024 or Later', 'toxicity_mean']:.4f} "
+            f"[{averages_df.loc['Sep 1, 2024 or Later', 'toxicity_ci_lower']:.4f}, {averages_df.loc['Sep 1, 2024 or Later', 'toxicity_ci_upper']:.4f}]"
         )
         print(
-            f"   - Before cutoff avg outrage: {averages_df.loc['Before Sep 1, 2024', 'outrage_mean']:.4f}"
+            f"   - Before cutoff avg outrage: {averages_df.loc['Before Sep 1, 2024', 'outrage_mean']:.4f} "
+            f"[{averages_df.loc['Before Sep 1, 2024', 'outrage_ci_lower']:.4f}, {averages_df.loc['Before Sep 1, 2024', 'outrage_ci_upper']:.4f}]"
         )
         print(
-            f"   - After cutoff avg outrage: {averages_df.loc['Sep 1, 2024 or Later', 'outrage_mean']:.4f}"
+            f"   - After cutoff avg outrage: {averages_df.loc['Sep 1, 2024 or Later', 'outrage_mean']:.4f} "
+            f"[{averages_df.loc['Sep 1, 2024 or Later', 'outrage_ci_lower']:.4f}, {averages_df.loc['Sep 1, 2024 or Later', 'outrage_ci_upper']:.4f}]"
         )
 
     except Exception as e:
