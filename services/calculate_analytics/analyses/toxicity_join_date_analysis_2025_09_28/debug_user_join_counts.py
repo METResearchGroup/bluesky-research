@@ -15,6 +15,7 @@ from datetime import datetime
 def load_combined_profile_data() -> pd.DataFrame:
     """
     Load the combined toxicity and profile data from all chunk files across all timestamp directories.
+    Handles errors by skipping problematic files and reporting which files loaded successfully.
 
     Returns:
         DataFrame with combined toxicity and profile data
@@ -44,6 +45,8 @@ def load_combined_profile_data() -> pd.DataFrame:
     # Load all parquet files from all timestamp directories
     all_dfs = []
     total_files = 0
+    successful_files = []
+    failed_files = []
 
     for timestamp_dir in sorted(timestamp_dirs):
         timestamp_path = os.path.join(profiles_dir, timestamp_dir)
@@ -55,16 +58,28 @@ def load_combined_profile_data() -> pd.DataFrame:
 
         for file in sorted(parquet_files):
             file_path = os.path.join(timestamp_path, file)
-            df = pd.read_parquet(file_path)
-            all_dfs.append(df)
-            total_files += 1
-            print(f"     - {file}: {len(df)} users")
+            try:
+                df = pd.read_parquet(file_path)
+                all_dfs.append(df)
+                total_files += 1
+                successful_files.append(f"{timestamp_dir}/{file}")
+                print(f"     ✅ {file}: {len(df)} users")
+            except Exception as e:
+                failed_files.append(f"{timestamp_dir}/{file}")
+                print(f"     ❌ {file}: Error - {str(e)[:100]}...")
 
     if not all_dfs:
-        raise FileNotFoundError("No parquet files found in any timestamp directory")
+        raise FileNotFoundError("No parquet files could be loaded successfully")
 
     combined_df = pd.concat(all_dfs, ignore_index=True)
     print(f"✅ Loaded {len(combined_df):,} user profiles from {total_files} files")
+
+    if failed_files:
+        print(f"⚠️  Failed to load {len(failed_files)} files:")
+        for failed_file in failed_files:
+            print(f"   - {failed_file}")
+
+    print(f"📊 Summary: {len(successful_files)} successful, {len(failed_files)} failed")
 
     return combined_df
 
@@ -81,15 +96,42 @@ def process_join_dates(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
-    # Convert created_at to datetime if it's not already
-    if not pd.api.types.is_datetime64_any_dtype(df["created_at"]):
-        df["created_at"] = pd.to_datetime(df["created_at"])
+    # Convert created_at to datetime with error handling
+    try:
+        df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
+    except Exception as e:
+        print(f"⚠️  Error converting timestamps: {e}")
+        # Try alternative parsing methods
+        try:
+            df["created_at"] = pd.to_datetime(
+                df["created_at"], format="ISO8601", errors="coerce"
+            )
+        except Exception as e2:
+            print(f"⚠️  ISO8601 parsing failed: {e2}")
+            try:
+                df["created_at"] = pd.to_datetime(
+                    df["created_at"], format="mixed", errors="coerce"
+                )
+            except Exception as e3:
+                print(f"⚠️  Mixed format parsing failed: {e3}")
+                print("   Setting invalid timestamps to NaT")
+                df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
+
+    # Check for invalid timestamps and report
+    invalid_count = df["created_at"].isna().sum()
+    if invalid_count > 0:
+        print(f"⚠️  Found {invalid_count:,} invalid timestamps (set to NaT)")
+        print(f"   - Valid timestamps: {len(df) - invalid_count:,}")
+        print(f"   - Invalid timestamps: {invalid_count:,}")
 
     # Convert to year-month format (YYYY-MM)
     df["join_date_ym"] = df["created_at"].dt.to_period("M").astype(str)
 
     # Group pre-2024 dates as "2023-12"
     df.loc[df["join_date_ym"] < "2024-01", "join_date_ym"] = "2023-12"
+
+    # Handle NaT values (invalid timestamps)
+    df.loc[df["join_date_ym"] == "NaT", "join_date_ym"] = "Unknown"
 
     return df
 

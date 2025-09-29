@@ -298,15 +298,31 @@ This analysis is conducted in multiple batches/runs to manage data processing an
 
 **Execution Order for Run 2:**
 1. ✅ **Resample Users**: Run `sample_top_users.py` to generate new random sample
-2. **Fetch Profiles**: Run `get_bsky_profiles_for_sampled_users.py` to get join dates
-3. **Analyze Patterns**: Run `visualize_toxicity_by_join_date.py` for visualization
+2. ✅ **Fetch Profiles**: Run `get_bsky_profiles_for_sampled_users.py` to get join dates
+3. ✅ **Analyze Patterns**: Run `visualize_toxicity_by_join_date.py` for visualization
 4. **Debug if Needed**: Run `debug_user_join_counts.py` for troubleshooting
 
-**Expected Outcomes:**
-- New random sample of 2,000 users with ≥20 posts
-- Updated visualizations with different user subset
-- Validation of findings from Run 1
-- Potential discovery of additional patterns
+**Visualization Results (2025-09-29_10:51:52):**
+- **Total users analyzed**: 2,893 (combined from Run 1 and Run 2)
+- **Join date periods**: 13 months analyzed
+- **Overall average toxicity**: 0.1011
+- **Overall average outrage**: 0.2482
+- **Join date range**: 2022-11-18 to 2024-11-25
+- **Users who joined during study period**: 442
+- **Study period avg toxicity**: 0.1035
+- **Study period avg outrage**: 0.2699
+
+**Generated Visualizations:**
+- `toxicity_outrage_by_join_date.png` - Dual subplot showing toxicity and outrage trends
+- `combined_toxicity_outrage_by_join_date.png` - Combined visualization with dual y-axes
+- `user_count_by_join_date.png` - Histogram showing user distribution by join month
+
+**Key Findings:**
+- Successfully processed 2,893 users from 31 parquet files
+- 1 invalid timestamp handled gracefully (labeled as "Unknown")
+- Clear visualization of toxicity/outrage patterns by join date
+- Study period (Oct-Dec 2024) shows slightly higher outrage levels (0.2699 vs 0.2482 overall)
+- Robust error handling prevents crashes from corrupted data files
 
 ## Next Steps
 

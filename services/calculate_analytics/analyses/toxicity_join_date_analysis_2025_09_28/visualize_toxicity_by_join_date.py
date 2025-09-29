@@ -15,6 +15,7 @@ from datetime import datetime
 def load_combined_profile_data() -> pd.DataFrame:
     """
     Load the combined toxicity and profile data from all chunk files across all timestamp directories.
+    Handles errors by skipping problematic files and reporting which files loaded successfully.
 
     Returns:
         DataFrame with combined toxicity and profile data
@@ -44,6 +45,8 @@ def load_combined_profile_data() -> pd.DataFrame:
     # Load all parquet files from all timestamp directories
     all_dfs = []
     total_files = 0
+    successful_files = []
+    failed_files = []
 
     for timestamp_dir in sorted(timestamp_dirs):
         timestamp_path = os.path.join(profiles_dir, timestamp_dir)
@@ -53,15 +56,28 @@ def load_combined_profile_data() -> pd.DataFrame:
 
         for file in sorted(parquet_files):
             file_path = os.path.join(timestamp_path, file)
-            df = pd.read_parquet(file_path)
-            all_dfs.append(df)
-            total_files += 1
+            try:
+                df = pd.read_parquet(file_path)
+                all_dfs.append(df)
+                total_files += 1
+                successful_files.append(f"{timestamp_dir}/{file}")
+                print(f"   ✅ {timestamp_dir}/{file}: {len(df)} users")
+            except Exception as e:
+                failed_files.append(f"{timestamp_dir}/{file}")
+                print(f"   ❌ {timestamp_dir}/{file}: Error - {str(e)[:100]}...")
 
     if not all_dfs:
-        raise FileNotFoundError("No parquet files found in any timestamp directory")
+        raise FileNotFoundError("No parquet files could be loaded successfully")
 
     combined_df = pd.concat(all_dfs, ignore_index=True)
     print(f"✅ Loaded {len(combined_df):,} user profiles from {total_files} files")
+
+    if failed_files:
+        print(f"⚠️  Failed to load {len(failed_files)} files:")
+        for failed_file in failed_files:
+            print(f"   - {failed_file}")
+
+    print(f"📊 Summary: {len(successful_files)} successful, {len(failed_files)} failed")
 
     return combined_df
 
@@ -78,14 +94,44 @@ def process_join_dates(df: pd.DataFrame) -> pd.DataFrame:
     """
     print("📅 Processing join dates...")
 
-    # Convert created_at to datetime
-    df["created_at"] = pd.to_datetime(df["created_at"])
+    df = df.copy()
+
+    # Convert created_at to datetime with error handling
+    try:
+        df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
+    except Exception as e:
+        print(f"⚠️  Error converting timestamps: {e}")
+        # Try alternative parsing methods
+        try:
+            df["created_at"] = pd.to_datetime(
+                df["created_at"], format="ISO8601", errors="coerce"
+            )
+        except Exception as e2:
+            print(f"⚠️  ISO8601 parsing failed: {e2}")
+            try:
+                df["created_at"] = pd.to_datetime(
+                    df["created_at"], format="mixed", errors="coerce"
+                )
+            except Exception as e3:
+                print(f"⚠️  Mixed format parsing failed: {e3}")
+                print("   Setting invalid timestamps to NaT")
+                df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
+
+    # Check for invalid timestamps and report
+    invalid_count = df["created_at"].isna().sum()
+    if invalid_count > 0:
+        print(f"⚠️  Found {invalid_count:,} invalid timestamps (set to NaT)")
+        print(f"   - Valid timestamps: {len(df) - invalid_count:,}")
+        print(f"   - Invalid timestamps: {invalid_count:,}")
 
     # Extract year-month (YYYY-MM format)
     df["join_date_ym"] = df["created_at"].dt.to_period("M").astype(str)
 
     # Group everything before 2024 as "2023-12"
     df.loc[df["created_at"].dt.year < 2024, "join_date_ym"] = "2023-12"
+
+    # Handle NaT values (invalid timestamps)
+    df.loc[df["join_date_ym"] == "NaT", "join_date_ym"] = "Unknown"
 
     # Count users by join date
     join_date_counts = df["join_date_ym"].value_counts().sort_index()
@@ -155,16 +201,23 @@ def create_toxicity_outrage_plot(monthly_stats: pd.DataFrame, output_path: str):
         monthly_stats: DataFrame with monthly statistics
         output_path: Path to save the visualization
     """
+    # Filter out "Unknown" entries for plotting
+    plot_data = monthly_stats[monthly_stats["join_date_ym"] != "Unknown"].copy()
+
+    if plot_data.empty:
+        print("⚠️  No valid date data available for plotting")
+        return
+
     # Set up the plot
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10))
 
     # Convert join_date_ym to datetime for plotting
-    monthly_stats["plot_date"] = pd.to_datetime(monthly_stats["join_date_ym"])
+    plot_data["plot_date"] = pd.to_datetime(plot_data["join_date_ym"])
 
     # Plot 1: Average Toxicity
     ax1.plot(
-        monthly_stats["plot_date"],
-        monthly_stats["avg_toxicity"],
+        plot_data["plot_date"],
+        plot_data["avg_toxicity"],
         marker="o",
         linewidth=2,
         markersize=6,
@@ -174,9 +227,9 @@ def create_toxicity_outrage_plot(monthly_stats: pd.DataFrame, output_path: str):
 
     # Add error bars for toxicity
     ax1.errorbar(
-        monthly_stats["plot_date"],
-        monthly_stats["avg_toxicity"],
-        yerr=monthly_stats["toxicity_std"],
+        plot_data["plot_date"],
+        plot_data["avg_toxicity"],
+        yerr=plot_data["toxicity_std"],
         fmt="none",
         color="#1f77b4",
         alpha=0.6,
@@ -207,8 +260,8 @@ def create_toxicity_outrage_plot(monthly_stats: pd.DataFrame, output_path: str):
 
     # Plot 2: Average Outrage
     ax2.plot(
-        monthly_stats["plot_date"],
-        monthly_stats["avg_outrage"],
+        plot_data["plot_date"],
+        plot_data["avg_outrage"],
         marker="s",
         linewidth=2,
         markersize=6,
@@ -218,9 +271,9 @@ def create_toxicity_outrage_plot(monthly_stats: pd.DataFrame, output_path: str):
 
     # Add error bars for outrage
     ax2.errorbar(
-        monthly_stats["plot_date"],
-        monthly_stats["avg_outrage"],
-        yerr=monthly_stats["outrage_std"],
+        plot_data["plot_date"],
+        plot_data["avg_outrage"],
+        yerr=plot_data["outrage_std"],
         fmt="none",
         color="#ff7f0e",
         alpha=0.6,
@@ -274,16 +327,23 @@ def create_combined_plot(monthly_stats: pd.DataFrame, output_path: str):
         monthly_stats: DataFrame with monthly statistics
         output_path: Path to save the visualization
     """
+    # Filter out "Unknown" entries for plotting
+    plot_data = monthly_stats[monthly_stats["join_date_ym"] != "Unknown"].copy()
+
+    if plot_data.empty:
+        print("⚠️  No valid date data available for plotting")
+        return None
+
     # Set up the plot
     plt.figure(figsize=(14, 8))
 
     # Convert join_date_ym to datetime for plotting
-    monthly_stats["plot_date"] = pd.to_datetime(monthly_stats["join_date_ym"])
+    plot_data["plot_date"] = pd.to_datetime(plot_data["join_date_ym"])
 
     # Plot both metrics
     plt.plot(
-        monthly_stats["plot_date"],
-        monthly_stats["avg_toxicity"],
+        plot_data["plot_date"],
+        plot_data["avg_toxicity"],
         marker="o",
         linewidth=2,
         markersize=6,
@@ -291,8 +351,8 @@ def create_combined_plot(monthly_stats: pd.DataFrame, output_path: str):
         label="Average Toxicity",
     )
     plt.plot(
-        monthly_stats["plot_date"],
-        monthly_stats["avg_outrage"],
+        plot_data["plot_date"],
+        plot_data["avg_outrage"],
         marker="s",
         linewidth=2,
         markersize=6,
@@ -302,17 +362,17 @@ def create_combined_plot(monthly_stats: pd.DataFrame, output_path: str):
 
     # Add error bars
     plt.errorbar(
-        monthly_stats["plot_date"],
-        monthly_stats["avg_toxicity"],
-        yerr=monthly_stats["toxicity_std"],
+        plot_data["plot_date"],
+        plot_data["avg_toxicity"],
+        yerr=plot_data["toxicity_std"],
         fmt="none",
         color="#1f77b4",
         alpha=0.6,
     )
     plt.errorbar(
-        monthly_stats["plot_date"],
-        monthly_stats["avg_outrage"],
-        yerr=monthly_stats["outrage_std"],
+        plot_data["plot_date"],
+        plot_data["avg_outrage"],
+        yerr=plot_data["outrage_std"],
         fmt="none",
         color="#ff7f0e",
         alpha=0.6,
@@ -360,16 +420,23 @@ def create_user_count_plot(monthly_stats: pd.DataFrame, output_path: str):
         monthly_stats: DataFrame with monthly statistics
         output_path: Path to save the visualization
     """
+    # Filter out "Unknown" entries for plotting
+    plot_data = monthly_stats[monthly_stats["join_date_ym"] != "Unknown"].copy()
+
+    if plot_data.empty:
+        print("⚠️  No valid date data available for plotting")
+        return None
+
     # Set up the plot
     plt.figure(figsize=(14, 6))
 
     # Convert join_date_ym to datetime for plotting
-    monthly_stats["plot_date"] = pd.to_datetime(monthly_stats["join_date_ym"])
+    plot_data["plot_date"] = pd.to_datetime(plot_data["join_date_ym"])
 
     # Create bar plot
     bars = plt.bar(
-        monthly_stats["plot_date"],
-        monthly_stats["toxicity_count"],
+        plot_data["plot_date"],
+        plot_data["toxicity_count"],
         color="lightblue",
         edgecolor="navy",
         alpha=0.7,
