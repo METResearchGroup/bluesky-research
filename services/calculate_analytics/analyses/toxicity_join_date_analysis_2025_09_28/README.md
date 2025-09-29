@@ -337,7 +337,7 @@ This analysis is conducted in multiple batches/runs to manage data processing an
 - `toxicity_outrage_by_join_date.png` - Dual subplot showing toxicity and outrage trends
 - `combined_toxicity_outrage_by_join_date.png` - Combined visualization with dual y-axes
 - `user_count_by_join_date.png` - Histogram showing user distribution by join month
-- `before_after_cutoff_comparison.png` - Bar chart comparing before/after Sep 1, 2024 groups
+- `before_after_cutoff_comparison.png` - Enhanced bar chart with error bars and sample sizes
 
 **Key Findings:**
 - Successfully processed 2,893 users from 31 parquet files
@@ -345,9 +345,11 @@ This analysis is conducted in multiple batches/runs to manage data processing an
 - Clear visualization of toxicity/outrage patterns by join date
 - Study period (Oct-Dec 2024) shows slightly higher outrage levels (0.2699 vs 0.2482 overall)
 - Before/After Sep 1, 2024 analysis shows:
-  - Before Sep 1, 2024: 2,386 users, avg toxicity 0.1009, avg outrage 0.2436
-  - Sep 1, 2024 or Later: 506 users, avg toxicity 0.1024, avg outrage 0.2694
-  - Users joining after Sep 1, 2024 show slightly higher outrage levels (0.2694 vs 0.2436)
+  - Before Sep 1, 2024: 2,386 users, avg toxicity 0.1009 ± 0.0625, avg outrage 0.2436 ± 0.0860
+  - Sep 1, 2024 or Later: 506 users, avg toxicity 0.1024 ± 0.0595, avg outrage 0.2694 ± 0.0951
+  - Users joining after Sep 1, 2024 show ~10% higher outrage levels (0.2694 vs 0.2436)
+  - Minimal difference in toxicity levels (0.1024 vs 0.1009)
+- Enhanced visualization includes error bars (standard deviation) and sample size information
 - Robust error handling prevents crashes from corrupted data files
 
 ## Next Steps
