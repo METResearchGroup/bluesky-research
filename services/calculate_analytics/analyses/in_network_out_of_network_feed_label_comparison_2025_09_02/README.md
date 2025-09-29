@@ -93,7 +93,8 @@ This analysis can reveal:
 ```
 in_network_out_of_network_feed_label_comparison_2025_09_02/
 ├── main.py                           # Main analysis script
-├── visualize_results.py              # Visualization script
+├── visualize_results.py              # Full visualization script (all traits)
+├── plot_toxicity_focused.py          # Focused toxicity visualization script
 ├── submit_in_network_analysis.sh     # Slurm script for in-network analysis
 ├── submit_out_of_network_analysis.sh # Slurm script for out-of-network analysis
 ├── README.md                         # This documentation
@@ -104,6 +105,10 @@ in_network_out_of_network_feed_label_comparison_2025_09_02/
         ├── daily_out_of_network_feed_content_analysis_{timestamp}.csv
         ├── weekly_out_of_network_feed_content_analysis_{timestamp}.csv
         └── *.png                     # Visualization files
+    └── visualizations/               # Visualization outputs
+        └── {timestamp}/              # Timestamped visualization runs
+            ├── weekly_toxicity_averages_focused.png  # Focused toxicity plot
+            └── ...                    # Other visualization files
 ```
 
 ## Dependencies
@@ -132,7 +137,11 @@ The analysis should be run using the provided Slurm scripts on the cluster:
 
 3. **Generate Visualizations** (after both analyses complete):
    ```bash
+   # Generate all trait visualizations (720+ plots)
    python visualize_results.py
+   
+   # OR generate focused toxicity visualization only
+   python plot_toxicity_focused.py
    ```
 
 **Important**: You must run both Slurm scripts (in-network and out-of-network) before running the visualization script, as it needs both datasets to create comparison plots.
@@ -154,7 +163,28 @@ If running locally without Slurm:
 
 3. **Generate Visualizations**:
    ```bash
+   # Generate all trait visualizations (720+ plots)
    python visualize_results.py
+   
+   # OR generate focused toxicity visualization only (recommended)
+   python plot_toxicity_focused.py
    ```
 
-The visualization script will automatically find the most recent analysis results and create comparison plots.
+The visualization scripts will automatically find the most recent analysis results and create comparison plots.
+
+## Visualization Scripts
+
+### **`visualize_results.py` - Full Visualization Suite**
+- Generates 720+ visualization files for all content traits
+- Creates separate plots for each condition and trait combination
+- Includes both daily and weekly time series
+- Creates combined plots showing all conditions together
+- **Use when**: You need comprehensive visualization of all traits
+
+### **`plot_toxicity_focused.py` - Focused Toxicity Analysis**
+- Generates a single, focused toxicity visualization
+- Shows weekly toxicity averages by condition (RC, EB, DE)
+- Compares in-network vs out-of-network with proper scaling
+- Y-axis fixed at 0.0-0.2 for optimal toxicity data viewing
+- **Use when**: You specifically want to analyze toxicity patterns
+- **Benefits**: Fast execution, focused output, optimized scaling

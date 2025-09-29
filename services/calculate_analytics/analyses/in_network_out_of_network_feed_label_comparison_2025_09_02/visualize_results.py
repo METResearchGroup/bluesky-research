@@ -43,11 +43,19 @@ NETWORK_COLORS = {
     "out_of_network": "red",
 }
 
-# Define colors for conditions (from existing visualization)
+# Define colors and labels for conditions
 CONDITION_COLORS = {
     "engagement": "red",
     "representative_diversification": "green",
     "reverse_chronological": "black",
+}
+
+# Define condition label mappings
+CONDITION_LABELS = {
+    "reverse_chronological": "Reverse Chronological (RC)",
+    "engagement": "Engagement-Based (EB)",
+    "representative_diversification": "Diversified Extremity (DE)",
+    "all": "All Conditions",
 }
 
 
@@ -144,7 +152,7 @@ def prepare_data_for_plotting(
     out_network_df: pd.DataFrame,
     time_col: str,
     label_col: str,
-    condition: str = None,
+    condition: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Prepare data for time series plotting by aggregating by condition and time.
@@ -191,6 +199,138 @@ def prepare_data_for_plotting(
     return in_network_agg, out_network_agg
 
 
+def create_combined_condition_plot(
+    in_network_df: pd.DataFrame,
+    out_network_df: pd.DataFrame,
+    time_col: str,
+    label_col: str,
+    output_path: str,
+    title: str,
+    ylabel: str,
+):
+    """
+    Create a combined plot showing all conditions with in-network vs out-of-network lines.
+
+    Args:
+        in_network_df: DataFrame with in-network data
+        out_network_df: DataFrame with out-of-network data
+        time_col: Name of the time column
+        label_col: Name of the label column
+        output_path: Path to save the plot
+        title: Title for the plot
+        ylabel: Y-axis label
+    """
+    plt.figure(figsize=(14, 8))
+
+    # Define colors for conditions
+    condition_colors = {
+        "engagement": "red",
+        "representative_diversification": "green",
+        "reverse_chronological": "black",
+    }
+
+    # Convert time column to datetime if needed
+    if time_col == "date":
+        in_network_df[time_col] = pd.to_datetime(in_network_df[time_col])
+        out_network_df[time_col] = pd.to_datetime(out_network_df[time_col])
+
+    # Get unique conditions (excluding 'all')
+    conditions = [c for c in in_network_df["condition"].unique() if c != "all"]
+
+    # Create plots for each condition
+    for condition in conditions:
+        if condition not in condition_colors:
+            continue
+
+        color = condition_colors[condition]
+        condition_label = CONDITION_LABELS.get(
+            condition, condition.replace("_", " ").title()
+        )
+
+        # Filter data for this condition
+        in_network_condition = in_network_df[in_network_df["condition"] == condition]
+        out_network_condition = out_network_df[out_network_df["condition"] == condition]
+
+        # Aggregate by time
+        in_network_agg = (
+            in_network_condition.groupby(time_col)[label_col]
+            .agg(["mean"])
+            .reset_index()
+            .sort_values(time_col)
+        )
+
+        out_network_agg = (
+            out_network_condition.groupby(time_col)[label_col]
+            .agg(["mean"])
+            .reset_index()
+            .sort_values(time_col)
+        )
+
+        # Plot in-network (solid line)
+        if len(in_network_agg) > 0:
+            plt.plot(
+                in_network_agg[time_col],
+                in_network_agg["mean"],
+                color=color,
+                linewidth=2.5,
+                label=f"{condition_label} (In-Network)",
+                marker="o",
+                markersize=4,
+                linestyle="-",
+            )
+
+        # Plot out-of-network (dashed line)
+        if len(out_network_agg) > 0:
+            plt.plot(
+                out_network_agg[time_col],
+                out_network_agg["mean"],
+                color=color,
+                linewidth=2.5,
+                label=f"{condition_label} (Out-of-Network)",
+                marker="s",
+                markersize=4,
+                linestyle="--",
+            )
+
+    # Customize the plot
+    plt.title(title, fontsize=16, fontweight="bold", pad=20)
+    plt.xlabel("Week", fontsize=12)
+    plt.ylabel(ylabel, fontsize=12)
+    plt.legend(fontsize=10, loc="upper right")
+
+    # Set y-axis limits based on data range with better scaling
+    all_values = []
+    for condition in conditions:
+        if condition in condition_colors:
+            in_condition = in_network_df[in_network_df["condition"] == condition]
+            out_condition = out_network_df[out_network_df["condition"] == condition]
+            if len(in_condition) > 0:
+                all_values.extend(in_condition[label_col].dropna().tolist())
+            if len(out_condition) > 0:
+                all_values.extend(out_condition[label_col].dropna().tolist())
+
+    if all_values:
+        min_val = min(all_values)
+        max_val = max(all_values)
+
+        # Better scaling: floor(max_val + 0.2, 1.0) for upper bound
+        y_max = min(1.0, max_val + 0.2)
+
+        # Set minimum to 0 or slightly below the minimum
+        y_min = max(0, min_val - 0.05)
+
+        plt.ylim(y_min, y_max)
+
+    plt.tight_layout()
+
+    # Save the plot
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+
+    logger.info(f"Combined condition plot saved to {output_path}")
+
+
 def create_comparison_plot(
     in_network_agg: pd.DataFrame,
     out_network_agg: pd.DataFrame,
@@ -199,7 +339,7 @@ def create_comparison_plot(
     output_path: str,
     title: str,
     ylabel: str,
-    condition: str = None,
+    condition: Optional[str] = None,
 ):
     """
     Create a comparison plot showing in-network vs out-of-network for a specific label.
@@ -227,7 +367,7 @@ def create_comparison_plot(
             in_network_agg["mean"],
             color="blue",
             linewidth=2.5,
-            label="In-Network",
+            label="In-Network (Solid)",
             marker="o",
             markersize=4,
             linestyle="-",
@@ -240,7 +380,7 @@ def create_comparison_plot(
             out_network_agg["mean"],
             color="red",
             linewidth=2.5,
-            label="Out-of-Network",
+            label="Out-of-Network (Dashed)",
             marker="s",
             markersize=4,
             linestyle="--",
@@ -426,8 +566,11 @@ def create_visualizations():
                     trait_dir,
                     f"daily_{trait}_{condition}_in_network_vs_out_of_network.png",
                 )
-                title = f"Daily {trait.replace('_', ' ').title()} - {condition.replace('_', ' ').title()} - In-Network vs Out-of-Network"
-                ylabel = f"Average {trait.replace('_', ' ').title()}"
+                condition_label = CONDITION_LABELS.get(
+                    condition, condition.replace("_", " ").title()
+                )
+                title = f"Daily {trait.replace('_', ' ').title()} - {condition_label} - In-Network vs Out-of-Network"
+                ylabel = "Average"
 
                 create_comparison_plot(
                     in_network_agg,
@@ -441,6 +584,42 @@ def create_visualizations():
                 )
     else:
         logger.error("Failed to load daily data")
+
+    # Create combined daily visualizations for all traits
+    if in_network_daily_df is not None and out_network_daily_df is not None:
+        logger.info("Creating combined daily visualizations for all traits...")
+
+        # Get label columns from daily data
+        daily_label_columns = get_label_columns(in_network_daily_df)
+
+        # Create combined daily directory
+        combined_daily_dir = os.path.join(output_dir, "combined", "daily")
+        os.makedirs(combined_daily_dir, exist_ok=True)
+
+        for label_col in daily_label_columns:
+            logger.info(f"Creating combined daily visualization for {label_col}...")
+
+            # Categorize the label and extract trait name
+            category = categorize_label(label_col)
+            trait = extract_trait_name(label_col)
+
+            # Create combined plot
+            combined_output_path = os.path.join(
+                combined_daily_dir,
+                f"daily_combined_{trait}_{category}_in_network_vs_out_of_network.png",
+            )
+            title = f"Daily {trait.replace('_', ' ').title()} ({category.title()}) - In-Network vs Out-of-Network"
+            ylabel = "Average" if category == "average" else "Proportion"
+
+            create_combined_condition_plot(
+                in_network_daily_df,
+                out_network_daily_df,
+                "date",
+                label_col,
+                combined_output_path,
+                title,
+                ylabel,
+            )
 
     # Process weekly data
     logger.info("Processing weekly data...")
@@ -484,8 +663,11 @@ def create_visualizations():
                     trait_dir,
                     f"weekly_{trait}_{condition}_in_network_vs_out_of_network.png",
                 )
-                title = f"Weekly {trait.replace('_', ' ').title()} - {condition.replace('_', ' ').title()} - In-Network vs Out-of-Network"
-                ylabel = f"Average {trait.replace('_', ' ').title()}"
+                condition_label = CONDITION_LABELS.get(
+                    condition, condition.replace("_", " ").title()
+                )
+                title = f"Weekly {trait.replace('_', ' ').title()} - {condition_label} - In-Network vs Out-of-Network"
+                ylabel = "Average"
 
                 create_comparison_plot(
                     in_network_agg,
@@ -499,6 +681,42 @@ def create_visualizations():
                 )
     else:
         logger.error("Failed to load weekly data")
+
+    # Create combined visualizations for all traits (all conditions on one plot)
+    if in_network_weekly_df is not None and out_network_weekly_df is not None:
+        logger.info("Creating combined visualizations for all traits...")
+
+        # Get label columns from weekly data
+        weekly_label_columns = get_label_columns(in_network_weekly_df)
+
+        # Create combined weekly directory
+        combined_weekly_dir = os.path.join(output_dir, "combined", "weekly")
+        os.makedirs(combined_weekly_dir, exist_ok=True)
+
+        for label_col in weekly_label_columns:
+            logger.info(f"Creating combined weekly visualization for {label_col}...")
+
+            # Categorize the label and extract trait name
+            category = categorize_label(label_col)
+            trait = extract_trait_name(label_col)
+
+            # Create combined plot
+            combined_output_path = os.path.join(
+                combined_weekly_dir,
+                f"weekly_combined_{trait}_{category}_in_network_vs_out_of_network.png",
+            )
+            title = f"Weekly {trait.replace('_', ' ').title()} ({category.title()}) - In-Network vs Out-of-Network"
+            ylabel = "Average" if category == "average" else "Proportion"
+
+            create_combined_condition_plot(
+                in_network_weekly_df,
+                out_network_weekly_df,
+                "week",
+                label_col,
+                combined_output_path,
+                title,
+                ylabel,
+            )
 
     # Print summary
     logger.info("=== VISUALIZATION SUMMARY ===")
