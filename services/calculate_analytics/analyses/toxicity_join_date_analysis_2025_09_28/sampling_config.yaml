@@ -1,0 +1,22 @@
+# Sampling Configuration for Toxicity Analysis
+# This file controls how users are sampled for join date analysis
+
+# Threshold criteria: "percentile" or "count"
+# - "percentile": Use top X% of users by post count
+# - "count": Use users with at least X posts
+threshold_criteria: "count"
+
+# Threshold value (interpretation depends on threshold_criteria)
+# - If percentile: top X% (e.g., 10 for top 10%)
+# - If count: minimum post count (e.g., 20 for >=20 posts)
+threshold_value: 20
+
+# Sample size: number of users to randomly sample from threshold group
+sample_size: 2000
+
+# Outlier removal: whether to remove outliers before thresholding
+remove_outliers: true
+
+# Outlier method: method for outlier detection
+# - "iqr": Interquartile Range method (1.5 * IQR beyond Q1/Q3)
+outlier_method: "iqr"

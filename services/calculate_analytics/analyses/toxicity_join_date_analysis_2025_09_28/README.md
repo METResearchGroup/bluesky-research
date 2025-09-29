@@ -207,6 +207,38 @@ Perspective API Labels + Preprocessed Posts
 - **Processing Mode**: Sequential (to avoid memory issues)
 - **Output Format**: Parquet files with timestamp-based organization
 
+## Configuration System
+
+The analysis uses a YAML-based configuration system for flexible thresholding and sampling parameters.
+
+### **Configuration File: `sampling_config.yaml`**
+
+**Key Parameters:**
+- `threshold_criteria`: "percentile" or "count" - determines thresholding method
+- `threshold_value`: Threshold value (percentile % or minimum post count)
+- `sample_size`: Number of users to randomly sample
+- `remove_outliers`: Whether to remove outliers before thresholding
+- `outlier_method`: Method for outlier detection (currently "iqr")
+
+**Example Configurations:**
+```yaml
+# Run 1 (Top 10% approach)
+threshold_criteria: "percentile"
+threshold_value: 10
+sample_size: 1000
+
+# Run 2 (Count-based approach)
+threshold_criteria: "count"
+threshold_value: 20
+sample_size: 2000
+```
+
+### **Thresholding Methods:**
+- **Percentile**: Selects top X% of users by post count
+- **Count**: Selects users with at least X posts
+
+This system allows for easy experimentation with different sampling strategies without code changes.
+
 ## Analysis Runs
 
 This analysis is conducted in multiple batches/runs to manage data processing and API rate limits.
@@ -242,10 +274,11 @@ This analysis is conducted in multiple batches/runs to manage data processing an
 ### **Run 2 - Expanded Analysis (Planned)**
 
 **Configuration:**
-- **Sampling**: Top 10% of users by post count (≥77 posts)
-- **Sample Size**: 1,000 randomly sampled users from top 10%
+- **Sampling**: Users with ≥20 posts (count-based threshold)
+- **Sample Size**: 2,000 randomly sampled users
 - **Processing**: Sequential mode to avoid memory issues
 - **API Chunk Size**: 100 users per batch
+- **Configuration**: YAML-based configurable thresholding system
 
 **Execution Order for Run 2:**
 1. **Resample Users**: Run `sample_top_users.py` to generate new random sample
@@ -254,7 +287,7 @@ This analysis is conducted in multiple batches/runs to manage data processing an
 4. **Debug if Needed**: Run `debug_user_join_counts.py` for troubleshooting
 
 **Expected Outcomes:**
-- New random sample of 1,000 users from top 10%
+- New random sample of 2,000 users with ≥20 posts
 - Updated visualizations with different user subset
 - Validation of findings from Run 1
 - Potential discovery of additional patterns

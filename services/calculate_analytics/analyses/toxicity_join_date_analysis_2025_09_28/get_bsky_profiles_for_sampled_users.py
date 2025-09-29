@@ -19,10 +19,10 @@ from transform.bluesky_helper import get_author_record
 
 def load_sampled_users() -> pd.DataFrame:
     """
-    Load the sampled users data.
+    Load the sampled users data and filter out previously processed users.
 
     Returns:
-        DataFrame with sampled user data
+        DataFrame with sampled user data (excluding previously processed users)
     """
     # Get the directory of this script
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -54,6 +54,20 @@ def load_sampled_users() -> pd.DataFrame:
     print(f"📊 Loading sampled users from: {data_file}")
     df = pd.read_parquet(data_file)
     print(f"✅ Loaded {len(df):,} sampled users")
+
+    # Load all previously processed profile data to filter out those DIDs
+    existing_profiles = load_existing_profiles()
+    if not existing_profiles.empty:
+        existing_dids = set(existing_profiles["author_did"])
+        original_count = len(df)
+        df = df[~df["author_did"].isin(existing_dids)]
+        filtered_count = len(df)
+        print(
+            f"🔧 Filtered out {original_count - filtered_count:,} users with existing profiles"
+        )
+        print(f"   - Remaining users to process: {filtered_count:,}")
+    else:
+        print("ℹ️  No existing profiles found, processing all users")
 
     return df
 
@@ -219,24 +233,8 @@ def main(chunk_size: int = 100):
     print("=" * 50)
 
     try:
-        # Load sampled users
+        # Load sampled users (already filtered for existing profiles)
         sampled_users = load_sampled_users()
-
-        # Load existing profiles to avoid re-fetching
-        existing_profiles = load_existing_profiles()
-
-        # Filter out users we already have profiles for
-        if not existing_profiles.empty:
-            existing_dids = set(existing_profiles["author_did"])
-            original_count = len(sampled_users)
-            sampled_users = sampled_users[
-                ~sampled_users["author_did"].isin(existing_dids)
-            ]
-            filtered_count = len(sampled_users)
-            print(
-                f"🔧 Filtered out {original_count - filtered_count:,} users with existing profiles"
-            )
-            print(f"   - Remaining users to process: {filtered_count:,}")
 
         if sampled_users.empty:
             print("✅ All users already have profiles fetched!")
