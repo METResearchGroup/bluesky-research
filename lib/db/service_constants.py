@@ -776,4 +776,23 @@ MAP_SERVICE_TO_METADATA = {
             "partition_date": "string",
         },
     },
+    "author_to_average_toxicity_outrage": {
+        "local_prefix": os.path.join(
+            root_local_data_directory, "author_to_average_toxicity_outrage"
+        ),
+        "s3_prefix": "author_to_average_toxicity_outrage",
+        "glue_table_name": "author_to_average_toxicity_outrage",
+        "primary_key": "author_did",
+        "timestamp_field": "preprocessing_timestamp",
+        "skip_deduping": True,
+        "pydantic_model": "",
+        "dtypes_map": {
+            "author_did": "string",
+            "preprocessing_timestamp": "string",
+            "partition_date": "string",
+            "total_labeled_posts": "Int64",
+            "average_toxicity": "Float64",
+            "average_outrage": "Float64",
+        },
+    },
 }

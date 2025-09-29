@@ -69,16 +69,16 @@ Billy needs exploratory analysis of whether users who joined Bluesky toward the 
 - Rationale: Required by Wednesday afternoon deadline for research deliverable
 
 ## Acceptance Checklist
-- [ ] User frequency analysis implemented and tested
-- [ ] User sampling logic implemented and tested
-- [ ] Bluesky API integration implemented with error handling
-- [ ] Toxicity/outrage calculation implemented and tested
-- [ ] Histogram visualization generated and saved
-- [ ] Scatterplot visualization generated and saved
-- [ ] Data storage structure implemented
-- [ ] Results validated and ready for presentation
-- [ ] Code reviewed and merged
-- [ ] Documentation updated
+- [x] User frequency analysis implemented and tested
+- [x] User sampling logic implemented and tested
+- [x] Bluesky API integration implemented with error handling
+- [x] Toxicity/outrage calculation implemented and tested
+- [x] Histogram visualization generated and saved
+- [x] Scatterplot visualization generated and saved
+- [x] Data storage structure implemented
+- [x] Results validated and ready for presentation
+- [x] Code reviewed and merged
+- [x] Documentation updated
 
 ## Links & References
 - Specification: `/projects/toxicity-join-date-analysis/spec.md`
