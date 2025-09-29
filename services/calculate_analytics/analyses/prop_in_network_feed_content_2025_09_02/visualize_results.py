@@ -150,11 +150,18 @@ def create_time_series_plot(
     """
     plt.figure(figsize=(14, 8))
 
-    # Define colors for each condition
+    # Define colors and labels for each condition
     condition_colors = {
         "engagement": "red",
         "representative_diversification": "green",
         "reverse_chronological": "black",
+    }
+
+    # Define condition label mappings
+    condition_labels = {
+        "reverse_chronological": "Reverse Chronological (RC)",
+        "engagement": "Engagement-Based (EB)",
+        "representative_diversification": "Diversified Extremity (DE)",
     }
 
     # Get unique conditions
@@ -170,19 +177,20 @@ def create_time_series_plot(
         color = condition_colors.get(condition, "blue")
 
         # Plot the main line (mean)
+        condition_label = condition_labels.get(condition, condition)
         plt.plot(
             condition_data[time_col],
             condition_data["mean"],
             color=color,
             linewidth=2.5,
-            label=condition,
+            label=condition_label,
             marker="o",
             markersize=4,
         )
 
         # Add individual data points as translucent bars for one condition
         # (similar to the reference plot showing variability)
-        if condition == "Reverse Chronological":
+        if condition == "reverse_chronological":
             # Get the original data for this condition to show individual points
             original_data = df[df["condition"] == condition]
             if len(original_data) > 0:
@@ -201,7 +209,6 @@ def create_time_series_plot(
     plt.xlabel("Date" if time_col == "date" else "Week", fontsize=12)
     plt.ylabel(ylabel, fontsize=12)
     plt.legend(fontsize=11, loc="upper right")
-    plt.grid(True, alpha=0.3)
 
     # Format x-axis
     if time_col == "date":
@@ -211,9 +218,6 @@ def create_time_series_plot(
 
     # Set y-axis limits
     plt.ylim(0, 1)
-
-    # Add horizontal line at 0.5 for reference
-    plt.axhline(y=0.5, color="gray", linestyle="--", alpha=0.5, linewidth=1)
 
     plt.tight_layout()
 
