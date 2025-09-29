@@ -424,9 +424,6 @@ def create_before_after_bar_chart(
     # Add legend
     plt.legend(fontsize=12, loc="upper right")
 
-    # Add grid for better readability
-    plt.grid(True, alpha=0.3, axis="y")
-
     # Adjust layout and save
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
