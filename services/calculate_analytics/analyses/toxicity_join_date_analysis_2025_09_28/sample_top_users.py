@@ -154,7 +154,7 @@ def save_sampled_data(df: pd.DataFrame) -> str:
     df_to_save = df[columns_to_save].copy()
 
     # Save to parquet
-    output_file = os.path.join(output_dir, "top_10_percent_sampled_users.parquet")
+    output_file = os.path.join(output_dir, "sampled_users.parquet")
     df_to_save.to_parquet(output_file, index=False)
 
     print(f"💾 Sampled data saved to: {output_file}")

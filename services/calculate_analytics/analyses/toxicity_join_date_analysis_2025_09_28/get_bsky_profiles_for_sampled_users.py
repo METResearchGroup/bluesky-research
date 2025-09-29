@@ -45,7 +45,7 @@ def load_sampled_users() -> pd.DataFrame:
 
     latest_timestamp = sorted(timestamp_dirs)[-1]
     data_file = os.path.join(
-        sampled_users_dir, latest_timestamp, "top_10_percent_sampled_users.parquet"
+        sampled_users_dir, latest_timestamp, "sampled_users.parquet"
     )
 
     if not os.path.exists(data_file):
