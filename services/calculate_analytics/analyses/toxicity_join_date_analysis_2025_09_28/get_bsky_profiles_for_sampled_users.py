@@ -53,7 +53,7 @@ def load_sampled_users() -> pd.DataFrame:
 
     print(f"📊 Loading sampled users from: {data_file}")
     df = pd.read_parquet(data_file)
-    print(f"✅ Loaded {len(df):,} sampled users")
+    print(f"✅ Loaded {len(df):,} sampled users from most recent sampling run")
 
     # Load all previously processed profile data to filter out those DIDs
     existing_profiles = load_existing_profiles()
@@ -66,6 +66,8 @@ def load_sampled_users() -> pd.DataFrame:
             f"🔧 Filtered out {original_count - filtered_count:,} users with existing profiles"
         )
         print(f"   - Remaining users to process: {filtered_count:,}")
+        if original_count - filtered_count == 0:
+            print("   ℹ️  No overlap found - all users are new (no duplicates)")
     else:
         print("ℹ️  No existing profiles found, processing all users")
 
