@@ -271,7 +271,7 @@ This analysis is conducted in multiple batches/runs to manage data processing an
 - `user_count_by_join_date.png` - Histogram showing user distribution by join month
 - Debug visualizations for troubleshooting data loading
 
-### **Run 2 - Expanded Analysis (Planned)**
+### **Run 2 - Expanded Analysis (Completed)**
 
 **Configuration:**
 - **Sampling**: Users with ≥20 posts (count-based threshold)
@@ -280,8 +280,24 @@ This analysis is conducted in multiple batches/runs to manage data processing an
 - **API Chunk Size**: 100 users per batch
 - **Configuration**: YAML-based configurable thresholding system
 
+**Actual Results:**
+- **2,000 users** successfully sampled from **35,931 eligible users**
+- **Original dataset**: 141,159 authors (19M+ posts)
+- **After filtering**: 140,159 authors (excluded 1,000 previously sampled)
+- **After outlier removal**: 118,754 authors (removed 21,405 outliers)
+- **Eligible users** (≥20 posts): 35,931 users
+- **Posts range in sample**: 20 - 157 posts
+- **Average toxicity**: 0.1014
+- **Average outrage**: 0.2478
+
+**Key Findings:**
+- Successfully avoided duplicate sampling from Run 1
+- Count-based thresholding captured a broader range of users (20-157 posts vs. Run 1's ≥77 posts)
+- Similar toxicity/outrage levels to Run 1, suggesting consistency across sampling methods
+- Larger sample size (2,000 vs. 1,000) provides more statistical power
+
 **Execution Order for Run 2:**
-1. **Resample Users**: Run `sample_top_users.py` to generate new random sample
+1. ✅ **Resample Users**: Run `sample_top_users.py` to generate new random sample
 2. **Fetch Profiles**: Run `get_bsky_profiles_for_sampled_users.py` to get join dates
 3. **Analyze Patterns**: Run `visualize_toxicity_by_join_date.py` for visualization
 4. **Debug if Needed**: Run `debug_user_join_counts.py` for troubleshooting
