@@ -149,6 +149,27 @@ python get_bsky_profiles_for_sampled_users.py
 python visualize_toxicity_by_join_date.py
 ```
 
+### 7. `toxicity_outrage_before_after_cutoff_date.py`
+**Purpose**: Creates a comparative bar chart analysis of toxicity and outrage levels for users who joined before vs after September 1, 2024.
+
+**What it does**:
+- Loads all profile data from `sampled_user_profiles/` across all timestamp directories
+- Categorizes users into "Before Sep 1, 2024" and "Sep 1, 2024 or Later" groups
+- Calculates average toxicity and outrage scores for each group
+- Creates a comparative bar chart with blue color scheme (light blue for before, dark blue for after)
+- Handles timezone-aware timestamps gracefully
+- Includes value labels on bars and comprehensive statistics
+
+**Key outputs**:
+- `before_after_cutoff_comparison.png` - Bar chart comparing toxicity and outrage between groups
+- Saved to `visualizations/toxicity_outrage_before_after_cutoff_date/<timestamp>/`
+- Console output with detailed group statistics and comparisons
+
+**Execution**: Run seventh to analyze before/after cutoff patterns
+```bash
+python toxicity_outrage_before_after_cutoff_date.py
+```
+
 ### Debug Tools
 
 #### `debug_user_join_counts.py`
@@ -316,12 +337,17 @@ This analysis is conducted in multiple batches/runs to manage data processing an
 - `toxicity_outrage_by_join_date.png` - Dual subplot showing toxicity and outrage trends
 - `combined_toxicity_outrage_by_join_date.png` - Combined visualization with dual y-axes
 - `user_count_by_join_date.png` - Histogram showing user distribution by join month
+- `before_after_cutoff_comparison.png` - Bar chart comparing before/after Sep 1, 2024 groups
 
 **Key Findings:**
 - Successfully processed 2,893 users from 31 parquet files
 - 1 invalid timestamp handled gracefully (labeled as "Unknown")
 - Clear visualization of toxicity/outrage patterns by join date
 - Study period (Oct-Dec 2024) shows slightly higher outrage levels (0.2699 vs 0.2482 overall)
+- Before/After Sep 1, 2024 analysis shows:
+  - Before Sep 1, 2024: 2,386 users, avg toxicity 0.1009, avg outrage 0.2436
+  - Sep 1, 2024 or Later: 506 users, avg toxicity 0.1024, avg outrage 0.2694
+  - Users joining after Sep 1, 2024 show slightly higher outrage levels (0.2694 vs 0.2436)
 - Robust error handling prevents crashes from corrupted data files
 
 ## Next Steps
