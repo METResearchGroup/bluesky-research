@@ -207,11 +207,19 @@ Perspective API Labels + Preprocessed Posts
 - **Processing Mode**: Sequential (to avoid memory issues)
 - **Output Format**: Parquet files with timestamp-based organization
 
-## Analysis Results
+## Analysis Runs
 
-The complete pipeline has been successfully implemented and tested:
+This analysis is conducted in multiple batches/runs to manage data processing and API rate limits.
 
-### **Data Processing Results:**
+### **Run 1 - Initial Analysis (Completed)**
+
+**Configuration:**
+- **Sampling**: Top 10% of users by post count (≥77 posts)
+- **Sample Size**: 1,000 randomly sampled users from top 10%
+- **Processing**: Sequential mode to avoid memory issues
+- **API Chunk Size**: 100 users per batch
+
+**Actual Results:**
 - **961 users** successfully analyzed across **12 join date periods**
 - **Join date distribution**: 
   - 733 users from 2023-12 (pre-2024 dates grouped together)
@@ -220,20 +228,45 @@ The complete pipeline has been successfully implemented and tested:
 - **Overall averages**: 0.1045 toxicity, 0.2532 outrage
 - **Study period averages**: 0.1058 toxicity, 0.2735 outrage
 
-### **Key Findings:**
+**Key Findings:**
 - Users who joined during the study period show slightly higher toxicity and outrage levels
 - Clear temporal patterns visible in the visualization data
 - Strong representation of early adopters (pre-2024) vs. later joiners
 
-### **Visualizations Generated:**
+**Visualizations Generated:**
 - `toxicity_outrage_by_join_date.png` - Separate line plots for toxicity and outrage trends
 - `combined_toxicity_outrage_by_join_date.png` - Combined visualization with dual y-axes
 - `user_count_by_join_date.png` - Histogram showing user distribution by join month
 - Debug visualizations for troubleshooting data loading
 
+### **Run 2 - Expanded Analysis (Planned)**
+
+**Configuration:**
+- **Sampling**: Top 10% of users by post count (≥77 posts)
+- **Sample Size**: 1,000 randomly sampled users from top 10%
+- **Processing**: Sequential mode to avoid memory issues
+- **API Chunk Size**: 100 users per batch
+
+**Execution Order for Run 2:**
+1. **Resample Users**: Run `sample_top_users.py` to generate new random sample
+2. **Fetch Profiles**: Run `get_bsky_profiles_for_sampled_users.py` to get join dates
+3. **Analyze Patterns**: Run `visualize_toxicity_by_join_date.py` for visualization
+4. **Debug if Needed**: Run `debug_user_join_counts.py` for troubleshooting
+
+**Expected Outcomes:**
+- New random sample of 1,000 users from top 10%
+- Updated visualizations with different user subset
+- Validation of findings from Run 1
+- Potential discovery of additional patterns
+
 ## Next Steps
 
-The analysis pipeline is now complete and ready for:
+### **Immediate Actions:**
+1. **Execute Run 2**: Follow the execution order above to generate additional data
+2. **Compare Results**: Analyze differences between Run 1 and Run 2 findings
+3. **Validate Patterns**: Confirm consistency of toxicity/outrage trends across samples
+
+### **Future Analysis:**
 1. **Statistical Analysis**: Determining significance of observed correlations
 2. **Further Investigation**: Deeper analysis of specific time periods or user segments
 3. **Publication**: Results are ready for research presentation and publication
