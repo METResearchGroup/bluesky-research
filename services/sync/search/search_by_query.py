@@ -7,7 +7,7 @@ from services.sync.search.helper import (
     DEFAULT_LIMIT_RESULTS_PER_REQUEST,
     send_request_with_pagination,
 )
-from services.transform.transform_raw_data import flatten_post
+from transform.transform_raw_data import flatten_post
 
 client = get_client()
 
@@ -69,6 +69,8 @@ def main():
     limit = 150
     posts = search_by_query(query=query, limit=limit)
     print(f"Number of posts found: {len(posts)} (expected {limit})")
+    print(f"First ten posts: {posts[:10]}")
+    print(f"Last ten posts: {posts[-10:]}")
 
 
 if __name__ == "__main__":
