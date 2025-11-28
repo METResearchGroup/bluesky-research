@@ -1,16 +1,6 @@
 """Migrate research data to S3."""
 
-from pydantic import BaseModel
-
 PREFIXES_TO_MIGRATE = []
-
-
-class MigrationStatus(BaseModel):
-    pass
-
-
-class MigrationTracker(BaseModel):
-    pass
 
 
 def main():
