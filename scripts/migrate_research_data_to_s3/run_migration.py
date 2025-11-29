@@ -49,7 +49,6 @@ def create_progress_callback(file_path: str, file_size: int) -> Callable[[int], 
     return callback
 
 
-# TODO: introduce batch logic later.
 def migrate_file_to_s3(
     local_filepath: str, s3_key: str, s3_client: S3
 ) -> tuple[bool, str]:
