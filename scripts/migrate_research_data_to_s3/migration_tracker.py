@@ -197,6 +197,9 @@ class MigrationTracker:
     def get_files_to_migrate_for_prefix(self, prefix: str) -> list[dict]:
         """Get files to migrate for a given prefix.
 
+        Includes both PENDING and IN_PROGRESS files to support resumable migrations.
+        IN_PROGRESS files may be from a previous interrupted migration.
+
         Args:
             prefix: The prefix to get files for. Does a LIKE query on the local_path column.
         Returns:
@@ -205,15 +208,21 @@ class MigrationTracker:
         if not prefix:
             raise ValueError("Prefix cannot be empty")
 
+        prefix_path = os.path.join(root_local_data_directory, prefix)
+
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
                 """
                 SELECT local_path, s3_key, file_size_bytes
                 FROM migration_files
-                WHERE status = ? AND local_path LIKE ?
+                WHERE status IN (?, ?) AND local_path LIKE ?
             """,
-                (MigrationStatus.PENDING.value, f"%{prefix}%"),
+                (
+                    MigrationStatus.PENDING.value,
+                    MigrationStatus.IN_PROGRESS.value,
+                    f"%{prefix_path}%",
+                ),
             )
             return [dict(row) for row in cursor.fetchall()]
 

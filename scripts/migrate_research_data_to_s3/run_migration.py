@@ -80,6 +80,9 @@ def run_migration_for_single_prefix(prefix: str) -> None:
     for file_to_migrate in tqdm(files_to_migrate, desc=f"Migrating {prefix}"):
         local_filepath = file_to_migrate["local_path"]
         s3_key = file_to_migrate["s3_key"]
+
+        # Mark as started before uploading
+        migration_tracker_db.mark_started(local_filepath)
         success, error_message = migrate_file_to_s3(local_filepath, s3_key)
         if not success:
             migration_tracker_db.mark_failed(local_filepath, error_message)
