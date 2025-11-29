@@ -85,7 +85,7 @@ class MigrationTracker:
                 try:
                     conn.execute(
                         """
-                        INSERT OR IGNORE INTO migration_files 
+                        INSERT INTO migration_files 
                         (local_path, s3_key, file_size_bytes, status)
                         VALUES (?, ?, ?, ?)
                     """,
