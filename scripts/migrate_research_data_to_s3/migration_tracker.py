@@ -2,6 +2,7 @@ from enum import Enum
 import os
 import sqlite3
 
+
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import Logger
 
@@ -190,6 +191,29 @@ class MigrationTracker:
                 ORDER BY created_at ASC
             """,
                 (MigrationStatus.FAILED.value,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_files_to_migrate_for_prefix(self, prefix: str) -> list[dict]:
+        """Get files to migrate for a given prefix.
+
+        Args:
+            prefix: The prefix to get files for. Does a LIKE query on the local_path column.
+        Returns:
+            A list of dicts with 'local_path', 's3_key', and 'file_size_bytes'.
+        """
+        if not prefix:
+            raise ValueError("Prefix cannot be empty")
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                """
+                SELECT local_path, s3_key
+                FROM migration_files
+                WHERE status = ? AND local_path LIKE ?
+            """,
+                (MigrationStatus.PENDING.value, f"%{prefix}%"),
             )
             return [dict(row) for row in cursor.fetchall()]
 
