@@ -124,6 +124,11 @@ class MigrationTracker:
             logger.info(f"Registered {len(files)} files for migration")
 
     def mark_started(self, local_path: str) -> None:
+        """Mark a file as in progress and record the start time.
+
+        Args:
+            local_path: Path to the file being migrated
+        """
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
@@ -142,6 +147,11 @@ class MigrationTracker:
             logger.info(f"Marked file as started: {local_path}")
 
     def mark_completed(self, local_path: str) -> None:
+        """Mark a file as completed and record the completion time.
+
+        Args:
+            local_path: Path to the file that was successfully migrated
+        """
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
@@ -160,6 +170,12 @@ class MigrationTracker:
             logger.info(f"Marked file as completed: {local_path}")
 
     def mark_failed(self, local_path: str, error_message: str) -> None:
+        """Mark a file as failed and record the error message.
+
+        Args:
+            local_path: Path to the file that failed to migrate
+            error_message: Error message describing the failure
+        """
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """

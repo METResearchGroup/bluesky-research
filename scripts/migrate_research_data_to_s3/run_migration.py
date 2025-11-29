@@ -14,6 +14,8 @@ from scripts.migrate_research_data_to_s3.migration_tracker import MigrationTrack
 
 logger = get_logger(__name__)
 
+MB_IN_BYTES = 1024**2
+
 
 def create_progress_callback(file_path: str, file_size: int) -> Callable[[int], None]:
     """Create a progress callback function for file uploads.
@@ -38,8 +40,8 @@ def create_progress_callback(file_path: str, file_size: int) -> Callable[[int], 
     def callback(bytes_amount: int) -> None:
         uploaded[0] += bytes_amount
         percent = (uploaded[0] / file_size) * 100
-        mb_uploaded = uploaded[0] / (1024**2)
-        mb_total = file_size / (1024**2)
+        mb_uploaded = uploaded[0] / MB_IN_BYTES
+        mb_total = file_size / MB_IN_BYTES
         logger.debug(
             f"{Path(file_path).name}: {percent:.1f}% ({mb_uploaded:.2f} MB / {mb_total:.2f} MB)"
         )
@@ -62,7 +64,7 @@ def migrate_file_to_s3(
             raise FileNotFoundError(f"File not found: {local_filepath}")
 
         file_size = os.path.getsize(local_filepath)
-        file_size_mb = file_size / (1024**2)
+        file_size_mb = file_size / MB_IN_BYTES
         logger.info(f"Migrating file {local_filepath} to S3 ({file_size_mb:.2f} MB)")
 
         # upload_file automatically handles:
@@ -77,7 +79,7 @@ def migrate_file_to_s3(
             local_filepath, s3_client.bucket, s3_key, Callback=callback
         )
         logger.info(
-            f"Successfully uploaded {local_filepath} to s3://{os.path.join(s3_client.bucket, s3_key)}"
+            f"Successfully uploaded {local_filepath} to s3://{s3_client.bucket}/{s3_key}"
         )
         return (True, "")
     except (FileNotFoundError, OSError) as e:
