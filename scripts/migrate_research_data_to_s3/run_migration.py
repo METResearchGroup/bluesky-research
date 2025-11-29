@@ -27,14 +27,14 @@ def migrate_file_to_s3(local_filepath: str, s3_key: str) -> tuple[bool, str]:
         tuple[bool, str]: True if the file was migrated successfully, False otherwise.
         Error handling managed downstream.
     """
-    if not os.path.exists(local_filepath):
-        raise FileNotFoundError(f"File not found: {local_filepath}")
-
-    file_size = os.path.getsize(local_filepath)
-    file_size_mb = file_size / (1024**2)
-    logger.info(f"Migrating file {local_filepath} to S3 ({file_size_mb:.2f} MB)")
-
     try:
+        if not os.path.exists(local_filepath):
+            raise FileNotFoundError(f"File not found: {local_filepath}")
+
+        file_size = os.path.getsize(local_filepath)
+        file_size_mb = file_size / (1024**2)
+        logger.info(f"Migrating file {local_filepath} to S3 ({file_size_mb:.2f} MB)")
+
         # upload_file automatically handles:
         # - Multipart uploads for files > 8MB
         # - Retries on failures
