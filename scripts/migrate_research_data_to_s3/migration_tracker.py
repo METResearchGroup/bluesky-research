@@ -43,7 +43,8 @@ class MigrationTracker:
                     local_path TEXT NOT NULL UNIQUE,
                     s3_key TEXT NOT NULL,
                     file_size_bytes INTEGER,
-                    status TEXT NOT NULL DEFAULT 'pending',
+                    status TEXT NOT NULL DEFAULT 'pending'
+                        CHECK(status IN ('pending', 'in_progress', 'completed', 'failed', 'skipped')),
                     started_at TEXT,
                     completed_at TEXT,
                     error_message TEXT,
