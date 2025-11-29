@@ -47,7 +47,6 @@ class MigrationTracker:
                     started_at TEXT,
                     completed_at TEXT,
                     error_message TEXT,
-                    retry_count INTEGER DEFAULT 0,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
