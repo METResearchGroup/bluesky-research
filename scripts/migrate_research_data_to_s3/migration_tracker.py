@@ -221,7 +221,7 @@ class MigrationTracker:
                 (
                     MigrationStatus.PENDING.value,
                     MigrationStatus.IN_PROGRESS.value,
-                    f"%{prefix_path}%",
+                    f"{prefix_path}%",
                 ),
             )
             return [dict(row) for row in cursor.fetchall()]
