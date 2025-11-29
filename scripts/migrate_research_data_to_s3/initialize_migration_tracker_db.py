@@ -43,11 +43,15 @@ def get_s3_key_for_local_filepath(
     local_filepath: str,
     s3_root_prefix: str = DEFAULT_S3_ROOT_PREFIX,
 ) -> str:
-    """Given a local filepath, get the S3  for that filepath."""
+    """Given a local filepath, get the S3  for that filepath.
+
+    Assumes that local filepath is an absolute path (local = not in AWS)
+
+    Doesn't work correctly for relative paths (e.g., '/data/...'). Assumes
+    absolute path.
+    """
     # remove everything before the local prefix.
-    local_filepath = local_filepath.replace(
-        os.path.join(root_local_data_directory, ""), ""
-    )
+    local_filepath = local_filepath.replace(f"{root_local_data_directory}/", "")
     s3_key = os.path.join(s3_root_prefix, local_filepath)
     return s3_key
 
