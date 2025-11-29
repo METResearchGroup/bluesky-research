@@ -89,7 +89,7 @@ def run_migration_for_single_prefix(prefix: str) -> None:
 
 def run_migration_for_all_prefixes() -> None:
     """Runs the migration process for all prefixes."""
-    for prefix in PREFIXES_TO_MIGRATE:
+    for prefix in tqdm(PREFIXES_TO_MIGRATE, desc="Processing prefixes"):
         run_migration_for_single_prefix(prefix)
 
 
