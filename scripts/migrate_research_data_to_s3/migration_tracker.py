@@ -307,7 +307,7 @@ class MigrationTracker:
                 WHERE local_path LIKE ?
                 GROUP BY status
             """,
-                (f"%{prefix_path}%",),
+                (f"{prefix_path}%",),
             )
 
             status_counts = {}
