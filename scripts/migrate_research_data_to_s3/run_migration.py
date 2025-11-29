@@ -94,4 +94,4 @@ def run_migration_for_all_prefixes() -> None:
 
 
 if __name__ == "__main__":
-    pass
+    run_migration_for_all_prefixes()
