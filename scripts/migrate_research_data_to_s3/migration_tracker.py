@@ -209,7 +209,7 @@ class MigrationTracker:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
                 """
-                SELECT local_path, s3_key
+                SELECT local_path, s3_key, file_size_bytes
                 FROM migration_files
                 WHERE status = ? AND local_path LIKE ?
             """,
