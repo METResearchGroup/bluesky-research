@@ -16,7 +16,23 @@ logger = get_logger(__name__)
 
 
 def create_progress_callback(file_path: str, file_size: int) -> Callable[[int], None]:
-    """Create a progress callback function for file uploads."""
+    """Create a progress callback function for file uploads.
+
+    Args:
+        file_path: Path to the file being uploaded
+        file_size: Size of the file in bytes
+
+    Returns:
+        Callback function for upload progress
+
+    Raises:
+        ValueError: If file_size is zero or negative
+    """
+    if file_size <= 0:
+        raise ValueError(
+            f"Cannot create progress callback for zero or negative file size: {file_size}"
+        )
+
     uploaded = [0]  # Use list to allow modification in nested function
 
     def callback(bytes_amount: int) -> None:
