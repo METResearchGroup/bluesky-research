@@ -185,7 +185,7 @@ class MigrationTracker:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
                 """
-                SELECT local_path, s3_key, file_size_bytes
+                SELECT local_path, s3_key, file_size_bytes, error_message
                 FROM migration_files
                 WHERE status = ?
                 ORDER BY created_at ASC
