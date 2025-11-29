@@ -4,6 +4,7 @@ from collections.abc import Callable
 import os
 from pathlib import Path
 
+import botocore
 from tqdm import tqdm
 
 from lib.aws.s3 import S3
@@ -63,9 +64,25 @@ def migrate_file_to_s3(
             f"Successfully uploaded {local_filepath} to s3://{os.path.join(s3_client.bucket, s3_key)}"
         )
         return (True, "")
-    except Exception as e:
-        logger.error(f"Error uploading {local_filepath} to S3: {e}")
+    except (FileNotFoundError, OSError) as e:
+        # File system errors
+        logger.error(f"File system error uploading {local_filepath} to S3: {e}")
         return (False, str(e))
+    except botocore.exceptions.ClientError as e:
+        # AWS S3 errors
+        error_code = e.response.get("Error", {}).get("Code", "Unknown")
+        logger.error(f"AWS error uploading {local_filepath} to S3: {error_code} - {e}")
+        return (False, f"AWS {error_code}: {str(e)}")
+    except (RuntimeError, ValueError) as e:
+        # Configuration/validation errors
+        logger.error(f"Configuration error uploading {local_filepath} to S3: {e}")
+        return (False, str(e))
+    except Exception as e:
+        logger.critical(
+            f"Unexpected error uploading {local_filepath} to S3: {e}",
+            exc_info=True,
+        )
+        raise
 
 
 def run_migration_for_single_prefix(
