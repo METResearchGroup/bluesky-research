@@ -41,16 +41,42 @@ def get_s3_key_for_local_filepath(
     local_filepath: str,
     s3_root_prefix: str = DEFAULT_S3_ROOT_PREFIX,
 ) -> str:
-    """Given a local filepath, get the S3  for that filepath.
+    """Given a local filepath, get the S3 key for that filepath.
 
     Assumes that local filepath is an absolute path (local = not in AWS)
 
-    Doesn't work correctly for relative paths (e.g., '/data/...'). Assumes
-    absolute path.
+    Args:
+        local_filepath: Absolute path to the local file
+        s3_root_prefix: S3 root prefix to prepend to the relative path
+
+    Returns:
+        S3 key string with forward slashes
+
+    Raises:
+        ValueError: If the file path is not under the root directory
     """
-    # remove everything before the local prefix.
-    local_filepath = local_filepath.replace(f"{root_local_data_directory}/", "")
-    s3_key = os.path.join(s3_root_prefix, local_filepath)
+    from pathlib import Path
+
+    local_path = Path(local_filepath)
+    root_path = Path(root_local_data_directory)
+
+    try:
+        # Get relative path from root
+        relative_path = local_path.relative_to(root_path)
+    except ValueError:
+        raise ValueError(
+            f"File path {local_filepath} is not under root directory {root_local_data_directory}"
+        )
+
+    # Convert to string with forward slashes (S3 always uses /). Applies
+    # to Windows paths, so here for defensibility.
+    relative_str = str(relative_path).replace("\\", "/")
+
+    # avoiding os.path.join since it uses the OS-specific path separator,
+    # and we want to ensure consistency across platforms (e.g., it would
+    # use backslashes on Windows).
+    s3_key = f"{s3_root_prefix}/{relative_str}" if s3_root_prefix else relative_str
+
     return s3_key
 
 
