@@ -4,9 +4,9 @@ import sqlite3
 
 from lib.constants import root_local_data_directory
 from lib.helper import generate_current_datetime_str
-from lib.log.logger import Logger
+from lib.log.logger import get_logger
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 MIGRATION_TRACKER_DB_PATH = os.path.join(current_dir, "migration_tracker.db")
