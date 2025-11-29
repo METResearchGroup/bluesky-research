@@ -7,6 +7,9 @@ from lib.log.logger import Logger
 
 logger = Logger(__name__)
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+MIGRATION_TRACKER_DB_PATH = os.path.join(current_dir, "migration_tracker.db")
+
 
 class MigrationStatus(str, Enum):
     """Status tracker for migration tracking."""
@@ -21,7 +24,7 @@ class MigrationStatus(str, Enum):
 class MigrationTracker:
     """Tracks migration progress using SQLite database."""
 
-    def __init__(self, db_path: str = "migration_progress.db"):
+    def __init__(self, db_path: str = MIGRATION_TRACKER_DB_PATH):
         """Initialize the migration tracker.
 
         Args:
