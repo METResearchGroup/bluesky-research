@@ -10,8 +10,6 @@ from scripts.migrate_research_data_to_s3.constants import (
 )
 from scripts.migrate_research_data_to_s3.migration_tracker import MigrationTracker
 
-migration_tracker_db = MigrationTracker()
-
 
 def get_filepaths_for_local_prefix(local_prefix: str) -> list[str]:
     """Given a local prefix, get all the filepaths for that prefix.
@@ -56,7 +54,9 @@ def get_s3_key_for_local_filepath(
     return s3_key
 
 
-def initialize_migration_tracker_db(local_prefixes: list[str]) -> None:
+def initialize_migration_tracker_db(
+    local_prefixes: list[str], migration_tracker_db: MigrationTracker
+) -> None:
     """Initialize the migration tracking database with the
     files to migrate."""
     for local_prefix in tqdm(local_prefixes, desc="Processing prefixes"):
@@ -77,5 +77,6 @@ def initialize_migration_tracker_db(local_prefixes: list[str]) -> None:
 
 if __name__ == "__main__":
     prefixes = PREFIXES_TO_MIGRATE
-    initialize_migration_tracker_db(prefixes)
-    migration_tracker_db.print_checklist()
+    migration_tracker_db = MigrationTracker()
+    initialize_migration_tracker_db(prefixes, migration_tracker_db)
+    migration_tracker_db.print_checklist(failed_files_preview_size=10)

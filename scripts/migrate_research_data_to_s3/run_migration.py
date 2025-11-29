@@ -11,11 +11,7 @@ from lib.log.logger import get_logger
 from scripts.migrate_research_data_to_s3.constants import PREFIXES_TO_MIGRATE
 from scripts.migrate_research_data_to_s3.migration_tracker import MigrationTracker
 
-migration_tracker_db = MigrationTracker()
-
 logger = get_logger(__name__)
-
-s3_client = S3(create_client_flag=True)
 
 
 def create_progress_callback(file_path: str, file_size: int) -> Callable[[int], None]:
@@ -35,7 +31,9 @@ def create_progress_callback(file_path: str, file_size: int) -> Callable[[int], 
 
 
 # TODO: introduce batch logic later.
-def migrate_file_to_s3(local_filepath: str, s3_key: str) -> tuple[bool, str]:
+def migrate_file_to_s3(
+    local_filepath: str, s3_key: str, s3_client: S3
+) -> tuple[bool, str]:
     """Migrates a file to S3.
 
     Returns:
@@ -70,7 +68,9 @@ def migrate_file_to_s3(local_filepath: str, s3_key: str) -> tuple[bool, str]:
         return (False, str(e))
 
 
-def run_migration_for_single_prefix(prefix: str) -> None:
+def run_migration_for_single_prefix(
+    prefix: str, migration_tracker_db: MigrationTracker, s3_client: S3
+) -> None:
     """Runs the migration process."""
 
     files_to_migrate: list[dict[str, str]] = (
@@ -83,18 +83,25 @@ def run_migration_for_single_prefix(prefix: str) -> None:
 
         # Mark as started before uploading
         migration_tracker_db.mark_started(local_filepath)
-        success, error_message = migrate_file_to_s3(local_filepath, s3_key)
+        success, error_message = migrate_file_to_s3(local_filepath, s3_key, s3_client)
         if not success:
             migration_tracker_db.mark_failed(local_filepath, error_message)
         else:
             migration_tracker_db.mark_completed(local_filepath)
 
 
-def run_migration_for_all_prefixes() -> None:
+def run_migration_for_all_prefixes(
+    migration_tracker_db: MigrationTracker, s3_client: S3
+) -> None:
     """Runs the migration process for all prefixes."""
     for prefix in tqdm(PREFIXES_TO_MIGRATE, desc="Processing prefixes"):
-        run_migration_for_single_prefix(prefix)
+        run_migration_for_single_prefix(prefix, migration_tracker_db, s3_client)
 
 
 if __name__ == "__main__":
-    run_migration_for_all_prefixes()
+    migration_tracker_db = MigrationTracker()
+    s3_client = S3(create_client_flag=True)
+    run_migration_for_all_prefixes(
+        migration_tracker_db=migration_tracker_db,
+        s3_client=s3_client,
+    )

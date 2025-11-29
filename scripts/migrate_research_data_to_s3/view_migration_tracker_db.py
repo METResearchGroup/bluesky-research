@@ -3,10 +3,10 @@
 from scripts.migrate_research_data_to_s3.constants import PREFIXES_TO_MIGRATE
 from scripts.migrate_research_data_to_s3.migration_tracker import MigrationTracker
 
-migration_tracker_db = MigrationTracker()
 
-
-def print_prefix_status_table(prefix: str) -> None:
+def print_prefix_status_table(
+    prefix: str, migration_tracker_db: MigrationTracker
+) -> None:
     """Print a status table for a specific prefix.
 
     Args:
@@ -47,7 +47,7 @@ def print_prefix_status_table(prefix: str) -> None:
     print("-" * 40)
 
 
-def view_migration_status() -> None:
+def view_migration_status(migration_tracker_db: MigrationTracker) -> None:
     """View migration status per prefix and overall summary."""
     print("\n" + "=" * 60)
     print("MIGRATION STATUS BY PREFIX")
@@ -55,14 +55,15 @@ def view_migration_status() -> None:
 
     # Print status for each prefix
     for prefix in PREFIXES_TO_MIGRATE:
-        print_prefix_status_table(prefix)
+        print_prefix_status_table(prefix, migration_tracker_db)
 
     # Print overall checklist
     print("\n" + "=" * 60)
     print("OVERALL MIGRATION SUMMARY")
     print("=" * 60)
-    migration_tracker_db.print_checklist()
+    migration_tracker_db.print_checklist(failed_files_preview_size=10)
 
 
 if __name__ == "__main__":
-    view_migration_status()
+    migration_tracker_db = MigrationTracker()
+    view_migration_status(migration_tracker_db)
