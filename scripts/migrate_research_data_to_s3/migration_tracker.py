@@ -66,7 +66,8 @@ class MigrationTracker:
         self,
         files: list[dict[str, str]],
     ) -> None:
-        """Register files to be migrated.
+        """Register files to be migrated. Skips empty files (marks them as SKIPPED),
+        else marks them as PENDING.
 
         Args:
             files: List of dicts with 'local_path' and 's3_key'
@@ -82,6 +83,13 @@ class MigrationTracker:
 
                 file_size = os.path.getsize(local_path)
 
+                # Mark empty files as SKIPPED
+                status = (
+                    MigrationStatus.SKIPPED.value
+                    if file_size == 0
+                    else MigrationStatus.PENDING.value
+                )
+
                 try:
                     conn.execute(
                         """
@@ -89,7 +97,7 @@ class MigrationTracker:
                         (local_path, s3_key, file_size_bytes, status)
                         VALUES (?, ?, ?, ?)
                     """,
-                        (local_path, s3_key, file_size, MigrationStatus.PENDING.value),
+                        (local_path, s3_key, file_size, status),
                     )
                 except sqlite3.IntegrityError:
                     logger.debug(f"File already registered: {local_path}")
