@@ -58,6 +58,24 @@ class MigrationTracker:
                 ON migration_files(status)
             """)
 
+            # Index for local_path lookups (used in WHERE clauses)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_local_path 
+                ON migration_files(local_path)
+            """)
+
+            # Index for s3_key lookups (for verification queries)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_s3_key 
+                ON migration_files(s3_key)
+            """)
+
+            # Composite index for prefix queries (status + local_path pattern matching)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_status_local_path 
+                ON migration_files(status, local_path)
+            """)
+
             conn.commit()
             logger.info(f"Initialized migration tracker database: {self.db_path}")
 
