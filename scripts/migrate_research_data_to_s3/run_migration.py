@@ -1,6 +1,8 @@
 """Runs the migration process."""
 
+from collections.abc import Callable
 import os
+from pathlib import Path
 
 from tqdm import tqdm
 
@@ -15,8 +17,21 @@ logger = get_logger(__name__)
 
 s3_client = S3(create_client_flag=True)
 
-# TODO: add callback
-callback = None
+
+def create_progress_callback(file_path: str, file_size: int) -> Callable[[int], None]:
+    """Create a progress callback function for file uploads."""
+    uploaded = [0]  # Use list to allow modification in nested function
+
+    def callback(bytes_amount: int) -> None:
+        uploaded[0] += bytes_amount
+        percent = (uploaded[0] / file_size) * 100
+        mb_uploaded = uploaded[0] / (1024**2)
+        mb_total = file_size / (1024**2)
+        logger.debug(
+            f"{Path(file_path).name}: {percent:.1f}% ({mb_uploaded:.2f} MB / {mb_total:.2f} MB)"
+        )
+
+    return callback
 
 
 # TODO: introduce batch logic later.
@@ -42,6 +57,7 @@ def migrate_file_to_s3(local_filepath: str, s3_key: str) -> tuple[bool, str]:
         # - Streaming (doesn't load entire file into memory)
         if s3_client.client is None:
             raise RuntimeError("S3 client not initialized")
+        callback = create_progress_callback(local_filepath, file_size)
         s3_client.client.upload_file(
             local_filepath, s3_client.bucket, s3_key, Callback=callback
         )
