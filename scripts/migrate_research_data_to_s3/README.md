@@ -51,7 +51,6 @@ The migration system uses a SQLite database to track migration progress, allowin
    - Migration status
    - Timestamps (started, completed)
    - Error messages (if failed)
-   - Retry count
 
 2. **Status Lifecycle**: Files progress through statuses:
    - `pending` → `in_progress` → `completed` or `failed`
