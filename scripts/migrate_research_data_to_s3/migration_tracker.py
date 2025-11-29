@@ -2,7 +2,7 @@ from enum import Enum
 import os
 import sqlite3
 
-
+from lib.constants import root_local_data_directory
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import Logger
 
@@ -250,6 +250,42 @@ class MigrationTracker:
             overall = dict(cursor.fetchone())
 
             return {"overall": overall, "by_status": summary}
+
+    def get_status_counts_for_prefix(self, prefix: str) -> dict:
+        """Get status counts for a specific prefix.
+
+        Args:
+            prefix: The prefix to get status counts for. Uses LIKE query on local_path.
+
+        Returns:
+            Dictionary with status counts: {'pending': count, 'completed': count, etc.}
+        """
+        prefix_path = os.path.join(root_local_data_directory, prefix)
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                """
+                SELECT 
+                    status,
+                    COUNT(*) as count
+                FROM migration_files
+                WHERE local_path LIKE ?
+                GROUP BY status
+            """,
+                (f"%{prefix_path}%",),
+            )
+
+            status_counts = {}
+            for row in cursor.fetchall():
+                status_counts[row["status"]] = row["count"]
+
+            # Ensure all statuses are present with 0 if not found
+            for status in MigrationStatus:
+                if status.value not in status_counts:
+                    status_counts[status.value] = 0
+
+            return status_counts
 
     def print_checklist(self, failed_files_preview_size: int = 10) -> None:
         """Print a human-readable checklist of migration status."""
