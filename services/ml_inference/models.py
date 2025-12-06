@@ -230,6 +230,9 @@ class ImeLabelModel(BaseModel):
     label_timestamp: Optional[str] = Field(
         default=None, description="Timestamp when the IME classification was performed."
     )
+    reason: Optional[str] = Field(
+        default=None, description="Error message if classification failed."
+    )
 
 
 class ValenceClassifierLabelModel(BaseModel):
