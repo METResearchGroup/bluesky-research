@@ -119,7 +119,7 @@ all = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["lib*", "ml_tooling*", "bluesky_database*"]
+include = ["lib*", "ml_tooling*", "bluesky_database*", "services*"]
 exclude = [
     "demos*", 
     "experiments*", 
@@ -202,12 +202,14 @@ norecursedirs = [
 ]
 
 # Add command line default options
+# Note: -p no:opik disables the opik plugin to avoid issues
 addopts = [
     "--verbose",
     "--no-header",
     "--ignore=experiments",
     "--tb=short",
     "--strict-markers",
+    "-p", "no:opik",
 ]
 
 # Configure pytest plugins
