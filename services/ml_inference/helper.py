@@ -5,7 +5,7 @@ from typing import Literal, Optional
 
 import pandas as pd
 
-from api.integrations_router.helper import determine_backfill_latest_timestamp
+from lib.helper import determine_backfill_latest_timestamp
 from lib.db.queue import Queue
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
