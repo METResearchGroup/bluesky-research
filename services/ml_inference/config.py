@@ -15,7 +15,7 @@ class InferenceConfig:
     Attributes:
         inference_type: The inference type identifier (e.g., "perspective_api", "ime")
         queue_inference_type: The inference type string used for queue operations.
-            Sometimes differs from inference_type (e.g., "llm" for sociopolitical)
+            Usually matches inference_type, but can differ if needed for backward compatibility
         classification_func: The function to call for batch classification
         log_message_template: Template for log message when classification starts.
             Use {count} placeholder for number of posts.
@@ -24,7 +24,7 @@ class InferenceConfig:
 
     inference_type: str
     queue_inference_type: Literal[
-        "llm", "perspective_api", "ime", "valence_classifier"
+        "sociopolitical", "perspective_api", "ime", "valence_classifier"
     ]  # For get_posts_to_classify()
     classification_func: Callable
     log_message_template: str = "Classifying {count} posts..."

@@ -11,7 +11,7 @@ from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from lib.utils import filter_posts_df
 from services.ml_inference.config import InferenceConfig
-from services.ml_inference.models import PostToLabelModel
+from services.ml_inference.models import ClassificationSessionModel, PostToLabelModel
 
 
 logger = get_logger(__name__)
@@ -19,7 +19,9 @@ logger = get_logger(__name__)
 
 @track_performance
 def get_posts_to_classify(
-    inference_type: Literal["llm", "perspective_api", "ime", "valence_classifier"],
+    inference_type: Literal[
+        "sociopolitical", "perspective_api", "ime", "valence_classifier"
+    ],
     timestamp: Optional[str] = None,
     previous_run_metadata: Optional[dict] = None,
     columns: Optional[list[str]] = None,
@@ -31,10 +33,10 @@ def get_posts_to_classify(
     post filtering, and data formatting.
 
     Args:
-        inference_type (Literal["llm", "perspective_api", "ime"]): Type of inference to run.
+        inference_type (Literal["sociopolitical", "perspective_api", "ime", "valence_classifier"]): Type of inference to run.
             Maps to specific queue names:
             - "perspective_api" -> "input_ml_inference_perspective_api"
-            - "llm" -> "input_ml_inference_sociopolitical"
+            - "sociopolitical" -> "input_ml_inference_sociopolitical"
             - "ime" -> "input_ml_inference_ime"
         timestamp (Optional[str]): Optional timestamp in YYYY-MM-DD-HH:MM:SS format to
             override latest inference timestamp for filtering posts.
@@ -71,7 +73,7 @@ def get_posts_to_classify(
     # Map inference types to queue names
     queue_mapping = {
         "perspective_api": "input_ml_inference_perspective_api",
-        "llm": "input_ml_inference_sociopolitical",
+        "sociopolitical": "input_ml_inference_sociopolitical",
         "ime": "input_ml_inference_ime",
         "valence_classifier": "input_ml_inference_valence_classifier",
     }
@@ -145,14 +147,14 @@ def get_posts_to_classify(
 
 
 @track_performance
-def classify_latest_posts(
+def orchestrate_classification(
     config: InferenceConfig,
     backfill_period: Optional[Literal["days", "hours"]] = None,
     backfill_duration: Optional[int] = None,
     run_classification: bool = True,
     previous_run_metadata: Optional[dict] = None,
     event: Optional[dict] = None,
-) -> dict:
+) -> ClassificationSessionModel:
     """Orchestrates classification of latest posts using the provided configuration.
 
     This is the shared orchestration logic for all inference types. It handles:
@@ -170,7 +172,7 @@ def classify_latest_posts(
         event: Original event/payload for traceability and strategy-specific config
 
     Returns:
-        dict: Labeling session summary containing:
+        ClassificationSessionModel: Labeling session summary containing:
             - inference_type: The inference type identifier
             - inference_timestamp: Execution timestamp
             - total_classified_posts: Number of posts processed
@@ -191,13 +193,13 @@ def classify_latest_posts(
 
         if len(posts_to_classify) == 0:
             logger.warning(config.empty_result_message)
-            return {
-                "inference_type": config.inference_type,
-                "inference_timestamp": generate_current_datetime_str(),
-                "total_classified_posts": 0,
-                "event": event,
-                "inference_metadata": {},
-            }
+            return ClassificationSessionModel(
+                inference_type=config.inference_type,
+                inference_timestamp=generate_current_datetime_str(),
+                total_classified_posts=0,
+                event=event,
+                inference_metadata={},
+            )
 
         # Extract strategy-specific kwargs from event
         classification_kwargs = config.extract_classification_kwargs(event)
@@ -214,11 +216,10 @@ def classify_latest_posts(
         total_classified = 0
 
     timestamp = generate_current_datetime_str()
-    labeling_session = {
-        "inference_type": config.inference_type,
-        "inference_timestamp": timestamp,
-        "total_classified_posts": total_classified,
-        "event": event,
-        "inference_metadata": classification_metadata,
-    }
-    return labeling_session
+    return ClassificationSessionModel(
+        inference_type=config.inference_type,
+        inference_timestamp=timestamp,
+        total_classified_posts=total_classified,
+        event=event,
+        inference_metadata=classification_metadata,
+    )
