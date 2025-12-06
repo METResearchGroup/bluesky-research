@@ -7,22 +7,29 @@ be more restrictive about the posts that will be classified as compared to the
 Perspective API classification.
 """
 
-from typing import Optional
+from typing import Literal, Optional
 
-from api.integrations_router.helper import determine_backfill_latest_timestamp
-from lib.helper import generate_current_datetime_str, track_performance
-from lib.log.logger import get_logger
+from lib.helper import track_performance
 from ml_tooling.llm.model import run_batch_classification
+from services.ml_inference.config import InferenceConfig
 from services.ml_inference.helper import (
-    get_posts_to_classify,
+    classify_latest_posts as orchestrate_classification,
 )
 
-logger = get_logger(__file__)
+# Define configuration for this inference type
+# Note: queue_inference_type is "llm" but inference_type is "sociopolitical"
+SOCIOPOLITICAL_CONFIG = InferenceConfig(
+    inference_type="sociopolitical",
+    queue_inference_type="llm",  # get_posts_to_classify uses "llm"
+    classification_func=run_batch_classification,
+    log_message_template="Classifying {count} posts with an LLM...",
+    empty_result_message="No posts to classify with sociopolitical LLM classifier. Exiting...",
+)
 
 
 @track_performance
 def classify_latest_posts(
-    backfill_period: Optional[str] = None,
+    backfill_period: Optional[Literal["days", "hours"]] = None,
     backfill_duration: Optional[int] = None,
     run_classification: bool = True,
     previous_run_metadata: Optional[dict] = None,
@@ -61,44 +68,14 @@ def classify_latest_posts(
     [Clarifications]:
         - What should be the behavior if backfill parameters are missing when classification is enabled?
     """
-    if run_classification:
-        backfill_latest_timestamp: str = determine_backfill_latest_timestamp(
-            backfill_duration=backfill_duration,
-            backfill_period=backfill_period,
-        )
-        posts_to_classify: list[dict] = get_posts_to_classify(
-            inference_type="llm",
-            timestamp=backfill_latest_timestamp,
-            previous_run_metadata=previous_run_metadata,
-        )
-        logger.info(f"Classifying {len(posts_to_classify)} posts with an LLM...")  # noqa
-        if len(posts_to_classify) == 0:
-            logger.warning(
-                "No posts to classify with sociopolitical LLM classifier. Exiting..."
-            )
-            return {
-                "inference_type": "sociopolitical",
-                "inference_timestamp": generate_current_datetime_str(),
-                "total_classified_posts": 0,
-                "event": event,
-                "inference_metadata": {},
-            }
-        classification_metadata = run_batch_classification(posts=posts_to_classify)
-        total_classified = len(posts_to_classify)
-    else:
-        logger.info("Skipping classification and exporting cached results...")
-        classification_metadata = {}
-        total_classified = 0
-
-    timestamp = generate_current_datetime_str()
-    labeling_session = {
-        "inference_type": "sociopolitical",
-        "inference_timestamp": timestamp,
-        "total_classified_posts": total_classified,
-        "event": event,
-        "inference_metadata": classification_metadata,
-    }
-    return labeling_session
+    return orchestrate_classification(
+        config=SOCIOPOLITICAL_CONFIG,
+        backfill_period=backfill_period,
+        backfill_duration=backfill_duration,
+        run_classification=run_classification,
+        previous_run_metadata=previous_run_metadata,
+        event=event,
+    )
 
 
 if __name__ == "__main__":
