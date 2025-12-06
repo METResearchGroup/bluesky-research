@@ -264,3 +264,51 @@ class PostToLabelModel(BaseModel):
     )
     batch_id: int = Field(..., description="The batch ID of the post.")
     batch_metadata: str = Field(..., description="The batch metadata of the post.")
+
+
+class ClassificationSessionModel(BaseModel):
+    """Model for classification session summary output.
+
+    This is the standard return type for orchestrate_classification and
+    all classify_latest_posts functions.
+    """
+
+    inference_type: str = Field(
+        ...,
+        description="The inference type identifier (e.g., 'perspective_api', 'ime', 'sociopolitical')",
+    )
+    inference_timestamp: str = Field(
+        ..., description="Execution timestamp in format YYYY-MM-DD-HH:MM:SS"
+    )
+    total_classified_posts: int = Field(
+        ...,
+        description="Number of posts processed (0 if run_classification=False)",
+        ge=0,
+    )
+    event: Optional[dict] = Field(
+        default=None,
+        description="Original event/payload passed to the function for traceability",
+    )
+    inference_metadata: dict = Field(
+        default_factory=dict,
+        description="Classification results metadata from run_batch_classification(). "
+        "Structure varies by inference type but typically contains: "
+        "- total_batches: Number of batches processed "
+        "- total_posts_successfully_labeled: Count of successfully labeled posts "
+        "- total_posts_failed_to_label: Count of failed post classifications",
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "inference_type": "perspective_api",
+                "inference_timestamp": "2024-01-15-14:30:00",
+                "total_classified_posts": 150,
+                "event": {"source": "scheduled_job"},
+                "inference_metadata": {
+                    "total_batches": 2,
+                    "total_posts_successfully_labeled": 145,
+                    "total_posts_failed_to_label": 5,
+                },
+            }
+        }
