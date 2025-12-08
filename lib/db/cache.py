@@ -17,7 +17,9 @@ logger = get_logger(__file__)
 root_db_path = os.path.join(BSKY_DATA_DIR, "cache")
 if not os.path.exists(root_db_path):
     logger.info(f"Creating new directory for cache data at {root_db_path}...")
-    os.makedirs(root_db_path)
+    # exist_ok=True handles TOCTOU race condition when parallel test workers
+    # concurrently import this module and attempt to create the directory
+    os.makedirs(root_db_path, exist_ok=True)
 
 existing_sqlite_dbs = [
     file for file in os.listdir(root_db_path) if file.endswith(".db")
