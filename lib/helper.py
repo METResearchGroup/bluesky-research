@@ -401,6 +401,9 @@ def determine_backfill_latest_timestamp(
             representing the calculated historical point in time, or None if invalid parameters
             are provided.
 
+    Raises:
+        ValueError: If backfill_duration is provided but is not a positive integer.
+
     Control Flow:
         1. Validates input parameters (backfill_duration not None and period is valid)
         2. Gets current UTC time
@@ -414,6 +417,9 @@ def determine_backfill_latest_timestamp(
         6. If parameters were invalid:
             a. Returns None
     """
+    if backfill_duration is not None and backfill_duration <= 0:
+        raise ValueError("backfill_duration must be a positive integer")
+
     if backfill_duration is not None and backfill_period in ["days", "hours"]:
         current_time = datetime.now(timezone.utc)
         if backfill_period == "days":

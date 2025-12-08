@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from freezegun import freeze_time
+import pytest
 
 from lib.helper import calculate_start_end_date_for_lookback, determine_backfill_latest_timestamp
 
@@ -115,35 +116,23 @@ class TestDetermineBackfillLatestTimestamp:
         # Assert
         assert result is None
 
-    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
-    def test_zero_duration_days(self):
-        """Test calculating timestamp with zero days duration."""
-        # Arrange
-        expected = "2024-01-15-12:30:45"  # 0 days before = same time
-        
-        # Act
-        result = determine_backfill_latest_timestamp(
-            backfill_duration=0,
-            backfill_period="days"
-        )
-        
-        # Assert
-        assert result == expected
+    def test_zero_duration_raises_error_days(self):
+        """Test that zero duration raises ValueError for days."""
+        # Act & Assert
+        with pytest.raises(ValueError, match="backfill_duration must be a positive integer"):
+            determine_backfill_latest_timestamp(
+                backfill_duration=0,
+                backfill_period="days"
+            )
 
-    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
-    def test_zero_duration_hours(self):
-        """Test calculating timestamp with zero hours duration."""
-        # Arrange
-        expected = "2024-01-15-12:30:45"  # 0 hours before = same time
-        
-        # Act
-        result = determine_backfill_latest_timestamp(
-            backfill_duration=0,
-            backfill_period="hours"
-        )
-        
-        # Assert
-        assert result == expected
+    def test_zero_duration_raises_error_hours(self):
+        """Test that zero duration raises ValueError for hours."""
+        # Act & Assert
+        with pytest.raises(ValueError, match="backfill_duration must be a positive integer"):
+            determine_backfill_latest_timestamp(
+                backfill_duration=0,
+                backfill_period="hours"
+            )
 
     @freeze_time("2024-01-15 12:30:45", tz_offset=0)
     def test_large_duration_days(self):
@@ -175,35 +164,23 @@ class TestDetermineBackfillLatestTimestamp:
         # Assert
         assert result == expected
 
-    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
-    def test_negative_duration_days(self):
-        """Test calculating timestamp with negative days duration."""
-        # Arrange
-        expected = "2024-01-20-12:30:45"  # -5 days = 5 days in the future
-        
-        # Act
-        result = determine_backfill_latest_timestamp(
-            backfill_duration=-5,
-            backfill_period="days"
-        )
-        
-        # Assert
-        assert result == expected
+    def test_negative_duration_raises_error_days(self):
+        """Test that negative duration raises ValueError for days."""
+        # Act & Assert
+        with pytest.raises(ValueError, match="backfill_duration must be a positive integer"):
+            determine_backfill_latest_timestamp(
+                backfill_duration=-5,
+                backfill_period="days"
+            )
 
-    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
-    def test_negative_duration_hours(self):
-        """Test calculating timestamp with negative hours duration."""
-        # Arrange
-        expected = "2024-01-15-17:30:45"  # -5 hours = 5 hours in the future
-        
-        # Act
-        result = determine_backfill_latest_timestamp(
-            backfill_duration=-5,
-            backfill_period="hours"
-        )
-        
-        # Assert
-        assert result == expected
+    def test_negative_duration_raises_error_hours(self):
+        """Test that negative duration raises ValueError for hours."""
+        # Act & Assert
+        with pytest.raises(ValueError, match="backfill_duration must be a positive integer"):
+            determine_backfill_latest_timestamp(
+                backfill_duration=-5,
+                backfill_period="hours"
+            )
 
     @freeze_time("2024-01-15 12:30:45", tz_offset=0)
     def test_timestamp_format_matches_constant(self):
