@@ -405,34 +405,28 @@ def determine_backfill_latest_timestamp(
         ValueError: If backfill_duration is provided but is not a positive integer.
 
     Control Flow:
-        1. Validates input parameters (backfill_duration not None and period is valid)
-        2. Gets current UTC time
-        3. If period is "days":
-            a. Subtracts backfill_duration days from current time
-        4. If period is "hours":
-            a. Subtracts backfill_duration hours from current time
-        5. If parameters were valid:
-            a. Formats backfill time as timestamp string
-            b. Returns formatted timestamp
-        6. If parameters were invalid:
-            a. Returns None
+        1. Validates backfill_duration is positive if provided (raises ValueError if invalid)
+        2. Returns None early if backfill_duration is None or backfill_period is invalid
+        3. Gets current UTC time
+        4. Calculates backfill_time by subtracting duration based on period ("days" or "hours")
+        5. Formats and returns timestamp string
     """
+    # Validate backfill_duration is positive if provided
     if backfill_duration is not None and backfill_duration <= 0:
         raise ValueError("backfill_duration must be a positive integer")
 
-    if backfill_duration is not None and backfill_period in ["days", "hours"]:
-        current_time = datetime.now(timezone.utc)
-        if backfill_period == "days":
-            backfill_time = current_time - timedelta(days=backfill_duration)
-            logger.info(f"Backfilling {backfill_duration} days of data.")
-        elif backfill_period == "hours":
-            backfill_time = current_time - timedelta(hours=backfill_duration)
-            logger.info(f"Backfilling {backfill_duration} hours of data.")
-    else:
-        backfill_time = None
-    if backfill_time is not None:
-        backfill_timestamp = backfill_time.strftime(timestamp_format)
-        timestamp = backfill_timestamp
-    else:
-        timestamp = None
-    return timestamp
+    # Early return for invalid parameters
+    if backfill_duration is None or backfill_period not in ["days", "hours"]:
+        return None
+
+    # Calculate backfill time
+    current_time = datetime.now(timezone.utc)
+    if backfill_period == "days":
+        backfill_time = current_time - timedelta(days=backfill_duration)
+        logger.info(f"Backfilling {backfill_duration} days of data.")
+    else:  # backfill_period == "hours"
+        backfill_time = current_time - timedelta(hours=backfill_duration)
+        logger.info(f"Backfilling {backfill_duration} hours of data.")
+
+    # Format and return timestamp
+    return backfill_time.strftime(timestamp_format)
