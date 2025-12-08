@@ -160,54 +160,6 @@ class SyncDataManager:
             },
         }
 
-    def rebuild_cache_paths(self):
-        """Rebuild the paths for the cache, if necessary."""
-        if not os.path.exists(self.root_write_path):
-            os.makedirs(self.root_write_path)
-
-        # create helper paths for generic firehose writes.
-        for path in [self.root_create_path, self.root_delete_path]:
-            if not os.path.exists(path):
-                os.makedirs(path)
-            for op_type in self.operation_types:
-                op_path = os.path.join(path, op_type)
-                if not os.path.exists(op_path):
-                    # logger.info(f"Creating new cache directory at {op_path}")
-                    os.makedirs(op_path)
-
-        # create helper path for writing user activity data.
-        if not os.path.exists(self.study_user_activity_root_local_path):
-            os.makedirs(self.study_user_activity_root_local_path)
-            for op in ["create", "delete"]:
-                for op_type in [
-                    "post",
-                    "like",
-                    "follow",
-                    "like_on_user_post",
-                    "reply_to_user_post",
-                ]:
-                    op_path = os.path.join(
-                        self.study_user_activity_root_local_path, op, op_type
-                    )
-                    if not os.path.exists(op_path):
-                        # logger.info(f"Creating new cache directory at {op_path}")
-                        os.makedirs(op_path)
-                    if op_type == "follow":
-                        for follow_type in ["followee", "follower"]:
-                            follow_path = os.path.join(op_path, follow_type)
-                            if not os.path.exists(follow_path):
-                                os.makedirs(follow_path)
-
-        # create helper path for writing in-network activity
-        if not os.path.exists(self.in_network_user_activity_create_post_local_path):
-            # logger.info(f"Creating new cache directory at {self.in_network_user_activity_create_post_local_path}")
-            os.makedirs(self.in_network_user_activity_create_post_local_path)
-
-    def delete_cache_paths(self) -> None:
-        """Deletes the cache paths. Recursively removes from the root path."""
-        if os.path.exists(self.root_write_path):
-            shutil.rmtree(self.root_write_path)
-
     def compress_cached_files_and_write_to_storage(
         self,
         directory: str,
@@ -1039,3 +991,150 @@ def write_data_to_json(data: dict, path: str):
     """Write data to a JSON file."""
     with open(path, "w") as f:
         json.dump(data, f)
+
+
+class SyncPathManager:
+    """Manages path construction logic."""
+
+    def __init__(self):
+        # Define instance attributes instead of using local variables.
+        self.current_file_directory = os.path.dirname(os.path.abspath(__file__))
+        self.root_write_path = os.path.join(self.current_file_directory, "cache")
+        self.root_create_path = os.path.join(self.root_write_path, "create")
+        self.root_delete_path = os.path.join(self.root_write_path, "delete")
+        self.operation_types = ["post", "like", "follow"]
+
+        # Root S3 key for all sync exports
+        self.root_s3_key = os.path.join("sync", "firehose")
+
+        # Helper paths for generic firehose writes. This seems to be incomplete,
+        # usually you'd want all operation types here.
+        self.export_filepath_map = {
+            "create": {
+                "post": os.path.join(self.root_create_path, "post"),
+                "like": os.path.join(self.root_create_path, "like"),
+                "follow": os.path.join(self.root_create_path, "follow"),
+            },
+            "delete": {
+                "post": os.path.join(self.root_delete_path, "post"),
+                "like": os.path.join(self.root_delete_path, "like"),
+                "follow": os.path.join(self.root_delete_path, "follow"),
+            },
+        }
+
+        # Helper paths for writing user activity data.
+        self.study_user_activity_root_local_path = os.path.join(
+            self.root_write_path, "study_user_activity"
+        )
+        self.study_user_activity_create_path = os.path.join(
+            self.study_user_activity_root_local_path, "create"
+        )
+        self.study_user_activity_delete_path = os.path.join(
+            self.study_user_activity_root_local_path, "delete"
+        )
+
+        self.study_user_activity_relative_path_map = {
+            "create": {
+                "post": os.path.join("create", "post"),
+                "like": os.path.join("create", "like"),
+                "follow": {
+                    "followee": os.path.join("create", "follow", "followee"),
+                    "follower": os.path.join("create", "follow", "follower"),
+                },
+                "like_on_user_post": os.path.join("create", "like_on_user_post"),
+                "reply_to_user_post": os.path.join("create", "reply_to_user_post"),
+            },
+            "delete": {
+                "post": os.path.join("delete", "post"),
+                "like": os.path.join("delete", "like"),
+            },
+        }
+
+        # Helper paths for writing in-network user activity data.
+        self.in_network_user_activity_root_local_path = os.path.join(
+            self.root_write_path, "in_network_user_activity"
+        )
+        self.in_network_user_activity_create_post_local_path = os.path.join(
+            self.in_network_user_activity_root_local_path, "create", "post"
+        )
+
+        # Helper paths for S3 exports.
+        self.s3_export_key_map = {
+            "create": {
+                "post": os.path.join(self.root_s3_key, "create", "post"),
+                "like": os.path.join(self.root_s3_key, "create", "like"),
+                "follow": os.path.join(self.root_s3_key, "create", "follow"),
+            },
+            "delete": {
+                "post": os.path.join(self.root_s3_key, "delete", "post"),
+                "like": os.path.join(self.root_s3_key, "delete", "like"),
+                "follow": os.path.join(self.root_s3_key, "delete", "follow"),
+            },
+        }
+
+
+class CacheDirectoryManager(SyncPathManager):
+    """Manages the building and deletion of cache directories."""
+
+    def __init__(self):
+        super().__init__()
+
+    def rebuild_cache_paths(self):
+        """Rebuild the paths for the cache, if necessary."""
+        if not os.path.exists(self.root_write_path):
+            os.makedirs(self.root_write_path)
+
+        # create helper paths for generic firehose writes.
+        for path in [self.root_create_path, self.root_delete_path]:
+            if not os.path.exists(path):
+                os.makedirs(path)
+            for op_type in self.operation_types:
+                op_path = os.path.join(path, op_type)
+                if not os.path.exists(op_path):
+                    # logger.info(f"Creating new cache directory at {op_path}")
+                    os.makedirs(op_path)
+
+        # create helper path for writing user activity data.
+        if not os.path.exists(self.study_user_activity_root_local_path):
+            os.makedirs(self.study_user_activity_root_local_path)
+            for op in ["create", "delete"]:
+                for op_type in [
+                    "post",
+                    "like",
+                    "follow",
+                    "like_on_user_post",
+                    "reply_to_user_post",
+                ]:
+                    op_path = os.path.join(
+                        self.study_user_activity_root_local_path, op, op_type
+                    )
+                    if not os.path.exists(op_path):
+                        # logger.info(f"Creating new cache directory at {op_path}")
+                        os.makedirs(op_path)
+                    if op_type == "follow":
+                        for follow_type in ["followee", "follower"]:
+                            follow_path = os.path.join(op_path, follow_type)
+                            if not os.path.exists(follow_path):
+                                os.makedirs(follow_path)
+
+        # create helper path for writing in-network activity
+        if not os.path.exists(self.in_network_user_activity_create_post_local_path):
+            # logger.info(f"Creating new cache directory at {self.in_network_user_activity_create_post_local_path}")
+            os.makedirs(self.in_network_user_activity_create_post_local_path)
+
+    def delete_cache_paths(self) -> None:
+        """Deletes the cache paths. Recursively removes from the root path."""
+        if os.path.exists(self.root_write_path):
+            shutil.rmtree(self.root_write_path)
+
+
+class CacheFileWriter(SyncPathManager):
+    """Manages the writing of cache files."""
+
+    pass
+
+
+class CacheFileReader(SyncPathManager):
+    """Manages the reading of cache files."""
+
+    pass
