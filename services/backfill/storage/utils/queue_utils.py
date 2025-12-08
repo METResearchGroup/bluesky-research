@@ -10,7 +10,10 @@ logger = get_logger(__name__)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-queue = Queue(queue_name=input_queue_name, create_new_queue=True)
+
+def _default_input_queue() -> Queue:
+    """Factory for default input queue."""
+    return Queue(queue_name=input_queue_name, create_new_queue=True)
 
 
 def get_write_queues(
@@ -73,7 +76,19 @@ def get_write_queues(
     }
 
 
-def load_latest_dids_to_backfill_from_queue() -> list[str]:
+def load_latest_dids_to_backfill_from_queue(
+    input_queue: Optional[Queue] = None,  # DI parameter
+) -> list[str]:
+    """Load latest DIDs to backfill from the input queue.
+
+    Args:
+        input_queue: Optional queue instance for dependency injection.
+                     If not provided, uses the default input queue.
+
+    Returns:
+        List of DIDs to backfill.
+    """
+    queue = input_queue or _default_input_queue()
     latest_payloads: list[dict] = queue.load_dict_items_from_queue(
         limit=None,
         status="pending",
