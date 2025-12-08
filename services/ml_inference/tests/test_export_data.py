@@ -18,7 +18,7 @@ class TestReturnFailedLabelsToInputQueue:
 
     @pytest.mark.parametrize(
         "inference_type",
-        ["perspective_api", "sociopolitical", "ime"]
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier"]
     )
     def test_empty_failed_labels(self, inference_type):
         """Test handling of empty failed labels list.
@@ -40,7 +40,7 @@ class TestReturnFailedLabelsToInputQueue:
 
     @pytest.mark.parametrize(
         "inference_type",
-        ["perspective_api", "sociopolitical", "ime"]
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier"]
     )
     @freeze_time("2024-01-01 12:00:00")
     def test_single_failed_label(self, inference_type):
@@ -82,7 +82,7 @@ class TestReturnFailedLabelsToInputQueue:
 
     @pytest.mark.parametrize(
         "inference_type",
-        ["perspective_api", "sociopolitical", "ime"]
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier"]
     )
     @freeze_time("2024-01-01 12:00:00")
     def test_multiple_failed_labels(self, inference_type):
@@ -137,7 +137,7 @@ class TestWritePostsToCache:
 
     @pytest.mark.parametrize(
         "inference_type",
-        ["perspective_api", "sociopolitical", "ime"]
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier"]
     )
     def test_empty_posts(self, inference_type):
         """Test handling of empty posts list.
@@ -162,7 +162,7 @@ class TestWritePostsToCache:
 
     @pytest.mark.parametrize(
         "inference_type",
-        ["perspective_api", "sociopolitical", "ime"]
+        ["perspective_api", "sociopolitical", "ime", "valence_classifier"]
     )
     def test_write_and_delete_posts(self, inference_type):
         """Test writing posts to cache and deleting from input queue.
