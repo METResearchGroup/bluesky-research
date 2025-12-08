@@ -1,0 +1,29 @@
+backfill:
+  name: "backfill_posts_liked_by_study_users"
+  version: "1.0"
+  source:
+    type: "sqlite"
+    path: "scripts/backfill/backfill_user_dids_engaged_with_by_study_users.sqlite"
+    metadata: str
+  plc_storage:
+    type: "sqlite"
+    path: "scripts/backfill/plc_backfill_user_dids_engaged_with_by_study_users.sqlite"
+    metadata: str
+  record_types:
+    - "app.bsky.feed.post"
+  time_range:
+    start_date: "2024-09-01-00:00:00"
+    end_date: "2024-12-01-00:00:00"
+  filters:
+    record_type: "app.bsky.feed.post"
+    subject:
+      - uri
+    source:
+        type: "parquet"
+        path: "scripts/backfill/backfill_post_uris_engaged_with_by_study_users.parquet"
+        metadata: ""
+  sync_storage:
+    type: "parquet"
+    path: ""  # not required if stored in Parquet. `manage_local_data.py` will manage.
+    metadata: ""  # not required if stored in Parquet. `manage_local_data.py` will manage.
+    min_timestamp: "2025-05-05-04:46:48"

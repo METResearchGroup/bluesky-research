@@ -36,6 +36,7 @@ dependencies = [
     "urllib3>=2.2.2",
     "packaging>=23.2",
     "typing-extensions>=4.12.2",
+    "tenacity>=8.5.0,<9.0.0",
 ]
 
 [project.optional-dependencies]
@@ -85,7 +86,6 @@ llm = [
     "litellm>=1.59.10",
     "google-generativeai>=0.5.0",
     "google-api-python-client>=2.116.0",
-    "tenacity>=8.5.0,<9.0.0",  # Pin for langchain compatibility
     "opik>=1.4.8",
 ]
 
@@ -194,7 +194,7 @@ testpaths = [
     "pipelines/classify_records/ime/tests",
     "pipelines/classify_records/sociopolitical/tests",
     "pipelines/classify_records/valence_classifier/tests",
-    "api/integrations_router/tests",
+    "lib/pipeline_invocation/tests",
 ]
 
 # Ignore certain directories

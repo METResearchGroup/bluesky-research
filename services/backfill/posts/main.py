@@ -1,6 +1,6 @@
 """Service for backfilling posts."""
 
-from api.integrations_router.main import route_and_run_integration_request
+from lib.pipeline_invocation.invoker import invoke_pipeline_handler
 from lib.db.queue import Queue
 from lib.helper import track_performance
 from lib.log.logger import get_logger
@@ -113,12 +113,10 @@ def backfill_posts(payload: dict):
             integration_kwargs = payload.get("integration_kwargs", {}).get(
                 integration, {}
             )
-            _ = route_and_run_integration_request(
-                {
-                    "service": integration,
-                    "payload": {"run_type": "backfill", **integration_kwargs},
-                    "metadata": {},
-                }
+            _ = invoke_pipeline_handler(
+                service=integration,
+                payload={"run_type": "backfill", **integration_kwargs},
+                request_metadata={},
             )
     else:
         logger.info("Skipping integrations...")

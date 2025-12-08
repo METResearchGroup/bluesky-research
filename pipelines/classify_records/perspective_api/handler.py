@@ -1,7 +1,7 @@
 import json
 import traceback
 
-from api.integrations_router.constants import dynamodb_table_name
+from lib.pipeline_invocation.constants import dynamodb_table_name
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.ml_inference.models import ClassificationSessionModel

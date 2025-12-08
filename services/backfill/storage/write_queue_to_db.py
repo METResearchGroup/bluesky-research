@@ -2,8 +2,8 @@
 
 import asyncio
 
-from api.backfill_router.api import load_config
-from api.backfill_router.config.schema import BackfillConfigSchema
+from services.backfill.config.loader import load_config
+from services.backfill.config.schema import BackfillConfigSchema
 from services.backfill.core.worker import PDSEndpointWorker
 
 
@@ -36,7 +36,7 @@ async def write_pds_queue_to_db(
 
 if __name__ == "__main__":
     config = load_config(
-        "api/backfill_router/config/examples/backfill_posts_engaged_with_by_study_users.yaml"
+        "services/backfill/config/examples/backfill_posts_engaged_with_by_study_users.yaml"
     )
 
     # pds_endpoint = "https://meadow.us-east.host.bsky.network"
