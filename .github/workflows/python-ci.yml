@@ -45,7 +45,7 @@ jobs:
     - name: Test with pytest
       timeout-minutes: 15
       run: |
-        uv run pytest --import-mode=importlib -n auto \
+        uv run pytest --import-mode=importlib -n auto --dist loadfile \
           lib/tests \
           lib/db/tests \
           lib/db/sql/tests \
