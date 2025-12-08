@@ -106,7 +106,7 @@ class PipelineHandlerRegistry:
             cls._test_originals[service_name] = cls._handlers[service_name]
 
         # Replace with a factory that returns the mock handler
-        cls._handlers[service_name] = lambda: handler
+        cls._handlers[service_name] = lambda h=handler: h
 
     @classmethod
     def reset_test_handlers(cls) -> None:

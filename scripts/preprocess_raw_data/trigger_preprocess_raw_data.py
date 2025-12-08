@@ -23,10 +23,11 @@ def main():
     """
     request = {
         "service": "preprocess_raw_data",
-        "payload": {},
+        "payload": {
+            "overwrite_preprocessing_timestamp": True,
+            "new_timestamp_field": "synctimestamp",
+        },
         "metadata": {},
-        "overwrite_preprocessing_timestamp": True,
-        "new_timestamp_field": "synctimestamp",
     }
     request = IntegrationRequest(**request)
     run_integration_request(request)
