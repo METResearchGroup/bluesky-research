@@ -1,13 +1,11 @@
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from freezegun import freeze_time
 
 from lib.db.queue import Queue
 from services.ml_inference.export_data import (
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
-    inference_type_to_input_queue_map,
-    inference_type_to_output_queue_map,
 )
 
 
@@ -33,9 +31,12 @@ class TestReturnFailedLabelsToInputQueue:
             - Should work identically for all inference types
         """
         mock_queue = Mock(spec=Queue)
-        with patch.dict(inference_type_to_input_queue_map, {inference_type: mock_queue}):
-            return_failed_labels_to_input_queue(inference_type=inference_type, failed_label_models=[])
-            mock_queue.batch_add_items_to_queue.assert_not_called()
+        return_failed_labels_to_input_queue(
+            inference_type=inference_type,
+            failed_label_models=[],
+            input_queue=mock_queue
+        )
+        mock_queue.batch_add_items_to_queue.assert_not_called()
 
     @pytest.mark.parametrize(
         "inference_type",
@@ -63,18 +64,21 @@ class TestReturnFailedLabelsToInputQueue:
         }
         
         mock_queue = Mock(spec=Queue)
-        with patch.dict(inference_type_to_input_queue_map, {inference_type: mock_queue}):
-            return_failed_labels_to_input_queue(inference_type=inference_type, failed_label_models=[failed_model])
-            
-            mock_queue.batch_add_items_to_queue.assert_called_once_with(
-                items=[{"uri": "test_uri", "text": "test_text"}],
-                batch_size=None,
-                metadata={
-                    "reason": f"failed_label_{inference_type}",
-                    "model_reason": "API_ERROR",
-                    "label_timestamp": "2024-01-01-12:00:00"
-                }
-            )
+        return_failed_labels_to_input_queue(
+            inference_type=inference_type,
+            failed_label_models=[failed_model],
+            input_queue=mock_queue
+        )
+        
+        mock_queue.batch_add_items_to_queue.assert_called_once_with(
+            items=[{"uri": "test_uri", "text": "test_text"}],
+            batch_size=None,
+            metadata={
+                "reason": f"failed_label_{inference_type}",
+                "model_reason": "API_ERROR",
+                "label_timestamp": "2024-01-01-12:00:00"
+            }
+        )
 
     @pytest.mark.parametrize(
         "inference_type",
@@ -106,22 +110,22 @@ class TestReturnFailedLabelsToInputQueue:
         ]
         
         mock_queue = Mock(spec=Queue)
-        with patch.dict(inference_type_to_input_queue_map, {inference_type: mock_queue}):
-            return_failed_labels_to_input_queue(
-                inference_type=inference_type,
-                failed_label_models=failed_models,
-                batch_size=2
-            )
-            
-            mock_queue.batch_add_items_to_queue.assert_called_once_with(
-                items=[{"uri": f"uri_{i}", "text": f"text_{i}"} for i in range(3)],
-                batch_size=2,
-                metadata={
-                    "reason": f"failed_label_{inference_type}",
-                    "model_reason": "API_ERROR",
-                    "label_timestamp": "2024-01-01-12:00:00"
-                }
-            )
+        return_failed_labels_to_input_queue(
+            inference_type=inference_type,
+            failed_label_models=failed_models,
+            batch_size=2,
+            input_queue=mock_queue
+        )
+        
+        mock_queue.batch_add_items_to_queue.assert_called_once_with(
+            items=[{"uri": f"uri_{i}", "text": f"text_{i}"} for i in range(3)],
+            batch_size=2,
+            metadata={
+                "reason": f"failed_label_{inference_type}",
+                "model_reason": "API_ERROR",
+                "label_timestamp": "2024-01-01-12:00:00"
+            }
+        )
 
 
 class TestWritePostsToCache:
@@ -147,11 +151,14 @@ class TestWritePostsToCache:
         """
         mock_input_queue = Mock(spec=Queue)
         mock_output_queue = Mock(spec=Queue)
-        with patch.dict(inference_type_to_input_queue_map, {inference_type: mock_input_queue}), \
-            patch.dict(inference_type_to_output_queue_map, {inference_type: mock_output_queue}):
-            write_posts_to_cache(inference_type=inference_type, posts=[])
-            mock_output_queue.batch_add_items_to_queue.assert_not_called()
-            mock_input_queue.batch_delete_items_by_ids.assert_not_called()
+        write_posts_to_cache(
+            inference_type=inference_type,
+            posts=[],
+            input_queue=mock_input_queue,
+            output_queue=mock_output_queue
+        )
+        mock_output_queue.batch_add_items_to_queue.assert_not_called()
+        mock_input_queue.batch_delete_items_by_ids.assert_not_called()
 
     @pytest.mark.parametrize(
         "inference_type",
@@ -182,16 +189,20 @@ class TestWritePostsToCache:
         
         mock_input_queue = Mock(spec=Queue)
         mock_output_queue = Mock(spec=Queue)
-        with patch.dict(inference_type_to_input_queue_map, {inference_type: mock_input_queue}), \
-            patch.dict(inference_type_to_output_queue_map, {inference_type: mock_output_queue}):
-            write_posts_to_cache(inference_type=inference_type, posts=posts, batch_size=2)
-            
-            mock_output_queue.batch_add_items_to_queue.assert_called_once_with(
-                items=posts,
-                batch_size=2
-            )
+        write_posts_to_cache(
+            inference_type=inference_type,
+            posts=posts,
+            batch_size=2,
+            input_queue=mock_input_queue,
+            output_queue=mock_output_queue
+        )
+        
+        mock_output_queue.batch_add_items_to_queue.assert_called_once_with(
+            items=posts,
+            batch_size=2
+        )
 
-            # Verify the batch IDs were deleted, ignoring order
-            actual_call = mock_input_queue.batch_delete_items_by_ids.call_args[1]["ids"]
-            expected_batch_ids = {post["batch_id"] for post in posts}
-            assert set(actual_call) == expected_batch_ids
+        # Verify the batch IDs were deleted, ignoring order
+        actual_call = mock_input_queue.batch_delete_items_by_ids.call_args[1]["ids"]
+        expected_batch_ids = {post["batch_id"] for post in posts}
+        assert set(actual_call) == expected_batch_ids
