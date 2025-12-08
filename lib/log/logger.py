@@ -34,12 +34,9 @@ class Logger(logging.Logger):
         stream_handler.setFormatter(
             logging.Formatter("%(asctime)s %(levelname)s [%(filename)s]: %(message)s")
         )
-        if not os.path.exists(os.path.join(log_directory, name)):
-            print(
-                f"Creating new directory for {name} logs at {os.path.join(log_directory, name)}..."
-            )
-            os.makedirs(os.path.join(log_directory, name))
-        log_filename = os.path.join(log_directory, name, "logs.log")
+        log_dir = os.path.join(log_directory, name)
+        os.makedirs(log_dir, exist_ok=True)
+        log_filename = os.path.join(log_dir, "logs.log")
         # RotatingFileHandler for logging to a file
         file_handler = RotatingFileHandler(
             log_filename, maxBytes=1024 * 1024, backupCount=5

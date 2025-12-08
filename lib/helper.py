@@ -41,7 +41,9 @@ if RUN_MODE == "test":
     DEV_BLUESKY_PASSWORD = "test"
     BSKY_DATA_DIR = "~/tmp/"
     if not os.path.exists(BSKY_DATA_DIR):
-        os.makedirs(BSKY_DATA_DIR)
+        # exist_ok=True handles TOCTOU race condition when parallel test workers
+        # concurrently import this module and attempt to create the directory
+        os.makedirs(BSKY_DATA_DIR, exist_ok=True)
     print(f"BSKY_DATA_DIR: {BSKY_DATA_DIR}")
 else:
     BSKY_DATA_DIR = os.getenv("BSKY_DATA_DIR")
