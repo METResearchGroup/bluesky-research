@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from pydantic import ValidationError
+
 from lib.metadata.models import RunExecutionMetadata
 from lib.pipeline_invocation.errors import UnknownServiceError
 from lib.pipeline_invocation.executor import run_integration_request
@@ -18,8 +20,14 @@ def parse_integration_request(request: dict) -> IntegrationRequest:
     - metadata: dict
 
     Kept generic in case we want to add more fields in the future.
+
+    Raises:
+        ValueError: If the request is invalid or missing required fields.
     """
-    return IntegrationRequest(**request)
+    try:
+        return IntegrationRequest(**request)
+    except ValidationError as err:
+        raise ValueError(str(err)) from err
 
 
 def invoke_pipeline_handler(
