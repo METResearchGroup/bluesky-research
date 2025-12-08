@@ -36,6 +36,7 @@ dependencies = [
     "urllib3>=2.2.2",
     "packaging>=23.2",
     "typing-extensions>=4.12.2",
+    "tenacity>=8.5.0",
 ]
 
 [project.optional-dependencies]
