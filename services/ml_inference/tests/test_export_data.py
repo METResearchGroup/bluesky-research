@@ -113,8 +113,8 @@ class TestReturnFailedLabelsToInputQueue:
         return_failed_labels_to_input_queue(
             inference_type=inference_type,
             failed_label_models=failed_models,
-        batch_size=2,
-        input_queue=mock_queue
+            batch_size=2,
+            input_queue=mock_queue
         )
         
         mock_queue.batch_add_items_to_queue.assert_called_once_with(
