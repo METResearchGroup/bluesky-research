@@ -180,7 +180,7 @@ def orchestrate_classification(
             - inference_metadata: Classification results metadata
     """
     if run_classification:
-        backfill_latest_timestamp: str = determine_backfill_latest_timestamp(
+        backfill_latest_timestamp: Optional[str] = determine_backfill_latest_timestamp(
             backfill_duration=backfill_duration,
             backfill_period=backfill_period,
         )

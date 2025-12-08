@@ -385,19 +385,19 @@ def rate_limit(delay_seconds: int = 5) -> Callable[[Callable[P, R]], Callable[P,
 def determine_backfill_latest_timestamp(
     backfill_duration: Optional[int] = None,
     backfill_period: Optional[Literal["days", "hours"]] = None,
-) -> str:
+) -> Optional[str]:
     """Calculates the timestamp for backfilling data based on a duration and period.
 
     This function computes a historical timestamp by subtracting a specified duration
     from the current UTC time. The duration can be specified in either days or hours.
 
     Args:
-        backfill_duration (int): The number of time units to look back. Must be a positive integer.
-        backfill_period (Literal["days", "hours"]): The time unit for backfilling.
+        backfill_duration (Optional[int]): The number of time units to look back. Must be a positive integer.
+        backfill_period (Optional[Literal["days", "hours"]]): The time unit for backfilling.
             Must be either "days" or "hours".
 
     Returns:
-        str: A timestamp string in format YYYY-MM-DD-HH:MM:SS (from lib/constants.py timestamp_format)
+        Optional[str]: A timestamp string in format YYYY-MM-DD-HH:MM:SS (from lib/constants.py timestamp_format)
             representing the calculated historical point in time, or None if invalid parameters
             are provided.
 
@@ -428,5 +428,5 @@ def determine_backfill_latest_timestamp(
         backfill_timestamp = backfill_time.strftime(timestamp_format)
         timestamp = backfill_timestamp
     else:
-        timestamp = ""
+        timestamp = None
     return timestamp
