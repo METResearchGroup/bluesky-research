@@ -27,6 +27,11 @@ class TestHappyFlowIntegration:
             "metadata": "{}"
         })
 
+    @pytest.fixture
+    def mock_write_metadata(self):
+        """Mock function for writing metadata to DynamoDB."""
+        return Mock()
+
     @pytest.mark.parametrize("service,payload,request_metadata", [
         ("ml_inference_perspective_api", {"run_type": "backfill"}, {"request_id": "test-123"}),
         ("ml_inference_sociopolitical", {"run_type": "prod"}, {}),
@@ -34,7 +39,7 @@ class TestHappyFlowIntegration:
         ("ml_inference_valence_classifier", {"run_type": "prod"}, {}),
         ("preprocess_raw_data", {"run_type": "backfill"}, {}),
     ])
-    def test_full_call_chain(self, mock_handler, service, payload, request_metadata):
+    def test_full_call_chain(self, mock_handler, mock_write_metadata, service, payload, request_metadata):
         """Test full call chain for registered services.
         
         Verifies: invoke_pipeline_handler → registry → handler → metadata write
@@ -51,6 +56,9 @@ class TestHappyFlowIntegration:
             with patch(
                 "lib.pipeline_invocation.executor._default_wandb_logger",
                 return_value=Mock()
+            ), patch(
+                "lib.pipeline_invocation.executor._default_write_metadata",
+                return_value=mock_write_metadata
             ):
                 result = invoke_pipeline_handler(
                     service=service,
@@ -67,6 +75,9 @@ class TestHappyFlowIntegration:
                 mock_handler.assert_called_once()
                 call_args = mock_handler.call_args
                 assert call_args[1]["event"] == payload
+                
+                # Verify metadata write was called
+                mock_write_metadata.assert_called_once()
         finally:
             PipelineHandlerRegistry.reset_test_handlers()
 
@@ -86,7 +97,7 @@ class TestHappyFlowIntegration:
         # Individual handler loading can be tested in unit tests with mocks
         assert all(service in PipelineHandlerRegistry._handlers for service in services)
 
-    def test_backfill_service_integration(self, mock_handler):
+    def test_backfill_service_integration(self, mock_handler, mock_write_metadata):
         """Test integration with backfill service pattern.
         
         Simulates how services/backfill/posts/main.py would call invoke_pipeline_handler.
@@ -102,6 +113,9 @@ class TestHappyFlowIntegration:
             with patch(
                 "lib.pipeline_invocation.executor._default_wandb_logger",
                 return_value=Mock()
+            ), patch(
+                "lib.pipeline_invocation.executor._default_write_metadata",
+                return_value=mock_write_metadata
             ):
                 # Simulate the call pattern from backfill service
                 integration = "ml_inference_perspective_api"
@@ -123,5 +137,8 @@ class TestHappyFlowIntegration:
                     "run_type": "backfill",
                     "backfill_period": "days"
                 }
+                
+                # Verify metadata write was called
+                mock_write_metadata.assert_called_once()
         finally:
             PipelineHandlerRegistry.reset_test_handlers()
