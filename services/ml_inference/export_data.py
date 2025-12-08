@@ -25,7 +25,14 @@ _OUTPUT_QUEUE_NAMES = {
 
 
 # Default implementation factories (lazy loading to avoid import-time initialization)
-def _default_input_queue(inference_type: str) -> Queue:
+def _default_input_queue(
+    inference_type: Literal[
+        "perspective_api",
+        "sociopolitical",
+        "ime",
+        "valence_classifier",
+    ],
+) -> Queue:
     """Factory for default input queue (lazy-loaded, no import-time creation).
 
     Args:
@@ -38,7 +45,14 @@ def _default_input_queue(inference_type: str) -> Queue:
     return Queue(queue_name=queue_name, create_new_queue=True)
 
 
-def _default_output_queue(inference_type: str) -> Queue:
+def _default_output_queue(
+    inference_type: Literal[
+        "perspective_api",
+        "sociopolitical",
+        "ime",
+        "valence_classifier",
+    ],
+) -> Queue:
     """Factory for default output queue (lazy-loaded, no import-time creation).
 
     Args:
@@ -79,7 +93,9 @@ def return_failed_labels_to_input_queue(
     if not failed_label_models:
         return
 
-    queue = input_queue or _default_input_queue(inference_type)
+    queue = (
+        input_queue if input_queue is not None else _default_input_queue(inference_type)
+    )
     queue.batch_add_items_to_queue(
         items=[
             {"uri": post["uri"], "text": post["text"]} for post in failed_label_models
@@ -129,8 +145,14 @@ def write_posts_to_cache(
 
     successfully_labeled_batch_ids = set(post["batch_id"] for post in posts)
 
-    in_queue = input_queue or _default_input_queue(inference_type)
-    out_queue = output_queue or _default_output_queue(inference_type)
+    in_queue = (
+        input_queue if input_queue is not None else _default_input_queue(inference_type)
+    )
+    out_queue = (
+        output_queue
+        if output_queue is not None
+        else _default_output_queue(inference_type)
+    )
 
     logger.info(f"Adding {len(posts)} posts to the output queue.")
     out_queue.batch_add_items_to_queue(
