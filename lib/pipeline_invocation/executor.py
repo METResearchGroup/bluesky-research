@@ -81,7 +81,6 @@ def load_latest_run_metadata(service: str) -> dict:
         )
         return {}
 
-    # Sort filtered items by inference_timestamp in descending order
     sorted_items = sorted(
         filtered_items,
         key=lambda x: x.get("timestamp", {}).get("S", ""),
