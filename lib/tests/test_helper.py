@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock
+from freezegun import freeze_time
 
 from lib.helper import calculate_start_end_date_for_lookback, determine_backfill_latest_timestamp
 
@@ -29,15 +29,11 @@ class TestCalculateStartEndDateForLookback:
 class TestDetermineBackfillLatestTimestamp:
     """Tests for determine_backfill_latest_timestamp function."""
 
-    @patch("lib.helper.datetime")
-    def test_valid_days_backfill(self, mock_datetime):
+    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
+    def test_valid_days_backfill(self):
         """Test calculating timestamp with valid days backfill."""
         # Arrange
-        fixed_time = datetime(2024, 1, 15, 12, 30, 45, tzinfo=timezone.utc)
         expected = "2024-01-10-12:30:45"  # 5 days before
-        mock_datetime.now.return_value = fixed_time
-        # Preserve datetime class functionality
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw) if args else datetime
         
         # Act
         result = determine_backfill_latest_timestamp(
@@ -48,15 +44,11 @@ class TestDetermineBackfillLatestTimestamp:
         # Assert
         assert result == expected
 
-    @patch("lib.helper.datetime")
-    def test_valid_hours_backfill(self, mock_datetime):
+    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
+    def test_valid_hours_backfill(self):
         """Test calculating timestamp with valid hours backfill."""
         # Arrange
-        fixed_time = datetime(2024, 1, 15, 12, 30, 45, tzinfo=timezone.utc)
         expected = "2024-01-15-07:30:45"  # 5 hours before
-        mock_datetime.now.return_value = fixed_time
-        # Preserve datetime class functionality
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw) if args else datetime
         
         # Act
         result = determine_backfill_latest_timestamp(
@@ -123,15 +115,11 @@ class TestDetermineBackfillLatestTimestamp:
         # Assert
         assert result is None
 
-    @patch("lib.helper.datetime")
-    def test_zero_duration_days(self, mock_datetime):
+    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
+    def test_zero_duration_days(self):
         """Test calculating timestamp with zero days duration."""
         # Arrange
-        fixed_time = datetime(2024, 1, 15, 12, 30, 45, tzinfo=timezone.utc)
         expected = "2024-01-15-12:30:45"  # 0 days before = same time
-        mock_datetime.now.return_value = fixed_time
-        # Preserve datetime class functionality
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw) if args else datetime
         
         # Act
         result = determine_backfill_latest_timestamp(
@@ -142,15 +130,11 @@ class TestDetermineBackfillLatestTimestamp:
         # Assert
         assert result == expected
 
-    @patch("lib.helper.datetime")
-    def test_zero_duration_hours(self, mock_datetime):
+    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
+    def test_zero_duration_hours(self):
         """Test calculating timestamp with zero hours duration."""
         # Arrange
-        fixed_time = datetime(2024, 1, 15, 12, 30, 45, tzinfo=timezone.utc)
         expected = "2024-01-15-12:30:45"  # 0 hours before = same time
-        mock_datetime.now.return_value = fixed_time
-        # Preserve datetime class functionality
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw) if args else datetime
         
         # Act
         result = determine_backfill_latest_timestamp(
@@ -161,15 +145,11 @@ class TestDetermineBackfillLatestTimestamp:
         # Assert
         assert result == expected
 
-    @patch("lib.helper.datetime")
-    def test_large_duration_days(self, mock_datetime):
+    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
+    def test_large_duration_days(self):
         """Test calculating timestamp with large days duration."""
         # Arrange
-        fixed_time = datetime(2024, 1, 15, 12, 30, 45, tzinfo=timezone.utc)
         expected = "2023-12-16-12:30:45"  # 30 days before
-        mock_datetime.now.return_value = fixed_time
-        # Preserve datetime class functionality
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw) if args else datetime
         
         # Act
         result = determine_backfill_latest_timestamp(
@@ -180,15 +160,11 @@ class TestDetermineBackfillLatestTimestamp:
         # Assert
         assert result == expected
 
-    @patch("lib.helper.datetime")
-    def test_large_duration_hours(self, mock_datetime):
+    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
+    def test_large_duration_hours(self):
         """Test calculating timestamp with large hours duration."""
         # Arrange
-        fixed_time = datetime(2024, 1, 15, 12, 30, 45, tzinfo=timezone.utc)
         expected = "2024-01-14-06:30:45"  # 30 hours before
-        mock_datetime.now.return_value = fixed_time
-        # Preserve datetime class functionality
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw) if args else datetime
         
         # Act
         result = determine_backfill_latest_timestamp(
@@ -199,15 +175,11 @@ class TestDetermineBackfillLatestTimestamp:
         # Assert
         assert result == expected
 
-    @patch("lib.helper.datetime")
-    def test_negative_duration_days(self, mock_datetime):
+    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
+    def test_negative_duration_days(self):
         """Test calculating timestamp with negative days duration."""
         # Arrange
-        fixed_time = datetime(2024, 1, 15, 12, 30, 45, tzinfo=timezone.utc)
         expected = "2024-01-20-12:30:45"  # -5 days = 5 days in the future
-        mock_datetime.now.return_value = fixed_time
-        # Preserve datetime class functionality
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw) if args else datetime
         
         # Act
         result = determine_backfill_latest_timestamp(
@@ -218,15 +190,11 @@ class TestDetermineBackfillLatestTimestamp:
         # Assert
         assert result == expected
 
-    @patch("lib.helper.datetime")
-    def test_negative_duration_hours(self, mock_datetime):
+    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
+    def test_negative_duration_hours(self):
         """Test calculating timestamp with negative hours duration."""
         # Arrange
-        fixed_time = datetime(2024, 1, 15, 12, 30, 45, tzinfo=timezone.utc)
         expected = "2024-01-15-17:30:45"  # -5 hours = 5 hours in the future
-        mock_datetime.now.return_value = fixed_time
-        # Preserve datetime class functionality
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw) if args else datetime
         
         # Act
         result = determine_backfill_latest_timestamp(
@@ -237,15 +205,9 @@ class TestDetermineBackfillLatestTimestamp:
         # Assert
         assert result == expected
 
-    @patch("lib.helper.datetime")
-    def test_timestamp_format_matches_constant(self, mock_datetime):
+    @freeze_time("2024-01-15 12:30:45", tz_offset=0)
+    def test_timestamp_format_matches_constant(self):
         """Test that returned timestamp matches the expected format."""
-        # Arrange
-        fixed_time = datetime(2024, 1, 15, 12, 30, 45, tzinfo=timezone.utc)
-        mock_datetime.now.return_value = fixed_time
-        # Preserve datetime class functionality
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw) if args else datetime
-        
         # Act
         result = determine_backfill_latest_timestamp(
             backfill_duration=1,
