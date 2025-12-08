@@ -1,7 +1,9 @@
+"""Tests for sociopolitical handler."""
+
 import json
 import pytest
 from unittest.mock import patch
-from pipelines.classify_records.valence_classifier import handler
+from pipelines.classify_records.sociopolitical import handler
 from services.ml_inference.models import ClassificationSessionModel
 
 
@@ -9,19 +11,19 @@ class TestLambdaHandler:
     def test_lambda_handler_default_event(self):
         """Test handler with default event and ClassificationSessionModel return."""
         mock_model = ClassificationSessionModel(
-            inference_type="valence_classifier",
+            inference_type="sociopolitical",
             inference_timestamp="2024-01-01T00:00:00",
             total_classified_posts=0,
             event={},
             inference_metadata={},
         )
         with patch(
-            "pipelines.classify_records.valence_classifier.handler.classify_latest_posts",
+            "pipelines.classify_records.sociopolitical.handler.classify_latest_posts",
             return_value=mock_model,
         ):
             result = handler.lambda_handler(None, None)
             assert result["status_code"] == 200
-            assert result["service"] == "ml_inference_valence_classifier"
+            assert result["service"] == "ml_inference_sociopolitical"
             assert "timestamp" in result
             assert "metadata" in result
             # Verify metadata is valid JSON
@@ -32,35 +34,35 @@ class TestLambdaHandler:
         """Test handler with valid event and ClassificationSessionModel return."""
         event = {"backfill_period": "days", "backfill_duration": 1}
         mock_model = ClassificationSessionModel(
-            inference_type="valence_classifier",
+            inference_type="sociopolitical",
             inference_timestamp="2024-01-01T00:00:00",
             total_classified_posts=10,
             event=event,
-            inference_metadata={"labels": [1, 2]},
+            inference_metadata={"total_batches": 2},
         )
         with patch(
-            "pipelines.classify_records.valence_classifier.handler.classify_latest_posts",
+            "pipelines.classify_records.sociopolitical.handler.classify_latest_posts",
             return_value=mock_model,
         ):
             result = handler.lambda_handler(event, None)
             assert result["status_code"] == 200
-            assert result["service"] == "ml_inference_valence_classifier"
+            assert result["service"] == "ml_inference_sociopolitical"
             assert "timestamp" in result
             assert "metadata" in result
             # Verify metadata can be parsed and contains expected data
             metadata = json.loads(result["metadata"])
             assert metadata["total_classified_posts"] == 10
-            assert metadata["inference_metadata"]["labels"] == [1, 2]
+            assert metadata["inference_metadata"]["total_batches"] == 2
 
     def test_lambda_handler_error(self):
         """Test handler error handling."""
         with patch(
-            "pipelines.classify_records.valence_classifier.handler.classify_latest_posts",
+            "pipelines.classify_records.sociopolitical.handler.classify_latest_posts",
             side_effect=Exception("fail"),
         ):
             result = handler.lambda_handler({}, None)
             assert result["status_code"] == 500
-            assert result["service"] == "ml_inference_valence_classifier"
+            assert result["service"] == "ml_inference_sociopolitical"
             assert "timestamp" in result
             assert "metadata" in result
             assert "fail" in result["body"]
@@ -68,14 +70,14 @@ class TestLambdaHandler:
     def test_handler_bracket_notation_access(self):
         """Test that handler can access fields using bracket notation after model_dump()."""
         mock_model = ClassificationSessionModel(
-            inference_type="valence_classifier",
+            inference_type="sociopolitical",
             inference_timestamp="2024-01-15-14:30:00",
             total_classified_posts=100,
             event=None,
             inference_metadata={},
         )
         with patch(
-            "pipelines.classify_records.valence_classifier.handler.classify_latest_posts",
+            "pipelines.classify_records.sociopolitical.handler.classify_latest_posts",
             return_value=mock_model,
         ):
             result = handler.lambda_handler({}, None)
@@ -84,5 +86,6 @@ class TestLambdaHandler:
             # Verify metadata is valid JSON string
             metadata = json.loads(result["metadata"])
             assert metadata["inference_timestamp"] == "2024-01-15-14:30:00"
-            assert metadata["inference_type"] == "valence_classifier"
-            assert metadata["total_classified_posts"] == 100 
+            assert metadata["inference_type"] == "sociopolitical"
+            assert metadata["total_classified_posts"] == 100
+

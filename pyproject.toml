@@ -190,6 +190,10 @@ testpaths = [
     "services/write_cache_buffers_to_db/tests",
     "services/sync/jetstream/tests",
     "pipelines/backfill_records_coordination/tests",
+    "pipelines/classify_records/perspective_api/tests",
+    "pipelines/classify_records/ime/tests",
+    "pipelines/classify_records/sociopolitical/tests",
+    "pipelines/classify_records/valence_classifier/tests",
     "api/integrations_router/tests",
 ]
 
