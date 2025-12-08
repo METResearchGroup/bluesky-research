@@ -8,7 +8,7 @@ from pprint import pprint
 import time
 from typing import Iterable
 
-from api.backfill_router.config.schema import BackfillConfigSchema
+from services.backfill.config.schema import BackfillConfigSchema
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.telemetry.prometheus.server import start_metrics_server

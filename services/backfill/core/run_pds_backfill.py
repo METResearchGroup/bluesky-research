@@ -1,6 +1,6 @@
 import os
 
-from api.backfill_router.config.schema import BackfillConfigSchema
+from services.backfill.config.schema import BackfillConfigSchema
 from lib.constants import project_home_directory
 from lib.log.logger import get_logger
 from services.backfill.core.manager import PdsEndpointManager

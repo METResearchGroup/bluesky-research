@@ -16,7 +16,7 @@ from typing import Optional
 
 import pandas as pd
 
-from api.backfill_router.config.schema import BackfillConfigSchema
+from services.backfill.config.schema import BackfillConfigSchema
 from lib.constants import timestamp_format, convert_bsky_dt_to_pipeline_dt
 from lib.db.manage_local_data import (
     export_data_to_local_storage,
