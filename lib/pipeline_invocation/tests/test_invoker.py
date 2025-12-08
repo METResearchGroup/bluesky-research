@@ -74,7 +74,8 @@ def test_invoke_pipeline_handler(test_request_dict, mock_run_integration_request
         assert result.metadata == "{}"
         
         mock_run_integration_request.assert_called_once()
-        actual_request = mock_run_integration_request.call_args[1]["request"]
+        # Fix: request is the first positional argument, not a keyword argument
+        actual_request = mock_run_integration_request.call_args[0][0]
         assert isinstance(actual_request, IntegrationRequest)
         assert actual_request.service == "test_service"
         assert actual_request.payload == {"key": "value"}

@@ -78,6 +78,43 @@ class PipelineHandlerRegistry:
         """
         return sorted(cls._handlers.keys())
 
+    @classmethod
+    def inject_handler_for_testing(cls, service_name: str, handler: Callable) -> None:
+        """Inject a mock handler for testing purposes.
+
+        This temporarily replaces the factory with a direct handler return.
+        Use reset_test_handlers() to restore original behavior.
+
+        Args:
+            service_name: Service name to override
+            handler: Handler function to use instead of factory
+
+        Raises:
+            KeyError: If the service name is not registered
+        """
+        if service_name not in cls._handlers:
+            available = list(cls._handlers.keys())
+            raise KeyError(
+                f"Service {service_name} not registered. "
+                f"Available services: {available}"
+            )
+
+        # Store original if not already stored
+        if not hasattr(cls, "_test_originals"):
+            cls._test_originals = {}
+        if service_name not in cls._test_originals:
+            cls._test_originals[service_name] = cls._handlers[service_name]
+
+        # Replace with a factory that returns the mock handler
+        cls._handlers[service_name] = lambda: handler
+
+    @classmethod
+    def reset_test_handlers(cls) -> None:
+        """Reset handlers to original implementations after testing."""
+        if hasattr(cls, "_test_originals"):
+            cls._handlers.update(cls._test_originals)
+            cls._test_originals = {}
+
 
 # Register all handlers
 @PipelineHandlerRegistry.register("ml_inference_perspective_api")

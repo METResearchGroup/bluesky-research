@@ -19,8 +19,19 @@ dynamodb = DynamoDB()
 
 # Default implementation factories (lazy loading to avoid circular imports)
 def _default_wandb_logger() -> Callable[[str, dict], None]:
-    """Factory for default WandB logger implementation."""
-    import wandb
+    """Factory for default WandB logger implementation.
+
+    Returns a no-op logger if wandb is not installed (e.g., in test environments).
+    """
+    try:
+        import wandb
+    except ImportError:
+        # Return no-op logger if wandb not available (e.g., in test environments)
+        def log_to_wandb_noop(service: str, metadata: dict) -> None:
+            logger.debug(f"WandB not available, skipping logging for {service}")
+            return None
+
+        return log_to_wandb_noop
 
     def log_to_wandb(service: str, metadata: dict) -> None:
         """Log metadata to WandB."""
@@ -103,10 +114,12 @@ def write_run_metadata_to_db(run_metadata: RunExecutionMetadata) -> None:
     """
     try:
         dynamodb.insert_item_into_table(
-            item=run_metadata.dict(),
+            item=run_metadata.model_dump(),
             table_name=dynamodb_table_name,
         )
-        logger.info(f"Successfully inserted execution metadata: {run_metadata.dict()}")
+        logger.info(
+            f"Successfully inserted execution metadata: {run_metadata.model_dump()}"
+        )
     except Exception as e:
         logger.error(f"Error writing execution metadata to DynamoDB: {e}")
         raise MetadataWriteError(run_metadata.service, e) from e
@@ -153,7 +166,7 @@ def run_integration_request(
 
     # Log to WandB (non-blocking - failures are logged but don't raise)
     try:
-        wandb_log(request.service, run_metadata.dict())
+        wandb_log(request.service, run_metadata.model_dump())
     except ObservabilityError:
         # Observability failures are logged but don't break pipeline execution
         logger.warning(
