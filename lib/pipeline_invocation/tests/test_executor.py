@@ -25,106 +25,78 @@ class TestLoadLatestRunMetadata:
         with patch("lib.pipeline_invocation.executor.dynamodb") as mock_db:
             yield mock_db
 
-    def test_ml_inference_perspective_api_service(self, mock_dynamodb):
-        """Test retrieving metadata for perspective API service.
+    @pytest.mark.parametrize("service,timestamp,mock_items", [
+        (
+            "ml_inference_perspective_api",
+            "2024-01-02",
+            [
+                {
+                    "service": {"S": "ml_inference_perspective_api"},
+                    "timestamp": {"S": "2024-01-02"},
+                    "status_code": {"N": "200"},
+                    "body": {"S": "success"},
+                    "metadata_table_name": {"S": "test_table"},
+                    "metadata": {"S": "{}"}
+                },
+                {
+                    "service": {"S": "ml_inference_perspective_api"},
+                    "timestamp": {"S": "2024-01-01"},
+                    "status_code": {"N": "200"},
+                    "body": {"S": "success"},
+                    "metadata_table_name": {"S": "test_table"},
+                    "metadata": {"S": "{}"}
+                }
+            ]
+        ),
+        (
+            "ml_inference_sociopolitical",
+            "2024-01-01",
+            [
+                {
+                    "service": {"S": "ml_inference_sociopolitical"},
+                    "timestamp": {"S": "2024-01-01"},
+                    "status_code": {"N": "200"},
+                    "body": {"S": "success"},
+                    "metadata_table_name": {"S": "test_table"},
+                    "metadata": {"S": "{}"}
+                }
+            ]
+        ),
+        (
+            "ml_inference_ime",
+            "2024-01-01",
+            [
+                {
+                    "service": {"S": "ml_inference_ime"},
+                    "timestamp": {"S": "2024-01-01"},
+                    "status_code": {"N": "200"},
+                    "body": {"S": "success"},
+                    "metadata_table_name": {"S": "test_table"},
+                    "metadata": {"S": "{}"}
+                }
+            ]
+        ),
+    ])
+    def test_ml_inference_service_metadata_retrieval(self, mock_dynamodb, service, timestamp, mock_items):
+        """Test retrieving metadata for ML inference services.
         
         Expected input:
-        - service = "ml_inference_perspective_api"
+        - service: Service name to query
         
         Expected behavior:
         - Should query DynamoDB with service name
         - Should return dict with most recent timestamp
         """
-        mock_items = [
-            {
-                "service": {"S": "ml_inference_perspective_api"},
-                "timestamp": {"S": "2024-01-02"},
-                "status_code": {"N": "200"},
-                "body": {"S": "success"},
-                "metadata_table_name": {"S": "test_table"},
-                "metadata": {"S": "{}"}
-            },
-            {
-                "service": {"S": "ml_inference_perspective_api"},
-                "timestamp": {"S": "2024-01-01"},
-                "status_code": {"N": "200"},
-                "body": {"S": "success"},
-                "metadata_table_name": {"S": "test_table"},
-                "metadata": {"S": "{}"}
-            }
-        ]
         mock_dynamodb.query_items_by_service.return_value = mock_items
 
-        result = load_latest_run_metadata("ml_inference_perspective_api")
+        result = load_latest_run_metadata(service)
         
         mock_dynamodb.query_items_by_service.assert_called_once_with(
             table_name="integration_run_metadata",
-            service="ml_inference_perspective_api"
+            service=service
         )
         assert isinstance(result, dict)
-        assert result["timestamp"]["S"] == "2024-01-02"
-
-    def test_ml_inference_sociopolitical_service(self, mock_dynamodb):
-        """Test retrieving metadata for sociopolitical service.
-        
-        Expected input:
-        - service = "ml_inference_sociopolitical"
-        
-        Expected behavior:
-        - Should query DynamoDB with service name
-        - Should return dict with most recent timestamp
-        """
-        mock_items = [
-            {
-                "service": {"S": "ml_inference_sociopolitical"},
-                "timestamp": {"S": "2024-01-01"},
-                "status_code": {"N": "200"},
-                "body": {"S": "success"},
-                "metadata_table_name": {"S": "test_table"},
-                "metadata": {"S": "{}"}
-            }
-        ]
-        mock_dynamodb.query_items_by_service.return_value = mock_items
-
-        result = load_latest_run_metadata("ml_inference_sociopolitical")
-        
-        mock_dynamodb.query_items_by_service.assert_called_once_with(
-            table_name="integration_run_metadata",
-            service="ml_inference_sociopolitical"
-        )
-        assert isinstance(result, dict)
-        assert result["timestamp"]["S"] == "2024-01-01"
-
-    def test_ml_inference_ime_service(self, mock_dynamodb):
-        """Test retrieving metadata for IME service.
-        
-        Expected input:
-        - service = "ml_inference_ime"
-        
-        Expected behavior:
-        - Should query DynamoDB with service name
-        - Should return dict with most recent timestamp
-        """
-        mock_items = [
-            {
-                "service": {"S": "ml_inference_ime"},
-                "timestamp": {"S": "2024-01-01"},
-                "status_code": {"N": "200"},
-                "body": {"S": "success"},
-                "metadata_table_name": {"S": "test_table"},
-                "metadata": {"S": "{}"}
-            }
-        ]
-        mock_dynamodb.query_items_by_service.return_value = mock_items
-
-        result = load_latest_run_metadata("ml_inference_ime")
-        
-        mock_dynamodb.query_items_by_service.assert_called_once_with(
-            table_name="integration_run_metadata",
-            service="ml_inference_ime"
-        )
-        assert isinstance(result, dict)
-        assert result["timestamp"]["S"] == "2024-01-01"
+        assert result["timestamp"]["S"] == timestamp
 
     def test_non_ml_inference_service(self, mock_dynamodb):
         """Test retrieving metadata for non-ML inference service.

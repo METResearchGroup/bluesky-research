@@ -80,3 +80,22 @@ def test_invoke_pipeline_handler(test_request_dict, mock_run_integration_request
         assert actual_request.service == "test_service"
         assert actual_request.payload == {"key": "value"}
 
+
+def test_invoke_pipeline_handler_unknown_service():
+    """Test invoke_pipeline_handler raises UnknownServiceError for invalid service."""
+    from lib.pipeline_invocation.errors import UnknownServiceError
+    
+    with patch(
+        "lib.pipeline_invocation.invoker.run_integration_request",
+        side_effect=KeyError("Unknown service name: invalid_service")
+    ):
+        with pytest.raises(UnknownServiceError) as exc_info:
+            invoke_pipeline_handler(
+                service="invalid_service",
+                payload={"key": "value"},
+                request_metadata={}
+            )
+        
+        assert exc_info.value.service_name == "invalid_service"
+        assert isinstance(exc_info.value.available_services, list)
+

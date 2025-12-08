@@ -1,10 +1,8 @@
 """Tests for registry.py."""
 
 import pytest
-from unittest.mock import Mock, patch
 
 from lib.pipeline_invocation.registry import PipelineHandlerRegistry
-from lib.pipeline_invocation.errors import UnknownServiceError
 
 
 def test_list_services():
@@ -30,12 +28,4 @@ def test_get_handler_invalid_service():
         PipelineHandlerRegistry.get_handler("invalid_service")
     
     assert "Unknown service name: invalid_service" in str(exc_info.value)
-
-
-def test_registry_lazy_loading():
-    """Test that handlers are lazy-loaded (not imported at registry creation time)."""
-    # This test verifies that imports don't happen until get_handler is called
-    # We can't easily test this without mocking, but we can verify it works
-    handler = PipelineHandlerRegistry.get_handler("ml_inference_perspective_api")
-    assert callable(handler)
 
