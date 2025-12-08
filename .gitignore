@@ -204,3 +204,6 @@ wandb/
 *.query_profile.json.gz
 
 *lib/log/*
+
+# can be regenerated if necessary
+*uv.lock

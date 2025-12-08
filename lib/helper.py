@@ -9,7 +9,7 @@ from memory_profiler import memory_usage
 import os
 import threading
 import time
-from typing import Optional, TypeVar, Callable, ParamSpec
+from typing import Literal, Optional, TypeVar, Callable, ParamSpec
 
 from atproto import Client
 import pandas as pd
@@ -380,3 +380,53 @@ def rate_limit(delay_seconds: int = 5) -> Callable[[Callable[P, R]], Callable[P,
         return wrapper
 
     return decorator
+
+
+def determine_backfill_latest_timestamp(
+    backfill_duration: Optional[int] = None,
+    backfill_period: Optional[Literal["days", "hours"]] = None,
+) -> Optional[str]:
+    """Calculates the timestamp for backfilling data based on a duration and period.
+
+    This function computes a historical timestamp by subtracting a specified duration
+    from the current UTC time. The duration can be specified in either days or hours.
+
+    Args:
+        backfill_duration (Optional[int]): The number of time units to look back. Must be a positive integer.
+        backfill_period (Optional[Literal["days", "hours"]]): The time unit for backfilling.
+            Must be either "days" or "hours".
+
+    Returns:
+        Optional[str]: A timestamp string in format YYYY-MM-DD-HH:MM:SS (from lib/constants.py timestamp_format)
+            representing the calculated historical point in time, or None if invalid parameters
+            are provided.
+
+    Raises:
+        ValueError: If backfill_duration is provided but is not a positive integer.
+
+    Control Flow:
+        1. Validates backfill_duration is positive if provided (raises ValueError if invalid)
+        2. Returns None early if backfill_duration is None or backfill_period is invalid
+        3. Gets current UTC time
+        4. Calculates backfill_time by subtracting duration based on period ("days" or "hours")
+        5. Formats and returns timestamp string
+    """
+    # Validate backfill_duration is positive if provided
+    if backfill_duration is not None and backfill_duration <= 0:
+        raise ValueError("backfill_duration must be a positive integer")
+
+    # Early return for invalid parameters
+    if backfill_duration is None or backfill_period not in ["days", "hours"]:
+        return None
+
+    # Calculate backfill time
+    current_time = datetime.now(timezone.utc)
+    if backfill_period == "days":
+        backfill_time = current_time - timedelta(days=backfill_duration)
+        logger.info(f"Backfilling {backfill_duration} days of data.")
+    else:  # backfill_period == "hours"
+        backfill_time = current_time - timedelta(hours=backfill_duration)
+        logger.info(f"Backfilling {backfill_duration} hours of data.")
+
+    # Format and return timestamp
+    return backfill_time.strftime(timestamp_format)

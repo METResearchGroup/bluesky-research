@@ -4,6 +4,7 @@ import traceback
 from api.integrations_router.constants import dynamodb_table_name
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
+from services.ml_inference.models import ClassificationSessionModel
 from services.ml_inference.ime.ime import classify_latest_posts
 
 logger = get_logger(__name__)
@@ -21,12 +22,14 @@ def lambda_handler(event, context) -> dict:
         backfill_duration = event.get("backfill_duration", None)
         if backfill_duration is not None:
             backfill_duration = int(backfill_duration)
-        session_metadata: dict = classify_latest_posts(
+        session_metadata_model: ClassificationSessionModel = classify_latest_posts(
             backfill_period=backfill_period,
             backfill_duration=backfill_duration,
             run_classification=True,
             event=event,
         )
+        # Convert to dict for compatibility with existing code
+        session_metadata = session_metadata_model.model_dump()
         logger.info("Completed classification of latest posts.")
         session_status_metadata = {
             "service": "ml_inference_ime",

@@ -5,11 +5,13 @@ from typing import Literal, Optional
 
 import pandas as pd
 
+from lib.helper import determine_backfill_latest_timestamp
 from lib.db.queue import Queue
+from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
-from lib.helper import track_performance
 from lib.utils import filter_posts_df
-from services.ml_inference.models import PostToLabelModel
+from services.ml_inference.config import InferenceConfig
+from services.ml_inference.models import ClassificationSessionModel, PostToLabelModel
 
 
 logger = get_logger(__name__)
@@ -17,7 +19,9 @@ logger = get_logger(__name__)
 
 @track_performance
 def get_posts_to_classify(
-    inference_type: Literal["llm", "perspective_api", "ime"],
+    inference_type: Literal[
+        "sociopolitical", "perspective_api", "ime", "valence_classifier"
+    ],
     timestamp: Optional[str] = None,
     previous_run_metadata: Optional[dict] = None,
     columns: Optional[list[str]] = None,
@@ -29,10 +33,10 @@ def get_posts_to_classify(
     post filtering, and data formatting.
 
     Args:
-        inference_type (Literal["llm", "perspective_api", "ime"]): Type of inference to run.
+        inference_type (Literal["sociopolitical", "perspective_api", "ime", "valence_classifier"]): Type of inference to run.
             Maps to specific queue names:
             - "perspective_api" -> "input_ml_inference_perspective_api"
-            - "llm" -> "input_ml_inference_sociopolitical"
+            - "sociopolitical" -> "input_ml_inference_sociopolitical"
             - "ime" -> "input_ml_inference_ime"
         timestamp (Optional[str]): Optional timestamp in YYYY-MM-DD-HH:MM:SS format to
             override latest inference timestamp for filtering posts.
@@ -69,7 +73,7 @@ def get_posts_to_classify(
     # Map inference types to queue names
     queue_mapping = {
         "perspective_api": "input_ml_inference_perspective_api",
-        "llm": "input_ml_inference_sociopolitical",
+        "sociopolitical": "input_ml_inference_sociopolitical",
         "ime": "input_ml_inference_ime",
         "valence_classifier": "input_ml_inference_valence_classifier",
     }
@@ -140,3 +144,82 @@ def get_posts_to_classify(
     dict_models = [PostToLabelModel(**d) for d in dicts]  # to verify fields
     dicts = [d.model_dump() for d in dict_models]
     return dicts
+
+
+@track_performance
+def orchestrate_classification(
+    config: InferenceConfig,
+    backfill_period: Optional[Literal["days", "hours"]] = None,
+    backfill_duration: Optional[int] = None,
+    run_classification: bool = True,
+    previous_run_metadata: Optional[dict] = None,
+    event: Optional[dict] = None,
+) -> ClassificationSessionModel:
+    """Orchestrates classification of latest posts using the provided configuration.
+
+    This is the shared orchestration logic for all inference types. It handles:
+    - Backfill timestamp calculation
+    - Post retrieval from queues
+    - Classification execution
+    - Session metadata creation
+
+    Args:
+        config: InferenceConfig instance defining the inference type behavior
+        backfill_period: Time unit for backfilling ("days" or "hours")
+        backfill_duration: Number of time units to backfill
+        run_classification: Whether to run classification (True) or just export cached results (False)
+        previous_run_metadata: Metadata from previous runs to avoid duplicates
+        event: Original event/payload for traceability and strategy-specific config
+
+    Returns:
+        ClassificationSessionModel: Labeling session summary containing:
+            - inference_type: The inference type identifier
+            - inference_timestamp: Execution timestamp
+            - total_classified_posts: Number of posts processed
+            - event: Original event payload
+            - inference_metadata: Classification results metadata
+    """
+    if run_classification:
+        backfill_latest_timestamp: Optional[str] = determine_backfill_latest_timestamp(
+            backfill_duration=backfill_duration,
+            backfill_period=backfill_period,
+        )
+        posts_to_classify: list[dict] = get_posts_to_classify(
+            inference_type=config.queue_inference_type,
+            timestamp=backfill_latest_timestamp,
+            previous_run_metadata=previous_run_metadata,
+        )
+        logger.info(config.get_log_message(len(posts_to_classify)))
+
+        if len(posts_to_classify) == 0:
+            logger.warning(config.empty_result_message)
+            return ClassificationSessionModel(
+                inference_type=config.inference_type,
+                inference_timestamp=generate_current_datetime_str(),
+                total_classified_posts=0,
+                event=event,
+                inference_metadata={},
+            )
+
+        # Extract strategy-specific kwargs from event
+        classification_kwargs = config.extract_classification_kwargs(event)
+
+        # Execute classification
+        classification_metadata = config.classification_func(
+            posts=posts_to_classify,
+            **classification_kwargs,
+        )
+        total_classified = len(posts_to_classify)
+    else:
+        logger.info("Skipping classification and exporting cached results...")
+        classification_metadata = {}
+        total_classified = 0
+
+    timestamp = generate_current_datetime_str()
+    return ClassificationSessionModel(
+        inference_type=config.inference_type,
+        inference_timestamp=timestamp,
+        total_classified_posts=total_classified,
+        event=event,
+        inference_metadata=classification_metadata,
+    )

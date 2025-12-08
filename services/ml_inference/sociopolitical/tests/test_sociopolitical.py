@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch
 
+from services.ml_inference.sociopolitical import sociopolitical
 from services.ml_inference.sociopolitical.sociopolitical import classify_latest_posts
 
 
@@ -21,7 +22,7 @@ class TestClassifyLatestPosts:
     def mock_determine_backfill(self):
         """Mock determine_backfill_latest_timestamp function."""
         with patch(
-            "services.ml_inference.sociopolitical.sociopolitical.determine_backfill_latest_timestamp"
+            "services.ml_inference.helper.determine_backfill_latest_timestamp"
         ) as mock:
             mock.return_value = "2024-01-01-12:00:00"
             yield mock
@@ -30,7 +31,7 @@ class TestClassifyLatestPosts:
     def mock_get_posts(self):
         """Mock get_posts_to_classify function."""
         with patch(
-            "services.ml_inference.sociopolitical.sociopolitical.get_posts_to_classify"
+            "services.ml_inference.helper.get_posts_to_classify"
         ) as mock:
             mock.return_value = [
                 {"uri": "test1", "text": "test post 1"},
@@ -41,21 +42,23 @@ class TestClassifyLatestPosts:
     @pytest.fixture
     def mock_run_classification(self):
         """Mock run_batch_classification function."""
-        with patch(
-            "services.ml_inference.sociopolitical.sociopolitical.run_batch_classification"
-        ) as mock:
-            mock.return_value = {
-                "total_batches": 1,
-                "total_posts_successfully_labeled": 2,
-                "total_posts_failed_to_label": 0
-            }
-            yield mock
+        # Patch the function stored in the config object
+        original_func = sociopolitical.SOCIOPOLITICAL_CONFIG.classification_func
+        mock_func = Mock(return_value={
+            "total_batches": 1,
+            "total_posts_successfully_labeled": 2,
+            "total_posts_failed_to_label": 0
+        })
+        sociopolitical.SOCIOPOLITICAL_CONFIG.classification_func = mock_func
+        yield mock_func
+        # Restore original function
+        sociopolitical.SOCIOPOLITICAL_CONFIG.classification_func = original_func
 
     @pytest.fixture
     def mock_logger(self):
         """Mock logger."""
         with patch(
-            "services.ml_inference.sociopolitical.sociopolitical.logger"
+            "services.ml_inference.helper.logger"
         ) as mock:
             yield mock
 
@@ -81,19 +84,20 @@ class TestClassifyLatestPosts:
             backfill_period="days"
         )
         mock_get_posts.assert_called_once_with(
-            inference_type="llm",
+            inference_type="sociopolitical",
             timestamp="2024-01-01-12:00:00",
             previous_run_metadata=None
         )
         mock_run_classification.assert_called_once_with(posts=mock_get_posts.return_value)
         
         # Verify result structure
-        assert isinstance(result, dict)
-        assert result["inference_type"] == "sociopolitical"
-        assert "inference_timestamp" in result
-        assert result["total_classified_posts"] == 2
-        assert "inference_metadata" in result
-        assert result["event"] is None
+        from services.ml_inference.models import ClassificationSessionModel
+        assert isinstance(result, ClassificationSessionModel)
+        assert result.inference_type == "sociopolitical"
+        assert result.inference_timestamp is not None
+        assert result.total_classified_posts == 2
+        assert result.inference_metadata is not None
+        assert result.event is None
 
     def test_classify_latest_posts_no_posts(
         self,
@@ -114,8 +118,8 @@ class TestClassifyLatestPosts:
         )
         
         mock_run_classification.assert_not_called()
-        assert result["total_classified_posts"] == 0
-        assert "inference_metadata" in result
+        assert result.total_classified_posts == 0
+        assert result.inference_metadata is not None
         mock_logger.warning.assert_called_once()
 
     def test_classify_latest_posts_with_event(
@@ -137,7 +141,7 @@ class TestClassifyLatestPosts:
             event=test_event
         )
         
-        assert result["event"] == test_event
+        assert result.event == test_event
 
     def test_classify_latest_posts_skip_classification(
         self,
@@ -160,13 +164,13 @@ class TestClassifyLatestPosts:
         mock_run_classification.assert_not_called()
         
         # Verify result structure
-        assert isinstance(result, dict)
-        assert result["inference_type"] == "sociopolitical"
-        assert "inference_timestamp" in result
-        assert result["total_classified_posts"] == 0  # Should be 0 when skipping
-        assert "inference_metadata" in result
-        assert result["inference_metadata"] == {}  # Should be empty when skipping
-        assert result["event"] is None
+        from services.ml_inference.models import ClassificationSessionModel
+        assert isinstance(result, ClassificationSessionModel)
+        assert result.inference_type == "sociopolitical"
+        assert result.inference_timestamp is not None
+        assert result.total_classified_posts == 0  # Should be 0 when skipping
+        assert result.inference_metadata == {}  # Should be empty when skipping
+        assert result.event is None
         
         # Verify correct logging
         mock_logger.info.assert_called_with(
@@ -196,11 +200,11 @@ class TestClassifyLatestPosts:
         )
         
         mock_get_posts.assert_called_once_with(
-            inference_type="llm",
+            inference_type="sociopolitical",
             timestamp="2024-01-01-12:00:00",
             previous_run_metadata=previous_metadata
         )
-        assert result["total_classified_posts"] == 2
+        assert result.total_classified_posts == 2
 
     @pytest.mark.parametrize("backfill_period,backfill_duration", [
         (None, None),
@@ -229,9 +233,10 @@ class TestClassifyLatestPosts:
         )
         
         mock_get_posts.assert_called_once_with(
-            inference_type="llm",
+            inference_type="sociopolitical",
             timestamp=None,
             previous_run_metadata=None
         )
-        assert isinstance(result, dict)
-        assert "inference_timestamp" in result
+        from services.ml_inference.models import ClassificationSessionModel
+        assert isinstance(result, ClassificationSessionModel)
+        assert result.inference_timestamp is not None

@@ -75,6 +75,7 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
                 label_moral=None,
                 label_other=None,
                 label_timestamp=None,
+                reason="Failed to process batch - no results from model",
             ).model_dump()
             for post in posts
         ]
@@ -122,6 +123,7 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
                     label_moral=None,
                     label_other=None,
                     label_timestamp=None,
+                    reason="Post URI not found in processed results",
                 ).model_dump()
             )
 

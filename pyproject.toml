@@ -17,22 +17,18 @@ dependencies = [
     "pandas>=2.2.2",
     "numpy>=1.26.4",
     "python-dotenv>=1.0.1",
-    
     # Database and storage
     "duckdb>=1.1.3",
     "peewee>=3.17.1",
     "aiosqlite>=0.21.0",
     "pyarrow>=17.0.0",
-    
     # Cloud and external APIs
     "boto3>=1.40.11",
     "atproto>=0.0.61",
-    
     # Visualization and utilities
     "matplotlib>=3.8.3",
     "click>=8.1.7",
     "memory-profiler>=0.60.0",
-    
     # Standard dependencies
     "certifi>=2024.8.30",
     "charset-normalizer>=3.3.2",
@@ -123,7 +119,7 @@ all = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["lib*", "ml_tooling*", "bluesky_database*"]
+include = ["lib*", "ml_tooling*", "bluesky_database*", "services*"]
 exclude = [
     "demos*", 
     "experiments*", 
@@ -194,6 +190,10 @@ testpaths = [
     "services/write_cache_buffers_to_db/tests",
     "services/sync/jetstream/tests",
     "pipelines/backfill_records_coordination/tests",
+    "pipelines/classify_records/perspective_api/tests",
+    "pipelines/classify_records/ime/tests",
+    "pipelines/classify_records/sociopolitical/tests",
+    "pipelines/classify_records/valence_classifier/tests",
     "api/integrations_router/tests",
 ]
 
@@ -206,12 +206,14 @@ norecursedirs = [
 ]
 
 # Add command line default options
+# Note: -p no:opik disables the opik plugin to avoid issues
 addopts = [
     "--verbose",
     "--no-header",
     "--ignore=experiments",
     "--tb=short",
     "--strict-markers",
+    "-p", "no:opik",
 ]
 
 # Configure pytest plugins

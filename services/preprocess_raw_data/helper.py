@@ -3,7 +3,7 @@
 import json
 from typing import Optional
 
-from api.integrations_router.helper import determine_backfill_latest_timestamp
+from lib.helper import determine_backfill_latest_timestamp
 from lib.constants import current_datetime_str
 from lib.db.queue import Queue
 from lib.helper import track_performance, generate_current_datetime_str
@@ -73,7 +73,7 @@ def preprocess_latest_raw_data(
 ):
     """Preprocesses the latest raw data."""
     logger.info(f"Preprocessing the latest raw data at {current_datetime_str}.")
-    backfill_latest_timestamp: str = determine_backfill_latest_timestamp(
+    backfill_latest_timestamp: Optional[str] = determine_backfill_latest_timestamp(
         backfill_duration=backfill_duration,
         backfill_period=backfill_period,
     )

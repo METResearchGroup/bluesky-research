@@ -28,14 +28,14 @@ class TestClassifyLatestPosts:
     @pytest.fixture
     def mock_determine_backfill(self):
         """Mock the determine_backfill_latest_timestamp function."""
-        with patch("services.ml_inference.ime.ime.determine_backfill_latest_timestamp") as mock:
+        with patch("services.ml_inference.helper.determine_backfill_latest_timestamp") as mock:
             mock.return_value = "2024-01-01T00:00:00"
             yield mock
 
     @pytest.fixture
     def mock_get_posts(self):
         """Mock the get_posts_to_classify function."""
-        with patch("services.ml_inference.ime.ime.get_posts_to_classify") as mock:
+        with patch("services.ml_inference.helper.get_posts_to_classify") as mock:
             mock.return_value = [
                 {
                     "uri": "post1", 
@@ -53,9 +53,30 @@ class TestClassifyLatestPosts:
             yield mock
 
     @pytest.fixture
+    def mock_batch_classify_posts(self):
+        """Mock the batch_classify_posts function."""
+        with patch("ml_tooling.ime.model.batch_classify_posts") as mock:
+            # batch_classify_posts returns metadata, experiment_metrics, classification_breakdown
+            mock.return_value = {
+                "metadata": {
+                    "total_posts_successfully_labeled": 2,
+                    "total_posts_failed_to_label": 0,
+                    "total_batches": 1
+                },
+                "experiment_metrics": {
+                    "average_prob_emotion_per_batch": [0.5],
+                    "average_prob_intergroup_per_batch": [0.5],
+                    "average_prob_moral_per_batch": [0.5],
+                    "average_prob_other_per_batch": [0.5]
+                },
+                "classification_breakdown": {}
+            }
+            yield mock
+    
+    @pytest.fixture
     def mock_run_classification(self):
         """Mock the run_batch_classification function."""
-        with patch("services.ml_inference.ime.ime.run_batch_classification") as mock:
+        with patch("ml_tooling.ime.model.run_batch_classification") as mock:
             mock.return_value = {
                 "run_metadata": {
                     "total_posts_successfully_labeled": 2,
@@ -77,14 +98,14 @@ class TestClassifyLatestPosts:
     @pytest.fixture
     def mock_logger(self):
         """Mock the logger."""
-        with patch("services.ml_inference.ime.ime.logger") as mock:
+        with patch("services.ml_inference.helper.logger") as mock:
             yield mock
 
     def test_classify_latest_posts_success(
         self,
         mock_determine_backfill,
         mock_get_posts,
-        mock_run_classification,
+        mock_batch_classify_posts,
         mock_logger
     ):
         """Test successful classification of latest posts.
@@ -110,16 +131,15 @@ class TestClassifyLatestPosts:
             timestamp="2024-01-01T00:00:00",
             previous_run_metadata=None
         )
-        mock_run_classification.assert_called_once_with(
-            posts=mock_get_posts.return_value,
-            hyperparameters=default_hyperparameters
-        )
+        mock_batch_classify_posts.assert_called_once()
 
-        assert result["inference_type"] == "ime"
-        assert result["total_classified_posts"] == 2
-        assert "inference_timestamp" in result
-        assert result["inference_metadata"]["run_metadata"]["total_posts_successfully_labeled"] == 2
-        assert result["inference_metadata"]["run_metadata"]["total_posts_failed_to_label"] == 0
+        from services.ml_inference.models import ClassificationSessionModel
+        assert isinstance(result, ClassificationSessionModel)
+        assert result.inference_type == "ime"
+        assert result.total_classified_posts == 2
+        assert result.inference_timestamp is not None
+        assert result.inference_metadata["run_metadata"]["total_posts_successfully_labeled"] == 2
+        assert result.inference_metadata["run_metadata"]["total_posts_failed_to_label"] == 0
 
     def test_classify_latest_posts_no_posts(
         self,
@@ -148,14 +168,14 @@ class TestClassifyLatestPosts:
             "No posts to classify with IME classifier. Exiting..."
         )
 
-        assert result["total_classified_posts"] == 0
-        assert result["inference_metadata"] == {}
+        assert result.total_classified_posts == 0
+        assert result.inference_metadata == {}
 
     def test_classify_latest_posts_with_event(
         self,
         mock_determine_backfill,
         mock_get_posts,
-        mock_run_classification,
+        mock_batch_classify_posts,
         mock_logger
     ):
         """Test classification with event metadata.
@@ -176,13 +196,14 @@ class TestClassifyLatestPosts:
             event=event
         )
 
-        mock_run_classification.assert_called_once_with(
-            posts=mock_get_posts.return_value,
-            hyperparameters=event["hyperparameters"]
-        )
+        mock_batch_classify_posts.assert_called_once()
+        # Verify it was called with the custom hyperparameters
+        call_args = mock_batch_classify_posts.call_args
+        assert call_args.kwargs["batch_size"] == 4
+        assert call_args.kwargs["minibatch_size"] == 2
 
-        assert result["event"] == event
-        assert result["total_classified_posts"] == 2
+        assert result.event == event
+        assert result.total_classified_posts == 2
 
     def test_classify_latest_posts_skip_classification(
         self,
@@ -208,14 +229,14 @@ class TestClassifyLatestPosts:
             "Skipping classification and exporting cached results..."
         )
 
-        assert result["total_classified_posts"] == 0
-        assert result["inference_metadata"] == {}
+        assert result.total_classified_posts == 0
+        assert result.inference_metadata == {}
 
     def test_classify_latest_posts_with_previous_metadata(
         self,
         mock_determine_backfill,
         mock_get_posts,
-        mock_run_classification,
+        mock_batch_classify_posts,
         mock_logger
     ):
         """Test classification with previous run metadata.
@@ -241,13 +262,10 @@ class TestClassifyLatestPosts:
             timestamp="2024-01-01T00:00:00",
             previous_run_metadata=previous_metadata
         )
-        mock_run_classification.assert_called_once_with(
-            posts=mock_get_posts.return_value,
-            hyperparameters=default_hyperparameters
-        )
+        mock_batch_classify_posts.assert_called_once()
 
-        assert result["total_classified_posts"] == 2
-        assert result["inference_metadata"]["run_metadata"]["total_posts_successfully_labeled"] == 2
+        assert result.total_classified_posts == 2
+        assert result.inference_metadata["run_metadata"]["total_posts_successfully_labeled"] == 2
 
     @pytest.mark.parametrize("backfill_period,backfill_duration", [
         (None, None),
@@ -261,7 +279,7 @@ class TestClassifyLatestPosts:
         backfill_duration,
         mock_determine_backfill,
         mock_get_posts,
-        mock_run_classification,
+        mock_batch_classify_posts,
         mock_logger
     ):
         """Test handling of invalid backfill parameters.
@@ -291,10 +309,7 @@ class TestClassifyLatestPosts:
             timestamp=None,
             previous_run_metadata=None
         )
-        mock_run_classification.assert_called_once_with(
-            posts=mock_get_posts.return_value,
-            hyperparameters=default_hyperparameters
-        )
+        mock_batch_classify_posts.assert_called_once()
 
-        assert result["total_classified_posts"] == 2
-        assert "inference_timestamp" in result 
+        assert result.total_classified_posts == 2
+        assert result.inference_timestamp is not None 
