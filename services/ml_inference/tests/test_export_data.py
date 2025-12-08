@@ -36,7 +36,7 @@ class TestReturnFailedLabelsToInputQueue:
             failed_label_models=[],
             input_queue=mock_queue
         )
-            mock_queue.batch_add_items_to_queue.assert_not_called()
+        mock_queue.batch_add_items_to_queue.assert_not_called()
 
     @pytest.mark.parametrize(
         "inference_type",
