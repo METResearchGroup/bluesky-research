@@ -30,7 +30,7 @@ def mock_run_mode():
         yield
 
 
-@patch("services.backfill.posts.main.route_and_run_integration_request")
+@patch("services.backfill.posts.main.invoke_pipeline_handler")
 @patch("services.backfill.posts.main.Queue")
 @patch("services.backfill.posts.main.load_posts_to_backfill")
 def test_backfill_posts_add_to_queue_only(mock_load_posts, mock_queue, mock_route, mock_posts_to_backfill):
@@ -57,11 +57,11 @@ def test_backfill_posts_add_to_queue_only(mock_load_posts, mock_queue, mock_rout
     assert mock_queue.call_count == 2
     mock_queue_instance.batch_add_items_to_queue.assert_called()
 
-    # Verify route_and_run_integration_request was not called
+    # Verify invoke_pipeline_handler was not called
     mock_route.assert_not_called()
 
 
-@patch("services.backfill.posts.main.route_and_run_integration_request")
+@patch("services.backfill.posts.main.invoke_pipeline_handler")
 @patch("services.backfill.posts.main.Queue")
 @patch("services.backfill.posts.main.load_posts_to_backfill")
 def test_backfill_posts_run_integrations_only(mock_load_posts, mock_queue, mock_route):
@@ -79,17 +79,17 @@ def test_backfill_posts_run_integrations_only(mock_load_posts, mock_queue, mock_
     # Verify Queue was not created
     mock_queue.assert_not_called()
 
-    # Verify route_and_run_integration_request was called for each integration
+    # Verify invoke_pipeline_handler was called for each integration
     assert mock_route.call_count == len(INTEGRATIONS_LIST)
     for integration in INTEGRATIONS_LIST:
-        mock_route.assert_any_call({
-            "service": integration,
-            "payload": {"run_type": "backfill"},
-            "metadata": {}
-        })
+        mock_route.assert_any_call(
+            service=integration,
+            payload={"run_type": "backfill"},
+            request_metadata={}
+        )
 
 
-@patch("services.backfill.posts.main.route_and_run_integration_request")
+@patch("services.backfill.posts.main.invoke_pipeline_handler")
 @patch("services.backfill.posts.main.Queue")
 @patch("services.backfill.posts.main.load_posts_to_backfill")
 def test_backfill_posts_with_integration_kwargs(mock_load_posts, mock_queue, mock_route, mock_posts_to_backfill):
@@ -118,20 +118,20 @@ def test_backfill_posts_with_integration_kwargs(mock_load_posts, mock_queue, moc
 
     backfill_posts(payload)
 
-    # Verify route_and_run_integration_request was called with kwargs
-    mock_route.assert_called_once_with({
-        "service": "ml_inference_perspective_api",
-        "payload": {
+    # Verify invoke_pipeline_handler was called with kwargs
+    mock_route.assert_called_once_with(
+        service="ml_inference_perspective_api",
+        payload={
             "run_type": "backfill",
             "backfill_period": "days",
             "backfill_duration": 2,
             "run_classification": True
         },
-        "metadata": {}
-    })
+        request_metadata={}
+    )
 
 
-@patch("services.backfill.posts.main.route_and_run_integration_request")
+@patch("services.backfill.posts.main.invoke_pipeline_handler")
 @patch("services.backfill.posts.main.Queue")
 @patch("services.backfill.posts.main.load_posts_to_backfill")
 def test_backfill_posts_specific_integration(mock_load_posts, mock_queue, mock_route, mock_posts_to_backfill):
@@ -166,15 +166,15 @@ def test_backfill_posts_specific_integration(mock_load_posts, mock_queue, mock_r
         create_new_queue=True
     )
 
-    # Verify route_and_run_integration_request was called only for specific integration
-    mock_route.assert_called_once_with({
-        "service": "ml_inference_perspective_api",
-        "payload": {"run_type": "backfill"},
-        "metadata": {}
-    })
+    # Verify invoke_pipeline_handler was called only for specific integration
+    mock_route.assert_called_once_with(
+        service="ml_inference_perspective_api",
+        payload={"run_type": "backfill"},
+        request_metadata={}
+    )
 
 
-@patch("services.backfill.posts.main.route_and_run_integration_request")
+@patch("services.backfill.posts.main.invoke_pipeline_handler")
 @patch("services.backfill.posts.main.Queue")
 @patch("services.backfill.posts.main.load_posts_to_backfill")
 def test_backfill_posts_no_posts_found(mock_load_posts, mock_queue, mock_route):
@@ -198,11 +198,11 @@ def test_backfill_posts_no_posts_found(mock_load_posts, mock_queue, mock_route):
     # Verify no Queue was created
     mock_queue.assert_not_called()
 
-    # Verify route_and_run_integration_request was not called
+    # Verify invoke_pipeline_handler was not called
     assert mock_route.call_count == 0
 
 
-@patch("services.backfill.posts.main.route_and_run_integration_request")
+@patch("services.backfill.posts.main.invoke_pipeline_handler")
 @patch("services.backfill.posts.main.Queue")
 @patch("services.backfill.posts.main.load_posts_to_backfill")
 def test_backfill_posts_with_date_range(mock_load_posts, mock_queue, mock_route, mock_posts_to_backfill):

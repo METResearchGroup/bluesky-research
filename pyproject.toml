@@ -194,7 +194,7 @@ testpaths = [
     "pipelines/classify_records/ime/tests",
     "pipelines/classify_records/sociopolitical/tests",
     "pipelines/classify_records/valence_classifier/tests",
-    "api/integrations_router/tests",
+    "lib/pipeline_invocation/tests",
 ]
 
 # Ignore certain directories

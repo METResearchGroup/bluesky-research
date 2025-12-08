@@ -174,7 +174,7 @@ class TestBackfillPostsUsedInFeeds:
     #         "metadata": {}
     #     })
 
-    @patch("services.backfill.posts_used_in_feeds.main.route_and_run_integration_request")
+    @patch("services.backfill.posts_used_in_feeds.main.invoke_pipeline_handler")
     @patch("services.backfill.posts_used_in_feeds.helper.Queue")
     @patch("services.backfill.posts_used_in_feeds.load_data.load_data_from_local_storage")
     def test_no_posts_found(self, mock_load_data, mock_queue, mock_route):
@@ -191,19 +191,19 @@ class TestBackfillPostsUsedInFeeds:
         mock_queue.assert_not_called()
         assert mock_route.call_count == 3  # Length of INTEGRATIONS_LIST
         mock_route.assert_has_calls([
-            call({
-                "service": "ml_inference_perspective_api",
-                "payload": {"run_type": "backfill"},
-                "metadata": {}
-            }),
-            call({
-                "service": "ml_inference_sociopolitical", 
-                "payload": {"run_type": "backfill"},
-                "metadata": {}
-            }),
-            call({
-                "service": "ml_inference_ime",
-                "payload": {"run_type": "backfill"}, 
-                "metadata": {}
-            })
+            call(
+                service="ml_inference_perspective_api",
+                payload={"run_type": "backfill"},
+                request_metadata={}
+            ),
+            call(
+                service="ml_inference_sociopolitical", 
+                payload={"run_type": "backfill"},
+                request_metadata={}
+            ),
+            call(
+                service="ml_inference_ime",
+                payload={"run_type": "backfill"}, 
+                request_metadata={}
+            )
         ])
