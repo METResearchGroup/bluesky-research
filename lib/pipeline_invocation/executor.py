@@ -49,12 +49,6 @@ def _default_wandb_logger() -> Callable[[str, dict], None]:
     return log_to_wandb
 
 
-def _default_load_metadata() -> Callable[[str], dict]:
-    """Factory for default metadata loader."""
-    # Import here to avoid circular imports
-    return load_latest_run_metadata
-
-
 def _default_write_metadata() -> Callable[[RunExecutionMetadata], None]:
     """Factory for default metadata writer."""
     # Import here to avoid circular imports
@@ -64,13 +58,10 @@ def _default_write_metadata() -> Callable[[RunExecutionMetadata], None]:
 @track_performance
 def run_integration_service(
     request: IntegrationRequest,
-    previous_run_metadata: Optional[dict] = None,
 ) -> RunExecutionMetadata:
     """Runs an integration service."""
     service = request.service
     payload = request.payload
-    if not previous_run_metadata:
-        previous_run_metadata = {}
     service_handler: Callable = PipelineHandlerRegistry.get_handler(service)
     run_metadata = service_handler(event=payload, context=None)
     transformed_run_metadata = RunExecutionMetadata(**run_metadata)
@@ -131,7 +122,6 @@ def write_run_metadata_to_db(run_metadata: RunExecutionMetadata) -> None:
 def run_integration_request(
     request: IntegrationRequest,
     wandb_logger: Optional[Callable[[str, dict], None]] = None,
-    load_metadata: Optional[Callable[[str], dict]] = None,
     write_metadata: Optional[Callable[[RunExecutionMetadata], None]] = None,
 ) -> RunExecutionMetadata:
     """Runs an integration request with dependency injection.
@@ -142,7 +132,6 @@ def run_integration_request(
     Args:
         request: The integration request to execute
         wandb_logger: Optional WandB logger callable (defaults to real implementation via factory)
-        load_metadata: Optional metadata loader callable (defaults to real implementation)
         write_metadata: Optional metadata writer callable (defaults to real implementation)
 
     Returns:
@@ -154,14 +143,10 @@ def run_integration_request(
     """
     # Use dependency injection or defaults (lazy-loaded via factories)
     wandb_log = wandb_logger or _default_wandb_logger()
-    load_meta = load_metadata or _default_load_metadata()
     write_meta = write_metadata or _default_write_metadata()
 
-    # Load previous metadata
-    previous_run_metadata = load_meta(request.service)
-
     # Execute handler
-    run_metadata = run_integration_service(request, previous_run_metadata)
+    run_metadata = run_integration_service(request)
 
     # Write metadata
     write_meta(run_metadata)

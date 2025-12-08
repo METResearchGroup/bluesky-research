@@ -187,12 +187,6 @@ def mock_write_metadata():
 
 
 @pytest.fixture
-def mock_load_metadata():
-    """Mock function for loading metadata from DynamoDB."""
-    return Mock(return_value={})
-
-
-@pytest.fixture
 def mock_wandb_logger():
     """Mock WandB logger."""
     return Mock()
@@ -229,7 +223,6 @@ def test_run_integration_request(
     test_request, 
     mock_service_fn, 
     mock_write_metadata,
-    mock_load_metadata,
     mock_wandb_logger
 ):
     """Test run_integration_request function."""
@@ -240,7 +233,6 @@ def test_run_integration_request(
         result = run_integration_request(
             test_request,
             wandb_logger=mock_wandb_logger,
-            load_metadata=mock_load_metadata,
             write_metadata=mock_write_metadata
         )
         
@@ -252,7 +244,6 @@ def test_run_integration_request(
         
         mock_service_fn.assert_called_once_with(event={"key": "value"}, context=None)
         mock_write_metadata.assert_called_once()
-        mock_load_metadata.assert_called_once_with("test_service")
         mock_wandb_logger.assert_called_once()
 
 
@@ -269,7 +260,6 @@ def test_run_integration_service_invalid_service(test_request):
 def test_run_integration_request_write_failure(
     test_request, 
     mock_service_fn,
-    mock_load_metadata,
     mock_wandb_logger
 ):
     """Test run_integration_request when writing metadata fails."""
@@ -284,11 +274,9 @@ def test_run_integration_request_write_failure(
             run_integration_request(
                 test_request,
                 wandb_logger=mock_wandb_logger,
-                load_metadata=mock_load_metadata,
                 write_metadata=mock_write_metadata
             )
 
         mock_service_fn.assert_called_once_with(event={"key": "value"}, context=None)
         mock_write_metadata.assert_called_once()
-        mock_load_metadata.assert_called_once_with("test_service")
 
