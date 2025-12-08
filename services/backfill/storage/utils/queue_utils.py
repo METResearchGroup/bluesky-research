@@ -88,7 +88,7 @@ def load_latest_dids_to_backfill_from_queue(
     Returns:
         List of DIDs to backfill.
     """
-    queue = input_queue or _default_input_queue()
+    queue = input_queue if input_queue is not None else _default_input_queue()
     latest_payloads: list[dict] = queue.load_dict_items_from_queue(
         limit=None,
         status="pending",

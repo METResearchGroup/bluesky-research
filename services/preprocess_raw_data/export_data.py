@@ -55,8 +55,12 @@ def write_posts_to_cache(
         logger.info("No preprocessed posts to write to cache. Exiting...")
         return
 
-    input_queue_instance = input_queue or _default_input_queue()
-    output_queue_instance = output_queue or _default_output_queue()
+    input_queue_instance = (
+        input_queue if input_queue is not None else _default_input_queue()
+    )
+    output_queue_instance = (
+        output_queue if output_queue is not None else _default_output_queue()
+    )
 
     successfully_preprocessed_batch_ids = set(batch_ids)
     logger.info(f"Adding {len(posts)} posts to the output queue.")
