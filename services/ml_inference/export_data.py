@@ -6,7 +6,7 @@ from lib.db.queue import Queue
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 
-logger = get_logger(__file__)
+logger = get_logger(__name__)
 
 # Queue name mapping (no initialization at import time)
 _INPUT_QUEUE_NAMES = {

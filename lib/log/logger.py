@@ -35,8 +35,6 @@ class Logger(logging.Logger):
             logging.Formatter("%(asctime)s %(levelname)s [%(filename)s]: %(message)s")
         )
         log_dir = os.path.join(log_directory, name)
-        if not os.path.exists(log_dir):
-            print(f"Creating new directory for {name} logs at {log_dir}...")
         os.makedirs(log_dir, exist_ok=True)
         log_filename = os.path.join(log_dir, "logs.log")
         # RotatingFileHandler for logging to a file
