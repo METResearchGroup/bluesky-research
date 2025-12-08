@@ -38,7 +38,9 @@ def _default_wandb_logger() -> Callable[[str, dict], None]:
         if RUN_MODE == "test":
             return
         try:
-            wandb.init(project=service)
+            # Only initialize if no active run exists to avoid creating orphaned runs
+            if wandb.run is None:
+                wandb.init(project=service)
             wandb.log(metadata)
         except Exception as e:
             logger.warning(f"Failed to log to WandB (non-critical): {e}")
