@@ -1,8 +1,9 @@
-"""Manages real-time cache writing.
+"""Public-facing cache writer interface."""
 
-Connects to the firehose and ingests records in real time and writes to
-cache.
 
-Downstream, the batch exporter job will read the cache and export to persistent
-storage.
-"""
+def export_study_user_data_local():
+    pass
+
+
+def export_in_network_user_data_local():
+    pass

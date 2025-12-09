@@ -19,31 +19,25 @@ from services.sync.stream.handlers.factories import (
 )
 from services.sync.stream.exporters.study_user_exporter import StudyUserActivityExporter
 from services.sync.stream.storage.repository import StorageRepository
-from services.sync.stream.storage.adapters import S3StorageAdapter, LocalStorageAdapter
-from lib.aws.s3 import S3
+from services.sync.stream.storage.adapters import LocalStorageAdapter
 
 
-def setup_sync_export_system(
-    use_s3: bool = True,
-    s3_client: S3 | None = None,
-) -> tuple[
-    SyncPathManager,
-    CacheDirectoryManager,
-    CacheFileWriter,
-    CacheFileReader,
-    type[RecordHandlerRegistry],
-    StudyUserActivityExporter,
-    StorageRepository,
-]:
+def setup_sync_export_system() -> (
+    tuple[
+        SyncPathManager,
+        CacheDirectoryManager,
+        CacheFileWriter,
+        CacheFileReader,
+        type[RecordHandlerRegistry],
+        StudyUserActivityExporter,
+        StorageRepository,
+    ]
+):
     """Set up the complete sync export system with all dependencies wired.
-
-    Args:
-        use_s3: Whether to use S3 storage (True) or local storage (False)
-        s3_client: Optional S3 client (will create one if not provided and use_s3=True)
 
     Returns:
         Tuple of (path_manager, directory_manager, file_writer, file_reader,
-                 handler_registry, exporter, storage_repository)
+                  handler_registry, exporter, storage_repository)
     """
     # 1. Create path manager
     path_manager = SyncPathManager()
@@ -56,12 +50,7 @@ def setup_sync_export_system(
     file_reader = CacheFileReader()
 
     # 4. Create storage adapter and repository
-    if use_s3:
-        if s3_client is None:
-            s3_client = S3()
-        storage_adapter = S3StorageAdapter(s3=s3_client, path_manager=path_manager)
-    else:
-        storage_adapter = LocalStorageAdapter(path_manager=path_manager)
+    storage_adapter = LocalStorageAdapter(path_manager=path_manager)
 
     storage_repository = StorageRepository(adapter=storage_adapter)
 

@@ -12,13 +12,13 @@ from atproto_client.models.app.bsky.feed.like import Record as LikeRecord  # noq
 from lib.db.bluesky_models.raw import RawFollow, RawFollowRecord, RawLike, RawLikeRecord
 from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel  # noqa
 from lib.log.logger import get_logger
-from services.sync.stream.export_data import (
-    export_in_network_user_data_local,
-    export_study_user_data_local,
-)
 from services.consolidate_post_records.helper import consolidate_firehose_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.participant_data.study_users import get_study_user_manager
+from services.sync.stream.cache_writer import (
+    export_in_network_user_data_local,
+    export_study_user_data_local,
+)
 from transform.transform_raw_data import process_firehose_post
 
 
