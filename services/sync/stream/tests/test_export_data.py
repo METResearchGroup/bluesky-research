@@ -12,7 +12,7 @@ import json
 import os
 import shutil
 import tempfile
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 
 import pytest
 
@@ -517,14 +517,6 @@ class TestExportStudyUserDataLocal:
         # Clear registry before each test
         RecordHandlerRegistry.clear()
 
-        # Mock study user manager
-        mock_study_user_manager = Mock()
-        mock_study_user_manager.insert_study_user_post = Mock()
-        monkeypatch.setattr(
-            "services.sync.stream.export_data._get_study_user_manager",
-            lambda: mock_study_user_manager,
-        )
-
         # Reset system components
         monkeypatch.setattr(
             "services.sync.stream.export_data._system_components", None
@@ -535,7 +527,9 @@ class TestExportStudyUserDataLocal:
         cache_dir.mkdir()
 
         # Mock setup_sync_export_system to use temp directory
+        # Import here to avoid triggering data_filter imports during module load
         def mock_setup(use_s3=False, s3_client=None):
+            # Lazy imports to avoid triggering data_filter.py import
             from services.sync.stream.export_data import (
                 SyncPathManager,
                 CacheDirectoryManager,
@@ -647,6 +641,8 @@ class TestExportStudyUserDataLocal:
         }
         author_did = "did:plc:test"
         filename = "test_post.json"
+        mock_study_user_manager = Mock()
+        mock_study_user_manager.insert_study_user_post = Mock()
 
         # Act
         export_study_user_data_local(
@@ -655,6 +651,7 @@ class TestExportStudyUserDataLocal:
             operation="create",
             author_did=author_did,
             filename=filename,
+            study_user_manager=mock_study_user_manager,
         )
 
         # Assert - check file was created
@@ -678,6 +675,7 @@ class TestExportStudyUserDataLocal:
         }
         author_did = "did:plc:test"
         filename = "test_like.json"
+        mock_study_user_manager = Mock()
 
         # Act
         export_study_user_data_local(
@@ -686,6 +684,7 @@ class TestExportStudyUserDataLocal:
             operation="create",
             author_did=author_did,
             filename=filename,
+            study_user_manager=mock_study_user_manager,
         )
 
         # Assert - check file was created in nested directory
@@ -711,6 +710,7 @@ class TestExportStudyUserDataLocal:
         }
         author_did = "did:plc:test"
         filename = "test_follow.json"
+        mock_study_user_manager = Mock()
 
         # Act
         export_study_user_data_local(
@@ -720,6 +720,7 @@ class TestExportStudyUserDataLocal:
             author_did=author_did,
             filename=filename,
             kwargs={"follow_status": "follower"},
+            study_user_manager=mock_study_user_manager,
         )
 
         # Assert - check file was created in follower directory
@@ -740,6 +741,7 @@ class TestExportStudyUserDataLocal:
         record = {"uri": "at://did:plc:test/app.bsky.graph.follow/123"}
         author_did = "did:plc:test"
         filename = "test_follow.json"
+        mock_study_user_manager = Mock()
 
         # Act & Assert
         with pytest.raises(ValueError, match="follow_status required"):
@@ -749,6 +751,7 @@ class TestExportStudyUserDataLocal:
                 operation="create",
                 author_did=author_did,
                 filename=filename,
+                study_user_manager=mock_study_user_manager,
             )
 
     def test_export_study_user_data_local_unknown_record_type(self):
@@ -757,6 +760,7 @@ class TestExportStudyUserDataLocal:
         record = {"uri": "test"}
         author_did = "did:plc:test"
         filename = "test.json"
+        mock_study_user_manager = Mock()
 
         # Act & Assert
         with pytest.raises(ValueError, match="Unknown record type"):
@@ -766,6 +770,7 @@ class TestExportStudyUserDataLocal:
                 operation="create",
                 author_did=author_did,
                 filename=filename,
+                study_user_manager=mock_study_user_manager,
             )
 
     def test_export_study_user_data_local_calls_insert_study_user_post(self, tmp_path):
@@ -805,24 +810,7 @@ class TestExportInNetworkUserDataLocal:
 
     @pytest.fixture(autouse=True)
     def setup_test(self, monkeypatch, tmp_path):
-        """Set up test fixtures with proper mocking."""
-        # Mock study user manager FIRST, before any imports
-        mock_study_user_manager = Mock()
-        mock_study_user_manager.insert_study_user_post = Mock()
-        mock_study_user_manager.is_study_user = Mock(return_value=False)
-        mock_study_user_manager.is_study_user_post = Mock(return_value=None)
-        mock_study_user_manager.is_in_network_user = Mock(return_value=False)
-        
-        # Patch at the source to prevent real initialization
-        monkeypatch.setattr(
-            "services.participant_data.study_users.get_study_user_manager",
-            lambda load_from_aws=False: mock_study_user_manager,
-        )
-        monkeypatch.setattr(
-            "services.sync.stream.export_data._get_study_user_manager",
-            lambda: mock_study_user_manager,
-        )
-        
+        """Set up test fixtures."""
         # Reset system components
         monkeypatch.setattr(
             "services.sync.stream.export_data._system_components", None
@@ -927,6 +915,7 @@ class TestExportInNetworkUserDataLocal:
         record = {"uri": "test"}
         author_did = "did:plc:test"
         filename = "test.json"
+        mock_study_user_manager = Mock()
 
         # Act (should not raise or create files)
         export_in_network_user_data_local(
@@ -934,6 +923,7 @@ class TestExportInNetworkUserDataLocal:
             record_type="like",  # type: ignore[arg-type]
             author_did=author_did,
             filename=filename,
+            study_user_manager=mock_study_user_manager,
         )
 
         # Assert - function should return without doing anything

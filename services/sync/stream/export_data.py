@@ -1,7 +1,7 @@
 import json
 import os
 import shutil
-from typing import Literal, Optional
+from typing import Literal, Optional, Any
 
 from services.sync.stream.protocols import DirectoryManagerProtocol, PathManagerProtocol
 
@@ -379,6 +379,7 @@ def export_study_user_data_local(
     author_did: str,
     filename: str,
     kwargs: Optional[dict] = None,
+    study_user_manager: Optional[Any] = None,
 ) -> None:
     """Writes study user activity to local cache storage.
 
@@ -395,6 +396,9 @@ def export_study_user_data_local(
         author_did: Author DID
         filename: Filename for the record
         kwargs: Optional additional arguments (e.g., follow_status, user_post_type)
+        study_user_manager: Optional study user manager instance. If not provided,
+            will use lazy initialization. This parameter enables dependency injection
+            for testing.
 
     Raises:
         ValueError: If record_type is unknown or required kwargs are missing
@@ -431,10 +435,13 @@ def export_study_user_data_local(
 
         # Update StudyUserManager for posts (maintains old behavior)
         if record_type == "post" and operation == "create":
-            study_user_manager = _get_study_user_manager()
-            study_user_manager.insert_study_user_post(
-                post_uri=record["uri"], user_did=author_did
+            # Use injected manager if provided, otherwise lazy initialize
+            manager = (
+                study_user_manager
+                if study_user_manager is not None
+                else _get_study_user_manager()
             )
+            manager.insert_study_user_post(post_uri=record["uri"], user_did=author_did)
 
     except KeyError as e:
         available_types = handler_registry.list_record_types()
@@ -470,6 +477,9 @@ def export_in_network_user_data_local(
         record_type: Type of record (currently only "post" is implemented)
         author_did: Author DID
         filename: Filename for the record
+        study_user_manager: Optional study user manager instance. This parameter
+            enables dependency injection for testing (currently unused but included
+            for consistency with export_study_user_data_local).
     """
     if record_type != "post":
         # Old code had this as a no-op for non-post types

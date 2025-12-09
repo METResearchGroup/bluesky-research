@@ -79,6 +79,7 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
                 operation=operation,
                 author_did=like_author_did,
                 filename=filename,
+                study_user_manager=study_user_manager,
             )
 
         # Case 2: the user is the one who created the post that was liked.
@@ -100,6 +101,7 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
                 operation=operation,
                 author_did=liked_post_is_study_user_post,  # the author of the liked post, which should be a user in the study # noqa
                 filename=filename,
+                study_user_manager=study_user_manager,
             )
 
 
@@ -196,6 +198,7 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
                     author_did=follower_did,
                     filename=filename,
                     kwargs={"follow_status": "follower"},
+                    study_user_manager=study_user_manager,
                 )
             if user_is_followee:
                 logger.info(
@@ -208,6 +211,7 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
                     author_did=followee_did,
                     filename=filename,
                     kwargs={"follow_status": "followee"},
+                    study_user_manager=study_user_manager,
                 )
         else:
             logger.error("User is neither follower nor followee.")
@@ -299,6 +303,7 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
                 operation=operation,
                 author_did=author_did,
                 filename=filename,
+                study_user_manager=study_user_manager,
             )
         # Case 2: Check if the post is a repost of a post written by the study
         # user. TODO: come back to this. Unsure if this can be tracked from
@@ -346,6 +351,7 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
                             "root" if reply_root_is_user_study_post else "parent"
                         )
                     },
+                    study_user_manager=study_user_manager,
                 )
 
         # Case 4: post is written by an in-network user.
@@ -361,6 +367,7 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
                 record_type="post",
                 author_did=author_did,
                 filename=filename,
+                study_user_manager=study_user_manager,
             )
 
 
