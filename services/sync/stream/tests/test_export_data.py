@@ -12,7 +12,7 @@ import json
 import os
 import shutil
 import tempfile
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -617,8 +617,10 @@ class TestExportStudyUserDataLocal:
                 storage_repository,
             )
 
+        # Patch setup_sync_export_system in the setup module (where it's actually defined)
+        # This will be used when _get_system_components() imports it
         monkeypatch.setattr(
-            "services.sync.stream.export_data.setup_sync_export_system", mock_setup
+            "services.sync.stream.setup.setup_sync_export_system", mock_setup
         )
 
         # Reset the global variable
@@ -863,8 +865,10 @@ class TestExportInNetworkUserDataLocal:
                 storage_repository,
             )
 
+        # Patch setup_sync_export_system in the setup module (where it's actually defined)
+        # This will be used when _get_system_components() imports it
         monkeypatch.setattr(
-            "services.sync.stream.export_data.setup_sync_export_system", mock_setup
+            "services.sync.stream.setup.setup_sync_export_system", mock_setup
         )
 
         # Reset the global variable

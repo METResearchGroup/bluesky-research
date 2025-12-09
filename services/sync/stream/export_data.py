@@ -463,6 +463,7 @@ def export_in_network_user_data_local(
     record_type: Literal["post", "follow", "like"],
     author_did: str,
     filename: str,
+    study_user_manager: Optional[Any] = None,
 ) -> None:
     """Writes in-network user activity to local cache storage.
 

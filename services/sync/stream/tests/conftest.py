@@ -3,7 +3,7 @@ import copy
 import logging
 import os
 from typing import Optional
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -11,6 +11,20 @@ from services.sync.stream.tests.mock_firehose_data import (
     mock_user_dids, mock_post_uri_to_user_did_map, mock_follow_records,
     mock_like_records, mock_post_records
 )
+
+
+def pytest_configure(config):
+    """Configure pytest hooks - runs before any test modules are imported.
+    
+    This patches get_study_user_manager before data_filter.py can initialize
+    study_user_manager at module level, preventing real initialization during tests.
+    """
+    # Patch at the source before any imports happen
+    # This must happen before data_filter.py is imported
+    patch(
+        "services.participant_data.study_users.get_study_user_manager",
+        get_mock_study_manager,
+    ).start()
 
 
 def clean_path(path: str):
@@ -103,7 +117,8 @@ mock_logger = MockLogger()
 mock_study_manager = MockStudyUserManager()
 
 
-def get_mock_study_manager():
+def get_mock_study_manager(load_from_aws: bool = False):
+    """Mock function for get_study_user_manager that accepts load_from_aws parameter."""
     return mock_study_manager
 
 
