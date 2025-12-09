@@ -1,0 +1,133 @@
+"""Setup function to wire all dependencies together.
+
+This creates a complete, configured system with all dependencies injected.
+"""
+
+from services.sync.stream.export_data import (
+    SyncPathManager,
+    CacheDirectoryManager,
+    CacheFileWriter,
+    CacheFileReader,
+)
+from services.sync.stream.handlers.registry import RecordHandlerRegistry
+from services.sync.stream.handlers.factories import (
+    create_study_user_post_handler,
+    create_study_user_like_handler,
+    create_study_user_follow_handler,
+    create_study_user_like_on_user_post_handler,
+    create_study_user_reply_to_user_post_handler,
+)
+from services.sync.stream.exporters.study_user_exporter import StudyUserActivityExporter
+from services.sync.stream.storage.repository import StorageRepository
+from services.sync.stream.storage.adapters import S3StorageAdapter, LocalStorageAdapter
+from lib.aws.s3 import S3
+
+
+def setup_sync_export_system(
+    use_s3: bool = True,
+    s3_client: S3 | None = None,
+) -> tuple[
+    SyncPathManager,
+    CacheDirectoryManager,
+    CacheFileWriter,
+    CacheFileReader,
+    type[RecordHandlerRegistry],
+    StudyUserActivityExporter,
+    StorageRepository,
+]:
+    """Set up the complete sync export system with all dependencies wired.
+
+    Args:
+        use_s3: Whether to use S3 storage (True) or local storage (False)
+        s3_client: Optional S3 client (will create one if not provided and use_s3=True)
+
+    Returns:
+        Tuple of (path_manager, directory_manager, file_writer, file_reader,
+                 handler_registry, exporter, storage_repository)
+    """
+    # 1. Create path manager
+    path_manager = SyncPathManager()
+
+    # 2. Create directory manager
+    directory_manager = CacheDirectoryManager(path_manager=path_manager)
+
+    # 3. Create file writer and reader
+    file_writer = CacheFileWriter(directory_manager=directory_manager)
+    file_reader = CacheFileReader()
+
+    # 4. Create storage adapter and repository
+    if use_s3:
+        if s3_client is None:
+            s3_client = S3()
+        storage_adapter = S3StorageAdapter(s3=s3_client, path_manager=path_manager)
+    else:
+        storage_adapter = LocalStorageAdapter(path_manager=path_manager)
+
+    storage_repository = StorageRepository(adapter=storage_adapter)
+
+    # 5. Register handlers with factories (dependency injection)
+    # handler_registry = RecordHandlerRegistry
+
+    # Create factory functions that capture the dependencies
+    def make_post_handler():
+        return create_study_user_post_handler(
+            path_manager=path_manager,
+            file_writer=file_writer,
+            file_reader=file_reader,
+        )
+
+    def make_like_handler():
+        return create_study_user_like_handler(
+            path_manager=path_manager,
+            file_writer=file_writer,
+            file_reader=file_reader,
+        )
+
+    def make_follow_handler():
+        return create_study_user_follow_handler(
+            path_manager=path_manager,
+            file_writer=file_writer,
+            file_reader=file_reader,
+        )
+
+    def make_like_on_user_post_handler():
+        return create_study_user_like_on_user_post_handler(
+            path_manager=path_manager,
+            file_writer=file_writer,
+            file_reader=file_reader,
+        )
+
+    def make_reply_to_user_post_handler():
+        return create_study_user_reply_to_user_post_handler(
+            path_manager=path_manager,
+            file_writer=file_writer,
+            file_reader=file_reader,
+        )
+
+    # Register all handlers
+    RecordHandlerRegistry.register_factory("post", make_post_handler)
+    RecordHandlerRegistry.register_factory("like", make_like_handler)
+    RecordHandlerRegistry.register_factory("follow", make_follow_handler)
+    RecordHandlerRegistry.register_factory(
+        "like_on_user_post", make_like_on_user_post_handler
+    )
+    RecordHandlerRegistry.register_factory(
+        "reply_to_user_post", make_reply_to_user_post_handler
+    )
+
+    # 6. Create exporter
+    exporter = StudyUserActivityExporter(
+        path_manager=path_manager,
+        storage_repository=storage_repository,
+        handler_registry=RecordHandlerRegistry,  # Pass the class, exporter will use it
+    )
+
+    return (
+        path_manager,
+        directory_manager,
+        file_writer,
+        file_reader,
+        RecordHandlerRegistry,  # Return the class
+        exporter,
+        storage_repository,
+    )

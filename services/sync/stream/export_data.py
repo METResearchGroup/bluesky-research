@@ -1,6 +1,6 @@
 import json
 import os
-
+import shutil
 from typing import Literal
 
 from services.sync.stream.protocols import DirectoryManagerProtocol, PathManagerProtocol
@@ -179,14 +179,74 @@ class CacheDirectoryManager:
 
     def rebuild_all(self) -> None:
         """Rebuild all cache directory structures."""
-        # Move the logic from SyncDataManager.rebuild_cache_paths() here
-        # You'll need access to path_manager's paths
-        pass  # TODO: Implement
+        # Access path_manager's attributes to build all paths
+        if not isinstance(self.path_manager, SyncPathManager):
+            raise TypeError("rebuild_all requires SyncPathManager instance")
+
+        path_mgr = self.path_manager
+
+        # Create root write path
+        if not os.path.exists(path_mgr.root_write_path):
+            os.makedirs(path_mgr.root_write_path)
+
+        # Create generic firehose paths (create/delete for each operation type)
+        for operation in ["create", "delete"]:
+            op_path = (
+                path_mgr.root_create_path
+                if operation == "create"
+                else path_mgr.root_delete_path
+            )
+            if not os.path.exists(op_path):
+                os.makedirs(op_path)
+
+            for op_type in path_mgr.operation_types:
+                op_type_path = os.path.join(op_path, op_type)
+                if not os.path.exists(op_type_path):
+                    os.makedirs(op_type_path)
+
+        # Create study user activity paths
+        if not os.path.exists(path_mgr.study_user_activity_root_local_path):
+            os.makedirs(path_mgr.study_user_activity_root_local_path)
+
+        for operation in ["create", "delete"]:
+            for record_type in [
+                "post",
+                "like",
+                "follow",
+                "like_on_user_post",
+                "reply_to_user_post",
+            ]:
+                record_path = path_mgr.get_study_user_activity_path(
+                    operation=operation,  # type: ignore[arg-type]
+                    record_type=record_type,  # type: ignore[arg-type]
+                )
+                if not os.path.exists(record_path):
+                    os.makedirs(record_path)
+
+                # Follow has nested structure
+                if record_type == "follow":
+                    for follow_type in ["followee", "follower"]:
+                        follow_path = path_mgr.get_study_user_activity_path(
+                            operation=operation,  # type: ignore[arg-type]
+                            record_type="follow",
+                            follow_status=follow_type,  # type: ignore[arg-type]
+                        )
+                        if not os.path.exists(follow_path):
+                            os.makedirs(follow_path)
+
+        # Create in-network user activity path
+        if not os.path.exists(path_mgr.in_network_user_activity_root_local_path):
+            os.makedirs(path_mgr.in_network_user_activity_root_local_path)
+        if not os.path.exists(path_mgr.in_network_user_activity_create_post_local_path):
+            os.makedirs(path_mgr.in_network_user_activity_create_post_local_path)
 
     def delete_all(self) -> None:
         """Delete all cache directories."""
-        # Move logic from SyncDataManager.delete_cache_paths() here
-        pass  # TODO: Implement
+        if not isinstance(self.path_manager, SyncPathManager):
+            raise TypeError("delete_all requires SyncPathManager instance")
+
+        if os.path.exists(self.path_manager.root_write_path):
+            shutil.rmtree(self.path_manager.root_write_path)
 
     def exists(self, path: str) -> bool:
         """Check if path exists."""
