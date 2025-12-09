@@ -6,8 +6,8 @@ from services.sync.stream.data_filter import (
     manage_follow, manage_follows, manage_like, manage_likes, manage_post,
     manage_posts
 )
-from services.sync.stream.export_data import (
-    raw_sync_relative_path_map, raw_sync_relative_path_map,
+from services.sync.stream.tests.compat_export_data import (
+    raw_sync_relative_path_map,
     raw_sync_root_local_path
 )
 from services.sync.stream.tests.conftest import (
