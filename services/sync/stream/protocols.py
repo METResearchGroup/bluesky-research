@@ -48,16 +48,6 @@ class PathManagerProtocol(Protocol):
         """Get path for in-network user activity records."""
         ...
 
-    def get_s3_key(
-        self,
-        operation: Literal["create", "delete"],
-        record_type: Literal["post", "like", "follow"],
-        partition_key: str | None = None,
-        filename: str | None = None,
-    ) -> str:
-        """Get S3 key for general firehose records."""
-        ...
-
     def get_relative_path(
         self,
         operation: Literal["create", "delete"],

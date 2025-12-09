@@ -1,7 +1,7 @@
 """Sync stream module - exports data from firehose to storage."""
 
 from services.sync.stream.export_data import (
-    SyncPathManager,
+    CachePathManager,
     CacheDirectoryManager,
     CacheFileWriter,
     CacheFileReader,
@@ -19,7 +19,7 @@ from services.sync.stream.storage.repository import StorageRepository
 from services.sync.stream.storage.adapters import S3StorageAdapter, LocalStorageAdapter
 
 __all__ = [
-    "SyncPathManager",
+    "CachePathManager",
     "CacheDirectoryManager",
     "CacheFileWriter",
     "CacheFileReader",

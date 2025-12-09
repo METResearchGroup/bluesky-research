@@ -3,8 +3,8 @@
 This creates a complete, configured system with all dependencies injected.
 """
 
-from services.sync.stream.export_data import (
-    SyncPathManager,
+from services.sync.stream.cache_management import (
+    CachePathManager,
     CacheDirectoryManager,
     CacheFileWriter,
     CacheFileReader,
@@ -24,7 +24,7 @@ from services.sync.stream.storage.adapters import LocalStorageAdapter
 
 def setup_sync_export_system() -> (
     tuple[
-        SyncPathManager,
+        CachePathManager,
         CacheDirectoryManager,
         CacheFileWriter,
         CacheFileReader,
@@ -40,7 +40,7 @@ def setup_sync_export_system() -> (
                   handler_registry, exporter, storage_repository)
     """
     # 1. Create path manager
-    path_manager = SyncPathManager()
+    path_manager = CachePathManager()
 
     # 2. Create directory manager
     directory_manager = CacheDirectoryManager(path_manager=path_manager)

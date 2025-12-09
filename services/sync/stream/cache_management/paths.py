@@ -8,7 +8,12 @@ class CachePathManager:
     """Manages path construction for cache directory structure."""
 
     def __init__(self):
-        self.current_file_directory = os.path.dirname(os.path.abspath(__file__))
+        # move up one directory to get to the root of the sync export system
+        self.current_file_directory = os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))
+        )
+
+        # should be services/sync/stream/__local_cache__
         self.root_write_path = os.path.join(
             self.current_file_directory, "__local_cache__"
         )

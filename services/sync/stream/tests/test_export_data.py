@@ -1,7 +1,7 @@
 """Tests for export_data.py - new architecture.
 
 Tests cover:
-- SyncPathManager
+- CachePathManager
 - CacheDirectoryManager
 - CacheFileWriter
 - CacheFileReader
@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from services.sync.stream.export_data import (
-    SyncPathManager,
+    CachePathManager,
     CacheDirectoryManager,
     CacheFileWriter,
     CacheFileReader,
@@ -29,8 +29,8 @@ from services.sync.stream.export_data import (
 from services.sync.stream.handlers.registry import RecordHandlerRegistry
 
 
-class TestSyncPathManager:
-    """Tests for SyncPathManager class."""
+class TestCachePathManager:
+    """Tests for CachePathManager class."""
 
     @pytest.fixture(autouse=True)
     def mock_study_user_manager(self, monkeypatch):
@@ -46,9 +46,9 @@ class TestSyncPathManager:
         )
 
     def test_init(self):
-        """Test SyncPathManager initialization."""
+        """Test CachePathManager initialization."""
         # Arrange & Act
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
 
         # Assert
         assert path_manager.root_write_path.endswith("cache")
@@ -59,7 +59,7 @@ class TestSyncPathManager:
     def test_get_local_cache_path(self):
         """Test get_local_cache_path returns correct paths."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
 
         # Act
         create_post_path = path_manager.get_local_cache_path("create", "post")
@@ -74,7 +74,7 @@ class TestSyncPathManager:
     def test_get_study_user_activity_path_post(self):
         """Test get_study_user_activity_path for post records."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
 
         # Act
         create_path = path_manager.get_study_user_activity_path("create", "post")
@@ -90,7 +90,7 @@ class TestSyncPathManager:
     def test_get_study_user_activity_path_follow(self):
         """Test get_study_user_activity_path for follow records with follow_status."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
 
         # Act
         follower_path = path_manager.get_study_user_activity_path(
@@ -109,7 +109,7 @@ class TestSyncPathManager:
     def test_get_study_user_activity_path_like_on_user_post(self):
         """Test get_study_user_activity_path for like_on_user_post records."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
 
         # Act
         path = path_manager.get_study_user_activity_path("create", "like_on_user_post")
@@ -121,7 +121,7 @@ class TestSyncPathManager:
     def test_get_in_network_activity_path(self):
         """Test get_in_network_activity_path returns correct path."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
         author_did = "did:plc:test123"
 
         # Act
@@ -136,7 +136,7 @@ class TestSyncPathManager:
     def test_get_relative_path(self):
         """Test get_relative_path returns relative path component."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
 
         # Act
         post_relative = path_manager.get_relative_path("create", "post")
@@ -167,7 +167,7 @@ class TestCacheDirectoryManager:
     def test_init(self):
         """Test CacheDirectoryManager initialization."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
 
         # Act
         dir_manager = CacheDirectoryManager(path_manager=path_manager)
@@ -178,7 +178,7 @@ class TestCacheDirectoryManager:
     def test_ensure_exists_creates_directory(self):
         """Test ensure_exists creates directory if it doesn't exist."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
         dir_manager = CacheDirectoryManager(path_manager=path_manager)
         with tempfile.TemporaryDirectory() as tmpdir:
             test_path = os.path.join(tmpdir, "test", "nested", "path")
@@ -193,7 +193,7 @@ class TestCacheDirectoryManager:
     def test_ensure_exists_does_not_fail_if_exists(self):
         """Test ensure_exists does not fail if directory already exists."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
         dir_manager = CacheDirectoryManager(path_manager=path_manager)
         with tempfile.TemporaryDirectory() as tmpdir:
             test_path = os.path.join(tmpdir, "existing")
@@ -206,7 +206,7 @@ class TestCacheDirectoryManager:
     def test_rebuild_all_creates_all_directories(self):
         """Test rebuild_all creates all required directory structures."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
         dir_manager = CacheDirectoryManager(path_manager=path_manager)
 
         # Use a temporary directory for testing
@@ -245,19 +245,19 @@ class TestCacheDirectoryManager:
             )
 
     def test_rebuild_all_raises_error_for_non_sync_path_manager(self):
-        """Test rebuild_all raises TypeError for non-SyncPathManager."""
+        """Test rebuild_all raises TypeError for non-CachePathManager."""
         # Arrange
         mock_path_manager = Mock()
         dir_manager = CacheDirectoryManager(path_manager=mock_path_manager)
 
         # Act & Assert
-        with pytest.raises(TypeError, match="rebuild_all requires SyncPathManager"):
+        with pytest.raises(TypeError, match="rebuild_all requires CachePathManager"):
             dir_manager.rebuild_all()
 
     def test_delete_all_removes_directory(self):
         """Test delete_all removes the root write path."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
         dir_manager = CacheDirectoryManager(path_manager=path_manager)
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -271,19 +271,19 @@ class TestCacheDirectoryManager:
             assert not os.path.exists(path_manager.root_write_path)
 
     def test_delete_all_raises_error_for_non_sync_path_manager(self):
-        """Test delete_all raises TypeError for non-SyncPathManager."""
+        """Test delete_all raises TypeError for non-CachePathManager."""
         # Arrange
         mock_path_manager = Mock()
         dir_manager = CacheDirectoryManager(path_manager=mock_path_manager)
 
         # Act & Assert
-        with pytest.raises(TypeError, match="delete_all requires SyncPathManager"):
+        with pytest.raises(TypeError, match="delete_all requires CachePathManager"):
             dir_manager.delete_all()
 
     def test_exists_returns_true_for_existing_path(self):
         """Test exists returns True for existing path."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
         dir_manager = CacheDirectoryManager(path_manager=path_manager)
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -293,7 +293,7 @@ class TestCacheDirectoryManager:
     def test_exists_returns_false_for_non_existing_path(self):
         """Test exists returns False for non-existing path."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
         dir_manager = CacheDirectoryManager(path_manager=path_manager)
         non_existent = "/nonexistent/path/that/does/not/exist"
 
@@ -317,7 +317,7 @@ class TestCacheFileWriter:
     def test_init(self):
         """Test CacheFileWriter initialization."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
         dir_manager = CacheDirectoryManager(path_manager=path_manager)
 
         # Act
@@ -329,7 +329,7 @@ class TestCacheFileWriter:
     def test_write_json_creates_file(self):
         """Test write_json creates JSON file with correct data."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
         dir_manager = CacheDirectoryManager(path_manager=path_manager)
         file_writer = CacheFileWriter(directory_manager=dir_manager)
 
@@ -349,7 +349,7 @@ class TestCacheFileWriter:
     def test_write_jsonl_creates_file(self):
         """Test write_jsonl creates JSONL file with correct data."""
         # Arrange
-        path_manager = SyncPathManager()
+        path_manager = CachePathManager()
         dir_manager = CacheDirectoryManager(path_manager=path_manager)
         file_writer = CacheFileWriter(directory_manager=dir_manager)
 
@@ -508,13 +508,13 @@ class TestExportStudyUserDataLocal:
         def mock_setup(use_s3=False, s3_client=None):
             # Lazy imports to avoid triggering data_filter.py import
             from services.sync.stream.export_data import (
-                SyncPathManager,
+                CachePathManager,
                 CacheDirectoryManager,
                 CacheFileWriter,
                 CacheFileReader,
             )
 
-            path_manager = SyncPathManager()
+            path_manager = CachePathManager()
             path_manager.root_write_path = str(cache_dir)
             path_manager.root_create_path = str(cache_dir / "create")
             path_manager.root_delete_path = str(cache_dir / "delete")
@@ -802,13 +802,13 @@ class TestExportInNetworkUserDataLocal:
         # Mock setup_sync_export_system
         def mock_setup(use_s3=False, s3_client=None):
             from services.sync.stream.export_data import (
-                SyncPathManager,
+                CachePathManager,
                 CacheDirectoryManager,
                 CacheFileWriter,
                 CacheFileReader,
             )
 
-            path_manager = SyncPathManager()
+            path_manager = CachePathManager()
             path_manager.root_write_path = str(cache_dir)
             path_manager.in_network_user_activity_root_local_path = str(
                 cache_dir / "in_network_user_activity"
