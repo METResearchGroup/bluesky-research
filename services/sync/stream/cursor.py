@@ -1,6 +1,5 @@
 """Utility functions for managing the cursor state for the firehose stream."""
 
-import os
 from typing import Optional
 
 from lib.aws.dynamodb import DynamoDB
@@ -37,7 +36,7 @@ def load_cursor_state_dynamodb(
 
 def update_cursor_state_s3(cursor_model: FirehoseSubscriptionStateCursorModel) -> None:
     """Updates the cursor state in S3."""
-    key = os.path.join("sync", "firehose", "cursor", f"{cursor_model.service}.json")  # noqa
+    key = "sync/firehose/cursor/{}.json".format(cursor_model.service)
     s3.write_dict_json_to_s3(data=cursor_model.dict(), key=key)
 
 
@@ -45,7 +44,7 @@ def load_cursor_state_s3(
     service_name: str,
 ) -> Optional[FirehoseSubscriptionStateCursorModel]:  # noqa
     """Loads the cursor state from S3, if it exists. If not, return None."""
-    key = os.path.join("sync", "firehose", "cursor", f"{service_name}.json")
+    key = f"sync/firehose/cursor/{service_name}.json"
     result: Optional[dict] = s3.read_json_from_s3(key=key)
     if not result:
         return None
