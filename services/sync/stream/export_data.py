@@ -10,15 +10,11 @@ class SyncPathManager:
     """Manages path construction logic."""
 
     def __init__(self):
-        # Define instance attributes instead of using local variables.
         self.current_file_directory = os.path.dirname(os.path.abspath(__file__))
         self.root_write_path = os.path.join(self.current_file_directory, "cache")
         self.root_create_path = os.path.join(self.root_write_path, "create")
         self.root_delete_path = os.path.join(self.root_write_path, "delete")
         self.operation_types = ["post", "like", "follow"]
-
-        # Root S3 key for all sync exports
-        self.root_s3_key = os.path.join("sync", "firehose")
 
         # Helper paths for generic firehose writes. This seems to be incomplete,
         # usually you'd want all operation types here.
@@ -71,20 +67,6 @@ class SyncPathManager:
             self.in_network_user_activity_root_local_path, "create", "post"
         )
 
-        # Helper paths for S3 exports.
-        self.s3_export_key_map = {
-            "create": {
-                "post": os.path.join(self.root_s3_key, "create", "post"),
-                "like": os.path.join(self.root_s3_key, "create", "like"),
-                "follow": os.path.join(self.root_s3_key, "create", "follow"),
-            },
-            "delete": {
-                "post": os.path.join(self.root_s3_key, "delete", "post"),
-                "like": os.path.join(self.root_s3_key, "delete", "like"),
-                "follow": os.path.join(self.root_s3_key, "delete", "follow"),
-            },
-        }
-
     def get_local_cache_path(
         self,
         operation: Literal["create", "delete"],
@@ -127,21 +109,6 @@ class SyncPathManager:
             record_type,
             author_did,
         )
-
-    def get_s3_key(
-        self,
-        operation: Literal["create", "delete"],
-        record_type: Literal["post", "like", "follow"],
-        partition_key: str | None = None,
-        filename: str | None = None,
-    ) -> str:
-        """Get S3 key for general firehose records."""
-        base_key = self.s3_export_key_map[operation][record_type]
-        if partition_key:
-            base_key = os.path.join(base_key, partition_key)
-        if filename:
-            base_key = os.path.join(base_key, filename)
-        return base_key
 
     def get_relative_path(
         self,
@@ -491,7 +458,7 @@ def export_in_network_user_data_local(
     file_writer = components["file_writer"]
 
     # Get path for in-network user post
-    folder_path = path_manager.get_in_network_activity_path(
+    folder_path: str = path_manager.get_in_network_activity_path(
         operation="create",
         record_type="post",
         author_did=author_did,

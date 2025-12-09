@@ -55,7 +55,6 @@ class TestSyncPathManager:
         assert "create" in path_manager.root_create_path
         assert "delete" in path_manager.root_delete_path
         assert path_manager.operation_types == ["post", "like", "follow"]
-        assert path_manager.root_s3_key == os.path.join("sync", "firehose")
 
     def test_get_local_cache_path(self):
         """Test get_local_cache_path returns correct paths."""
@@ -133,28 +132,6 @@ class TestSyncPathManager:
         assert "create" in path
         assert "post" in path
         assert author_did in path
-
-    def test_get_s3_key(self):
-        """Test get_s3_key returns correct S3 key."""
-        # Arrange
-        path_manager = SyncPathManager()
-
-        # Act
-        base_key = path_manager.get_s3_key("create", "post")
-        key_with_partition = path_manager.get_s3_key(
-            "create", "post", partition_key="year=2024/month=01"
-        )
-        key_with_filename = path_manager.get_s3_key(
-            "create", "post", filename="test.json"
-        )
-
-        # Assert
-        assert "sync" in base_key
-        assert "firehose" in base_key
-        assert "create" in base_key
-        assert "post" in base_key
-        assert "year=2024" in key_with_partition
-        assert "test.json" in key_with_filename
 
     def test_get_relative_path(self):
         """Test get_relative_path returns relative path component."""
