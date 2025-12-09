@@ -49,13 +49,17 @@ class BaseActivityExporter(ABC):
         if not data:
             return
 
-        dtypes_map = MAP_SERVICE_TO_METADATA[service]["dtypes_map"]
+        dtypes_map = MAP_SERVICE_TO_METADATA.get(service, {}).get("dtypes_map", {})
         df = pd.DataFrame(data)
         df["synctimestamp"] = generate_current_datetime_str()
         df["partition_date"] = pd.to_datetime(
             df["synctimestamp"], format=timestamp_format
         ).dt.date
-        df = df.astype(dtypes_map)
+        # Only apply dtypes_map for columns that exist in the DataFrame
+        if dtypes_map:
+            existing_cols = {k: v for k, v in dtypes_map.items() if k in df.columns}
+            if existing_cols:
+                df = df.astype(existing_cols)
 
         custom_args = {}
         if record_type:

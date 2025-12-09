@@ -74,17 +74,20 @@ def _nested_read_strategy(
         return records, filepaths
 
     # Iterate over nested directories (e.g., post_uri_suffix directories)
-    for nested_dir_name in file_reader.list_files(record_dir):
+    for nested_dir_name in os.listdir(record_dir):
         nested_path = os.path.join(record_dir, nested_dir_name)
         if not os.path.isdir(nested_path):
             continue
 
-        # Read all files in nested directory
-        for filename in file_reader.list_files(nested_path):
+        # Read all JSON files in nested directory
+        for filename in os.listdir(nested_path):
+            if not filename.endswith(".json"):
+                continue
             full_path = os.path.join(nested_path, filename)
-            data = file_reader.read_json(full_path)
-            records.append(data)
-            filepaths.append(full_path)
+            if os.path.isfile(full_path):
+                data = file_reader.read_json(full_path)
+                records.append(data)
+                filepaths.append(full_path)
 
     return records, filepaths
 

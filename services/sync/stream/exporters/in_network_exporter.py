@@ -43,13 +43,14 @@ class InNetworkUserActivityExporter(BaseActivityExporter):
         all_filepaths: list[str] = []
 
         # Get base path for in-network user activity (only CREATE operation)
+        # Construct path to the record_type level (where author_did directories are)
         base_path = self.path_manager.get_in_network_activity_path(
             operation=Operation.CREATE,
             record_type=RecordType.POST,
             author_did="",  # We'll iterate over author_dids
         )
-        # Remove the author_did suffix to get the operation/record_type level path
-        base_path = os.path.dirname(os.path.dirname(base_path))
+        # Remove the empty author_did to get the operation/record_type level path
+        base_path = os.path.dirname(base_path)
 
         # Check if this directory exists
         if not os.path.exists(base_path):

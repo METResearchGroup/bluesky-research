@@ -31,7 +31,12 @@ def manage_like(like: dict, operation: Operation, context: SyncExportContext) ->
 
     if operation == Operation.CREATE:
         raw_liked_record: LikeRecord = like["record"]
-        raw_liked_record_model = RawLikeRecord(**raw_liked_record.dict())
+        # Convert created_at to createdAt for RawLikeRecord
+        like_record_dict = raw_liked_record.dict()
+        like_record_dict["createdAt"] = like_record_dict.pop(
+            "created_at", like_record_dict.get("createdAt")
+        )
+        raw_liked_record_model = RawLikeRecord(**like_record_dict)
         like_model = RawLike(
             **{
                 "author": like["author"],
@@ -154,7 +159,15 @@ def manage_follow(
 
     if operation == Operation.CREATE:
         raw_follow_record: FollowRecord = follow["record"]
-        raw_follow_record_model = RawFollowRecord(**raw_follow_record.dict())
+        # Convert created_at to createdAt for RawFollowRecord
+        # TODO: fix this later on, when we look at consolidating and updating
+        # the data models. There are a few places where I use createdAt vs.
+        # created_at and I'd prefer to keep created_at.
+        follow_record_dict = raw_follow_record.dict()
+        follow_record_dict["createdAt"] = follow_record_dict.pop(
+            "created_at", follow_record_dict.get("createdAt")
+        )
+        raw_follow_record_model = RawFollowRecord(**follow_record_dict)
         follow_model = RawFollow(
             **{
                 "uri": follow["uri"],

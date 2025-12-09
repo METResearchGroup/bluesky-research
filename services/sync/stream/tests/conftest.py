@@ -133,10 +133,43 @@ def mock_logger_fixture(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def mock_study_user_manager(monkeypatch):
+    """Comprehensive fixture that patches all StudyUserManager dependencies.
+    
+    This fixture ensures:
+    - Singleton instance is reset before each test
+    - get_study_user_manager returns a mock
+    - _load_in_network_user_dids returns empty set (no Parquet loading)
+    - load_data_from_local_storage returns empty DataFrame (no Parquet loading)
+    - _write_post_uri_to_study_user_did_map_to_s3 does nothing (no S3 writes)
+    """
+    import pandas as pd
+    from services.participant_data.study_users import StudyUserManager
+    
+    # Reset singleton instance before each test to prevent state leakage
+    StudyUserManager._instance = None
+    
     # Patch get_study_user_manager at the source so setup_sync_export_system uses the mock
     monkeypatch.setattr(
         "services.participant_data.study_users.get_study_user_manager",
         get_mock_study_manager
+    )
+    
+    # Patch _load_in_network_user_dids to avoid Parquet loading issues
+    monkeypatch.setattr(
+        "services.participant_data.study_users.StudyUserManager._load_in_network_user_dids",
+        lambda self, is_local=True, is_refresh=False: set()
+    )
+    
+    # Patch load_data_from_local_storage to avoid Parquet loading issues
+    monkeypatch.setattr(
+        "lib.db.manage_local_data.load_data_from_local_storage",
+        lambda **kwargs: pd.DataFrame()
+    )
+    
+    # Patch S3 write to avoid AWS errors
+    monkeypatch.setattr(
+        "services.participant_data.study_users.StudyUserManager._write_post_uri_to_study_user_did_map_to_s3",
+        lambda self: None
     )
 
 
