@@ -1,10 +1,8 @@
 """Exporter for study user activity data."""
 
 import os
-import pandas as pd
 
-from typing import TYPE_CHECKING
-
+from services.sync.stream.exporters.base import BaseActivityExporter
 from services.sync.stream.protocols import (
     PathManagerProtocol,
     StorageRepositoryProtocol,
@@ -12,32 +10,26 @@ from services.sync.stream.protocols import (
 from services.sync.stream.handlers.registry import RecordHandlerRegistry
 from services.sync.stream.types import Operation, RecordType
 
-if TYPE_CHECKING:
-    pass
-from lib.db.service_constants import MAP_SERVICE_TO_METADATA
-from lib.helper import generate_current_datetime_str
-from lib.constants import timestamp_format
 
-
-class StudyUserActivityExporter:
+class StudyUserActivityExporter(BaseActivityExporter):
     """Exporter for study user activity data."""
 
     def __init__(
         self,
         path_manager: PathManagerProtocol,
         storage_repository: StorageRepositoryProtocol,
-        handler_registry: type[RecordHandlerRegistry] | None = None,
+        handler_registry: type[RecordHandlerRegistry],
     ):
         """Initialize exporter.
 
         Args:
             path_manager: Path manager for constructing paths
             storage_repository: Storage repository for exporting data
-            handler_registry: Handler registry class (defaults to global registry)
+            handler_registry: Handler registry class (uses class methods)
         """
+        super().__init__(storage_repository)
         self.path_manager = path_manager
-        self.storage_repository = storage_repository
-        self.handler_registry = handler_registry or RecordHandlerRegistry
+        self.handler_registry = handler_registry
 
     def export_activity_data(self) -> list[str]:
         """Export all study user activity data from cache to storage.
@@ -136,29 +128,3 @@ class StudyUserActivityExporter:
             )
 
         return all_filepaths
-
-    def _export_dataframe(
-        self,
-        data: list[dict],
-        service: str,
-        record_type: str | None,
-    ) -> None:
-        """Helper to export DataFrame to storage."""
-        dtypes_map = MAP_SERVICE_TO_METADATA[service]["dtypes_map"]
-        df = pd.DataFrame(data)
-        df["synctimestamp"] = generate_current_datetime_str()
-        df["partition_date"] = pd.to_datetime(
-            df["synctimestamp"], format=timestamp_format
-        ).dt.date
-        df = df.astype(dtypes_map)
-
-        custom_args = {}
-        if record_type:
-            custom_args["record_type"] = record_type
-
-        self.storage_repository.export_dataframe(
-            df=df,
-            service=service,
-            record_type=record_type,
-            custom_args=custom_args if custom_args else None,
-        )

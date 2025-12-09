@@ -20,10 +20,7 @@ class TestCachePathManager:
         mock_manager.is_study_user = Mock(return_value=False)
         mock_manager.is_study_user_post = Mock(return_value=None)
         mock_manager.is_in_network_user = Mock(return_value=False)
-        monkeypatch.setattr(
-            "services.sync.stream.cache_writer._get_study_user_manager",
-            lambda: mock_manager,
-        )
+        # No longer needed - cache_writer.py was deleted
 
     def test_init(self):
         """Test CachePathManager initialization."""

@@ -133,25 +133,10 @@ def mock_logger_fixture(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def mock_study_user_manager(monkeypatch):
-    monkeypatch.setattr(
-        "services.sync.stream.data_filter.study_user_manager.is_study_user",
-        mock_study_manager.is_study_user
-    )
-    monkeypatch.setattr(
-        "services.sync.stream.data_filter.study_user_manager.is_study_user_post",  # noqa
-        mock_study_manager.is_study_user_post
-    )
-    monkeypatch.setattr(
-        "services.sync.stream.data_filter.get_study_user_manager",
-        get_mock_study_manager
-    )
+    # Patch get_study_user_manager at the source so setup_sync_export_system uses the mock
     monkeypatch.setattr(
         "services.participant_data.study_users.get_study_user_manager",
         get_mock_study_manager
-    )
-    monkeypatch.setattr(
-        "services.sync.stream.data_filter.study_user_manager",
-        mock_study_manager
     )
 
 
@@ -203,3 +188,16 @@ def mock_like_records_fixture():
 @pytest.fixture
 def mock_post_records_fixture():
     return copy.deepcopy(mock_post_records)
+
+
+@pytest.fixture
+def sync_export_context(mock_study_user_manager):
+    """Create a SyncExportContext for testing."""
+    from services.sync.stream.setup import setup_sync_export_system
+    
+    # Create context using the normal setup
+    # The mock_study_user_manager fixture ensures get_study_user_manager returns the mock
+    # Tests will use the actual cache paths (which is fine for testing)
+    context = setup_sync_export_system()
+    
+    return context

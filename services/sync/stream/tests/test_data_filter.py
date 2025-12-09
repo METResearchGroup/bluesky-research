@@ -6,6 +6,7 @@ from services.sync.stream.data_filter import (
     manage_follow, manage_follows, manage_like, manage_likes, manage_post,
     manage_posts
 )
+from services.sync.stream.types import Operation
 from services.sync.stream.tests.compat_export_data import (
     raw_sync_relative_path_map,
     raw_sync_root_local_path
@@ -43,7 +44,8 @@ class TestManageFollow:
         self,
         mock_study_user_manager,
         mock_follow_records_fixture,
-        mock_logger_fixture
+        mock_logger_fixture,
+        sync_export_context
     ):
         """Test manage_follow for 'create' operation (for a generic follow record)."""  # noqa
         with patch("services.sync.stream.data_filter.logger", mock_logger_fixture):
@@ -53,7 +55,7 @@ class TestManageFollow:
             expected_filename = f"follower_did={mock_follower_did}_followee_did={mock_followee_did}.json"  # noqa
             expected_filepath = os.path.join(relative_filepath, expected_filename)
 
-            manage_follow(follow=mock_follow_records_fixture[0], operation="create")
+            manage_follow(follow=mock_follow_records_fixture[0], operation=Operation.CREATE, context=sync_export_context)
             all_logs = mock_logger_fixture.get_logs()
             assert not os.path.exists(expected_filepath)
             assert "User is neither follower nor followee." in all_logs
@@ -75,7 +77,8 @@ class TestManageFollow:
         self,
         mock_study_user_manager,
         mock_follow_records_fixture,
-        mock_logger_fixture
+        mock_logger_fixture,
+        sync_export_context
     ):
         """Test manage_follow for 'delete' operation (for a generic follow record)."""  # noqa
         with patch("services.sync.stream.data_filter.logger", mock_logger_fixture):
@@ -84,13 +87,13 @@ class TestManageFollow:
             expected_filename = f"follow_uri_suffix={mock_follow_uri_suffix}.json"
             expected_filepath = os.path.join(relative_filepath, expected_filename)
 
-            manage_follow(follow=mock_follow_records_fixture[1], operation="delete")
+            manage_follow(follow=mock_follow_records_fixture[1], operation=Operation.DELETE, context=sync_export_context)
             all_logs = mock_logger_fixture.get_logs()
             assert not os.path.exists(expected_filepath)
             assert len(all_logs) == 0  # no logs to report, since deletes are skipped.
 
 
-    def test_study_user_is_followed(self, mock_study_user_manager, mock_follow_records_fixture):
+    def test_study_user_is_followed(self, mock_study_user_manager, mock_follow_records_fixture, sync_export_context):
         """Tests logic for when a study user is being followed by another account.
 
         Expects that one filepath is written:
@@ -103,12 +106,12 @@ class TestManageFollow:
         expected_filepath_1 = os.path.join(relative_filepath_1, expected_filename)
 
         # run check.
-        manage_follow(follow=mock_follow_records_fixture[2], operation="create")
+        manage_follow(follow=mock_follow_records_fixture[2], operation=Operation.CREATE, context=sync_export_context)
 
         assert os.path.exists(expected_filepath_1)
         clean_path(expected_filepath_1)
 
-    def test_study_user_is_follower(self, mock_study_user_manager, mock_follow_records_fixture):
+    def test_study_user_is_follower(self, mock_study_user_manager, mock_follow_records_fixture, sync_export_context):
         """Tests logic for when a study user is following another account.
 
         Expects that one filepath is written:
@@ -121,7 +124,7 @@ class TestManageFollow:
         expected_filepath_1 = os.path.join(relative_filepath_1, expected_filename)
 
         # run check.
-        manage_follow(follow=mock_follow_records_fixture[3], operation="create")
+        manage_follow(follow=mock_follow_records_fixture[3], operation=Operation.CREATE, context=sync_export_context)
 
         # check that the files were written.
         assert os.path.exists(expected_filepath_1)
@@ -131,7 +134,7 @@ class TestManageFollow:
 class TestManageFollows:
     """Tests for manage_follows."""
 
-    def test_manage_follows(self, mock_study_user_manager, mock_follow_records_fixture):
+    def test_manage_follows(self, mock_study_user_manager, mock_follow_records_fixture, sync_export_context):
         """Test manage_follows."""
         # we really only need to test 'created' records since this is the
         # one that's more important (and by far, more common).
@@ -191,7 +194,7 @@ class TestManageFollows:
             expected_filename_4
         )
 
-        manage_follows(follows=follows)
+        manage_follows(follows=follows, context=sync_export_context)
 
         # check default path. Should be 4 files.
         assert os.path.exists(expected_default_filepath_1)
@@ -217,28 +220,28 @@ class TestManageFollows:
 class TestManageLike:
     """Tests for manage_like."""
 
-    def test_manage_create_default_like(self, mock_study_user_manager, mock_like_records_fixture):
+    def test_manage_create_default_like(self, mock_study_user_manager, mock_like_records_fixture, sync_export_context):
         relative_filepath = raw_sync_relative_path_map["create"]["like"]
         mock_author_did = "did:plc:generic-user-1"
         mock_uri_suffix = "like-record-suffix-123"
         expected_filename = f"like_author_did={mock_author_did}_like_uri_suffix={mock_uri_suffix}.json"
         expected_filepath = os.path.join(relative_filepath, expected_filename)
 
-        manage_like(like=mock_like_records_fixture[0], operation="create")
+        manage_like(like=mock_like_records_fixture[0], operation=Operation.CREATE, context=sync_export_context)
         assert os.path.exists(expected_filepath)
         clean_path(expected_filepath)
 
-    def test_manage_delete_default_like(self, mock_study_user_manager, mock_like_records_fixture):
+    def test_manage_delete_default_like(self, mock_study_user_manager, mock_like_records_fixture, sync_export_context):
         relative_filepath = raw_sync_relative_path_map["delete"]["like"]
         mock_uri_suffix = "like-record-suffix-123"
         expected_filename = f"like_uri_suffix={mock_uri_suffix}.json"
         expected_filepath = os.path.join(relative_filepath, expected_filename)
 
-        manage_like(like=mock_like_records_fixture[1], operation="delete")
+        manage_like(like=mock_like_records_fixture[1], operation=Operation.DELETE, context=sync_export_context)
         assert os.path.exists(expected_filepath)
         clean_path(expected_filepath)
 
-    def test_study_user_likes_post(self, mock_study_user_manager, mock_like_records_fixture):
+    def test_study_user_likes_post(self, mock_study_user_manager, mock_like_records_fixture, sync_export_context):
         """Tests case where the study user likes a post.
 
         Should create two files:
@@ -261,7 +264,7 @@ class TestManageLike:
             expected_filename
         )
 
-        manage_like(like=mock_like_records_fixture[2], operation="create")
+        manage_like(like=mock_like_records_fixture[2], operation=Operation.CREATE, context=sync_export_context)
 
         assert os.path.exists(expected_filepath_1)
         clean_path(expected_filepath_1)
@@ -269,7 +272,7 @@ class TestManageLike:
         assert os.path.exists(expected_filepath_2)
         clean_path(expected_filepath_2)
 
-    def test_study_user_post_is_liked(self, mock_study_user_manager, mock_like_records_fixture):
+    def test_study_user_post_is_liked(self, mock_study_user_manager, mock_like_records_fixture, sync_export_context):
         """Tests the case where a study user's post is liked."""
         relative_filepath_1 = raw_sync_relative_path_map["create"]["like"]
         relative_filepath_2 = raw_sync_relative_path_map["create"]["like_on_user_post"]
@@ -287,7 +290,7 @@ class TestManageLike:
             expected_filename
         )
 
-        manage_like(like=mock_like_records_fixture[3], operation="create")
+        manage_like(like=mock_like_records_fixture[3], operation=Operation.CREATE, context=sync_export_context)
 
         assert os.path.exists(expected_filepath_1)
         clean_path(expected_filepath_1)
@@ -299,7 +302,7 @@ class TestManageLike:
 class TestManageLikes:
     """Tests for manage_likes."""
 
-    def test_manage_likes(self, mock_study_user_manager, mock_like_records_fixture):
+    def test_manage_likes(self, mock_study_user_manager, mock_like_records_fixture, sync_export_context):
         """Test manage_likes.
 
         We only care about 'created' records.
@@ -374,7 +377,7 @@ class TestManageLikes:
             expected_default_filename_3
         )
 
-        manage_likes(likes=likes)
+        manage_likes(likes=likes, context=sync_export_context)
 
         # check default path. Should be 3 files.
         assert os.path.exists(expected_default_filepath_1)
@@ -397,7 +400,7 @@ class TestManageLikes:
 class TestManagePost:
     """Tests for manage_post."""
 
-    def test_manage_post_create_default(self, mock_study_user_manager, mock_post_records_fixture):
+    def test_manage_post_create_default(self, mock_study_user_manager, mock_post_records_fixture, sync_export_context):
         """Tests the creation of a default post from the firehose."""
         relative_filepath = raw_sync_relative_path_map["create"]["post"]
         mock_author_did = "did:plc:generic-user-1"
@@ -405,22 +408,22 @@ class TestManagePost:
         expected_filename = f"author_did={mock_author_did}_post_uri_suffix={mock_post_uri_suffix}.json"  # noqa
         expected_filepath = os.path.join(relative_filepath, expected_filename)
 
-        manage_post(post=mock_post_records_fixture[0], operation="create")
+        manage_post(post=mock_post_records_fixture[0], operation=Operation.CREATE, context=sync_export_context)
         assert os.path.exists(expected_filepath)
         clean_path(expected_filepath)
 
-    def test_manage_post_delete_default(self, mock_study_user_manager, mock_post_records_fixture):
+    def test_manage_post_delete_default(self, mock_study_user_manager, mock_post_records_fixture, sync_export_context):
         """Tests the deletion of a default post from the firehose."""
         relative_filepath = raw_sync_relative_path_map["delete"]["post"]
         mock_post_uri_suffix = "post-uri-1"
         expected_filename = f"post_uri_suffix={mock_post_uri_suffix}.json"
         expected_filepath = os.path.join(relative_filepath, expected_filename)
 
-        manage_post(post=mock_post_records_fixture[1], operation="delete")
+        manage_post(post=mock_post_records_fixture[1], operation=Operation.DELETE, context=sync_export_context)
         assert os.path.exists(expected_filepath)
         clean_path(expected_filepath)
 
-    def test_study_user_writes_post(self, mock_study_user_manager, mock_post_records_fixture):
+    def test_study_user_writes_post(self, mock_study_user_manager, mock_post_records_fixture, sync_export_context):
         """Tests the case where a study user writes a post.
 
         Expects that two files are written:
@@ -440,7 +443,7 @@ class TestManagePost:
             expected_filename
         )
 
-        manage_post(post=mock_post_records_fixture[2], operation="create")
+        manage_post(post=mock_post_records_fixture[2], operation=Operation.CREATE, context=sync_export_context)
 
         assert os.path.exists(expected_filepath_1)
         clean_path(expected_filepath_1)
@@ -448,7 +451,7 @@ class TestManagePost:
         assert os.path.exists(expected_filepath_2)
         clean_path(expected_filepath_2)
 
-    def test_post_in_same_thread_as_study_user_post_parent(self, mock_study_user_manager, mock_post_records_fixture):
+    def test_post_in_same_thread_as_study_user_post_parent(self, mock_study_user_manager, mock_post_records_fixture, sync_export_context):
         """Tests the case where a post is in the same thread as a post written
         by a study user and that the study user post is the direct parent of
         the post, or the post that the post is responding to.
@@ -476,7 +479,7 @@ class TestManagePost:
             expected_filename
         )
 
-        manage_post(post=mock_post_records_fixture[3], operation="create")
+        manage_post(post=mock_post_records_fixture[3], operation=Operation.CREATE, context=sync_export_context)
 
         assert os.path.exists(expected_filepath_1)
         clean_path(expected_filepath_1)
@@ -484,7 +487,7 @@ class TestManagePost:
         assert os.path.exists(expected_filepath_2)
         clean_path(expected_filepath_2)
 
-    def test_post_in_same_thread_as_study_user_post_root(self, mock_study_user_manager, mock_post_records_fixture):
+    def test_post_in_same_thread_as_study_user_post_root(self, mock_study_user_manager, mock_post_records_fixture, sync_export_context):
         """Tests the case where a post is in the same thread as a post written
         by a study user and that the study user post is the root post of the
         thread, or the first post in the thread.
@@ -512,7 +515,7 @@ class TestManagePost:
             expected_filename
         )
 
-        manage_post(post=mock_post_records_fixture[4], operation="create")
+        manage_post(post=mock_post_records_fixture[4], operation=Operation.CREATE, context=sync_export_context)
 
         assert os.path.exists(expected_filepath_1)
         clean_path(expected_filepath_1)
@@ -524,7 +527,7 @@ class TestManagePost:
 class TestManagePosts:
     """Tests for manage_posts."""
 
-    def test_manage_posts(self, mock_study_user_manager, mock_post_records_fixture):
+    def test_manage_posts(self, mock_study_user_manager, mock_post_records_fixture, sync_export_context):
         """Test manage_posts.
 
         We only care about 'created' records.
@@ -604,7 +607,7 @@ class TestManagePosts:
             expected_filename_4
         )
 
-        manage_posts(posts=posts)
+        manage_posts(posts=posts, context=sync_export_context)
 
         # check default path. Should be 3 files:
         # 1. generic post record

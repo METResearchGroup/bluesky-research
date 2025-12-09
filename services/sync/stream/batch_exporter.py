@@ -100,34 +100,23 @@ class BatchExporter:
         )
 
 
-# Global batch exporter instance (lazy initialization)
-_batch_exporter: BatchExporter | None = None
-
-
-def _get_batch_exporter() -> BatchExporter:
-    """Lazy initialization of batch exporter."""
-    global _batch_exporter
-    if _batch_exporter is None:
-        from services.sync.stream.setup import setup_batch_export_system
-
-        _batch_exporter = setup_batch_export_system()
-    return _batch_exporter
-
-
 def export_batch(
+    batch_exporter: BatchExporter | None = None,
     clear_filepaths: bool = False,
     clear_cache: bool = True,
 ) -> None:
     """Public API for batch export.
 
-    This function maintains backward compatibility with run_firehose_writes.py
-    while using the new exporter architecture.
-
     Args:
+        batch_exporter: BatchExporter instance. If None, creates one via setup.
         clear_filepaths: If True, delete processed files after export
         clear_cache: If True, delete cache after export (rebuilds structure)
     """
-    batch_exporter = _get_batch_exporter()
+    if batch_exporter is None:
+        from services.sync.stream.setup import setup_batch_export_system
+
+        batch_exporter = setup_batch_export_system()
+
     # Update exporter configuration
     batch_exporter.clear_filepaths = clear_filepaths
     batch_exporter.clear_cache = clear_cache

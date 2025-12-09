@@ -23,10 +23,7 @@ class TestCacheFileWriter:
         """Mock study user manager to avoid loading real data."""
         mock_manager = Mock()
         mock_manager.insert_study_user_post = Mock()
-        monkeypatch.setattr(
-            "services.sync.stream.cache_writer._get_study_user_manager",
-            lambda: mock_manager,
-        )
+        # No longer needed - cache_writer.py was deleted
 
     def test_init(self):
         """Test CacheFileWriter initialization."""
@@ -91,10 +88,7 @@ class TestCacheFileReader:
         """Mock study user manager to avoid loading real data."""
         mock_manager = Mock()
         mock_manager.insert_study_user_post = Mock()
-        monkeypatch.setattr(
-            "services.sync.stream.cache_writer._get_study_user_manager",
-            lambda: mock_manager,
-        )
+        # No longer needed - cache_writer.py was deleted
 
     def test_read_json_loads_file(self):
         """Test read_json loads JSON file correctly."""

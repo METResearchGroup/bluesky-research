@@ -1,31 +1,30 @@
 """Registry for record type handlers (strategy pattern)."""
 
-from typing import Callable
 from services.sync.stream.protocols import RecordHandlerProtocol
 
 
 class RecordHandlerRegistry:
     """Registry for record type handlers.
 
-    Uses factory pattern to enable dependency injection.
-    Factories are stored as callables that return handler instances.
+    Stores handler instances directly for reuse.
+    Handlers are stateless, so reusing instances is safe and efficient.
     """
 
-    _handler_factories: dict[str, Callable[[], RecordHandlerProtocol]] = {}
+    _handlers: dict[str, RecordHandlerProtocol] = {}
 
     @classmethod
-    def register_factory(
+    def register_handler(
         cls,
         record_type: str,
-        factory: Callable[[], RecordHandlerProtocol],
+        handler: RecordHandlerProtocol,
     ) -> None:
-        """Register a handler factory for a record type.
+        """Register a handler instance for a record type.
 
         Args:
             record_type: Record type to register (e.g., "post", "like")
-            factory: Factory function that returns a handler instance
+            handler: Handler instance to register
         """
-        cls._handler_factories[record_type] = factory
+        cls._handlers[record_type] = handler
 
     @classmethod
     def get_handler(cls, record_type: str) -> RecordHandlerProtocol:
@@ -40,20 +39,20 @@ class RecordHandlerRegistry:
         Raises:
             KeyError: If record type not registered
         """
-        factory = cls._handler_factories.get(record_type)
-        if factory is None:
-            available = list(cls._handler_factories.keys())
+        handler = cls._handlers.get(record_type)
+        if handler is None:
+            available = list(cls._handlers.keys())
             raise KeyError(
                 f"Unknown record type: {record_type}. " f"Available types: {available}"
             )
-        return factory()
+        return handler
 
     @classmethod
     def list_record_types(cls) -> list[str]:
         """List all registered record types."""
-        return sorted(cls._handler_factories.keys())
+        return sorted(cls._handlers.keys())
 
     @classmethod
     def clear(cls) -> None:
-        """Clear all registered factories (useful for testing)."""
-        cls._handler_factories.clear()
+        """Clear all registered handlers (useful for testing)."""
+        cls._handlers.clear()

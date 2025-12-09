@@ -1,20 +1,17 @@
 """Exporter for in-network user activity data."""
 
 import os
-import pandas as pd
 
+from services.sync.stream.exporters.base import BaseActivityExporter
 from services.sync.stream.protocols import (
     PathManagerProtocol,
     StorageRepositoryProtocol,
     FileReaderProtocol,
 )
 from services.sync.stream.types import Operation, RecordType
-from lib.db.service_constants import MAP_SERVICE_TO_METADATA
-from lib.helper import generate_current_datetime_str
-from lib.constants import timestamp_format
 
 
-class InNetworkUserActivityExporter:
+class InNetworkUserActivityExporter(BaseActivityExporter):
     """Exporter for in-network user activity data."""
 
     def __init__(
@@ -30,8 +27,8 @@ class InNetworkUserActivityExporter:
             storage_repository: Storage repository for exporting data
             file_reader: File reader for reading cache files
         """
+        super().__init__(storage_repository)
         self.path_manager = path_manager
-        self.storage_repository = storage_repository
         self.file_reader = file_reader
 
     def export_activity_data(self) -> list[str]:
@@ -73,25 +70,10 @@ class InNetworkUserActivityExporter:
 
         # Export posts to storage
         if all_posts:
-            self._export_dataframe(data=all_posts)
+            self._export_dataframe(
+                data=all_posts,
+                service="in_network_user_activity",
+                record_type=None,
+            )
 
         return all_filepaths
-
-    def _export_dataframe(self, data: list[dict]) -> None:
-        """Helper to export DataFrame to storage."""
-        service = "in_network_user_activity"
-        dtypes_map = MAP_SERVICE_TO_METADATA[service]["dtypes_map"]
-        df = pd.DataFrame(data)
-        df["synctimestamp"] = generate_current_datetime_str()
-        df["partition_date"] = pd.to_datetime(
-            df["synctimestamp"], format=timestamp_format
-        ).dt.date
-        df = df.astype(dtypes_map)
-
-        # In-network activity doesn't use record_type in custom_args
-        self.storage_repository.export_dataframe(
-            df=df,
-            service=service,
-            record_type=None,
-            custom_args=None,
-        )
