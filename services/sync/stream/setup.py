@@ -11,14 +11,7 @@ from services.sync.stream.cache_management import (
 )
 from services.sync.stream.context import SyncExportContext
 from services.sync.stream.handlers.registry import RecordHandlerRegistry
-from services.sync.stream.handlers.factories import (
-    create_study_user_post_handler,
-    create_study_user_like_handler,
-    create_study_user_follow_handler,
-    create_study_user_like_on_user_post_handler,
-    create_study_user_reply_to_user_post_handler,
-    create_in_network_post_handler,
-)
+from services.sync.stream.handlers.factories import create_handlers_for_all_types
 from services.participant_data.study_users import get_study_user_manager
 from services.sync.stream.exporters.study_user_exporter import StudyUserActivityExporter
 from services.sync.stream.exporters.in_network_exporter import (
@@ -53,59 +46,22 @@ def setup_sync_export_system() -> SyncExportContext:
     # 5. Create study user manager
     study_user_manager = get_study_user_manager(load_from_aws=False)
 
-    # 6. Create handler instances and register them
-    from services.sync.stream.types import RecordType
-
-    # Create handler instances
-    post_handler = create_study_user_post_handler(
+    # 6. Create handler registry and register all handlers
+    handler_registry = RecordHandlerRegistry()
+    handlers = create_handlers_for_all_types(
         path_manager=path_manager,
         file_writer=file_writer,
         file_reader=file_reader,
     )
-    like_handler = create_study_user_like_handler(
-        path_manager=path_manager,
-        file_writer=file_writer,
-        file_reader=file_reader,
-    )
-    follow_handler = create_study_user_follow_handler(
-        path_manager=path_manager,
-        file_writer=file_writer,
-        file_reader=file_reader,
-    )
-    like_on_user_post_handler = create_study_user_like_on_user_post_handler(
-        path_manager=path_manager,
-        file_writer=file_writer,
-        file_reader=file_reader,
-    )
-    reply_to_user_post_handler = create_study_user_reply_to_user_post_handler(
-        path_manager=path_manager,
-        file_writer=file_writer,
-        file_reader=file_reader,
-    )
-    in_network_post_handler = create_in_network_post_handler(
-        path_manager=path_manager,
-        file_writer=file_writer,
-        file_reader=file_reader,
-    )
-
-    # Register all handlers as instances
-    RecordHandlerRegistry.register_handler(RecordType.POST.value, post_handler)
-    RecordHandlerRegistry.register_handler(RecordType.LIKE.value, like_handler)
-    RecordHandlerRegistry.register_handler(RecordType.FOLLOW.value, follow_handler)
-    RecordHandlerRegistry.register_handler(
-        RecordType.LIKE_ON_USER_POST.value, like_on_user_post_handler
-    )
-    RecordHandlerRegistry.register_handler(
-        RecordType.REPLY_TO_USER_POST.value, reply_to_user_post_handler
-    )
-    # Register in-network post handler with a special key
-    RecordHandlerRegistry.register_handler("in_network_post", in_network_post_handler)
+    # Register all handlers
+    for handler_key, handler in handlers.items():
+        handler_registry.register_handler(handler_key, handler)
 
     # 7. Create exporter
     exporter = StudyUserActivityExporter(
         path_manager=path_manager,
         storage_repository=storage_repository,
-        handler_registry=RecordHandlerRegistry,
+        handler_registry=handler_registry,
     )
 
     return SyncExportContext(
@@ -113,7 +69,7 @@ def setup_sync_export_system() -> SyncExportContext:
         directory_manager=directory_manager,
         file_writer=file_writer,
         file_reader=file_reader,
-        handler_registry=RecordHandlerRegistry,
+        handler_registry=handler_registry,
         study_user_exporter=exporter,
         storage_repository=storage_repository,
         study_user_manager=study_user_manager,

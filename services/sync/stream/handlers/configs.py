@@ -2,7 +2,8 @@
 
 import os
 from services.sync.stream.handlers.config import HandlerConfig
-from services.sync.stream.types import RecordType, FollowStatus
+from services.sync.stream.types import RecordType, FollowStatus, Operation
+from services.sync.stream.protocols import PathManagerProtocol, FileReaderProtocol
 
 
 def _extract_post_uri_suffix(record: dict) -> str:
@@ -15,9 +16,15 @@ def _extract_parent_post_uri_suffix(record: dict) -> str:
     return record["record"]["reply"]["root"]["uri"].split("/")[-1]
 
 
-def _default_path_strategy(path_manager, operation, record_type, **kwargs):
+def _default_path_strategy(
+    path_manager: PathManagerProtocol,
+    operation: Operation,
+    record_type: RecordType,
+    *,
+    follow_status: FollowStatus | None = None,
+    author_did: str | None = None,
+) -> str:
     """Default path strategy for study user activity."""
-    follow_status = kwargs.get("follow_status")
     return path_manager.get_study_user_activity_path(
         operation=operation,
         record_type=record_type,
@@ -25,9 +32,15 @@ def _default_path_strategy(path_manager, operation, record_type, **kwargs):
     )
 
 
-def _in_network_path_strategy(path_manager, operation, record_type, **kwargs):
+def _in_network_path_strategy(
+    path_manager: PathManagerProtocol,
+    operation: Operation,
+    record_type: RecordType,
+    *,
+    follow_status: FollowStatus | None = None,
+    author_did: str | None = None,
+) -> str:
     """Path strategy for in-network user activity."""
-    author_did = kwargs.get("author_did")
     if not author_did:
         raise ValueError("author_did is required for in-network activity paths")
     return path_manager.get_in_network_activity_path(
@@ -37,13 +50,21 @@ def _in_network_path_strategy(path_manager, operation, record_type, **kwargs):
     )
 
 
-def _default_read_strategy(file_reader, base_path: str, record_type: RecordType):
+def _default_read_strategy(
+    file_reader: FileReaderProtocol,
+    base_path: str,
+    record_type: RecordType,
+) -> tuple[list[dict], list[str]]:
     """Default read strategy: read all JSON files in directory."""
     record_dir = os.path.join(base_path, record_type.value)
     return file_reader.read_all_json_in_directory(record_dir)
 
 
-def _nested_read_strategy(file_reader, base_path: str, record_type: RecordType):
+def _nested_read_strategy(
+    file_reader: FileReaderProtocol,
+    base_path: str,
+    record_type: RecordType,
+) -> tuple[list[dict], list[str]]:
     """Read strategy for nested records (likes, replies)."""
     records: list[dict] = []
     filepaths: list[str] = []
@@ -68,7 +89,11 @@ def _nested_read_strategy(file_reader, base_path: str, record_type: RecordType):
     return records, filepaths
 
 
-def _follow_read_strategy(file_reader, base_path: str, record_type: RecordType):
+def _follow_read_strategy(
+    file_reader: FileReaderProtocol,
+    base_path: str,
+    record_type: RecordType,
+) -> tuple[list[dict], list[str]]:
     """Read strategy for follow records (nested by follow_status)."""
     records: list[dict] = []
     filepaths: list[str] = []

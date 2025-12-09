@@ -15,7 +15,7 @@ from lib.log.logger import get_logger
 from services.consolidate_post_records.helper import consolidate_firehose_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.sync.stream.context import SyncExportContext
-from services.sync.stream.types import Operation, RecordType, FollowStatus
+from services.sync.stream.types import Operation, RecordType, FollowStatus, HandlerKey
 from transform.transform_raw_data import process_firehose_post
 
 
@@ -369,7 +369,7 @@ def manage_post(post: dict, operation: Operation, context: SyncExportContext):
                 f"In-network user {author_did} created a new post: {post_uri_suffix}"
             )  # noqa
             # Use handler for in-network posts
-            handler = handler_registry.get_handler("in_network_post")
+            handler = handler_registry.get_handler(HandlerKey.IN_NETWORK_POST.value)
             handler.write_record(
                 record=consolidated_post_dict,
                 operation=operation,

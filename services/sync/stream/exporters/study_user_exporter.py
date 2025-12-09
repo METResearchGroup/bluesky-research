@@ -18,14 +18,14 @@ class StudyUserActivityExporter(BaseActivityExporter):
         self,
         path_manager: PathManagerProtocol,
         storage_repository: StorageRepositoryProtocol,
-        handler_registry: type[RecordHandlerRegistry],
+        handler_registry: RecordHandlerRegistry,
     ):
         """Initialize exporter.
 
         Args:
             path_manager: Path manager for constructing paths
             storage_repository: Storage repository for exporting data
-            handler_registry: Handler registry class (uses class methods)
+            handler_registry: Handler registry instance
         """
         super().__init__(storage_repository)
         self.path_manager = path_manager

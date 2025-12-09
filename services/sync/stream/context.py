@@ -29,7 +29,7 @@ class SyncExportContext:
     directory_manager: CacheDirectoryManager
     file_writer: CacheFileWriter
     file_reader: CacheFileReader
-    handler_registry: "type[RecordHandlerRegistry]"
+    handler_registry: "RecordHandlerRegistry"
     study_user_exporter: "StudyUserActivityExporter"
     storage_repository: "StorageRepository"
     study_user_manager: "Any"  # StudyUserManager type

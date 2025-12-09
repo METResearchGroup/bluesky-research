@@ -10,11 +10,12 @@ class RecordHandlerRegistry:
     Handlers are stateless, so reusing instances is safe and efficient.
     """
 
-    _handlers: dict[str, RecordHandlerProtocol] = {}
+    def __init__(self):
+        """Initialize empty registry."""
+        self._handlers: dict[str, RecordHandlerProtocol] = {}
 
-    @classmethod
     def register_handler(
-        cls,
+        self,
         record_type: str,
         handler: RecordHandlerProtocol,
     ) -> None:
@@ -24,10 +25,9 @@ class RecordHandlerRegistry:
             record_type: Record type to register (e.g., "post", "like")
             handler: Handler instance to register
         """
-        cls._handlers[record_type] = handler
+        self._handlers[record_type] = handler
 
-    @classmethod
-    def get_handler(cls, record_type: str) -> RecordHandlerProtocol:
+    def get_handler(self, record_type: str) -> RecordHandlerProtocol:
         """Get handler for record type.
 
         Args:
@@ -39,20 +39,18 @@ class RecordHandlerRegistry:
         Raises:
             KeyError: If record type not registered
         """
-        handler = cls._handlers.get(record_type)
+        handler = self._handlers.get(record_type)
         if handler is None:
-            available = list(cls._handlers.keys())
+            available = list(self._handlers.keys())
             raise KeyError(
-                f"Unknown record type: {record_type}. " f"Available types: {available}"
+                f"Unknown record type: {record_type}. Available types: {available}"
             )
         return handler
 
-    @classmethod
-    def list_record_types(cls) -> list[str]:
+    def list_record_types(self) -> list[str]:
         """List all registered record types."""
-        return sorted(cls._handlers.keys())
+        return sorted(self._handlers.keys())
 
-    @classmethod
-    def clear(cls) -> None:
+    def clear(self) -> None:
         """Clear all registered handlers (useful for testing)."""
-        cls._handlers.clear()
+        self._handlers.clear()

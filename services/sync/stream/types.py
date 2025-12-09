@@ -61,3 +61,21 @@ class UserPostType(str, Enum):
 
     def __str__(self) -> str:
         return self.value
+
+
+class HandlerKey(str, Enum):
+    """Keys for handler registry (includes special cases).
+
+    This enum provides type-safe keys for the handler registry.
+    Note: IN_NETWORK_POST uses the same RecordType.POST but has a different handler.
+    """
+
+    POST = "post"
+    LIKE = "like"
+    FOLLOW = "follow"
+    LIKE_ON_USER_POST = "like_on_user_post"
+    REPLY_TO_USER_POST = "reply_to_user_post"
+    IN_NETWORK_POST = "in_network_post"
+
+    def __str__(self) -> str:
+        return self.value
