@@ -18,7 +18,7 @@ def update_cursor_state_dynamodb(
 ) -> None:
     """Updates the cursor state in DynamoDB."""
     item = cursor_model.dict()
-    dynamodb.insert_item_into_table(table_name="firehoseSubscriptionState", item=item)
+    dynamodb.insert_item_into_table(table_name=SUBSCRIPTION_STATE_TABLE_NAME, item=item)
 
 
 def load_cursor_state_dynamodb(
