@@ -4,6 +4,7 @@ Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/dat
 """  # noqa
 
 import json
+import os
 from typing import Literal, Optional
 
 from atproto_client.models.app.bsky.graph.follow import Record as FollowRecord
@@ -15,16 +16,30 @@ from lib.log.logger import get_logger
 from services.consolidate_post_records.helper import consolidate_firehose_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 from services.participant_data.study_users import get_study_user_manager
-from services.sync.stream.cache_writer import (
-    export_in_network_user_data_local,
-    export_study_user_data_local,
-)
+from services.sync.stream.setup import setup_sync_export_system
+from services.sync.stream.types import Operation, RecordType, FollowStatus
 from transform.transform_raw_data import process_firehose_post
 
 
 study_user_manager = get_study_user_manager(load_from_aws=False)
 
 logger = get_logger(__name__)
+
+# Global system components (lazy initialization)
+_system_components: dict | None = None
+
+
+def _get_system_components():
+    """Lazy initialization of system components."""
+    global _system_components
+    if _system_components is None:
+        components = setup_sync_export_system()
+        _system_components = {
+            "path_manager": components["path_manager"],
+            "file_writer": components["file_writer"],
+            "handler_registry": components["handler_registry"],
+        }
+    return _system_components
 
 
 def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
@@ -69,17 +84,20 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
     # author info. Pretty edge-case scenario where we'd need to track study
     # user's deleted likes.
     if operation == "create":
+        components = _get_system_components()
+        handler_registry = components["handler_registry"]
+        op_enum = Operation.CREATE
+
         # Case 1: the user is the one who likes a post.
         is_study_user = study_user_manager.is_study_user(user_did=like_author_did)
         if is_study_user:
             logger.info(f"Exporting like data for user {like_author_did}")
-            export_study_user_data_local(
+            handler = handler_registry.get_handler(RecordType.LIKE.value)
+            handler.write_record(
                 record=like_model_dict,
-                record_type="like",
-                operation=operation,
+                operation=op_enum,
                 author_did=like_author_did,
                 filename=filename,
-                study_user_manager=study_user_manager,
             )
 
         # Case 2: the user is the one who created the post that was liked.
@@ -95,13 +113,12 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
             logger.info(
                 f"Exporting like data for post {raw_liked_record_model.subject.uri}"
             )
-            export_study_user_data_local(
+            handler = handler_registry.get_handler(RecordType.LIKE_ON_USER_POST.value)
+            handler.write_record(
                 record=like_model_dict,
-                record_type="like_on_user_post",
-                operation=operation,
+                operation=op_enum,
                 author_did=liked_post_is_study_user_post,  # the author of the liked post, which should be a user in the study # noqa
                 filename=filename,
-                study_user_manager=study_user_manager,
             )
 
 
@@ -182,36 +199,37 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
     # author info. Pretty edge-case scenario where we'd need to track study
     # user's deleted follows.
     if operation == "create":
+        components = _get_system_components()
+        handler_registry = components["handler_registry"]
+        op_enum = Operation.CREATE
+
         user_is_follower = study_user_manager.is_study_user(user_did=follower_did)  # noqa
         user_is_followee = study_user_manager.is_study_user(user_did=followee_did)  # noqa
         if user_is_follower or user_is_followee:
+            handler = handler_registry.get_handler(RecordType.FOLLOW.value)
             # someone can follow someone else in the study, in which case both
             # the follower and followee need to be registered.
             if user_is_follower:
                 logger.info(
                     f"User {follower_did} followed a new account, {followee_did}."
                 )  # noqa
-                export_study_user_data_local(
+                handler.write_record(
                     record=follow_model_dict,
-                    record_type="follow",
-                    operation=operation,
+                    operation=op_enum,
                     author_did=follower_did,
                     filename=filename,
-                    kwargs={"follow_status": "follower"},
-                    study_user_manager=study_user_manager,
+                    follow_status=FollowStatus.FOLLOWER,
                 )
             if user_is_followee:
                 logger.info(
                     f"User {followee_did} was followed by a new account, {follower_did}."
                 )  # noqa
-                export_study_user_data_local(
+                handler.write_record(
                     record=follow_model_dict,
-                    record_type="follow",
-                    operation=operation,
+                    operation=op_enum,
                     author_did=followee_did,
                     filename=filename,
-                    kwargs={"follow_status": "followee"},
-                    study_user_manager=study_user_manager,
+                    follow_status=FollowStatus.FOLLOWEE,
                 )
         else:
             logger.error("User is neither follower nor followee.")
@@ -291,20 +309,30 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
     # write_data_to_json(consolidated_post_dict, full_path)
 
     if operation == "create":
+        components = _get_system_components()
+        handler_registry = components["handler_registry"]
+        path_manager = components["path_manager"]
+        file_writer = components["file_writer"]
+        op_enum = Operation.CREATE
+
         # Case 1: Check if the post was written by the study user.
         is_study_user = study_user_manager.is_study_user(user_did=author_did)
         if is_study_user:
             logger.info(
                 f"Study user {author_did} created a new post: {post_uri_suffix}"
             )  # noqa
-            export_study_user_data_local(
+            handler = handler_registry.get_handler(RecordType.POST.value)
+            handler.write_record(
                 record=consolidated_post_dict,
-                record_type="post",
-                operation=operation,
+                operation=op_enum,
                 author_did=author_did,
                 filename=filename,
-                study_user_manager=study_user_manager,
             )
+            # Update StudyUserManager for posts (maintains old behavior)
+            study_user_manager.insert_study_user_post(
+                post_uri=consolidated_post_dict["uri"], user_did=author_did
+            )
+
         # Case 2: Check if the post is a repost of a post written by the study
         # user. TODO: come back to this. Unsure if this can be tracked from
         # the raw firehose object itself? I don't think it can be. We can track
@@ -334,10 +362,12 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
                 logger.info(
                     f"Post {post_uri_suffix} is a reply to a post by a study user."
                 )
-                export_study_user_data_local(
+                handler = handler_registry.get_handler(
+                    RecordType.REPLY_TO_USER_POST.value
+                )
+                handler.write_record(
                     record=consolidated_post_dict,
-                    record_type="reply_to_user_post",
-                    operation=operation,
+                    operation=op_enum,
                     # should return author DID of the post being replied to,
                     # since this is the post that is by the study user.
                     author_did=(
@@ -346,12 +376,6 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
                         else reply_root_is_user_study_post
                     ),
                     filename=filename,
-                    kwargs={
-                        "user_post_type": (
-                            "root" if reply_root_is_user_study_post else "parent"
-                        )
-                    },
-                    study_user_manager=study_user_manager,
                 )
 
         # Case 4: post is written by an in-network user.
@@ -362,13 +386,14 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
             logger.info(
                 f"In-network user {author_did} created a new post: {post_uri_suffix}"
             )  # noqa
-            export_in_network_user_data_local(
-                record=consolidated_post_dict,
-                record_type="post",
+            # In-network posts use path_manager and file_writer directly
+            folder_path = path_manager.get_in_network_activity_path(
+                operation=op_enum,
+                record_type=RecordType.POST,
                 author_did=author_did,
-                filename=filename,
-                study_user_manager=study_user_manager,
             )
+            full_path = os.path.join(folder_path, filename)
+            file_writer.write_json(full_path, consolidated_post_dict)
 
 
 def manage_posts(posts: dict[str, list]) -> dict:

@@ -105,3 +105,35 @@ class CacheDirectoryManager:
     def exists(self, path: str) -> bool:
         """Check if path exists."""
         return os.path.exists(path)
+
+    def delete_files(self, filepaths: list[str]) -> None:
+        """Delete list of files.
+
+        Args:
+            filepaths: List of file paths to delete
+        """
+        for filepath in filepaths:
+            if os.path.exists(filepath) and os.path.isfile(filepath):
+                os.remove(filepath)
+
+    def delete_empty_directories(self, root_path: str) -> None:
+        """Recursively delete empty directories starting from root_path.
+
+        Args:
+            root_path: Root directory to start deletion from
+        """
+        if not os.path.exists(root_path):
+            return
+
+        # Walk bottom-up to delete empty directories
+        for dirpath, dirnames, filenames in os.walk(root_path, topdown=False):
+            # Skip if directory has files or subdirectories
+            if filenames or dirnames:
+                continue
+
+            # Directory is empty, try to remove it
+            try:
+                os.rmdir(dirpath)
+            except OSError:
+                # Directory might not be empty due to race condition or permissions
+                pass

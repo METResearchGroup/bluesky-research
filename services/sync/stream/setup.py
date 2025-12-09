@@ -3,6 +3,8 @@
 This creates a complete, configured system with all dependencies injected.
 """
 
+from typing import TypedDict
+
 from services.sync.stream.cache_management import (
     CachePathManager,
     CacheDirectoryManager,
@@ -18,26 +20,31 @@ from services.sync.stream.handlers.factories import (
     create_study_user_reply_to_user_post_handler,
 )
 from services.sync.stream.exporters.study_user_exporter import StudyUserActivityExporter
+from services.sync.stream.exporters.in_network_exporter import (
+    InNetworkUserActivityExporter,
+)
+from services.sync.stream.batch_exporter import BatchExporter
 from services.sync.stream.storage.repository import StorageRepository
 from services.sync.stream.storage.adapters import LocalStorageAdapter
 
 
-def setup_sync_export_system() -> (
-    tuple[
-        CachePathManager,
-        CacheDirectoryManager,
-        CacheFileWriter,
-        CacheFileReader,
-        type[RecordHandlerRegistry],
-        StudyUserActivityExporter,
-        StorageRepository,
-    ]
-):
+class SyncExportSystemComponents(TypedDict):
+    """Typed dictionary for sync export system components."""
+
+    path_manager: CachePathManager
+    directory_manager: CacheDirectoryManager
+    file_writer: CacheFileWriter
+    file_reader: CacheFileReader
+    handler_registry: type[RecordHandlerRegistry]
+    study_user_exporter: StudyUserActivityExporter
+    storage_repository: StorageRepository
+
+
+def setup_sync_export_system() -> SyncExportSystemComponents:
     """Set up the complete sync export system with all dependencies wired.
 
     Returns:
-        Tuple of (path_manager, directory_manager, file_writer, file_reader,
-                  handler_registry, exporter, storage_repository)
+        TypedDict containing all system components
     """
     # 1. Create path manager
     path_manager = CachePathManager()
@@ -113,12 +120,40 @@ def setup_sync_export_system() -> (
         handler_registry=RecordHandlerRegistry,  # Pass the class, exporter will use it
     )
 
-    return (
-        path_manager,
-        directory_manager,
-        file_writer,
-        file_reader,
-        RecordHandlerRegistry,  # Return the class
-        exporter,
-        storage_repository,
+    return SyncExportSystemComponents(
+        path_manager=path_manager,
+        directory_manager=directory_manager,
+        file_writer=file_writer,
+        file_reader=file_reader,
+        handler_registry=RecordHandlerRegistry,  # Return the class
+        study_user_exporter=exporter,
+        storage_repository=storage_repository,
     )
+
+
+def setup_batch_export_system() -> BatchExporter:
+    """Set up batch export system with all dependencies.
+
+    Returns:
+        Configured BatchExporter instance
+    """
+    # Get components from sync export system
+    components = setup_sync_export_system()
+
+    # Create in-network exporter
+    in_network_exporter = InNetworkUserActivityExporter(
+        path_manager=components["path_manager"],
+        storage_repository=components["storage_repository"],
+        file_reader=components["file_reader"],
+    )
+
+    # Create batch exporter
+    batch_exporter = BatchExporter(
+        study_user_exporter=components["study_user_exporter"],
+        in_network_exporter=in_network_exporter,
+        directory_manager=components["directory_manager"],
+        clear_filepaths=False,  # Default, can be overridden
+        clear_cache=True,  # Default, can be overridden
+    )
+
+    return batch_exporter
