@@ -94,14 +94,16 @@ def setup_sync_export_system() -> (
         )
 
     # Register all handlers
-    RecordHandlerRegistry.register_factory("post", make_post_handler)
-    RecordHandlerRegistry.register_factory("like", make_like_handler)
-    RecordHandlerRegistry.register_factory("follow", make_follow_handler)
+    from services.sync.stream.types import RecordType
+
+    RecordHandlerRegistry.register_factory(RecordType.POST.value, make_post_handler)
+    RecordHandlerRegistry.register_factory(RecordType.LIKE.value, make_like_handler)
+    RecordHandlerRegistry.register_factory(RecordType.FOLLOW.value, make_follow_handler)
     RecordHandlerRegistry.register_factory(
-        "like_on_user_post", make_like_on_user_post_handler
+        RecordType.LIKE_ON_USER_POST.value, make_like_on_user_post_handler
     )
     RecordHandlerRegistry.register_factory(
-        "reply_to_user_post", make_reply_to_user_post_handler
+        RecordType.REPLY_TO_USER_POST.value, make_reply_to_user_post_handler
     )
 
     # 6. Create exporter

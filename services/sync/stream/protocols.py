@@ -6,10 +6,16 @@ All major dependencies are defined as protocols to enable:
 - Type safety
 """
 
-from typing import Protocol, Literal, TYPE_CHECKING
+from typing import Protocol, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import pandas as pd
+    from services.sync.stream.types import (
+        Operation,
+        RecordType,
+        GenericRecordType,
+        FollowStatus,
+    )
 
 
 # ============================================================================
@@ -22,27 +28,25 @@ class PathManagerProtocol(Protocol):
 
     def get_local_cache_path(
         self,
-        operation: Literal["create", "delete"],
-        record_type: Literal["post", "like", "follow"],
+        operation: "Operation",
+        record_type: "GenericRecordType",
     ) -> str:
         """Get local cache path for general firehose records."""
         ...
 
     def get_study_user_activity_path(
         self,
-        operation: Literal["create", "delete"],
-        record_type: Literal[
-            "post", "like", "follow", "like_on_user_post", "reply_to_user_post"
-        ],
-        follow_status: Literal["follower", "followee"] | None = None,
+        operation: "Operation",
+        record_type: "RecordType",
+        follow_status: "FollowStatus | None" = None,
     ) -> str:
         """Get path for study user activity records."""
         ...
 
     def get_in_network_activity_path(
         self,
-        operation: Literal["create", "delete"],
-        record_type: Literal["post"],
+        operation: "Operation",
+        record_type: "RecordType",
         author_did: str,
     ) -> str:
         """Get path for in-network user activity records."""
@@ -50,11 +54,9 @@ class PathManagerProtocol(Protocol):
 
     def get_relative_path(
         self,
-        operation: Literal["create", "delete"],
-        record_type: Literal[
-            "post", "like", "follow", "like_on_user_post", "reply_to_user_post"
-        ],
-        follow_status: Literal["follower", "followee"] | None = None,
+        operation: "Operation",
+        record_type: "RecordType",
+        follow_status: "FollowStatus | None" = None,
     ) -> str:
         """Get relative path component (without root)."""
         ...
@@ -204,8 +206,8 @@ class StorageRepositoryProtocol(Protocol):
     def export_jsonl_batch(
         self,
         directory: str,
-        operation: Literal["create", "delete"],
-        record_type: Literal["post", "like", "follow"],
+        operation: "Operation",
+        record_type: "GenericRecordType",
         compressed: bool = True,
     ) -> list[dict]:
         """Export JSONL batch from directory.
@@ -237,7 +239,7 @@ class RecordHandlerProtocol(Protocol):
     def write_record(
         self,
         record: dict,
-        operation: Literal["create", "delete"],
+        operation: "Operation",
         author_did: str,
         filename: str,
         **kwargs,

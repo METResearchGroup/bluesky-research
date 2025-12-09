@@ -5,6 +5,7 @@ import shutil
 
 from services.sync.stream.protocols import PathManagerProtocol
 from services.sync.stream.cache_management.paths import CachePathManager
+from services.sync.stream.types import Operation, RecordType, FollowStatus
 
 
 class CacheDirectoryManager:
@@ -17,8 +18,6 @@ class CacheDirectoryManager:
             path_manager: Path manager for getting paths to create
         """
         self.path_manager = path_manager
-        # Access path manager's attributes for rebuild logic
-        # (You may need to expose these or refactor)
 
     def ensure_exists(self, path: str) -> None:
         """Ensure directory exists, creating if necessary."""
@@ -38,10 +37,10 @@ class CacheDirectoryManager:
             os.makedirs(path_mgr.root_write_path)
 
         # Create generic firehose paths (create/delete for each operation type)
-        for operation in ["create", "delete"]:
+        for operation in [Operation.CREATE, Operation.DELETE]:
             op_path = (
                 path_mgr.root_create_path
-                if operation == "create"
+                if operation == Operation.CREATE
                 else path_mgr.root_delete_path
             )
             if not os.path.exists(op_path):
@@ -56,30 +55,35 @@ class CacheDirectoryManager:
         if not os.path.exists(path_mgr.study_user_activity_root_local_path):
             os.makedirs(path_mgr.study_user_activity_root_local_path)
 
-        for operation in ["create", "delete"]:
+        for operation in [Operation.CREATE, Operation.DELETE]:
             # Get available record types for this operation
             available_record_types = list(
-                path_mgr.study_user_activity_relative_path_map[operation].keys()
+                path_mgr.study_user_activity_relative_path_map[operation.value].keys()
             )
             # Remove "follow" from the list since it's a dict, not a string
             if "follow" in available_record_types:
                 available_record_types.remove("follow")
 
-            for record_type in available_record_types:
+            for record_type_str in available_record_types:
+                # Convert string to enum
+                record_type = RecordType(record_type_str)
                 record_path = path_mgr.get_study_user_activity_path(
-                    operation=operation,  # type: ignore[arg-type]
-                    record_type=record_type,  # type: ignore[arg-type]
+                    operation=operation,
+                    record_type=record_type,
                 )
                 if not os.path.exists(record_path):
                     os.makedirs(record_path)
 
             # Follow has nested structure - handle separately
-            if "follow" in path_mgr.study_user_activity_relative_path_map[operation]:
-                for follow_type in ["followee", "follower"]:
+            if (
+                "follow"
+                in path_mgr.study_user_activity_relative_path_map[operation.value]
+            ):
+                for follow_status in [FollowStatus.FOLLOWEE, FollowStatus.FOLLOWER]:
                     follow_path = path_mgr.get_study_user_activity_path(
-                        operation=operation,  # type: ignore[arg-type]
-                        record_type="follow",
-                        follow_status=follow_type,  # type: ignore[arg-type]
+                        operation=operation,
+                        record_type=RecordType.FOLLOW,
+                        follow_status=follow_status,
                     )
                     if not os.path.exists(follow_path):
                         os.makedirs(follow_path)

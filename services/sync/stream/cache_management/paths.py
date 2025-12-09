@@ -1,7 +1,13 @@
 """Path construction for cache directory structure."""
 
 import os
-from typing import Literal
+
+from services.sync.stream.types import (
+    Operation,
+    RecordType,
+    GenericRecordType,
+    FollowStatus,
+)
 
 
 class CachePathManager:
@@ -74,58 +80,56 @@ class CachePathManager:
 
     def get_local_cache_path(
         self,
-        operation: Literal["create", "delete"],
-        record_type: Literal["post", "like", "follow"],
+        operation: Operation,
+        record_type: GenericRecordType,
     ) -> str:
         """Get local cache path for general firehose records."""
-        return self.export_filepath_map[operation][record_type]
+        return self.export_filepath_map[operation.value][record_type.value]
 
     def get_study_user_activity_path(
         self,
-        operation: Literal["create", "delete"],
-        record_type: Literal[
-            "post", "like", "follow", "like_on_user_post", "reply_to_user_post"
-        ],
-        follow_status: Literal["follower", "followee"] | None = None,
+        operation: Operation,
+        record_type: RecordType,
+        follow_status: FollowStatus | None = None,
     ) -> str:
         """Get path for study user activity records."""
-        if record_type == "follow" and follow_status:
+        if record_type == RecordType.FOLLOW and follow_status:
             # Follow has nested structure
-            relative = self.study_user_activity_relative_path_map[operation]["follow"][
-                follow_status
-            ]
+            relative = self.study_user_activity_relative_path_map[operation.value][
+                "follow"
+            ][follow_status.value]
             return os.path.join(self.study_user_activity_root_local_path, relative)
         else:
-            relative = self.study_user_activity_relative_path_map[operation][
-                record_type
+            relative = self.study_user_activity_relative_path_map[operation.value][
+                record_type.value
             ]
             return os.path.join(self.study_user_activity_root_local_path, relative)
 
     def get_in_network_activity_path(
         self,
-        operation: Literal["create", "delete"],
-        record_type: Literal["post"],
+        operation: Operation,
+        record_type: RecordType,
         author_did: str,
     ) -> str:
         """Get path for in-network user activity records."""
         return os.path.join(
             self.in_network_user_activity_root_local_path,
-            operation,
-            record_type,
+            operation.value,
+            record_type.value,
             author_did,
         )
 
     def get_relative_path(
         self,
-        operation: Literal["create", "delete"],
-        record_type: Literal[
-            "post", "like", "follow", "like_on_user_post", "reply_to_user_post"
-        ],
-        follow_status: Literal["follower", "followee"] | None = None,
+        operation: Operation,
+        record_type: RecordType,
+        follow_status: FollowStatus | None = None,
     ) -> str:
         """Get relative path component (without root)."""
-        if record_type == "follow" and follow_status:
-            return self.study_user_activity_relative_path_map[operation]["follow"][
-                follow_status
-            ]
-        return self.study_user_activity_relative_path_map[operation][record_type]
+        if record_type == RecordType.FOLLOW and follow_status:
+            return self.study_user_activity_relative_path_map[operation.value][
+                "follow"
+            ][follow_status.value]
+        return self.study_user_activity_relative_path_map[operation.value][
+            record_type.value
+        ]

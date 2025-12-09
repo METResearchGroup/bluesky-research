@@ -1,11 +1,11 @@
 """Storage repository implementation using adapter pattern."""
 
-from typing import Literal
 import pandas as pd
 
 from services.sync.stream.protocols import (
     StorageAdapterProtocol,
 )
+from services.sync.stream.types import Operation, GenericRecordType
 
 
 class StorageRepository:
@@ -40,8 +40,8 @@ class StorageRepository:
     def export_jsonl_batch(
         self,
         directory: str,
-        operation: Literal["create", "delete"],
-        record_type: Literal["post", "like", "follow"],
+        operation: Operation,
+        record_type: GenericRecordType,
         compressed: bool = True,
     ) -> list[dict]:
         """Export JSONL batch using adapter."""

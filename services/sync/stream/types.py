@@ -18,7 +18,9 @@ class Operation(str, Enum):
 
 
 class RecordType(str, Enum):
-    """Record types for study user activity."""
+    """Internal record types used for firehose records. A superset of the
+    'GenericRecordType' enum derived from firehose data. We have additional
+    fields such as 'like_on_user_post' and 'reply_to_user_post'."""
 
     POST = "post"
     LIKE = "like"

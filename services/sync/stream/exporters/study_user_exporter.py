@@ -10,6 +10,7 @@ from services.sync.stream.protocols import (
     StorageRepositoryProtocol,
 )
 from services.sync.stream.handlers.registry import RecordHandlerRegistry
+from services.sync.stream.types import Operation, RecordType
 
 if TYPE_CHECKING:
     pass
@@ -52,11 +53,11 @@ class StudyUserActivityExporter:
         all_filepaths: list[str] = []
 
         # Process both create and delete operations
-        for operation in ["create", "delete"]:
+        for operation in [Operation.CREATE, Operation.DELETE]:
             # Get base path for this operation
             base_path = self.path_manager.get_study_user_activity_path(
-                operation=operation,  # type: ignore[arg-type]
-                record_type="post",  # Use post as base - we'll navigate from here
+                operation=operation,
+                record_type=RecordType.POST,  # Use post as base - we'll navigate from here
             )
             # Remove the "post" suffix to get the operation-level path
             base_path = os.path.dirname(base_path)
@@ -67,25 +68,26 @@ class StudyUserActivityExporter:
 
             # Use registry to get handlers and read records
             for record_type in [
-                "post",
-                "like",
-                "follow",
-                "like_on_user_post",
-                "reply_to_user_post",
+                RecordType.POST,
+                RecordType.LIKE,
+                RecordType.FOLLOW,
+                RecordType.LIKE_ON_USER_POST,
+                RecordType.REPLY_TO_USER_POST,
             ]:
                 try:
-                    handler = self.handler_registry.get_handler(record_type)
+                    # Use enum value for handler lookup (handlers expect strings)
+                    handler = self.handler_registry.get_handler(record_type.value)
                     records, filepaths = handler.read_records(base_path)
 
-                    if record_type == "post":
+                    if record_type == RecordType.POST:
                         all_posts.extend(records)
-                    elif record_type == "like":
+                    elif record_type == RecordType.LIKE:
                         all_likes.extend(records)
-                    elif record_type == "follow":
+                    elif record_type == RecordType.FOLLOW:
                         all_follows.extend(records)
-                    elif record_type == "like_on_user_post":
+                    elif record_type == RecordType.LIKE_ON_USER_POST:
                         all_likes_on_user_posts.extend(records)
-                    elif record_type == "reply_to_user_post":
+                    elif record_type == RecordType.REPLY_TO_USER_POST:
                         all_replies_to_user_posts.extend(records)
 
                     all_filepaths.extend(filepaths)
@@ -101,14 +103,14 @@ class StudyUserActivityExporter:
             self._export_dataframe(
                 data=all_posts,
                 service="study_user_activity",
-                record_type="post",
+                record_type=RecordType.POST.value,
             )
 
         if all_likes:
             self._export_dataframe(
                 data=all_likes,
                 service="study_user_activity",
-                record_type="like",
+                record_type=RecordType.LIKE.value,
             )
 
         if all_follows:
@@ -123,14 +125,14 @@ class StudyUserActivityExporter:
             self._export_dataframe(
                 data=all_likes_on_user_posts,
                 service="study_user_activity",
-                record_type="like_on_user_post",
+                record_type=RecordType.LIKE_ON_USER_POST.value,
             )
 
         if all_replies_to_user_posts:
             self._export_dataframe(
                 data=all_replies_to_user_posts,
                 service="study_user_activity",
-                record_type="reply_to_user_post",
+                record_type=RecordType.REPLY_TO_USER_POST.value,
             )
 
         return all_filepaths

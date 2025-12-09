@@ -5,9 +5,10 @@ with data_filter.py while using the new handler-based architecture.
 """
 
 import os
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from lib.log.logger import get_logger
+from services.sync.stream.types import Operation, RecordType, FollowStatus
 
 # Global system components (lazy initialization)
 _system_components: dict | None = None
@@ -53,10 +54,8 @@ def _get_system_components():
 
 def export_study_user_data_local(
     record: dict,
-    record_type: Literal[
-        "post", "follow", "like", "like_on_user_post", "reply_to_user_post"
-    ],
-    operation: Literal["create", "delete"],
+    record_type: RecordType | str,
+    operation: Operation | str,
     author_did: str,
     filename: str,
     kwargs: Optional[dict] = None,
@@ -87,15 +86,22 @@ def export_study_user_data_local(
     if kwargs is None:
         kwargs = {}
 
+    # Convert string inputs to enums for type safety
+    if isinstance(record_type, str):
+        record_type = RecordType(record_type)
+    if isinstance(operation, str):
+        operation = Operation(operation)
+
     components = _get_system_components()
     handler_registry = components["handler_registry"]
 
     try:
-        handler = handler_registry.get_handler(record_type)
+        # Use enum value for handler lookup (handlers expect strings)
+        handler = handler_registry.get_handler(record_type.value)
 
         # Prepare kwargs for handler.write_record()
         handler_kwargs = {}
-        if record_type == "follow":
+        if record_type == RecordType.FOLLOW:
             # Follow requires follow_status
             follow_status = kwargs.get("follow_status")
             if not follow_status:
@@ -103,9 +109,12 @@ def export_study_user_data_local(
                     f"follow_status required for follow records. "
                     f"Got kwargs: {kwargs}"
                 )
+            # Convert to enum if string
+            if isinstance(follow_status, str):
+                follow_status = FollowStatus(follow_status)
             handler_kwargs["follow_status"] = follow_status
 
-        # Write record using handler
+        # Write record using handler (pass enums directly)
         handler.write_record(
             record=record,
             operation=operation,
@@ -115,7 +124,7 @@ def export_study_user_data_local(
         )
 
         # Update StudyUserManager for posts (maintains old behavior)
-        if record_type == "post" and operation == "create":
+        if record_type == RecordType.POST and operation == Operation.CREATE:
             # Use injected manager if provided, otherwise lazy initialize
             manager = (
                 study_user_manager
@@ -139,7 +148,7 @@ def export_study_user_data_local(
 
 def export_in_network_user_data_local(
     record: dict,
-    record_type: Literal["post", "follow", "like"],
+    record_type: RecordType | str,
     author_did: str,
     filename: str,
     study_user_manager: Optional[Any] = None,
@@ -161,7 +170,11 @@ def export_in_network_user_data_local(
             enables dependency injection for testing (currently unused but included
             for consistency with export_study_user_data_local).
     """
-    if record_type != "post":
+    # Convert string to enum if needed
+    if isinstance(record_type, str):
+        record_type = RecordType(record_type)
+
+    if record_type != RecordType.POST:
         # Old code had this as a no-op for non-post types
         return
 
@@ -171,8 +184,8 @@ def export_in_network_user_data_local(
 
     # Get path for in-network user post
     folder_path: str = path_manager.get_in_network_activity_path(
-        operation="create",
-        record_type="post",
+        operation=Operation.CREATE,
+        record_type=record_type,
         author_did=author_did,
     )
 

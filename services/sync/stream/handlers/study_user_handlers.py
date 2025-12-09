@@ -1,13 +1,13 @@
 """Concrete record handlers for study user activity."""
 
 import os
-from typing import Literal
 from services.sync.stream.handlers.base import BaseRecordHandler
 from services.sync.stream.protocols import (
     PathManagerProtocol,
     FileWriterProtocol,
     FileReaderProtocol,
 )
+from services.sync.stream.types import Operation, RecordType, FollowStatus
 
 
 class StudyUserPostHandler(BaseRecordHandler):
@@ -23,13 +23,13 @@ class StudyUserPostHandler(BaseRecordHandler):
             path_manager=path_manager,
             file_writer=file_writer,
             file_reader=file_reader,
-            record_type="post",
+            record_type=RecordType.POST.value,
         )
 
     def write_record(
         self,
         record: dict,
-        operation: Literal["create", "delete"],
+        operation: Operation,
         author_did: str,
         filename: str,
         **kwargs,
@@ -37,7 +37,7 @@ class StudyUserPostHandler(BaseRecordHandler):
         """Write post record to cache."""
         root_path = self.path_manager.get_study_user_activity_path(
             operation=operation,
-            record_type="post",
+            record_type=RecordType.POST,
         )
         full_path = os.path.join(root_path, filename)
 
@@ -45,7 +45,7 @@ class StudyUserPostHandler(BaseRecordHandler):
 
     def read_records(self, base_path: str) -> tuple[list[dict], list[str]]:
         """Read all post records from cache."""
-        post_dir = os.path.join(base_path, "post")
+        post_dir = os.path.join(base_path, RecordType.POST.value)
         return self.file_reader.read_all_json_in_directory(post_dir)
 
 
@@ -62,13 +62,13 @@ class StudyUserLikeHandler(BaseRecordHandler):
             path_manager=path_manager,
             file_writer=file_writer,
             file_reader=file_reader,
-            record_type="like",
+            record_type=RecordType.LIKE.value,
         )
 
     def write_record(
         self,
         record: dict,
-        operation: Literal["create", "delete"],
+        operation: Operation,
         author_did: str,
         filename: str,
         **kwargs,
@@ -80,7 +80,7 @@ class StudyUserLikeHandler(BaseRecordHandler):
         post_uri_suffix = record["record"]["subject"]["uri"].split("/")[-1]
         root_path = self.path_manager.get_study_user_activity_path(
             operation=operation,
-            record_type="like",
+            record_type=RecordType.LIKE,
         )
         folder_path = os.path.join(root_path, post_uri_suffix)
         full_path = os.path.join(folder_path, filename)
@@ -91,7 +91,7 @@ class StudyUserLikeHandler(BaseRecordHandler):
         """Read all like records from cache."""
         likes: list[dict] = []
         filepaths: list[str] = []
-        liked_posts_path = os.path.join(base_path, "like")
+        liked_posts_path = os.path.join(base_path, RecordType.LIKE.value)
 
         for post_uri in self.file_reader.list_files(liked_posts_path):
             post_path = os.path.join(liked_posts_path, post_uri)
@@ -117,16 +117,16 @@ class StudyUserFollowHandler(BaseRecordHandler):
             path_manager=path_manager,
             file_writer=file_writer,
             file_reader=file_reader,
-            record_type="follow",
+            record_type=RecordType.FOLLOW.value,
         )
 
     def write_record(
         self,
         record: dict,
-        operation: Literal["create", "delete"],
+        operation: Operation,
         author_did: str,
         filename: str,
-        follow_status: Literal["follower", "followee"],
+        follow_status: FollowStatus,
         **kwargs,
     ) -> None:
         """Write follow record to cache.
@@ -135,7 +135,7 @@ class StudyUserFollowHandler(BaseRecordHandler):
         """
         root_path = self.path_manager.get_study_user_activity_path(
             operation=operation,
-            record_type="follow",
+            record_type=RecordType.FOLLOW,
             follow_status=follow_status,
         )
         full_path = os.path.join(root_path, filename)
@@ -146,13 +146,13 @@ class StudyUserFollowHandler(BaseRecordHandler):
         """Read all follow records from cache."""
         follows: list[dict] = []
         filepaths: list[str] = []
-        follow_dir = os.path.join(base_path, "follow")
+        follow_dir = os.path.join(base_path, RecordType.FOLLOW.value)
 
         if not os.path.exists(follow_dir):
             return follows, filepaths
 
-        for follow_type in ["followee", "follower"]:
-            follow_type_path = os.path.join(follow_dir, follow_type)
+        for follow_status in [FollowStatus.FOLLOWEE, FollowStatus.FOLLOWER]:
+            follow_type_path = os.path.join(follow_dir, follow_status.value)
             if not os.path.exists(follow_type_path):
                 continue
 
@@ -178,13 +178,13 @@ class StudyUserLikeOnUserPostHandler(BaseRecordHandler):
             path_manager=path_manager,
             file_writer=file_writer,
             file_reader=file_reader,
-            record_type="like_on_user_post",
+            record_type=RecordType.LIKE_ON_USER_POST.value,
         )
 
     def write_record(
         self,
         record: dict,
-        operation: Literal["create", "delete"],
+        operation: Operation,
         author_did: str,
         filename: str,
         **kwargs,
@@ -196,7 +196,7 @@ class StudyUserLikeOnUserPostHandler(BaseRecordHandler):
         post_uri_suffix = record["record"]["subject"]["uri"].split("/")[-1]
         root_path = self.path_manager.get_study_user_activity_path(
             operation=operation,
-            record_type="like_on_user_post",
+            record_type=RecordType.LIKE_ON_USER_POST,
         )
         folder_path = os.path.join(root_path, post_uri_suffix)
         full_path = os.path.join(folder_path, filename)
@@ -207,7 +207,7 @@ class StudyUserLikeOnUserPostHandler(BaseRecordHandler):
         """Read all like_on_user_post records from cache."""
         likes: list[dict] = []
         filepaths: list[str] = []
-        likes_path = os.path.join(base_path, "like_on_user_post")
+        likes_path = os.path.join(base_path, RecordType.LIKE_ON_USER_POST.value)
 
         if not os.path.exists(likes_path):
             return likes, filepaths
@@ -239,13 +239,13 @@ class StudyUserReplyToUserPostHandler(BaseRecordHandler):
             path_manager=path_manager,
             file_writer=file_writer,
             file_reader=file_reader,
-            record_type="reply_to_user_post",
+            record_type=RecordType.REPLY_TO_USER_POST.value,
         )
 
     def write_record(
         self,
         record: dict,
-        operation: Literal["create", "delete"],
+        operation: Operation,
         author_did: str,
         filename: str,
         **kwargs,
@@ -257,7 +257,7 @@ class StudyUserReplyToUserPostHandler(BaseRecordHandler):
         parent_post_uri_suffix = record["record"]["reply"]["root"]["uri"].split("/")[-1]
         root_path = self.path_manager.get_study_user_activity_path(
             operation=operation,
-            record_type="reply_to_user_post",
+            record_type=RecordType.REPLY_TO_USER_POST,
         )
         folder_path = os.path.join(root_path, parent_post_uri_suffix)
         full_path = os.path.join(folder_path, filename)
@@ -268,7 +268,7 @@ class StudyUserReplyToUserPostHandler(BaseRecordHandler):
         """Read all reply_to_user_post records from cache."""
         replies: list[dict] = []
         filepaths: list[str] = []
-        replies_path = os.path.join(base_path, "reply_to_user_post")
+        replies_path = os.path.join(base_path, RecordType.REPLY_TO_USER_POST.value)
 
         if not os.path.exists(replies_path):
             return replies, filepaths
