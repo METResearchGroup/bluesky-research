@@ -18,3 +18,35 @@ python app.py
 ```
 
 This will write the posts to the `firehose.db` database. Expect a 1:5 ratio between firehose events and new post writes. By default, the app will run for 25,000 firehose events, which should lead to about ~5,000 new posts.
+
+We output to local storage in the following format:
+
+```markdown
+cache/
+├── create/
+│   ├── post/
+│   ├── like/
+│   └── follow/
+├── delete/
+│   ├── post/
+│   ├── like/
+│   └── follow/
+├── study_user_activity/
+│   ├── create/
+│   │   ├── post/
+│   │   ├── like/
+│   │   ├── follow/
+│   │   │   ├── follower/
+│   │   │   └── followee/
+│   │   ├── like_on_user_post/
+│   │   └── reply_to_user_post/
+│   └── delete/
+│       ├── post/
+│       └── like/
+└── in_network_user_activity/
+    └── create/
+        └── post/
+            └── {author_did}/
+```
+
+We have a subsequent job, in `pipelines/sync_post_records/firehose/run_firehose_writes.py`, to manage the process of exporting those to persistent local parquet storage.
