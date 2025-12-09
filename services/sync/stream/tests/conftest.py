@@ -191,6 +191,13 @@ def mock_post_records_fixture():
 
 
 @pytest.fixture
+def path_manager():
+    """Create a CachePathManager for testing."""
+    from services.sync.stream.cache_management import CachePathManager
+    return CachePathManager()
+
+
+@pytest.fixture
 def sync_export_context(mock_study_user_manager):
     """Create a SyncExportContext for testing."""
     from services.sync.stream.setup import setup_sync_export_system

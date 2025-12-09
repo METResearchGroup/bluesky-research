@@ -7,10 +7,7 @@ from services.sync.stream.data_filter import (
     manage_posts
 )
 from services.sync.stream.types import Operation
-from services.sync.stream.tests.compat_export_data import (
-    raw_sync_relative_path_map,
-    raw_sync_root_local_path
-)
+from services.sync.stream.cache_management import CachePathManager
 from services.sync.stream.tests.conftest import (
     clean_path, mock_study_user_manager,
     mock_logger_fixture, mock_follow_records_fixture,
@@ -28,7 +25,7 @@ class TestManageFollow:
     # (though we'll revisit this later when refactoring the firehose).
     # def test_manage_follow_create_default(self, mock_study_user_manager, mock_follow_records_fixture):
     #     """Test manage_follow for 'create' operation (for a generic follow record)."""  # noqa
-    #     relative_filepath = raw_sync_relative_path_map["create"]["follow"]
+    #     relative_filepath = path_manager.study_user_activity_relative_path_map["create"]["follow"]
     #     mock_follower_did = "did:plc:generic-user-2"
     #     mock_followee_did = "did:plc:generic-user-1"
     #     expected_filename = f"follower_did={mock_follower_did}_followee_did={mock_followee_did}.json"  # noqa
@@ -49,11 +46,12 @@ class TestManageFollow:
     ):
         """Test manage_follow for 'create' operation (for a generic follow record)."""  # noqa
         with patch("services.sync.stream.data_filter.logger", mock_logger_fixture):
-            relative_filepath = raw_sync_relative_path_map["create"]["follow"]["followee"] # could be either followee/follower, the idea is this errors out.
+            path_manager = CachePathManager()
+            relative_filepath = path_manager.study_user_activity_relative_path_map["create"]["follow"]["followee"] # could be either followee/follower, the idea is this errors out.
             mock_follower_did = "did:plc:generic-user-2"
             mock_followee_did = "did:plc:generic-user-1"
             expected_filename = f"follower_did={mock_follower_did}_followee_did={mock_followee_did}.json"  # noqa
-            expected_filepath = os.path.join(relative_filepath, expected_filename)
+            expected_filepath = os.path.join(path_manager.study_user_activity_root_local_path, relative_filepath, expected_filename)
 
             manage_follow(follow=mock_follow_records_fixture[0], operation=Operation.CREATE, context=sync_export_context)
             all_logs = mock_logger_fixture.get_logs()
@@ -64,7 +62,7 @@ class TestManageFollow:
     # (though we'll revisit this later when refactoring the firehose).
     # def test_manage_follow_delete_default(self, mock_study_user_manager, mock_follow_records_fixture):
     #     """Test manage_follow for 'delete' operation (for a generic follow record)."""  # noqa
-    #     relative_filepath = raw_sync_relative_path_map["delete"]["follow"]
+    #     relative_filepath = path_manager.study_user_activity_relative_path_map["delete"]["follow"]
     #     mock_follow_uri_suffix = "random-hash"
     #     expected_filename = f"follow_uri_suffix={mock_follow_uri_suffix}.json"
     #     expected_filepath = os.path.join(relative_filepath, expected_filename)
@@ -82,10 +80,11 @@ class TestManageFollow:
     ):
         """Test manage_follow for 'delete' operation (for a generic follow record)."""  # noqa
         with patch("services.sync.stream.data_filter.logger", mock_logger_fixture):
-            relative_filepath = raw_sync_relative_path_map["create"]["follow"]["followee"] # could be either followee/follower, the idea is this errors out.
+            path_manager = CachePathManager()
+            relative_filepath = path_manager.study_user_activity_relative_path_map["create"]["follow"]["followee"] # could be either followee/follower, the idea is this errors out.
             mock_follow_uri_suffix = "random-hash"
             expected_filename = f"follow_uri_suffix={mock_follow_uri_suffix}.json"
-            expected_filepath = os.path.join(relative_filepath, expected_filename)
+            expected_filepath = os.path.join(path_manager.study_user_activity_root_local_path, relative_filepath, expected_filename)
 
             manage_follow(follow=mock_follow_records_fixture[1], operation=Operation.DELETE, context=sync_export_context)
             all_logs = mock_logger_fixture.get_logs()
@@ -95,15 +94,17 @@ class TestManageFollow:
 
     def test_study_user_is_followed(self, mock_study_user_manager, mock_follow_records_fixture, sync_export_context):
         """Tests logic for when a study user is being followed by another account.
+path_manager = CachePathManager()
 
         Expects that one filepath is written:
         - One for the 'follow' records of study participants.
         """  # noqa
-        relative_filepath_1 = raw_sync_relative_path_map["create"]["follow"]["followee"]
+        path_manager = CachePathManager()
+        relative_filepath_1 = path_manager.study_user_activity_relative_path_map["create"]["follow"]["followee"]
         mock_follower_did = "did:plc:generic-user-1"
         mock_followee_did = "did:plc:study-user-1"
         expected_filename = f"follower_did={mock_follower_did}_followee_did={mock_followee_did}.json"  # noqa
-        expected_filepath_1 = os.path.join(relative_filepath_1, expected_filename)
+        expected_filepath_1 = os.path.join(path_manager.study_user_activity_root_local_path, relative_filepath_1, expected_filename)
 
         # run check.
         manage_follow(follow=mock_follow_records_fixture[2], operation=Operation.CREATE, context=sync_export_context)
@@ -113,15 +114,17 @@ class TestManageFollow:
 
     def test_study_user_is_follower(self, mock_study_user_manager, mock_follow_records_fixture, sync_export_context):
         """Tests logic for when a study user is following another account.
+path_manager = CachePathManager()
 
         Expects that one filepath is written:
         - One for the 'follow' records of study participants.
         """
-        relative_filepath_1 = raw_sync_relative_path_map["create"]["follow"]["follower"]  # noqa
+        path_manager = CachePathManager()
+        relative_filepath_1 = path_manager.study_user_activity_relative_path_map["create"]["follow"]["follower"]  # noqa
         mock_follower_did = "did:plc:study-user-1"
         mock_followee_did = "did:plc:generic-user-1"
         expected_filename = f"follower_did={mock_follower_did}_followee_did={mock_followee_did}.json"  # noqa
-        expected_filepath_1 = os.path.join(relative_filepath_1, expected_filename)
+        expected_filepath_1 = os.path.join(path_manager.study_user_activity_root_local_path, relative_filepath_1, expected_filename)
 
         # run check.
         manage_follow(follow=mock_follow_records_fixture[3], operation=Operation.CREATE, context=sync_export_context)
@@ -136,6 +139,7 @@ class TestManageFollows:
 
     def test_manage_follows(self, mock_study_user_manager, mock_follow_records_fixture, sync_export_context):
         """Test manage_follows."""
+        path_manager = CachePathManager()
         # we really only need to test 'created' records since this is the
         # one that's more important (and by far, more common).
         follows = {
@@ -151,11 +155,11 @@ class TestManageFollows:
         # study users.
         # we expect 6 records: 4 in the default path and 2 in the study user
         # acitvities path.
-        default_relative_create_filepath = raw_sync_relative_path_map["create"]["follow"]
-        default_relative_delete_filepath = raw_sync_relative_path_map["delete"]["follow"]
+        default_relative_create_filepath = path_manager.study_user_activity_relative_path_map["create"]["follow"]
+        default_relative_delete_filepath = path_manager.study_user_activity_relative_path_map["delete"]["follow"]
 
-        study_user_relative_fp_1 = raw_sync_relative_path_map["create"]["follow"]["followee"]
-        study_user_relative_fp_2 = raw_sync_relative_path_map["create"]["follow"]["follower"]
+        study_user_relative_fp_1 = path_manager.study_user_activity_relative_path_map["create"]["follow"]["followee"]
+        study_user_relative_fp_2 = path_manager.study_user_activity_relative_path_map["create"]["follow"]["follower"]
 
         mock_follower_did_1 = "did:plc:generic-user-2"
         mock_followee_did_1 = "did:plc:generic-user-1"
@@ -182,13 +186,13 @@ class TestManageFollows:
 
         # study user filepaths
         expected_study_user_filepath_1 = os.path.join(
-            raw_sync_root_local_path,
+            path_manager.study_user_activity_root_local_path,
             mock_followee_did_3,
             study_user_relative_fp_1,
             expected_filename_3
         )
         expected_study_user_filepath_2 = os.path.join(
-            raw_sync_root_local_path,
+            path_manager.study_user_activity_root_local_path,
             mock_follower_did_4,
             study_user_relative_fp_2,
             expected_filename_4
@@ -221,7 +225,8 @@ class TestManageLike:
     """Tests for manage_like."""
 
     def test_manage_create_default_like(self, mock_study_user_manager, mock_like_records_fixture, sync_export_context):
-        relative_filepath = raw_sync_relative_path_map["create"]["like"]
+        path_manager = CachePathManager()
+        relative_filepath = path_manager.study_user_activity_relative_path_map["create"]["like"]
         mock_author_did = "did:plc:generic-user-1"
         mock_uri_suffix = "like-record-suffix-123"
         expected_filename = f"like_author_did={mock_author_did}_like_uri_suffix={mock_uri_suffix}.json"
@@ -232,7 +237,8 @@ class TestManageLike:
         clean_path(expected_filepath)
 
     def test_manage_delete_default_like(self, mock_study_user_manager, mock_like_records_fixture, sync_export_context):
-        relative_filepath = raw_sync_relative_path_map["delete"]["like"]
+        path_manager = CachePathManager()
+        relative_filepath = path_manager.study_user_activity_relative_path_map["delete"]["like"]
         mock_uri_suffix = "like-record-suffix-123"
         expected_filename = f"like_uri_suffix={mock_uri_suffix}.json"
         expected_filepath = os.path.join(relative_filepath, expected_filename)
@@ -248,8 +254,9 @@ class TestManageLike:
         - One in the default path.
         - One in the study user activities path.
         """
-        relative_filepath_1 = raw_sync_relative_path_map["create"]["like"]
-        relative_filepath_2 = raw_sync_relative_path_map["create"]["like"]
+        path_manager = CachePathManager()
+        relative_filepath_1 = path_manager.study_user_activity_relative_path_map["create"]["like"]
+        relative_filepath_2 = path_manager.study_user_activity_relative_path_map["create"]["like"]
         mock_author_did = "did:plc:study-user-1"
         mock_liked_post_uri_suffix = "generic-post-uri-1"
         mock_like_uri_suffix = "like-record-suffix-456"
@@ -257,7 +264,7 @@ class TestManageLike:
         expected_filename = f"like_author_did={mock_author_did}_like_uri_suffix={mock_like_uri_suffix}.json"
         expected_filepath_1 = os.path.join(relative_filepath_1, expected_filename)
         expected_filepath_2 = os.path.join(
-            raw_sync_root_local_path,
+            path_manager.study_user_activity_root_local_path,
             mock_author_did,
             relative_filepath_2,
             mock_liked_post_uri_suffix,
@@ -274,8 +281,9 @@ class TestManageLike:
 
     def test_study_user_post_is_liked(self, mock_study_user_manager, mock_like_records_fixture, sync_export_context):
         """Tests the case where a study user's post is liked."""
-        relative_filepath_1 = raw_sync_relative_path_map["create"]["like"]
-        relative_filepath_2 = raw_sync_relative_path_map["create"]["like_on_user_post"]
+        path_manager = CachePathManager()
+        relative_filepath_1 = path_manager.study_user_activity_relative_path_map["create"]["like"]
+        relative_filepath_2 = path_manager.study_user_activity_relative_path_map["create"]["like_on_user_post"]
         mock_author_did = "did:plc:generic-user-1"
         mock_liked_post_author_did = "did:plc:study-user-2"
         mock_liked_post_uri_suffix = "post-uri-2"
@@ -283,7 +291,7 @@ class TestManageLike:
         expected_filename = f"like_author_did={mock_author_did}_like_uri_suffix={mock_like_uri_suffix}.json"
         expected_filepath_1 = os.path.join(relative_filepath_1, expected_filename)
         expected_filepath_2 = os.path.join(
-            raw_sync_root_local_path,
+            path_manager.study_user_activity_root_local_path,
             mock_liked_post_author_did,
             relative_filepath_2,
             mock_liked_post_uri_suffix,
@@ -307,6 +315,7 @@ class TestManageLikes:
 
         We only care about 'created' records.
         """
+        path_manager = CachePathManager()
         # skip the deleted record.
         likes = {
             "created": [
@@ -321,7 +330,7 @@ class TestManageLikes:
         # post, and one where a post by a study user is liked.
 
         # we expect 3 files in the default path and 2 in the study user activities
-        default_relative_filepath = raw_sync_relative_path_map["create"]["like"]
+        default_relative_filepath = path_manager.study_user_activity_relative_path_map["create"]["like"]
 
         # URIs of like records themselves (not the posts).
         like_uri_suffix_1 = "like-record-suffix-123"
@@ -356,22 +365,22 @@ class TestManageLikes:
         mock_liked_post_author_did_2 = "did:plc:study-user-2"
 
         study_user_relative_fp_1 = os.path.join(
-            raw_sync_relative_path_map["create"]["like"],
+            path_manager.study_user_activity_relative_path_map["create"]["like"],
             mock_liked_post_uri_suffix_1
         )
         study_user_relative_fp_2 = os.path.join(
-            raw_sync_relative_path_map["create"]["like_on_user_post"],
+            path_manager.study_user_activity_relative_path_map["create"]["like_on_user_post"],
             mock_liked_post_uri_suffix_2
         )
 
         expected_study_user_filepath_1 = os.path.join(  # study user likes a post
-            raw_sync_root_local_path,
+            path_manager.study_user_activity_root_local_path,
             mock_author_did_2,
             study_user_relative_fp_1,
             expected_default_filename_2
         )
         expected_study_user_filepath_2 = os.path.join(  # someone likes a study user's post # noqa
-            raw_sync_root_local_path,
+            path_manager.study_user_activity_root_local_path,
             mock_liked_post_author_did_2,
             study_user_relative_fp_2,
             expected_default_filename_3
@@ -402,7 +411,8 @@ class TestManagePost:
 
     def test_manage_post_create_default(self, mock_study_user_manager, mock_post_records_fixture, sync_export_context):
         """Tests the creation of a default post from the firehose."""
-        relative_filepath = raw_sync_relative_path_map["create"]["post"]
+        path_manager = CachePathManager()
+        relative_filepath = path_manager.study_user_activity_relative_path_map["create"]["post"]
         mock_author_did = "did:plc:generic-user-1"
         mock_post_uri_suffix = "post-uri-1"
         expected_filename = f"author_did={mock_author_did}_post_uri_suffix={mock_post_uri_suffix}.json"  # noqa
@@ -414,7 +424,8 @@ class TestManagePost:
 
     def test_manage_post_delete_default(self, mock_study_user_manager, mock_post_records_fixture, sync_export_context):
         """Tests the deletion of a default post from the firehose."""
-        relative_filepath = raw_sync_relative_path_map["delete"]["post"]
+        path_manager = CachePathManager()
+        relative_filepath = path_manager.study_user_activity_relative_path_map["delete"]["post"]
         mock_post_uri_suffix = "post-uri-1"
         expected_filename = f"post_uri_suffix={mock_post_uri_suffix}.json"
         expected_filepath = os.path.join(relative_filepath, expected_filename)
@@ -430,14 +441,15 @@ class TestManagePost:
         - One in the default path.
         - One in the study user activities path.
         """
+        path_manager = CachePathManager()
         mock_author_did = "did:plc:study-user-1"
         mock_post_uri_suffix = "post-uri-1"
-        relative_filepath_1 = raw_sync_relative_path_map["create"]["post"]
-        relative_filepath_2 = raw_sync_relative_path_map["create"]["post"]
+        relative_filepath_1 = path_manager.study_user_activity_relative_path_map["create"]["post"]
+        relative_filepath_2 = path_manager.study_user_activity_relative_path_map["create"]["post"]
         expected_filename = f"author_did={mock_author_did}_post_uri_suffix={mock_post_uri_suffix}.json"  # noqa
         expected_filepath_1 = os.path.join(relative_filepath_1, expected_filename)
         expected_filepath_2 = os.path.join(
-            raw_sync_root_local_path,
+            path_manager.study_user_activity_root_local_path,
             mock_author_did,
             relative_filepath_2,
             expected_filename
@@ -460,19 +472,20 @@ class TestManagePost:
         - One in the default path.
         - One in the study user activities path.
         """
+        path_manager = CachePathManager()
         mock_author_did = "did:plc:generic-user-1"
         mock_parent_post_author_did = "did:plc:study-user-1"
         mock_post_uri_suffix = "generic-post-uri-1"
         mock_original_study_user_post_uri_suffix = "post-uri-1"
 
         # check for 2 files.
-        relative_filepath_1 = raw_sync_relative_path_map["create"]["post"]
-        relative_filepath_2 = raw_sync_relative_path_map["create"]["reply_to_user_post"]
+        relative_filepath_1 = path_manager.study_user_activity_relative_path_map["create"]["post"]
+        relative_filepath_2 = path_manager.study_user_activity_relative_path_map["create"]["reply_to_user_post"]
 
         expected_filename = f"author_did={mock_author_did}_post_uri_suffix={mock_post_uri_suffix}.json"
         expected_filepath_1 = os.path.join(relative_filepath_1, expected_filename)
         expected_filepath_2 = os.path.join(
-            raw_sync_root_local_path,
+            path_manager.study_user_activity_root_local_path,
             mock_parent_post_author_did,  # the author of the parent post (the study user) # noqa
             relative_filepath_2,
             mock_original_study_user_post_uri_suffix,
@@ -496,19 +509,20 @@ class TestManagePost:
         - One in the default path.
         - One in the study user activities path.
         """
+        path_manager = CachePathManager()
         mock_author_did = "did:plc:generic-user-1"
         mock_root_post_author_did = "did:plc:study-user-1"
         mock_post_uri_suffix = "generic-post-uri-1"
         mock_original_study_user_post_uri_suffix = "post-uri-1"
 
         # check for 2 files.
-        relative_filepath_1 = raw_sync_relative_path_map["create"]["post"]
-        relative_filepath_2 = raw_sync_relative_path_map["create"]["reply_to_user_post"]
+        relative_filepath_1 = path_manager.study_user_activity_relative_path_map["create"]["post"]
+        relative_filepath_2 = path_manager.study_user_activity_relative_path_map["create"]["reply_to_user_post"]
 
         expected_filename = f"author_did={mock_author_did}_post_uri_suffix={mock_post_uri_suffix}.json"
         expected_filepath_1 = os.path.join(relative_filepath_1, expected_filename)
         expected_filepath_2 = os.path.join(
-            raw_sync_root_local_path,
+            path_manager.study_user_activity_root_local_path,
             mock_root_post_author_did,  # the author of the root post (the study user) # noqa
             relative_filepath_2,
             mock_original_study_user_post_uri_suffix,
@@ -532,6 +546,7 @@ class TestManagePosts:
 
         We only care about 'created' records.
         """
+        path_manager = CachePathManager()
         posts = {
             "created": [
                 mock_post_records_fixture[0],
@@ -547,9 +562,9 @@ class TestManagePosts:
         # study user (and the study user's post is the parent of the post), and
         # one where a post is in the same thread as a post written by a study
         # user (and the study user's post is the root of the thread).
-        default_relative_filepath = raw_sync_relative_path_map["create"]["post"]
-        study_user_relative_fp_1 = raw_sync_relative_path_map["create"]["post"]
-        study_user_relative_fp_2 = raw_sync_relative_path_map["create"]["reply_to_user_post"]
+        default_relative_filepath = path_manager.study_user_activity_relative_path_map["create"]["post"]
+        study_user_relative_fp_1 = path_manager.study_user_activity_relative_path_map["create"]["post"]
+        study_user_relative_fp_2 = path_manager.study_user_activity_relative_path_map["create"]["reply_to_user_post"]
 
         # Post 1: generic post record
         mock_author_did_1 = "did:plc:generic-user-1"
@@ -587,20 +602,20 @@ class TestManagePosts:
         # post written by the study user, and two for the posts that are in the
         # same thread as the study user's posts.
         expected_study_user_filepath_1 = os.path.join(
-            raw_sync_root_local_path,
+            path_manager.study_user_activity_root_local_path,
             mock_author_did_2,
             study_user_relative_fp_1,
             expected_filename_2
         )
         expected_study_user_filepath_2 = os.path.join(
-            raw_sync_root_local_path,
+            path_manager.study_user_activity_root_local_path,
             mock_original_study_user_post_author_did_3,  # author of the parent post (who is in the study)
             study_user_relative_fp_2,
             mock_original_study_user_post_uri_suffix_3,
             expected_filename_3
         )
         expected_study_user_filepath_3 = os.path.join(
-            raw_sync_root_local_path,
+            path_manager.study_user_activity_root_local_path,
             mock_original_study_user_post_author_did_4,  # author of the root post (who is in the study)
             study_user_relative_fp_2,
             mock_original_study_user_post_uri_suffix_4,
