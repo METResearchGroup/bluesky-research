@@ -1,7 +1,7 @@
 import json
 import os
 import shutil
-from typing import Literal
+from typing import Literal, Optional
 
 from services.sync.stream.protocols import DirectoryManagerProtocol, PathManagerProtocol
 
@@ -209,13 +209,15 @@ class CacheDirectoryManager:
             os.makedirs(path_mgr.study_user_activity_root_local_path)
 
         for operation in ["create", "delete"]:
-            for record_type in [
-                "post",
-                "like",
-                "follow",
-                "like_on_user_post",
-                "reply_to_user_post",
-            ]:
+            # Get available record types for this operation
+            available_record_types = list(
+                path_mgr.study_user_activity_relative_path_map[operation].keys()
+            )
+            # Remove "follow" from the list since it's a dict, not a string
+            if "follow" in available_record_types:
+                available_record_types.remove("follow")
+
+            for record_type in available_record_types:
                 record_path = path_mgr.get_study_user_activity_path(
                     operation=operation,  # type: ignore[arg-type]
                     record_type=record_type,  # type: ignore[arg-type]
@@ -223,16 +225,16 @@ class CacheDirectoryManager:
                 if not os.path.exists(record_path):
                     os.makedirs(record_path)
 
-                # Follow has nested structure
-                if record_type == "follow":
-                    for follow_type in ["followee", "follower"]:
-                        follow_path = path_mgr.get_study_user_activity_path(
-                            operation=operation,  # type: ignore[arg-type]
-                            record_type="follow",
-                            follow_status=follow_type,  # type: ignore[arg-type]
-                        )
-                        if not os.path.exists(follow_path):
-                            os.makedirs(follow_path)
+            # Follow has nested structure - handle separately
+            if "follow" in path_mgr.study_user_activity_relative_path_map[operation]:
+                for follow_type in ["followee", "follower"]:
+                    follow_path = path_mgr.get_study_user_activity_path(
+                        operation=operation,  # type: ignore[arg-type]
+                        record_type="follow",
+                        follow_status=follow_type,  # type: ignore[arg-type]
+                    )
+                    if not os.path.exists(follow_path):
+                        os.makedirs(follow_path)
 
         # Create in-network user activity path
         if not os.path.exists(path_mgr.in_network_user_activity_root_local_path):
@@ -316,3 +318,173 @@ class CacheFileReader:
                 filepaths.append(filepath)
 
         return records, filepaths
+
+
+# ============================================================================
+# Adapter Functions for Backward Compatibility
+# ============================================================================
+# NOTE: These adapter functions maintain backward compatibility with
+# data_filter.py. When we refactor data_filter.py (issue #231), we should
+# update it to use handlers directly instead of these adapter functions.
+# ============================================================================
+
+# Global system components (lazy initialization)
+_system_components: dict | None = None
+_study_user_manager = None
+
+
+def _get_study_user_manager():
+    """Lazy initialization of study user manager."""
+    global _study_user_manager
+    if _study_user_manager is None:
+        from services.participant_data.study_users import get_study_user_manager
+
+        _study_user_manager = get_study_user_manager(load_from_aws=False)
+    return _study_user_manager
+
+
+def _get_system_components():
+    """Lazy initialization of system components."""
+    global _system_components
+    if _system_components is None:
+        from services.sync.stream.setup import setup_sync_export_system
+
+        # Initialize system (local cache only for data_filter usage)
+        (
+            path_manager,
+            _,
+            file_writer,
+            file_reader,
+            handler_registry,
+            _,
+            _,
+        ) = setup_sync_export_system(use_s3=False)
+
+        _system_components = {
+            "path_manager": path_manager,
+            "file_writer": file_writer,
+            "file_reader": file_reader,
+            "handler_registry": handler_registry,
+        }
+
+    return _system_components
+
+
+def export_study_user_data_local(
+    record: dict,
+    record_type: Literal[
+        "post", "follow", "like", "like_on_user_post", "reply_to_user_post"
+    ],
+    operation: Literal["create", "delete"],
+    author_did: str,
+    filename: str,
+    kwargs: Optional[dict] = None,
+) -> None:
+    """Writes study user activity to local cache storage.
+
+    This is an adapter function that maintains backward compatibility
+    with data_filter.py while using the new handler-based architecture.
+
+    NOTE: When refactoring data_filter.py (issue #231), we should update
+    it to use handlers directly instead of this adapter function.
+
+    Args:
+        record: Record data to write
+        record_type: Type of record (post, like, follow, etc.)
+        operation: Operation type (create/delete)
+        author_did: Author DID
+        filename: Filename for the record
+        kwargs: Optional additional arguments (e.g., follow_status, user_post_type)
+
+    Raises:
+        ValueError: If record_type is unknown or required kwargs are missing
+    """
+    if kwargs is None:
+        kwargs = {}
+
+    components = _get_system_components()
+    handler_registry = components["handler_registry"]
+
+    try:
+        handler = handler_registry.get_handler(record_type)
+
+        # Prepare kwargs for handler.write_record()
+        handler_kwargs = {}
+        if record_type == "follow":
+            # Follow requires follow_status
+            follow_status = kwargs.get("follow_status")
+            if not follow_status:
+                raise ValueError(
+                    f"follow_status required for follow records. "
+                    f"Got kwargs: {kwargs}"
+                )
+            handler_kwargs["follow_status"] = follow_status
+
+        # Write record using handler
+        handler.write_record(
+            record=record,
+            operation=operation,
+            author_did=author_did,
+            filename=filename,
+            **handler_kwargs,
+        )
+
+        # Update StudyUserManager for posts (maintains old behavior)
+        if record_type == "post" and operation == "create":
+            study_user_manager = _get_study_user_manager()
+            study_user_manager.insert_study_user_post(
+                post_uri=record["uri"], user_did=author_did
+            )
+
+    except KeyError as e:
+        available_types = handler_registry.list_record_types()
+        raise ValueError(
+            f"Unknown record type: {record_type}. "
+            f"Available types: {available_types}"
+        ) from e
+    except Exception as e:
+        # Log error and re-raise
+        from lib.log.logger import get_logger
+
+        logger = get_logger(__name__)
+        logger.error(f"Error exporting {record_type} record for user {author_did}: {e}")
+        raise
+
+
+def export_in_network_user_data_local(
+    record: dict,
+    record_type: Literal["post", "follow", "like"],
+    author_did: str,
+    filename: str,
+) -> None:
+    """Writes in-network user activity to local cache storage.
+
+    This is an adapter function that maintains backward compatibility
+    with data_filter.py while using the new handler-based architecture.
+
+    NOTE: When refactoring data_filter.py (issue #231), we should update
+    it to use handlers directly instead of this adapter function.
+
+    Args:
+        record: Record data to write
+        record_type: Type of record (currently only "post" is implemented)
+        author_did: Author DID
+        filename: Filename for the record
+    """
+    if record_type != "post":
+        # Old code had this as a no-op for non-post types
+        return
+
+    components = _get_system_components()
+    path_manager = components["path_manager"]
+    file_writer = components["file_writer"]
+
+    # Get path for in-network user post
+    folder_path = path_manager.get_in_network_activity_path(
+        operation="create",
+        record_type="post",
+        author_did=author_did,
+    )
+
+    full_path = os.path.join(folder_path, filename)
+    file_writer.write_json(full_path, record)

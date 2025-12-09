@@ -138,7 +138,7 @@ class StorageAdapterProtocol(Protocol):
 
     def write_dataframe(
         self,
-        df: pd.DataFrame,
+        df: "pd.DataFrame",
         key: str,
         service: str,
         custom_args: dict | None = None,
@@ -196,7 +196,7 @@ class StorageRepositoryProtocol(Protocol):
 
     def export_dataframe(
         self,
-        df: pd.DataFrame,
+        df: "pd.DataFrame",
         service: str,
         record_type: str | None = None,
         custom_args: dict | None = None,
