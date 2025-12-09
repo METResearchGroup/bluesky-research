@@ -1,6 +1,6 @@
 """Sync stream module - exports data from firehose to storage."""
 
-from services.sync.stream.export_data import (
+from services.sync.stream.cache_management import (
     CachePathManager,
     CacheDirectoryManager,
     CacheFileWriter,
@@ -16,7 +16,7 @@ from services.sync.stream.handlers.factories import (
 )
 from services.sync.stream.exporters.study_user_exporter import StudyUserActivityExporter
 from services.sync.stream.storage.repository import StorageRepository
-from services.sync.stream.storage.adapters import S3StorageAdapter, LocalStorageAdapter
+from services.sync.stream.storage.adapters import LocalStorageAdapter
 
 __all__ = [
     "CachePathManager",
@@ -31,6 +31,5 @@ __all__ = [
     "create_study_user_reply_to_user_post_handler",
     "StudyUserActivityExporter",
     "StorageRepository",
-    "S3StorageAdapter",
     "LocalStorageAdapter",
 ]

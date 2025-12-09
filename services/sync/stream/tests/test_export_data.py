@@ -1,4 +1,4 @@
-"""Tests for export_data.py - new architecture.
+"""Tests for cache management and cache writer - new architecture.
 
 Tests cover:
 - CachePathManager
@@ -16,17 +16,20 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from services.sync.stream.export_data import (
+from services.sync.stream.cache_management import (
     CachePathManager,
     CacheDirectoryManager,
     CacheFileWriter,
     CacheFileReader,
+)
+from services.sync.stream.cache_writer import (
     export_study_user_data_local,
     export_in_network_user_data_local,
     _get_system_components,
     _get_study_user_manager,
 )
 from services.sync.stream.handlers.registry import RecordHandlerRegistry
+from services.sync.stream.types import Operation, RecordType, GenericRecordType, FollowStatus
 
 
 class TestCachePathManager:
@@ -41,7 +44,7 @@ class TestCachePathManager:
         mock_manager.is_study_user_post = Mock(return_value=None)
         mock_manager.is_in_network_user = Mock(return_value=False)
         monkeypatch.setattr(
-            "services.sync.stream.export_data._get_study_user_manager",
+            "services.sync.stream.cache_writer._get_study_user_manager",
             lambda: mock_manager,
         )
 
@@ -51,10 +54,10 @@ class TestCachePathManager:
         path_manager = CachePathManager()
 
         # Assert
-        assert path_manager.root_write_path.endswith("cache")
-        assert "create" in path_manager.root_create_path
-        assert "delete" in path_manager.root_delete_path
-        assert path_manager.operation_types == ["post", "like", "follow"]
+        assert path_manager.root_write_path.endswith("__local_cache__")
+        assert Operation.CREATE.value in path_manager.root_create_path
+        assert Operation.DELETE.value in path_manager.root_delete_path
+        assert path_manager.operation_types == [GenericRecordType.POST.value, GenericRecordType.LIKE.value, GenericRecordType.FOLLOW.value]
 
     def test_get_local_cache_path(self):
         """Test get_local_cache_path returns correct paths."""
@@ -62,14 +65,14 @@ class TestCachePathManager:
         path_manager = CachePathManager()
 
         # Act
-        create_post_path = path_manager.get_local_cache_path("create", "post")
-        delete_like_path = path_manager.get_local_cache_path("delete", "like")
+        create_post_path = path_manager.get_local_cache_path(Operation.CREATE, GenericRecordType.POST)
+        delete_like_path = path_manager.get_local_cache_path(Operation.DELETE, GenericRecordType.LIKE)
 
         # Assert
-        assert "create" in create_post_path
-        assert "post" in create_post_path
-        assert "delete" in delete_like_path
-        assert "like" in delete_like_path
+        assert Operation.CREATE.value in create_post_path
+        assert GenericRecordType.POST.value in create_post_path
+        assert Operation.DELETE.value in delete_like_path
+        assert GenericRecordType.LIKE.value in delete_like_path
 
     def test_get_study_user_activity_path_post(self):
         """Test get_study_user_activity_path for post records."""
@@ -77,15 +80,15 @@ class TestCachePathManager:
         path_manager = CachePathManager()
 
         # Act
-        create_path = path_manager.get_study_user_activity_path("create", "post")
-        delete_path = path_manager.get_study_user_activity_path("delete", "post")
+        create_path = path_manager.get_study_user_activity_path(Operation.CREATE, RecordType.POST)
+        delete_path = path_manager.get_study_user_activity_path(Operation.DELETE, RecordType.POST)
 
         # Assert
         assert "study_user_activity" in create_path
-        assert "create" in create_path
-        assert "post" in create_path
+        assert Operation.CREATE.value in create_path
+        assert RecordType.POST.value in create_path
         assert "study_user_activity" in delete_path
-        assert "delete" in delete_path
+        assert Operation.DELETE.value in delete_path
 
     def test_get_study_user_activity_path_follow(self):
         """Test get_study_user_activity_path for follow records with follow_status."""
@@ -94,17 +97,17 @@ class TestCachePathManager:
 
         # Act
         follower_path = path_manager.get_study_user_activity_path(
-            "create", "follow", follow_status="follower"
+            Operation.CREATE, RecordType.FOLLOW, follow_status=FollowStatus.FOLLOWER
         )
         followee_path = path_manager.get_study_user_activity_path(
-            "create", "follow", follow_status="followee"
+            Operation.CREATE, RecordType.FOLLOW, follow_status=FollowStatus.FOLLOWEE
         )
 
         # Assert
-        assert "follow" in follower_path
-        assert "follower" in follower_path
-        assert "follow" in followee_path
-        assert "followee" in followee_path
+        assert RecordType.FOLLOW.value in follower_path
+        assert FollowStatus.FOLLOWER.value in follower_path
+        assert RecordType.FOLLOW.value in followee_path
+        assert FollowStatus.FOLLOWEE.value in followee_path
 
     def test_get_study_user_activity_path_like_on_user_post(self):
         """Test get_study_user_activity_path for like_on_user_post records."""
@@ -112,11 +115,11 @@ class TestCachePathManager:
         path_manager = CachePathManager()
 
         # Act
-        path = path_manager.get_study_user_activity_path("create", "like_on_user_post")
+        path = path_manager.get_study_user_activity_path(Operation.CREATE, RecordType.LIKE_ON_USER_POST)
 
         # Assert
         assert "study_user_activity" in path
-        assert "like_on_user_post" in path
+        assert RecordType.LIKE_ON_USER_POST.value in path
 
     def test_get_in_network_activity_path(self):
         """Test get_in_network_activity_path returns correct path."""
@@ -125,12 +128,12 @@ class TestCachePathManager:
         author_did = "did:plc:test123"
 
         # Act
-        path = path_manager.get_in_network_activity_path("create", "post", author_did)
+        path = path_manager.get_in_network_activity_path(Operation.CREATE, RecordType.POST, author_did)
 
         # Assert
         assert "in_network_user_activity" in path
-        assert "create" in path
-        assert "post" in path
+        assert Operation.CREATE.value in path
+        assert RecordType.POST.value in path
         assert author_did in path
 
     def test_get_relative_path(self):
@@ -139,16 +142,16 @@ class TestCachePathManager:
         path_manager = CachePathManager()
 
         # Act
-        post_relative = path_manager.get_relative_path("create", "post")
+        post_relative = path_manager.get_relative_path(Operation.CREATE, RecordType.POST)
         follow_relative = path_manager.get_relative_path(
-            "create", "follow", follow_status="follower"
+            Operation.CREATE, RecordType.FOLLOW, follow_status=FollowStatus.FOLLOWER
         )
 
         # Assert
-        assert "create" in post_relative
-        assert "post" in post_relative
-        assert "follow" in follow_relative
-        assert "follower" in follow_relative
+        assert Operation.CREATE.value in post_relative
+        assert RecordType.POST.value in post_relative
+        assert RecordType.FOLLOW.value in follow_relative
+        assert FollowStatus.FOLLOWER.value in follow_relative
 
 
 class TestCacheDirectoryManager:
@@ -160,7 +163,7 @@ class TestCacheDirectoryManager:
         mock_manager = Mock()
         mock_manager.insert_study_user_post = Mock()
         monkeypatch.setattr(
-            "services.sync.stream.export_data._get_study_user_manager",
+            "services.sync.stream.cache_writer._get_study_user_manager",
             lambda: mock_manager,
         )
 
@@ -212,12 +215,12 @@ class TestCacheDirectoryManager:
         # Use a temporary directory for testing
         with tempfile.TemporaryDirectory() as tmpdir:
             # Override root_write_path for testing
-            path_manager.root_write_path = os.path.join(tmpdir, "cache")
+            path_manager.root_write_path = os.path.join(tmpdir, "__local_cache__")
             path_manager.root_create_path = os.path.join(
-                path_manager.root_write_path, "create"
+                path_manager.root_write_path, Operation.CREATE.value
             )
             path_manager.root_delete_path = os.path.join(
-                path_manager.root_write_path, "delete"
+                path_manager.root_write_path, Operation.DELETE.value
             )
             # Update study_user_activity paths
             path_manager.study_user_activity_root_local_path = os.path.join(
@@ -227,7 +230,7 @@ class TestCacheDirectoryManager:
                 path_manager.root_write_path, "in_network_user_activity"
             )
             path_manager.in_network_user_activity_create_post_local_path = os.path.join(
-                path_manager.in_network_user_activity_root_local_path, "create", "post"
+                path_manager.in_network_user_activity_root_local_path, Operation.CREATE.value, RecordType.POST.value
             )
 
             # Act
@@ -261,7 +264,7 @@ class TestCacheDirectoryManager:
         dir_manager = CacheDirectoryManager(path_manager=path_manager)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            path_manager.root_write_path = os.path.join(tmpdir, "cache")
+            path_manager.root_write_path = os.path.join(tmpdir, "__local_cache__")
             os.makedirs(path_manager.root_write_path)
 
             # Act
@@ -310,7 +313,7 @@ class TestCacheFileWriter:
         mock_manager = Mock()
         mock_manager.insert_study_user_post = Mock()
         monkeypatch.setattr(
-            "services.sync.stream.export_data._get_study_user_manager",
+            "services.sync.stream.cache_writer._get_study_user_manager",
             lambda: mock_manager,
         )
 
@@ -378,7 +381,7 @@ class TestCacheFileReader:
         mock_manager = Mock()
         mock_manager.insert_study_user_post = Mock()
         monkeypatch.setattr(
-            "services.sync.stream.export_data._get_study_user_manager",
+            "services.sync.stream.cache_writer._get_study_user_manager",
             lambda: mock_manager,
         )
 
@@ -496,18 +499,18 @@ class TestExportStudyUserDataLocal:
 
         # Reset system components
         monkeypatch.setattr(
-            "services.sync.stream.export_data._system_components", None
+            "services.sync.stream.cache_writer._system_components", None
         )
 
         # Create temporary directory for cache
-        cache_dir = tmp_path / "cache"
+        cache_dir = tmp_path / "__local_cache__"
         cache_dir.mkdir()
 
         # Mock setup_sync_export_system to use temp directory
         # Import here to avoid triggering data_filter imports during module load
         def mock_setup(use_s3=False, s3_client=None):
             # Lazy imports to avoid triggering data_filter.py import
-            from services.sync.stream.export_data import (
+            from services.sync.stream.cache_management import (
                 CachePathManager,
                 CacheDirectoryManager,
                 CacheFileWriter,
@@ -516,8 +519,8 @@ class TestExportStudyUserDataLocal:
 
             path_manager = CachePathManager()
             path_manager.root_write_path = str(cache_dir)
-            path_manager.root_create_path = str(cache_dir / "create")
-            path_manager.root_delete_path = str(cache_dir / "delete")
+            path_manager.root_create_path = str(cache_dir / Operation.CREATE.value)
+            path_manager.root_delete_path = str(cache_dir / Operation.DELETE.value)
             path_manager.study_user_activity_root_local_path = str(
                 cache_dir / "study_user_activity"
             )
@@ -560,14 +563,16 @@ class TestExportStudyUserDataLocal:
                     path_manager, file_writer, file_reader
                 )
 
-            RecordHandlerRegistry.register_factory("post", make_post_handler)
-            RecordHandlerRegistry.register_factory("like", make_like_handler)
-            RecordHandlerRegistry.register_factory("follow", make_follow_handler)
+            from services.sync.stream.types import RecordType
+
+            RecordHandlerRegistry.register_factory(RecordType.POST.value, make_post_handler)
+            RecordHandlerRegistry.register_factory(RecordType.LIKE.value, make_like_handler)
+            RecordHandlerRegistry.register_factory(RecordType.FOLLOW.value, make_follow_handler)
             RecordHandlerRegistry.register_factory(
-                "like_on_user_post", make_like_on_user_post_handler
+                RecordType.LIKE_ON_USER_POST.value, make_like_on_user_post_handler
             )
             RecordHandlerRegistry.register_factory(
-                "reply_to_user_post", make_reply_to_user_post_handler
+                RecordType.REPLY_TO_USER_POST.value, make_reply_to_user_post_handler
             )
 
             from services.sync.stream.exporters.study_user_exporter import (
@@ -601,9 +606,9 @@ class TestExportStudyUserDataLocal:
         )
 
         # Reset the global variable
-        import services.sync.stream.export_data as export_module
+        import services.sync.stream.cache_writer as cache_writer_module
 
-        export_module._system_components = None
+        cache_writer_module._system_components = None
 
         yield
 
@@ -626,15 +631,15 @@ class TestExportStudyUserDataLocal:
         # Act
         export_study_user_data_local(
             record=record,
-            record_type="post",
-            operation="create",
+            record_type=RecordType.POST.value,
+            operation=Operation.CREATE.value,
             author_did=author_did,
             filename=filename,
             study_user_manager=mock_study_user_manager,
         )
 
         # Assert - check file was created
-        cache_dir = tmp_path / "cache" / "study_user_activity" / "create" / "post"
+        cache_dir = tmp_path / "__local_cache__" / "study_user_activity" / Operation.CREATE.value / RecordType.POST.value
         expected_file = cache_dir / filename
         assert expected_file.exists()
 
@@ -659,8 +664,8 @@ class TestExportStudyUserDataLocal:
         # Act
         export_study_user_data_local(
             record=record,
-            record_type="like",
-            operation="create",
+            record_type=RecordType.LIKE.value,
+            operation=Operation.CREATE.value,
             author_did=author_did,
             filename=filename,
             study_user_manager=mock_study_user_manager,
@@ -670,10 +675,10 @@ class TestExportStudyUserDataLocal:
         post_uri_suffix = "456"
         cache_dir = (
             tmp_path
-            / "cache"
+            / "__local_cache__"
             / "study_user_activity"
-            / "create"
-            / "like"
+            / Operation.CREATE.value
+            / RecordType.LIKE.value
             / post_uri_suffix
         )
         expected_file = cache_dir / filename
@@ -694,22 +699,22 @@ class TestExportStudyUserDataLocal:
         # Act
         export_study_user_data_local(
             record=record,
-            record_type="follow",
-            operation="create",
+            record_type=RecordType.FOLLOW.value,
+            operation=Operation.CREATE.value,
             author_did=author_did,
             filename=filename,
-            kwargs={"follow_status": "follower"},
+            kwargs={"follow_status": FollowStatus.FOLLOWER.value},
             study_user_manager=mock_study_user_manager,
         )
 
         # Assert - check file was created in follower directory
         cache_dir = (
             tmp_path
-            / "cache"
+            / "__local_cache__"
             / "study_user_activity"
-            / "create"
-            / "follow"
-            / "follower"
+            / Operation.CREATE.value
+            / RecordType.FOLLOW.value
+            / FollowStatus.FOLLOWER.value
         )
         expected_file = cache_dir / filename
         assert expected_file.exists()
@@ -726,8 +731,8 @@ class TestExportStudyUserDataLocal:
         with pytest.raises(ValueError, match="follow_status required"):
             export_study_user_data_local(
                 record=record,
-                record_type="follow",
-                operation="create",
+                record_type=RecordType.FOLLOW.value,
+                operation=Operation.CREATE.value,
                 author_did=author_did,
                 filename=filename,
                 study_user_manager=mock_study_user_manager,
@@ -742,11 +747,12 @@ class TestExportStudyUserDataLocal:
         mock_study_user_manager = Mock()
 
         # Act & Assert
-        with pytest.raises(ValueError, match="Unknown record type"):
+        # Enum validation happens first, so we get a ValueError from enum creation
+        with pytest.raises((ValueError, KeyError), match="(Unknown record type|not a valid RecordType)"):
             export_study_user_data_local(
                 record=record,
                 record_type="unknown_type",  # type: ignore[arg-type]
-                operation="create",
+                operation=Operation.CREATE.value,
                 author_did=author_did,
                 filename=filename,
                 study_user_manager=mock_study_user_manager,
@@ -763,7 +769,7 @@ class TestExportStudyUserDataLocal:
         filename = "test_post.json"
 
         with patch(
-            "services.sync.stream.export_data._get_study_user_manager"
+            "services.sync.stream.cache_writer._get_study_user_manager"
         ) as mock_get_manager:
             mock_manager = Mock()
             mock_manager.insert_study_user_post = Mock()
@@ -772,8 +778,8 @@ class TestExportStudyUserDataLocal:
             # Act
             export_study_user_data_local(
                 record=record,
-                record_type="post",
-                operation="create",
+                record_type=RecordType.POST.value,
+                operation=Operation.CREATE.value,
                 author_did=author_did,
                 filename=filename,
             )
@@ -792,16 +798,16 @@ class TestExportInNetworkUserDataLocal:
         """Set up test fixtures."""
         # Reset system components
         monkeypatch.setattr(
-            "services.sync.stream.export_data._system_components", None
+            "services.sync.stream.cache_writer._system_components", None
         )
 
         # Create temporary directory for cache
-        cache_dir = tmp_path / "cache"
+        cache_dir = tmp_path / "__local_cache__"
         cache_dir.mkdir()
 
         # Mock setup_sync_export_system
         def mock_setup(use_s3=False, s3_client=None):
-            from services.sync.stream.export_data import (
+            from services.sync.stream.cache_management import (
                 CachePathManager,
                 CacheDirectoryManager,
                 CacheFileWriter,
@@ -849,9 +855,9 @@ class TestExportInNetworkUserDataLocal:
         )
 
         # Reset the global variable
-        import services.sync.stream.export_data as export_module
+        import services.sync.stream.cache_writer as cache_writer_module
 
-        export_module._system_components = None
+        cache_writer_module._system_components = None
 
         yield
 
@@ -868,7 +874,7 @@ class TestExportInNetworkUserDataLocal:
         # Act
         export_in_network_user_data_local(
             record=record,
-            record_type="post",
+            record_type=RecordType.POST.value,
             author_did=author_did,
             filename=filename,
         )
@@ -876,10 +882,10 @@ class TestExportInNetworkUserDataLocal:
         # Assert - check file was created
         cache_dir = (
             tmp_path
-            / "cache"
+            / "__local_cache__"
             / "in_network_user_activity"
-            / "create"
-            / "post"
+            / Operation.CREATE.value
+            / RecordType.POST.value
             / author_did
         )
         expected_file = cache_dir / filename
@@ -901,7 +907,7 @@ class TestExportInNetworkUserDataLocal:
         # Act (should not raise or create files)
         export_in_network_user_data_local(
             record=record,
-            record_type="like",  # type: ignore[arg-type]
+            record_type=RecordType.LIKE.value,
             author_did=author_did,
             filename=filename,
             study_user_manager=mock_study_user_manager,
