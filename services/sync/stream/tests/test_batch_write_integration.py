@@ -65,6 +65,11 @@ class TestBatchWriteStudyUserActivity:
             cleanup_files(file_path)
         
         # Setup mock storage repository
+        # Note: We set both context.storage_repository and the exporter's storage_repository.
+        # The exporter uses its own reference, but context.storage_repository is used by
+        # setup_batch_export_system() and may be used by other code paths, so we set both
+        # for consistency and to ensure all references point to the mock.
+        context.storage_repository = mock_storage_repository
         context.study_user_exporter.storage_repository = mock_storage_repository
         
         # Execute: Run batch export
@@ -142,6 +147,11 @@ class TestBatchWriteStudyUserActivity:
             cleanup_files(file_path)
         
         # Setup mock storage repository
+        # Note: We set both context.storage_repository and the exporter's storage_repository.
+        # The exporter uses its own reference, but context.storage_repository is used by
+        # setup_batch_export_system() and may be used by other code paths, so we set both
+        # for consistency and to ensure all references point to the mock.
+        context.storage_repository = mock_storage_repository
         context.study_user_exporter.storage_repository = mock_storage_repository
         
         # Execute: Run batch export
@@ -203,6 +213,11 @@ class TestBatchWriteStudyUserActivity:
         cleanup_files(file_path)
         
         # Setup mock storage repository
+        # Note: We set both context.storage_repository and the exporter's storage_repository.
+        # The exporter uses its own reference, but context.storage_repository is used by
+        # setup_batch_export_system() and may be used by other code paths, so we set both
+        # for consistency and to ensure all references point to the mock.
+        context.storage_repository = mock_storage_repository
         context.study_user_exporter.storage_repository = mock_storage_repository
         
         # Execute: Run batch export
@@ -356,6 +371,11 @@ class TestBatchExporterIntegration:
         cleanup_files(in_network_post_file)
         
         # Setup mock storage repository
+        # Note: We set both context.storage_repository and the exporter's storage_repository.
+        # The exporter uses its own reference, but context.storage_repository is used by
+        # setup_batch_export_system() and may be used by other code paths, so we set both
+        # for consistency and to ensure all references point to the mock.
+        context.storage_repository = mock_storage_repository
         context.study_user_exporter.storage_repository = mock_storage_repository
         
         # Create batch exporter
