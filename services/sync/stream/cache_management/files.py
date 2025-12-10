@@ -28,18 +28,41 @@ class FileUtilities:
     # Write operations
     def write_json(self, path: str, data: dict) -> None:
         """Write JSON data to file at path."""
-        parent_dir = os.path.dirname(path)
-        self.directory_manager.ensure_directory_exists(parent_dir)
-        with open(path, "w") as f:
-            json.dump(data, f)
+        try:
+            parent_dir = os.path.dirname(path)
+            self.directory_manager.ensure_directory_exists(parent_dir)
+            with open(path, "w") as f:
+                json.dump(data, f)
+        except (OSError, IOError, PermissionError) as e:
+            logger.error(
+                f"Failed to write JSON file: {path}",
+                context={
+                    "path": path,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+            raise
 
     def write_jsonl(self, path: str, records: list[dict]) -> None:
         """Write JSONL data to file at path."""
-        parent_dir = os.path.dirname(path)
-        self.directory_manager.ensure_directory_exists(parent_dir)
-        with open(path, "w") as f:
-            for record in records:
-                f.write(json.dumps(record) + "\n")
+        try:
+            parent_dir = os.path.dirname(path)
+            self.directory_manager.ensure_directory_exists(parent_dir)
+            with open(path, "w") as f:
+                for record in records:
+                    f.write(json.dumps(record) + "\n")
+        except (OSError, IOError, PermissionError) as e:
+            logger.error(
+                f"Failed to write JSONL file: {path}",
+                context={
+                    "path": path,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "record_count": len(records),
+                },
+            )
+            raise
 
     # Read operations
     def read_json(self, path: str) -> dict:
@@ -88,11 +111,22 @@ class FileUtilities:
         """List all files in directory."""
         if not os.path.exists(directory):
             return []
-        return [
-            f
-            for f in os.listdir(directory)
-            if os.path.isfile(os.path.join(directory, f))
-        ]
+        try:
+            return [
+                f
+                for f in os.listdir(directory)
+                if os.path.isfile(os.path.join(directory, f))
+            ]
+        except (OSError, PermissionError) as e:
+            logger.warning(
+                f"Failed to list files in directory: {directory}. Error: {type(e).__name__}: {str(e)}",
+                context={
+                    "directory": directory,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+            return []
 
     def list_directories(self, directory: str) -> list[str]:
         """List all subdirectories in directory.
@@ -105,11 +139,22 @@ class FileUtilities:
         """
         if not os.path.exists(directory):
             return []
-        return [
-            d
-            for d in os.listdir(directory)
-            if os.path.isdir(os.path.join(directory, d))
-        ]
+        try:
+            return [
+                d
+                for d in os.listdir(directory)
+                if os.path.isdir(os.path.join(directory, d))
+            ]
+        except (OSError, PermissionError) as e:
+            logger.warning(
+                f"Failed to list directories in: {directory}. Error: {type(e).__name__}: {str(e)}",
+                context={
+                    "directory": directory,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+            return []
 
     def is_directory(self, path: str) -> bool:
         """Check if path is a directory.
@@ -131,4 +176,16 @@ class FileUtilities:
         """
         for filepath in filepaths:
             if os.path.exists(filepath) and os.path.isfile(filepath):
-                os.remove(filepath)
+                try:
+                    os.remove(filepath)
+                except (OSError, PermissionError) as e:
+                    logger.error(
+                        f"Failed to delete file: {filepath}. Error: {type(e).__name__}: {str(e)}",
+                        context={
+                            "filepath": filepath,
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                        },
+                    )
+                    # Continue to next file instead of stopping
+                    continue

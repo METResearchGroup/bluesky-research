@@ -1,6 +1,6 @@
 """Manages batch exporting of cache data to persistent storage."""
 
-from typing import TypedDict
+from dataclasses import dataclass
 from lib.log.logger import get_logger
 
 from services.sync.stream.exporters.study_user_exporter import StudyUserActivityExporter
@@ -13,7 +13,8 @@ from services.sync.stream.cache_management import CacheDirectoryManager, FileUti
 logger = get_logger(__file__)
 
 
-class BatchExportResult(TypedDict):
+@dataclass
+class BatchExportResult:
     """Result of batch export operation."""
 
     study_user_filepaths: list[str]
@@ -53,7 +54,7 @@ class BatchExporter:
         """Export all cached data to persistent storage.
 
         Returns:
-            Dict with keys 'study_user_filepaths' and 'in_network_filepaths'
+            BatchExportResult with study_user_filepaths and in_network_filepaths
         """
         logger.info("Starting batch export...")
 

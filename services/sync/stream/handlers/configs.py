@@ -117,13 +117,13 @@ def _follow_read_strategy(
     filepaths: list[str] = []
     follow_dir = os.path.join(base_path, record_type.value)
 
-    if not os.path.exists(follow_dir):
+    if not file_utilities.is_directory(follow_dir):
         return records, filepaths
 
     # Iterate over follow_status directories
     for follow_status in [FollowStatus.FOLLOWEE, FollowStatus.FOLLOWER]:
         follow_type_path = os.path.join(follow_dir, follow_status.value)
-        if not os.path.exists(follow_type_path):
+        if not file_utilities.is_directory(follow_type_path):
             continue
 
         for filename in file_utilities.list_files(follow_type_path):

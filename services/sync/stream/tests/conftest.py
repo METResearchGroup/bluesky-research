@@ -13,18 +13,26 @@ from services.sync.stream.tests.mock_firehose_data import (
 )
 
 
-def pytest_configure(config):
-    """Configure pytest hooks - runs before any test modules are imported.
+@pytest.fixture(scope="session", autouse=True)
+def patch_get_study_user_manager():
+    """Session-scoped fixture that patches get_study_user_manager for all tests.
     
     This patches get_study_user_manager before data_filter.py can initialize
     study_user_manager at module level, preventing real initialization during tests.
+    The patch is automatically stopped after the test session completes.
     """
-    # Patch at the source before any imports happen
-    # This must happen before data_filter.py is imported
-    patch(
+    # Create patcher and start it
+    patcher = patch(
         "services.participant_data.study_users.get_study_user_manager",
         get_mock_study_manager,
-    ).start()
+    )
+    patcher.start()
+    
+    # Yield to allow tests to run
+    yield
+    
+    # Stop the patcher in teardown
+    patcher.stop()
 
 
 def clean_path(path: str):
@@ -294,19 +302,26 @@ def mock_service_metadata(monkeypatch):
     """Mock MAP_SERVICE_TO_METADATA to avoid KeyError in tests."""
     from lib.db import service_constants
     
+    # Use monkeypatch.setitem to ensure pytest restores original state after tests
     # Ensure required services exist in MAP_SERVICE_TO_METADATA
     if "study_user_activity" not in service_constants.MAP_SERVICE_TO_METADATA:
-        service_constants.MAP_SERVICE_TO_METADATA["study_user_activity"] = {
-            "dtypes_map": {}
-        }
+        monkeypatch.setitem(
+            service_constants.MAP_SERVICE_TO_METADATA,
+            "study_user_activity",
+            {"dtypes_map": {}}
+        )
     if "scraped_user_social_network" not in service_constants.MAP_SERVICE_TO_METADATA:
-        service_constants.MAP_SERVICE_TO_METADATA["scraped_user_social_network"] = {
-            "dtypes_map": {}
-        }
+        monkeypatch.setitem(
+            service_constants.MAP_SERVICE_TO_METADATA,
+            "scraped_user_social_network",
+            {"dtypes_map": {}}
+        )
     if "in_network_user_activity" not in service_constants.MAP_SERVICE_TO_METADATA:
-        service_constants.MAP_SERVICE_TO_METADATA["in_network_user_activity"] = {
-            "dtypes_map": {}
-        }
+        monkeypatch.setitem(
+            service_constants.MAP_SERVICE_TO_METADATA,
+            "in_network_user_activity",
+            {"dtypes_map": {}}
+        )
     
     return service_constants.MAP_SERVICE_TO_METADATA
 

@@ -400,8 +400,6 @@ class TestBatchExporterIntegration:
         assert mock_storage_repository.export_dataframe.call_count >= 2
         
         # Verify: Result contains filepaths
-        assert "study_user_filepaths" in result
-        assert "in_network_filepaths" in result
-        assert len(result["study_user_filepaths"]) > 0
-        assert len(result["in_network_filepaths"]) > 0
+        assert len(result.study_user_filepaths) > 0
+        assert len(result.in_network_filepaths) > 0
 
