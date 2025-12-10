@@ -82,10 +82,8 @@ class BatchExporter:
 
         # Optionally clear processed files
         if self.clear_filepaths:
-            logger.info(
-                f"Clearing {len(study_user_filepaths + in_network_filepaths)} processed files..."
-            )
             all_filepaths = study_user_filepaths + in_network_filepaths
+            logger.info(f"Clearing {len(all_filepaths)} processed files...")
             self.file_utilities.delete_files(all_filepaths)
             logger.info("Cleared processed files.")
 
