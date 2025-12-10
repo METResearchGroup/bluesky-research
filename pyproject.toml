@@ -120,7 +120,7 @@ all = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["lib*", "ml_tooling*", "bluesky_database*", "services*"]
+include = ["lib*", "ml_tooling*", "bluesky_database*", "services*", "transform*"]
 exclude = [
     "demos*", 
     "experiments*", 
@@ -189,6 +189,7 @@ testpaths = [
     "services/calculate_analytics/tests",
     "services/calculate_analytics/study_analytics/calculate_analytics/tests",
     "services/write_cache_buffers_to_db/tests",
+    "services/sync/stream/tests",
     "services/sync/jetstream/tests",
     "pipelines/backfill_records_coordination/tests",
     "pipelines/classify_records/perspective_api/tests",

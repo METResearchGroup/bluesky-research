@@ -1,0 +1,185 @@
+"""Concrete storage adapter implementations.
+
+We introduce the adapter pattern here so that we can abstract storage operations
+and make it backend-agnostic.
+"""
+
+import gzip
+import json
+import os
+import tempfile
+import pandas as pd
+
+from lib.log.logger import get_logger
+
+from lib.constants import root_local_data_directory
+from lib.db.manage_local_data import (
+    write_jsons_to_local_store,
+    export_data_to_local_storage,
+)
+
+logger = get_logger(__file__)
+
+
+class LocalStorageAdapter:
+    """Local filesystem storage adapter implementation."""
+
+    def __init__(self):
+        """Initialize local storage adapter."""
+
+    def write_dataframe(
+        self,
+        df: pd.DataFrame,
+        key: str,
+        service: str,
+        custom_args: dict | None = None,
+    ) -> None:
+        """Write DataFrame to local storage."""
+        export_data_to_local_storage(
+            df=df,
+            service=service,
+            custom_args=custom_args or {},
+        )
+
+    def write_jsonl(
+        self,
+        data: list[dict],
+        key: str,
+        compressed: bool = False,  # Local usually uncompressed
+    ) -> None:
+        """Write JSONL to local filesystem with atomic writes.
+
+        Args:
+            data: List of dictionaries to write as JSONL
+            key: Relative path/key for the output file
+            compressed: Whether to compress the output with gzip
+
+        Raises:
+            OSError: If file operations fail
+            IOError: If I/O operations fail
+        """
+        full_path = os.path.join(root_local_data_directory, key)
+        target_dir = os.path.dirname(full_path)
+        os.makedirs(target_dir, exist_ok=True)
+
+        # Add .gz extension if compressed
+        if compressed:
+            full_path += ".gz"
+
+        # Create temp file in target directory for atomic write
+        temp_fd, temp_path = tempfile.mkstemp(
+            dir=target_dir, prefix=os.path.basename(full_path) + ".tmp.", suffix=""
+        )
+
+        temp_fd_closed = False
+        try:
+            # Write data to temp file
+            if compressed:
+                # Close the file descriptor, we'll use the path with gzip.open
+                os.close(temp_fd)
+                temp_fd_closed = True
+                with gzip.open(temp_path, "wt", encoding="utf-8") as gz_file:
+                    for item in data:
+                        gz_file.write(json.dumps(item, ensure_ascii=False) + "\n")
+                    gz_file.flush()
+                # Open the file again to fsync (gzip doesn't expose fd directly)
+                with open(temp_path, "rb") as f:
+                    os.fsync(f.fileno())
+            else:
+                with os.fdopen(temp_fd, "w", encoding="utf-8") as temp_file:
+                    temp_fd_closed = True  # fdopen closes the fd when context exits
+                    for item in data:
+                        temp_file.write(json.dumps(item, ensure_ascii=False) + "\n")
+                    temp_file.flush()
+                    # fsync the file
+                    os.fsync(temp_file.fileno())
+
+            # Atomically rename temp file to final path
+            os.rename(temp_path, full_path)
+
+        except (OSError, IOError) as e:
+            # Clean up temp file on error
+            try:
+                if not temp_fd_closed:
+                    os.close(temp_fd)
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except OSError:
+                pass  # Ignore cleanup errors
+
+            logger.error(
+                f"Failed to write JSONL to {full_path}: {type(e).__name__}: {str(e)}",
+                context={
+                    "filepath": full_path,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "compressed": compressed,
+                    "record_count": len(data),
+                },
+            )
+            raise
+        except Exception as e:
+            # Clean up temp file on unexpected error
+            try:
+                if not temp_fd_closed:
+                    os.close(temp_fd)
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except OSError:
+                pass  # Ignore cleanup errors
+
+            logger.error(
+                f"Unexpected error writing JSONL to {full_path}: {type(e).__name__}: {str(e)}",
+                context={
+                    "filepath": full_path,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "compressed": compressed,
+                    "record_count": len(data),
+                },
+            )
+            raise
+
+    def write_dicts_from_directory(
+        self,
+        directory: str,
+        key: str,
+        compressed: bool = False,
+    ) -> list[dict]:
+        """Write JSON files from directory to local storage.
+
+        Args:
+            directory: Source directory containing JSON files
+            key: Storage key/path for the output file (must be a file path, not directory)
+            compressed: Whether to compress the output
+
+        Note:
+            If key is empty, a default filename will be generated based on the
+            directory name. The key should specify a complete file path relative
+            to root_local_data_directory.
+        """
+        # If key is empty, generate a default filename from directory name
+        if not key:
+            # Extract directory name and use it as base filename
+            dir_name = os.path.basename(os.path.normpath(directory))
+            key = f"{dir_name}.jsonl"
+
+        # Ensure key is a file path, not a directory
+        full_path = os.path.join(root_local_data_directory, key)
+
+        # If full_path points to a directory (no extension), append .jsonl
+        if os.path.isdir(full_path) or (
+            not os.path.splitext(full_path)[1] and os.path.exists(full_path)
+        ):
+            full_path = os.path.join(full_path, "export.jsonl")
+        elif not os.path.splitext(full_path)[1]:
+            # No extension, add .jsonl
+            full_path += ".jsonl"
+
+        result = write_jsons_to_local_store(
+            source_directory=directory,
+            export_filepath=full_path,
+            compressed=compressed,
+        )
+        # write_jsons_to_local_store can return None, ensure we return a list
+        return result if result is not None else []

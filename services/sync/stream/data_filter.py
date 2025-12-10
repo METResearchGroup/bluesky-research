@@ -4,7 +4,7 @@ Based on https://github.com/MarshalX/bluesky-feed-generator/blob/main/server/dat
 """  # noqa
 
 import json
-from typing import Literal, Optional
+from typing import Optional
 
 from atproto_client.models.app.bsky.graph.follow import Record as FollowRecord
 from atproto_client.models.app.bsky.feed.like import Record as LikeRecord  # noqa
@@ -12,29 +12,31 @@ from atproto_client.models.app.bsky.feed.like import Record as LikeRecord  # noq
 from lib.db.bluesky_models.raw import RawFollow, RawFollowRecord, RawLike, RawLikeRecord
 from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorModel  # noqa
 from lib.log.logger import get_logger
-from services.sync.stream.export_data import (
-    export_in_network_user_data_local,
-    export_study_user_data_local,
-)
 from services.consolidate_post_records.helper import consolidate_firehose_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
-from services.participant_data.study_users import get_study_user_manager
+from services.sync.stream.context import CacheWriteContext
+from services.sync.stream.types import Operation, RecordType, FollowStatus, HandlerKey
 from transform.transform_raw_data import process_firehose_post
 
-
-study_user_manager = get_study_user_manager(load_from_aws=False)
 
 logger = get_logger(__name__)
 
 
-def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
+def manage_like(like: dict, operation: Operation, context: CacheWriteContext) -> None:
     """For a like that was created/deleted, insert the record in local cache.
 
     We'll write the record to S3 as part of our normal batch update.
     """
-    if operation == "create":
+    study_user_manager = context.study_user_manager
+
+    if operation == Operation.CREATE:
         raw_liked_record: LikeRecord = like["record"]
-        raw_liked_record_model = RawLikeRecord(**raw_liked_record.dict())
+        # Convert created_at to createdAt for RawLikeRecord
+        like_record_dict = raw_liked_record.dict()
+        like_record_dict["createdAt"] = like_record_dict.pop(
+            "created_at", like_record_dict.get("createdAt")
+        )
+        raw_liked_record_model = RawLikeRecord(**like_record_dict)
         like_model = RawLike(
             **{
                 "author": like["author"],
@@ -53,7 +55,7 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
         filename = (
             f"like_author_did={like_author_did}_like_uri_suffix={uri_suffix}.json"
         )
-    elif operation == "delete":
+    elif operation == Operation.DELETE:
         uri_suffix = like["uri"].split("/")[-1]
         filename = f"like_uri_suffix={uri_suffix}.json"
         like_model_dict = like
@@ -68,14 +70,16 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
     # plus, deleted likes only have the URI of the original like and not
     # author info. Pretty edge-case scenario where we'd need to track study
     # user's deleted likes.
-    if operation == "create":
+    if operation == Operation.CREATE:
+        handler_registry = context.handler_registry
+
         # Case 1: the user is the one who likes a post.
         is_study_user = study_user_manager.is_study_user(user_did=like_author_did)
         if is_study_user:
             logger.info(f"Exporting like data for user {like_author_did}")
-            export_study_user_data_local(
+            handler = handler_registry.get_handler(RecordType.LIKE.value)
+            handler.write_record(
                 record=like_model_dict,
-                record_type="like",
                 operation=operation,
                 author_did=like_author_did,
                 filename=filename,
@@ -94,16 +98,16 @@ def manage_like(like: dict, operation: Literal["create", "delete"]) -> None:
             logger.info(
                 f"Exporting like data for post {raw_liked_record_model.subject.uri}"
             )
-            export_study_user_data_local(
+            handler = handler_registry.get_handler(RecordType.LIKE_ON_USER_POST.value)
+            handler.write_record(
                 record=like_model_dict,
-                record_type="like_on_user_post",
                 operation=operation,
                 author_did=liked_post_is_study_user_post,  # the author of the liked post, which should be a user in the study # noqa
                 filename=filename,
             )
 
 
-def manage_likes(likes: dict[str, list]) -> dict:
+def manage_likes(likes: dict[str, list], context: CacheWriteContext) -> dict:
     """Manages the likes and follows.
 
     We'll build this in later, but this is a placeholder function for when we
@@ -137,19 +141,33 @@ def manage_likes(likes: dict[str, list]) -> dict:
     }
     """  # noqa
     for like in likes["created"]:
-        manage_like(like=like, operation="create")
+        manage_like(like=like, operation=Operation.CREATE, context=context)
     for like in likes["deleted"]:
-        manage_like(like=like, operation="delete")
+        manage_like(like=like, operation=Operation.DELETE, context=context)
 
 
-def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:  # noqa
+def manage_follow(
+    follow: dict,
+    operation: Operation,
+    context: CacheWriteContext,
+) -> None:  # noqa
     """For a follow that was created/deleted, insert the record in local cache.
 
     We'll write the record to S3 as part of our normal batch update.
     """
-    if operation == "create":
+    study_user_manager = context.study_user_manager
+
+    if operation == Operation.CREATE:
         raw_follow_record: FollowRecord = follow["record"]
-        raw_follow_record_model = RawFollowRecord(**raw_follow_record.dict())
+        # Convert created_at to createdAt for RawFollowRecord
+        # TODO: fix this later on, when we look at consolidating and updating
+        # the data models. There are a few places where I use createdAt vs.
+        # created_at and I'd prefer to keep created_at.
+        follow_record_dict = raw_follow_record.dict()
+        follow_record_dict["createdAt"] = follow_record_dict.pop(
+            "created_at", follow_record_dict.get("createdAt")
+        )
+        raw_follow_record_model = RawFollowRecord(**follow_record_dict)
         follow_model = RawFollow(
             **{
                 "uri": follow["uri"],
@@ -164,7 +182,7 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
         follower_did = follow_model.follower_did
         followee_did = follow_model.followee_did
         filename = f"follower_did={follower_did}_followee_did={followee_did}.json"
-    elif operation == "delete":
+    elif operation == Operation.DELETE:
         follow_uri_suffix = follow["uri"].split("/")[-1]
         filename = f"follow_uri_suffix={follow_uri_suffix}.json"
         follow_model_dict = follow
@@ -179,41 +197,42 @@ def manage_follow(follow: dict, operation: Literal["create", "delete"]) -> None:
     # plus, deleted follows only have the URI of the original like and not
     # author info. Pretty edge-case scenario where we'd need to track study
     # user's deleted follows.
-    if operation == "create":
+    if operation == Operation.CREATE:
+        handler_registry = context.handler_registry
+
         user_is_follower = study_user_manager.is_study_user(user_did=follower_did)  # noqa
         user_is_followee = study_user_manager.is_study_user(user_did=followee_did)  # noqa
         if user_is_follower or user_is_followee:
+            handler = handler_registry.get_handler(RecordType.FOLLOW.value)
             # someone can follow someone else in the study, in which case both
             # the follower and followee need to be registered.
             if user_is_follower:
                 logger.info(
                     f"User {follower_did} followed a new account, {followee_did}."
                 )  # noqa
-                export_study_user_data_local(
+                handler.write_record(
                     record=follow_model_dict,
-                    record_type="follow",
                     operation=operation,
                     author_did=follower_did,
                     filename=filename,
-                    kwargs={"follow_status": "follower"},
+                    follow_status=FollowStatus.FOLLOWER,
                 )
             if user_is_followee:
                 logger.info(
                     f"User {followee_did} was followed by a new account, {follower_did}."
                 )  # noqa
-                export_study_user_data_local(
+                handler.write_record(
                     record=follow_model_dict,
-                    record_type="follow",
                     operation=operation,
                     author_did=followee_did,
                     filename=filename,
-                    kwargs={"follow_status": "followee"},
+                    follow_status=FollowStatus.FOLLOWEE,
                 )
         else:
             logger.error("User is neither follower nor followee.")
 
 
-def manage_follows(follows: dict[str, list]) -> dict:
+def manage_follows(follows: dict[str, list], context: CacheWriteContext) -> dict:
     """Manages the follows.
 
     We'll build this in later, but this is a placeholder function for when we
@@ -248,17 +267,19 @@ def manage_follows(follows: dict[str, list]) -> dict:
     the DID of A and the record.subject is the DID of B.
     """  # noqa
     for follow in follows["created"]:
-        manage_follow(follow=follow, operation="create")
+        manage_follow(follow=follow, operation=Operation.CREATE, context=context)
     for follow in follows["deleted"]:
-        manage_follow(follow=follow, operation="delete")
+        manage_follow(follow=follow, operation=Operation.DELETE, context=context)
 
 
-def manage_post(post: dict, operation: Literal["create", "delete"]):
+def manage_post(post: dict, operation: Operation, context: CacheWriteContext):
     """For a post that was created/deleted, insert the record in local cache.
 
     We'll write the record to S3 as part of our normal batch update.
     """
-    if operation == "create":
+    study_user_manager = context.study_user_manager
+
+    if operation == Operation.CREATE:
         firehose_post: TransformedRecordWithAuthorModel = process_firehose_post(post)  # noqa
         consolidated_post: ConsolidatedPostRecordModel = consolidate_firehose_post(
             firehose_post
@@ -274,7 +295,7 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
             -1
         ]  # e.g., 3kwd3wuubke2i # noqa
         filename = f"author_did={author_did}_post_uri_suffix={post_uri_suffix}.json"  # noqa
-    elif operation == "delete":
+    elif operation == Operation.DELETE:
         post_uri_suffix = post["uri"].split("/")[-1]
         filename = f"post_uri_suffix={post_uri_suffix}.json"
         consolidated_post_dict = post
@@ -286,20 +307,27 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
     # full_path = os.path.join(folder_path, filename)
     # write_data_to_json(consolidated_post_dict, full_path)
 
-    if operation == "create":
+    if operation == Operation.CREATE:
+        handler_registry = context.handler_registry
+
         # Case 1: Check if the post was written by the study user.
         is_study_user = study_user_manager.is_study_user(user_did=author_did)
         if is_study_user:
             logger.info(
                 f"Study user {author_did} created a new post: {post_uri_suffix}"
             )  # noqa
-            export_study_user_data_local(
+            handler = handler_registry.get_handler(RecordType.POST.value)
+            handler.write_record(
                 record=consolidated_post_dict,
-                record_type="post",
                 operation=operation,
                 author_did=author_did,
                 filename=filename,
             )
+            # Update StudyUserManager for posts (maintains old behavior)
+            study_user_manager.insert_study_user_post(
+                post_uri=consolidated_post_dict["uri"], user_did=author_did
+            )
+
         # Case 2: Check if the post is a repost of a post written by the study
         # user. TODO: come back to this. Unsure if this can be tracked from
         # the raw firehose object itself? I don't think it can be. We can track
@@ -329,9 +357,11 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
                 logger.info(
                     f"Post {post_uri_suffix} is a reply to a post by a study user."
                 )
-                export_study_user_data_local(
+                handler = handler_registry.get_handler(
+                    RecordType.REPLY_TO_USER_POST.value
+                )
+                handler.write_record(
                     record=consolidated_post_dict,
-                    record_type="reply_to_user_post",
                     operation=operation,
                     # should return author DID of the post being replied to,
                     # since this is the post that is by the study user.
@@ -341,11 +371,6 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
                         else reply_root_is_user_study_post
                     ),
                     filename=filename,
-                    kwargs={
-                        "user_post_type": (
-                            "root" if reply_root_is_user_study_post else "parent"
-                        )
-                    },
                 )
 
         # Case 4: post is written by an in-network user.
@@ -356,70 +381,72 @@ def manage_post(post: dict, operation: Literal["create", "delete"]):
             logger.info(
                 f"In-network user {author_did} created a new post: {post_uri_suffix}"
             )  # noqa
-            export_in_network_user_data_local(
+            # Use handler for in-network posts
+            handler = handler_registry.get_handler(HandlerKey.IN_NETWORK_POST.value)
+            handler.write_record(
                 record=consolidated_post_dict,
-                record_type="post",
+                operation=operation,
                 author_did=author_did,
                 filename=filename,
             )
 
 
-def manage_posts(posts: dict[str, list]) -> dict:
+def manage_posts(posts: dict[str, list], context: CacheWriteContext) -> dict:
     """Manages which posts to create or delete.
 
     We want to track any new posts in our database.
     """
     for post in posts["created"]:
-        manage_post(post=post, operation="create")
+        manage_post(post=post, operation=Operation.CREATE, context=context)
     for post in posts["deleted"]:
-        manage_post(post=post, operation="delete")
+        manage_post(post=post, operation=Operation.DELETE, context=context)
 
 
-def manage_repost(repost: dict, operation: Literal["create", "delete"]) -> None:
+def manage_repost(repost: dict, operation: Operation) -> None:
     pass
 
 
 def manage_reposts(reposts: dict[str, list]) -> dict:
     for repost in reposts["created"]:
-        manage_repost(repost=repost, operation="create")
+        manage_repost(repost=repost, operation=Operation.CREATE)
     for repost in reposts["deleted"]:
-        manage_repost(repost=repost, operation="delete")
+        manage_repost(repost=repost, operation=Operation.DELETE)
 
 
-def manage_list(list: dict, operation: Literal["create", "delete"]) -> None:
+def manage_list(list: dict, operation: Operation) -> None:
     pass
 
 
 def manage_lists(lists: dict[str, list]) -> dict:
     for list in lists["created"]:
-        manage_list(list=list, operation="create")
+        manage_list(list=list, operation=Operation.CREATE)
     for list in lists["deleted"]:
-        manage_list(list=list, operation="delete")
+        manage_list(list=list, operation=Operation.DELETE)
 
 
-def manage_block(block: dict, operation: Literal["create", "delete"]) -> None:
+def manage_block(block: dict, operation: Operation) -> None:
     pass
 
 
 def manage_blocks(blocks: dict[str, list]) -> dict:
     for block in blocks["created"]:
-        manage_block(block=block, operation="create")
+        manage_block(block=block, operation=Operation.CREATE)
     for block in blocks["deleted"]:
-        manage_block(block=block, operation="delete")
+        manage_block(block=block, operation=Operation.DELETE)
 
 
-def manage_profile(profile: dict, operation: Literal["create", "delete"]) -> None:
+def manage_profile(profile: dict, operation: Operation) -> None:
     pass
 
 
 def manage_profiles(profiles: dict[str, list]) -> dict:
     for profile in profiles["created"]:
-        manage_profile(profile=profile, operation="create")
+        manage_profile(profile=profile, operation=Operation.CREATE)
     for profile in profiles["deleted"]:
-        manage_profile(profile=profile, operation="delete")
+        manage_profile(profile=profile, operation=Operation.DELETE)
 
 
-def operations_callback(operations_by_type: dict) -> bool:
+def operations_callback(operations_by_type: dict, context: CacheWriteContext) -> bool:
     """Callback for managing posts during stream.
 
     This function takes as input a dictionary of the format
@@ -475,9 +502,9 @@ def operations_callback(operations_by_type: dict) -> bool:
     }
     """  # noqa
     try:
-        manage_posts(posts=operations_by_type["posts"])
-        manage_likes(likes=operations_by_type["likes"])
-        manage_follows(follows=operations_by_type["follows"])
+        manage_posts(posts=operations_by_type["posts"], context=context)
+        manage_likes(likes=operations_by_type["likes"], context=context)
+        manage_follows(follows=operations_by_type["follows"], context=context)
         manage_reposts(reposts=operations_by_type["reposts"])
         manage_lists(lists=operations_by_type["lists"])
         manage_blocks(blocks=operations_by_type["blocks"])
