@@ -8,7 +8,12 @@ from services.sync.stream.protocols import (
     FileReaderProtocol,
     RecordHandlerProtocol,
 )
-from services.sync.stream.types import Operation, FollowStatus
+from services.sync.stream.types import (
+    Operation,
+    FollowStatus,
+    RecordType,
+    GenericRecordType,
+)
 
 
 class GenericRecordHandler(RecordHandlerProtocol):
@@ -120,6 +125,12 @@ class GenericRecordHandler(RecordHandlerProtocol):
             record_dir = os.path.join(base_path, self.config.record_type.value)
             return self.file_reader.read_all_json_in_directory(record_dir)
 
-    def get_record_type(self) -> str:
-        """Get the record type this handler manages."""
-        return self.config.record_type.value
+    def get_record_type(self) -> RecordType | GenericRecordType:
+        """Get the record type this handler manages.
+
+        TODO: When we reconsider changing the data models, we should consolidate
+        RecordType and GenericRecordType to have a single source of truth for
+        record type definitions. This will allow us to simplify this return type
+        and reduce the need for stringly-typed routing.
+        """
+        return self.config.record_type

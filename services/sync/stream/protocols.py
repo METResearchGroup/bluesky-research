@@ -6,7 +6,7 @@ All major dependencies are defined as protocols to enable:
 - Type safety
 """
 
-from typing import Protocol, TYPE_CHECKING
+from typing import Protocol, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -314,8 +314,14 @@ class RecordHandlerProtocol(Protocol):
         """
         ...
 
-    def get_record_type(self) -> str:
-        """Get the record type this handler manages."""
+    def get_record_type(self) -> Union["RecordType", "GenericRecordType"]:
+        """Get the record type this handler manages.
+
+        TODO: When we reconsider changing the data models, we should consolidate
+        RecordType and GenericRecordType to have a single source of truth for
+        record type definitions. This will allow us to simplify this return type
+        and reduce the need for stringly-typed routing.
+        """
         ...
 
 
