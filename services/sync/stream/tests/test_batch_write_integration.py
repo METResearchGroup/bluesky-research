@@ -12,9 +12,9 @@ from services.sync.stream.types import Operation, RecordType, FollowStatus
 def cleanup_directory(directory_path):
     """Helper function to clean up JSON files in a directory."""
     if os.path.exists(directory_path):
-        for filename in os.listdir(directory_path):
-            if filename.endswith(".json"):
-                os.remove(os.path.join(directory_path, filename))
+        json_files = [f for f in os.listdir(directory_path) if f.endswith(".json")]
+        for filename in json_files:
+            os.remove(os.path.join(directory_path, filename))
 
 
 class TestBatchWriteStudyUserActivity:
@@ -65,7 +65,6 @@ class TestBatchWriteStudyUserActivity:
             cleanup_files(file_path)
         
         # Setup mock storage repository
-        context.storage_repository = mock_storage_repository
         context.study_user_exporter.storage_repository = mock_storage_repository
         
         # Execute: Run batch export
@@ -143,7 +142,6 @@ class TestBatchWriteStudyUserActivity:
             cleanup_files(file_path)
         
         # Setup mock storage repository
-        context.storage_repository = mock_storage_repository
         context.study_user_exporter.storage_repository = mock_storage_repository
         
         # Execute: Run batch export
@@ -205,7 +203,6 @@ class TestBatchWriteStudyUserActivity:
         cleanup_files(file_path)
         
         # Setup mock storage repository
-        context.storage_repository = mock_storage_repository
         context.study_user_exporter.storage_repository = mock_storage_repository
         
         # Execute: Run batch export
@@ -359,7 +356,6 @@ class TestBatchExporterIntegration:
         cleanup_files(in_network_post_file)
         
         # Setup mock storage repository
-        context.storage_repository = mock_storage_repository
         context.study_user_exporter.storage_repository = mock_storage_repository
         
         # Create batch exporter
