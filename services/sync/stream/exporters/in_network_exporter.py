@@ -60,11 +60,9 @@ class InNetworkUserActivityExporter(BaseActivityExporter):
         if not os.path.exists(base_path):
             return all_filepaths
 
-        # Iterate over all author_did directories
-        for author_did in os.listdir(base_path):
+        # Iterate over all author_did directories (uses FileUtilities for error handling)
+        for author_did in self.file_utilities.list_directories(base_path):
             author_path = os.path.join(base_path, author_did)
-            if not os.path.isdir(author_path):
-                continue
 
             # Read all JSON files for this author
             records, filepaths = self.file_utilities.read_all_json_in_directory(

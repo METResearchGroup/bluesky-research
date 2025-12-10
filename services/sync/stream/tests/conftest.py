@@ -328,7 +328,16 @@ def mock_service_metadata(monkeypatch):
 
 @pytest.fixture
 def patched_export_dataframe(monkeypatch, mock_service_metadata):
-    """Patch BaseActivityExporter._export_dataframe to handle missing columns gracefully."""
+    """Patch BaseActivityExporter._export_dataframe to handle missing columns gracefully.
+    
+    NOTE: This fixture duplicates logic from BaseActivityExporter._export_dataframe.
+    This duplication exists as a workaround to handle missing columns in test metadata.
+    This can be removed once:
+    - Test metadata (MAP_SERVICE_TO_METADATA) is complete, OR
+    - Production code handles missing columns gracefully
+    
+    Until then, this ensures tests don't fail due to missing dtype mappings.
+    """
     import pandas as pd
     from services.sync.stream.exporters.base import BaseActivityExporter
     from lib.helper import generate_current_datetime_str
