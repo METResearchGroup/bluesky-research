@@ -8,8 +8,6 @@ from unittest.mock import Mock
 import pytest
 
 from services.sync.stream.cache_management import (
-    CachePathManager,
-    CacheDirectoryManager,
     CacheFileWriter,
     CacheFileReader,
 )
@@ -25,24 +23,17 @@ class TestCacheFileWriter:
         mock_manager.insert_study_user_post = Mock()
         # No longer needed - cache_writer.py was deleted
 
-    def test_init(self):
+    def test_init(self, dir_manager):
         """Test CacheFileWriter initialization."""
-        # Arrange
-        path_manager = CachePathManager()
-        dir_manager = CacheDirectoryManager(path_manager=path_manager)
-
         # Act
         file_writer = CacheFileWriter(directory_manager=dir_manager)
 
         # Assert
         assert file_writer.directory_manager == dir_manager
 
-    def test_write_json_creates_file(self):
+    def test_write_json_creates_file(self, file_writer):
         """Test write_json creates JSON file with correct data."""
         # Arrange
-        path_manager = CachePathManager()
-        dir_manager = CacheDirectoryManager(path_manager=path_manager)
-        file_writer = CacheFileWriter(directory_manager=dir_manager)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             test_path = os.path.join(tmpdir, "test.json")
@@ -57,12 +48,9 @@ class TestCacheFileWriter:
                 loaded_data = json.load(f)
             assert loaded_data == test_data
 
-    def test_write_jsonl_creates_file(self):
+    def test_write_jsonl_creates_file(self, file_writer):
         """Test write_jsonl creates JSONL file with correct data."""
         # Arrange
-        path_manager = CachePathManager()
-        dir_manager = CacheDirectoryManager(path_manager=path_manager)
-        file_writer = CacheFileWriter(directory_manager=dir_manager)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             test_path = os.path.join(tmpdir, "test.jsonl")
@@ -90,10 +78,9 @@ class TestCacheFileReader:
         mock_manager.insert_study_user_post = Mock()
         # No longer needed - cache_writer.py was deleted
 
-    def test_read_json_loads_file(self):
+    def test_read_json_loads_file(self, file_reader):
         """Test read_json loads JSON file correctly."""
         # Arrange
-        file_reader = CacheFileReader()
 
         with tempfile.TemporaryDirectory() as tmpdir:
             test_path = os.path.join(tmpdir, "test.json")
@@ -107,10 +94,9 @@ class TestCacheFileReader:
             # Assert
             assert result == test_data
 
-    def test_list_files_returns_files_only(self):
+    def test_list_files_returns_files_only(self, file_reader):
         """Test list_files returns only files, not directories."""
         # Arrange
-        file_reader = CacheFileReader()
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create files and directories
@@ -133,10 +119,9 @@ class TestCacheFileReader:
             assert "file2.txt" in result
             assert "subdir" not in result
 
-    def test_list_files_returns_empty_list_for_nonexistent_directory(self):
+    def test_list_files_returns_empty_list_for_nonexistent_directory(self, file_reader):
         """Test list_files returns empty list for non-existent directory."""
         # Arrange
-        file_reader = CacheFileReader()
         non_existent = "/nonexistent/directory/path"
 
         # Act
@@ -145,10 +130,9 @@ class TestCacheFileReader:
         # Assert
         assert result == []
 
-    def test_read_all_json_in_directory_reads_all_json_files(self):
+    def test_read_all_json_in_directory_reads_all_json_files(self, file_reader):
         """Test read_all_json_in_directory reads all JSON files."""
         # Arrange
-        file_reader = CacheFileReader()
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create multiple JSON files
@@ -179,10 +163,10 @@ class TestCacheFileReader:
 
     def test_read_all_json_in_directory_returns_empty_for_nonexistent_directory(
         self,
+        file_reader,
     ):
         """Test read_all_json_in_directory returns empty for non-existent directory."""
         # Arrange
-        file_reader = CacheFileReader()
         non_existent = "/nonexistent/directory/path"
 
         # Act

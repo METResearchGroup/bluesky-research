@@ -15,13 +15,14 @@ from services.sync.stream.data_filter import (
     manage_follow,
 )
 from services.sync.stream.types import Operation, RecordType
-from services.sync.stream.cache_management import CachePathManager
 from services.sync.stream.tests.conftest import (
     sync_export_context,
     clean_path,
     mock_post_records_fixture,
     mock_like_records_fixture,
     mock_follow_records_fixture,
+    path_manager,
+    cleanup_files,
 )
 
 
@@ -29,15 +30,10 @@ class TestCacheWriteStudyUserPost:
     """Test cache write flow for study user posts."""
 
     def test_study_user_post_creates_cache_file(
-        self, mock_post_records_fixture
+        self, mock_post_records_fixture, sync_export_context, path_manager, cleanup_files
     ):
         """Test that a study user post is written to the correct cache location."""
-        from services.sync.stream.setup import setup_sync_export_system
-        
-        # Create context with mocked study user manager (patched by autouse fixture)
-        context = setup_sync_export_system()
-        
-        path_manager = CachePathManager()
+        context = sync_export_context
         
         # Setup: Ensure the author is a study user
         post_record = mock_post_records_fixture[0]
@@ -74,7 +70,7 @@ class TestCacheWriteStudyUserPost:
             assert post_uri_suffix in data["uri"]
         
         # Cleanup
-        clean_path(expected_file)
+        cleanup_files(expected_file)
         context.study_user_manager.study_users_dids_set.remove(study_user_did)
 
 
@@ -82,15 +78,10 @@ class TestCacheWriteLikeOnStudyUserPost:
     """Test cache write flow for likes on study user posts."""
 
     def test_like_on_study_user_post_creates_nested_cache_file(
-        self, mock_like_records_fixture
+        self, mock_like_records_fixture, sync_export_context, path_manager, cleanup_files
     ):
         """Test that a like on a study user's post is written to nested cache location."""
-        from services.sync.stream.setup import setup_sync_export_system
-        
-        # Create context with mocked study user manager (patched by autouse fixture)
-        context = setup_sync_export_system()
-        
-        path_manager = CachePathManager()
+        context = sync_export_context
         
         # Setup: Create a study user post first, then like it
         study_user_did = "did:plc:study-user-2"
@@ -151,7 +142,7 @@ class TestCacheWriteLikeOnStudyUserPost:
             assert liked_post_uri in str(data)
         
         # Cleanup
-        clean_path(expected_file)
+        cleanup_files(expected_file)
         context.study_user_manager.study_users_dids_set.remove(study_user_did)
         del context.study_user_manager.post_uri_to_study_user_did_map[
             liked_post_uri
@@ -162,15 +153,10 @@ class TestCacheWriteFollow:
     """Test cache write flow for follow records."""
 
     def test_study_user_follow_creates_cache_file_in_follower_directory(
-        self, mock_follow_records_fixture
+        self, mock_follow_records_fixture, sync_export_context, path_manager, cleanup_files
     ):
         """Test that a follow where study user is the follower creates file in follower/ directory."""
-        from services.sync.stream.setup import setup_sync_export_system
-        
-        # Create context with mocked study user manager (patched by autouse fixture)
-        context = setup_sync_export_system()
-        
-        path_manager = CachePathManager()
+        context = sync_export_context
         
         # Setup: Study user is the follower
         # Use the follow record where study user is the follower (index 3)
@@ -208,7 +194,7 @@ class TestCacheWriteFollow:
             assert data["followee_did"] == followee_did
         
         # Cleanup
-        clean_path(expected_file)
+        cleanup_files(expected_file)
         context.study_user_manager.study_users_dids_set.remove(study_user_did)
 
 
@@ -216,15 +202,10 @@ class TestCacheWriteInNetworkPost:
     """Test cache write flow for in-network user posts."""
 
     def test_in_network_post_creates_cache_file_in_author_directory(
-        self, mock_post_records_fixture
+        self, mock_post_records_fixture, sync_export_context, path_manager, cleanup_files
     ):
         """Test that an in-network user post is written to author-specific cache location."""
-        from services.sync.stream.setup import setup_sync_export_system
-        
-        # Create context with mocked study user manager (patched by autouse fixture)
-        context = setup_sync_export_system()
-        
-        path_manager = CachePathManager()
+        context = sync_export_context
         
         # Setup: Author is an in-network user
         post_record = mock_post_records_fixture[0]
@@ -262,7 +243,7 @@ class TestCacheWriteInNetworkPost:
             assert data["author_did"] == in_network_user_did
         
         # Cleanup
-        clean_path(expected_file)
+        cleanup_files(expected_file)
         context.study_user_manager.in_network_user_dids_set.remove(
             in_network_user_did
         )

@@ -241,3 +241,89 @@ def sync_export_context(mock_study_user_manager):
     context = setup_sync_export_system()
     
     return context
+
+
+@pytest.fixture
+def dir_manager(path_manager):
+    """Create a CacheDirectoryManager for testing."""
+    from services.sync.stream.cache_management import CacheDirectoryManager
+    return CacheDirectoryManager(path_manager=path_manager)
+
+
+@pytest.fixture
+def file_writer(dir_manager):
+    """Create a CacheFileWriter for testing."""
+    from services.sync.stream.cache_management import CacheFileWriter
+    return CacheFileWriter(directory_manager=dir_manager)
+
+
+@pytest.fixture
+def file_reader():
+    """Create a CacheFileReader for testing."""
+    from services.sync.stream.cache_management import CacheFileReader
+    return CacheFileReader()
+
+
+@pytest.fixture
+def mock_storage_repository():
+    """Create a mock storage repository for testing."""
+    from unittest.mock import MagicMock
+    return MagicMock()
+
+
+@pytest.fixture
+def mock_service_metadata(monkeypatch):
+    """Mock MAP_SERVICE_TO_METADATA to avoid KeyError in tests."""
+    from lib.db import service_constants
+    
+    # Ensure required services exist in MAP_SERVICE_TO_METADATA
+    if "study_user_activity" not in service_constants.MAP_SERVICE_TO_METADATA:
+        service_constants.MAP_SERVICE_TO_METADATA["study_user_activity"] = {
+            "dtypes_map": {}
+        }
+    if "scraped_user_social_network" not in service_constants.MAP_SERVICE_TO_METADATA:
+        service_constants.MAP_SERVICE_TO_METADATA["scraped_user_social_network"] = {
+            "dtypes_map": {}
+        }
+    if "in_network_user_activity" not in service_constants.MAP_SERVICE_TO_METADATA:
+        service_constants.MAP_SERVICE_TO_METADATA["in_network_user_activity"] = {
+            "dtypes_map": {}
+        }
+    
+    return service_constants.MAP_SERVICE_TO_METADATA
+
+
+@pytest.fixture
+def patched_export_dataframe(monkeypatch, mock_service_metadata):
+    """Patch BaseActivityExporter._export_dataframe to handle missing columns gracefully."""
+    import pandas as pd
+    from services.sync.stream.exporters.base import BaseActivityExporter
+    from lib.helper import generate_current_datetime_str
+    from lib.constants import timestamp_format
+    
+    def patched_export(self, data, service, record_type=None):
+        if not data:
+            return
+        dtypes_map = mock_service_metadata.get(service, {}).get("dtypes_map", {})
+        df = pd.DataFrame(data)
+        df["synctimestamp"] = generate_current_datetime_str()
+        df["partition_date"] = pd.to_datetime(
+            df["synctimestamp"], format=timestamp_format
+        ).dt.date
+        # Only apply dtypes_map for columns that exist
+        if dtypes_map:
+            existing_cols = {k: v for k, v in dtypes_map.items() if k in df.columns}
+            if existing_cols:
+                df = df.astype(existing_cols)
+        custom_args = {}
+        if record_type:
+            custom_args["record_type"] = record_type
+        self.storage_repository.export_dataframe(
+            df=df,
+            service=service,
+            record_type=record_type,
+            custom_args=custom_args if custom_args else None,
+        )
+    
+    monkeypatch.setattr(BaseActivityExporter, "_export_dataframe", patched_export)
+    return patched_export

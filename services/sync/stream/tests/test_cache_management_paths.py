@@ -22,10 +22,9 @@ class TestCachePathManager:
         mock_manager.is_in_network_user = Mock(return_value=False)
         # No longer needed - cache_writer.py was deleted
 
-    def test_init(self):
+    def test_init(self, path_manager):
         """Test CachePathManager initialization."""
         # Arrange & Act
-        path_manager = CachePathManager()
 
         # Assert
         assert path_manager.root_write_path.endswith("__local_cache__")
@@ -33,10 +32,9 @@ class TestCachePathManager:
         assert Operation.DELETE.value in path_manager.root_delete_path
         assert path_manager.operation_types == [GenericRecordType.POST.value, GenericRecordType.LIKE.value, GenericRecordType.FOLLOW.value]
 
-    def test_get_local_cache_path(self):
+    def test_get_local_cache_path(self, path_manager):
         """Test get_local_cache_path returns correct paths."""
         # Arrange
-        path_manager = CachePathManager()
 
         # Act
         create_post_path = path_manager.get_local_cache_path(Operation.CREATE, GenericRecordType.POST)
@@ -48,10 +46,9 @@ class TestCachePathManager:
         assert Operation.DELETE.value in delete_like_path
         assert GenericRecordType.LIKE.value in delete_like_path
 
-    def test_get_study_user_activity_path_post(self):
+    def test_get_study_user_activity_path_post(self, path_manager):
         """Test get_study_user_activity_path for post records."""
         # Arrange
-        path_manager = CachePathManager()
 
         # Act
         create_path = path_manager.get_study_user_activity_path(Operation.CREATE, RecordType.POST)
@@ -64,10 +61,9 @@ class TestCachePathManager:
         assert "study_user_activity" in delete_path
         assert Operation.DELETE.value in delete_path
 
-    def test_get_study_user_activity_path_follow(self):
+    def test_get_study_user_activity_path_follow(self, path_manager):
         """Test get_study_user_activity_path for follow records with follow_status."""
         # Arrange
-        path_manager = CachePathManager()
 
         # Act
         follower_path = path_manager.get_study_user_activity_path(
@@ -83,10 +79,9 @@ class TestCachePathManager:
         assert RecordType.FOLLOW.value in followee_path
         assert FollowStatus.FOLLOWEE.value in followee_path
 
-    def test_get_study_user_activity_path_like_on_user_post(self):
+    def test_get_study_user_activity_path_like_on_user_post(self, path_manager):
         """Test get_study_user_activity_path for like_on_user_post records."""
         # Arrange
-        path_manager = CachePathManager()
 
         # Act
         path = path_manager.get_study_user_activity_path(Operation.CREATE, RecordType.LIKE_ON_USER_POST)
@@ -95,10 +90,9 @@ class TestCachePathManager:
         assert "study_user_activity" in path
         assert RecordType.LIKE_ON_USER_POST.value in path
 
-    def test_get_in_network_activity_path(self):
+    def test_get_in_network_activity_path(self, path_manager):
         """Test get_in_network_activity_path returns correct path."""
         # Arrange
-        path_manager = CachePathManager()
         author_did = "did:plc:test123"
 
         # Act
@@ -110,10 +104,9 @@ class TestCachePathManager:
         assert RecordType.POST.value in path
         assert author_did in path
 
-    def test_get_relative_path(self):
+    def test_get_relative_path(self, path_manager):
         """Test get_relative_path returns relative path component."""
         # Arrange
-        path_manager = CachePathManager()
 
         # Act
         post_relative = path_manager.get_relative_path(Operation.CREATE, RecordType.POST)

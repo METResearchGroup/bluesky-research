@@ -66,6 +66,7 @@ jobs:
           services/calculate_analytics/study_analytics/calculate_analytics/tests \
           services/calculate_analytics/shared/processing/tests \
           services/write_cache_buffers_to_db/tests \
+          services/sync/stream/tests \
           services/sync/jetstream/tests \
           lib/pipeline_invocation/tests
 

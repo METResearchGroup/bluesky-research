@@ -20,22 +20,17 @@ class TestCacheDirectoryManager:
         mock_manager.insert_study_user_post = Mock()
         # No longer needed - cache_writer.py was deleted
 
-    def test_init(self):
+    def test_init(self, path_manager):
         """Test CacheDirectoryManager initialization."""
-        # Arrange
-        path_manager = CachePathManager()
-
         # Act
         dir_manager = CacheDirectoryManager(path_manager=path_manager)
 
         # Assert
         assert dir_manager.path_manager == path_manager
 
-    def test_ensure_exists_creates_directory(self):
+    def test_ensure_exists_creates_directory(self, dir_manager):
         """Test ensure_exists creates directory if it doesn't exist."""
         # Arrange
-        path_manager = CachePathManager()
-        dir_manager = CacheDirectoryManager(path_manager=path_manager)
         with tempfile.TemporaryDirectory() as tmpdir:
             test_path = os.path.join(tmpdir, "test", "nested", "path")
 
@@ -46,11 +41,9 @@ class TestCacheDirectoryManager:
             assert os.path.exists(test_path)
             assert os.path.isdir(test_path)
 
-    def test_ensure_exists_does_not_fail_if_exists(self):
+    def test_ensure_exists_does_not_fail_if_exists(self, dir_manager):
         """Test ensure_exists does not fail if directory already exists."""
         # Arrange
-        path_manager = CachePathManager()
-        dir_manager = CacheDirectoryManager(path_manager=path_manager)
         with tempfile.TemporaryDirectory() as tmpdir:
             test_path = os.path.join(tmpdir, "existing")
             os.makedirs(test_path)
@@ -59,11 +52,9 @@ class TestCacheDirectoryManager:
             dir_manager.ensure_exists(test_path)
             assert os.path.exists(test_path)
 
-    def test_rebuild_all_creates_all_directories(self):
+    def test_rebuild_all_creates_all_directories(self, path_manager, dir_manager):
         """Test rebuild_all creates all required directory structures."""
         # Arrange
-        path_manager = CachePathManager()
-        dir_manager = CacheDirectoryManager(path_manager=path_manager)
 
         # Use a temporary directory for testing
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -103,6 +94,7 @@ class TestCacheDirectoryManager:
     def test_rebuild_all_raises_error_for_non_sync_path_manager(self):
         """Test rebuild_all raises TypeError for non-CachePathManager."""
         # Arrange
+        from services.sync.stream.cache_management import CacheDirectoryManager
         mock_path_manager = Mock()
         dir_manager = CacheDirectoryManager(path_manager=mock_path_manager)
 
@@ -110,11 +102,9 @@ class TestCacheDirectoryManager:
         with pytest.raises(TypeError, match="rebuild_all requires CachePathManager"):
             dir_manager.rebuild_all()
 
-    def test_delete_all_removes_directory(self):
+    def test_delete_all_removes_directory(self, path_manager, dir_manager):
         """Test delete_all removes the root write path."""
         # Arrange
-        path_manager = CachePathManager()
-        dir_manager = CacheDirectoryManager(path_manager=path_manager)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path_manager.root_write_path = os.path.join(tmpdir, "__local_cache__")
@@ -129,6 +119,7 @@ class TestCacheDirectoryManager:
     def test_delete_all_raises_error_for_non_sync_path_manager(self):
         """Test delete_all raises TypeError for non-CachePathManager."""
         # Arrange
+        from services.sync.stream.cache_management import CacheDirectoryManager
         mock_path_manager = Mock()
         dir_manager = CacheDirectoryManager(path_manager=mock_path_manager)
 
@@ -136,21 +127,17 @@ class TestCacheDirectoryManager:
         with pytest.raises(TypeError, match="delete_all requires CachePathManager"):
             dir_manager.delete_all()
 
-    def test_exists_returns_true_for_existing_path(self):
+    def test_exists_returns_true_for_existing_path(self, dir_manager):
         """Test exists returns True for existing path."""
         # Arrange
-        path_manager = CachePathManager()
-        dir_manager = CacheDirectoryManager(path_manager=path_manager)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Act & Assert
             assert dir_manager.exists(tmpdir) is True
 
-    def test_exists_returns_false_for_non_existing_path(self):
+    def test_exists_returns_false_for_non_existing_path(self, dir_manager):
         """Test exists returns False for non-existing path."""
         # Arrange
-        path_manager = CachePathManager()
-        dir_manager = CacheDirectoryManager(path_manager=path_manager)
         non_existent = "/nonexistent/path/that/does/not/exist"
 
         # Act & Assert
