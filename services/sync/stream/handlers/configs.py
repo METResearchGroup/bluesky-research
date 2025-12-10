@@ -1,19 +1,30 @@
 """Handler configurations for different record types."""
 
+import json
 import os
+from lib.log.logger import get_logger
+
 from services.sync.stream.handlers.config import HandlerConfig
 from services.sync.stream.types import RecordType, FollowStatus, Operation
 from services.sync.stream.protocols import PathManagerProtocol, FileReaderProtocol
 
+logger = get_logger(__file__)
+
 
 def _extract_post_uri_suffix(record: dict) -> str:
     """Extract post URI suffix from like record."""
-    return record["record"]["subject"]["uri"].split("/")[-1]
+    try:
+        return record["record"]["subject"]["uri"].split("/")[-1]
+    except (KeyError, TypeError, AttributeError) as e:
+        raise ValueError(f"Invalid record structure for URI extraction: {e}") from e
 
 
 def _extract_parent_post_uri_suffix(record: dict) -> str:
     """Extract parent post URI suffix from reply record."""
-    return record["record"]["reply"]["root"]["uri"].split("/")[-1]
+    try:
+        return record["record"]["reply"]["root"]["uri"].split("/")[-1]
+    except (KeyError, TypeError, AttributeError) as e:
+        raise ValueError(f"Invalid record structure for URI extraction: {e}") from e
 
 
 def _default_path_strategy(
@@ -50,16 +61,6 @@ def _in_network_path_strategy(
     )
 
 
-def _default_read_strategy(
-    file_reader: FileReaderProtocol,
-    base_path: str,
-    record_type: RecordType,
-) -> tuple[list[dict], list[str]]:
-    """Default read strategy: read all JSON files in directory."""
-    record_dir = os.path.join(base_path, record_type.value)
-    return file_reader.read_all_json_in_directory(record_dir)
-
-
 def _nested_read_strategy(
     file_reader: FileReaderProtocol,
     base_path: str,
@@ -85,9 +86,26 @@ def _nested_read_strategy(
                 continue
             full_path = os.path.join(nested_path, filename)
             if os.path.isfile(full_path):
-                data = file_reader.read_json(full_path)
-                records.append(data)
-                filepaths.append(full_path)
+                try:
+                    data = file_reader.read_json(full_path)
+                    records.append(data)
+                    filepaths.append(full_path)
+                except (
+                    json.JSONDecodeError,
+                    OSError,
+                    IOError,
+                    FileNotFoundError,
+                    PermissionError,
+                ) as e:
+                    logger.warning(
+                        f"Failed to read JSON file: {full_path}. Error: {type(e).__name__}: {str(e)}",
+                        context={
+                            "filepath": full_path,
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                        },
+                    )
+                    continue
 
     return records, filepaths
 
@@ -113,9 +131,26 @@ def _follow_read_strategy(
 
         for filename in file_reader.list_files(follow_type_path):
             full_path = os.path.join(follow_type_path, filename)
-            data = file_reader.read_json(full_path)
-            records.append(data)
-            filepaths.append(full_path)
+            try:
+                data = file_reader.read_json(full_path)
+                records.append(data)
+                filepaths.append(full_path)
+            except (
+                json.JSONDecodeError,
+                OSError,
+                IOError,
+                FileNotFoundError,
+                PermissionError,
+            ) as e:
+                logger.warning(
+                    f"Failed to read JSON file: {full_path}. Error: {type(e).__name__}: {str(e)}",
+                    context={
+                        "filepath": full_path,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    },
+                )
+                continue
 
     return records, filepaths
 

@@ -1,7 +1,11 @@
 import os
 import json
 
+from lib.log.logger import get_logger
+
 from services.sync.stream.protocols import DirectoryManagerProtocol
+
+logger = get_logger(__file__)
 
 
 class CacheFileWriter:
@@ -62,8 +66,25 @@ class CacheFileReader:
         for filename in os.listdir(directory):
             filepath = os.path.join(directory, filename)
             if os.path.isfile(filepath) and filename.endswith(".json"):
-                data = self.read_json(filepath)
-                records.append(data)
-                filepaths.append(filepath)
+                try:
+                    data = self.read_json(filepath)
+                    records.append(data)
+                    filepaths.append(filepath)
+                except (
+                    json.JSONDecodeError,
+                    OSError,
+                    IOError,
+                    FileNotFoundError,
+                    PermissionError,
+                ) as e:
+                    logger.warning(
+                        f"Failed to read JSON file: {filepath}. Error: {type(e).__name__}: {str(e)}",
+                        context={
+                            "filepath": filepath,
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                        },
+                    )
+                    continue
 
         return records, filepaths

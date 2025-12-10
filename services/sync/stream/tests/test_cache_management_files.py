@@ -176,3 +176,35 @@ class TestCacheFileReader:
         assert records == []
         assert filepaths == []
 
+    def test_read_all_json_in_directory_skips_malformed_json_files(self, file_reader):
+        """Test read_all_json_in_directory skips malformed JSON files and continues."""
+        # Arrange
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create valid and invalid JSON files
+            file1 = os.path.join(tmpdir, "file1.json")
+            file2 = os.path.join(tmpdir, "file2.json")
+            file3 = os.path.join(tmpdir, "file3.json")  # Malformed JSON
+
+            data1 = {"id": 1, "name": "test1"}
+            data2 = {"id": 2, "name": "test2"}
+
+            with open(file1, "w") as f:
+                json.dump(data1, f)
+            with open(file2, "w") as f:
+                json.dump(data2, f)
+            with open(file3, "w") as f:
+                f.write("not valid json {invalid}")
+
+            # Act
+            records, filepaths = file_reader.read_all_json_in_directory(tmpdir)
+
+            # Assert
+            # Should only return valid JSON files
+            assert len(records) == 2
+            assert len(filepaths) == 2
+            assert data1 in records
+            assert data2 in records
+            assert file1 in filepaths
+            assert file2 in filepaths
+            assert file3 not in filepaths
+

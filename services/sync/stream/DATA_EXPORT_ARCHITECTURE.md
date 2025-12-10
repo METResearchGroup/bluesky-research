@@ -146,7 +146,7 @@ This separation allows the firehose stream to maintain high throughput (writing 
 - **Usage**: Configurable behavior via strategy functions
 - **Examples**: 
   - Path strategies: `_default_path_strategy`, `_in_network_path_strategy`
-  - Read strategies: `_default_read_strategy`, `_nested_read_strategy`, `_follow_read_strategy`
+  - Read strategies: `_nested_read_strategy`, `_follow_read_strategy`
 
 ### Repository Pattern
 - **Usage**: Abstracts storage operations behind `StorageRepository` interface
