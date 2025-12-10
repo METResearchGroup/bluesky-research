@@ -26,21 +26,18 @@ class GenericRecordHandler(RecordHandlerProtocol):
         self,
         config: HandlerConfig,
         path_manager: PathManagerProtocol,
-        file_writer: FileUtilitiesProtocol,
-        file_reader: FileUtilitiesProtocol,
+        file_utilities: FileUtilitiesProtocol,
     ):
         """Initialize generic handler.
 
         Args:
             config: Handler configuration defining behavior
             path_manager: Path manager for constructing paths
-            file_writer: File writer for writing records
-            file_reader: File reader for reading records
+            file_utilities: File utilities for reading and writing records
         """
         self.config = config
         self.path_manager = path_manager
-        self.file_writer = file_writer
-        self.file_reader = file_reader
+        self.file_utilities = file_utilities
 
     def write_record(
         self,
@@ -104,7 +101,7 @@ class GenericRecordHandler(RecordHandlerProtocol):
         full_path = os.path.join(base_path, filename)
 
         # Write record
-        self.file_writer.write_json(full_path, record)
+        self.file_utilities.write_json(full_path, record)
 
     def read_records(self, base_path: str) -> tuple[list[dict], list[str]]:
         """Read all records from cache using configured read strategy.
@@ -117,12 +114,12 @@ class GenericRecordHandler(RecordHandlerProtocol):
         """
         if self.config.read_strategy:
             return self.config.read_strategy(
-                self.file_reader, base_path, self.config.record_type
+                self.file_utilities, base_path, self.config.record_type
             )
         else:
             # Default: read all JSON files in record type directory
             record_dir = os.path.join(base_path, self.config.record_type.value)
-            return self.file_reader.read_all_json_in_directory(record_dir)
+            return self.file_utilities.read_all_json_in_directory(record_dir)
 
     def get_record_type(self) -> RecordType | GenericRecordType:
         """Get the record type this handler manages.

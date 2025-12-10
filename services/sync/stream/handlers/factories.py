@@ -20,16 +20,14 @@ from services.sync.stream.types import HandlerKey
 def create_handler(
     config: HandlerConfig,
     path_manager: PathManagerProtocol,
-    file_writer: FileUtilitiesProtocol,
-    file_reader: FileUtilitiesProtocol,
+    file_utilities: FileUtilitiesProtocol,
 ) -> GenericRecordHandler:
     """Generic factory for creating handlers with configuration.
 
     Args:
         config: Handler configuration
         path_manager: Path manager for constructing paths
-        file_writer: File writer for writing records
-        file_reader: File reader for reading records
+        file_utilities: File utilities for reading and writing records
 
     Returns:
         Configured GenericRecordHandler instance
@@ -37,8 +35,7 @@ def create_handler(
     return GenericRecordHandler(
         config=config,
         path_manager=path_manager,
-        file_writer=file_writer,
-        file_reader=file_reader,
+        file_utilities=file_utilities,
     )
 
 
@@ -55,21 +52,19 @@ HANDLER_CONFIG_REGISTRY: dict[HandlerKey, HandlerConfig] = {
 
 def create_handlers_for_all_types(
     path_manager: PathManagerProtocol,
-    file_writer: FileUtilitiesProtocol,
-    file_reader: FileUtilitiesProtocol,
+    file_utilities: FileUtilitiesProtocol,
 ) -> dict[str, GenericRecordHandler]:
     """Create all handlers at once.
 
     Args:
         path_manager: Path manager for constructing paths
-        file_writer: File writer for writing records
-        file_reader: File reader for reading records
+        file_utilities: File utilities for reading and writing records
 
     Returns:
         Dictionary mapping handler key strings to handler instances
     """
     handlers = {}
     for handler_key, config in HANDLER_CONFIG_REGISTRY.items():
-        handler = create_handler(config, path_manager, file_writer, file_reader)
+        handler = create_handler(config, path_manager, file_utilities)
         handlers[handler_key.value] = handler
     return handlers

@@ -18,18 +18,18 @@ class InNetworkUserActivityExporter(BaseActivityExporter):
         self,
         path_manager: PathManagerProtocol,
         storage_repository: StorageRepositoryProtocol,
-        file_reader: FileUtilitiesProtocol,
+        file_utilities: FileUtilitiesProtocol,
     ):
         """Initialize exporter.
 
         Args:
             path_manager: Path manager for constructing paths
             storage_repository: Storage repository for exporting data
-            file_reader: File reader for reading cache files
+            file_utilities: File utilities for reading cache files
         """
         super().__init__(storage_repository)
         self.path_manager = path_manager
-        self.file_reader = file_reader
+        self.file_utilities = file_utilities
 
     def export_activity_data(self) -> list[str]:
         """Export all in-network user activity data from cache to storage.
@@ -67,7 +67,7 @@ class InNetworkUserActivityExporter(BaseActivityExporter):
                 continue
 
             # Read all JSON files for this author
-            records, filepaths = self.file_reader.read_all_json_in_directory(
+            records, filepaths = self.file_utilities.read_all_json_in_directory(
                 author_path
             )
             all_posts.extend(records)

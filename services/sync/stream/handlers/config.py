@@ -54,14 +54,14 @@ class ReadStrategyProtocol(Protocol):
 
     def __call__(
         self,
-        file_reader: FileUtilitiesProtocol,
+        file_utilities: FileUtilitiesProtocol,
         base_path: str,
         record_type: RecordType,
     ) -> tuple[list[dict], list[str]]:
         """Read all records from cache.
 
         Args:
-            file_reader: File reader instance
+            file_utilities: File utilities instance
             base_path: Base path to read from
             record_type: Type of records to read
 

@@ -30,7 +30,7 @@ class TestBatchWriteStudyUserActivity:
         """Test that study user posts in cache are exported to storage."""
         context = sync_export_context
         path_manager = context.path_manager
-        file_writer = context.file_writer
+        file_utilities = context.file_utilities
         
         # Create test post records
         study_user_did = "did:plc:study-user-1"
@@ -60,7 +60,7 @@ class TestBatchWriteStudyUserActivity:
         for i, post in enumerate(test_posts):
             filename = f"author_did={study_user_did}_post_uri_suffix=post-{i+1}.json"
             file_path = os.path.join(post_path, filename)
-            file_writer.write_json(file_path, post)
+            file_utilities.write_json(file_path, post)
             created_files.append(file_path)
             cleanup_files(file_path)
         
@@ -116,7 +116,7 @@ class TestBatchWriteStudyUserActivity:
         """Test that study user likes in cache are exported to storage."""
         context = sync_export_context
         path_manager = context.path_manager
-        file_writer = context.file_writer
+        file_utilities = context.file_utilities
         
         # Create test like records (nested structure for LIKE_ON_USER_POST)
         study_user_did = "did:plc:study-user-1"
@@ -143,7 +143,7 @@ class TestBatchWriteStudyUserActivity:
         for i, like in enumerate(test_likes):
             filename = f"like_author_did={study_user_did}_like_uri_suffix=like-{i+1}.json"
             file_path = os.path.join(nested_path, filename)
-            file_writer.write_json(file_path, like)
+            file_utilities.write_json(file_path, like)
             cleanup_files(file_path)
         
         # Setup mock storage repository
@@ -185,7 +185,7 @@ class TestBatchWriteStudyUserActivity:
         """Test that study user follows in cache are exported to storage."""
         context = sync_export_context
         path_manager = context.path_manager
-        file_writer = context.file_writer
+        file_utilities = context.file_utilities
         
         # Create test follow records (nested by follow_status)
         study_user_did = "did:plc:study-user-1"
@@ -209,7 +209,7 @@ class TestBatchWriteStudyUserActivity:
         # Write follow to cache
         filename = f"follower_did={study_user_did}_followee_did={followee_did}.json"
         file_path = os.path.join(follower_path, filename)
-        file_writer.write_json(file_path, test_follow)
+        file_utilities.write_json(file_path, test_follow)
         cleanup_files(file_path)
         
         # Setup mock storage repository
@@ -256,7 +256,7 @@ class TestBatchWriteInNetworkActivity:
         """Test that in-network user posts in cache are exported to storage."""
         context = sync_export_context
         path_manager = context.path_manager
-        file_writer = context.file_writer
+        file_utilities = context.file_utilities
         
         # Create test in-network post records
         in_network_user_did = "did:plc:in-network-1"
@@ -281,7 +281,7 @@ class TestBatchWriteInNetworkActivity:
         for i, post in enumerate(test_posts):
             filename = f"author_did={in_network_user_did}_post_uri_suffix=post-{i+1}.json"
             file_path = os.path.join(post_path, filename)
-            file_writer.write_json(file_path, post)
+            file_utilities.write_json(file_path, post)
             cleanup_files(file_path)
         
         # Create in-network exporter with mocked storage
@@ -291,7 +291,7 @@ class TestBatchWriteInNetworkActivity:
         in_network_exporter = InNetworkUserActivityExporter(
             path_manager=path_manager,
             storage_repository=mock_storage_repository,
-            file_reader=context.file_reader,
+            file_utilities=context.file_utilities,
         )
         
         # Execute: Run batch export
@@ -329,7 +329,7 @@ class TestBatchExporterIntegration:
         """Test that BatchExporter orchestrates both exporters correctly."""
         context = sync_export_context
         path_manager = context.path_manager
-        file_writer = context.file_writer
+        file_utilities = context.file_utilities
         
         # Clean up any existing files first
         study_user_did = "did:plc:study-user-1"
@@ -346,7 +346,7 @@ class TestBatchExporterIntegration:
             "text": "Test",
         }
         study_post_file = os.path.join(post_path, "author_did=test_post_uri_suffix=test.json")
-        file_writer.write_json(study_post_file, test_post)
+        file_utilities.write_json(study_post_file, test_post)
         cleanup_files(study_post_file)
         
         # Create an in-network post
@@ -367,7 +367,7 @@ class TestBatchExporterIntegration:
             in_network_path,
             "author_did=test_post_uri_suffix=in-network.json",
         )
-        file_writer.write_json(in_network_post_file, test_in_network_post)
+        file_utilities.write_json(in_network_post_file, test_in_network_post)
         cleanup_files(in_network_post_file)
         
         # Setup mock storage repository
@@ -385,14 +385,14 @@ class TestBatchExporterIntegration:
         in_network_exporter = InNetworkUserActivityExporter(
             path_manager=path_manager,
             storage_repository=mock_storage_repository,
-            file_reader=context.file_reader,
+            file_utilities=context.file_utilities,
         )
         
         batch_exporter = BatchExporter(
             study_user_exporter=context.study_user_exporter,
             in_network_exporter=in_network_exporter,
             directory_manager=context.directory_manager,
-            file_utilities=context.file_writer,  # Use file_utilities instance
+            file_utilities=context.file_utilities,
             clear_filepaths=False,  # Don't delete files in test
             clear_cache=False,  # Don't clear cache in test
         )

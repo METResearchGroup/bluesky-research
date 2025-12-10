@@ -62,7 +62,7 @@ def _in_network_path_strategy(
 
 
 def _nested_read_strategy(
-    file_reader: FileUtilitiesProtocol,
+    file_utilities: FileUtilitiesProtocol,
     base_path: str,
     record_type: RecordType,
 ) -> tuple[list[dict], list[str]]:
@@ -71,20 +71,20 @@ def _nested_read_strategy(
     filepaths: list[str] = []
     record_dir = os.path.join(base_path, record_type.value)
 
-    if not file_reader.is_directory(record_dir):
+    if not file_utilities.is_directory(record_dir):
         return records, filepaths
 
     # Iterate over nested directories (e.g., post_uri_suffix directories)
-    for nested_dir_name in file_reader.list_directories(record_dir):
+    for nested_dir_name in file_utilities.list_directories(record_dir):
         nested_path = os.path.join(record_dir, nested_dir_name)
 
         # Read all JSON files in nested directory
-        for filename in file_reader.list_files(nested_path):
+        for filename in file_utilities.list_files(nested_path):
             if not filename.endswith(".json"):
                 continue
             full_path = os.path.join(nested_path, filename)
             try:
-                data = file_reader.read_json(full_path)
+                data = file_utilities.read_json(full_path)
                 records.append(data)
                 filepaths.append(full_path)
             except (
@@ -108,7 +108,7 @@ def _nested_read_strategy(
 
 
 def _follow_read_strategy(
-    file_reader: FileUtilitiesProtocol,
+    file_utilities: FileUtilitiesProtocol,
     base_path: str,
     record_type: RecordType,
 ) -> tuple[list[dict], list[str]]:
@@ -126,10 +126,10 @@ def _follow_read_strategy(
         if not os.path.exists(follow_type_path):
             continue
 
-        for filename in file_reader.list_files(follow_type_path):
+        for filename in file_utilities.list_files(follow_type_path):
             full_path = os.path.join(follow_type_path, filename)
             try:
-                data = file_reader.read_json(full_path)
+                data = file_utilities.read_json(full_path)
                 records.append(data)
                 filepaths.append(full_path)
             except (

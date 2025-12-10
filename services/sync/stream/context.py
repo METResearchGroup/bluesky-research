@@ -26,8 +26,7 @@ class SyncExportContext:
 
     path_manager: CachePathManager
     directory_manager: CacheDirectoryManager
-    file_writer: FileUtilities  # Alias for backward compatibility
-    file_reader: FileUtilities  # Alias for backward compatibility
+    file_utilities: FileUtilities
     handler_registry: "RecordHandlerRegistry"
     study_user_exporter: "StudyUserActivityExporter"
     storage_repository: "StorageRepository"

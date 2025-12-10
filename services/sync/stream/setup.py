@@ -35,9 +35,6 @@ def setup_sync_export_system() -> SyncExportContext:
 
     # 3. Create file utilities (single instance for both read and write operations)
     file_utilities = FileUtilities(directory_manager=directory_manager)
-    # Backward compatibility: assign same instance to both file_writer and file_reader
-    file_writer = file_utilities
-    file_reader = file_utilities
 
     # 4. Create storage adapter and repository
     storage_adapter = LocalStorageAdapter()
@@ -51,8 +48,7 @@ def setup_sync_export_system() -> SyncExportContext:
     handler_registry = RecordHandlerRegistry()
     handlers = create_handlers_for_all_types(
         path_manager=path_manager,
-        file_writer=file_writer,
-        file_reader=file_reader,
+        file_utilities=file_utilities,
     )
     # Register all handlers
     for handler_key, handler in handlers.items():
@@ -68,8 +64,7 @@ def setup_sync_export_system() -> SyncExportContext:
     return SyncExportContext(
         path_manager=path_manager,
         directory_manager=directory_manager,
-        file_writer=file_writer,
-        file_reader=file_reader,
+        file_utilities=file_utilities,
         handler_registry=handler_registry,
         study_user_exporter=exporter,
         storage_repository=storage_repository,
@@ -90,7 +85,7 @@ def setup_batch_export_system() -> BatchExporter:
     in_network_exporter = InNetworkUserActivityExporter(
         path_manager=context.path_manager,
         storage_repository=context.storage_repository,
-        file_reader=context.file_reader,
+        file_utilities=context.file_utilities,
     )
 
     # Create batch exporter
@@ -98,7 +93,7 @@ def setup_batch_export_system() -> BatchExporter:
         study_user_exporter=context.study_user_exporter,
         in_network_exporter=in_network_exporter,
         directory_manager=context.directory_manager,
-        file_utilities=context.file_writer,  # Use file_utilities instance
+        file_utilities=context.file_utilities,
         clear_filepaths=False,  # Default, can be overridden
         clear_cache=True,  # Default, can be overridden
     )
