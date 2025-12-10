@@ -107,10 +107,6 @@ class DirectoryManagerProtocol(Protocol):
         """Delete all cache directories."""
         ...
 
-    def exists(self, path: str) -> bool:
-        """Check if path exists."""
-        ...
-
 
 # ============================================================================
 # File I/O Protocols
