@@ -10,11 +10,12 @@ from services.sync.stream.batch_exporter import BatchExporter
 from services.sync.stream.types import Operation, RecordType, FollowStatus
 
 def cleanup_directory(directory_path):
-    """Helper function to clean up JSON files in a directory."""
+    """Helper function to clean up JSON files in a directory recursively."""
     if os.path.exists(directory_path):
-        json_files = [f for f in os.listdir(directory_path) if f.endswith(".json")]
-        for filename in json_files:
-                os.remove(os.path.join(directory_path, filename))
+        for root, _, files in os.walk(directory_path):
+            for filename in files:
+                if filename.endswith(".json"):
+                    os.remove(os.path.join(root, filename))
 
 
 class TestBatchWriteStudyUserActivity:
