@@ -1,7 +1,6 @@
 """Tests for cache_management/paths.py - CachePathManager class."""
 
 import os
-from unittest.mock import Mock
 
 import pytest
 
@@ -11,16 +10,6 @@ from services.sync.stream.types import Operation, RecordType, GenericRecordType,
 
 class TestCachePathManager:
     """Tests for CachePathManager class."""
-
-    @pytest.fixture(autouse=True)
-    def mock_study_user_manager(self, monkeypatch):
-        """Mock study user manager to avoid loading real data."""
-        mock_manager = Mock()
-        mock_manager.insert_study_user_post = Mock()
-        mock_manager.is_study_user = Mock(return_value=False)
-        mock_manager.is_study_user_post = Mock(return_value=None)
-        mock_manager.is_in_network_user = Mock(return_value=False)
-        # No longer needed - cache_writer.py was deleted
 
     def test_init(self, path_manager):
         """Test CachePathManager initialization."""

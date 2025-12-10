@@ -175,9 +175,12 @@ def mock_study_user_manager(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def mock_s3_fixture(monkeypatch):
-    # Only patch s3 if it exists (for backward compatibility with old code)
-    # Since export_data.py no longer exists, we skip S3 patching
-    # patch partition key on export.
+    """Mock S3 and datetime utilities for consistent test behavior.
+    
+    Patches:
+    - S3.create_partition_key_based_on_timestamp: Returns consistent partition key
+    - generate_current_datetime_str: Returns consistent timestamp for file naming
+    """
     monkeypatch.setattr(
         "lib.aws.s3.S3.create_partition_key_based_on_timestamp",  # noqa
         mock_s3.create_partition_key_based_on_timestamp
