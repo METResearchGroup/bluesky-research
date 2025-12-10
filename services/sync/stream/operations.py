@@ -1,7 +1,7 @@
 """Thin orchestrator for firehose operations callback.
 
 This module provides the operations_callback function that is passed to
-the firehose stream. It orchestrates record processing using the new
+the firehose stream. It orchestrates record processing using the
 record processor architecture.
 """
 

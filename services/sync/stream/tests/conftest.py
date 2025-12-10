@@ -17,7 +17,7 @@ from services.sync.stream.tests.mock_firehose_data import (
 def patch_get_study_user_manager():
     """Session-scoped fixture that patches get_study_user_manager for all tests.
     
-    This patches get_study_user_manager before data_filter.py can initialize
+    This patches get_study_user_manager before any modules can initialize
     study_user_manager at module level, preventing real initialization during tests.
     The patch is automatically stopped after the test session completes.
     """

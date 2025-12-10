@@ -9,11 +9,8 @@ import json
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
-from services.sync.stream.data_filter import (
-    manage_post,
-    manage_like,
-    manage_follow,
-)
+from services.sync.stream.record_processors.factories import create_all_processors
+from services.sync.stream.record_processors.router import route_decisions
 from services.sync.stream.types import Operation, RecordType
 from services.sync.stream.tests.conftest import (
     cache_write_context,
@@ -55,11 +52,14 @@ class TestCacheWriteStudyUserPost:
         )
         
         # Execute: Write post to cache
-        manage_post(
-            post=post_record,
-            operation=Operation.CREATE,
-            context=context,
+        processor_registry = create_all_processors(context)
+        post_processor = processor_registry.get_processor("posts")
+        
+        transformed = post_processor.transform(post_record, Operation.CREATE)
+        decisions = post_processor.get_routing_decisions(
+            transformed, Operation.CREATE, context
         )
+        route_decisions(decisions, transformed, Operation.CREATE, context)
         
         # Verify: File exists and contains correct data
         assert os.path.exists(expected_file), f"Expected file not found: {expected_file}"
@@ -128,11 +128,14 @@ class TestCacheWriteLikeOnStudyUserPost:
         )
         
         # Execute: Write like to cache
-        manage_like(
-            like=like_record,
-            operation=Operation.CREATE,
-            context=context,
+        processor_registry = create_all_processors(context)
+        like_processor = processor_registry.get_processor("likes")
+        
+        transformed = like_processor.transform(like_record, Operation.CREATE)
+        decisions = like_processor.get_routing_decisions(
+            transformed, Operation.CREATE, context
         )
+        route_decisions(decisions, transformed, Operation.CREATE, context)
         
         # Verify: File exists in nested directory
         assert os.path.exists(expected_file), f"Expected file not found: {expected_file}"
@@ -179,11 +182,14 @@ class TestCacheWriteFollow:
         )
         
         # Execute: Write follow to cache
-        manage_follow(
-            follow=follow_record,
-            operation=Operation.CREATE,
-            context=context,
+        processor_registry = create_all_processors(context)
+        follow_processor = processor_registry.get_processor("follows")
+        
+        transformed = follow_processor.transform(follow_record, Operation.CREATE)
+        decisions = follow_processor.get_routing_decisions(
+            transformed, Operation.CREATE, context
         )
+        route_decisions(decisions, transformed, Operation.CREATE, context)
         
         # Verify: File exists in follower directory
         assert os.path.exists(expected_file), f"Expected file not found: {expected_file}"
@@ -229,11 +235,14 @@ class TestCacheWriteInNetworkPost:
         )
         
         # Execute: Write post to cache
-        manage_post(
-            post=post_record,
-            operation=Operation.CREATE,
-            context=context,
+        processor_registry = create_all_processors(context)
+        post_processor = processor_registry.get_processor("posts")
+        
+        transformed = post_processor.transform(post_record, Operation.CREATE)
+        decisions = post_processor.get_routing_decisions(
+            transformed, Operation.CREATE, context
         )
+        route_decisions(decisions, transformed, Operation.CREATE, context)
         
         # Verify: File exists in author directory
         assert os.path.exists(expected_file), f"Expected file not found: {expected_file}"

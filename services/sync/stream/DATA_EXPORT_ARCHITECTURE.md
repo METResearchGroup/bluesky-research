@@ -133,7 +133,7 @@ The system uses separate context objects for cache write and batch export phases
   - `file_utilities`: Handles file I/O operations
   - `handler_registry`: Registry for record type handlers
   - `study_user_manager`: Manages study user identification
-- **Usage**: Used by `data_filter.py` functions during firehose stream processing
+- **Usage**: Used by record processors during firehose stream processing
 - **Benefits**: Contains only what's needed for cache writes, no unnecessary dependencies
 
 #### `BatchExportContext`
@@ -195,19 +195,22 @@ The system uses separate context objects for cache write and batch export phases
 ### Happy Path: Study User Post
 
 1. **Firehose receives post** → `firehose.py` parses commit, extracts post record
-2. **Operations callback** → `data_filter.operations_callback()` called with operations dict
-3. **Post management** → `manage_post()` called with post dict and `CacheWriteContext`
-4. **Study user check** → `StudyUserManager.is_study_user()` checks if author is study user
-5. **Handler lookup** → `handler_registry.get_handler(RecordType.POST.value)` retrieves handler
-6. **Path construction** → Handler calls `path_strategy()` to get base path:
+2. **Operations callback** → `operations_callback()` called with operations dict and `CacheWriteContext`
+3. **Processor lookup** → `ProcessorRegistry.get_processor("posts")` retrieves `PostProcessor`
+4. **Transformation** → `PostProcessor.transform()` converts raw firehose post to domain model
+5. **Routing decisions** → `PostProcessor.get_routing_decisions()` determines which handlers should process the post
+6. **Study user check** → `StudyUserManager.is_study_user()` checks if author is study user
+7. **Router execution** → `route_decisions()` iterates routing decisions and calls handlers
+8. **Handler lookup** → `handler_registry.get_handler(RecordType.POST.value)` retrieves handler
+9. **Path construction** → Handler calls `path_strategy()` to get base path:
    ```
    study_user_activity/create/post/
    ```
-7. **File writing** → `FileUtilities.write_json()` writes JSON file:
+10. **File writing** → `FileUtilities.write_json()` writes JSON file:
    ```
    study_user_activity/create/post/author_did={did}_post_uri_suffix={suffix}.json
    ```
-8. **Study user manager update** → `insert_study_user_post()` tracks post for future lookups
+11. **Study user manager update** → `insert_study_user_post()` tracks post for future lookups
 
 **Later: Batch Export**
 
@@ -221,35 +224,44 @@ The system uses separate context objects for cache write and batch export phases
 ### Happy Path: Like on Study User Post
 
 1. **Firehose receives like** → Like record extracted
-2. **Like management** → `manage_like()` called
-3. **Post lookup** → `StudyUserManager.is_study_user_post()` checks if liked post is by study user
-4. **Handler lookup** → `handler_registry.get_handler(RecordType.LIKE_ON_USER_POST.value)`
-5. **Path construction** → Handler uses nested path extractor:
+2. **Processor lookup** → `ProcessorRegistry.get_processor("likes")` retrieves `LikeProcessor`
+3. **Transformation** → `LikeProcessor.transform()` converts raw firehose like to domain model
+4. **Routing decisions** → `LikeProcessor.get_routing_decisions()` determines routing paths
+5. **Post lookup** → `StudyUserManager.is_study_user_post()` checks if liked post is by study user
+6. **Router execution** → `route_decisions()` calls appropriate handlers
+7. **Handler lookup** → `handler_registry.get_handler(RecordType.LIKE_ON_USER_POST.value)`
+8. **Path construction** → Handler uses nested path extractor:
    - Base path: `study_user_activity/create/like_on_user_post/`
    - Nested path: Extracts `post_uri_suffix` from like record
    - Full path: `study_user_activity/create/like_on_user_post/{post_uri_suffix}/`
-6. **File writing** → Writes JSON file in nested directory
-7. **Batch export** → Uses `_nested_read_strategy()` to read from nested directories
+9. **File writing** → Writes JSON file in nested directory
+10. **Batch export** → Uses `_nested_read_strategy()` to read from nested directories
 
 ### Happy Path: In-Network Post
 
 1. **Firehose receives post** → Post extracted
-2. **Post management** → `manage_post()` called
-3. **In-network check** → `StudyUserManager.is_in_network_user()` checks if author is in-network
-4. **Handler lookup** → `handler_registry.get_handler(HandlerKey.IN_NETWORK_POST.value)`
-5. **Path construction** → Uses `_in_network_path_strategy()`:
+2. **Processor lookup** → `ProcessorRegistry.get_processor("posts")` retrieves `PostProcessor`
+3. **Transformation** → `PostProcessor.transform()` converts raw firehose post to domain model
+4. **Routing decisions** → `PostProcessor.get_routing_decisions()` determines routing paths
+5. **In-network check** → `StudyUserManager.is_in_network_user()` checks if author is in-network
+6. **Router execution** → `route_decisions()` calls appropriate handlers
+7. **Handler lookup** → `handler_registry.get_handler(HandlerKey.IN_NETWORK_POST.value)`
+8. **Path construction** → Uses `_in_network_path_strategy()`:
    - Requires `author_did` parameter
    - Path: `in_network_user_activity/create/post/{author_did}/`
-6. **File writing** → Writes JSON file in author-specific directory
-7. **Batch export** → `InNetworkUserActivityExporter` iterates author directories
+9. **File writing** → Writes JSON file in author-specific directory
+10. **Batch export** → `InNetworkUserActivityExporter` iterates author directories
 
 ### Happy Path: Follow Record
 
 1. **Firehose receives follow** → Follow record extracted
-2. **Follow management** → `manage_follow()` called
-3. **Relationship check** → Checks if follower OR followee is study user
-4. **Handler lookup** → `handler_registry.get_handler(RecordType.FOLLOW.value)`
-5. **Path construction** → Uses `follow_status` parameter:
+2. **Processor lookup** → `ProcessorRegistry.get_processor("follows")` retrieves `FollowProcessor`
+3. **Transformation** → `FollowProcessor.transform()` converts raw firehose follow to domain model
+4. **Routing decisions** → `FollowProcessor.get_routing_decisions()` determines routing paths (can return 2 decisions if both are study users)
+5. **Relationship check** → Checks if follower OR followee is study user
+6. **Router execution** → `route_decisions()` calls appropriate handlers
+7. **Handler lookup** → `handler_registry.get_handler(RecordType.FOLLOW.value)`
+8. **Path construction** → Uses `follow_status` parameter:
    - If user is follower: `study_user_activity/create/follow/follower/`
    - If user is followee: `study_user_activity/create/follow/followee/`
 6. **File writing** → Writes JSON file in appropriate subdirectory

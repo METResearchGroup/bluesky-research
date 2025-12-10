@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from services.sync.stream.data_filter import operations_callback
+from services.sync.stream.operations import operations_callback
 from services.sync.stream.tests.mock_firehose_data import (
     mock_follow_records,
     mock_like_records,

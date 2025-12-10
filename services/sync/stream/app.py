@@ -9,7 +9,7 @@ from typing import Optional
 from flask import Flask
 
 from services.sync.stream import firehose
-from services.sync.stream.data_filter import operations_callback
+from services.sync.stream.operations import operations_callback
 from services.sync.stream.setup import setup_cache_write_system
 
 
