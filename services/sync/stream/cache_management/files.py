@@ -67,8 +67,25 @@ class FileUtilities:
     # Read operations
     def read_json(self, path: str) -> dict:
         """Read JSON file from path."""
-        with open(path, "r") as f:
-            return json.load(f)
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except (
+            json.JSONDecodeError,
+            OSError,
+            IOError,
+            FileNotFoundError,
+            PermissionError,
+        ) as e:
+            logger.error(
+                f"Failed to read JSON file: {path}. Error: {type(e).__name__}: {str(e)}",
+                context={
+                    "path": path,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+            raise
 
     def read_all_json_in_directory(
         self, directory: str
