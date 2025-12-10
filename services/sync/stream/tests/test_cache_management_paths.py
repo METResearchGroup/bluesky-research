@@ -120,3 +120,59 @@ class TestCachePathManager:
         assert RecordType.FOLLOW.value in follow_relative
         assert FollowStatus.FOLLOWER.value in follow_relative
 
+    def test_get_study_user_activity_path_delete_like_on_user_post_raises_error(self, path_manager):
+        """Test get_study_user_activity_path raises ValueError for unsupported DELETE/LIKE_ON_USER_POST."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            path_manager.get_study_user_activity_path(
+                Operation.DELETE, RecordType.LIKE_ON_USER_POST
+            )
+        assert "Unsupported record_type 'like_on_user_post' for operation 'delete'" in str(exc_info.value)
+        assert "Available record types" in str(exc_info.value)
+
+    def test_get_study_user_activity_path_delete_reply_to_user_post_raises_error(self, path_manager):
+        """Test get_study_user_activity_path raises ValueError for unsupported DELETE/REPLY_TO_USER_POST."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            path_manager.get_study_user_activity_path(
+                Operation.DELETE, RecordType.REPLY_TO_USER_POST
+            )
+        assert "Unsupported record_type 'reply_to_user_post' for operation 'delete'" in str(exc_info.value)
+        assert "Available record types" in str(exc_info.value)
+
+    def test_get_study_user_activity_path_delete_follow_raises_error(self, path_manager):
+        """Test get_study_user_activity_path raises ValueError for unsupported DELETE/FOLLOW."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            path_manager.get_study_user_activity_path(
+                Operation.DELETE, RecordType.FOLLOW, follow_status=FollowStatus.FOLLOWER
+            )
+        assert "Unsupported record_type 'follow' for operation 'delete'" in str(exc_info.value)
+        assert "Available record types" in str(exc_info.value)
+
+    def test_get_relative_path_delete_like_on_user_post_raises_error(self, path_manager):
+        """Test get_relative_path raises ValueError for unsupported DELETE/LIKE_ON_USER_POST."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            path_manager.get_relative_path(Operation.DELETE, RecordType.LIKE_ON_USER_POST)
+        assert "Unsupported record_type 'like_on_user_post' for operation 'delete'" in str(exc_info.value)
+        assert "Available record types" in str(exc_info.value)
+
+    def test_get_relative_path_delete_reply_to_user_post_raises_error(self, path_manager):
+        """Test get_relative_path raises ValueError for unsupported DELETE/REPLY_TO_USER_POST."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            path_manager.get_relative_path(Operation.DELETE, RecordType.REPLY_TO_USER_POST)
+        assert "Unsupported record_type 'reply_to_user_post' for operation 'delete'" in str(exc_info.value)
+        assert "Available record types" in str(exc_info.value)
+
+    def test_get_relative_path_delete_follow_raises_error(self, path_manager):
+        """Test get_relative_path raises ValueError for unsupported DELETE/FOLLOW."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            path_manager.get_relative_path(
+                Operation.DELETE, RecordType.FOLLOW, follow_status=FollowStatus.FOLLOWER
+            )
+        assert "Unsupported record_type 'follow' for operation 'delete'" in str(exc_info.value)
+        assert "Available record types" in str(exc_info.value)
+
