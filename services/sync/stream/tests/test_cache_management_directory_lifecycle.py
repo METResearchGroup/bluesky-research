@@ -20,28 +20,28 @@ class TestCacheDirectoryManager:
         # Assert
         assert dir_manager.path_manager == path_manager
 
-    def test_ensure_exists_creates_directory(self, dir_manager):
-        """Test ensure_exists creates directory if it doesn't exist."""
+    def test_ensure_directory_exists_creates_directory(self, dir_manager):
+        """Test ensure_directory_exists creates directory if it doesn't exist."""
         # Arrange
         with tempfile.TemporaryDirectory() as tmpdir:
             test_path = os.path.join(tmpdir, "test", "nested", "path")
 
             # Act
-            dir_manager.ensure_exists(test_path)
+            dir_manager.ensure_directory_exists(test_path)
 
             # Assert
             assert os.path.exists(test_path)
             assert os.path.isdir(test_path)
 
-    def test_ensure_exists_does_not_fail_if_exists(self, dir_manager):
-        """Test ensure_exists does not fail if directory already exists."""
+    def test_ensure_directory_exists_does_not_fail_if_exists(self, dir_manager):
+        """Test ensure_directory_exists does not fail if directory already exists."""
         # Arrange
         with tempfile.TemporaryDirectory() as tmpdir:
             test_path = os.path.join(tmpdir, "existing")
             os.makedirs(test_path)
 
             # Act & Assert (should not raise)
-            dir_manager.ensure_exists(test_path)
+            dir_manager.ensure_directory_exists(test_path)
             assert os.path.exists(test_path)
 
     def test_rebuild_all_creates_all_directories(self, path_manager, dir_manager):
@@ -96,20 +96,4 @@ class TestCacheDirectoryManager:
 
             # Assert
             assert not os.path.exists(path_manager.root_write_path)
-
-    def test_exists_returns_true_for_existing_path(self, dir_manager):
-        """Test exists returns True for existing path."""
-        # Arrange
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Act & Assert
-            assert dir_manager.exists(tmpdir) is True
-
-    def test_exists_returns_false_for_non_existing_path(self, dir_manager):
-        """Test exists returns False for non-existing path."""
-        # Arrange
-        non_existent = "/nonexistent/path/that/does/not/exist"
-
-        # Act & Assert
-        assert dir_manager.exists(non_existent) is False
 

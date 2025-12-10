@@ -29,14 +29,14 @@ class FileUtilities:
     def write_json(self, path: str, data: dict) -> None:
         """Write JSON data to file at path."""
         parent_dir = os.path.dirname(path)
-        self.directory_manager.ensure_exists(parent_dir)
+        self.directory_manager.ensure_directory_exists(parent_dir)
         with open(path, "w") as f:
             json.dump(data, f)
 
     def write_jsonl(self, path: str, records: list[dict]) -> None:
         """Write JSONL data to file at path."""
         parent_dir = os.path.dirname(path)
-        self.directory_manager.ensure_exists(parent_dir)
+        self.directory_manager.ensure_directory_exists(parent_dir)
         with open(path, "w") as f:
             for record in records:
                 f.write(json.dumps(record) + "\n")

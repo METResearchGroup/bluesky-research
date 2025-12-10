@@ -43,12 +43,11 @@ This separation allows the firehose stream to maintain high throughput (writing 
   ```
 
 #### `CacheDirectoryManager`
-- **Purpose**: Manages directory lifecycle (creation, deletion, cleanup)
+- **Purpose**: Manages directory lifecycle (creation and deletion)
 - **Key Methods**:
+  - `ensure_directory_exists(path)`: Ensures directory exists, creating if necessary
   - `rebuild_all()`: Creates entire cache directory structure
   - `delete_all()`: Removes all cache directories
-  - `delete_files()`: Removes specific files after export
-  - `delete_empty_directories()`: Cleans up empty directories
 
 #### `FileUtilities`
 - **Purpose**: Generic file I/O operations for JSON records
@@ -56,7 +55,7 @@ This separation allows the firehose stream to maintain high throughput (writing 
   - Write: `write_json()`, `write_jsonl()` (creates directories as needed)
   - Read: `read_json()`, `read_all_json_in_directory()`
   - Directory: `list_files()`, `list_directories()`, `is_directory()`
-  - Delete: `delete_files()`
+  - Delete: `delete_files()` (removes specific files after export)
 
 ### 2. Handler Layer
 

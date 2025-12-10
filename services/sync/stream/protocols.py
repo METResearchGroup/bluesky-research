@@ -91,8 +91,12 @@ class PathManagerProtocol(Protocol):
 class DirectoryManagerProtocol(Protocol):
     """Protocol for directory lifecycle management."""
 
-    def ensure_exists(self, path: str) -> None:
-        """Ensure directory exists, creating if necessary."""
+    def ensure_directory_exists(self, path: str) -> None:
+        """Ensure directory exists, creating if necessary.
+
+        Args:
+            path: Directory path to ensure exists
+        """
         ...
 
     def rebuild_all(self) -> None:
