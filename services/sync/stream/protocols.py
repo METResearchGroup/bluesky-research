@@ -6,6 +6,8 @@ All major dependencies are defined as protocols to enable:
 - Type safety
 """
 
+from __future__ import annotations
+
 from typing import Protocol, TYPE_CHECKING
 
 if TYPE_CHECKING:
