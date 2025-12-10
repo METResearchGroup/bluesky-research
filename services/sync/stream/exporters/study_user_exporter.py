@@ -1,6 +1,10 @@
 """Exporter for study user activity data."""
 
+import json
 import os
+import traceback
+
+from lib.log.logger import get_logger
 
 from services.sync.stream.exporters.base import BaseActivityExporter
 from services.sync.stream.protocols import (
@@ -9,6 +13,9 @@ from services.sync.stream.protocols import (
 )
 from services.sync.stream.handlers.registry import RecordHandlerRegistry
 from services.sync.stream.types import Operation, RecordType
+
+
+logger = get_logger(__file__)
 
 
 class StudyUserActivityExporter(BaseActivityExporter):
@@ -83,11 +90,82 @@ class StudyUserActivityExporter(BaseActivityExporter):
                         all_replies_to_user_posts.extend(records)
 
                     all_filepaths.extend(filepaths)
-                except KeyError:
+                except KeyError as e:
                     # Record type not registered
+                    logger.warning(
+                        f"Record type '{record_type.value}' not registered in handler registry. "
+                        f"Operation: {operation.value}, Path: {base_path}",
+                        context={
+                            "error": str(e),
+                            "record_type": record_type.value,
+                            "operation": operation.value,
+                        },
+                    )
                     continue
-                except Exception:
-                    # Record type directory doesn't exist or other error
+                except FileNotFoundError as e:
+                    # Directory or file doesn't exist
+                    logger.warning(
+                        f"File or directory not found while reading records. "
+                        f"Record type: {record_type.value}, Operation: {operation.value}, Path: {base_path}",
+                        context={
+                            "error": str(e),
+                            "record_type": record_type.value,
+                            "operation": operation.value,
+                            "path": base_path,
+                        },
+                    )
+                    continue
+                except PermissionError as e:
+                    logger.warning(
+                        f"Permission denied while reading records. "
+                        f"Record type: {record_type.value}, Operation: {operation.value}, Path: {base_path}",
+                        context={
+                            "error": str(e),
+                            "record_type": record_type.value,
+                            "operation": operation.value,
+                            "path": base_path,
+                        },
+                    )
+                    continue
+                except json.JSONDecodeError as e:
+                    logger.warning(
+                        f"Malformed JSON encountered while reading records. "
+                        f"Record type: {record_type.value}, Operation: {operation.value}, Path: {base_path}",
+                        context={
+                            "error": str(e),
+                            "record_type": record_type.value,
+                            "operation": operation.value,
+                            "path": base_path,
+                        },
+                    )
+                    continue
+                except (OSError, IOError) as e:
+                    logger.warning(
+                        f"I/O error while reading records. "
+                        f"Record type: {record_type.value}, Operation: {operation.value}, Path: {base_path}",
+                        context={
+                            "error": str(e),
+                            "record_type": record_type.value,
+                            "operation": operation.value,
+                            "path": base_path,
+                        },
+                    )
+                    continue
+                except Exception as e:
+                    # Unexpected exceptions - log with full traceback
+                    logger.warning(
+                        f"Unexpected error while reading records. "
+                        f"Record type: {record_type.value}, Operation: {operation.value}, Path: {base_path}. "
+                        f"Error: {type(e).__name__}: {str(e)}",
+                        context={
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                            "record_type": record_type.value,
+                            "operation": operation.value,
+                            "path": base_path,
+                            "traceback": traceback.format_exc(),
+                        },
+                    )
                     continue
 
         # Export each record type to storage
