@@ -107,8 +107,12 @@ class CachePathManager:
 
         operation_map = self.study_user_activity_relative_path_map[operation.value]
 
-        if record_type == RecordType.FOLLOW and follow_status:
-            # Follow has nested structure
+        if record_type == RecordType.FOLLOW:
+            # Follow has nested structure and always requires a follow_status
+            if follow_status is None:
+                raise ValueError(
+                    f"follow_status is required for record_type 'follow' and operation '{operation.value}'"
+                )
             if "follow" not in operation_map:
                 available_record_types = list(operation_map.keys())
                 raise ValueError(
@@ -128,15 +132,16 @@ class CachePathManager:
                 )
             relative = operation_map["follow"][follow_status.value]
             return os.path.join(self.study_user_activity_root_local_path, relative)
-        else:
-            if record_type.value not in operation_map:
-                available_record_types = list(operation_map.keys())
-                raise ValueError(
-                    f"Unsupported record_type '{record_type.value}' for operation '{operation.value}'. "
-                    f"Available record types for '{operation.value}': {available_record_types}"
-                )
-            relative = operation_map[record_type.value]
-            return os.path.join(self.study_user_activity_root_local_path, relative)
+
+        # Non-follow record types
+        if record_type.value not in operation_map:
+            available_record_types = list(operation_map.keys())
+            raise ValueError(
+                f"Unsupported record_type '{record_type.value}' for operation '{operation.value}'. "
+                f"Available record types for '{operation.value}': {available_record_types}"
+            )
+        relative = operation_map[record_type.value]
+        return os.path.join(self.study_user_activity_root_local_path, relative)
 
     def get_in_network_activity_path(
         self,
@@ -171,7 +176,11 @@ class CachePathManager:
 
         operation_map = self.study_user_activity_relative_path_map[operation.value]
 
-        if record_type == RecordType.FOLLOW and follow_status:
+        if record_type == RecordType.FOLLOW:
+            if follow_status is None:
+                raise ValueError(
+                    f"follow_status is required for record_type 'follow' and operation '{operation.value}'"
+                )
             if "follow" not in operation_map:
                 available_record_types = list(operation_map.keys())
                 raise ValueError(
@@ -190,14 +199,15 @@ class CachePathManager:
                     f"with record_type 'follow'. Available follow statuses: {available_follow_statuses}"
                 )
             return operation_map["follow"][follow_status.value]
-        else:
-            if record_type.value not in operation_map:
-                available_record_types = list(operation_map.keys())
-                raise ValueError(
-                    f"Unsupported record_type '{record_type.value}' for operation '{operation.value}'. "
-                    f"Available record types for '{operation.value}': {available_record_types}"
-                )
-            return operation_map[record_type.value]
+
+        # Non-follow record types
+        if record_type.value not in operation_map:
+            available_record_types = list(operation_map.keys())
+            raise ValueError(
+                f"Unsupported record_type '{record_type.value}' for operation '{operation.value}'. "
+                f"Available record types for '{operation.value}': {available_record_types}"
+            )
+        return operation_map[record_type.value]
 
     def get_study_user_activity_operation_path(
         self,

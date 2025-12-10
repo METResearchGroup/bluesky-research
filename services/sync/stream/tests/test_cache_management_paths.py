@@ -165,3 +165,21 @@ class TestCachePathManager:
         assert "Unsupported record_type 'follow' for operation 'delete'" in str(exc_info.value)
         assert "Available record types" in str(exc_info.value)
 
+    def test_get_study_user_activity_path_follow_requires_follow_status(self, path_manager):
+        """Test get_study_user_activity_path raises ValueError when FOLLOW is used without follow_status."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            path_manager.get_study_user_activity_path(
+                Operation.CREATE, RecordType.FOLLOW, follow_status=None
+            )
+        assert "follow_status is required for record_type 'follow'" in str(exc_info.value)
+
+    def test_get_relative_path_follow_requires_follow_status(self, path_manager):
+        """Test get_relative_path raises ValueError when FOLLOW is used without follow_status."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError) as exc_info:
+            path_manager.get_relative_path(
+                Operation.CREATE, RecordType.FOLLOW, follow_status=None
+            )
+        assert "follow_status is required for record_type 'follow'" in str(exc_info.value)
+
