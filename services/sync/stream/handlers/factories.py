@@ -12,8 +12,7 @@ from services.sync.stream.handlers.configs import (
 )
 from services.sync.stream.protocols import (
     PathManagerProtocol,
-    FileWriterProtocol,
-    FileReaderProtocol,
+    FileUtilitiesProtocol,
 )
 from services.sync.stream.types import HandlerKey
 
@@ -21,8 +20,8 @@ from services.sync.stream.types import HandlerKey
 def create_handler(
     config: HandlerConfig,
     path_manager: PathManagerProtocol,
-    file_writer: FileWriterProtocol,
-    file_reader: FileReaderProtocol,
+    file_writer: FileUtilitiesProtocol,
+    file_reader: FileUtilitiesProtocol,
 ) -> GenericRecordHandler:
     """Generic factory for creating handlers with configuration.
 
@@ -56,8 +55,8 @@ HANDLER_CONFIG_REGISTRY: dict[HandlerKey, HandlerConfig] = {
 
 def create_handlers_for_all_types(
     path_manager: PathManagerProtocol,
-    file_writer: FileWriterProtocol,
-    file_reader: FileReaderProtocol,
+    file_writer: FileUtilitiesProtocol,
+    file_reader: FileUtilitiesProtocol,
 ) -> dict[str, GenericRecordHandler]:
     """Create all handlers at once.
 

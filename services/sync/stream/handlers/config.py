@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Optional, Protocol
 
 from services.sync.stream.types import RecordType, Operation, FollowStatus
-from services.sync.stream.protocols import PathManagerProtocol, FileReaderProtocol
+from services.sync.stream.protocols import PathManagerProtocol, FileUtilitiesProtocol
 
 
 class PathStrategyProtocol(Protocol):
@@ -54,7 +54,7 @@ class ReadStrategyProtocol(Protocol):
 
     def __call__(
         self,
-        file_reader: FileReaderProtocol,
+        file_reader: FileUtilitiesProtocol,
         base_path: str,
         record_type: RecordType,
     ) -> tuple[list[dict], list[str]]:

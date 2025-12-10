@@ -6,7 +6,7 @@ from lib.log.logger import get_logger
 
 from services.sync.stream.handlers.config import HandlerConfig
 from services.sync.stream.types import RecordType, FollowStatus, Operation
-from services.sync.stream.protocols import PathManagerProtocol, FileReaderProtocol
+from services.sync.stream.protocols import PathManagerProtocol, FileUtilitiesProtocol
 
 logger = get_logger(__file__)
 
@@ -62,7 +62,7 @@ def _in_network_path_strategy(
 
 
 def _nested_read_strategy(
-    file_reader: FileReaderProtocol,
+    file_reader: FileUtilitiesProtocol,
     base_path: str,
     record_type: RecordType,
 ) -> tuple[list[dict], list[str]]:
@@ -108,7 +108,7 @@ def _nested_read_strategy(
 
 
 def _follow_read_strategy(
-    file_reader: FileReaderProtocol,
+    file_reader: FileUtilitiesProtocol,
     base_path: str,
     record_type: RecordType,
 ) -> tuple[list[dict], list[str]]:

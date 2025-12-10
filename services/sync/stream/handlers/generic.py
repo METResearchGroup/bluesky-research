@@ -4,8 +4,7 @@ import os
 from services.sync.stream.handlers.config import HandlerConfig
 from services.sync.stream.protocols import (
     PathManagerProtocol,
-    FileWriterProtocol,
-    FileReaderProtocol,
+    FileUtilitiesProtocol,
     RecordHandlerProtocol,
 )
 from services.sync.stream.types import (
@@ -27,8 +26,8 @@ class GenericRecordHandler(RecordHandlerProtocol):
         self,
         config: HandlerConfig,
         path_manager: PathManagerProtocol,
-        file_writer: FileWriterProtocol,
-        file_reader: FileReaderProtocol,
+        file_writer: FileUtilitiesProtocol,
+        file_reader: FileUtilitiesProtocol,
     ):
         """Initialize generic handler.
 

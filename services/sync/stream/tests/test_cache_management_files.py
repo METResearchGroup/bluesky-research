@@ -1,4 +1,4 @@
-"""Tests for cache_management/files.py - CacheFileWriter and CacheFileReader classes."""
+"""Tests for cache_management/files.py - FileUtilities class."""
 
 import json
 import os
@@ -7,14 +7,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from services.sync.stream.cache_management import (
-    CacheFileWriter,
-    CacheFileReader,
-)
+from services.sync.stream.cache_management import FileUtilities
 
 
-class TestCacheFileWriter:
-    """Tests for CacheFileWriter class."""
+class TestFileUtilities:
+    """Tests for FileUtilities class."""
 
     @pytest.fixture(autouse=True)
     def mock_study_user_manager(self, monkeypatch):
@@ -24,12 +21,12 @@ class TestCacheFileWriter:
         # No longer needed - cache_writer.py was deleted
 
     def test_init(self, dir_manager):
-        """Test CacheFileWriter initialization."""
+        """Test FileUtilities initialization."""
         # Act
-        file_writer = CacheFileWriter(directory_manager=dir_manager)
+        file_utilities = FileUtilities(directory_manager=dir_manager)
 
         # Assert
-        assert file_writer.directory_manager == dir_manager
+        assert file_utilities.directory_manager == dir_manager
 
     def test_write_json_creates_file(self, file_writer):
         """Test write_json creates JSON file with correct data."""
@@ -67,16 +64,55 @@ class TestCacheFileWriter:
             assert json.loads(lines[0]) == test_records[0]
             assert json.loads(lines[1]) == test_records[1]
 
+    def test_delete_files_removes_files(self, file_writer):
+        """Test delete_files removes specified files."""
+        # Arrange
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file1 = os.path.join(tmpdir, "file1.json")
+            file2 = os.path.join(tmpdir, "file2.json")
+            file3 = os.path.join(tmpdir, "file3.txt")
+            
+            # Create files
+            with open(file1, "w") as f:
+                json.dump({"test": 1}, f)
+            with open(file2, "w") as f:
+                json.dump({"test": 2}, f)
+            with open(file3, "w") as f:
+                f.write("text file")
+            
+            # Verify files exist
+            assert os.path.exists(file1)
+            assert os.path.exists(file2)
+            assert os.path.exists(file3)
+            
+            # Act
+            file_writer.delete_files([file1, file2])
+            
+            # Assert
+            assert not os.path.exists(file1)
+            assert not os.path.exists(file2)
+            assert os.path.exists(file3)  # Should not be deleted
 
-class TestCacheFileReader:
-    """Tests for CacheFileReader class."""
+    def test_delete_files_handles_nonexistent_files(self, file_writer):
+        """Test delete_files handles nonexistent files gracefully."""
+        # Arrange
+        nonexistent_file = "/nonexistent/path/file.json"
+        
+        # Act & Assert (should not raise)
+        file_writer.delete_files([nonexistent_file])
 
-    @pytest.fixture(autouse=True)
-    def mock_study_user_manager(self, monkeypatch):
-        """Mock study user manager to avoid loading real data."""
-        mock_manager = Mock()
-        mock_manager.insert_study_user_post = Mock()
-        # No longer needed - cache_writer.py was deleted
+    def test_delete_files_handles_directories(self, file_writer):
+        """Test delete_files does not delete directories."""
+        # Arrange
+        with tempfile.TemporaryDirectory() as tmpdir:
+            subdir = os.path.join(tmpdir, "subdir")
+            os.makedirs(subdir)
+            
+            # Act
+            file_writer.delete_files([subdir])
+            
+            # Assert
+            assert os.path.exists(subdir)  # Directory should still exist
 
     def test_read_json_loads_file(self, file_reader):
         """Test read_json loads JSON file correctly."""

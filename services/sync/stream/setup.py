@@ -6,8 +6,7 @@ This creates a complete, configured system with all dependencies injected.
 from services.sync.stream.cache_management import (
     CachePathManager,
     CacheDirectoryManager,
-    CacheFileWriter,
-    CacheFileReader,
+    FileUtilities,
 )
 from services.sync.stream.context import SyncExportContext
 from services.sync.stream.handlers.registry import RecordHandlerRegistry
@@ -34,9 +33,11 @@ def setup_sync_export_system() -> SyncExportContext:
     # 2. Create directory manager
     directory_manager = CacheDirectoryManager(path_manager=path_manager)
 
-    # 3. Create file writer and reader
-    file_writer = CacheFileWriter(directory_manager=directory_manager)
-    file_reader = CacheFileReader()
+    # 3. Create file utilities (single instance for both read and write operations)
+    file_utilities = FileUtilities(directory_manager=directory_manager)
+    # Backward compatibility: assign same instance to both file_writer and file_reader
+    file_writer = file_utilities
+    file_reader = file_utilities
 
     # 4. Create storage adapter and repository
     storage_adapter = LocalStorageAdapter()
@@ -97,6 +98,7 @@ def setup_batch_export_system() -> BatchExporter:
         study_user_exporter=context.study_user_exporter,
         in_network_exporter=in_network_exporter,
         directory_manager=context.directory_manager,
+        file_utilities=context.file_writer,  # Use file_utilities instance
         clear_filepaths=False,  # Default, can be overridden
         clear_cache=True,  # Default, can be overridden
     )

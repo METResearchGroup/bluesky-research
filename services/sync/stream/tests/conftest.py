@@ -255,16 +255,16 @@ def dir_manager(path_manager):
 
 @pytest.fixture
 def file_writer(dir_manager):
-    """Create a CacheFileWriter for testing."""
-    from services.sync.stream.cache_management import CacheFileWriter
-    return CacheFileWriter(directory_manager=dir_manager)
+    """Create a FileUtilities instance for testing (as file_writer)."""
+    from services.sync.stream.cache_management import FileUtilities
+    return FileUtilities(directory_manager=dir_manager)
 
 
 @pytest.fixture
-def file_reader():
-    """Create a CacheFileReader for testing."""
-    from services.sync.stream.cache_management import CacheFileReader
-    return CacheFileReader()
+def file_reader(dir_manager):
+    """Create a FileUtilities instance for testing (as file_reader)."""
+    from services.sync.stream.cache_management import FileUtilities
+    return FileUtilities(directory_manager=dir_manager)
 
 
 @pytest.fixture

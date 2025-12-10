@@ -392,6 +392,7 @@ class TestBatchExporterIntegration:
             study_user_exporter=context.study_user_exporter,
             in_network_exporter=in_network_exporter,
             directory_manager=context.directory_manager,
+            file_utilities=context.file_writer,  # Use file_utilities instance
             clear_filepaths=False,  # Don't delete files in test
             clear_cache=False,  # Don't clear cache in test
         )

@@ -1,3 +1,5 @@
+"""Generic file I/O utilities for reading, writing, and managing files."""
+
 import os
 import json
 
@@ -8,17 +10,22 @@ from services.sync.stream.protocols import DirectoryManagerProtocol
 logger = get_logger(__file__)
 
 
-class CacheFileWriter:
-    """Manages the writing of cache files."""
+class FileUtilities:
+    """Generic file I/O utilities for reading, writing, and managing files.
+
+    This class consolidates file operations (read, write, delete, list) into
+    a single interface. It is not cache-specific despite being used in cache contexts.
+    """
 
     def __init__(self, directory_manager: DirectoryManagerProtocol):
-        """Initialize file writer.
+        """Initialize file utilities.
 
         Args:
             directory_manager: Manager for ensuring directories exist
         """
         self.directory_manager = directory_manager
 
+    # Write operations
     def write_json(self, path: str, data: dict) -> None:
         """Write JSON data to file at path."""
         parent_dir = os.path.dirname(path)
@@ -34,15 +41,49 @@ class CacheFileWriter:
             for record in records:
                 f.write(json.dumps(record) + "\n")
 
-
-class CacheFileReader:
-    """Manages the reading of cache files."""
-
+    # Read operations
     def read_json(self, path: str) -> dict:
         """Read JSON file from path."""
         with open(path, "r") as f:
             return json.load(f)
 
+    def read_all_json_in_directory(
+        self, directory: str
+    ) -> tuple[list[dict], list[str]]:
+        """Read all JSON files in directory, returning (data, filepaths)."""
+        records: list[dict] = []
+        filepaths: list[str] = []
+
+        if not os.path.exists(directory):
+            return records, filepaths
+
+        for filename in os.listdir(directory):
+            filepath = os.path.join(directory, filename)
+            if os.path.isfile(filepath) and filename.endswith(".json"):
+                try:
+                    data = self.read_json(filepath)
+                    records.append(data)
+                    filepaths.append(filepath)
+                except (
+                    json.JSONDecodeError,
+                    OSError,
+                    IOError,
+                    FileNotFoundError,
+                    PermissionError,
+                ) as e:
+                    logger.warning(
+                        f"Failed to read JSON file: {filepath}. Error: {type(e).__name__}: {str(e)}",
+                        context={
+                            "filepath": filepath,
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                        },
+                    )
+                    continue
+
+        return records, filepaths
+
+    # Directory operations
     def list_files(self, directory: str) -> list[str]:
         """List all files in directory."""
         if not os.path.exists(directory):
@@ -81,38 +122,13 @@ class CacheFileReader:
         """
         return os.path.isdir(path) if os.path.exists(path) else False
 
-    def read_all_json_in_directory(
-        self, directory: str
-    ) -> tuple[list[dict], list[str]]:
-        """Read all JSON files in directory, returning (data, filepaths)."""
-        records: list[dict] = []
-        filepaths: list[str] = []
+    # Delete operations
+    def delete_files(self, filepaths: list[str]) -> None:
+        """Delete list of files.
 
-        if not os.path.exists(directory):
-            return records, filepaths
-
-        for filename in os.listdir(directory):
-            filepath = os.path.join(directory, filename)
-            if os.path.isfile(filepath) and filename.endswith(".json"):
-                try:
-                    data = self.read_json(filepath)
-                    records.append(data)
-                    filepaths.append(filepath)
-                except (
-                    json.JSONDecodeError,
-                    OSError,
-                    IOError,
-                    FileNotFoundError,
-                    PermissionError,
-                ) as e:
-                    logger.warning(
-                        f"Failed to read JSON file: {filepath}. Error: {type(e).__name__}: {str(e)}",
-                        context={
-                            "filepath": filepath,
-                            "error": str(e),
-                            "error_type": type(e).__name__,
-                        },
-                    )
-                    continue
-
-        return records, filepaths
+        Args:
+            filepaths: List of file paths to delete
+        """
+        for filepath in filepaths:
+            if os.path.exists(filepath) and os.path.isfile(filepath):
+                os.remove(filepath)

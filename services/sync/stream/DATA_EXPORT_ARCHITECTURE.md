@@ -50,10 +50,13 @@ This separation allows the firehose stream to maintain high throughput (writing 
   - `delete_files()`: Removes specific files after export
   - `delete_empty_directories()`: Cleans up empty directories
 
-#### `CacheFileWriter` / `CacheFileReader`
-- **Purpose**: File I/O operations for JSON records
-- **Writer**: Creates directories as needed, writes JSON files
-- **Reader**: Reads JSON files, lists directories, handles nested structures
+#### `FileUtilities`
+- **Purpose**: Generic file I/O operations for JSON records
+- **Operations**: 
+  - Write: `write_json()`, `write_jsonl()` (creates directories as needed)
+  - Read: `read_json()`, `read_all_json_in_directory()`
+  - Directory: `list_files()`, `list_directories()`, `is_directory()`
+  - Delete: `delete_files()`
 
 ### 2. Handler Layer
 
@@ -173,7 +176,7 @@ This separation allows the firehose stream to maintain high throughput (writing 
    ```
    study_user_activity/create/post/
    ```
-7. **File writing** → `CacheFileWriter.write_json()` writes JSON file:
+7. **File writing** → `FileUtilities.write_json()` writes JSON file:
    ```
    study_user_activity/create/post/author_did={did}_post_uri_suffix={suffix}.json
    ```
@@ -253,7 +256,7 @@ This separation allows the firehose stream to maintain high throughput (writing 
 ### Protocols
 
 - **`PathManagerProtocol`**: Interface for path construction
-- **`FileWriterProtocol`** / **`FileReaderProtocol`**: File I/O interfaces
+- **`FileUtilitiesProtocol`**: File I/O interface (consolidates read/write/delete operations)
 - **`StorageRepositoryProtocol`**: Storage abstraction
 - **`RecordHandlerProtocol`**: Handler interface
 - **`PathStrategyProtocol`**: Path construction strategy

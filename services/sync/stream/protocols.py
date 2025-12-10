@@ -113,9 +113,14 @@ class DirectoryManagerProtocol(Protocol):
 # ============================================================================
 
 
-class FileWriterProtocol(Protocol):
-    """Protocol for writing files to cache."""
+class FileUtilitiesProtocol(Protocol):
+    """Protocol for generic file I/O operations.
 
+    This protocol consolidates read, write, delete, and directory operations
+    into a single interface. It is not cache-specific despite being used in cache contexts.
+    """
+
+    # Write operations
     def write_json(self, path: str, data: dict) -> None:
         """Write JSON data to file at path."""
         ...
@@ -124,14 +129,18 @@ class FileWriterProtocol(Protocol):
         """Write JSONL data to file at path."""
         ...
 
-
-class FileReaderProtocol(Protocol):
-    """Protocol for reading files from cache."""
-
+    # Read operations
     def read_json(self, path: str) -> dict:
         """Read JSON file from path."""
         ...
 
+    def read_all_json_in_directory(
+        self, directory: str
+    ) -> tuple[list[dict], list[str]]:
+        """Read all JSON files in directory, returning (data, filepaths)."""
+        ...
+
+    # Directory operations
     def list_files(self, directory: str) -> list[str]:
         """List all files in directory."""
         ...
@@ -158,10 +167,13 @@ class FileReaderProtocol(Protocol):
         """
         ...
 
-    def read_all_json_in_directory(
-        self, directory: str
-    ) -> tuple[list[dict], list[str]]:
-        """Read all JSON files in directory, returning (data, filepaths)."""
+    # Delete operations
+    def delete_files(self, filepaths: list[str]) -> None:
+        """Delete list of files.
+
+        Args:
+            filepaths: List of file paths to delete
+        """
         ...
 
 

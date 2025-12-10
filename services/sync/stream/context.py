@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING, Any
 from services.sync.stream.cache_management import (
     CachePathManager,
     CacheDirectoryManager,
-    CacheFileWriter,
-    CacheFileReader,
+    FileUtilities,
 )
 
 if TYPE_CHECKING:
@@ -27,8 +26,8 @@ class SyncExportContext:
 
     path_manager: CachePathManager
     directory_manager: CacheDirectoryManager
-    file_writer: CacheFileWriter
-    file_reader: CacheFileReader
+    file_writer: FileUtilities  # Alias for backward compatibility
+    file_reader: FileUtilities  # Alias for backward compatibility
     handler_registry: "RecordHandlerRegistry"
     study_user_exporter: "StudyUserActivityExporter"
     storage_repository: "StorageRepository"

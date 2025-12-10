@@ -3,8 +3,7 @@
 from services.sync.stream.cache_management import (
     CachePathManager,
     CacheDirectoryManager,
-    CacheFileWriter,
-    CacheFileReader,
+    FileUtilities,
 )
 from services.sync.stream.context import SyncExportContext
 from services.sync.stream.handlers.generic import GenericRecordHandler
@@ -26,8 +25,7 @@ from services.sync.stream.setup import (
 __all__ = [
     "CachePathManager",
     "CacheDirectoryManager",
-    "CacheFileWriter",
-    "CacheFileReader",
+    "FileUtilities",
     "SyncExportContext",
     "GenericRecordHandler",
     "RecordHandlerRegistry",

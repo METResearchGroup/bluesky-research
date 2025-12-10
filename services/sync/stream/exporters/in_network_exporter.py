@@ -6,7 +6,7 @@ from services.sync.stream.exporters.base import BaseActivityExporter
 from services.sync.stream.protocols import (
     PathManagerProtocol,
     StorageRepositoryProtocol,
-    FileReaderProtocol,
+    FileUtilitiesProtocol,
 )
 from services.sync.stream.types import Operation, RecordType
 
@@ -18,7 +18,7 @@ class InNetworkUserActivityExporter(BaseActivityExporter):
         self,
         path_manager: PathManagerProtocol,
         storage_repository: StorageRepositoryProtocol,
-        file_reader: FileReaderProtocol,
+        file_reader: FileUtilitiesProtocol,
     ):
         """Initialize exporter.
 

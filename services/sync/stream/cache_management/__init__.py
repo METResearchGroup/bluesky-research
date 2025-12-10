@@ -8,11 +8,10 @@ from services.sync.stream.cache_management.paths import CachePathManager
 from services.sync.stream.cache_management.directory_lifecycle import (
     CacheDirectoryManager,
 )
-from services.sync.stream.cache_management.files import CacheFileWriter, CacheFileReader
+from services.sync.stream.cache_management.files import FileUtilities
 
 __all__ = [
     "CachePathManager",
     "CacheDirectoryManager",
-    "CacheFileWriter",
-    "CacheFileReader",
+    "FileUtilities",
 ]
