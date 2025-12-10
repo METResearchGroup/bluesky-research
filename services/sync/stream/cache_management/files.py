@@ -53,6 +53,34 @@ class CacheFileReader:
             if os.path.isfile(os.path.join(directory, f))
         ]
 
+    def list_directories(self, directory: str) -> list[str]:
+        """List all subdirectories in directory.
+
+        Args:
+            directory: Directory to list subdirectories from
+
+        Returns:
+            List of subdirectory names (not full paths)
+        """
+        if not os.path.exists(directory):
+            return []
+        return [
+            d
+            for d in os.listdir(directory)
+            if os.path.isdir(os.path.join(directory, d))
+        ]
+
+    def is_directory(self, path: str) -> bool:
+        """Check if path is a directory.
+
+        Args:
+            path: Path to check
+
+        Returns:
+            True if path exists and is a directory, False otherwise
+        """
+        return os.path.isdir(path) if os.path.exists(path) else False
+
     def read_all_json_in_directory(
         self, directory: str
     ) -> tuple[list[dict], list[str]]:

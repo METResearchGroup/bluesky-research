@@ -136,6 +136,28 @@ class FileReaderProtocol(Protocol):
         """List all files in directory."""
         ...
 
+    def list_directories(self, directory: str) -> list[str]:
+        """List all subdirectories in directory.
+
+        Args:
+            directory: Directory to list subdirectories from
+
+        Returns:
+            List of subdirectory names (not full paths)
+        """
+        ...
+
+    def is_directory(self, path: str) -> bool:
+        """Check if path is a directory.
+
+        Args:
+            path: Path to check
+
+        Returns:
+            True if path exists and is a directory, False otherwise
+        """
+        ...
+
     def read_all_json_in_directory(
         self, directory: str
     ) -> tuple[list[dict], list[str]]:

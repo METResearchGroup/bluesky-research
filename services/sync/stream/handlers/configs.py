@@ -71,41 +71,38 @@ def _nested_read_strategy(
     filepaths: list[str] = []
     record_dir = os.path.join(base_path, record_type.value)
 
-    if not os.path.exists(record_dir):
+    if not file_reader.is_directory(record_dir):
         return records, filepaths
 
     # Iterate over nested directories (e.g., post_uri_suffix directories)
-    for nested_dir_name in os.listdir(record_dir):
+    for nested_dir_name in file_reader.list_directories(record_dir):
         nested_path = os.path.join(record_dir, nested_dir_name)
-        if not os.path.isdir(nested_path):
-            continue
 
         # Read all JSON files in nested directory
-        for filename in os.listdir(nested_path):
+        for filename in file_reader.list_files(nested_path):
             if not filename.endswith(".json"):
                 continue
             full_path = os.path.join(nested_path, filename)
-            if os.path.isfile(full_path):
-                try:
-                    data = file_reader.read_json(full_path)
-                    records.append(data)
-                    filepaths.append(full_path)
-                except (
-                    json.JSONDecodeError,
-                    OSError,
-                    IOError,
-                    FileNotFoundError,
-                    PermissionError,
-                ) as e:
-                    logger.warning(
-                        f"Failed to read JSON file: {full_path}. Error: {type(e).__name__}: {str(e)}",
-                        context={
-                            "filepath": full_path,
-                            "error": str(e),
-                            "error_type": type(e).__name__,
-                        },
-                    )
-                    continue
+            try:
+                data = file_reader.read_json(full_path)
+                records.append(data)
+                filepaths.append(full_path)
+            except (
+                json.JSONDecodeError,
+                OSError,
+                IOError,
+                FileNotFoundError,
+                PermissionError,
+            ) as e:
+                logger.warning(
+                    f"Failed to read JSON file: {full_path}. Error: {type(e).__name__}: {str(e)}",
+                    context={
+                        "filepath": full_path,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    },
+                )
+                continue
 
     return records, filepaths
 
