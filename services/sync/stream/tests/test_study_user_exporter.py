@@ -174,14 +174,16 @@ class TestStudyUserActivityExporter:
         mock_handler_error = Mock()
         mock_handler_error.read_records.side_effect = FileNotFoundError("Not found")
         
-        # First call (POST) succeeds, second call (LIKE) fails
-        mock_handler_registry.get_handler.side_effect = [
-            mock_handler_success,  # POST
-            mock_handler_error,     # LIKE
-            mock_handler_success,   # FOLLOW
-            mock_handler_success,   # LIKE_ON_USER_POST
-            mock_handler_success,   # REPLY_TO_USER_POST
-        ]
+        # Create function-based side_effect that maps record_type to appropriate handler
+        def get_handler_side_effect(record_type: str):
+            """Return handler based on record_type, defaulting to success handler."""
+            handler_map = {
+                RecordType.LIKE.value: mock_handler_error,  # LIKE fails
+            }
+            # Default to success handler for all other record types
+            return handler_map.get(record_type, mock_handler_success)
+        
+        mock_handler_registry.get_handler.side_effect = get_handler_side_effect
         
         with patch("services.sync.stream.exporters.study_user_exporter.logger"):
             with patch("os.path.exists", return_value=True):
