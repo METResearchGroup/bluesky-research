@@ -304,7 +304,7 @@ class RecordHandlerProtocol(Protocol):
         operation: "Operation",
         author_did: str,
         filename: str,
-        **kwargs,
+        follow_status: "FollowStatus | None" = None,
     ) -> None:
         """Write a single record to cache.
 
@@ -313,7 +313,7 @@ class RecordHandlerProtocol(Protocol):
             operation: Operation type (create/delete)
             author_did: Author DID
             filename: Filename for the record
-            **kwargs: Additional record-type-specific arguments
+            follow_status: Follow status (required for follow records)
         """
         ...
 
@@ -328,7 +328,7 @@ class RecordHandlerProtocol(Protocol):
         """
         ...
 
-    def get_record_type(self) -> "RecordType" | "GenericRecordType":
+    def get_record_type(self) -> "RecordType | GenericRecordType":
         """Get the record type this handler manages.
 
         TODO: When we reconsider changing the data models, we should consolidate

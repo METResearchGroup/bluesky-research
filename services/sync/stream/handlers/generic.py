@@ -46,7 +46,6 @@ class GenericRecordHandler(RecordHandlerProtocol):
         author_did: str,
         filename: str,
         follow_status: FollowStatus | str | None = None,
-        **kwargs,
     ) -> None:
         """Write record to cache using configured path strategy.
 
@@ -56,7 +55,6 @@ class GenericRecordHandler(RecordHandlerProtocol):
             author_did: Author DID
             filename: Filename for the record
             follow_status: Follow status (required for follow records)
-            **kwargs: Additional arguments
         """
         # Convert string to enum if needed
         if isinstance(operation, str):

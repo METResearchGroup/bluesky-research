@@ -53,7 +53,7 @@ HANDLER_CONFIG_REGISTRY: dict[HandlerKey, HandlerConfig] = {
 def create_handlers_for_all_types(
     path_manager: PathManagerProtocol,
     file_utilities: FileUtilitiesProtocol,
-) -> dict[str, GenericRecordHandler]:
+) -> dict[HandlerKey, GenericRecordHandler]:
     """Create all handlers at once.
 
     Args:
@@ -61,10 +61,10 @@ def create_handlers_for_all_types(
         file_utilities: File utilities for reading and writing records
 
     Returns:
-        Dictionary mapping handler key strings to handler instances
+        Dictionary mapping handler keys to handler instances
     """
-    handlers = {}
+    handlers: dict[HandlerKey, GenericRecordHandler] = {}
     for handler_key, config in HANDLER_CONFIG_REGISTRY.items():
         handler = create_handler(config, path_manager, file_utilities)
-        handlers[handler_key.value] = handler
+        handlers[handler_key] = handler
     return handlers

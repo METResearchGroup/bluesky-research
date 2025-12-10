@@ -277,17 +277,15 @@ def dir_manager(path_manager):
 
 
 @pytest.fixture
-def file_writer(dir_manager):
-    """Create a FileUtilities instance for testing (as file_writer)."""
+def file_utilities(dir_manager):
+    """Create a FileUtilities instance for testing."""
     from services.sync.stream.cache_management import FileUtilities
     return FileUtilities(directory_manager=dir_manager)
 
 
-@pytest.fixture
-def file_reader(dir_manager):
-    """Create a FileUtilities instance for testing (as file_reader)."""
-    from services.sync.stream.cache_management import FileUtilities
-    return FileUtilities(directory_manager=dir_manager)
+# Aliases for readability in tests that emphasize read vs write operations
+file_writer = file_utilities
+file_reader = file_utilities
 
 
 @pytest.fixture

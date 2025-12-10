@@ -146,8 +146,36 @@ class LocalStorageAdapter:
         key: str,
         compressed: bool = False,
     ) -> list[dict]:
-        """Write JSON files from directory to local storage."""
+        """Write JSON files from directory to local storage.
+
+        Args:
+            directory: Source directory containing JSON files
+            key: Storage key/path for the output file (must be a file path, not directory)
+            compressed: Whether to compress the output
+
+        Note:
+            If key is empty, a default filename will be generated based on the
+            directory name. The key should specify a complete file path relative
+            to root_local_data_directory.
+        """
+        # If key is empty, generate a default filename from directory name
+        if not key:
+            # Extract directory name and use it as base filename
+            dir_name = os.path.basename(os.path.normpath(directory))
+            key = f"{dir_name}.jsonl"
+
+        # Ensure key is a file path, not a directory
         full_path = os.path.join(root_local_data_directory, key)
+
+        # If full_path points to a directory (no extension), append .jsonl
+        if os.path.isdir(full_path) or (
+            not os.path.splitext(full_path)[1] and os.path.exists(full_path)
+        ):
+            full_path = os.path.join(full_path, "export.jsonl")
+        elif not os.path.splitext(full_path)[1]:
+            # No extension, add .jsonl
+            full_path += ".jsonl"
+
         result = write_jsons_to_local_store(
             source_directory=directory,
             export_filepath=full_path,
