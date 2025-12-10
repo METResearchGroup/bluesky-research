@@ -15,6 +15,9 @@ class CachePathManager:
 
     def __init__(self):
         # move up one directory to get to the root of the sync export system
+        # Note: Using os.path.abspath(__file__) works for typical development/deployment
+        # but may behave unexpectedly in frozen executables, zip imports, or some
+        # containerized environments. This is acceptable for the current use case.
         self.current_file_directory = os.path.dirname(
             os.path.dirname(os.path.abspath(__file__))
         )
@@ -27,8 +30,7 @@ class CachePathManager:
         self.root_delete_path = os.path.join(self.root_write_path, "delete")
         self.operation_types = ["post", "like", "follow"]
 
-        # Helper paths for generic firehose writes. This seems to be incomplete,
-        # usually you'd want all operation types here.
+        # Helper paths for generic firehose writes.
         self.export_filepath_map = {
             "create": {
                 "post": os.path.join(self.root_create_path, "post"),

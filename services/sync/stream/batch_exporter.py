@@ -10,7 +10,7 @@ from services.sync.stream.exporters.in_network_exporter import (
 from services.sync.stream.cache_management import CacheDirectoryManager
 
 
-logger = get_logger(__name__)
+logger = get_logger(__file__)
 
 
 class BatchExportResult(TypedDict):
@@ -104,13 +104,16 @@ def export_batch(
     batch_exporter: BatchExporter | None = None,
     clear_filepaths: bool = False,
     clear_cache: bool = True,
-) -> None:
+) -> BatchExportResult:
     """Public API for batch export.
 
     Args:
         batch_exporter: BatchExporter instance. If None, creates one via setup.
         clear_filepaths: If True, delete processed files after export
         clear_cache: If True, delete cache after export (rebuilds structure)
+
+    Returns:
+        BatchExportResult with processed filepaths
     """
     if batch_exporter is None:
         from services.sync.stream.setup import setup_batch_export_system
@@ -120,4 +123,4 @@ def export_batch(
     # Update exporter configuration
     batch_exporter.clear_filepaths = clear_filepaths
     batch_exporter.clear_cache = clear_cache
-    batch_exporter.export_batch()
+    return batch_exporter.export_batch()

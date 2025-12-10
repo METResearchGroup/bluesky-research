@@ -20,16 +20,14 @@ class CacheDirectoryManager:
 
     def ensure_exists(self, path: str) -> None:
         """Ensure directory exists, creating if necessary."""
-        if not os.path.exists(path):
-            os.makedirs(path)
+        os.makedirs(path, exist_ok=True)
 
     def rebuild_all(self) -> None:
         """Rebuild all cache directory structures."""
         path_mgr = self.path_manager
 
         # Create root write path
-        if not os.path.exists(path_mgr.root_write_path):
-            os.makedirs(path_mgr.root_write_path)
+        os.makedirs(path_mgr.root_write_path, exist_ok=True)
 
         # Create generic firehose paths (create/delete for each operation type)
         for operation in [Operation.CREATE, Operation.DELETE]:
@@ -38,17 +36,14 @@ class CacheDirectoryManager:
                 if operation == Operation.CREATE
                 else path_mgr.root_delete_path
             )
-            if not os.path.exists(op_path):
-                os.makedirs(op_path)
+            os.makedirs(op_path, exist_ok=True)
 
             for op_type in path_mgr.operation_types:
                 op_type_path = os.path.join(op_path, op_type)
-                if not os.path.exists(op_type_path):
-                    os.makedirs(op_type_path)
+                os.makedirs(op_type_path, exist_ok=True)
 
         # Create study user activity paths
-        if not os.path.exists(path_mgr.study_user_activity_root_local_path):
-            os.makedirs(path_mgr.study_user_activity_root_local_path)
+        os.makedirs(path_mgr.study_user_activity_root_local_path, exist_ok=True)
 
         for operation in [Operation.CREATE, Operation.DELETE]:
             # Get available record types for this operation
@@ -66,8 +61,7 @@ class CacheDirectoryManager:
                     operation=operation,
                     record_type=record_type,
                 )
-                if not os.path.exists(record_path):
-                    os.makedirs(record_path)
+                os.makedirs(record_path, exist_ok=True)
 
             # Follow has nested structure - handle separately
             if (
@@ -80,14 +74,13 @@ class CacheDirectoryManager:
                         record_type=RecordType.FOLLOW,
                         follow_status=follow_status,
                     )
-                    if not os.path.exists(follow_path):
-                        os.makedirs(follow_path)
+                    os.makedirs(follow_path, exist_ok=True)
 
         # Create in-network user activity path
-        if not os.path.exists(path_mgr.in_network_user_activity_root_local_path):
-            os.makedirs(path_mgr.in_network_user_activity_root_local_path)
-        if not os.path.exists(path_mgr.in_network_user_activity_create_post_local_path):
-            os.makedirs(path_mgr.in_network_user_activity_create_post_local_path)
+        os.makedirs(path_mgr.in_network_user_activity_root_local_path, exist_ok=True)
+        os.makedirs(
+            path_mgr.in_network_user_activity_create_post_local_path, exist_ok=True
+        )
 
     def delete_all(self) -> None:
         """Delete all cache directories."""

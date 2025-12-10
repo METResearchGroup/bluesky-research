@@ -39,7 +39,7 @@ def setup_sync_export_system() -> SyncExportContext:
     file_reader = CacheFileReader()
 
     # 4. Create storage adapter and repository
-    storage_adapter = LocalStorageAdapter(path_manager=path_manager)
+    storage_adapter = LocalStorageAdapter()
 
     storage_repository = StorageRepository(adapter=storage_adapter)
 

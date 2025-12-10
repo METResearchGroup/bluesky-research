@@ -59,9 +59,21 @@ class GenericRecordHandler(RecordHandlerProtocol):
         """
         # Convert string to enum if needed
         if isinstance(operation, str):
-            operation = Operation(operation)
+            try:
+                operation = Operation(operation)
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid operation value: {operation}. "
+                    f"Must be one of: {[op.value for op in Operation]}"
+                ) from e
         if isinstance(follow_status, str):
-            follow_status = FollowStatus(follow_status)
+            try:
+                follow_status = FollowStatus(follow_status)
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid follow_status value: {follow_status}. "
+                    f"Must be one of: {[fs.value for fs in FollowStatus]}"
+                ) from e
 
         # Validate follow_status if required
         if self.config.requires_follow_status and follow_status is None:

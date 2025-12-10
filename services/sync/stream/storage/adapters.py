@@ -12,7 +12,6 @@ import pandas as pd
 
 from lib.log.logger import get_logger
 
-from services.sync.stream.protocols import PathManagerProtocol
 from lib.constants import root_local_data_directory
 from lib.db.manage_local_data import (
     write_jsons_to_local_store,
@@ -25,13 +24,8 @@ logger = get_logger(__file__)
 class LocalStorageAdapter:
     """Local filesystem storage adapter implementation."""
 
-    def __init__(self, path_manager: PathManagerProtocol):
-        """Initialize local storage adapter.
-
-        Args:
-            path_manager: Path manager for constructing local paths
-        """
-        self.path_manager = path_manager
+    def __init__(self):
+        """Initialize local storage adapter."""
 
     def write_dataframe(
         self,
