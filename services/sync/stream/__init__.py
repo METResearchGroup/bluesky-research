@@ -5,7 +5,7 @@ from services.sync.stream.cache_management import (
     CacheDirectoryManager,
     FileUtilities,
 )
-from services.sync.stream.context import SyncExportContext
+from services.sync.stream.context import CacheWriteContext, BatchExportContext
 from services.sync.stream.handlers.generic import GenericRecordHandler
 from services.sync.stream.handlers.registry import RecordHandlerRegistry
 from services.sync.stream.handlers.factories import create_handlers_for_all_types
@@ -18,15 +18,17 @@ from services.sync.stream.batch_exporter import BatchExporter, export_batch
 from services.sync.stream.storage.repository import StorageRepository
 from services.sync.stream.storage.adapters import LocalStorageAdapter
 from services.sync.stream.setup import (
-    setup_sync_export_system,
+    setup_cache_write_system,
     setup_batch_export_system,
+    create_batch_export_context,
 )
 
 __all__ = [
     "CachePathManager",
     "CacheDirectoryManager",
     "FileUtilities",
-    "SyncExportContext",
+    "CacheWriteContext",
+    "BatchExportContext",
     "GenericRecordHandler",
     "RecordHandlerRegistry",
     "create_handlers_for_all_types",
@@ -37,6 +39,7 @@ __all__ = [
     "export_batch",
     "StorageRepository",
     "LocalStorageAdapter",
-    "setup_sync_export_system",
+    "setup_cache_write_system",
     "setup_batch_export_system",
+    "create_batch_export_context",
 ]

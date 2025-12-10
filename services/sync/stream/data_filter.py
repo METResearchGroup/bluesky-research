@@ -14,7 +14,7 @@ from lib.db.bluesky_models.transformations import TransformedRecordWithAuthorMod
 from lib.log.logger import get_logger
 from services.consolidate_post_records.helper import consolidate_firehose_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
-from services.sync.stream.context import SyncExportContext
+from services.sync.stream.context import CacheWriteContext
 from services.sync.stream.types import Operation, RecordType, FollowStatus, HandlerKey
 from transform.transform_raw_data import process_firehose_post
 
@@ -22,7 +22,7 @@ from transform.transform_raw_data import process_firehose_post
 logger = get_logger(__name__)
 
 
-def manage_like(like: dict, operation: Operation, context: SyncExportContext) -> None:
+def manage_like(like: dict, operation: Operation, context: CacheWriteContext) -> None:
     """For a like that was created/deleted, insert the record in local cache.
 
     We'll write the record to S3 as part of our normal batch update.
@@ -107,7 +107,7 @@ def manage_like(like: dict, operation: Operation, context: SyncExportContext) ->
             )
 
 
-def manage_likes(likes: dict[str, list], context: SyncExportContext) -> dict:
+def manage_likes(likes: dict[str, list], context: CacheWriteContext) -> dict:
     """Manages the likes and follows.
 
     We'll build this in later, but this is a placeholder function for when we
@@ -149,7 +149,7 @@ def manage_likes(likes: dict[str, list], context: SyncExportContext) -> dict:
 def manage_follow(
     follow: dict,
     operation: Operation,
-    context: SyncExportContext,
+    context: CacheWriteContext,
 ) -> None:  # noqa
     """For a follow that was created/deleted, insert the record in local cache.
 
@@ -232,7 +232,7 @@ def manage_follow(
             logger.error("User is neither follower nor followee.")
 
 
-def manage_follows(follows: dict[str, list], context: SyncExportContext) -> dict:
+def manage_follows(follows: dict[str, list], context: CacheWriteContext) -> dict:
     """Manages the follows.
 
     We'll build this in later, but this is a placeholder function for when we
@@ -272,7 +272,7 @@ def manage_follows(follows: dict[str, list], context: SyncExportContext) -> dict
         manage_follow(follow=follow, operation=Operation.DELETE, context=context)
 
 
-def manage_post(post: dict, operation: Operation, context: SyncExportContext):
+def manage_post(post: dict, operation: Operation, context: CacheWriteContext):
     """For a post that was created/deleted, insert the record in local cache.
 
     We'll write the record to S3 as part of our normal batch update.
@@ -391,7 +391,7 @@ def manage_post(post: dict, operation: Operation, context: SyncExportContext):
             )
 
 
-def manage_posts(posts: dict[str, list], context: SyncExportContext) -> dict:
+def manage_posts(posts: dict[str, list], context: CacheWriteContext) -> dict:
     """Manages which posts to create or delete.
 
     We want to track any new posts in our database.
@@ -446,7 +446,7 @@ def manage_profiles(profiles: dict[str, list]) -> dict:
         manage_profile(profile=profile, operation=Operation.DELETE)
 
 
-def operations_callback(operations_by_type: dict, context: SyncExportContext) -> bool:
+def operations_callback(operations_by_type: dict, context: CacheWriteContext) -> bool:
     """Callback for managing posts during stream.
 
     This function takes as input a dictionary of the format

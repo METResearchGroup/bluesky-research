@@ -14,7 +14,7 @@ def cleanup_directory(directory_path):
     if os.path.exists(directory_path):
         json_files = [f for f in os.listdir(directory_path) if f.endswith(".json")]
         for filename in json_files:
-            os.remove(os.path.join(directory_path, filename))
+                os.remove(os.path.join(directory_path, filename))
 
 
 class TestBatchWriteStudyUserActivity:
@@ -22,13 +22,17 @@ class TestBatchWriteStudyUserActivity:
 
     def test_batch_export_study_user_posts(
         self,
-        sync_export_context,
+        cache_write_context,
+        batch_export_context,
         mock_storage_repository,
         patched_export_dataframe,
         cleanup_files,
     ):
         """Test that study user posts in cache are exported to storage."""
-        context = sync_export_context
+        # Use cache_write_context for writing to cache
+        context = cache_write_context
+        # Use batch_export_context for exporting
+        export_context = batch_export_context
         path_manager = context.path_manager
         file_utilities = context.file_utilities
         
@@ -65,15 +69,11 @@ class TestBatchWriteStudyUserActivity:
             cleanup_files(file_path)
         
         # Setup mock storage repository
-        # Note: We set both context.storage_repository and the exporter's storage_repository.
-        # The exporter uses its own reference, but context.storage_repository is used by
-        # setup_batch_export_system() and may be used by other code paths, so we set both
-        # for consistency and to ensure all references point to the mock.
-        context.storage_repository = mock_storage_repository
-        context.study_user_exporter.storage_repository = mock_storage_repository
+        export_context.storage_repository = mock_storage_repository
+        export_context.study_user_exporter.storage_repository = mock_storage_repository
         
         # Execute: Run batch export
-        filepaths = context.study_user_exporter.export_activity_data()
+        filepaths = export_context.study_user_exporter.export_activity_data()
         
         # Verify: Storage repository was called with correct data
         assert mock_storage_repository.export_dataframe.called
@@ -108,13 +108,15 @@ class TestBatchWriteStudyUserActivity:
 
     def test_batch_export_study_user_likes(
         self,
-        sync_export_context,
+        cache_write_context,
+        batch_export_context,
         mock_storage_repository,
         patched_export_dataframe,
         cleanup_files,
     ):
         """Test that study user likes in cache are exported to storage."""
-        context = sync_export_context
+        context = cache_write_context
+        export_context = batch_export_context
         path_manager = context.path_manager
         file_utilities = context.file_utilities
         
@@ -147,15 +149,11 @@ class TestBatchWriteStudyUserActivity:
             cleanup_files(file_path)
         
         # Setup mock storage repository
-        # Note: We set both context.storage_repository and the exporter's storage_repository.
-        # The exporter uses its own reference, but context.storage_repository is used by
-        # setup_batch_export_system() and may be used by other code paths, so we set both
-        # for consistency and to ensure all references point to the mock.
-        context.storage_repository = mock_storage_repository
-        context.study_user_exporter.storage_repository = mock_storage_repository
+        export_context.storage_repository = mock_storage_repository
+        export_context.study_user_exporter.storage_repository = mock_storage_repository
         
         # Execute: Run batch export
-        filepaths = context.study_user_exporter.export_activity_data()
+        filepaths = export_context.study_user_exporter.export_activity_data()
         
         # Verify: Storage repository was called
         assert mock_storage_repository.export_dataframe.called
@@ -177,13 +175,15 @@ class TestBatchWriteStudyUserActivity:
 
     def test_batch_export_study_user_follows(
         self,
-        sync_export_context,
+        cache_write_context,
+        batch_export_context,
         mock_storage_repository,
         patched_export_dataframe,
         cleanup_files,
     ):
         """Test that study user follows in cache are exported to storage."""
-        context = sync_export_context
+        context = cache_write_context
+        export_context = batch_export_context
         path_manager = context.path_manager
         file_utilities = context.file_utilities
         
@@ -213,15 +213,11 @@ class TestBatchWriteStudyUserActivity:
         cleanup_files(file_path)
         
         # Setup mock storage repository
-        # Note: We set both context.storage_repository and the exporter's storage_repository.
-        # The exporter uses its own reference, but context.storage_repository is used by
-        # setup_batch_export_system() and may be used by other code paths, so we set both
-        # for consistency and to ensure all references point to the mock.
-        context.storage_repository = mock_storage_repository
-        context.study_user_exporter.storage_repository = mock_storage_repository
+        export_context.storage_repository = mock_storage_repository
+        export_context.study_user_exporter.storage_repository = mock_storage_repository
         
         # Execute: Run batch export
-        filepaths = context.study_user_exporter.export_activity_data()
+        filepaths = export_context.study_user_exporter.export_activity_data()
         
         # Verify: Storage repository was called for follows
         assert mock_storage_repository.export_dataframe.called
@@ -248,13 +244,15 @@ class TestBatchWriteInNetworkActivity:
 
     def test_batch_export_in_network_posts(
         self,
-        sync_export_context,
+        cache_write_context,
+        batch_export_context,
         mock_storage_repository,
         patched_export_dataframe,
         cleanup_files,
     ):
         """Test that in-network user posts in cache are exported to storage."""
-        context = sync_export_context
+        context = cache_write_context
+        export_context = batch_export_context
         path_manager = context.path_manager
         file_utilities = context.file_utilities
         
@@ -291,7 +289,7 @@ class TestBatchWriteInNetworkActivity:
         in_network_exporter = InNetworkUserActivityExporter(
             path_manager=path_manager,
             storage_repository=mock_storage_repository,
-            file_utilities=context.file_utilities,
+            file_utilities=export_context.file_utilities,
         )
         
         # Execute: Run batch export
@@ -321,13 +319,15 @@ class TestBatchExporterIntegration:
 
     def test_batch_exporter_full_flow(
         self,
-        sync_export_context,
+        cache_write_context,
+        batch_export_context,
         mock_storage_repository,
         patched_export_dataframe,
         cleanup_files,
     ):
         """Test that BatchExporter orchestrates both exporters correctly."""
-        context = sync_export_context
+        context = cache_write_context
+        export_context = batch_export_context
         path_manager = context.path_manager
         file_utilities = context.file_utilities
         
@@ -371,12 +371,8 @@ class TestBatchExporterIntegration:
         cleanup_files(in_network_post_file)
         
         # Setup mock storage repository
-        # Note: We set both context.storage_repository and the exporter's storage_repository.
-        # The exporter uses its own reference, but context.storage_repository is used by
-        # setup_batch_export_system() and may be used by other code paths, so we set both
-        # for consistency and to ensure all references point to the mock.
-        context.storage_repository = mock_storage_repository
-        context.study_user_exporter.storage_repository = mock_storage_repository
+        export_context.storage_repository = mock_storage_repository
+        export_context.study_user_exporter.storage_repository = mock_storage_repository
         
         # Create batch exporter
         from services.sync.stream.exporters.in_network_exporter import (
@@ -389,10 +385,10 @@ class TestBatchExporterIntegration:
         )
         
         batch_exporter = BatchExporter(
-            study_user_exporter=context.study_user_exporter,
+            study_user_exporter=export_context.study_user_exporter,
             in_network_exporter=in_network_exporter,
-            directory_manager=context.directory_manager,
-            file_utilities=context.file_utilities,
+            directory_manager=export_context.directory_manager,
+            file_utilities=export_context.file_utilities,
             clear_filepaths=False,  # Don't delete files in test
             clear_cache=False,  # Don't clear cache in test
         )

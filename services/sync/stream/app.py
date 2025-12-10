@@ -10,7 +10,7 @@ from flask import Flask
 
 from services.sync.stream import firehose
 from services.sync.stream.data_filter import operations_callback
-from services.sync.stream.setup import setup_sync_export_system
+from services.sync.stream.setup import setup_cache_write_system
 
 
 app = Flask(__name__)
@@ -23,8 +23,8 @@ def start_app(
     start_time = time.time()
     stream_stop_event = threading.Event()
 
-    # Create sync export context
-    context = setup_sync_export_system()
+    # Create cache write context
+    context = setup_cache_write_system()
 
     # Create callback with context
     def callback_with_context(operations_by_type: dict) -> bool:

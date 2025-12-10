@@ -123,19 +123,47 @@ This separation allows the firehose stream to maintain high throughput (writing 
 
 ### 5. Context & Setup
 
-#### `SyncExportContext`
-- **Purpose**: Dataclass containing all system components
-- **Components**:
-  - Path managers, file I/O, handlers, exporters, storage, study_user_manager
-- **Benefits**: Explicit dependency injection, no global state
+The system uses separate context objects for cache write and batch export phases to maintain clear separation of concerns.
 
-#### `setup_sync_export_system()`
-- **Purpose**: Factory function that wires all dependencies
+#### `CacheWriteContext`
+- **Purpose**: Context for real-time cache write operations during firehose processing
+- **Components**:
+  - `path_manager`: Constructs cache file paths
+  - `directory_manager`: Manages directory lifecycle
+  - `file_utilities`: Handles file I/O operations
+  - `handler_registry`: Registry for record type handlers
+  - `study_user_manager`: Manages study user identification
+- **Usage**: Used by `data_filter.py` functions during firehose stream processing
+- **Benefits**: Contains only what's needed for cache writes, no unnecessary dependencies
+
+#### `BatchExportContext`
+- **Purpose**: Context for batch export operations
+- **Components**:
+  - `path_manager`: Constructs cache file paths
+  - `directory_manager`: Manages directory lifecycle and cleanup
+  - `file_utilities`: Handles file I/O operations
+  - `storage_repository`: Exports data to persistent storage
+  - `study_user_exporter`: Exports study user activity data
+  - `in_network_exporter`: Exports in-network user activity data
+- **Usage**: Used by `BatchExporter` during batch export phase
+- **Benefits**: Contains only what's needed for batch exports
+
+#### `setup_cache_write_system()`
+- **Purpose**: Factory function that wires dependencies for cache write phase
 - **Process**:
-  1. Creates all infrastructure components
-  2. Creates and registers all handlers
-  3. Creates exporters
-  4. Returns configured `SyncExportContext`
+  1. Creates shared infrastructure (path_manager, directory_manager, file_utilities)
+  2. Creates study user manager
+  3. Creates and registers all handlers
+  4. Returns configured `CacheWriteContext`
+
+#### `setup_batch_export_system()`
+- **Purpose**: Factory function that wires dependencies for batch export phase
+- **Process**:
+  1. Creates shared infrastructure (path_manager, directory_manager, file_utilities)
+  2. Creates storage adapter and repository
+  3. Creates and registers handlers (needed for exporters)
+  4. Creates exporters (study_user_exporter, in_network_exporter)
+  5. Creates and returns configured `BatchExporter`
 
 ## Design Patterns
 
@@ -168,7 +196,7 @@ This separation allows the firehose stream to maintain high throughput (writing 
 
 1. **Firehose receives post** → `firehose.py` parses commit, extracts post record
 2. **Operations callback** → `data_filter.operations_callback()` called with operations dict
-3. **Post management** → `manage_post()` called with post dict and `SyncExportContext`
+3. **Post management** → `manage_post()` called with post dict and `CacheWriteContext`
 4. **Study user check** → `StudyUserManager.is_study_user()` checks if author is study user
 5. **Handler lookup** → `handler_registry.get_handler(RecordType.POST.value)` retrieves handler
 6. **Path construction** → Handler calls `path_strategy()` to get base path:

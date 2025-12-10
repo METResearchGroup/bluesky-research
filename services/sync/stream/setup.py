@@ -1,14 +1,11 @@
-"""Setup function to wire all dependencies together.
-
-This creates a complete, configured system with all dependencies injected.
-"""
+"""Setup functions to wire dependencies for cache write and batch export."""
 
 from services.sync.stream.cache_management import (
     CachePathManager,
     CacheDirectoryManager,
     FileUtilities,
 )
-from services.sync.stream.context import SyncExportContext
+from services.sync.stream.context import CacheWriteContext, BatchExportContext
 from services.sync.stream.handlers.registry import RecordHandlerRegistry
 from services.sync.stream.handlers.factories import create_handlers_for_all_types
 from services.participant_data.study_users import get_study_user_manager
@@ -21,30 +18,31 @@ from services.sync.stream.storage.repository import StorageRepository
 from services.sync.stream.storage.adapters import LocalStorageAdapter
 
 
-def setup_sync_export_system() -> SyncExportContext:
-    """Set up the complete sync export system with all dependencies wired.
+def _create_shared_infrastructure():
+    """Create shared infrastructure components used by both phases.
 
     Returns:
-        SyncExportContext containing all system components
+        Tuple of (path_manager, directory_manager, file_utilities)
     """
-    # 1. Create path manager
     path_manager = CachePathManager()
-
-    # 2. Create directory manager
     directory_manager = CacheDirectoryManager(path_manager=path_manager)
-
-    # 3. Create file utilities (single instance for both read and write operations)
     file_utilities = FileUtilities(directory_manager=directory_manager)
+    return path_manager, directory_manager, file_utilities
 
-    # 4. Create storage adapter and repository
-    storage_adapter = LocalStorageAdapter()
 
-    storage_repository = StorageRepository(adapter=storage_adapter)
+def setup_cache_write_system() -> CacheWriteContext:
+    """Set up the cache write system for real-time firehose processing.
 
-    # 5. Create study user manager
+    Returns:
+        CacheWriteContext containing all components needed for cache writes
+    """
+    # Create shared infrastructure
+    path_manager, directory_manager, file_utilities = _create_shared_infrastructure()
+
+    # Create study user manager
     study_user_manager = get_study_user_manager(load_from_aws=False)
 
-    # 6. Create handler registry and register all handlers
+    # Create handler registry and register all handlers
     handler_registry = RecordHandlerRegistry()
     handlers = create_handlers_for_all_types(
         path_manager=path_manager,
@@ -54,48 +52,106 @@ def setup_sync_export_system() -> SyncExportContext:
     for handler_key, handler in handlers.items():
         handler_registry.register_handler(handler_key, handler)
 
-    # 7. Create exporter
-    exporter = StudyUserActivityExporter(
-        path_manager=path_manager,
-        storage_repository=storage_repository,
-        handler_registry=handler_registry,
-    )
-
-    return SyncExportContext(
+    return CacheWriteContext(
         path_manager=path_manager,
         directory_manager=directory_manager,
         file_utilities=file_utilities,
         handler_registry=handler_registry,
-        study_user_exporter=exporter,
-        storage_repository=storage_repository,
         study_user_manager=study_user_manager,
     )
 
 
 def setup_batch_export_system() -> BatchExporter:
-    """Set up batch export system with all dependencies.
+    """Set up the batch export system for exporting cache to storage.
 
     Returns:
         Configured BatchExporter instance
     """
-    # Get components from sync export system
-    context = setup_sync_export_system()
+    # Create shared infrastructure
+    path_manager, directory_manager, file_utilities = _create_shared_infrastructure()
 
-    # Create in-network exporter
+    # Create storage adapter and repository
+    storage_adapter = LocalStorageAdapter()
+    storage_repository = StorageRepository(adapter=storage_adapter)
+
+    # Create handler registry (needed for study_user_exporter)
+    handler_registry = RecordHandlerRegistry()
+    handlers = create_handlers_for_all_types(
+        path_manager=path_manager,
+        file_utilities=file_utilities,
+    )
+    for handler_key, handler in handlers.items():
+        handler_registry.register_handler(handler_key, handler)
+
+    # Create exporters
+    study_user_exporter = StudyUserActivityExporter(
+        path_manager=path_manager,
+        storage_repository=storage_repository,
+        handler_registry=handler_registry,
+    )
+
     in_network_exporter = InNetworkUserActivityExporter(
-        path_manager=context.path_manager,
-        storage_repository=context.storage_repository,
-        file_utilities=context.file_utilities,
+        path_manager=path_manager,
+        storage_repository=storage_repository,
+        file_utilities=file_utilities,
     )
 
     # Create batch exporter
     batch_exporter = BatchExporter(
-        study_user_exporter=context.study_user_exporter,
+        study_user_exporter=study_user_exporter,
         in_network_exporter=in_network_exporter,
-        directory_manager=context.directory_manager,
-        file_utilities=context.file_utilities,
+        directory_manager=directory_manager,
+        file_utilities=file_utilities,
         clear_filepaths=False,  # Default, can be overridden
         clear_cache=True,  # Default, can be overridden
     )
 
     return batch_exporter
+
+
+def create_batch_export_context() -> BatchExportContext:
+    """Create BatchExportContext for batch export operations.
+
+    This is useful if you need the context object itself rather than
+    just the BatchExporter.
+
+    Returns:
+        BatchExportContext containing all components needed for batch exports
+    """
+    # Create shared infrastructure
+    path_manager, directory_manager, file_utilities = _create_shared_infrastructure()
+
+    # Create storage adapter and repository
+    storage_adapter = LocalStorageAdapter()
+    storage_repository = StorageRepository(adapter=storage_adapter)
+
+    # Create handler registry (needed for study_user_exporter)
+    handler_registry = RecordHandlerRegistry()
+    handlers = create_handlers_for_all_types(
+        path_manager=path_manager,
+        file_utilities=file_utilities,
+    )
+    for handler_key, handler in handlers.items():
+        handler_registry.register_handler(handler_key, handler)
+
+    # Create exporters
+    study_user_exporter = StudyUserActivityExporter(
+        path_manager=path_manager,
+        storage_repository=storage_repository,
+        handler_registry=handler_registry,
+    )
+
+    in_network_exporter = InNetworkUserActivityExporter(
+        path_manager=path_manager,
+        storage_repository=storage_repository,
+        file_utilities=file_utilities,
+    )
+
+    return BatchExportContext(
+        path_manager=path_manager,
+        directory_manager=directory_manager,
+        file_utilities=file_utilities,
+        storage_repository=storage_repository,
+        study_user_exporter=study_user_exporter,
+        in_network_exporter=in_network_exporter,
+    )

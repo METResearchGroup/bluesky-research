@@ -234,16 +234,39 @@ def path_manager():
 
 
 @pytest.fixture
-def sync_export_context(mock_study_user_manager):
-    """Create a SyncExportContext for testing."""
-    from services.sync.stream.setup import setup_sync_export_system
+def cache_write_context(mock_study_user_manager):
+    """Create a CacheWriteContext for testing."""
+    from services.sync.stream.setup import setup_cache_write_system
     
     # Create context using the normal setup
     # The mock_study_user_manager fixture ensures get_study_user_manager returns the mock
     # Tests will use the actual cache paths (which is fine for testing)
-    context = setup_sync_export_system()
+    context = setup_cache_write_system()
     
     return context
+
+
+@pytest.fixture
+def batch_export_context(mock_study_user_manager):
+    """Create a BatchExportContext for testing."""
+    from services.sync.stream.setup import create_batch_export_context
+    
+    # Create context using the normal setup
+    # The mock_study_user_manager fixture ensures get_study_user_manager returns the mock
+    # Tests will use the actual cache paths (which is fine for testing)
+    context = create_batch_export_context()
+    
+    return context
+
+
+@pytest.fixture
+def sync_export_context(cache_write_context):
+    """Backward compatibility fixture - returns CacheWriteContext.
+    
+    This maintains backward compatibility for tests that use sync_export_context.
+    Note: For batch export tests, use batch_export_context instead.
+    """
+    return cache_write_context
 
 
 @pytest.fixture
