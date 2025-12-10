@@ -17,7 +17,8 @@ def create_post_processor(context: CacheWriteContext) -> PostProcessor:
     """Create PostProcessor instance with dependencies.
 
     Args:
-        context: Cache write context with dependencies
+        context: Cache write context (reserved for future use when
+                processors require initialization dependencies)
 
     Returns:
         PostProcessor instance
@@ -29,7 +30,8 @@ def create_like_processor(context: CacheWriteContext) -> LikeProcessor:
     """Create LikeProcessor instance with dependencies.
 
     Args:
-        context: Cache write context with dependencies
+        context: Cache write context (reserved for future use when
+                processors require initialization dependencies)
 
     Returns:
         LikeProcessor instance
@@ -41,7 +43,8 @@ def create_follow_processor(context: CacheWriteContext) -> FollowProcessor:
     """Create FollowProcessor instance with dependencies.
 
     Args:
-        context: Cache write context with dependencies
+        context: Cache write context (reserved for future use when
+                processors require initialization dependencies)
 
     Returns:
         FollowProcessor instance

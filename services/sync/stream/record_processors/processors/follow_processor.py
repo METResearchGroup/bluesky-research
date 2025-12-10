@@ -73,7 +73,7 @@ class FollowProcessor(RecordProcessorProtocol):
         user_is_followee = study_user_manager.is_study_user(user_did=followee_did)
 
         if not user_is_follower and not user_is_followee:
-            logger.error("User is neither follower nor followee.")
+            # This is the expected common case - most follows don't involve study users
             return decisions
 
         # Someone can follow someone else in the study, in which case both

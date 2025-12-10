@@ -49,18 +49,14 @@ def operations_callback(operations_by_type: dict, context: CacheWriteContext) ->
         processor_registry = create_all_processors(context)
 
         # Process each record type
-        record_type_mapping = {
-            "posts": "posts",
-            "likes": "likes",
-            "follows": "follows",
-        }
+        supported_types = ["posts", "likes", "follows"]
 
-        for firehose_type, processor_type in record_type_mapping.items():
-            if firehose_type not in operations_by_type:
+        for record_type in supported_types:
+            if record_type not in operations_by_type:
                 continue
 
-            records = operations_by_type[firehose_type]
-            processor = processor_registry.get_processor(processor_type)
+            records = operations_by_type[record_type]
+            processor = processor_registry.get_processor(record_type)
 
             # Process created records
             for record in records.get("created", []):
@@ -71,9 +67,7 @@ def operations_callback(operations_by_type: dict, context: CacheWriteContext) ->
                     )
                     route_decisions(decisions, transformed, Operation.CREATE, context)
                 except Exception as e:
-                    logger.error(
-                        f"Error processing {firehose_type} record (CREATE): {e}"
-                    )
+                    logger.error(f"Error processing {record_type} record (CREATE): {e}")
                     # Continue processing other records
                     continue
 
@@ -86,9 +80,7 @@ def operations_callback(operations_by_type: dict, context: CacheWriteContext) ->
                     )
                     route_decisions(decisions, transformed, Operation.DELETE, context)
                 except Exception as e:
-                    logger.error(
-                        f"Error processing {firehose_type} record (DELETE): {e}"
-                    )
+                    logger.error(f"Error processing {record_type} record (DELETE): {e}")
                     # Continue processing other records
                     continue
 

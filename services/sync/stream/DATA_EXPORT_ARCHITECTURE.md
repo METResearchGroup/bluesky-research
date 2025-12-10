@@ -203,11 +203,11 @@ The system uses separate context objects for cache write and batch export phases
 7. **Router execution** → `route_decisions()` iterates routing decisions and calls handlers
 8. **Handler lookup** → `handler_registry.get_handler(RecordType.POST.value)` retrieves handler
 9. **Path construction** → Handler calls `path_strategy()` to get base path:
-   ```
+   ```text
    study_user_activity/create/post/
    ```
 10. **File writing** → `FileUtilities.write_json()` writes JSON file:
-   ```
+   ```text
    study_user_activity/create/post/author_did={did}_post_uri_suffix={suffix}.json
    ```
 11. **Study user manager update** → `insert_study_user_post()` tracks post for future lookups

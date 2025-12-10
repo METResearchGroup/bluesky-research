@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from services.sync.stream.types import HandlerKey, FollowStatus
+    from services.sync.stream.types import FollowStatus, HandlerKey, RecordType
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ class RoutingDecision:
         metadata: Additional metadata for logging, debugging, etc.
     """
 
-    handler_key: "HandlerKey"
+    handler_key: "HandlerKey | RecordType"
     author_did: str
     filename: str
     follow_status: "FollowStatus | None" = None
