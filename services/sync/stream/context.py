@@ -3,12 +3,6 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from services.sync.stream.cache_management import (
-    CachePathManager,
-    CacheDirectoryManager,
-    FileUtilities,
-)
-
 if TYPE_CHECKING:
     from services.sync.stream.handlers.registry import RecordHandlerRegistry
     from services.sync.stream.exporters.study_user_exporter import (
@@ -18,6 +12,11 @@ if TYPE_CHECKING:
         InNetworkUserActivityExporter,
     )
     from services.sync.stream.storage.repository import StorageRepository
+    from services.sync.stream.protocols import (
+        PathManagerProtocol,
+        DirectoryManagerProtocol,
+        FileUtilitiesProtocol,
+    )
 
 
 @dataclass
@@ -35,9 +34,9 @@ class CacheWriteContext:
         - study_user_manager: Manages study user identification
     """
 
-    path_manager: CachePathManager
-    directory_manager: CacheDirectoryManager
-    file_utilities: FileUtilities
+    path_manager: "PathManagerProtocol"
+    directory_manager: "DirectoryManagerProtocol"
+    file_utilities: "FileUtilitiesProtocol"
     handler_registry: "RecordHandlerRegistry"
     study_user_manager: "Any"  # StudyUserManager type
 
@@ -58,9 +57,9 @@ class BatchExportContext:
         - in_network_exporter: Exports in-network user activity data
     """
 
-    path_manager: CachePathManager
-    directory_manager: CacheDirectoryManager
-    file_utilities: FileUtilities
+    path_manager: "PathManagerProtocol"
+    directory_manager: "DirectoryManagerProtocol"
+    file_utilities: "FileUtilitiesProtocol"
     storage_repository: "StorageRepository"
     study_user_exporter: "StudyUserActivityExporter"
     in_network_exporter: "InNetworkUserActivityExporter"
