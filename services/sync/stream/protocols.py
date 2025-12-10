@@ -26,6 +26,20 @@ if TYPE_CHECKING:
 class PathManagerProtocol(Protocol):
     """Protocol for path construction and management."""
 
+    # Root path attributes
+    root_write_path: str
+    root_create_path: str
+    root_delete_path: str
+    operation_types: list[str]
+
+    # Study user activity paths
+    study_user_activity_root_local_path: str
+    study_user_activity_relative_path_map: dict[str, dict[str, str | dict[str, str]]]
+
+    # In-network user activity paths
+    in_network_user_activity_root_local_path: str
+    in_network_user_activity_create_post_local_path: str
+
     def get_local_cache_path(
         self,
         operation: "Operation",

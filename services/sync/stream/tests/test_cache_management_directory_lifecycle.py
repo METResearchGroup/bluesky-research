@@ -91,17 +91,6 @@ class TestCacheDirectoryManager:
                 path_manager.in_network_user_activity_root_local_path
             )
 
-    def test_rebuild_all_raises_error_for_non_sync_path_manager(self):
-        """Test rebuild_all raises TypeError for non-CachePathManager."""
-        # Arrange
-        from services.sync.stream.cache_management import CacheDirectoryManager
-        mock_path_manager = Mock()
-        dir_manager = CacheDirectoryManager(path_manager=mock_path_manager)
-
-        # Act & Assert
-        with pytest.raises(TypeError, match="rebuild_all requires CachePathManager"):
-            dir_manager.rebuild_all()
-
     def test_delete_all_removes_directory(self, path_manager, dir_manager):
         """Test delete_all removes the root write path."""
         # Arrange
@@ -115,17 +104,6 @@ class TestCacheDirectoryManager:
 
             # Assert
             assert not os.path.exists(path_manager.root_write_path)
-
-    def test_delete_all_raises_error_for_non_sync_path_manager(self):
-        """Test delete_all raises TypeError for non-CachePathManager."""
-        # Arrange
-        from services.sync.stream.cache_management import CacheDirectoryManager
-        mock_path_manager = Mock()
-        dir_manager = CacheDirectoryManager(path_manager=mock_path_manager)
-
-        # Act & Assert
-        with pytest.raises(TypeError, match="delete_all requires CachePathManager"):
-            dir_manager.delete_all()
 
     def test_exists_returns_true_for_existing_path(self, dir_manager):
         """Test exists returns True for existing path."""

@@ -4,7 +4,6 @@ import os
 import shutil
 
 from services.sync.stream.protocols import PathManagerProtocol
-from services.sync.stream.cache_management.paths import CachePathManager
 from services.sync.stream.types import Operation, RecordType, FollowStatus
 
 
@@ -26,10 +25,6 @@ class CacheDirectoryManager:
 
     def rebuild_all(self) -> None:
         """Rebuild all cache directory structures."""
-        # Access path_manager's attributes to build all paths
-        if not isinstance(self.path_manager, CachePathManager):
-            raise TypeError("rebuild_all requires CachePathManager instance")
-
         path_mgr = self.path_manager
 
         # Create root write path
@@ -96,9 +91,6 @@ class CacheDirectoryManager:
 
     def delete_all(self) -> None:
         """Delete all cache directories."""
-        if not isinstance(self.path_manager, CachePathManager):
-            raise TypeError("delete_all requires CachePathManager instance")
-
         if os.path.exists(self.path_manager.root_write_path):
             shutil.rmtree(self.path_manager.root_write_path)
 
