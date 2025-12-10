@@ -3,7 +3,6 @@
 import json
 import os
 import tempfile
-from unittest.mock import Mock
 
 import pytest
 
@@ -12,13 +11,6 @@ from services.sync.stream.cache_management import FileUtilities
 
 class TestFileUtilities:
     """Tests for FileUtilities class."""
-
-    @pytest.fixture(autouse=True)
-    def mock_study_user_manager(self, monkeypatch):
-        """Mock study user manager to avoid loading real data."""
-        mock_manager = Mock()
-        mock_manager.insert_study_user_post = Mock()
-        # No longer needed - cache_writer.py was deleted
 
     def test_init(self, dir_manager):
         """Test FileUtilities initialization."""
