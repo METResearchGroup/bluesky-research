@@ -148,7 +148,7 @@ def mock_study_user_manager(monkeypatch):
     # Reset singleton instance before each test to prevent state leakage
     StudyUserManager._instance = None
     
-    # Patch get_study_user_manager at the source so setup_sync_export_system uses the mock
+    # Patch get_study_user_manager at the source so setup_cache_write_system uses the mock
     monkeypatch.setattr(
         "services.participant_data.study_users.get_study_user_manager",
         get_mock_study_manager
@@ -259,14 +259,6 @@ def batch_export_context(mock_study_user_manager):
     return context
 
 
-@pytest.fixture
-def sync_export_context(cache_write_context):
-    """Backward compatibility fixture - returns CacheWriteContext.
-    
-    This maintains backward compatibility for tests that use sync_export_context.
-    Note: For batch export tests, use batch_export_context instead.
-    """
-    return cache_write_context
 
 
 @pytest.fixture
