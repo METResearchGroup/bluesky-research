@@ -54,12 +54,9 @@ class StudyUserActivityExporter(BaseActivityExporter):
         # Process both create and delete operations
         for operation in [Operation.CREATE, Operation.DELETE]:
             # Get base path for this operation
-            base_path = self.path_manager.get_study_user_activity_path(
+            base_path = self.path_manager.get_study_user_activity_operation_path(
                 operation=operation,
-                record_type=RecordType.POST,  # Use post as base - we'll navigate from here
             )
-            # Remove the "post" suffix to get the operation-level path
-            base_path = os.path.dirname(base_path)
 
             # Check if this operation directory exists
             if not os.path.exists(base_path):

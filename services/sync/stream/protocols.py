@@ -75,6 +75,18 @@ class PathManagerProtocol(Protocol):
         """Get relative path component (without root)."""
         ...
 
+    def get_study_user_activity_operation_path(
+        self,
+        operation: "Operation",
+    ) -> str:
+        """Get base path for study user activity operation (create/delete level).
+
+        This returns the operation-level path (e.g., .../study_user_activity/create)
+        without any record type suffix, allowing callers to navigate to specific
+        record type directories from this base.
+        """
+        ...
+
 
 class DirectoryManagerProtocol(Protocol):
     """Protocol for directory lifecycle management."""
