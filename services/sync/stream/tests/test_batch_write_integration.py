@@ -131,8 +131,9 @@ class TestBatchWriteStudyUserActivity:
             },
         ]
         
-        # Clean up any existing files first
-        cleanup_directory(nested_path)
+        # Clean up entire like_on_user_post directory to remove any leftover files from other tests
+        # This ensures test isolation since _nested_read_strategy reads all nested directories
+        cleanup_directory(like_path)
         
         # Write likes to nested cache directory
         for i, like in enumerate(test_likes):
