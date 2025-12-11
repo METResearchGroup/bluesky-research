@@ -23,13 +23,10 @@ from services.sync.stream.record_processors.registry import ProcessorRegistry
 class TestCreatePostProcessor:
     """Tests for create_post_processor function."""
 
-    def test_create_post_processor_returns_post_processor(self, cache_write_context):
+    def test_create_post_processor_returns_post_processor(self):
         """Test that create_post_processor returns PostProcessor instance."""
-        # Arrange
-        context = cache_write_context
-
         # Act
-        result = create_post_processor(context)
+        result = create_post_processor()
 
         # Assert
         assert isinstance(result, PostProcessor)
@@ -38,13 +35,10 @@ class TestCreatePostProcessor:
 class TestCreateLikeProcessor:
     """Tests for create_like_processor function."""
 
-    def test_create_like_processor_returns_like_processor(self, cache_write_context):
+    def test_create_like_processor_returns_like_processor(self):
         """Test that create_like_processor returns LikeProcessor instance."""
-        # Arrange
-        context = cache_write_context
-
         # Act
-        result = create_like_processor(context)
+        result = create_like_processor()
 
         # Assert
         assert isinstance(result, LikeProcessor)
@@ -53,15 +47,10 @@ class TestCreateLikeProcessor:
 class TestCreateFollowProcessor:
     """Tests for create_follow_processor function."""
 
-    def test_create_follow_processor_returns_follow_processor(
-        self, cache_write_context
-    ):
+    def test_create_follow_processor_returns_follow_processor(self):
         """Test that create_follow_processor returns FollowProcessor instance."""
-        # Arrange
-        context = cache_write_context
-
         # Act
-        result = create_follow_processor(context)
+        result = create_follow_processor()
 
         # Assert
         assert isinstance(result, FollowProcessor)
@@ -70,26 +59,18 @@ class TestCreateFollowProcessor:
 class TestCreateAllProcessors:
     """Tests for create_all_processors function."""
 
-    def test_create_all_processors_returns_registry(self, cache_write_context):
+    def test_create_all_processors_returns_registry(self):
         """Test that create_all_processors returns ProcessorRegistry."""
-        # Arrange
-        context = cache_write_context
-
         # Act
-        result = create_all_processors(context)
+        result = create_all_processors()
 
         # Assert
         assert isinstance(result, ProcessorRegistry)
 
-    def test_create_all_processors_registers_all_processors(
-        self, cache_write_context
-    ):
+    def test_create_all_processors_registers_all_processors(self):
         """Test that create_all_processors registers all processors."""
-        # Arrange
-        context = cache_write_context
-
         # Act
-        registry = create_all_processors(context)
+        registry = create_all_processors()
 
         # Assert
         processors = registry.list_processors()
@@ -97,15 +78,10 @@ class TestCreateAllProcessors:
         assert "likes" in processors
         assert "follows" in processors
 
-    def test_create_all_processors_registry_has_correct_processors(
-        self, cache_write_context
-    ):
+    def test_create_all_processors_registry_has_correct_processors(self):
         """Test that registered processors are correct types."""
-        # Arrange
-        context = cache_write_context
-
         # Act
-        registry = create_all_processors(context)
+        registry = create_all_processors()
 
         # Assert
         assert isinstance(registry.get_processor("posts"), PostProcessor)

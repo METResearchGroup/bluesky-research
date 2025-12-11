@@ -67,15 +67,3 @@ def build_follow_filename(follower_did: str, followee_did: str) -> str:
         Filename string
     """
     return f"follower_did={follower_did}_followee_did={followee_did}.json"
-
-
-def build_delete_follow_filename(follow_uri_suffix: str) -> str:
-    """Build filename for deleted follow record.
-
-    Args:
-        follow_uri_suffix: Follow URI suffix
-
-    Returns:
-        Filename string
-    """
-    return f"follow_uri_suffix={follow_uri_suffix}.json"

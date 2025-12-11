@@ -26,7 +26,7 @@ def process_record(context, record_type: str, record: dict, operation: Operation
     Returns:
         Tuple of (transformed record, routing decisions)
     """
-    processor_registry = create_all_processors(context)
+    processor_registry = create_all_processors()
     processor = processor_registry.get_processor(record_type)
     
     transformed = processor.transform(record, operation)

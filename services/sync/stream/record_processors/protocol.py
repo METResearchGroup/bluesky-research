@@ -73,9 +73,5 @@ class RecordProcessorProtocol(Protocol):
 
         Returns:
             List of RoutingDecision objects (empty list if no routes match)
-
-        Note:
-            For DELETE operations, routing logic may be simplified or skipped
-            depending on the record type. Some record types only handle CREATE.
         """
         ...

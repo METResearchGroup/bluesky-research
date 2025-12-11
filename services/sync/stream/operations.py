@@ -46,7 +46,7 @@ def operations_callback(operations_by_type: dict, context: CacheWriteContext) ->
     """
     try:
         # Create processor registry with all processors
-        processor_registry = create_all_processors(context)
+        processor_registry = create_all_processors()
 
         # Process each record type
         supported_types = ["posts", "likes", "follows"]

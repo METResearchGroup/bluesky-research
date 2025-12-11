@@ -3,7 +3,6 @@
 import pytest
 
 from services.sync.stream.record_processors.transformation.follow import (
-    build_delete_follow_filename,
     build_follow_filename,
     transform_follow,
 )
@@ -135,6 +134,20 @@ class TestBuildRecordFilename:
         # Act
         result = build_record_filename(
             RecordType.LIKE, Operation.DELETE, "", like_uri_suffix
+        )
+
+        # Assert
+        assert result == expected
+
+    def test_build_record_filename_delete_follow(self):
+        """Test that build_record_filename creates correct filename for DELETE follow."""
+        # Arrange
+        follow_uri_suffix = "3kwcxduaskd2p"
+        expected = f"follow_uri_suffix={follow_uri_suffix}.json"
+
+        # Act
+        result = build_record_filename(
+            RecordType.FOLLOW, Operation.DELETE, "", follow_uri_suffix
         )
 
         # Assert
