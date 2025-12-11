@@ -36,22 +36,17 @@ def route_decisions(
         being executed.
     """
     if not decisions:
+        # Currently, we expect this to be empty on DELETE ops, as those aren't
+        # implemented, though this could change. Review the individual
+        # processors to see their routing decisions.
         return
 
     handler_registry = context.handler_registry
 
     for decision in decisions:
         try:
-            # Get handler from registry
             handler = handler_registry.get_handler(decision.handler_key.value)
 
-            # Log routing decision execution
-            logger.info(
-                f"Routing record to handler {decision.handler_key.value} "
-                f"for author {decision.author_did} with filename {decision.filename}"
-            )
-
-            # Call handler.write_record() with decision parameters
             handler.write_record(
                 record=record,
                 operation=operation,
@@ -61,7 +56,6 @@ def route_decisions(
             )
 
         except KeyError as e:
-            # Handler not found in registry
             logger.error(
                 f"Handler {decision.handler_key.value} not found in registry: {e}. "
                 f"Skipping routing decision for {decision.filename}"
@@ -69,7 +63,6 @@ def route_decisions(
             continue
 
         except Exception as e:
-            # Handler.write_record() failed
             logger.error(
                 f"Error writing record via handler {decision.handler_key.value} "
                 f"for {decision.filename}: {e}. Continuing with other decisions."
