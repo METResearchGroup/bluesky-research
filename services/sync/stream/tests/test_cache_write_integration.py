@@ -138,7 +138,7 @@ class TestCacheWriteLikeOnStudyUserPost:
         expected_file = os.path.join(
             base_path,
             post_uri_suffix,
-            f"like_author_did={like_record['author']}_like_uri_suffix={like_record['uri'].split('/')[-1]}.json"
+            f"author_did={like_record['author']}_like_uri_suffix={like_record['uri'].split('/')[-1]}.json"
         )
         
         # Execute: Write like to cache
