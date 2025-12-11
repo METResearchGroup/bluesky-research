@@ -45,10 +45,8 @@ def operations_callback(operations_by_type: dict, context: CacheWriteContext) ->
         Exception: If processing fails (maintains current behavior)
     """
     try:
-        # Create processor registry with all processors
         processor_registry = create_all_processors()
 
-        # Process each record type
         supported_types = ["posts", "likes", "follows"]
 
         for record_type in supported_types:
@@ -58,7 +56,6 @@ def operations_callback(operations_by_type: dict, context: CacheWriteContext) ->
             records = operations_by_type[record_type]
             processor = processor_registry.get_processor(record_type)
 
-            # Process created records
             for record in records.get("created", []):
                 try:
                     transformed = processor.transform(record, Operation.CREATE)
@@ -68,10 +65,14 @@ def operations_callback(operations_by_type: dict, context: CacheWriteContext) ->
                     route_decisions(decisions, transformed, Operation.CREATE, context)
                 except Exception as e:
                     logger.error(f"Error processing {record_type} record (CREATE): {e}")
-                    # Continue processing other records
+                    # we choose to make exceptions non-fatal as this is a real-time
+                    # streaming pipeline, so we continue processing other records.
+                    # NOTE: could be something to revisit, i.e., the line between
+                    # graceful degradation and outright failure, especially if there
+                    # are a lot of errors at once. For now, can just have telemetry
+                    # monitoring the errors.
                     continue
 
-            # Process deleted records
             for record in records.get("deleted", []):
                 try:
                     transformed = processor.transform(record, Operation.DELETE)
@@ -81,19 +82,7 @@ def operations_callback(operations_by_type: dict, context: CacheWriteContext) ->
                     route_decisions(decisions, transformed, Operation.DELETE, context)
                 except Exception as e:
                     logger.error(f"Error processing {record_type} record (DELETE): {e}")
-                    # Continue processing other records
                     continue
-
-        # Handle record types that don't have processors yet (placeholders)
-        # These are currently no-ops but maintain compatibility
-        for record_type in ["reposts", "lists", "blocks", "profiles"]:
-            if record_type in operations_by_type:
-                records = operations_by_type[record_type]
-                if records.get("created") or records.get("deleted"):
-                    logger.debug(
-                        f"Skipping {record_type} - processor not yet implemented"
-                    )
-
         return True
     except Exception as e:
         logger.error(f"Error processing firehose operations: {e}")
