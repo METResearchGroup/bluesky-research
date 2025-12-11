@@ -5,8 +5,6 @@ import pytest
 from services.sync.stream.record_processors.transformation.follow import (
     build_delete_follow_filename,
     build_follow_filename,
-    extract_follower_did,
-    extract_followee_did,
     transform_follow,
 )
 from services.sync.stream.record_processors.transformation.helper import (
@@ -217,36 +215,4 @@ class TestTransformFollow:
         assert result == follow_record
 
 
-class TestExtractFollowerFolloweeDid:
-    """Tests for extract_follower_did and extract_followee_did functions."""
-
-    def test_extract_follower_did_extracts_follower(self):
-        """Test that extract_follower_did extracts follower DID correctly."""
-        # Arrange
-        follow_dict = {
-            "follower_did": "did:plc:follower",
-            "followee_did": "did:plc:followee",
-        }
-        expected = "did:plc:follower"
-
-        # Act
-        result = extract_follower_did(follow_dict)
-
-        # Assert
-        assert result == expected
-
-    def test_extract_followee_did_extracts_followee(self):
-        """Test that extract_followee_did extracts followee DID correctly."""
-        # Arrange
-        follow_dict = {
-            "follower_did": "did:plc:follower",
-            "followee_did": "did:plc:followee",
-        }
-        expected = "did:plc:followee"
-
-        # Act
-        result = extract_followee_did(follow_dict)
-
-        # Assert
-        assert result == expected
 

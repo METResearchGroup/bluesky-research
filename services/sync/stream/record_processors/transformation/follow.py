@@ -79,27 +79,3 @@ def build_delete_follow_filename(follow_uri_suffix: str) -> str:
         Filename string
     """
     return f"follow_uri_suffix={follow_uri_suffix}.json"
-
-
-def extract_follower_did(follow_dict: dict) -> str:
-    """Extract follower DID from follow record.
-
-    Args:
-        follow_dict: Transformed follow record dictionary
-
-    Returns:
-        Follower DID
-    """
-    return follow_dict["follower_did"]
-
-
-def extract_followee_did(follow_dict: dict) -> str:
-    """Extract followee DID from follow record.
-
-    Args:
-        follow_dict: Transformed follow record dictionary
-
-    Returns:
-        Followee DID
-    """
-    return follow_dict["followee_did"]

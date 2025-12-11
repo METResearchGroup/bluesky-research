@@ -6,8 +6,6 @@ from services.sync.stream.context import CacheWriteContext
 from services.sync.stream.record_processors.protocol import RecordProcessorProtocol
 from services.sync.stream.record_processors.transformation.follow import (
     build_follow_filename,
-    extract_follower_did,
-    extract_followee_did,
     transform_follow,
 )
 from services.sync.stream.record_processors.types import RoutingDecision
@@ -65,8 +63,8 @@ class FollowProcessor(RecordProcessorProtocol):
             return decisions
 
         study_user_manager = context.study_user_manager
-        follower_did = extract_follower_did(transformed)
-        followee_did = extract_followee_did(transformed)
+        follower_did = transformed["follower_did"]
+        followee_did = transformed["followee_did"]
         filename = build_follow_filename(follower_did, followee_did)
 
         user_is_follower = study_user_manager.is_study_user(user_did=follower_did)
