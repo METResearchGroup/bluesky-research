@@ -96,5 +96,5 @@ def operations_callback(operations_by_type: dict, context: CacheWriteContext) ->
 
         return True
     except Exception as e:
-        logger.error(f"Error in exporting latest writes to cache: {e}")
+        logger.error(f"Error processing firehose operations: {e}")
         raise e
