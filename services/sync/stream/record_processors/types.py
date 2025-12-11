@@ -1,17 +1,17 @@
 """Type definitions for record processors."""
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
+
+from pydantic import BaseModel, root_validator
 
 if TYPE_CHECKING:
     from services.sync.stream.types import FollowStatus, HandlerKey, RecordType
 
 
-@dataclass(frozen=True)
-class RoutingDecision:
+class RoutingDecision(BaseModel):
     """Encapsulates all information needed to write a record via a handler.
 
-    This dataclass contains all parameters required for handler.write_record(),
+    This model contains all parameters required for handler.write_record(),
     allowing routing decisions to be made independently of handler execution.
 
     Attributes:
@@ -26,13 +26,22 @@ class RoutingDecision:
     author_did: str
     filename: str
     follow_status: "FollowStatus | None" = None
-    metadata: dict | None = None
+    metadata: Optional[dict] = None
 
-    def __post_init__(self):
-        """Validate routing decision after initialization."""
-        if not self.author_did:
+    # @root_validator runs after the model is initialized,
+    # allowing custom validation/coercion logic for the whole model.
+    # Here it ensures required fields and fills default dict.
+    @root_validator(pre=False)
+    def check_required_fields(cls, values):
+        if not values.get("author_did"):
             raise ValueError("author_did cannot be empty")
-        if not self.filename:
+        if not values.get("filename"):
             raise ValueError("filename cannot be empty")
-        if self.metadata is None:
-            object.__setattr__(self, "metadata", {})
+        # If metadata is None, set to empty dict for consistency.
+        values["metadata"] = values.get("metadata") or {}
+        return values
+
+    # class Config lets you configure Pydantic model behavior.
+    # Setting allow_mutation = False makes model instances immutable.
+    class Config:
+        allow_mutation = False
