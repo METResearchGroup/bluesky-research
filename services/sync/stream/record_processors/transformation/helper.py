@@ -38,13 +38,13 @@ def build_record_filename(
     For CREATE operations, the filename is something like:
         author_did=did:plc:abc123_post_uri_suffix=3kwd3wuubke2i.json (the record type and author DID are included)
     For DELETE operations, the filename is something like:
-        post_uri_suffix=3kwd3wuubke2i.json (only the URI suffix is needed)
+        post_uri_suffix=3kwd3wuubke2i.json (only the record type and URI suffix are needed)
     """
     if operation == Operation.CREATE:
         return (
             f"author_did={author_did}_{record_type.value}_uri_suffix={uri_suffix}.json"
         )
     elif operation == Operation.DELETE:
-        return f"uri_suffix={uri_suffix}.json"
+        return f"{record_type.value}_uri_suffix={uri_suffix}.json"
     else:
         raise ValueError(f"Unknown operation: {operation}")
