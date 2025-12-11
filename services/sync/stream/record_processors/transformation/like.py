@@ -52,31 +52,6 @@ def transform_like(like: dict, operation: Operation) -> dict:
         raise ValueError(f"Unknown operation: {operation}")
 
 
-def build_like_filename(like_author_did: str, like_uri_suffix: str) -> str:
-    """Build filename for like record.
-
-    Args:
-        like_author_did: Author DID of the like
-        like_uri_suffix: Like URI suffix
-
-    Returns:
-        Filename string
-    """
-    return f"like_author_did={like_author_did}_like_uri_suffix={like_uri_suffix}.json"
-
-
-def build_delete_like_filename(like_uri_suffix: str) -> str:
-    """Build filename for deleted like record.
-
-    Args:
-        like_uri_suffix: Like URI suffix
-
-    Returns:
-        Filename string
-    """
-    return f"like_uri_suffix={like_uri_suffix}.json"
-
-
 def extract_liked_post_uri(like_record_dict: dict) -> str:
     """Extract the URI of the post that was liked.
 

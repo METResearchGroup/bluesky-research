@@ -43,28 +43,3 @@ def transform_post(post: dict, operation: Operation) -> dict:
         return post
     else:
         raise ValueError(f"Unknown operation: {operation}")
-
-
-def build_post_filename(author_did: str, post_uri_suffix: str) -> str:
-    """Build filename for post record.
-
-    Args:
-        author_did: Author DID
-        post_uri_suffix: Post URI suffix
-
-    Returns:
-        Filename string
-    """
-    return f"author_did={author_did}_post_uri_suffix={post_uri_suffix}.json"
-
-
-def build_delete_post_filename(post_uri_suffix: str) -> str:
-    """Build filename for deleted post record.
-
-    Args:
-        post_uri_suffix: Post URI suffix
-
-    Returns:
-        Filename string
-    """
-    return f"post_uri_suffix={post_uri_suffix}.json"

@@ -7,12 +7,10 @@ from lib.log.logger import get_logger
 from services.sync.stream.context import CacheWriteContext
 from services.sync.stream.record_processors.protocol import RecordProcessorProtocol
 from services.sync.stream.record_processors.transformation.helper import (
+    build_record_filename,
     extract_uri_suffix,
 )
-from services.sync.stream.record_processors.transformation.post import (
-    build_post_filename,
-    transform_post,
-)
+from services.sync.stream.record_processors.transformation.post import transform_post
 from services.sync.stream.record_processors.types import RoutingDecision
 from services.sync.stream.types import HandlerKey, Operation, RecordType
 
@@ -70,7 +68,9 @@ class PostProcessor(RecordProcessorProtocol):
         author_did = transformed["author_did"]
         post_uri = transformed["uri"]
         post_uri_suffix = extract_uri_suffix(post_uri)
-        filename = build_post_filename(author_did, post_uri_suffix)
+        filename = build_record_filename(
+            RecordType.POST, Operation.CREATE, author_did, post_uri_suffix
+        )
 
         # Case 1: Check if the post was written by the study user
         is_study_user = study_user_manager.is_study_user(user_did=author_did)

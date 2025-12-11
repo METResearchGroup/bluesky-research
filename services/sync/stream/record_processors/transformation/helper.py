@@ -28,17 +28,17 @@ def build_record_filename(
 
     Args:
         record_type: Record type
-        operation: Operation
-        author_did: Author DID
+        operation: Operation (CREATE or DELETE)
+        author_did: Author DID (required for CREATE, ignored for DELETE)
         uri_suffix: URI suffix
 
     Returns:
         Filename string.
 
     For CREATE operations, the filename is something like:
-        author_did=did:plc:abc123_post_uri_suffix=3kwd3wuubke2i.json (the record type and author DID are included)
+        author_did=did:plc:abc123_post_uri_suffix=3kwd3wuubke2i.json
     For DELETE operations, the filename is something like:
-        post_uri_suffix=3kwd3wuubke2i.json (only the record type and URI suffix are needed)
+        post_uri_suffix=3kwd3wuubke2i.json
     """
     if operation == Operation.CREATE:
         return (

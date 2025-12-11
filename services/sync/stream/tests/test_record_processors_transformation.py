@@ -9,24 +9,21 @@ from services.sync.stream.record_processors.transformation.follow import (
     extract_followee_did,
     transform_follow,
 )
-from services.sync.stream.record_processors.transformation.helper import extract_uri_suffix
+from services.sync.stream.record_processors.transformation.helper import (
+    build_record_filename,
+    extract_uri_suffix,
+)
 from services.sync.stream.record_processors.transformation.like import (
-    build_delete_like_filename,
-    build_like_filename,
     extract_liked_post_uri,
     transform_like,
 )
-from services.sync.stream.record_processors.transformation.post import (
-    build_delete_post_filename,
-    build_post_filename,
-    transform_post,
-)
+from services.sync.stream.record_processors.transformation.post import transform_post
 from services.sync.stream.tests.mock_firehose_data import (
     mock_follow_records,
     mock_like_records,
     mock_post_records,
 )
-from services.sync.stream.types import Operation
+from services.sync.stream.types import Operation, RecordType
 
 
 class TestTransformPost:
@@ -84,21 +81,78 @@ class TestExtractUriSuffix:
         assert result == expected
 
 
-class TestBuildPostFilename:
-    """Tests for build_post_filename function."""
+class TestBuildRecordFilename:
+    """Tests for build_record_filename function."""
 
-    def test_build_post_filename_creates_correct_filename(self):
-        """Test that build_post_filename creates correct filename format."""
+    def test_build_record_filename_create_post(self):
+        """Test that build_record_filename creates correct filename for CREATE post."""
         # Arrange
         author_did = "did:plc:test-user"
         post_uri_suffix = "3kwd3wuubke2i"
         expected = f"author_did={author_did}_post_uri_suffix={post_uri_suffix}.json"
 
         # Act
-        result = build_post_filename(author_did, post_uri_suffix)
+        result = build_record_filename(
+            RecordType.POST, Operation.CREATE, author_did, post_uri_suffix
+        )
 
         # Assert
         assert result == expected
+
+    def test_build_record_filename_create_like(self):
+        """Test that build_record_filename creates correct filename for CREATE like."""
+        # Arrange
+        author_did = "did:plc:test-user"
+        like_uri_suffix = "3kwckubmt342n"
+        expected = f"author_did={author_did}_like_uri_suffix={like_uri_suffix}.json"
+
+        # Act
+        result = build_record_filename(
+            RecordType.LIKE, Operation.CREATE, author_did, like_uri_suffix
+        )
+
+        # Assert
+        assert result == expected
+
+    def test_build_record_filename_delete_post(self):
+        """Test that build_record_filename creates correct filename for DELETE post."""
+        # Arrange
+        post_uri_suffix = "3kwd3wuubke2i"
+        expected = f"post_uri_suffix={post_uri_suffix}.json"
+
+        # Act
+        result = build_record_filename(
+            RecordType.POST, Operation.DELETE, "", post_uri_suffix
+        )
+
+        # Assert
+        assert result == expected
+
+    def test_build_record_filename_delete_like(self):
+        """Test that build_record_filename creates correct filename for DELETE like."""
+        # Arrange
+        like_uri_suffix = "3kwckubmt342n"
+        expected = f"like_uri_suffix={like_uri_suffix}.json"
+
+        # Act
+        result = build_record_filename(
+            RecordType.LIKE, Operation.DELETE, "", like_uri_suffix
+        )
+
+        # Assert
+        assert result == expected
+
+    def test_build_record_filename_raises_error_for_invalid_operation(self):
+        """Test that build_record_filename raises ValueError for invalid operation."""
+        # Arrange
+        author_did = "did:plc:test-user"
+        uri_suffix = "3kwd3wuubke2i"
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="Unknown operation"):
+            build_record_filename(
+                RecordType.POST, "invalid_operation", author_did, uri_suffix  # type: ignore
+            )
 
 
 class TestTransformLike:
