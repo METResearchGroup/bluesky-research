@@ -18,7 +18,9 @@ def transform_like(like: dict, operation: Operation) -> dict:
         operation: Operation type (CREATE or DELETE)
 
     Returns:
-        Transformed like as dictionary (RawLike dict representation)
+        For CREATE operations: Transformed like as dictionary
+            (RawLike dict representation).
+        For DELETE operations: Input like dict as-is (only contains URI).
 
     Raises:
         ValueError: If like format is invalid

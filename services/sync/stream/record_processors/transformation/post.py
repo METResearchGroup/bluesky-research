@@ -20,21 +20,33 @@ def transform_post(post: dict, operation: Operation) -> dict:
         operation: Operation type (CREATE or DELETE)
 
     Returns:
-        Transformed post as dictionary (ConsolidatedPostRecordModel dict representation)
+        For CREATE operations: Transformed post as dictionary
+            (ConsolidatedPostRecordModel dict representation with embed JSON-dumped).
+        For DELETE operations: Input post dict as-is (only contains URI).
 
     Raises:
         ValueError: If post format is invalid
         KeyError: If required fields are missing
     """
     if operation == Operation.CREATE:
-        # Transform firehose post to consolidated post
+        # we have a two-stage transformation process here (naming could be improved).
+        # 1. Flatten (more or less) the firehose post
+        # 2. Transform the post to a shared representation. Posts from the firehose
+        # are different than posts from the Bluesky API (namely they're much more
+        # sparse, whereas posts from the API have hydrated fields like number of counts).
+        # We use both types of posts in the pipeline (though we should consolidate later),
+        # so we need to transform both to the same 'ConsolidatedPostRecordModel' format.
         firehose_post = process_firehose_post(post)
         consolidated_post: ConsolidatedPostRecordModel = consolidate_firehose_post(
             firehose_post
         )
         consolidated_post_dict = consolidated_post.dict()
 
-        # JSON-dump the embed to avoid complex dtype problems in the future
+        # JSON-dump the embed to avoid complex dtype problems in the future.
+        # NOTE: we'll consolidate this later as this means that the dict schema
+        # has slightly diverged from ConsolidatedPostRecordModel. Too many things
+        # downstream though rely on ConsolidatedPostRecordModel, so we'll leave it
+        # as-is for now.
         consolidated_post_dict["embed"] = json.dumps(consolidated_post_dict["embed"])
 
         return consolidated_post_dict

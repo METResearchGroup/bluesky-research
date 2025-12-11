@@ -18,7 +18,9 @@ def transform_follow(follow: dict, operation: Operation) -> dict:
         operation: Operation type (CREATE or DELETE)
 
     Returns:
-        Transformed follow as dictionary (RawFollow dict representation)
+        For CREATE operations: Transformed follow as dictionary
+            (RawFollow dict representation).
+        For DELETE operations: Input follow dict as-is (only contains URI).
 
     Raises:
         ValueError: If follow format is invalid
