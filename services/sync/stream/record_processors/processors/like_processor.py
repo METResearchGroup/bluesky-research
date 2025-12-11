@@ -6,9 +6,11 @@ from lib.log.logger import get_logger
 
 from services.sync.stream.context import CacheWriteContext
 from services.sync.stream.record_processors.protocol import RecordProcessorProtocol
+from services.sync.stream.record_processors.transformation.helper import (
+    extract_uri_suffix,
+)
 from services.sync.stream.record_processors.transformation.like import (
     build_like_filename,
-    extract_like_uri_suffix,
     extract_liked_post_uri,
     transform_like,
 )
@@ -67,7 +69,7 @@ class LikeProcessor(RecordProcessorProtocol):
         study_user_manager = context.study_user_manager
         like_author_did = transformed["author"]
         like_uri = transformed["uri"]
-        like_uri_suffix = extract_like_uri_suffix(like_uri)
+        like_uri_suffix = extract_uri_suffix(like_uri)
         filename = build_like_filename(like_author_did, like_uri_suffix)
 
         # Case 1: The user is the one who likes a post

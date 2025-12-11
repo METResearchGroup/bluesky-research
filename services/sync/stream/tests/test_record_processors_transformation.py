@@ -5,22 +5,20 @@ import pytest
 from services.sync.stream.record_processors.transformation.follow import (
     build_delete_follow_filename,
     build_follow_filename,
-    extract_follow_uri_suffix,
     extract_follower_did,
     extract_followee_did,
     transform_follow,
 )
+from services.sync.stream.record_processors.transformation.helper import extract_uri_suffix
 from services.sync.stream.record_processors.transformation.like import (
     build_delete_like_filename,
     build_like_filename,
-    extract_like_uri_suffix,
     extract_liked_post_uri,
     transform_like,
 )
 from services.sync.stream.record_processors.transformation.post import (
     build_delete_post_filename,
     build_post_filename,
-    extract_post_uri_suffix,
     transform_post,
 )
 from services.sync.stream.tests.mock_firehose_data import (
@@ -70,17 +68,17 @@ class TestTransformPost:
             transform_post(post_record, "invalid_operation")  # type: ignore
 
 
-class TestExtractPostUriSuffix:
-    """Tests for extract_post_uri_suffix function."""
+class TestExtractUriSuffix:
+    """Tests for extract_uri_suffix function."""
 
-    def test_extract_post_uri_suffix_extracts_suffix(self):
-        """Test that extract_post_uri_suffix extracts the URI suffix correctly."""
+    def test_extract_uri_suffix_extracts_suffix(self):
+        """Test that extract_uri_suffix extracts the URI suffix correctly."""
         # Arrange
         post_uri = "at://did:plc:abc123/app.bsky.feed.post/3kwd3wuubke2i"
         expected = "3kwd3wuubke2i"
 
         # Act
-        result = extract_post_uri_suffix(post_uri)
+        result = extract_uri_suffix(post_uri)
 
         # Assert
         assert result == expected

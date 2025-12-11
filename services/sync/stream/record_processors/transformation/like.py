@@ -52,22 +52,6 @@ def transform_like(like: dict, operation: Operation) -> dict:
         raise ValueError(f"Unknown operation: {operation}")
 
 
-def extract_like_uri_suffix(like_uri: str) -> str:
-    """Extract like URI suffix from full URI.
-
-    Example:
-        Input: "at://did:plc:abc123/app.bsky.feed.like/3kwckubmt342n"
-        Output: "3kwckubmt342n"
-
-    Args:
-        like_uri: Full like URI
-
-    Returns:
-        Like URI suffix (last component after final '/')
-    """
-    return like_uri.split("/")[-1]
-
-
 def build_like_filename(like_author_did: str, like_uri_suffix: str) -> str:
     """Build filename for like record.
 

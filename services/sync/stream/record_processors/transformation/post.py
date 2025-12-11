@@ -45,22 +45,6 @@ def transform_post(post: dict, operation: Operation) -> dict:
         raise ValueError(f"Unknown operation: {operation}")
 
 
-def extract_post_uri_suffix(post_uri: str) -> str:
-    """Extract post URI suffix from full URI.
-
-    Example:
-        Input: "at://did:plc:abc123/app.bsky.feed.post/3kwd3wuubke2i"
-        Output: "3kwd3wuubke2i"
-
-    Args:
-        post_uri: Full post URI
-
-    Returns:
-        Post URI suffix (last component after final '/')
-    """
-    return post_uri.split("/")[-1]
-
-
 def build_post_filename(author_did: str, post_uri_suffix: str) -> str:
     """Build filename for post record.
 

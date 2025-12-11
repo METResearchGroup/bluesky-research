@@ -54,22 +54,6 @@ def transform_follow(follow: dict, operation: Operation) -> dict:
         raise ValueError(f"Unknown operation: {operation}")
 
 
-def extract_follow_uri_suffix(follow_uri: str) -> str:
-    """Extract follow URI suffix from full URI.
-
-    Example:
-        Input: "at://did:plc:abc123/app.bsky.graph.follow/3kwcxduaskd2p"
-        Output: "3kwcxduaskd2p"
-
-    Args:
-        follow_uri: Full follow URI
-
-    Returns:
-        Follow URI suffix (last component after final '/')
-    """
-    return follow_uri.split("/")[-1]
-
-
 def build_follow_filename(follower_did: str, followee_did: str) -> str:
     """Build filename for follow record.
 
