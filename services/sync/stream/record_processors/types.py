@@ -1,11 +1,7 @@
 """Type definitions for record processors."""
 
-from typing import TYPE_CHECKING, Optional
-
-from pydantic import BaseModel, root_validator
-
-if TYPE_CHECKING:
-    from services.sync.stream.types import FollowStatus, HandlerKey, RecordType
+from pydantic import BaseModel, Field, field_validator, model_validator
+from services.sync.stream.types import FollowStatus, HandlerKey, RecordType
 
 
 class RoutingDecision(BaseModel):
@@ -22,26 +18,31 @@ class RoutingDecision(BaseModel):
         metadata: Additional metadata for logging, debugging, etc.
     """
 
-    handler_key: "HandlerKey | RecordType"
+    handler_key: HandlerKey | RecordType
     author_did: str
     filename: str
-    follow_status: "FollowStatus | None" = None
-    metadata: Optional[dict] = None
+    follow_status: FollowStatus | None = None
+    metadata: dict = Field(default_factory=dict)
 
-    # @root_validator runs after the model is initialized,
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def default_metadata_to_dict(cls, v):
+        """Convert None to empty dict for metadata field."""
+        if v is None:
+            return {}
+        return v
+
+    # @model_validator runs after the model is initialized,
     # allowing custom validation/coercion logic for the whole model.
-    # Here it ensures required fields and fills default dict.
-    @root_validator(pre=False)
-    def check_required_fields(cls, values):
-        if not values.get("author_did"):
+    # Here it ensures required fields are not empty.
+    @model_validator(mode="after")
+    def check_required_fields(self):
+        if not self.author_did:
             raise ValueError("author_did cannot be empty")
-        if not values.get("filename"):
+        if not self.filename:
             raise ValueError("filename cannot be empty")
-        # If metadata is None, set to empty dict for consistency.
-        values["metadata"] = values.get("metadata") or {}
-        return values
+        return self
 
-    # class Config lets you configure Pydantic model behavior.
-    # Setting allow_mutation = False makes model instances immutable.
-    class Config:
-        allow_mutation = False
+    # model_config lets you configure Pydantic model behavior.
+    # Setting frozen = True makes model instances immutable.
+    model_config = {"frozen": True}
