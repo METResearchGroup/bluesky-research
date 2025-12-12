@@ -13,7 +13,7 @@ if TYPE_CHECKING:
         InNetworkUserActivityExporter,
     )
     from services.sync.stream.storage.repository import StorageRepository
-    from services.sync.stream.protocols import (
+    from services.sync.stream.core.protocols import (
         PathManagerProtocol,
         DirectoryManagerProtocol,
         FileUtilitiesProtocol,

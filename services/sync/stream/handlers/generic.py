@@ -2,12 +2,12 @@
 
 import os
 from services.sync.stream.handlers.config import HandlerConfig
-from services.sync.stream.protocols import (
+from services.sync.stream.core.protocols import (
     PathManagerProtocol,
     FileUtilitiesProtocol,
     RecordHandlerProtocol,
 )
-from services.sync.stream.types import (
+from services.sync.stream.core.types import (
     Operation,
     FollowStatus,
     RecordType,

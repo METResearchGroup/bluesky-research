@@ -3,7 +3,7 @@
 import time
 
 from lib.log.logger import get_logger
-from services.sync.stream.batch_exporter import export_batch
+from services.sync.stream.exporters.batch_exporter import export_batch
 
 sleep_time_minutes = 5
 sleep_time_seconds = sleep_time_minutes * 60

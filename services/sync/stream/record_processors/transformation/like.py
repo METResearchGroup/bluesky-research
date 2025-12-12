@@ -3,7 +3,7 @@
 from atproto_client.models.app.bsky.feed.like import Record as LikeRecord
 
 from lib.db.bluesky_models.raw import RawLike, RawLikeRecord
-from services.sync.stream.types import Operation
+from services.sync.stream.core.types import Operation
 
 
 def transform_like(like: dict, operation: Operation) -> dict:

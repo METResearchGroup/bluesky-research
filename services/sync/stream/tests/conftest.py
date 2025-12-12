@@ -244,7 +244,7 @@ def path_manager():
 @pytest.fixture
 def cache_write_context(mock_study_user_manager):
     """Create a CacheWriteContext for testing."""
-    from services.sync.stream.setup import setup_cache_write_system
+    from services.sync.stream.core.setup import setup_cache_write_system
     
     # Create context using the normal setup
     # The mock_study_user_manager fixture ensures get_study_user_manager returns the mock
@@ -257,7 +257,7 @@ def cache_write_context(mock_study_user_manager):
 @pytest.fixture
 def batch_export_context(mock_study_user_manager):
     """Create a BatchExportContext for testing."""
-    from services.sync.stream.setup import create_batch_export_context
+    from services.sync.stream.core.setup import create_batch_export_context
     
     # Create context using the normal setup
     # The mock_study_user_manager fixture ensures get_study_user_manager returns the mock

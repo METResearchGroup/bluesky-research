@@ -118,7 +118,7 @@ def export_batch(
         BatchExportResult with processed filepaths
     """
     if batch_exporter is None:
-        from services.sync.stream.setup import setup_batch_export_system
+        from services.sync.stream.core.setup import setup_batch_export_system
 
         batch_exporter = setup_batch_export_system()
 

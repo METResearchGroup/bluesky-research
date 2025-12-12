@@ -6,7 +6,7 @@ import tempfile
 import pytest
 
 from services.sync.stream.cache_management import CachePathManager, CacheDirectoryManager
-from services.sync.stream.types import Operation, RecordType
+from services.sync.stream.core.types import Operation, RecordType
 
 
 class TestCacheDirectoryManager:

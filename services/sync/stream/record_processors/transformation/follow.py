@@ -3,7 +3,7 @@
 from atproto_client.models.app.bsky.graph.follow import Record as FollowRecord
 
 from lib.db.bluesky_models.raw import RawFollow, RawFollowRecord
-from services.sync.stream.types import Operation
+from services.sync.stream.core.types import Operation
 
 
 def transform_follow(follow: dict, operation: Operation) -> dict:
