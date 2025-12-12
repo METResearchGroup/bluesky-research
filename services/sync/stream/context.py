@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from services.sync.stream.handlers.registry import RecordHandlerRegistry
+    from services.sync.stream.record_processors.registry import ProcessorRegistry
     from services.sync.stream.exporters.study_user_exporter import (
         StudyUserActivityExporter,
     )
@@ -31,6 +32,7 @@ class CacheWriteContext:
         - directory_manager: Manages directory lifecycle
         - file_utilities: Handles file I/O operations
         - handler_registry: Registry for record type handlers
+        - processor_registry: Registry for record type processors
         - study_user_manager: Manages study user identification
     """
 
@@ -38,6 +40,7 @@ class CacheWriteContext:
     directory_manager: "DirectoryManagerProtocol"
     file_utilities: "FileUtilitiesProtocol"
     handler_registry: "RecordHandlerRegistry"
+    processor_registry: "ProcessorRegistry"
     study_user_manager: "Any"  # StudyUserManager type
 
 

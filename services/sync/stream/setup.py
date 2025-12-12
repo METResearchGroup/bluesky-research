@@ -8,6 +8,7 @@ from services.sync.stream.cache_management import (
 from services.sync.stream.context import CacheWriteContext, BatchExportContext
 from services.sync.stream.handlers.registry import RecordHandlerRegistry
 from services.sync.stream.handlers.factories import create_handlers_for_all_types
+from services.sync.stream.record_processors.factories import create_all_processors
 from services.participant_data.study_users import get_study_user_manager
 from services.sync.stream.exporters.study_user_exporter import StudyUserActivityExporter
 from services.sync.stream.exporters.in_network_exporter import (
@@ -52,11 +53,15 @@ def setup_cache_write_system() -> CacheWriteContext:
     for handler_key, handler in handlers.items():
         handler_registry.register_handler(handler_key.value, handler)
 
+    # Create processor registry
+    processor_registry = create_all_processors()
+
     return CacheWriteContext(
         path_manager=path_manager,
         directory_manager=directory_manager,
         file_utilities=file_utilities,
         handler_registry=handler_registry,
+        processor_registry=processor_registry,
         study_user_manager=study_user_manager,
     )
 

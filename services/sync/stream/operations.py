@@ -8,7 +8,6 @@ record processor architecture.
 from lib.log.logger import get_logger
 
 from services.sync.stream.context import CacheWriteContext
-from services.sync.stream.record_processors.factories import create_all_processors
 from services.sync.stream.record_processors.router import route_decisions
 from services.sync.stream.record_types import SUPPORTED_RECORD_TYPES
 from services.sync.stream.types import Operation, OperationsByType
@@ -93,7 +92,7 @@ def operations_callback(
         # Validate structure at runtime
         _validate_operations_structure(operations_by_type)
 
-        processor_registry = create_all_processors()
+        processor_registry = context.processor_registry
 
         # Use centralized list of supported types
         supported_types = SUPPORTED_RECORD_TYPES
