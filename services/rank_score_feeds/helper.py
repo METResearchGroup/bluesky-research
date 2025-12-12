@@ -31,7 +31,7 @@ from services.consolidate_enrichment_integrations.models import (
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.preprocess_raw_data.classify_language.model import classify
-from services.rank_score_feeds.constants import max_feed_length
+from services.rank_score_feeds.config import feed_config
 from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
     load_users_to_exclude,
 )
@@ -46,8 +46,6 @@ consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"
 feeds_root_s3_key = "custom_feeds"
 dynamodb_table_name = "rank_score_feed_sessions"
-max_num_times_user_can_appear_in_feed = 5
-max_prop_old_posts = 0.6
 
 athena = Athena()
 s3 = S3()
@@ -256,20 +254,24 @@ def calculate_in_network_posts_for_user(
 
 # make sure that no single user appears more than X times.
 def filter_posts_by_author_count(
-    posts_df: pd.DataFrame, max_count: int = max_num_times_user_can_appear_in_feed
+    posts_df: pd.DataFrame, max_count: int = None
 ) -> pd.DataFrame:
     """Returns the first X rows of each author, filtering out the rest."""
+    if max_count is None:
+        max_count = feed_config.max_num_times_user_can_appear_in_feed
     return posts_df.groupby("author_did").head(max_count)
 
 
 def jitter_feed(
-    feed: list[CustomFeedPost], jitter_amount: int = 2
+    feed: list[CustomFeedPost], jitter_amount: int = None
 ) -> list[CustomFeedPost]:
     """Jitters the feed by a random amount.
 
     This lets us experiment with slight movements in feed order,
     controlled by `jitter_amount`.
     """
+    if jitter_amount is None:
+        jitter_amount = feed_config.jitter_amount
     n = len(feed)
     result = feed.copy()
     for i in range(n):
@@ -315,7 +317,7 @@ def create_ranked_candidate_feed(
     condition: str,
     in_network_candidate_post_uris: list[str],
     post_pool: pd.DataFrame,
-    max_feed_length: int = max_feed_length,
+    max_feed_length: int = None,
 ) -> list[CustomFeedPost]:
     """Create a ranked candidate feed.
 
@@ -326,6 +328,8 @@ def create_ranked_candidate_feed(
     1. In-network posts
     2. Out-of-network most-liked posts
     """
+    if max_feed_length is None:
+        max_feed_length = feed_config.max_feed_length
     if post_pool is None or len(post_pool) == 0:
         raise ValueError(
             "post_pool cannot be None. This means that a user condition is unexpected/invalid"
@@ -345,7 +349,7 @@ def create_ranked_candidate_feed(
 
     # get the number of in-network posts to include.
     total_in_network_posts = len(in_network_posts_df)
-    max_in_network_posts = max_feed_length // 2
+    max_in_network_posts = int(max_feed_length * feed_config.max_in_network_posts_ratio)
     max_allowed_in_network_posts = min(total_in_network_posts, max_in_network_posts)
     in_network_posts_df = in_network_posts_df.iloc[:max_allowed_in_network_posts]
 
@@ -376,13 +380,17 @@ def create_ranked_candidate_feed(
 
 def postprocess_feed(
     feed: list[CustomFeedPost],
-    max_feed_length: int = max_feed_length,
-    max_prop_old_posts: float = max_prop_old_posts,
+    max_feed_length: int = None,
+    max_prop_old_posts: float = None,
     previous_post_uris: set[str] = None,
 ) -> list[CustomFeedPost]:
     """Postprocesses the feed."""
+    if max_feed_length is None:
+        max_feed_length = feed_config.max_feed_length
+    if max_prop_old_posts is None:
+        max_prop_old_posts = feed_config.max_prop_old_posts
     # do feed postprocessing on a subset of the feed to save time.
-    feed = feed[: (max_feed_length * 2)]
+    feed = feed[: int(max_feed_length * feed_config.feed_preprocessing_multiplier)]
 
     # ensure that there's a maximum % of old posts in the feed, so we
     # always have some fresh content.
@@ -662,16 +670,12 @@ def do_rank_score_feeds(
 
     # filter so that only first X posts from each author are included.
     reverse_chronological_post_pool_df = filter_posts_by_author_count(
-        reverse_chronological_post_pool_df, max_num_times_user_can_appear_in_feed
+        reverse_chronological_post_pool_df
     )
 
-    engagement_post_pool_df = filter_posts_by_author_count(
-        engagement_post_pool_df, max_num_times_user_can_appear_in_feed
-    )
+    engagement_post_pool_df = filter_posts_by_author_count(engagement_post_pool_df)
 
-    treatment_post_pool_df = filter_posts_by_author_count(
-        treatment_post_pool_df, max_num_times_user_can_appear_in_feed
-    )
+    treatment_post_pool_df = filter_posts_by_author_count(treatment_post_pool_df)
 
     # generate feeds for each user.
     user_to_ranked_feed_map: dict[str, dict] = {}
@@ -700,7 +704,7 @@ def do_rank_score_feeds(
                 user_to_in_network_post_uris_map[user.bluesky_user_did]
             ),
             post_pool=post_pool,
-            max_feed_length=max_feed_length,
+            max_feed_length=feed_config.max_feed_length,
         )
         feed: list[CustomFeedPost] = postprocess_feed(
             feed=candidate_feed, previous_post_uris=latest_feeds[user.bluesky_handle]
@@ -723,7 +727,7 @@ def do_rank_score_feeds(
         condition="reverse_chronological",
         in_network_candidate_post_uris=[],
         post_pool=reverse_chronological_post_pool_df,
-        max_feed_length=max_feed_length,
+        max_feed_length=feed_config.max_feed_length,
     )
     postprocessed_default_feed = postprocess_feed(
         feed=default_feed, previous_post_uris=latest_feeds["default"]
@@ -751,12 +755,13 @@ def do_rank_score_feeds(
     # ttl old feeds
     if not test_mode:
         logger.info("TTLing old feeds from active to cache.")
-        keep_count = 3
         s3.sort_and_move_files_from_active_to_cache(
-            prefix="custom_feeds", keep_count=keep_count, sort_field="Key"
+            prefix="custom_feeds",
+            keep_count=feed_config.keep_count,
+            sort_field="Key",
         )
         logger.info(
-            f"Done TTLing old feeds from active to cache (keeping {keep_count})."
+            f"Done TTLing old feeds from active to cache (keeping {feed_config.keep_count})."
         )
 
         # inserting feed generation session metadata.
