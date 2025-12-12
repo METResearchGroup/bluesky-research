@@ -18,7 +18,6 @@ This separation allows the firehose stream to maintain high throughput (writing 
 stream/
 ├── README.md                 # This file
 ├── app.py                    # Flask app entry point for firehose stream
-├── main.py                   # Debug entry point (development only)
 ├── __init__.py               # Public API exports
 │
 ├── core/                     # Foundation layer (types, protocols, setup)
