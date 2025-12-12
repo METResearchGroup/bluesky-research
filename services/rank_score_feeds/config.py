@@ -114,6 +114,16 @@ class FeedConfig:
 
     def __post_init__(self) -> None:
         """Calculate derived configuration values."""
+        # Validate critical configuration values to fail fast on invalid config
+        if default_lookback_days <= 0:
+            raise ValueError("default_lookback_days must be > 0")
+        if self.max_feed_length <= 0:
+            raise ValueError("max_feed_length must be > 0")
+        if not (0.0 <= self.max_prop_old_posts <= 1.0):
+            raise ValueError("max_prop_old_posts must be in [0, 1]")
+        if not (0.0 <= self.max_in_network_posts_ratio <= 1.0):
+            raise ValueError("max_in_network_posts_ratio must be in [0, 1]")
+
         # Calculate freshness_decay_ratio from max_freshness_score and lookback hours
         default_lookback_hours = default_lookback_days * 24
         self.freshness_decay_ratio = (
