@@ -10,12 +10,54 @@ from lib.log.logger import get_logger
 from services.sync.stream.context import CacheWriteContext
 from services.sync.stream.record_processors.factories import create_all_processors
 from services.sync.stream.record_processors.router import route_decisions
-from services.sync.stream.types import Operation
+from services.sync.stream.record_types import SUPPORTED_RECORD_TYPES
+from services.sync.stream.types import Operation, OperationsByType
 
 logger = get_logger(__name__)
 
 
-def operations_callback(operations_by_type: dict, context: CacheWriteContext) -> bool:
+def _validate_operations_structure(operations_by_type: dict) -> None:
+    """Validate the structure of operations_by_type dictionary.
+
+    Ensures that the dictionary has the expected structure:
+    - Keys are record type strings
+    - Values are dictionaries with 'created' and 'deleted' keys
+    - 'created' and 'deleted' are lists
+
+    Args:
+        operations_by_type: Dictionary to validate
+
+    Raises:
+        ValueError: If structure is invalid
+    """
+    if not isinstance(operations_by_type, dict):
+        raise ValueError("operations_by_type must be a dictionary")
+
+    for record_type, operations in operations_by_type.items():
+        if not isinstance(operations, dict):
+            raise ValueError(
+                f"Operations for {record_type} must be a dictionary, got {type(operations)}"
+            )
+
+        if "created" not in operations or "deleted" not in operations:
+            raise ValueError(
+                f"Operations for {record_type} must have 'created' and 'deleted' keys"
+            )
+
+        if not isinstance(operations["created"], list):
+            raise ValueError(
+                f"'created' for {record_type} must be a list, got {type(operations['created'])}"
+            )
+
+        if not isinstance(operations["deleted"], list):
+            raise ValueError(
+                f"'deleted' for {record_type} must be a list, got {type(operations['deleted'])}"
+            )
+
+
+def operations_callback(
+    operations_by_type: OperationsByType | dict, context: CacheWriteContext
+) -> bool:
     """Callback for managing records during firehose stream.
 
     This function takes as input a dictionary of the format:
@@ -35,19 +77,26 @@ def operations_callback(operations_by_type: dict, context: CacheWriteContext) ->
     3. Executes routing decisions via handlers
 
     Args:
-        operations_by_type: Dictionary mapping record types to created/deleted lists
+        operations_by_type: Dictionary mapping record types to created/deleted lists.
+            Should conform to OperationsByType structure, but accepts dict for
+            backward compatibility and runtime flexibility.
         context: Cache write context with dependencies
 
     Returns:
         True if processing succeeded, False otherwise
 
     Raises:
+        ValueError: If operations_by_type structure is invalid
         Exception: If processing fails (maintains current behavior)
     """
     try:
+        # Validate structure at runtime
+        _validate_operations_structure(operations_by_type)
+
         processor_registry = create_all_processors()
 
-        supported_types = ["posts", "likes", "follows"]
+        # Use centralized list of supported types
+        supported_types = SUPPORTED_RECORD_TYPES
 
         for record_type in supported_types:
             if record_type not in operations_by_type:
