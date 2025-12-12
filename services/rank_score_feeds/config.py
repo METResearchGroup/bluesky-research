@@ -114,41 +114,64 @@ class FeedConfig:
 
     def __post_init__(self) -> None:
         """Calculate derived configuration values and validate configuration."""
-        # Validate critical configuration values to fail fast on invalid config
-        if default_lookback_days <= 0:
-            raise ValueError("default_lookback_days must be > 0")
-        if self.max_feed_length <= 0:
-            raise ValueError("max_feed_length must be > 0")
-        if not (0.0 <= self.max_prop_old_posts <= 1.0):
-            raise ValueError("max_prop_old_posts must be in [0, 1]")
-        if not (0.0 <= self.max_in_network_posts_ratio <= 1.0):
-            raise ValueError("max_in_network_posts_ratio must be in [0, 1]")
-        if self.max_num_times_user_can_appear_in_feed <= 0:
-            raise ValueError("max_num_times_user_can_appear_in_feed must be > 0")
-        if self.feed_preprocessing_multiplier <= 0:
-            raise ValueError("feed_preprocessing_multiplier must be > 0")
-        if self.coef_toxicity <= 0:
-            raise ValueError("coef_toxicity must be > 0")
-        if self.coef_constructiveness <= 0:
-            raise ValueError("coef_constructiveness must be > 0")
-        if self.superposter_coef <= 0:
-            raise ValueError("superposter_coef must be > 0")
-        if self.engagement_coef <= 0:
-            raise ValueError("engagement_coef must be > 0")
-        if self.default_max_freshness_score <= 0:
-            raise ValueError("default_max_freshness_score must be > 0")
-        if self.freshness_lambda_factor <= 0:
-            raise ValueError("freshness_lambda_factor must be > 0")
-        if self.freshness_exponential_base <= 0:
-            raise ValueError("freshness_exponential_base must be > 0")
-        if self.default_scoring_lookback_days <= 0:
-            raise ValueError("default_scoring_lookback_days must be > 0")
-        if self.average_popular_post_like_count <= 0:
-            raise ValueError("average_popular_post_like_count must be > 0")
-        if self.jitter_amount < 0:
-            raise ValueError("jitter_amount must be >= 0")
-        if self.keep_count <= 0:
-            raise ValueError("keep_count must be > 0")
+
+        # Helper functions for validation (DRY principle)
+        def validate_positive(value: float | int, field_name: str) -> None:
+            """Validate that a value is positive (> 0)."""
+            if value <= 0:
+                raise ValueError(f"{field_name} must be > 0")
+
+        def validate_non_negative(value: float | int, field_name: str) -> None:
+            """Validate that a value is non-negative (>= 0)."""
+            if value < 0:
+                raise ValueError(f"{field_name} must be >= 0")
+
+        def validate_proportion(value: float, field_name: str) -> None:
+            """Validate that a value is a proportion in [0, 1]."""
+            if not (0.0 <= value <= 1.0):
+                raise ValueError(f"{field_name} must be in [0, 1]")
+
+        # Validate external dependencies
+        validate_positive(default_lookback_days, "default_lookback_days")
+
+        # Validate positive integer fields
+        positive_int_fields = [
+            ("max_feed_length", self.max_feed_length),
+            (
+                "max_num_times_user_can_appear_in_feed",
+                self.max_num_times_user_can_appear_in_feed,
+            ),
+            ("feed_preprocessing_multiplier", self.feed_preprocessing_multiplier),
+            ("default_scoring_lookback_days", self.default_scoring_lookback_days),
+            ("average_popular_post_like_count", self.average_popular_post_like_count),
+            ("keep_count", self.keep_count),
+        ]
+        for field_name, value in positive_int_fields:
+            validate_positive(value, field_name)
+
+        # Validate positive float fields
+        positive_float_fields = [
+            ("coef_toxicity", self.coef_toxicity),
+            ("coef_constructiveness", self.coef_constructiveness),
+            ("superposter_coef", self.superposter_coef),
+            ("engagement_coef", self.engagement_coef),
+            ("default_max_freshness_score", self.default_max_freshness_score),
+            ("freshness_lambda_factor", self.freshness_lambda_factor),
+            ("freshness_exponential_base", self.freshness_exponential_base),
+        ]
+        for field_name, value in positive_float_fields:
+            validate_positive(value, field_name)
+
+        # Validate proportion fields
+        proportion_fields = [
+            ("max_prop_old_posts", self.max_prop_old_posts),
+            ("max_in_network_posts_ratio", self.max_in_network_posts_ratio),
+        ]
+        for field_name, value in proportion_fields:
+            validate_proportion(value, field_name)
+
+        # Validate non-negative fields
+        validate_non_negative(self.jitter_amount, "jitter_amount")
 
         # Calculate freshness_decay_ratio from max_freshness_score and lookback hours
         default_lookback_hours = default_lookback_days * 24
@@ -159,36 +182,3 @@ class FeedConfig:
 
 # Module-level default configuration instance
 feed_config = FeedConfig()
-
-
-class FeedConfigFactory:
-    """Factory for creating FeedConfig instances.
-
-    This factory class provides a clean interface for creating FeedConfig
-    instances, which is useful for dependency injection and testing.
-    """
-
-    @staticmethod
-    def create_default() -> FeedConfig:
-        """Create a FeedConfig instance with default values.
-
-        Returns:
-            FeedConfig: A new FeedConfig instance with default values.
-        """
-        return FeedConfig()
-
-    @staticmethod
-    def create(**kwargs) -> FeedConfig:
-        """Create a FeedConfig instance with custom values.
-
-        Args:
-            **kwargs: Configuration values to override defaults.
-
-        Returns:
-            FeedConfig: A new FeedConfig instance with specified values.
-
-        Example:
-            >>> config = FeedConfigFactory.create(max_feed_length=200)
-            >>> assert config.max_feed_length == 200
-        """
-        return FeedConfig(**kwargs)

@@ -31,10 +31,11 @@ from services.consolidate_enrichment_integrations.models import (
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.preprocess_raw_data.classify_language.model import classify
-from services.rank_score_feeds.config import feed_config
 from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
     load_users_to_exclude,
 )
+from services.rank_score_feeds.config import feed_config
+from services.rank_score_feeds.constants import TEST_USER_HANDLES
 from services.rank_score_feeds.models import (
     CustomFeedModel,
     CustomFeedPost,
@@ -557,13 +558,8 @@ def do_rank_score_feeds(
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
 
     if test_mode:
-        test_user_handles = [
-            "testblueskyaccount.bsky.social",
-            "testblueskyuserv2.bsky.social",
-            "markptorres.bsky.social",
-        ]
         study_users = [
-            user for user in study_users if user.bluesky_handle in test_user_handles
+            user for user in study_users if user.bluesky_handle in TEST_USER_HANDLES
         ]
 
     latest_data: dict = load_latest_processed_data()
