@@ -133,7 +133,3 @@ class RecordTypeRegistry:
             Dictionary mapping NSIDs to record type strings
         """
         return self._nsid_to_record_type.copy()
-
-
-# Global registry instance (can be extended at runtime if needed)
-_default_registry = RecordTypeRegistry()
