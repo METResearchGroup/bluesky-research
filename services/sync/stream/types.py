@@ -5,6 +5,7 @@ and related constants used throughout the sync stream system.
 """
 
 from enum import Enum
+from typing import Literal, TypedDict
 
 
 class Operation(str, Enum):
@@ -79,3 +80,32 @@ class HandlerKey(str, Enum):
 
     def __str__(self) -> str:
         return self.value
+
+
+# Type definitions for operations_by_type dictionary structure
+# This represents the structure of operations for a single record type
+class RecordOperations(TypedDict):
+    """Operations structure for a single record type.
+
+    Contains lists of created and deleted records for a specific record type.
+    """
+
+    created: list[dict]
+    deleted: list[dict]
+
+
+# Type alias for the full operations_by_type dictionary
+# Uses Literal union to restrict keys to known record types
+# Note: This is a type hint - runtime validation should still be performed
+OperationsByType = dict[
+    Literal[
+        "posts",
+        "reposts",
+        "likes",
+        "follows",
+        "lists",
+        "blocks",
+        "profiles",
+    ],
+    RecordOperations,
+]

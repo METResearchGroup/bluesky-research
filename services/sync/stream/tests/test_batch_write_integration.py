@@ -144,7 +144,7 @@ class TestBatchWriteStudyUserActivity:
         
         # Write likes to nested cache directory
         for i, like in enumerate(test_likes):
-            filename = f"like_author_did={study_user_did}_like_uri_suffix=like-{i+1}.json"
+            filename = f"author_did={study_user_did}_like_uri_suffix=like-{i+1}.json"
             file_path = os.path.join(nested_path, filename)
             file_utilities.write_json(file_path, like)
             cleanup_files(file_path)

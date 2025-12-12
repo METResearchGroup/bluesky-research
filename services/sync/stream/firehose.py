@@ -20,6 +20,7 @@ from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.log.logger import get_logger
 from lib.helper import ThreadSafeCounter
 from services.sync.stream.cursor import load_cursor_state_s3
+from services.sync.stream.record_types import ALL_RECORD_TYPES, NSID_TO_RECORD_TYPE
 
 # number of events to stream before exiting
 # (should be ~10,000 posts, a 1:5 ratio of posts:events)
@@ -46,28 +47,13 @@ _INTERESTED_RECORDS = {
     models.AppBskyActorProfile: models.ids.AppBskyActorProfile,
 }
 
-map_nsid_to_record_type = {
-    "app.bsky.feed.post": "posts",
-    "app.bsky.feed.like": "likes",
-    "app.bsky.feed.repost": "reposts",
-    "app.bsky.graph.follow": "follows",
-    "app.bsky.graph.listitem": "lists",
-    "app.bsky.graph.block": "blocks",
-    "app.bsky.actor.profile": "profiles",
-}
-
 logger = get_logger(__name__)
 
 
 def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict:  # noqa
+    # Initialize operation_by_type with all known record types from centralized registry
     operation_by_type = {
-        "posts": {"created": [], "deleted": []},
-        "reposts": {"created": [], "deleted": []},
-        "likes": {"created": [], "deleted": []},
-        "follows": {"created": [], "deleted": []},
-        "lists": {"created": [], "deleted": []},
-        "blocks": {"created": [], "deleted": []},
-        "profiles": {"created": [], "deleted": []},
+        record_type: {"created": [], "deleted": []} for record_type in ALL_RECORD_TYPES
     }
 
     car = CAR.from_bytes(commit.blocks)
@@ -94,15 +80,17 @@ def _get_ops_by_type(commit: models.ComAtprotoSyncSubscribeRepos.Commit) -> dict
                 if uri.collection == record_nsid and models.is_record_type(
                     record, record_type
                 ):
-                    record_type_str = map_nsid_to_record_type[uri.collection]
-                    operation_by_type[record_type_str]["created"].append(
-                        {"record": record, **create_info}
-                    )
+                    record_type_str = NSID_TO_RECORD_TYPE.get(uri.collection)
+                    if record_type_str:
+                        operation_by_type[record_type_str]["created"].append(
+                            {"record": record, **create_info}
+                        )
                     break
 
         if op.action == "delete":
-            record_type_str = map_nsid_to_record_type[uri.collection]
-            operation_by_type[record_type_str]["deleted"].append({"uri": str(uri)})
+            record_type_str = NSID_TO_RECORD_TYPE.get(uri.collection)
+            if record_type_str:
+                operation_by_type[record_type_str]["deleted"].append({"uri": str(uri)})
 
     return operation_by_type
 

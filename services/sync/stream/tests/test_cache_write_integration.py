@@ -9,12 +9,29 @@ import json
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
-from services.sync.stream.data_filter import (
-    manage_post,
-    manage_like,
-    manage_follow,
-)
+from services.sync.stream.record_processors.router import route_decisions
 from services.sync.stream.types import Operation, RecordType
+
+
+def process_record(context, record_type: str, record: dict, operation: Operation):
+    """Helper to process a record through the processor pipeline.
+    
+    Args:
+        context: Cache write context
+        record_type: Type of record ("posts", "likes", "follows")
+        record: Raw firehose record dictionary
+        operation: Operation type (CREATE or DELETE)
+    
+    Returns:
+        Tuple of (transformed record, routing decisions)
+    """
+    processor_registry = context.processor_registry
+    processor = processor_registry.get_processor(record_type)
+    
+    transformed = processor.transform(record, operation)
+    decisions = processor.get_routing_decisions(transformed, operation, context)
+    route_decisions(decisions, transformed, operation, context)
+    return transformed, decisions
 from services.sync.stream.tests.conftest import (
     cache_write_context,
     clean_path,
@@ -55,11 +72,7 @@ class TestCacheWriteStudyUserPost:
         )
         
         # Execute: Write post to cache
-        manage_post(
-            post=post_record,
-            operation=Operation.CREATE,
-            context=context,
-        )
+        process_record(context, "posts", post_record, Operation.CREATE)
         
         # Verify: File exists and contains correct data
         assert os.path.exists(expected_file), f"Expected file not found: {expected_file}"
@@ -124,15 +137,11 @@ class TestCacheWriteLikeOnStudyUserPost:
         expected_file = os.path.join(
             base_path,
             post_uri_suffix,
-            f"like_author_did={like_record['author']}_like_uri_suffix={like_record['uri'].split('/')[-1]}.json"
+            f"author_did={like_record['author']}_like_uri_suffix={like_record['uri'].split('/')[-1]}.json"
         )
         
         # Execute: Write like to cache
-        manage_like(
-            like=like_record,
-            operation=Operation.CREATE,
-            context=context,
-        )
+        process_record(context, "likes", like_record, Operation.CREATE)
         
         # Verify: File exists in nested directory
         assert os.path.exists(expected_file), f"Expected file not found: {expected_file}"
@@ -179,11 +188,7 @@ class TestCacheWriteFollow:
         )
         
         # Execute: Write follow to cache
-        manage_follow(
-            follow=follow_record,
-            operation=Operation.CREATE,
-            context=context,
-        )
+        process_record(context, "follows", follow_record, Operation.CREATE)
         
         # Verify: File exists in follower directory
         assert os.path.exists(expected_file), f"Expected file not found: {expected_file}"
@@ -229,11 +234,7 @@ class TestCacheWriteInNetworkPost:
         )
         
         # Execute: Write post to cache
-        manage_post(
-            post=post_record,
-            operation=Operation.CREATE,
-            context=context,
-        )
+        process_record(context, "posts", post_record, Operation.CREATE)
         
         # Verify: File exists in author directory
         assert os.path.exists(expected_file), f"Expected file not found: {expected_file}"
