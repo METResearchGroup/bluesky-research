@@ -6,12 +6,10 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 
-from lib.constants import current_datetime, timestamp_format, default_lookback_days
+from lib.constants import current_datetime, timestamp_format
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
 from services.rank_score_feeds.config import FeedConfig
-
-default_lookback_hours = default_lookback_days * 24
 
 logger = get_logger(__name__)
 
@@ -47,8 +45,16 @@ def score_treatment_algorithm(
     return treatment_coef
 
 
-def calculate_post_age(post: pd.Series) -> int:
-    """Calculate a post's age, in hours."""
+def calculate_post_age(post: pd.Series, lookback_hours: float) -> float:
+    """Calculate a post's age, in hours.
+
+    Args:
+        post: Post data containing synctimestamp.
+        lookback_hours: Maximum age in hours. Posts older than this will be clamped.
+
+    Returns:
+        Post age in hours, clamped to lookback_hours maximum.
+    """
     post_dt_object: datetime = datetime.strptime(
         post["synctimestamp"], timestamp_format
     ).replace(tzinfo=timezone.utc)
@@ -56,8 +62,8 @@ def calculate_post_age(post: pd.Series) -> int:
     time_difference = current_dt_object - post_dt_object
     seconds_difference: float = time_difference.total_seconds()
     post_age_hours: float = round(seconds_difference / 3600, 2)
-    if post_age_hours > default_lookback_hours:
-        post_age_hours = default_lookback_hours
+    if post_age_hours > lookback_hours:
+        post_age_hours = lookback_hours
     return post_age_hours
 
 
@@ -70,7 +76,8 @@ def score_post_freshness(
     max_freshness_score = feed_config.default_max_freshness_score
     decay_ratio = feed_config.freshness_decay_ratio
 
-    post_age_hours: float = calculate_post_age(post=post)
+    lookback_hours = feed_config.freshness_lookback_days * 24
+    post_age_hours: float = calculate_post_age(post=post, lookback_hours=lookback_hours)
     if score_func == "linear":
         freshness_score: float = max_freshness_score - (post_age_hours * decay_ratio)
     elif score_func == "exponential":
@@ -160,7 +167,7 @@ def calculate_post_score(
 
 def load_previous_post_scores(
     feed_config: FeedConfig,
-    lookback_days: int = None,
+    lookback_days: int | None = None,
 ) -> dict:
     """Load previous post scores from storage, for a given lookback period.
 

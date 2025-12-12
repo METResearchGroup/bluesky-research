@@ -78,6 +78,11 @@ class FeedConfig:
 
     # Lookback Periods
 
+    # Number of days to look back for freshness scoring calculations.
+    # Used to clamp post age and calculate freshness decay ratio.
+    # Posts older than this will be clamped to this maximum age.
+    freshness_lookback_days: int = default_lookback_days
+
     # Number of days to look back when loading previous post scores.
     # Used to cache and reuse scores for posts that were recently calculated.
     default_scoring_lookback_days: int = 1
@@ -108,7 +113,7 @@ class FeedConfig:
     # Derived values (calculated from other config values)
 
     # Decay ratio for linear freshness scoring.
-    # Calculated as: default_max_freshness_score / (default_lookback_days * 24).
+    # Calculated as: default_max_freshness_score / (freshness_lookback_days * 24).
     # Automatically computed from other config values.
     freshness_decay_ratio: float = field(init=False)
 
@@ -142,6 +147,7 @@ class FeedConfig:
                 self.max_num_times_user_can_appear_in_feed,
             ),
             ("feed_preprocessing_multiplier", self.feed_preprocessing_multiplier),
+            ("freshness_lookback_days", self.freshness_lookback_days),
             ("default_scoring_lookback_days", self.default_scoring_lookback_days),
             ("average_popular_post_like_count", self.average_popular_post_like_count),
             ("keep_count", self.keep_count),
@@ -174,9 +180,9 @@ class FeedConfig:
         validate_non_negative(self.jitter_amount, "jitter_amount")
 
         # Calculate freshness_decay_ratio from max_freshness_score and lookback hours
-        default_lookback_hours = default_lookback_days * 24
+        freshness_lookback_hours = self.freshness_lookback_days * 24
         self.freshness_decay_ratio = (
-            self.default_max_freshness_score / default_lookback_hours
+            self.default_max_freshness_score / freshness_lookback_hours
         )
 
 

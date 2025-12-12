@@ -60,6 +60,7 @@ class TestFeedConfig:
             ("freshness_lambda_factor", 0.95, True),
             ("freshness_exponential_base", 1.0, True),
             # Lookback Periods
+            ("freshness_lookback_days", 2, False),
             ("default_scoring_lookback_days", 1, False),
             # Likeability Scoring
             ("default_similarity_score", 0.8, True),
@@ -93,8 +94,8 @@ class TestFeedConfig:
         """Verify freshness_decay_ratio is calculated correctly."""
         # Arrange
         config = FeedConfig()
-        default_lookback_hours = default_lookback_days * 24
-        expected = config.default_max_freshness_score / default_lookback_hours
+        freshness_lookback_hours = config.freshness_lookback_days * 24
+        expected = config.default_max_freshness_score / freshness_lookback_hours
 
         # Act
         result = config.freshness_decay_ratio
@@ -421,6 +422,14 @@ class TestFeedConfig:
             ValueError, match="freshness_exponential_base must be > 0"
         ):
             FeedConfig(freshness_exponential_base=0)
+
+    def test_config_validation_rejects_invalid_freshness_lookback_days(self):
+        """Verify config validation rejects invalid freshness_lookback_days."""
+        # Arrange & Act & Assert
+        with pytest.raises(
+            ValueError, match="freshness_lookback_days must be > 0"
+        ):
+            FeedConfig(freshness_lookback_days=0)
 
     def test_config_validation_rejects_invalid_default_scoring_lookback_days(self):
         """Verify config validation rejects invalid default_scoring_lookback_days."""

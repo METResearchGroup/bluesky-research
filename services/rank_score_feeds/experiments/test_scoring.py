@@ -4,6 +4,7 @@ from lib.constants import current_datetime, default_lookback_days, timestamp_for
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
+from services.rank_score_feeds.config import feed_config
 from services.rank_score_feeds.metrics import plot_lines
 from services.rank_score_feeds.scoring import calculate_post_age, score_post_freshness
 
@@ -53,13 +54,19 @@ def _test():
     #     print('#' * 8 + f" {metric.upper()} " + '#' * 8)
     #     print(f"Treatment score {metric}: {treatment_score_metrics[metric]}")
     #     print(f"Engagement score {metric}: {engagement_score_metrics[metric]}")
-    post_age_hours = [calculate_post_age(post) for post in consolidated_enriched_posts]
+    lookback_hours = feed_config.freshness_lookback_days * 24
+    post_age_hours = [
+        calculate_post_age(post, lookback_hours=lookback_hours)
+        for post in consolidated_enriched_posts
+    ]
     post_freshness_linear_scores = [
-        score_post_freshness(post=post, score_func="linear")
+        score_post_freshness(post=post, feed_config=feed_config, score_func="linear")
         for post in consolidated_enriched_posts
     ]
     post_freshness_exponential_scores = [
-        score_post_freshness(post=post, score_func="exponential")
+        score_post_freshness(
+            post=post, feed_config=feed_config, score_func="exponential"
+        )
         for post in consolidated_enriched_posts
     ]
     plot_lines(
