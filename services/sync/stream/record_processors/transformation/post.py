@@ -4,7 +4,7 @@ import json
 
 from services.consolidate_post_records.helper import consolidate_firehose_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel
-from services.sync.stream.types import Operation
+from services.sync.stream.core.types import Operation
 from transform.transform_raw_data import process_firehose_post
 
 

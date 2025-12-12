@@ -5,7 +5,7 @@ import os
 import pytest
 
 from services.sync.stream.cache_management import CachePathManager
-from services.sync.stream.types import Operation, RecordType, GenericRecordType, FollowStatus
+from services.sync.stream.core.types import Operation, RecordType, GenericRecordType, FollowStatus
 
 
 class TestCachePathManager:

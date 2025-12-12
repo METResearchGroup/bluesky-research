@@ -3,8 +3,11 @@
 from dataclasses import dataclass
 from typing import Optional, Protocol
 
-from services.sync.stream.types import RecordType, Operation, FollowStatus
-from services.sync.stream.protocols import PathManagerProtocol, FileUtilitiesProtocol
+from services.sync.stream.core.types import RecordType, Operation, FollowStatus
+from services.sync.stream.core.protocols import (
+    PathManagerProtocol,
+    FileUtilitiesProtocol,
+)
 
 
 class PathStrategyProtocol(Protocol):

@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch, MagicMock
 import pytest
 
 from services.sync.stream.exporters.study_user_exporter import StudyUserActivityExporter
-from services.sync.stream.types import Operation, RecordType
+from services.sync.stream.core.types import Operation, RecordType
 
 
 class TestStudyUserActivityExporter:

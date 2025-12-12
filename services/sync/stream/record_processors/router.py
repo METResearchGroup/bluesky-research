@@ -2,9 +2,9 @@
 
 from lib.log.logger import get_logger
 
-from services.sync.stream.context import CacheWriteContext
+from services.sync.stream.core.context import CacheWriteContext
 from services.sync.stream.record_processors.types import RoutingDecision
-from services.sync.stream.types import Operation
+from services.sync.stream.core.types import Operation
 
 logger = get_logger(__name__)
 

@@ -5,8 +5,11 @@ import os
 from lib.log.logger import get_logger
 
 from services.sync.stream.handlers.config import HandlerConfig
-from services.sync.stream.types import RecordType, FollowStatus, Operation
-from services.sync.stream.protocols import PathManagerProtocol, FileUtilitiesProtocol
+from services.sync.stream.core.types import RecordType, FollowStatus, Operation
+from services.sync.stream.core.protocols import (
+    PathManagerProtocol,
+    FileUtilitiesProtocol,
+)
 
 logger = get_logger(__file__)
 

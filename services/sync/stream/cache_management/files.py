@@ -5,7 +5,7 @@ import json
 
 from lib.log.logger import get_logger
 
-from services.sync.stream.protocols import DirectoryManagerProtocol
+from services.sync.stream.core.protocols import DirectoryManagerProtocol
 
 logger = get_logger(__file__)
 

@@ -7,10 +7,10 @@ record processor architecture.
 
 from lib.log.logger import get_logger
 
-from services.sync.stream.context import CacheWriteContext
+from services.sync.stream.core.context import CacheWriteContext
 from services.sync.stream.record_processors.router import route_decisions
-from services.sync.stream.record_types import SUPPORTED_RECORD_TYPES
-from services.sync.stream.types import Operation, OperationsByType
+from services.sync.stream.core.record_types import SUPPORTED_RECORD_TYPES
+from services.sync.stream.core.types import Operation, OperationsByType
 
 logger = get_logger(__name__)
 

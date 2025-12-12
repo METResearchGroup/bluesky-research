@@ -2,10 +2,10 @@
 
 import pandas as pd
 
-from services.sync.stream.protocols import (
+from services.sync.stream.core.protocols import (
     StorageAdapterProtocol,
 )
-from services.sync.stream.types import Operation, GenericRecordType
+from services.sync.stream.core.types import Operation, GenericRecordType
 
 
 class StorageRepository:

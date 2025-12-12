@@ -20,7 +20,7 @@ from services.sync.stream.tests.mock_firehose_data import (
     mock_like_records,
     mock_post_records,
 )
-from services.sync.stream.types import Operation, RecordType
+from services.sync.stream.core.types import Operation, RecordType
 
 
 class TestTransformPost:

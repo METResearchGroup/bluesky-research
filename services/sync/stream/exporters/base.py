@@ -3,7 +3,7 @@
 import pandas as pd
 from abc import ABC, abstractmethod
 
-from services.sync.stream.protocols import StorageRepositoryProtocol
+from services.sync.stream.core.protocols import StorageRepositoryProtocol
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
 from lib.constants import timestamp_format

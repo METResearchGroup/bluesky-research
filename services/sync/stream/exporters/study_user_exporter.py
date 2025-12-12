@@ -7,12 +7,12 @@ import traceback
 from lib.log.logger import get_logger
 
 from services.sync.stream.exporters.base import BaseActivityExporter
-from services.sync.stream.protocols import (
+from services.sync.stream.core.protocols import (
     PathManagerProtocol,
     StorageRepositoryProtocol,
 )
 from services.sync.stream.handlers.registry import RecordHandlerRegistry
-from services.sync.stream.types import Operation, RecordType
+from services.sync.stream.core.types import Operation, RecordType
 
 
 logger = get_logger(__file__)

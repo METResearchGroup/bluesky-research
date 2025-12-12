@@ -1,7 +1,7 @@
 """Type definitions for record processors."""
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from services.sync.stream.types import FollowStatus, HandlerKey, RecordType
+from services.sync.stream.core.types import FollowStatus, HandlerKey, RecordType
 
 
 class RoutingDecision(BaseModel):
