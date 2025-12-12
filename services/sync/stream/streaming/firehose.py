@@ -19,8 +19,8 @@ from atproto.exceptions import FirehoseError
 from lib.db.bluesky_models.raw import FirehoseSubscriptionStateCursorModel
 from lib.log.logger import get_logger
 from lib.helper import ThreadSafeCounter
-from services.sync.stream.cursor import load_cursor_state_s3
-from services.sync.stream.record_types import ALL_RECORD_TYPES, NSID_TO_RECORD_TYPE
+from services.sync.stream.streaming.cursor import load_cursor_state_s3
+from services.sync.stream.core.record_types import ALL_RECORD_TYPES, NSID_TO_RECORD_TYPE
 
 # number of events to stream before exiting
 # (should be ~10,000 posts, a 1:5 ratio of posts:events)

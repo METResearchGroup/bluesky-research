@@ -2,7 +2,7 @@
 
 import os
 
-from services.sync.stream.types import (
+from services.sync.stream.core.types import (
     Operation,
     RecordType,
     GenericRecordType,

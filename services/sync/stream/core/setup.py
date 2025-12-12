@@ -5,7 +5,7 @@ from services.sync.stream.cache_management import (
     CacheDirectoryManager,
     FileUtilities,
 )
-from services.sync.stream.context import CacheWriteContext, BatchExportContext
+from services.sync.stream.core.context import CacheWriteContext, BatchExportContext
 from services.sync.stream.handlers.registry import RecordHandlerRegistry
 from services.sync.stream.handlers.factories import create_handlers_for_all_types
 from services.sync.stream.record_processors.factories import create_all_processors

@@ -3,12 +3,12 @@
 import os
 
 from services.sync.stream.exporters.base import BaseActivityExporter
-from services.sync.stream.protocols import (
+from services.sync.stream.core.protocols import (
     PathManagerProtocol,
     StorageRepositoryProtocol,
     FileUtilitiesProtocol,
 )
-from services.sync.stream.types import Operation, RecordType
+from services.sync.stream.core.types import Operation, RecordType
 
 
 class InNetworkUserActivityExporter(BaseActivityExporter):

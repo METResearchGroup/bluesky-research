@@ -1,4 +1,4 @@
-from services.sync.stream.types import Operation, RecordType
+from services.sync.stream.core.types import Operation, RecordType
 
 
 def extract_uri_suffix(uri: str) -> str:

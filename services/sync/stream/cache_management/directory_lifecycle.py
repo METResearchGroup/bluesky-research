@@ -3,8 +3,8 @@
 import os
 import shutil
 
-from services.sync.stream.protocols import PathManagerProtocol
-from services.sync.stream.types import Operation, RecordType, FollowStatus
+from services.sync.stream.core.protocols import PathManagerProtocol
+from services.sync.stream.core.types import Operation, RecordType, FollowStatus
 
 
 class CacheDirectoryManager:

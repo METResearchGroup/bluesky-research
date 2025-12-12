@@ -6,7 +6,7 @@ and exporting to permanent storage.
 
 import os
 import pytest
-from services.sync.stream.batch_exporter import BatchExporter
+from services.sync.stream.exporters.batch_exporter import BatchExporter
 from services.sync.stream.types import Operation, RecordType, FollowStatus
 
 def cleanup_directory(directory_path):

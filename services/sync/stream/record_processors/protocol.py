@@ -3,9 +3,9 @@
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from services.sync.stream.context import CacheWriteContext
+    from services.sync.stream.core.context import CacheWriteContext
     from services.sync.stream.record_processors.types import RoutingDecision
-    from services.sync.stream.types import Operation
+    from services.sync.stream.core.types import Operation
 
 
 class RecordProcessorProtocol(Protocol):

@@ -4,7 +4,7 @@ from typing import Optional
 
 from lib.log.logger import get_logger
 
-from services.sync.stream.context import CacheWriteContext
+from services.sync.stream.core.context import CacheWriteContext
 from services.sync.stream.record_processors.protocol import RecordProcessorProtocol
 from services.sync.stream.record_processors.transformation.helper import (
     build_record_filename,
@@ -12,7 +12,7 @@ from services.sync.stream.record_processors.transformation.helper import (
 )
 from services.sync.stream.record_processors.transformation.post import transform_post
 from services.sync.stream.record_processors.types import RoutingDecision
-from services.sync.stream.types import HandlerKey, Operation, RecordType
+from services.sync.stream.core.types import HandlerKey, Operation, RecordType
 
 logger = get_logger(__name__)
 

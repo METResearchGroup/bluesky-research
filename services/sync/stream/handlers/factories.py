@@ -10,11 +10,11 @@ from services.sync.stream.handlers.configs import (
     REPLY_TO_USER_POST_CONFIG,
     IN_NETWORK_POST_CONFIG,
 )
-from services.sync.stream.protocols import (
+from services.sync.stream.core.protocols import (
     PathManagerProtocol,
     FileUtilitiesProtocol,
 )
-from services.sync.stream.types import HandlerKey
+from services.sync.stream.core.types import HandlerKey
 
 
 def create_handler(
