@@ -189,6 +189,7 @@ testpaths = [
     "services/calculate_analytics/tests",
     "services/calculate_analytics/study_analytics/calculate_analytics/tests",
     "services/write_cache_buffers_to_db/tests",
+    "services/rank_score_feeds/tests",
     "services/sync/stream/tests",
     "services/sync/jetstream/tests",
     "pipelines/backfill_records_coordination/tests",

@@ -6,25 +6,18 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 
-from lib.constants import current_datetime, timestamp_format, default_lookback_days
+from lib.constants import current_datetime, timestamp_format
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
-
-default_similarity_score = 0.8
-average_popular_post_like_count = 100
-coef_toxicity = 0.965
-coef_constructiveness = 1.02
-superposter_coef = 0.95
-default_max_freshness_score = 3
-default_lookback_hours = default_lookback_days * 24
-freshness_decay_ratio: float = default_max_freshness_score / default_lookback_hours  # noqa
-default_scoring_lookback_days = 1
+from services.rank_score_feeds.config import FeedConfig
 
 logger = get_logger(__name__)
 
 
 # TODO: add superposter information.
-def score_treatment_algorithm(post: pd.Series, superposter_dids: set[str]) -> dict:
+def score_treatment_algorithm(
+    post: pd.Series, superposter_dids: set[str], feed_config: FeedConfig
+) -> dict:
     """Score posts based on our treatment algorithm."""
     treatment_coef = 1.0
 
@@ -41,19 +34,27 @@ def score_treatment_algorithm(post: pd.Series, superposter_dids: set[str]) -> di
             post["prob_constructive"] = post["prob_reasoning"]
         # if sociopolitical, uprank/downrank based on toxicity/constructiveness.
         treatment_coef = (
-            post["prob_toxic"] * coef_toxicity
-            + post["prob_constructive"] * coef_constructiveness
+            post["prob_toxic"] * feed_config.coef_toxicity
+            + post["prob_constructive"] * feed_config.coef_constructiveness
         ) / (post["prob_toxic"] + post["prob_constructive"])
 
     # penalize post for being written by a superposter.
     if post["author_did"] in superposter_dids:
-        treatment_coef *= superposter_coef
+        treatment_coef *= feed_config.superposter_coef
 
     return treatment_coef
 
 
-def calculate_post_age(post: pd.Series) -> int:
-    """Calculate a post's age, in hours."""
+def calculate_post_age(post: pd.Series, lookback_hours: float) -> float:
+    """Calculate a post's age, in hours.
+
+    Args:
+        post: Post data containing synctimestamp.
+        lookback_hours: Maximum age in hours. Posts older than this will be clamped.
+
+    Returns:
+        Post age in hours, clamped to lookback_hours maximum.
+    """
     post_dt_object: datetime = datetime.strptime(
         post["synctimestamp"], timestamp_format
     ).replace(tzinfo=timezone.utc)
@@ -61,25 +62,28 @@ def calculate_post_age(post: pd.Series) -> int:
     time_difference = current_dt_object - post_dt_object
     seconds_difference: float = time_difference.total_seconds()
     post_age_hours: float = round(seconds_difference / 3600, 2)
-    if post_age_hours > default_lookback_hours:
-        post_age_hours = default_lookback_hours
+    if post_age_hours > lookback_hours:
+        post_age_hours = lookback_hours
     return post_age_hours
 
 
 def score_post_freshness(
     post: pd.Series,
-    max_freshness_score: float = default_max_freshness_score,
-    decay_ratio: float = freshness_decay_ratio,
+    feed_config: FeedConfig,
     score_func: Literal["linear", "exponential"] = "exponential",
 ) -> float:
     """Score a post's freshness. The older the post, the lower the score."""
-    post_age_hours: float = calculate_post_age(post=post)
+    max_freshness_score = feed_config.default_max_freshness_score
+    decay_ratio = feed_config.freshness_decay_ratio
+
+    lookback_hours = feed_config.freshness_lookback_days * 24
+    post_age_hours: float = calculate_post_age(post=post, lookback_hours=lookback_hours)
     if score_func == "linear":
         freshness_score: float = max_freshness_score - (post_age_hours * decay_ratio)
     elif score_func == "exponential":
-        a = 1
+        a = feed_config.freshness_exponential_base
         decay_factor = 1 - decay_ratio
-        lambda_factor = 0.95
+        lambda_factor = feed_config.freshness_lambda_factor
         # gives a score between 0 and 1
         freshness_coef = (a * decay_factor * lambda_factor) ** post_age_hours
 
@@ -88,7 +92,7 @@ def score_post_freshness(
     return freshness_score
 
 
-def score_post_likeability(post: pd.Series) -> float:
+def score_post_likeability(post: pd.Series, feed_config: FeedConfig) -> float:
     """Score a post's likeability. We either use the actual like count or we
     use an estimation of the like count, based on how similar that post is to
     posts that are normally liked.
@@ -109,22 +113,28 @@ def score_post_likeability(post: pd.Series) -> float:
             like_score = np.log(post["like_count"] + 1)
         elif post["similarity_score"]:
             expected_like_count = (
-                average_popular_post_like_count * post["similarity_score"]
+                feed_config.average_popular_post_like_count * post["similarity_score"]
             )
             like_score = np.log(expected_like_count + 1)
         else:
             expected_like_count = (
-                average_popular_post_like_count * default_similarity_score
+                feed_config.average_popular_post_like_count
+                * feed_config.default_similarity_score
             )
             like_score = np.log(expected_like_count + 1)
     except Exception as e:
         logger.error(f"Error calculating like score for post {post['uri']}: {e}")
-        expected_like_count = average_popular_post_like_count * default_similarity_score
+        expected_like_count = (
+            feed_config.average_popular_post_like_count
+            * feed_config.default_similarity_score
+        )
         like_score = np.log(expected_like_count + 1)
     return like_score
 
 
-def calculate_post_score(post: pd.Series, superposter_dids: set[str]) -> float:
+def calculate_post_score(
+    post: pd.Series, superposter_dids: set[str], feed_config: FeedConfig
+) -> float:
     """Calculate a post's score.
 
     Calculates what a score's post would be, depending on whether or not it's
@@ -132,16 +142,16 @@ def calculate_post_score(post: pd.Series, superposter_dids: set[str]) -> float:
     """
     engagement_score = 0
     treatment_score = 0
-    engagement_coef = 1.0
     treatment_coef: float = score_treatment_algorithm(
         post=post,
         superposter_dids=superposter_dids,
+        feed_config=feed_config,
     )
 
     # set the base score to be based on the likeability of the post
     # adn the freshness of the post.
-    post_likeability_score = score_post_likeability(post=post)
-    post_freshness_score = score_post_freshness(post=post)
+    post_likeability_score = score_post_likeability(post=post, feed_config=feed_config)
+    post_freshness_score = score_post_freshness(post=post, feed_config=feed_config)
 
     engagement_score += post_likeability_score
     engagement_score += post_freshness_score
@@ -149,14 +159,15 @@ def calculate_post_score(post: pd.Series, superposter_dids: set[str]) -> float:
     treatment_score += post_freshness_score
 
     # multiply scores by the engagement/treatment coefs.
-    engagement_score *= engagement_coef
+    engagement_score *= feed_config.engagement_coef
     treatment_score *= treatment_coef
 
     return {"engagement_score": engagement_score, "treatment_score": treatment_score}
 
 
 def load_previous_post_scores(
-    lookback_days: int = default_scoring_lookback_days,
+    feed_config: FeedConfig,
+    lookback_days: int | None = None,
 ) -> dict:
     """Load previous post scores from storage, for a given lookback period.
 
@@ -164,6 +175,8 @@ def load_previous_post_scores(
     value. The scores dict contains the engagement and treatment scores for the
     post.
     """
+    if lookback_days is None:
+        lookback_days = feed_config.default_scoring_lookback_days
     lookback_timestamp = (current_datetime - timedelta(days=lookback_days)).strftime(
         "%Y-%m-%d"
     )
@@ -191,7 +204,10 @@ def load_previous_post_scores(
 
 # NOTE: should consider setting default likes at the batch level.
 def calculate_post_scores(
-    posts: pd.DataFrame, superposter_dids: set[str], load_previous_scores: bool = True
+    posts: pd.DataFrame,
+    superposter_dids: set[str],
+    feed_config: FeedConfig,
+    load_previous_scores: bool = True,
 ) -> tuple[list[dict], list[str]]:  # noqa
     """Calculate scores for a list of posts."""
     scores = []
@@ -200,20 +216,22 @@ def calculate_post_scores(
     if not load_previous_scores:
         return posts.apply(
             lambda post: calculate_post_score(
-                post=post, superposter_dids=superposter_dids
+                post=post, superposter_dids=superposter_dids, feed_config=feed_config
             ),
             axis=1,
         ).tolist(), posts["uri"].tolist()
     else:
         total_posts = len(posts)
-        previous_post_scores: dict = load_previous_post_scores()
+        previous_post_scores: dict = load_previous_post_scores(feed_config=feed_config)
 
         def process_post(post: pd.Series):
             if post["uri"] in previous_post_scores:
                 return previous_post_scores[post["uri"]], None
             else:
                 score = calculate_post_score(
-                    post=post, superposter_dids=superposter_dids
+                    post=post,
+                    superposter_dids=superposter_dids,
+                    feed_config=feed_config,
                 )
                 return score, post["uri"]
 

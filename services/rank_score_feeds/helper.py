@@ -31,10 +31,11 @@ from services.consolidate_enrichment_integrations.models import (
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.preprocess_raw_data.classify_language.model import classify
-from services.rank_score_feeds.constants import max_feed_length
 from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
     load_users_to_exclude,
 )
+from services.rank_score_feeds.config import feed_config
+from services.rank_score_feeds.constants import TEST_USER_HANDLES
 from services.rank_score_feeds.models import (
     CustomFeedModel,
     CustomFeedPost,
@@ -46,8 +47,6 @@ consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"
 feeds_root_s3_key = "custom_feeds"
 dynamodb_table_name = "rank_score_feed_sessions"
-max_num_times_user_can_appear_in_feed = 5
-max_prop_old_posts = 0.6
 
 athena = Athena()
 s3 = S3()
@@ -256,15 +255,13 @@ def calculate_in_network_posts_for_user(
 
 # make sure that no single user appears more than X times.
 def filter_posts_by_author_count(
-    posts_df: pd.DataFrame, max_count: int = max_num_times_user_can_appear_in_feed
+    posts_df: pd.DataFrame, max_count: int
 ) -> pd.DataFrame:
     """Returns the first X rows of each author, filtering out the rest."""
     return posts_df.groupby("author_did").head(max_count)
 
 
-def jitter_feed(
-    feed: list[CustomFeedPost], jitter_amount: int = 2
-) -> list[CustomFeedPost]:
+def jitter_feed(feed: list[CustomFeedPost], jitter_amount: int) -> list[CustomFeedPost]:
     """Jitters the feed by a random amount.
 
     This lets us experiment with slight movements in feed order,
@@ -315,7 +312,8 @@ def create_ranked_candidate_feed(
     condition: str,
     in_network_candidate_post_uris: list[str],
     post_pool: pd.DataFrame,
-    max_feed_length: int = max_feed_length,
+    max_feed_length: int,
+    max_in_network_posts_ratio: float,
 ) -> list[CustomFeedPost]:
     """Create a ranked candidate feed.
 
@@ -345,7 +343,7 @@ def create_ranked_candidate_feed(
 
     # get the number of in-network posts to include.
     total_in_network_posts = len(in_network_posts_df)
-    max_in_network_posts = max_feed_length // 2
+    max_in_network_posts = int(max_feed_length * max_in_network_posts_ratio)
     max_allowed_in_network_posts = min(total_in_network_posts, max_in_network_posts)
     in_network_posts_df = in_network_posts_df.iloc[:max_allowed_in_network_posts]
 
@@ -376,13 +374,15 @@ def create_ranked_candidate_feed(
 
 def postprocess_feed(
     feed: list[CustomFeedPost],
-    max_feed_length: int = max_feed_length,
-    max_prop_old_posts: float = max_prop_old_posts,
+    max_feed_length: int,
+    max_prop_old_posts: float,
+    feed_preprocessing_multiplier: int,
+    jitter_amount: int,
     previous_post_uris: set[str] = None,
 ) -> list[CustomFeedPost]:
     """Postprocesses the feed."""
     # do feed postprocessing on a subset of the feed to save time.
-    feed = feed[: (max_feed_length * 2)]
+    feed = feed[: int(max_feed_length * feed_preprocessing_multiplier)]
 
     # ensure that there's a maximum % of old posts in the feed, so we
     # always have some fresh content.
@@ -403,7 +403,7 @@ def postprocess_feed(
     feed = feed[:max_feed_length]
 
     # jitter feed to slightly shuffle ordering
-    feed = jitter_feed(feed=feed)
+    feed = jitter_feed(feed=feed, jitter_amount=jitter_amount)
 
     # validate feed lengths:
     if len(feed) != max_feed_length:
@@ -558,13 +558,8 @@ def do_rank_score_feeds(
     study_users: list[UserToBlueskyProfileModel] = get_all_users()
 
     if test_mode:
-        test_user_handles = [
-            "testblueskyaccount.bsky.social",
-            "testblueskyuserv2.bsky.social",
-            "markptorres.bsky.social",
-        ]
         study_users = [
-            user for user in study_users if user.bluesky_handle in test_user_handles
+            user for user in study_users if user.bluesky_handle in TEST_USER_HANDLES
         ]
 
     latest_data: dict = load_latest_processed_data()
@@ -587,6 +582,7 @@ def do_rank_score_feeds(
     post_scores, new_post_uris = calculate_post_scores(
         posts=consolidated_enriched_posts_df,
         superposter_dids=superposter_dids,
+        feed_config=feed_config,
         load_previous_scores=True,
     )  # noqa
 
@@ -662,15 +658,18 @@ def do_rank_score_feeds(
 
     # filter so that only first X posts from each author are included.
     reverse_chronological_post_pool_df = filter_posts_by_author_count(
-        reverse_chronological_post_pool_df, max_num_times_user_can_appear_in_feed
+        reverse_chronological_post_pool_df,
+        max_count=feed_config.max_num_times_user_can_appear_in_feed,
     )
 
     engagement_post_pool_df = filter_posts_by_author_count(
-        engagement_post_pool_df, max_num_times_user_can_appear_in_feed
+        engagement_post_pool_df,
+        max_count=feed_config.max_num_times_user_can_appear_in_feed,
     )
 
     treatment_post_pool_df = filter_posts_by_author_count(
-        treatment_post_pool_df, max_num_times_user_can_appear_in_feed
+        treatment_post_pool_df,
+        max_count=feed_config.max_num_times_user_can_appear_in_feed,
     )
 
     # generate feeds for each user.
@@ -700,10 +699,16 @@ def do_rank_score_feeds(
                 user_to_in_network_post_uris_map[user.bluesky_user_did]
             ),
             post_pool=post_pool,
-            max_feed_length=max_feed_length,
+            max_feed_length=feed_config.max_feed_length,
+            max_in_network_posts_ratio=feed_config.max_in_network_posts_ratio,
         )
         feed: list[CustomFeedPost] = postprocess_feed(
-            feed=candidate_feed, previous_post_uris=latest_feeds[user.bluesky_handle]
+            feed=candidate_feed,
+            max_feed_length=feed_config.max_feed_length,
+            max_prop_old_posts=feed_config.max_prop_old_posts,
+            feed_preprocessing_multiplier=feed_config.feed_preprocessing_multiplier,
+            jitter_amount=feed_config.jitter_amount,
+            previous_post_uris=latest_feeds[user.bluesky_handle],
         )
         user_to_ranked_feed_map[user.bluesky_user_did] = {
             "feed": feed,
@@ -723,10 +728,16 @@ def do_rank_score_feeds(
         condition="reverse_chronological",
         in_network_candidate_post_uris=[],
         post_pool=reverse_chronological_post_pool_df,
-        max_feed_length=max_feed_length,
+        max_feed_length=feed_config.max_feed_length,
+        max_in_network_posts_ratio=feed_config.max_in_network_posts_ratio,
     )
     postprocessed_default_feed = postprocess_feed(
-        feed=default_feed, previous_post_uris=latest_feeds["default"]
+        feed=default_feed,
+        max_feed_length=feed_config.max_feed_length,
+        max_prop_old_posts=feed_config.max_prop_old_posts,
+        feed_preprocessing_multiplier=feed_config.feed_preprocessing_multiplier,
+        jitter_amount=feed_config.jitter_amount,
+        previous_post_uris=latest_feeds["default"],
     )
     user_to_ranked_feed_map["default"] = {
         "feed": postprocessed_default_feed,
@@ -751,12 +762,13 @@ def do_rank_score_feeds(
     # ttl old feeds
     if not test_mode:
         logger.info("TTLing old feeds from active to cache.")
-        keep_count = 3
         s3.sort_and_move_files_from_active_to_cache(
-            prefix="custom_feeds", keep_count=keep_count, sort_field="Key"
+            prefix="custom_feeds",
+            keep_count=feed_config.keep_count,
+            sort_field="Key",
         )
         logger.info(
-            f"Done TTLing old feeds from active to cache (keeping {keep_count})."
+            f"Done TTLing old feeds from active to cache (keeping {feed_config.keep_count})."
         )
 
         # inserting feed generation session metadata.
