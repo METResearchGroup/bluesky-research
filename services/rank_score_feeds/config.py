@@ -113,7 +113,7 @@ class FeedConfig:
     freshness_decay_ratio: float = field(init=False)
 
     def __post_init__(self) -> None:
-        """Calculate derived configuration values."""
+        """Calculate derived configuration values and validate configuration."""
         # Validate critical configuration values to fail fast on invalid config
         if default_lookback_days <= 0:
             raise ValueError("default_lookback_days must be > 0")
@@ -123,6 +123,32 @@ class FeedConfig:
             raise ValueError("max_prop_old_posts must be in [0, 1]")
         if not (0.0 <= self.max_in_network_posts_ratio <= 1.0):
             raise ValueError("max_in_network_posts_ratio must be in [0, 1]")
+        if self.max_num_times_user_can_appear_in_feed <= 0:
+            raise ValueError("max_num_times_user_can_appear_in_feed must be > 0")
+        if self.feed_preprocessing_multiplier <= 0:
+            raise ValueError("feed_preprocessing_multiplier must be > 0")
+        if self.coef_toxicity <= 0:
+            raise ValueError("coef_toxicity must be > 0")
+        if self.coef_constructiveness <= 0:
+            raise ValueError("coef_constructiveness must be > 0")
+        if self.superposter_coef <= 0:
+            raise ValueError("superposter_coef must be > 0")
+        if self.engagement_coef <= 0:
+            raise ValueError("engagement_coef must be > 0")
+        if self.default_max_freshness_score <= 0:
+            raise ValueError("default_max_freshness_score must be > 0")
+        if self.freshness_lambda_factor <= 0:
+            raise ValueError("freshness_lambda_factor must be > 0")
+        if self.freshness_exponential_base <= 0:
+            raise ValueError("freshness_exponential_base must be > 0")
+        if self.default_scoring_lookback_days <= 0:
+            raise ValueError("default_scoring_lookback_days must be > 0")
+        if self.average_popular_post_like_count <= 0:
+            raise ValueError("average_popular_post_like_count must be > 0")
+        if self.jitter_amount < 0:
+            raise ValueError("jitter_amount must be >= 0")
+        if self.keep_count <= 0:
+            raise ValueError("keep_count must be > 0")
 
         # Calculate freshness_decay_ratio from max_freshness_score and lookback hours
         default_lookback_hours = default_lookback_days * 24
@@ -133,3 +159,36 @@ class FeedConfig:
 
 # Module-level default configuration instance
 feed_config = FeedConfig()
+
+
+class FeedConfigFactory:
+    """Factory for creating FeedConfig instances.
+
+    This factory class provides a clean interface for creating FeedConfig
+    instances, which is useful for dependency injection and testing.
+    """
+
+    @staticmethod
+    def create_default() -> FeedConfig:
+        """Create a FeedConfig instance with default values.
+
+        Returns:
+            FeedConfig: A new FeedConfig instance with default values.
+        """
+        return FeedConfig()
+
+    @staticmethod
+    def create(**kwargs) -> FeedConfig:
+        """Create a FeedConfig instance with custom values.
+
+        Args:
+            **kwargs: Configuration values to override defaults.
+
+        Returns:
+            FeedConfig: A new FeedConfig instance with specified values.
+
+        Example:
+            >>> config = FeedConfigFactory.create(max_feed_length=200)
+            >>> assert config.max_feed_length == 200
+        """
+        return FeedConfig(**kwargs)

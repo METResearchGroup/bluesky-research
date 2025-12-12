@@ -254,24 +254,18 @@ def calculate_in_network_posts_for_user(
 
 # make sure that no single user appears more than X times.
 def filter_posts_by_author_count(
-    posts_df: pd.DataFrame, max_count: int = None
+    posts_df: pd.DataFrame, max_count: int
 ) -> pd.DataFrame:
     """Returns the first X rows of each author, filtering out the rest."""
-    if max_count is None:
-        max_count = feed_config.max_num_times_user_can_appear_in_feed
     return posts_df.groupby("author_did").head(max_count)
 
 
-def jitter_feed(
-    feed: list[CustomFeedPost], jitter_amount: int = None
-) -> list[CustomFeedPost]:
+def jitter_feed(feed: list[CustomFeedPost], jitter_amount: int) -> list[CustomFeedPost]:
     """Jitters the feed by a random amount.
 
     This lets us experiment with slight movements in feed order,
     controlled by `jitter_amount`.
     """
-    if jitter_amount is None:
-        jitter_amount = feed_config.jitter_amount
     n = len(feed)
     result = feed.copy()
     for i in range(n):
@@ -317,7 +311,8 @@ def create_ranked_candidate_feed(
     condition: str,
     in_network_candidate_post_uris: list[str],
     post_pool: pd.DataFrame,
-    max_feed_length: int = None,
+    max_feed_length: int,
+    max_in_network_posts_ratio: float,
 ) -> list[CustomFeedPost]:
     """Create a ranked candidate feed.
 
@@ -328,8 +323,6 @@ def create_ranked_candidate_feed(
     1. In-network posts
     2. Out-of-network most-liked posts
     """
-    if max_feed_length is None:
-        max_feed_length = feed_config.max_feed_length
     if post_pool is None or len(post_pool) == 0:
         raise ValueError(
             "post_pool cannot be None. This means that a user condition is unexpected/invalid"
@@ -349,7 +342,7 @@ def create_ranked_candidate_feed(
 
     # get the number of in-network posts to include.
     total_in_network_posts = len(in_network_posts_df)
-    max_in_network_posts = int(max_feed_length * feed_config.max_in_network_posts_ratio)
+    max_in_network_posts = int(max_feed_length * max_in_network_posts_ratio)
     max_allowed_in_network_posts = min(total_in_network_posts, max_in_network_posts)
     in_network_posts_df = in_network_posts_df.iloc[:max_allowed_in_network_posts]
 
@@ -380,17 +373,15 @@ def create_ranked_candidate_feed(
 
 def postprocess_feed(
     feed: list[CustomFeedPost],
-    max_feed_length: int = None,
-    max_prop_old_posts: float = None,
+    max_feed_length: int,
+    max_prop_old_posts: float,
+    feed_preprocessing_multiplier: int,
+    jitter_amount: int,
     previous_post_uris: set[str] = None,
 ) -> list[CustomFeedPost]:
     """Postprocesses the feed."""
-    if max_feed_length is None:
-        max_feed_length = feed_config.max_feed_length
-    if max_prop_old_posts is None:
-        max_prop_old_posts = feed_config.max_prop_old_posts
     # do feed postprocessing on a subset of the feed to save time.
-    feed = feed[: int(max_feed_length * feed_config.feed_preprocessing_multiplier)]
+    feed = feed[: int(max_feed_length * feed_preprocessing_multiplier)]
 
     # ensure that there's a maximum % of old posts in the feed, so we
     # always have some fresh content.
@@ -411,7 +402,7 @@ def postprocess_feed(
     feed = feed[:max_feed_length]
 
     # jitter feed to slightly shuffle ordering
-    feed = jitter_feed(feed=feed)
+    feed = jitter_feed(feed=feed, jitter_amount=jitter_amount)
 
     # validate feed lengths:
     if len(feed) != max_feed_length:
@@ -595,6 +586,7 @@ def do_rank_score_feeds(
     post_scores, new_post_uris = calculate_post_scores(
         posts=consolidated_enriched_posts_df,
         superposter_dids=superposter_dids,
+        feed_config=feed_config,
         load_previous_scores=True,
     )  # noqa
 
@@ -670,12 +662,19 @@ def do_rank_score_feeds(
 
     # filter so that only first X posts from each author are included.
     reverse_chronological_post_pool_df = filter_posts_by_author_count(
-        reverse_chronological_post_pool_df
+        reverse_chronological_post_pool_df,
+        max_count=feed_config.max_num_times_user_can_appear_in_feed,
     )
 
-    engagement_post_pool_df = filter_posts_by_author_count(engagement_post_pool_df)
+    engagement_post_pool_df = filter_posts_by_author_count(
+        engagement_post_pool_df,
+        max_count=feed_config.max_num_times_user_can_appear_in_feed,
+    )
 
-    treatment_post_pool_df = filter_posts_by_author_count(treatment_post_pool_df)
+    treatment_post_pool_df = filter_posts_by_author_count(
+        treatment_post_pool_df,
+        max_count=feed_config.max_num_times_user_can_appear_in_feed,
+    )
 
     # generate feeds for each user.
     user_to_ranked_feed_map: dict[str, dict] = {}
@@ -705,9 +704,15 @@ def do_rank_score_feeds(
             ),
             post_pool=post_pool,
             max_feed_length=feed_config.max_feed_length,
+            max_in_network_posts_ratio=feed_config.max_in_network_posts_ratio,
         )
         feed: list[CustomFeedPost] = postprocess_feed(
-            feed=candidate_feed, previous_post_uris=latest_feeds[user.bluesky_handle]
+            feed=candidate_feed,
+            max_feed_length=feed_config.max_feed_length,
+            max_prop_old_posts=feed_config.max_prop_old_posts,
+            feed_preprocessing_multiplier=feed_config.feed_preprocessing_multiplier,
+            jitter_amount=feed_config.jitter_amount,
+            previous_post_uris=latest_feeds[user.bluesky_handle],
         )
         user_to_ranked_feed_map[user.bluesky_user_did] = {
             "feed": feed,
@@ -728,9 +733,15 @@ def do_rank_score_feeds(
         in_network_candidate_post_uris=[],
         post_pool=reverse_chronological_post_pool_df,
         max_feed_length=feed_config.max_feed_length,
+        max_in_network_posts_ratio=feed_config.max_in_network_posts_ratio,
     )
     postprocessed_default_feed = postprocess_feed(
-        feed=default_feed, previous_post_uris=latest_feeds["default"]
+        feed=default_feed,
+        max_feed_length=feed_config.max_feed_length,
+        max_prop_old_posts=feed_config.max_prop_old_posts,
+        feed_preprocessing_multiplier=feed_config.feed_preprocessing_multiplier,
+        jitter_amount=feed_config.jitter_amount,
+        previous_post_uris=latest_feeds["default"],
     )
     user_to_ranked_feed_map["default"] = {
         "feed": postprocessed_default_feed,

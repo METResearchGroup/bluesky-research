@@ -42,34 +42,36 @@ class TestFeedConfig:
             assert result, f"Missing field: {field_name}"
 
     @pytest.mark.parametrize(
-        "field_name,expected_value",
+        "field_name,expected_value,is_float",
         [
             # Feed Length & Filtering
-            ("max_feed_length", 100),
-            ("max_num_times_user_can_appear_in_feed", 5),
-            ("max_prop_old_posts", 0.6),
-            ("max_in_network_posts_ratio", 0.5),
-            ("feed_preprocessing_multiplier", 2),
+            ("max_feed_length", 100, False),
+            ("max_num_times_user_can_appear_in_feed", 5, False),
+            ("max_prop_old_posts", 0.6, True),
+            ("max_in_network_posts_ratio", 0.5, True),
+            ("feed_preprocessing_multiplier", 2, False),
             # Scoring Coefficients
-            ("coef_toxicity", 0.965),
-            ("coef_constructiveness", 1.02),
-            ("superposter_coef", 0.95),
-            ("engagement_coef", 1.0),
+            ("coef_toxicity", 0.965, True),
+            ("coef_constructiveness", 1.02, True),
+            ("superposter_coef", 0.95, True),
+            ("engagement_coef", 1.0, True),
             # Freshness Scoring
-            ("default_max_freshness_score", 3.0),
-            ("freshness_lambda_factor", 0.95),
-            ("freshness_exponential_base", 1.0),
+            ("default_max_freshness_score", 3.0, True),
+            ("freshness_lambda_factor", 0.95, True),
+            ("freshness_exponential_base", 1.0, True),
             # Lookback Periods
-            ("default_scoring_lookback_days", 1),
+            ("default_scoring_lookback_days", 1, False),
             # Likeability Scoring
-            ("default_similarity_score", 0.8),
-            ("average_popular_post_like_count", 100),
+            ("default_similarity_score", 0.8, True),
+            ("average_popular_post_like_count", 100, False),
             # Feed Postprocessing
-            ("jitter_amount", 2),
-            ("keep_count", 3),
+            ("jitter_amount", 2, False),
+            ("keep_count", 3, False),
         ],
     )
-    def test_config_values_match_original_constants(self, field_name, expected_value):
+    def test_config_values_match_original_constants(
+        self, field_name, expected_value, is_float
+    ):
         """Regression test: verify values match original magic numbers."""
         # Arrange
         config = FeedConfig()
@@ -77,10 +79,15 @@ class TestFeedConfig:
         # Act
         result = getattr(config, field_name)
 
-        # Assert
-        assert result == expected_value, (
-            f"{field_name} should be {expected_value}, got {result}"
-        )
+        # Assert - use pytest.approx for float comparisons
+        if is_float:
+            assert result == pytest.approx(expected_value), (
+                f"{field_name} should be approximately {expected_value}, got {result}"
+            )
+        else:
+            assert result == expected_value, (
+                f"{field_name} should be {expected_value}, got {result}"
+            )
 
     def test_freshness_decay_ratio_is_calculated_correctly(self):
         """Verify freshness_decay_ratio is calculated correctly."""
@@ -312,13 +319,10 @@ class TestFeedConfig:
         # Arrange
         config = FeedConfig()
 
-        # Act & Assert
-        for field_name in dir(config):
-            if not field_name.startswith("_") and not callable(
-                getattr(config, field_name)
-            ):
-                result = getattr(config, field_name)
-                assert result is not None, f"Field {field_name} is None"
+        # Act & Assert - use dataclasses.fields() instead of dir()
+        for field in fields(FeedConfig):
+            result = getattr(config, field.name)
+            assert result is not None, f"Field {field.name} is None"
 
     def test_freshness_decay_ratio_is_positive(self):
         """Verify freshness_decay_ratio is positive and reasonable."""
@@ -353,3 +357,95 @@ class TestFeedConfig:
         # Arrange & Act & Assert
         with pytest.raises(ValueError, match="max_in_network_posts_ratio must be in"):
             FeedConfig(max_in_network_posts_ratio=1.5)
+
+    def test_config_validation_rejects_invalid_max_num_times_user_can_appear_in_feed(
+        self,
+    ):
+        """Verify config validation rejects invalid max_num_times_user_can_appear_in_feed."""
+        # Arrange & Act & Assert
+        with pytest.raises(
+            ValueError, match="max_num_times_user_can_appear_in_feed must be > 0"
+        ):
+            FeedConfig(max_num_times_user_can_appear_in_feed=0)
+
+    def test_config_validation_rejects_invalid_feed_preprocessing_multiplier(self):
+        """Verify config validation rejects invalid feed_preprocessing_multiplier."""
+        # Arrange & Act & Assert
+        with pytest.raises(
+            ValueError, match="feed_preprocessing_multiplier must be > 0"
+        ):
+            FeedConfig(feed_preprocessing_multiplier=0)
+
+    def test_config_validation_rejects_invalid_coef_toxicity(self):
+        """Verify config validation rejects invalid coef_toxicity."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError, match="coef_toxicity must be > 0"):
+            FeedConfig(coef_toxicity=0)
+
+    def test_config_validation_rejects_invalid_coef_constructiveness(self):
+        """Verify config validation rejects invalid coef_constructiveness."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError, match="coef_constructiveness must be > 0"):
+            FeedConfig(coef_constructiveness=0)
+
+    def test_config_validation_rejects_invalid_superposter_coef(self):
+        """Verify config validation rejects invalid superposter_coef."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError, match="superposter_coef must be > 0"):
+            FeedConfig(superposter_coef=0)
+
+    def test_config_validation_rejects_invalid_engagement_coef(self):
+        """Verify config validation rejects invalid engagement_coef."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError, match="engagement_coef must be > 0"):
+            FeedConfig(engagement_coef=0)
+
+    def test_config_validation_rejects_invalid_default_max_freshness_score(self):
+        """Verify config validation rejects invalid default_max_freshness_score."""
+        # Arrange & Act & Assert
+        with pytest.raises(
+            ValueError, match="default_max_freshness_score must be > 0"
+        ):
+            FeedConfig(default_max_freshness_score=0)
+
+    def test_config_validation_rejects_invalid_freshness_lambda_factor(self):
+        """Verify config validation rejects invalid freshness_lambda_factor."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError, match="freshness_lambda_factor must be > 0"):
+            FeedConfig(freshness_lambda_factor=0)
+
+    def test_config_validation_rejects_invalid_freshness_exponential_base(self):
+        """Verify config validation rejects invalid freshness_exponential_base."""
+        # Arrange & Act & Assert
+        with pytest.raises(
+            ValueError, match="freshness_exponential_base must be > 0"
+        ):
+            FeedConfig(freshness_exponential_base=0)
+
+    def test_config_validation_rejects_invalid_default_scoring_lookback_days(self):
+        """Verify config validation rejects invalid default_scoring_lookback_days."""
+        # Arrange & Act & Assert
+        with pytest.raises(
+            ValueError, match="default_scoring_lookback_days must be > 0"
+        ):
+            FeedConfig(default_scoring_lookback_days=0)
+
+    def test_config_validation_rejects_invalid_average_popular_post_like_count(self):
+        """Verify config validation rejects invalid average_popular_post_like_count."""
+        # Arrange & Act & Assert
+        with pytest.raises(
+            ValueError, match="average_popular_post_like_count must be > 0"
+        ):
+            FeedConfig(average_popular_post_like_count=0)
+
+    def test_config_validation_rejects_invalid_jitter_amount(self):
+        """Verify config validation rejects invalid jitter_amount."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError, match="jitter_amount must be >= 0"):
+            FeedConfig(jitter_amount=-1)
+
+    def test_config_validation_rejects_invalid_keep_count(self):
+        """Verify config validation rejects invalid keep_count."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError, match="keep_count must be > 0"):
+            FeedConfig(keep_count=0)
