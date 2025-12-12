@@ -3,7 +3,7 @@
 import pytest
 
 from services.sync.stream.record_processors.types import RoutingDecision
-from services.sync.stream.types import FollowStatus, HandlerKey, RecordType
+from services.sync.stream.core.types import FollowStatus, HandlerKey, RecordType
 
 
 class TestRoutingDecision:

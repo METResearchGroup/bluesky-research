@@ -22,11 +22,8 @@ from services.sync.stream.core.context import (
     CacheWriteContext,
     BatchExportContext,
 )
-from services.sync.stream.core.setup import (
-    setup_cache_write_system,
-    setup_batch_export_system,
-    create_batch_export_context,
-)
+# NOTE: Setup functions are NOT imported here to avoid circular dependencies.
+# Import them directly from core.setup when needed.
 
 __all__ = [
     "Operation",
@@ -41,7 +38,4 @@ __all__ = [
     "RecordTypeRegistry",
     "CacheWriteContext",
     "BatchExportContext",
-    "setup_cache_write_system",
-    "setup_batch_export_system",
-    "create_batch_export_context",
 ]

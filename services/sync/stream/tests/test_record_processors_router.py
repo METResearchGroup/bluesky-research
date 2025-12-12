@@ -4,10 +4,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from services.sync.stream.context import CacheWriteContext
+from services.sync.stream.core.context import CacheWriteContext
 from services.sync.stream.record_processors.router import route_decisions
 from services.sync.stream.record_processors.types import RoutingDecision
-from services.sync.stream.types import FollowStatus, Operation, RecordType
+from services.sync.stream.core.types import FollowStatus, Operation, RecordType
 
 
 class TestRouteDecisions:

@@ -12,7 +12,7 @@ from typing import Protocol, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import pandas as pd
-    from services.sync.stream.types import (
+    from services.sync.stream.core.types import (
         Operation,
         RecordType,
         GenericRecordType,

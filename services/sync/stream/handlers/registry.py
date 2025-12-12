@@ -1,6 +1,6 @@
 """Registry for record type handlers (strategy pattern)."""
 
-from services.sync.stream.protocols import RecordHandlerProtocol
+from services.sync.stream.core.protocols import RecordHandlerProtocol
 
 
 class RecordHandlerRegistry:

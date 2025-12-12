@@ -4,13 +4,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from services.sync.stream.operations import operations_callback
+from services.sync.stream.streaming.operations import operations_callback
 from services.sync.stream.tests.mock_firehose_data import (
     mock_follow_records,
     mock_like_records,
     mock_post_records,
 )
-from services.sync.stream.types import Operation
+from services.sync.stream.core.types import Operation
 
 
 class TestOperationsCallbackIntegration:

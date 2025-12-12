@@ -10,7 +10,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 
 from services.sync.stream.record_processors.router import route_decisions
-from services.sync.stream.types import Operation, RecordType
+from services.sync.stream.core.types import Operation, RecordType
 
 
 def process_record(context, record_type: str, record: dict, operation: Operation):
@@ -176,7 +176,7 @@ class TestCacheWriteFollow:
         context.study_user_manager.study_users_dids_set.add(study_user_did)
         
         # Expected file path in follower directory
-        from services.sync.stream.types import FollowStatus
+        from services.sync.stream.core.types import FollowStatus
         base_path = path_manager.get_study_user_activity_path(
             operation=Operation.CREATE,
             record_type=RecordType.FOLLOW,
