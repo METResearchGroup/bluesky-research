@@ -23,25 +23,21 @@ from lib.db.manage_local_data import (
     load_data_from_local_storage,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
-from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
-from services.participant_data.helper import get_all_users
-from services.participant_data.models import UserToBlueskyProfileModel
 from services.preprocess_raw_data.classify_language.model import classify
 from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
     load_users_to_exclude,
 )
 from services.rank_score_feeds.config import feed_config
-from services.rank_score_feeds.constants import TEST_USER_HANDLES
 from services.rank_score_feeds.models import (
     CustomFeedModel,
     CustomFeedPost,
     ScoredPostModel,
 )
-from services.rank_score_feeds.scoring import calculate_post_scores
+from services.rank_score_feeds.orchestrator import FeedGenerationOrchestrator
 
 consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"
@@ -542,241 +538,26 @@ def export_feed_analytics(analytics: dict) -> None:
 
 
 def do_rank_score_feeds(
-    users_to_create_feeds_for: list[str] = None,
+    users_to_create_feeds_for: list[str] | None = None,
     skip_export_post_scores: bool = False,
     test_mode: bool = False,
 ):
     """Do the rank score feeds.
+
+    This is a thin wrapper around FeedGenerationOrchestrator.run() to maintain
+    backward compatibility with existing entrypoints.
 
     Also takes as optional input a list of Bluesky users (by handle) to create
     feeds for. If None, will create feeds for all users.
 
     Also takes as optional input a flag to skip exporting post scores to S3.
     """
-    logger.info("Starting rank score feeds.")
-
-    study_users: list[UserToBlueskyProfileModel] = get_all_users()
-
-    if test_mode:
-        study_users = [
-            user for user in study_users if user.bluesky_handle in TEST_USER_HANDLES
-        ]
-
-    latest_data: dict = load_latest_processed_data()
-    latest_feeds: dict = load_latest_feeds()
-    consolidated_enriched_posts: list[ConsolidatedEnrichedPostModel] = latest_data[
-        "consolidate_enrichment_integrations"
-    ]
-    consolidated_enriched_posts_df = pd.DataFrame(
-        [post.dict() for post in consolidated_enriched_posts]
+    orchestrator = FeedGenerationOrchestrator(feed_config=feed_config)
+    orchestrator.run(
+        users_to_create_feeds_for=users_to_create_feeds_for,
+        skip_export_post_scores=skip_export_post_scores,
+        test_mode=test_mode,
     )
-    user_to_social_network_map: dict = latest_data["scraped_user_social_network"]
-    superposter_dids: set[str] = latest_data["superposters"]
-    logger.info(f"Loaded {len(superposter_dids)} superposters.")  # noqa
-
-    # preprocess the data
-    consolidated_enriched_posts_df = preprocess_data(consolidated_enriched_posts_df)
-
-    # calculate scores for all the posts. Load any pre-existing scores and then
-    # calculate scores for new posts. Export scores for new posts.
-    post_scores, new_post_uris = calculate_post_scores(
-        posts=consolidated_enriched_posts_df,
-        superposter_dids=superposter_dids,
-        feed_config=feed_config,
-        load_previous_scores=True,
-    )  # noqa
-
-    engagement_scores = [score["engagement_score"] for score in post_scores]
-    treatment_scores = [score["treatment_score"] for score in post_scores]
-    consolidated_enriched_posts_df["engagement_score"] = engagement_scores
-    consolidated_enriched_posts_df["treatment_score"] = treatment_scores
-
-    logger.info(f"Calculated {len(consolidated_enriched_posts_df)} post scores.")
-    scores_to_export: list[dict] = consolidated_enriched_posts_df[
-        consolidated_enriched_posts_df["uri"].isin(new_post_uris)
-    ][["uri", "text", "source", "engagement_score", "treatment_score"]].to_dict(
-        "records"
-    )
-
-    # export scores to storage.
-    if not skip_export_post_scores:
-        logger.info(f"Exporting {len(scores_to_export)} post scores.")  # noqa
-        export_post_scores(scores_to_export=scores_to_export)
-
-    # list of all in-network user posts, across all study users. Needs to be
-    # filtered for the in-network posts relevant for a given study user.
-    candidate_in_network_user_activity_posts_df = consolidated_enriched_posts_df[
-        consolidated_enriched_posts_df["source"] == "firehose"
-    ]
-    # yes, popular posts can also be in-network. For now we'll treat them as
-    # out-of-network (and perhaps revisit treating them as in-network as well.)
-    # TODO: revisit this.
-    out_of_network_user_activity_posts_df = consolidated_enriched_posts_df[
-        consolidated_enriched_posts_df["source"] == "most_liked"
-    ]
-    logger.info(
-        f"Loaded {len(candidate_in_network_user_activity_posts_df)} in-network posts."
-    )  # noqa
-    logger.info(
-        f"Loaded {len(out_of_network_user_activity_posts_df)} out-of-network posts."
-    )  # noqa
-
-    # get lists of in-network and out-of-network posts
-    user_to_in_network_post_uris_map: dict[str, list[str]] = {
-        user.bluesky_user_did: calculate_in_network_posts_for_user(
-            user_did=user.bluesky_user_did,
-            user_to_social_network_map=user_to_social_network_map,
-            candidate_in_network_user_activity_posts_df=(
-                candidate_in_network_user_activity_posts_df
-            ),
-        )
-        for user in study_users
-    }
-
-    # sort feeds (reverse-chronological: timestamp descending, others: score descending)
-    reverse_chronological_post_pool_df: pd.DataFrame = consolidated_enriched_posts_df[
-        consolidated_enriched_posts_df["source"] == "firehose"
-    ].sort_values(by="synctimestamp", ascending=False)
-
-    engagement_post_pool_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
-        by="engagement_score", ascending=False
-    )
-
-    treatment_post_pool_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
-        by="treatment_score", ascending=False
-    )
-
-    if users_to_create_feeds_for:
-        logger.info(
-            f"Creating custom feeds for {len(users_to_create_feeds_for)} users provided in the input."
-        )  # noqa
-        study_users: list[UserToBlueskyProfileModel] = [
-            user
-            for user in study_users
-            if user.bluesky_handle in users_to_create_feeds_for
-        ]
-
-    # filter so that only first X posts from each author are included.
-    reverse_chronological_post_pool_df = filter_posts_by_author_count(
-        reverse_chronological_post_pool_df,
-        max_count=feed_config.max_num_times_user_can_appear_in_feed,
-    )
-
-    engagement_post_pool_df = filter_posts_by_author_count(
-        engagement_post_pool_df,
-        max_count=feed_config.max_num_times_user_can_appear_in_feed,
-    )
-
-    treatment_post_pool_df = filter_posts_by_author_count(
-        treatment_post_pool_df,
-        max_count=feed_config.max_num_times_user_can_appear_in_feed,
-    )
-
-    # generate feeds for each user.
-    user_to_ranked_feed_map: dict[str, dict] = {}
-    total_users = len(study_users)
-    logger.info(f"Creating feeds for {total_users} users")
-
-    for i, user in enumerate(study_users):
-        if i % 10 == 0:
-            logger.info(f"Creating feed for user {i}/{total_users}")
-        post_pool: pd.DataFrame = (
-            reverse_chronological_post_pool_df
-            if user.condition == "reverse_chronological"
-            else engagement_post_pool_df
-            if user.condition == "engagement"
-            else treatment_post_pool_df
-            if user.condition == "representative_diversification"
-            else None
-        )
-        if post_pool is None or len(post_pool) == 0:
-            raise ValueError(
-                "post_pool cannot be None. This means that a user condition is unexpected/invalid"
-            )  # noqa
-        candidate_feed: list[CustomFeedPost] = create_ranked_candidate_feed(
-            condition=user.condition,
-            in_network_candidate_post_uris=(
-                user_to_in_network_post_uris_map[user.bluesky_user_did]
-            ),
-            post_pool=post_pool,
-            max_feed_length=feed_config.max_feed_length,
-            max_in_network_posts_ratio=feed_config.max_in_network_posts_ratio,
-        )
-        feed: list[CustomFeedPost] = postprocess_feed(
-            feed=candidate_feed,
-            max_feed_length=feed_config.max_feed_length,
-            max_prop_old_posts=feed_config.max_prop_old_posts,
-            feed_preprocessing_multiplier=feed_config.feed_preprocessing_multiplier,
-            jitter_amount=feed_config.jitter_amount,
-            previous_post_uris=latest_feeds[user.bluesky_handle],
-        )
-        user_to_ranked_feed_map[user.bluesky_user_did] = {
-            "feed": feed,
-            "bluesky_handle": user.bluesky_handle,
-            "bluesky_user_did": user.bluesky_user_did,
-            "condition": user.condition,
-            "feed_statistics": generate_feed_statistics(feed=feed),
-        }
-        if len(feed) == 0:
-            logger.error(
-                f"No feed created for user {user.bluesky_user_did}. This shouldn't happen..."
-            )
-
-    # insert default feed, for users that aren't logged in or for if a user
-    # isn't in the study but opens the link.
-    default_feed: list[CustomFeedPost] = create_ranked_candidate_feed(
-        condition="reverse_chronological",
-        in_network_candidate_post_uris=[],
-        post_pool=reverse_chronological_post_pool_df,
-        max_feed_length=feed_config.max_feed_length,
-        max_in_network_posts_ratio=feed_config.max_in_network_posts_ratio,
-    )
-    postprocessed_default_feed = postprocess_feed(
-        feed=default_feed,
-        max_feed_length=feed_config.max_feed_length,
-        max_prop_old_posts=feed_config.max_prop_old_posts,
-        feed_preprocessing_multiplier=feed_config.feed_preprocessing_multiplier,
-        jitter_amount=feed_config.jitter_amount,
-        previous_post_uris=latest_feeds["default"],
-    )
-    user_to_ranked_feed_map["default"] = {
-        "feed": postprocessed_default_feed,
-        "bluesky_handle": "default",
-        "bluesky_user_did": "default",
-        "condition": "default",
-        "feed_statistics": generate_feed_statistics(feed=postprocessed_default_feed),
-    }
-
-    timestamp = generate_current_datetime_str()
-
-    # calculate analytics
-    analytics: dict = calculate_feed_analytics(
-        user_to_ranked_feed_map=user_to_ranked_feed_map,
-        timestamp=timestamp,
-    )
-    export_feed_analytics(analytics=analytics)
-
-    # write feeds to s3
-    export_results(user_to_ranked_feed_map=user_to_ranked_feed_map, timestamp=timestamp)
-
-    # ttl old feeds
-    if not test_mode:
-        logger.info("TTLing old feeds from active to cache.")
-        s3.sort_and_move_files_from_active_to_cache(
-            prefix="custom_feeds",
-            keep_count=feed_config.keep_count,
-            sort_field="Key",
-        )
-        logger.info(
-            f"Done TTLing old feeds from active to cache (keeping {feed_config.keep_count})."
-        )
-
-        # inserting feed generation session metadata.
-        feed_generation_session = {
-            "feed_generation_timestamp": timestamp,
-            "number_of_new_feeds": len(user_to_ranked_feed_map),
-        }
-        insert_feed_generation_session(feed_generation_session)
 
 
 if __name__ == "__main__":
