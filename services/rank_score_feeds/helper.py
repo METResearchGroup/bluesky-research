@@ -30,6 +30,8 @@ from lib.log.logger import get_logger
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
+from services.participant_data.models import SocialNetworkRelationshipModel
+from services.participant_data.social_network import build_user_social_network_map
 from services.preprocess_raw_data.classify_language.model import classify
 from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
     load_users_to_exclude,
@@ -179,27 +181,18 @@ def load_latest_processed_data(
         use_all_data=True,
         validate_pq_files=True,
     )
-    social_dicts = user_social_network_df.to_dict(orient="records")
+    social_dicts: list[dict] = user_social_network_df.to_dict(orient="records")
     social_dicts = parse_converted_pandas_dicts(social_dicts)
 
-    res = {}
-    for row in social_dicts:
-        if row["relationship_to_study_user"] == "follower":
-            study_user_did = row["follow_did"]
-            connection_did = row["follower_did"]
-        elif row["relationship_to_study_user"] == "follow":
-            study_user_did = row["follower_did"]
-            connection_did = row["follow_did"]
-        else:
-            logger.warning(f"Skipping row with unknown relationship: {row}")
-            continue  # Skip if relationship is not recognized
-        if study_user_did not in res:
-            res[study_user_did] = []
-        res[study_user_did].append(connection_did)
-
-    output["scraped_user_social_network"] = res
+    # Convert dicts to Pydantic models for type safety
+    social_network_records = [
+        SocialNetworkRelationshipModel(**record) for record in social_dicts
+    ]
+    user_to_social_network_map = build_user_social_network_map(social_network_records)
+    output["scraped_user_social_network"] = user_to_social_network_map
 
     # load latest superposters
+    # TODO: put this in a helper function in calculate_superposters.
     superposters_df: pd.DataFrame = load_data_from_local_storage(
         service="daily_superposters", latest_timestamp=lookback_datetime_str
     )
