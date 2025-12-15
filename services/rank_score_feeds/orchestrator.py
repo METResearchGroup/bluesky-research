@@ -5,13 +5,11 @@ all the components of the feed generation process using dependency injection.
 """
 
 import pandas as pd
-from lib.aws.athena import Athena
-from lib.aws.dynamodb import DynamoDB
-from lib.aws.glue import Glue
-from lib.aws.s3 import S3
+
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users
+from services.participant_data.models import UserToBlueskyProfileModel
 from services.rank_score_feeds.config import FeedConfig
 from services.rank_score_feeds.constants import TEST_USER_HANDLES
 from services.rank_score_feeds.helper import (
@@ -55,8 +53,12 @@ class FeedGenerationOrchestrator:
         Args:
             feed_config: Configuration for feed generation algorithm.
         """
+        from lib.aws.athena import Athena
+        from lib.aws.dynamodb import DynamoDB
+        from lib.aws.glue import Glue
+        from lib.aws.s3 import S3
+
         self.config = feed_config
-        # Construct AWS clients (same as current helper.py)
         self.athena = Athena()
         self.s3 = S3()
         self.dynamodb = DynamoDB()
@@ -86,6 +88,8 @@ class FeedGenerationOrchestrator:
         loaded_data = self._load_data(test_mode, users_to_create_feeds_for)
 
         # Step 2: Preprocess
+        # NOTE: I think this was a one-time patch that should really not
+        # be necessary if the preprocess_raw_data service is working.
         loaded_data.posts_df = preprocess_data(loaded_data.posts_df)
 
         # Step 3: Score posts
@@ -120,9 +124,10 @@ class FeedGenerationOrchestrator:
         Returns:
             LoadedData containing all loaded inputs.
         """
-        study_users = get_all_users()
+        study_users: list[UserToBlueskyProfileModel] = get_all_users()
 
         if test_mode:
+            logger.info(f"Filtering to test users only: {TEST_USER_HANDLES}.")
             study_users = [
                 user for user in study_users if user.bluesky_handle in TEST_USER_HANDLES
             ]
