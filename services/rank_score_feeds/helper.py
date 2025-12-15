@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 import json
 import os
 import random
-from typing import Union
 
 import pandas as pd
 
@@ -26,9 +25,6 @@ from lib.log.logger import get_logger
 from services.calculate_superposters.load_data import load_latest_superposters
 from services.calculate_superposters.models import CalculateSuperposterSource
 from services.consolidate_enrichment_integrations.load_data import load_enriched_posts
-from services.consolidate_enrichment_integrations.models import (
-    ConsolidatedEnrichedPostModel,
-)  # noqa
 from services.participant_data.social_network import load_user_social_network_map
 from services.preprocess_raw_data.classify_language.model import classify
 from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
@@ -38,6 +34,7 @@ from services.rank_score_feeds.config import feed_config
 from services.rank_score_feeds.models import (
     CustomFeedModel,
     CustomFeedPost,
+    FeedInputData,
     ScoredPostModel,
 )
 from services.rank_score_feeds.orchestrator import FeedGenerationOrchestrator
@@ -142,26 +139,40 @@ def preprocess_data(consolidated_enriched_posts_df: pd.DataFrame) -> pd.DataFram
 
 def load_latest_processed_data(
     lookback_days: int = default_lookback_days,
-    test_mode: bool = False,
-) -> dict[str, Union[dict, list[ConsolidatedEnrichedPostModel]]]:  # noqa
-    """Loads the latest consolidated enriched posts as well as the latest
-    user social network."""
+) -> FeedInputData:
+    """Load all input data required for feed generation.
+
+    Loads and returns the latest processed data from multiple services:
+    - Consolidated enriched posts (filtered by lookback window)
+    - User social network relationship mappings
+    - Superposter DIDs for identifying high-volume authors
+
+    Args:
+        lookback_days: Number of days to look back when loading enriched posts.
+            Defaults to the configured default lookback period.
+
+    Returns:
+        FeedInputData containing:
+            - consolidate_enrichment_integrations: DataFrame of enriched posts
+            - scraped_user_social_network: Mapping of user DIDs to their connection DIDs
+            - superposters: Set of superposter author DIDs
+    """
     lookback_datetime_str = calculate_lookback_datetime_str(
         lookback_days, format=TimestampFormat.BLUESKY
     )
 
-    output = {}
+    feed_input_data: FeedInputData = {
+        "consolidate_enrichment_integrations": load_enriched_posts(
+            latest_timestamp=lookback_datetime_str
+        ),
+        "scraped_user_social_network": load_user_social_network_map(),
+        "superposters": load_latest_superposters(
+            source=CalculateSuperposterSource.LOCAL,
+            latest_timestamp=lookback_datetime_str,
+        ),
+    }
 
-    output["consolidate_enrichment_integrations"] = load_enriched_posts(
-        latest_timestamp=lookback_datetime_str
-    )
-    output["scraped_user_social_network"] = load_user_social_network_map()
-    output["superposters"] = load_latest_superposters(
-        source=CalculateSuperposterSource.LOCAL,
-        latest_timestamp=lookback_datetime_str,
-    )
-
-    return output
+    return feed_input_data
 
 
 def export_post_scores(scores_to_export: list[dict]):
