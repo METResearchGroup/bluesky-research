@@ -137,10 +137,8 @@ def preprocess_data(consolidated_enriched_posts_df: pd.DataFrame) -> pd.DataFram
     return consolidated_enriched_posts_df
 
 
-def load_latest_processed_data(
-    lookback_days: int = default_lookback_days,
-) -> FeedInputData:
-    """Load all input data required for feed generation.
+def load_feed_input_data(lookback_days: int = default_lookback_days) -> FeedInputData:
+    """Load feed input data from multiple services.
 
     Loads and returns the latest processed data from multiple services:
     - Consolidated enriched posts (filtered by lookback window)

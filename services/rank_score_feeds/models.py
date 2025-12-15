@@ -78,6 +78,17 @@ class FeedInputData(TypedDict):
     superposters: set[str]
 
 
+class RawFeedData(TypedDict):
+    """Raw data loaded from all sources before transformation.
+
+    Contains the unprocessed data from all services needed for feed generation.
+    """
+
+    study_users: list[UserToBlueskyProfileModel]
+    feed_input_data: FeedInputData
+    latest_feeds: dict[str, set[str]]
+
+
 @dataclass
 class LoadedData:
     """Container for all loaded input data."""
