@@ -6,12 +6,12 @@ all the components of the feed generation process using dependency injection.
 
 import pandas as pd
 
+from lib.constants import TEST_USER_HANDLES
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.rank_score_feeds.config import FeedConfig
-from services.rank_score_feeds.constants import TEST_USER_HANDLES
 from services.rank_score_feeds.helper import (
     calculate_feed_analytics,
     calculate_in_network_posts_for_user,
@@ -143,7 +143,6 @@ class FeedGenerationOrchestrator:
         )
         user_to_social_network_map: dict = latest_data["scraped_user_social_network"]  # type: ignore[assignment]
         superposter_dids: set[str] = latest_data["superposters"]  # type: ignore[assignment]
-        self.logger.info(f"Loaded {len(superposter_dids)} superposters.")
 
         # Filter users if specified
         if users_to_create_feeds_for:

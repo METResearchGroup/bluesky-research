@@ -139,6 +139,7 @@ def preprocess_data(consolidated_enriched_posts_df: pd.DataFrame) -> pd.DataFram
 
 def load_latest_processed_data(
     lookback_days: int = default_lookback_days,
+    test_mode: bool = False,
 ) -> dict[str, Union[dict, list[ConsolidatedEnrichedPostModel]]]:  # noqa
     """Loads the latest consolidated enriched posts as well as the latest
     user social network."""
@@ -195,7 +196,7 @@ def load_latest_processed_data(
         superposters_lst: list[dict] = json.loads(
             superposters_df["superposters"].iloc[0]
         )
-    output["superposters"] = set([res["author_did"] for res in superposters_lst])
+    output["superposters"] = set[str]([res["author_did"] for res in superposters_lst])
 
     return output
 

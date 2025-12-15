@@ -9,6 +9,7 @@ from typing import Optional
 from lib.aws.athena import Athena
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
+from lib.constants import TEST_USER_HANDLES
 from lib.log.logger import get_logger
 from lib.helper import generate_current_datetime_str
 from lib.serverless_cache import (
@@ -34,13 +35,8 @@ study_user_did_to_handle_map = {
 }
 valid_dids = {user.bluesky_user_did for user in study_users}
 
-test_user_handles = [
-    "testblueskyaccount.bsky.social",
-    "testblueskyuserv2.bsky.social",
-    "markptorres.bsky.social",
-]
 test_user_dids = {
-    did for did in valid_dids if study_user_did_to_handle_map[did] in test_user_handles
+    did for did in valid_dids if study_user_did_to_handle_map[did] in TEST_USER_HANDLES
 }
 
 
