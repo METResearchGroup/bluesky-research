@@ -1,6 +1,6 @@
 """Helper functions for the rank_score_feeds service."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import json
 import os
 import random
@@ -13,12 +13,10 @@ from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
 from lib.constants import (
-    convert_pipeline_to_bsky_dt_format,
-    current_datetime,
     current_datetime_str,
     default_lookback_days,
-    timestamp_format,
 )
+from lib.datetime_utils import TimestampFormat, calculate_lookback_datetime_str
 from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import (
     export_data_to_local_storage,
@@ -148,9 +146,9 @@ def load_latest_processed_data(
 ) -> dict[str, Union[dict, list[ConsolidatedEnrichedPostModel]]]:  # noqa
     """Loads the latest consolidated enriched posts as well as the latest
     user social network."""
-    lookback_datetime = current_datetime - timedelta(days=lookback_days)
-    lookback_datetime_str = lookback_datetime.strftime(timestamp_format)
-    lookback_datetime_str = convert_pipeline_to_bsky_dt_format(lookback_datetime_str)
+    lookback_datetime_str = calculate_lookback_datetime_str(
+        lookback_days, format=TimestampFormat.BLUESKY
+    )
 
     output = {}
 

@@ -1,6 +1,5 @@
 """Send daily usage reports about each study user."""
 
-from datetime import timedelta
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -12,7 +11,8 @@ import tempfile
 import pandas as pd
 
 from lib.aws.athena import Athena
-from lib.constants import current_datetime, current_datetime_str, timestamp_format
+from lib.constants import current_datetime_str, timestamp_format
+from lib.datetime_utils import calculate_lookback_datetime_str
 from lib.helper import LAB_EMAIL_SENDER, LAB_EMAIL_PASSWORD
 from services.participant_data.helper import get_all_users
 
@@ -40,8 +40,7 @@ def load_user_session_logs(lookback_days: int = default_lookback_days):
     ).dt.date
     df["partition_date"] = df["partition_date"].apply(lambda x: x.strftime("%Y-%m-%d"))
 
-    lookback_datetime = current_datetime - timedelta(days=lookback_days)
-    lookback_datetime_str = lookback_datetime.strftime(timestamp_format)
+    lookback_datetime_str = calculate_lookback_datetime_str(lookback_days)
 
     # get only the logs from the previous day
     df = df[df["partition_date"] >= lookback_datetime_str]

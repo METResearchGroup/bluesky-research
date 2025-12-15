@@ -1,6 +1,5 @@
 """Calculate superposters."""
 
-from datetime import timedelta
 import json
 from typing import Optional
 
@@ -10,7 +9,8 @@ import pandas as pd
 from lib.aws.athena import Athena, DEFAULT_DB_NAME
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
-from lib.constants import current_datetime, current_datetime_str, timestamp_format  # noqa
+from lib.constants import current_datetime, current_datetime_str  # noqa
+from lib.datetime_utils import calculate_lookback_datetime_str
 from lib.db.manage_local_data import load_latest_data, export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
@@ -61,8 +61,7 @@ def calculate_latest_superposters(
     Prioritizes percentile over threshold if both are given.
     """
     lookback_days = 1
-    lookback_datetime = current_datetime - timedelta(days=lookback_days)
-    lookback_datetime_str = lookback_datetime.strftime(timestamp_format)
+    lookback_datetime_str = calculate_lookback_datetime_str(lookback_days)
 
     posts_df: pd.DataFrame = load_latest_data(
         service="daily_superposters",

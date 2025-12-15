@@ -1,6 +1,5 @@
-from datetime import timedelta
-
-from lib.constants import current_datetime, default_lookback_days, timestamp_format
+from lib.constants import default_lookback_days
+from lib.datetime_utils import calculate_lookback_datetime_str
 from lib.db.data_processing import parse_converted_pandas_dicts
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
@@ -18,8 +17,7 @@ def _load_latest_consolidated_enriched_posts(
     from lib.aws.athena import Athena
 
     athena = Athena()
-    lookback_datetime = current_datetime - timedelta(days=lookback_days)
-    lookback_datetime_str = lookback_datetime.strftime(timestamp_format)
+    lookback_datetime_str = calculate_lookback_datetime_str(lookback_days)
     query = f"""
     SELECT *
     FROM consolidated_enriched_post_records 
