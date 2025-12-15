@@ -179,5 +179,5 @@ def get_all_users(test_mode: bool = False) -> list[UserToBlueskyProfileModel]:
             users = [user for user in users if user.bluesky_handle in TEST_USER_HANDLES]
         return users
     except ClientError as e:
-        print(f"Failed to fetch users from DynamoDB: {e}")
-        return []
+        logger.error(f"Failed to fetch users from DynamoDB: {e}")
+        raise e

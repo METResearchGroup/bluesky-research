@@ -7,6 +7,8 @@ import random
 from typing import Union
 
 import pandas as pd
+from pydantic import ValidationError
+
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
@@ -149,17 +151,27 @@ def load_latest_processed_data(
 
     output = {}
 
-    # get posts
-    posts_df: pd.DataFrame = load_data_from_local_storage(
+    ### 1. Get posts ###
+    loaded_posts_df: pd.DataFrame = load_data_from_local_storage(
         service="consolidated_enriched_post_records",
         latest_timestamp=lookback_datetime_str,
     )
-    df_dicts = posts_df.to_dict(orient="records")
+    df_dicts = loaded_posts_df.to_dict(orient="records")
     df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
-    df_models = [ConsolidatedEnrichedPostModel(**post) for post in df_dicts]
-    output["consolidate_enrichment_integrations"] = df_models
 
-    # get user social network
+    # validate schemas of posts, then turn in dataframe.
+    try:
+        validated_post_models = [
+            ConsolidatedEnrichedPostModel(**post) for post in df_dicts
+        ]
+    except ValidationError as e:
+        logger.error(f"Failed to validate schemas of posts: {e}")
+        raise
+    posts_df: pd.DataFrame = pd.DataFrame(
+        [post.model_dump() for post in validated_post_models]
+    )
+
+    ### 2. Get user social network ###
     user_social_network_df: pd.DataFrame = load_data_from_local_storage(
         service="scraped_user_social_network",
         latest_timestamp=None,
@@ -191,11 +203,13 @@ def load_latest_processed_data(
         service="daily_superposters", latest_timestamp=lookback_datetime_str
     )
     if len(superposters_df) == 0:
-        superposters_lst = []
+        logger.warning("No superposters found in latest batch.")
+        superposters_lst: list[dict] = []
     else:
-        superposters_lst: list[dict] = json.loads(
-            superposters_df["superposters"].iloc[0]
-        )
+        superposters_lst = json.loads(superposters_df["superposters"].iloc[0])
+
+    # store results in output map.
+    output["consolidate_enrichment_integrations"] = posts_df
     output["superposters"] = set[str]([res["author_did"] for res in superposters_lst])
 
     return output

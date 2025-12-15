@@ -6,7 +6,6 @@ all the components of the feed generation process using dependency injection.
 
 import pandas as pd
 
-from lib.constants import TEST_USER_HANDLES
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users
@@ -124,13 +123,9 @@ class FeedGenerationOrchestrator:
         Returns:
             LoadedData containing all loaded inputs.
         """
-        study_users: list[UserToBlueskyProfileModel] = get_all_users()
-
-        if test_mode:
-            logger.info(f"Filtering to test users only: {TEST_USER_HANDLES}.")
-            study_users = [
-                user for user in study_users if user.bluesky_handle in TEST_USER_HANDLES
-            ]
+        study_users: list[UserToBlueskyProfileModel] = get_all_users(
+            test_mode=test_mode
+        )
 
         latest_data = load_latest_processed_data()
         latest_feeds = load_latest_feeds()
