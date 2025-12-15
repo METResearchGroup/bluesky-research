@@ -12,6 +12,7 @@ from lib.aws.athena import Athena, DEFAULT_DB_NAME
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import current_datetime, current_datetime_str, timestamp_format  # noqa
+from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import load_latest_data, export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
@@ -187,7 +188,7 @@ def load_latest_superposters() -> set[str]:
     """
     superposters_df = athena.query_results_as_df(query)
     superposter_dicts = superposters_df.to_dict(orient="records")
-    superposter_dicts = athena.parse_converted_pandas_dicts(superposter_dicts)
+    superposter_dicts = parse_converted_pandas_dicts(superposter_dicts)
     superposter_dict = superposter_dicts[0]
     superposters: str = superposter_dict["superposters"]
     superposter_list: list[dict] = json.loads(transform_string(superposters))

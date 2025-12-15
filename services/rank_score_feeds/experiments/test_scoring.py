@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from lib.constants import current_datetime, default_lookback_days, timestamp_format
+from lib.db.data_processing import parse_converted_pandas_dicts
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
@@ -26,7 +27,7 @@ def _load_latest_consolidated_enriched_posts(
     """
     df = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     return [ConsolidatedEnrichedPostModel(**post) for post in df_dicts]
 
 

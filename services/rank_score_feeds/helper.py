@@ -20,6 +20,7 @@ from lib.constants import (
     default_lookback_days,
     timestamp_format,
 )
+from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import (
     export_data_to_local_storage,
     load_data_from_local_storage,
@@ -157,7 +158,7 @@ def load_latest_processed_data(
         latest_timestamp=lookback_datetime_str,
     )
     df_dicts = loaded_posts_df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
 
     # validate schemas of posts, then turn in dataframe.
     try:
@@ -179,7 +180,7 @@ def load_latest_processed_data(
         validate_pq_files=True,
     )
     social_dicts = user_social_network_df.to_dict(orient="records")
-    social_dicts = athena.parse_converted_pandas_dicts(social_dicts)
+    social_dicts = parse_converted_pandas_dicts(social_dicts)
 
     res = {}
     for row in social_dicts:
@@ -304,7 +305,7 @@ def load_latest_feeds() -> dict[str, set[str]]:
     """
     df = athena.query_results_as_df(query=query)
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     bluesky_user_handles = []
     feed_dicts = []
     for df_dict in df_dicts:

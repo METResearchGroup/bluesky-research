@@ -9,6 +9,7 @@ from typing import Optional
 from lib.aws.athena import Athena
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
+from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.constants import TEST_USER_HANDLES
 from lib.log.logger import get_logger
 from lib.helper import generate_current_datetime_str
@@ -82,7 +83,7 @@ def load_all_latest_user_feeds_from_s3() -> dict[str, list[dict]]:
     """
     df = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     feeds = [row["feed"] for row in df_dicts]
     user_feed_dicts: list[list[dict]] = [json.loads(feed) for feed in feeds]
     user_dids = [row["user"] for row in df_dicts]
@@ -107,7 +108,7 @@ def load_latest_user_feed_from_s3(user_did: str) -> tuple[list[dict], str]:
     """
     df = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     feed: str = df_dicts[0]["feed"]
     feed_id: str = df_dicts[0]["feed_id"]
     feed_dicts: list[dict] = json.loads(feed)
