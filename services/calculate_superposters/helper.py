@@ -2,7 +2,6 @@
 
 from datetime import timedelta
 import json
-import re
 from typing import Optional
 
 from boto3.dynamodb.types import TypeSerializer
@@ -12,7 +11,6 @@ from lib.aws.athena import Athena, DEFAULT_DB_NAME
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import current_datetime, current_datetime_str, timestamp_format  # noqa
-from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import load_latest_data, export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.helper import generate_current_datetime_str
@@ -161,43 +159,6 @@ def calculate_latest_superposters(
     insert_superposter_session(superposter_calculation_session)
 
     logger.info(f"Wrote {len(superposters)} superposters.")
-
-
-def transform_string(input_str: str) -> str:
-    """Transforms the superposter string.
-
-    e.g.,
-    >> transform_string('{author_did=did:plc:jhfzhcn4lgr5bapem2lyodwm, count=5}')
-    '{"author_did":"did:plc:jhfzhcn4lgr5bapem2lyodwm", "count":5}'
-    """
-    # Step 1: Surround keys with quotes
-    input_str = re.sub(r"(\w+)=", r'"\1":', input_str)
-
-    # Step 2: Surround the did:plc:<some string> with quotes
-    input_str = re.sub(r"(did:plc:[\w]+)", r'"\1"', input_str)
-
-    return input_str
-
-
-def load_latest_superposters() -> set[str]:
-    """Loads the latest superposter DIDs."""
-    query = f"""
-    SELECT * FROM {DB_NAME}.{athena_table_name}
-    ORDER BY insert_date_timestamp DESC
-    LIMIT 1
-    """
-    superposters_df = athena.query_results_as_df(query)
-    superposter_dicts = superposters_df.to_dict(orient="records")
-    superposter_dicts = parse_converted_pandas_dicts(superposter_dicts)
-    superposter_dict = superposter_dicts[0]
-    superposters: str = superposter_dict["superposters"]
-    superposter_list: list[dict] = json.loads(transform_string(superposters))
-    superposter_dict["superposters"] = superposter_list
-    superposter_model = SuperposterCalculationModel(**superposter_dict)
-    author_dids = [
-        superposter.author_did for superposter in superposter_model.superposters
-    ]
-    return set(author_dids)
 
 
 if __name__ == "__main__":

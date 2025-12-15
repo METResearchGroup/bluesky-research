@@ -22,10 +22,11 @@ from lib.constants import (
 from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import (
     export_data_to_local_storage,
-    load_data_from_local_storage,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
+from services.calculate_superposters.load_data import load_latest_superposters
+from services.calculate_superposters.models import CalculateSuperposterSource
 from services.consolidate_enrichment_integrations.load_data import load_enriched_posts
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
@@ -153,24 +154,14 @@ def load_latest_processed_data(
 
     output = {}
 
-    # load latest superposters
-    # TODO: put this in a helper function in calculate_superposters.
-    superposters_df: pd.DataFrame = load_data_from_local_storage(
-        service="daily_superposters", latest_timestamp=lookback_datetime_str
-    )
-    if len(superposters_df) == 0:
-        logger.warning("No superposters found in latest batch.")
-        superposters_lst: list[dict] = []
-    else:
-        superposters_lst = json.loads(superposters_df["superposters"].iloc[0])
-
-    # store results in output map.
     output["consolidate_enrichment_integrations"] = load_enriched_posts(
         latest_timestamp=lookback_datetime_str
     )
     output["scraped_user_social_network"] = load_user_social_network_map()
-
-    output["superposters"] = set[str]([res["author_did"] for res in superposters_lst])
+    output["superposters"] = load_latest_superposters(
+        source=CalculateSuperposterSource.LOCAL,
+        latest_timestamp=lookback_datetime_str,
+    )
 
     return output
 

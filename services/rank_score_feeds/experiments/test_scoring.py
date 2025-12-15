@@ -32,9 +32,12 @@ def _load_latest_consolidated_enriched_posts(
 
 
 def _load_superposters() -> set[str]:
-    from services.calculate_superposters.helper import load_latest_superposters
+    from services.calculate_superposters.load_data import load_latest_superposters
+    from services.calculate_superposters.models import CalculateSuperposterSource
 
-    superposter_dids: set[str] = load_latest_superposters()
+    superposter_dids: set[str] = load_latest_superposters(
+        source=CalculateSuperposterSource.REMOTE
+    )
     return superposter_dids
 
 
