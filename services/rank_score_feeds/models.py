@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, TypedDict
 
 import pandas as pd
 from pydantic import BaseModel, Field
@@ -62,6 +62,31 @@ class CustomFeedModel(BaseModel):
 
 
 # Data carrier dataclasses for orchestrator (Phase 1)
+
+
+class FeedInputData(TypedDict):
+    """Input data required for feed generation.
+
+    Contains all the data sources needed to generate ranked feeds:
+    - Enriched posts from the consolidation service
+    - User social network mappings
+    - Superposter DIDs for filtering
+    """
+
+    consolidate_enrichment_integrations: pd.DataFrame
+    scraped_user_social_network: dict[str, list[str]]
+    superposters: set[str]
+
+
+class RawFeedData(TypedDict):
+    """Raw data loaded from all sources before transformation.
+
+    Contains the unprocessed data from all services needed for feed generation.
+    """
+
+    study_users: list[UserToBlueskyProfileModel]
+    feed_input_data: FeedInputData
+    latest_feeds: dict[str, set[str]]
 
 
 @dataclass

@@ -12,6 +12,7 @@ from lib.db.bluesky_models.embed import (
     ProcessedExternalEmbed,
     ProcessedRecordEmbed,
 )
+from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.helper import track_performance
 from lib.log.logger import get_logger
@@ -42,7 +43,7 @@ def load_previous_session_metadata():
 
 def transform_latest_posts(df: pd.DataFrame) -> list[ConsolidatedPostRecordModel]:
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     df_dicts_cleaned = [post for post in df_dicts if post["text"] is not None]
     for post in df_dicts_cleaned:
         post["embed"] = json.loads(post["embed"])

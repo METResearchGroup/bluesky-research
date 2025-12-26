@@ -67,6 +67,9 @@ jobs:
           services/calculate_analytics/shared/processing/tests \
           services/write_cache_buffers_to_db/tests \
           services/rank_score_feeds/tests \
+          services/participant_data/tests \
+          services/consolidate_enrichment_integrations/tests \
+          services/calculate_superposters/tests \
           services/sync/stream/tests \
           services/sync/jetstream/tests \
           lib/pipeline_invocation/tests

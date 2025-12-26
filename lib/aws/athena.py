@@ -8,6 +8,7 @@ import pandas as pd
 
 from lib.aws.helper import create_client
 from lib.aws.s3 import S3
+from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.log.logger import get_logger
 
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
@@ -103,32 +104,6 @@ class Athena:
 
         return df
 
-    def remove_timestamp_partition_fields(self, dicts: list[dict]) -> list[dict]:
-        """Remove fields related to timestamp partitions."""
-        fields_to_remove = [
-            "year",
-            "month",
-            "day",
-            "hour",
-            "minute",
-        ]  # extra fields from preprocessing partitions.
-        return [
-            {k: v for k, v in post.items() if k not in fields_to_remove}
-            for post in dicts
-        ]
-
-    def convert_nan_to_none(self, dicts: list[dict]) -> list[dict]:
-        """Convert NaN values to None."""
-        return [
-            {k: (None if pd.isna(v) else v) for k, v in post.items()} for post in dicts
-        ]
-
-    def parse_converted_pandas_dicts(self, dicts: list[dict]) -> list[dict]:
-        """Parse converted pandas dicts."""
-        df_dicts = self.remove_timestamp_partition_fields(dicts)
-        df_dicts = self.convert_nan_to_none(df_dicts)
-        return df_dicts
-
     def get_latest_preprocessed_posts(
         self,
         timestamp: Optional[str] = None,
@@ -169,7 +144,7 @@ class Athena:
 
         df_dicts = df.to_dict(orient="records")
         # convert NaN values to None, remove extra fields.
-        df_dicts = self.parse_converted_pandas_dicts(df_dicts)
+        df_dicts = parse_converted_pandas_dicts(df_dicts)
         # remove values without text
         df_dicts_cleaned = [post for post in df_dicts if post["text"] is not None]
 

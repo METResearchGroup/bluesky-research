@@ -1,32 +1,31 @@
 """Helper functions for the rank_score_feeds service."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import json
 import os
 import random
-from typing import Union
 
 import pandas as pd
+
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
 from lib.constants import (
-    convert_pipeline_to_bsky_dt_format,
-    current_datetime,
     current_datetime_str,
     default_lookback_days,
-    timestamp_format,
 )
+from lib.datetime_utils import TimestampFormat, calculate_lookback_datetime_str
+from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import (
     export_data_to_local_storage,
-    load_data_from_local_storage,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
-from services.consolidate_enrichment_integrations.models import (
-    ConsolidatedEnrichedPostModel,
-)  # noqa
+from services.calculate_superposters.load_data import load_latest_superposters
+from services.calculate_superposters.models import CalculateSuperposterSource
+from services.consolidate_enrichment_integrations.load_data import load_enriched_posts
+from services.participant_data.social_network import load_user_social_network_map
 from services.preprocess_raw_data.classify_language.model import classify
 from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
     load_users_to_exclude,
@@ -35,6 +34,7 @@ from services.rank_score_feeds.config import feed_config
 from services.rank_score_feeds.models import (
     CustomFeedModel,
     CustomFeedPost,
+    FeedInputData,
     ScoredPostModel,
 )
 from services.rank_score_feeds.orchestrator import FeedGenerationOrchestrator
@@ -137,67 +137,40 @@ def preprocess_data(consolidated_enriched_posts_df: pd.DataFrame) -> pd.DataFram
     return consolidated_enriched_posts_df
 
 
-def load_latest_processed_data(
-    lookback_days: int = default_lookback_days,
-) -> dict[str, Union[dict, list[ConsolidatedEnrichedPostModel]]]:  # noqa
-    """Loads the latest consolidated enriched posts as well as the latest
-    user social network."""
-    lookback_datetime = current_datetime - timedelta(days=lookback_days)
-    lookback_datetime_str = lookback_datetime.strftime(timestamp_format)
-    lookback_datetime_str = convert_pipeline_to_bsky_dt_format(lookback_datetime_str)
+def load_feed_input_data(lookback_days: int = default_lookback_days) -> FeedInputData:
+    """Load feed input data from multiple services.
 
-    output = {}
+    Loads and returns the latest processed data from multiple services:
+    - Consolidated enriched posts (filtered by lookback window)
+    - User social network relationship mappings
+    - Superposter DIDs for identifying high-volume authors
 
-    # get posts
-    posts_df: pd.DataFrame = load_data_from_local_storage(
-        service="consolidated_enriched_post_records",
-        latest_timestamp=lookback_datetime_str,
+    Args:
+        lookback_days: Number of days to look back when loading enriched posts.
+            Defaults to the configured default lookback period.
+
+    Returns:
+        FeedInputData containing:
+            - consolidate_enrichment_integrations: DataFrame of enriched posts
+            - scraped_user_social_network: Mapping of user DIDs to their connection DIDs
+            - superposters: Set of superposter author DIDs
+    """
+    lookback_datetime_str = calculate_lookback_datetime_str(
+        lookback_days, format=TimestampFormat.BLUESKY
     )
-    df_dicts = posts_df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
-    df_models = [ConsolidatedEnrichedPostModel(**post) for post in df_dicts]
-    output["consolidate_enrichment_integrations"] = df_models
 
-    # get user social network
-    user_social_network_df: pd.DataFrame = load_data_from_local_storage(
-        service="scraped_user_social_network",
-        latest_timestamp=None,
-        use_all_data=True,
-        validate_pq_files=True,
-    )
-    social_dicts = user_social_network_df.to_dict(orient="records")
-    social_dicts = athena.parse_converted_pandas_dicts(social_dicts)
+    feed_input_data: FeedInputData = {
+        "consolidate_enrichment_integrations": load_enriched_posts(
+            latest_timestamp=lookback_datetime_str
+        ),
+        "scraped_user_social_network": load_user_social_network_map(),
+        "superposters": load_latest_superposters(
+            source=CalculateSuperposterSource.LOCAL,
+            latest_timestamp=lookback_datetime_str,
+        ),
+    }
 
-    res = {}
-    for row in social_dicts:
-        if row["relationship_to_study_user"] == "follower":
-            study_user_did = row["follow_did"]
-            connection_did = row["follower_did"]
-        elif row["relationship_to_study_user"] == "follow":
-            study_user_did = row["follower_did"]
-            connection_did = row["follow_did"]
-        else:
-            logger.warning(f"Skipping row with unknown relationship: {row}")
-            continue  # Skip if relationship is not recognized
-        if study_user_did not in res:
-            res[study_user_did] = []
-        res[study_user_did].append(connection_did)
-
-    output["scraped_user_social_network"] = res
-
-    # load latest superposters
-    superposters_df: pd.DataFrame = load_data_from_local_storage(
-        service="daily_superposters", latest_timestamp=lookback_datetime_str
-    )
-    if len(superposters_df) == 0:
-        superposters_lst = []
-    else:
-        superposters_lst: list[dict] = json.loads(
-            superposters_df["superposters"].iloc[0]
-        )
-    output["superposters"] = set([res["author_did"] for res in superposters_lst])
-
-    return output
+    return feed_input_data
 
 
 def export_post_scores(scores_to_export: list[dict]):
@@ -289,7 +262,7 @@ def load_latest_feeds() -> dict[str, set[str]]:
     """
     df = athena.query_results_as_df(query=query)
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     bluesky_user_handles = []
     feed_dicts = []
     for df_dict in df_dicts:

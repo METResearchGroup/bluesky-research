@@ -42,6 +42,12 @@ root_local_backup_data_directory = os.path.join(root_directory, backup_data_dirn
 
 default_lookback_days = 2
 
+TEST_USER_HANDLES = [
+    "testblueskyaccount.bsky.social",
+    "testblueskyuserv2.bsky.social",
+    "markptorres.bsky.social",
+]
+
 
 def convert_pipeline_to_bsky_dt_format(pipeline_dt: str) -> str:
     """Converts a pipeline datetime string to a Bluesky datetime string."""

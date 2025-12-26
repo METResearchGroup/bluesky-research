@@ -1,7 +1,15 @@
 """Models for calculating superposters."""
 
+from enum import Enum
 from typing import List, Optional
 from pydantic import BaseModel, Field
+
+
+class CalculateSuperposterSource(str, Enum):
+    """Source for loading superposter data."""
+
+    LOCAL = "local"
+    REMOTE = "remote"
 
 
 class SuperposterModel(BaseModel):

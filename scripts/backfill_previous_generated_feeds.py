@@ -24,6 +24,7 @@ import pandas as pd
 
 from lib.aws.athena import Athena
 from lib.aws.s3 import S3
+from lib.db.data_processing import parse_converted_pandas_dicts
 
 athena = Athena()
 s3 = S3()
@@ -54,7 +55,7 @@ def load_cached_feeds_as_df(start_date: str, end_date: str) -> dict[str, pd.Data
         return {}
 
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     df = pd.DataFrame(df_dicts)
 
     # Group by partition_date and create dictionary of dataframes
