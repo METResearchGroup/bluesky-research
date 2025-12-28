@@ -275,6 +275,7 @@ testpaths = [
     "pipelines/classify_records/sociopolitical/tests",
     "pipelines/classify_records/valence_classifier/tests",
     "lib/pipeline_invocation/tests",
+    "transform/tests",
 ]
 
 # Ignore certain directories
@@ -294,6 +295,7 @@ addopts = [
     "--tb=short",
     "--strict-markers",
     "-p", "no:opik",
+    "-m", "not integration",
 ]
 
 # Configure pytest plugins

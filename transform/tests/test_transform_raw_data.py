@@ -1,6 +1,12 @@
 """Tests for `transform_raw_data.py`."""
 import json
+import sys
+from unittest.mock import MagicMock
 
+# Mock boto3 before importing modules that depend on it
+sys.modules["boto3"] = MagicMock()
+
+import pytest
 from atproto_client.models.app.bsky.feed.post import Record
 
 from transform.bluesky_helper import get_post_record_from_post_link
@@ -214,48 +220,64 @@ def test_process_strong_ref():
 
 
 def test_process_record_embed():
+    """Test that process_record_embed returns ProcessedRecordEmbed model."""
+    # Arrange
     strong_ref = StrongRef(cid="1234", uri="http://example.com")
     record_embed = RecordEmbed(record=strong_ref)
-    result = json.loads(process_record_embed(record_embed))
-    expected_result = {
+    expected = {
         "cid": "1234", "uri": "http://example.com"
     }
-    assert result == expected_result
+    
+    # Act
+    result = process_record_embed(record_embed)
+    
+    # Assert
+    assert result.model_dump() == expected
 
 
 def test_process_external_embed():
+    """Test that process_external_embed returns ProcessedExternalEmbed model."""
+    # Arrange
     external = External(description="Description",
                         title="Title", uri="http://example.com")
     external_embed = ExternalEmbed(external=external)
-    result = json.loads(process_external_embed(external_embed))
-    expected_result = {
+    expected = {
         "description": "Description",
         "title": "Title",
         "uri": "http://example.com"
     }
-    assert result == expected_result
+    
+    # Act
+    result = process_external_embed(external_embed)
+    
+    # Assert
+    assert result.model_dump() == expected
 
 
 def test_process_record_with_media_embed():
+    """Test that process_record_with_media_embed returns ProcessedRecordWithMediaEmbed model."""
+    # Arrange
     image = ImageEmbed([Image(alt="An image")])
     strong_ref = StrongRef(cid="1234", uri="http://example.com")
     record_embed = RecordEmbed(record=strong_ref)
     record_with_media = RecordWithMediaEmbed(media=image, record=record_embed)
-    result = process_record_with_media_embed(record_with_media)
-    expected_result = {
-        "image_alt_text": "An image",
-        "embedded_record": json.dumps(
-            {"cid": "1234", "uri": "http://example.com"}
-        )
+    expected_embedded_record = {
+        "cid": "1234", "uri": "http://example.com"
     }
-    assert result == expected_result
+    
+    # Act
+    result = process_record_with_media_embed(record_with_media)
+    
+    # Assert
+    assert result.image_alt_text == "An image"
+    assert result.embedded_record.model_dump() == expected_embedded_record
 
 
 def test_process_embed():
+    """Test that process_embed returns ProcessedEmbed model."""
+    # Arrange
     image = ImageEmbed([Image(alt="An image")])
-    processed_embed = process_embed(image)
-    result = json.loads(processed_embed)
-    expected_result = {
+    expected = {
         "has_image": True,
         "image_alt_text": "An image",
         "has_embedded_record": False,
@@ -263,9 +285,15 @@ def test_process_embed():
         "has_external": False,
         "external": None
     }
-    assert result == expected_result
+    
+    # Act
+    result = process_embed(image)
+    
+    # Assert
+    assert result.model_dump() == expected
 
 
+@pytest.mark.integration
 def test_process_firehose_post():
     """Test our ability to flatten a firehost post.
 
@@ -276,6 +304,8 @@ def test_process_firehose_post():
     deleted, plus they let us test for the existence of things like embeds
     and facets, which are the most tricky to parse since they have different
     variations.
+    
+    This is an integration test that makes real API calls.
     """  # noqa
     # test 1
     link = "https://bsky.app/profile/nytimes.com/post/3kowbajil7r2y"
