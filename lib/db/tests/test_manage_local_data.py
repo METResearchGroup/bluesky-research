@@ -1244,4 +1244,222 @@ class TestExportDataToLocalStorage:
         mock_partition.assert_not_called()
         
         # Verify the export still occurred
-        mock_to_parquet.assert_called_once()
+        mock_write_to_dataset.assert_called_once()
+
+    def test_value_error_handling(self, mocker, mock_service_metadata, mock_df):
+        """Test that ValueError from dtype coercion is caught and re-raised."""
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-01",
+            "data": mock_df
+        }])
+        mocker.patch("os.makedirs")
+        mock_coerce = mocker.patch("lib.db.manage_local_data._coerce_df_to_dtypes_map")
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        
+        # Simulate dtype coercion failure
+        coercion_error = ValueError("Failed to coerce column=col1 to dtype=Int64: invalid literal")
+        mock_coerce.side_effect = coercion_error
+        
+        # Should raise the exception after logging
+        with pytest.raises(ValueError, match="Failed to coerce column"):
+            export_data_to_local_storage(
+                service="test_service",
+                df=mock_df
+            )
+        
+        # Verify error was logged with proper context
+        mock_logger.error.assert_called_once()
+        error_call = mock_logger.error.call_args[0][0]
+        assert "Data type coercion error" in error_call
+        assert "test_service" in error_call
+
+    def test_arrow_exception_handling(self, mocker, mock_service_metadata, mock_df):
+        """Test that PyArrow exceptions are caught and re-raised with proper logging."""
+        import pyarrow as pa
+        
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-01",
+            "data": mock_df
+        }])
+        mocker.patch("os.makedirs")
+        mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        
+        # Create a mock ArrowException
+        arrow_error = pa.ArrowException("Schema validation failed")
+        mock_write_to_dataset.side_effect = arrow_error
+        
+        # Should raise the exception after logging
+        with pytest.raises(pa.ArrowException, match="Schema validation failed"):
+            export_data_to_local_storage(
+                service="test_service",
+                df=mock_df
+            )
+        
+        # Verify error was logged with proper context
+        mock_logger.error.assert_called_once()
+        error_call = mock_logger.error.call_args[0][0]
+        assert "PyArrow error" in error_call
+        assert "test_service" in error_call
+
+    def test_os_error_handling(self, mocker, mock_service_metadata, mock_df):
+        """Test that OSError from file system operations is caught and re-raised."""
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-01",
+            "data": mock_df
+        }])
+        mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        
+        # Simulate file system error
+        fs_error = OSError("Permission denied: /data/test_service")
+        mock_write_to_dataset.side_effect = fs_error
+        
+        # Should raise the exception after logging
+        with pytest.raises(OSError, match="Permission denied"):
+            export_data_to_local_storage(
+                service="test_service",
+                df=mock_df
+            )
+        
+        # Verify error was logged with proper context
+        mock_logger.error.assert_called_once()
+        error_call = mock_logger.error.call_args[0][0]
+        assert "File system error" in error_call
+        assert "test_service" in error_call
+
+    def test_io_error_handling(self, mocker, mock_service_metadata, mock_df):
+        """Test that IOError from file system operations is caught and re-raised."""
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-01",
+            "data": mock_df
+        }])
+        mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        
+        # Simulate I/O error
+        io_error = IOError("Disk full")
+        mock_write_to_dataset.side_effect = io_error
+        
+        # Should raise the exception after logging
+        with pytest.raises(IOError, match="Disk full"):
+            export_data_to_local_storage(
+                service="test_service",
+                df=mock_df
+            )
+        
+        # Verify error was logged with proper context
+        mock_logger.error.assert_called_once()
+        error_call = mock_logger.error.call_args[0][0]
+        assert "File system error" in error_call
+        assert "test_service" in error_call
+
+    def test_unexpected_exception_handling(self, mocker, mock_service_metadata, mock_df):
+        """Test that unexpected exceptions are caught and re-raised."""
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-01",
+            "data": mock_df
+        }])
+        mocker.patch("os.makedirs")
+        mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        
+        # Simulate unexpected error
+        unexpected_error = RuntimeError("Unexpected runtime error")
+        mock_write_to_dataset.side_effect = unexpected_error
+        
+        # Should raise the exception after logging
+        with pytest.raises(RuntimeError, match="Unexpected runtime error"):
+            export_data_to_local_storage(
+                service="test_service",
+                df=mock_df
+            )
+        
+        # Verify error was logged with proper context
+        mock_logger.error.assert_called_once()
+        error_call = mock_logger.error.call_args[0][0]
+        assert "Unexpected error" in error_call
+        assert "test_service" in error_call
+
+    def test_missing_partition_date_warning(self, mocker, mock_service_metadata):
+        """Test that warning is logged when partition_date column is missing."""
+        df_without_partition = pd.DataFrame({
+            "col1": [1, 2],
+            "col2": ["a", "b"],
+            "preprocessing_timestamp": ["2024-01-01", "2024-01-02"],
+        })
+        
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-01",
+            "data": df_without_partition
+        }])
+        mocker.patch("os.makedirs")
+        mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        
+        export_data_to_local_storage(
+            service="test_service",
+            df=df_without_partition
+        )
+        
+        # Verify warning was logged for missing partition_date
+        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+        assert any("partition_date column missing" in call for call in warning_calls)
+
+    def test_multiple_partition_dates_warning(self, mocker, mock_service_metadata):
+        """Test that warning is logged when multiple unique partition dates are found."""
+        df_with_multiple_dates = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "preprocessing_timestamp": ["2024-01-01", "2024-01-02", "2024-01-03"],
+            "partition_date": ["2024-01-01", "2024-01-02", "2024-01-03"],
+        })
+        
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-03",
+            "data": df_with_multiple_dates
+        }])
+        mocker.patch("os.makedirs")
+        mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        
+        export_data_to_local_storage(
+            service="test_service",
+            df=df_with_multiple_dates
+        )
+        
+        # Verify warning was logged for multiple partition dates
+        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+        assert any("Multiple unique partition dates found" in call for call in warning_calls)
+
+    def test_missing_schema_warning(self, mocker, mock_service_metadata, mock_df):
+        """Test that warning is logged when schema is None."""
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-01",
+            "data": mock_df
+        }])
+        mocker.patch("os.makedirs")
+        mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
+        mock_get_schema = mocker.patch("lib.db.manage_local_data.get_service_pa_schema")
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        
+        # Return None schema to trigger warning
+        mock_get_schema.return_value = None
+        
+        export_data_to_local_storage(
+            service="test_service",
+            df=mock_df
+        )
+        
+        # Verify warning was logged for missing schema
+        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+        assert any("No PyArrow schema available" in call for call in warning_calls)
+        assert any("schema drift" in call for call in warning_calls)
