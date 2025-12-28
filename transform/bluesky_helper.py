@@ -1,5 +1,6 @@
 """Helper functions for processing Bluesky data."""
 
+from functools import lru_cache
 from typing import Optional
 
 from atproto_client.models.app.bsky.actor.defs import ProfileView, ProfileViewDetailed  # noqa
@@ -25,7 +26,16 @@ from lib.helper import get_client
 from services.sync.search.helper import send_request_with_pagination
 from transform.transform_raw_data import process_firehose_post
 
-client = get_client()
+
+@lru_cache(maxsize=1)
+def _get_client():
+    """Lazy-load client only when needed.
+
+    @lru_cache(maxsize=1) caches the result of _get_client() so that
+    get_client() is only called once; future calls to _get_client() return
+    the cached client, improving performance by avoiding repeated initialization.
+    """
+    return get_client()
 
 
 def get_author_handle_and_post_id_from_link(link: str) -> dict[str, str]:
@@ -47,6 +57,7 @@ def get_author_record(
     did: Optional[str] = None, handle: Optional[str] = None
 ) -> ProfileViewDetailed:
     """Given a DID or handle, get the author record."""
+    client = _get_client()
     if did:
         return client.get_profile(did)
     elif handle:
@@ -84,6 +95,7 @@ def get_post_record_from_post_link(link: str) -> GetRecordResponse:
     post_rkey = author_and_post_id["post_id"]
     profile_identify = author_did
     print(f"Getting post record for {post_rkey} by {profile_identify}")
+    client = _get_client()
     response = client.get_post(post_rkey=post_rkey, profile_identify=profile_identify)
     return response
 
@@ -126,6 +138,7 @@ def get_post_record_given_post_uri(post_uri: str) -> Optional[GetRecordResponse]
     split_uri = post_uri.split("/")
     post_rkey = split_uri[-1]
     profile_identify = split_uri[-3]
+    client = _get_client()
     try:
         response = client.get_post(
             post_rkey=post_rkey, profile_identify=profile_identify
@@ -153,6 +166,7 @@ def get_post_link_given_post_uri(post_uri: str) -> Optional[str]:
     """Given a post URI, get the post link."""
     post_id = post_uri.split("/")[-1]
     author_did = post_uri.split("/")[-3]
+    client = _get_client()
     try:
         post_author_profile = client.get_profile(author_did)
     except Exception as e:
@@ -191,6 +205,7 @@ def get_record_with_author_given_post_uri(
 
 def get_repost_profiles(post_uri: str) -> list[ProfileView]:
     """Get the profiles of all the users who reposted a post."""
+    client = _get_client()
     reposts: list[ProfileView] = send_request_with_pagination(
         func=client.get_reposted_by,
         kwargs={"uri": post_uri},
@@ -203,6 +218,7 @@ def get_repost_profiles(post_uri: str) -> list[ProfileView]:
 
 def get_liked_by_profiles(post_uri: str) -> list[Like]:
     """Get the profiles of all the users who liked a post."""
+    client = _get_client()
     likes: list[Like] = send_request_with_pagination(
         func=client.get_likes,
         kwargs={"uri": post_uri},
@@ -215,6 +231,7 @@ def get_liked_by_profiles(post_uri: str) -> list[Like]:
 
 def get_post_thread_replies(post_uri: str) -> list[ThreadViewPost]:
     """Get the thread of replies to a post."""
+    client = _get_client()
     response: PostThreadResponse = client.get_post_thread(post_uri)
     thread: ThreadViewPost = response.thread
     replies: list[ThreadViewPost] = thread.replies
@@ -280,6 +297,7 @@ def get_author_profile_from_link(link: str) -> ProfileViewDetailed:
     """  # noqa
     author_and_post_id: dict = get_author_handle_and_post_id_from_link(link)
     author_did: str = get_author_did_from_handle(author_and_post_id["author"])
+    client = _get_client()
     return client.get_profile(author_did)
 
 
@@ -315,6 +333,7 @@ def generate_list_uri_given_list_url(list_url: str) -> str:
 def get_users_on_list_given_list_uri(list_uri: str) -> list[dict]:
     """Given a list uri, return a list of dictionaries with the user's
     blocked user id (did) and their handle (username)"""
+    client = _get_client()
     res: GetListResponse = client.app.bsky.graph.get_list(params={"list": list_uri})
     return get_users_added_to_list(res.items)
 
@@ -329,6 +348,7 @@ def get_list_info_given_list_url(list_url: str) -> dict:
     """Given the URL of a list, get both the metadata for a list as well as
     the users on the list."""
     list_uri: str = generate_list_uri_given_list_url(list_url)
+    client = _get_client()
     try:
         res: GetListResponse = client.app.bsky.graph.get_list(params={"list": list_uri})
     except Exception as e:
@@ -440,6 +460,7 @@ def get_author_feeds(
         payload["limit"] = limit
     if cursor:
         payload["cursor"] = cursor
+    client = _get_client()
     response: GetActorFeedsResponse = client.app.bsky.feed.get_actor_feeds(payload)
     feeds: list[GeneratorView] = response.feeds
     return feeds
@@ -533,6 +554,7 @@ def get_posts_from_custom_feed(
         py_type='app.bsky.feed.defs#feedViewPost'
     )
     """  # noqa
+    client = _get_client()
     kwargs = {"feed": feed_uri}
     res: list[FeedViewPost] = send_request_with_pagination(
         func=client.app.bsky.feed.get_feed,
@@ -570,6 +592,7 @@ def get_posts_from_custom_feed_url(
 
 
 def get_user_followers(handle: str) -> list[ProfileView]:
+    client = _get_client()
     followers: list[ProfileView] = send_request_with_pagination(
         func=client.get_followers,
         kwargs={"actor": handle},
