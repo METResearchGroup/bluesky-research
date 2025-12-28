@@ -1311,6 +1311,9 @@ class TestExportDataToLocalStorage:
             "end_timestamp": "2024-01-01",
             "data": mock_df
         }])
+        # Mock os.makedirs to prevent real file system errors
+        mocker.patch("lib.db.manage_local_data.os.makedirs")
+        mocker.patch("lib.db.manage_local_data.os.path.exists", return_value=False)
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         mock_logger = mocker.patch("lib.db.manage_local_data.logger")
         
@@ -1338,6 +1341,9 @@ class TestExportDataToLocalStorage:
             "end_timestamp": "2024-01-01",
             "data": mock_df
         }])
+        # Mock os.makedirs to prevent real file system errors
+        mocker.patch("lib.db.manage_local_data.os.makedirs")
+        mocker.patch("lib.db.manage_local_data.os.path.exists", return_value=False)
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         mock_logger = mocker.patch("lib.db.manage_local_data.logger")
         
