@@ -37,7 +37,6 @@ from services.rank_score_feeds.models import (
     LatestFeeds,
     ScoredPostModel,
 )
-from services.rank_score_feeds.orchestrator import FeedGenerationOrchestrator
 
 consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"
@@ -492,6 +491,9 @@ def do_rank_score_feeds(
 
     Also takes as optional input a flag to skip exporting post scores to S3.
     """
+    # Lazy import to avoid circular dependency with orchestrator.py
+    from services.rank_score_feeds.orchestrator import FeedGenerationOrchestrator
+
     orchestrator = FeedGenerationOrchestrator(feed_config=feed_config)
     orchestrator.run(
         users_to_create_feeds_for=users_to_create_feeds_for,
