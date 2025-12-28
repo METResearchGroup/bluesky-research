@@ -22,7 +22,7 @@ from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
 from services.consolidate_post_records.helper import consolidate_feedview_post
 from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
-from services.preprocess_raw_data.classify_language.helper import record_is_english  # noqa
+from services.preprocess_raw_data.classify_language.helper import text_is_english  # noqa
 from transform.bluesky_helper import get_posts_from_custom_feed_url
 from transform.transform_raw_data import transform_feedview_posts
 
@@ -100,7 +100,7 @@ root_most_liked_s3_key = os.path.join(SYNC_KEY_ROOT, "most_liked_posts")
 
 def post_passed_filters(post: TransformedFeedViewPostModel) -> bool:
     record: TransformedRecordModel = post.record
-    return record_is_english(record=record)
+    return text_is_english(record.text)
 
 
 def filter_posts(
