@@ -618,10 +618,10 @@ def export_data_to_local_storage(
                 pq.write_to_dataset(
                     table=table, root_path=folder_path, partition_cols=partition_cols
                 )
-            except (pa.lib.ArrowInvalid, pa.lib.ArrowTypeError) as e:
+            except pa.ArrowException as e:
                 logger.error(
                     f"[Service = {service}, Partition Date = {output_partition_date}] "
-                    f"Schema validation error during Parquet export: {e}"
+                    f"PyArrow error during Parquet export: {e}"
                 )
                 raise
             except ValueError as e:
