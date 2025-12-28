@@ -140,9 +140,9 @@ def get_users_whose_social_network_has_been_fetched() -> set[str]:
     Retrieves from DynamoDB.
     """
     res = dynamodb.get_all_items_from_table(dynamodb_table_name)
-    user_handles_res = [item["user_handle"] for item in res]
-    user_handles = set([item["S"] for item in user_handles_res])
-    return user_handles
+    if not res:
+        return set()
+    return {item["user_handle"] for item in res}
 
 
 def export_follows_and_followers_for_user(

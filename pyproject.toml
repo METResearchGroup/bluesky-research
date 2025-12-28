@@ -40,6 +40,10 @@ dependencies = [
     "tenacity>=8.5.0,<9.0.0",
 ]
 
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project.optional-dependencies]
 # Development tools
 dev = [
@@ -120,8 +124,13 @@ all = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["lib*", "ml_tooling*", "bluesky_database*", "services*", "transform*"]
+include = [
+    "lib*",
+    "ml_tooling*",
+    "bluesky_database*",
+    "services*",
+    "transform*",
+]
 exclude = [
     "demos*", 
     "experiments*", 
@@ -139,8 +148,72 @@ exclude = ["*/experiments/*", "./demos/*"]
 max-line-length = 80
 max-complexity = 10
 
-[tool.uv.workspace]
-members = ["pipelines/get_existing_user_social_network"]
+[tool.ruff]
+# Migrated from root-level `ruff.toml`
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+    "tests",
+    "experiments",
+    "*experiments*",
+    "demos",
+]
+
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+# Assume Python 3.10
+target-version = "py310"
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`) codes by default.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.pyright]
+# Migrated from root-level `pyrightconfig.json`
+include = ["."]
+exclude = [
+    "**/.*",
+    "**/node_modules",
+    "**/__pycache__",
+    "**/build",
+    "**/dist",
+    "**/data",
+    "**/lib/log/*",
+    "**/wandb/*",
+    "services/sync/stream/cache/*",
+    "services/sync/most_liked_posts/syncs/*",
+    "**/*.csv",
+    "**/*.json",
+    "**/*.png",
+]
+venv = "bluesky_research"
+ignoreExternal = true
 
 [tool.pytest.ini_options]
 # Add custom markers
