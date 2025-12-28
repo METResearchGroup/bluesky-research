@@ -124,15 +124,12 @@ all = [
 ]
 
 [tool.setuptools.packages.find]
-where = [".", "pipelines/get_existing_user_social_network/src"]
 include = [
     "lib*",
     "ml_tooling*",
     "bluesky_database*",
     "services*",
     "transform*",
-    "pipelines*",
-    "get_existing_user_social_network*",
 ]
 exclude = [
     "demos*", 
@@ -217,9 +214,6 @@ exclude = [
 ]
 venv = "bluesky_research"
 ignoreExternal = true
-
-[tool.uv.workspace]
-members = ["pipelines/get_existing_user_social_network"]
 
 [tool.pytest.ini_options]
 # Add custom markers
