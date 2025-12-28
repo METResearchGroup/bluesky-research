@@ -35,6 +35,7 @@ from services.rank_score_feeds.models import (
     CustomFeedModel,
     CustomFeedPost,
     FeedInputData,
+    LatestFeeds,
     ScoredPostModel,
 )
 from services.rank_score_feeds.orchestrator import FeedGenerationOrchestrator
@@ -246,10 +247,11 @@ def jitter_feed(feed: list[CustomFeedPost], jitter_amount: int) -> list[CustomFe
     return result
 
 
-def load_latest_feeds() -> dict[str, set[str]]:
+def load_latest_feeds() -> LatestFeeds:
     """Loads the latest feeds per user, from S3.
 
-    Returns a map of user to the set of URIs of posts in their latest feed.
+    Returns a model containing a map of user handles to the set of URIs
+    of posts in their latest feed.
     """
     query = """
     SELECT *
@@ -263,18 +265,15 @@ def load_latest_feeds() -> dict[str, set[str]]:
     df = athena.query_results_as_df(query=query)
     df_dicts = df.to_dict(orient="records")
     df_dicts = parse_converted_pandas_dicts(df_dicts)
-    bluesky_user_handles = []
-    feed_dicts = []
+
+    feeds_dict: dict[str, set[str]] = {}
     for df_dict in df_dicts:
-        bluesky_user_handles.append(df_dict["bluesky_handle"])
-        feed_dicts.append(json.loads(df_dict["feed"]))
-    res = {}
-    for handle, feed in zip(bluesky_user_handles, feed_dicts):
-        uris = set()
-        for post in feed:
-            uris.add(post["item"])
-        res[handle] = uris
-    return res
+        handle = df_dict["bluesky_handle"]
+        feed = json.loads(df_dict["feed"])
+        uris = {post["item"] for post in feed}
+        feeds_dict[handle] = uris
+
+    return LatestFeeds(feeds=feeds_dict)
 
 
 def create_ranked_candidate_feed(

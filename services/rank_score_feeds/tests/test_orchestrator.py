@@ -13,6 +13,7 @@ import pandas as pd
 from unittest.mock import patch, MagicMock
 
 from services.rank_score_feeds.config import FeedConfig
+from services.rank_score_feeds.models import LatestFeeds
 from services.rank_score_feeds.orchestrator import FeedGenerationOrchestrator
 from services.participant_data.models import UserToBlueskyProfileModel
 
@@ -126,7 +127,7 @@ class TestFeedGenerationOrchestrator:
             "superposters": {"did:plc:superposter1"},
         }
 
-        mock_feeds = {"user1.bsky.social": {"post1", "post2"}}
+        mock_feeds = LatestFeeds(feeds={"user1.bsky.social": {"post1", "post2"}})
 
         mock_get_users.return_value = mock_users
         mock_load_feed_input.return_value = mock_feed_input
@@ -142,7 +143,8 @@ class TestFeedGenerationOrchestrator:
         assert "latest_feeds" in result
         assert result["study_users"] == mock_users
         assert result["feed_input_data"] == mock_feed_input
-        assert result["latest_feeds"] == mock_feeds
+        assert isinstance(result["latest_feeds"], LatestFeeds)
+        assert result["latest_feeds"].feeds == mock_feeds.feeds
 
     @patch("services.rank_score_feeds.orchestrator.get_all_users")
     def test_load_raw_data_passes_test_mode_to_get_all_users(self, mock_get_users):
@@ -159,7 +161,7 @@ class TestFeedGenerationOrchestrator:
                 "scraped_user_social_network": {},
                 "superposters": set(),
             }
-            mock_feeds.return_value = {}
+            mock_feeds.return_value = LatestFeeds(feeds={})
 
             # Act
             orchestrator._load_raw_data(test_mode=True)

@@ -30,6 +30,7 @@ from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )
 from services.rank_score_feeds.models import (
+    FeedInputData,
     LoadedData,
     PostPools,
     RawFeedData,
@@ -131,8 +132,10 @@ class FeedGenerationOrchestrator:
                 - feed_input_data: Feed input data from multiple services
                 - latest_feeds: Previous feeds per user handle
         """
-        study_users = get_all_users(test_mode=test_mode)
-        feed_input_data = load_feed_input_data()
+        study_users: list[UserToBlueskyProfileModel] = get_all_users(
+            test_mode=test_mode
+        )
+        feed_input_data: FeedInputData = load_feed_input_data()
         latest_feeds = load_latest_feeds()
 
         return RawFeedData(
