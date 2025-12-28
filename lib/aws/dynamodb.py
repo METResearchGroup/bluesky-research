@@ -1,13 +1,17 @@
 """Wrapper client for DynamoDB."""
 
-from typing import Optional
+from __future__ import annotations
+
+from decimal import Decimal
+from typing import Any, Optional
 
 import boto3
-from boto3.dynamodb.types import TypeSerializer
+from boto3.dynamodb.types import TypeDeserializer, TypeSerializer
 
 from lib.aws.helper import create_client, retry_on_aws_rate_limit
 
 serializer = TypeSerializer()
+deserializer = TypeDeserializer()
 
 
 class DynamoDB:
@@ -36,6 +40,41 @@ class DynamoDB:
             if not any(k in value for k in ["S", "N", "B", "BOOL", "NULL", "M", "L"]):
                 return False
         return True
+
+    def _normalize_deserialized_value(self, value: Any) -> Any:
+        """Normalize values returned from DynamoDB deserialization.
+
+        boto3 deserializes DynamoDB Numbers as Decimal for precision. For this
+        codebase, most call sites (and Pydantic models) expect plain int/float.
+        """
+        if isinstance(value, Decimal):
+            # Convert integral Decimals to int, otherwise float.
+            if value == value.to_integral_value():
+                return int(value)
+            return float(value)
+        if isinstance(value, list):
+            return [self._normalize_deserialized_value(v) for v in value]
+        if isinstance(value, dict):
+            return {k: self._normalize_deserialized_value(v) for k, v in value.items()}
+        if isinstance(value, set):
+            return {self._normalize_deserialized_value(v) for v in value}
+        return value
+
+    def _deserialize_item(self, item: dict) -> dict:
+        """Deserialize a DynamoDB-typed item into plain Python types."""
+        deserialized = {k: deserializer.deserialize(v) for k, v in item.items()}
+        normalized = self._normalize_deserialized_value(deserialized)
+        if not isinstance(normalized, dict):
+            raise TypeError(
+                "Expected deserialized DynamoDB item to be a dict, got "
+                f"{type(normalized).__name__}"
+            )
+        return normalized
+
+    def _deserialize_optional_item(self, item: Optional[dict]) -> Optional[dict]:
+        if item is None:
+            return None
+        return self._deserialize_item(item)
 
     @retry_on_aws_rate_limit
     def insert_item_into_table(self, item: dict, table_name: str) -> None:
@@ -72,10 +111,13 @@ class DynamoDB:
 
     @retry_on_aws_rate_limit
     def get_item_from_table(self, key: dict, table_name: str) -> Optional[dict]:  # noqa
-        """Gets an item from a table. If item doesn't exist, return None."""
+        """Gets an item from a table (deserialized).
+
+        If the item doesn't exist, returns None.
+        """
         try:
             response = self.client.get_item(TableName=table_name, Key=key)
-            return response.get("Item")
+            return self._deserialize_optional_item(response.get("Item"))
         except Exception as e:
             print(f"Failure in getting item from DynamoDB: {e}")
             raise e
@@ -90,10 +132,11 @@ class DynamoDB:
 
     @retry_on_aws_rate_limit
     def get_all_items_from_table(self, table_name: str) -> list[dict]:
-        """Gets all items from a table."""
+        """Gets all items from a table (deserialized)."""
         try:
             response = self.client.scan(TableName=table_name)
-            return response.get("Items")
+            items = response.get("Items", []) or []
+            return [self._deserialize_item(item) for item in items if item is not None]
         except Exception as e:
             print(f"Failure in getting all items from DynamoDB: {e}")
             raise e

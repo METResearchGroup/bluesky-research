@@ -38,7 +38,7 @@ def get_latest_compaction_session() -> Optional[dict]:
             return None
         sorted_sessions = sorted(
             sessions,
-            key=lambda x: x.get("compaction_timestamp", {}).get("S", ""),
+            key=lambda x: x.get("compaction_timestamp", ""),
             reverse=True,
         )  # noqa
         return sorted_sessions[0]
@@ -148,7 +148,7 @@ def compact_dedupe_preprocessed_data(
     latest_enrichment_consolidation_session: dict = get_latest_compaction_session()  # noqa
     if latest_enrichment_consolidation_session is not None:
         enrichment_consolidation_timestamp: str = (
-            latest_enrichment_consolidation_session["compaction_timestamp"]["S"]  # noqa
+            latest_enrichment_consolidation_session["compaction_timestamp"]  # noqa
         )
     else:
         enrichment_consolidation_timestamp = None

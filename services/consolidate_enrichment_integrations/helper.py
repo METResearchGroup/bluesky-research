@@ -49,7 +49,7 @@ def get_latest_enrichment_consolidation_session() -> dict:
             return None
         sorted_sessions = sorted(
             sessions,
-            key=lambda x: x.get("enrichment_consolidation_timestamp", {}).get("S", ""),  # noqa
+            key=lambda x: x.get("enrichment_consolidation_timestamp", ""),  # noqa
             reverse=True,
         )  # noqa
         return sorted_sessions[0]
@@ -307,9 +307,7 @@ def do_consolidate_enrichment_integrations(
     )  # noqa
     if latest_enrichment_consolidation_session is not None:
         enrichment_consolidation_timestamp: str = (
-            latest_enrichment_consolidation_session[
-                "enrichment_consolidation_timestamp"
-            ]["S"]  # noqa
+            latest_enrichment_consolidation_session["enrichment_consolidation_timestamp"]  # noqa
         )
     else:
         enrichment_consolidation_timestamp = None
