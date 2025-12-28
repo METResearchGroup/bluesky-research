@@ -4,9 +4,6 @@ from typing import Optional, Set
 import pandas as pd
 from pydantic import BaseModel, Field
 
-from services.consolidate_enrichment_integrations.models import (
-    ConsolidatedEnrichedPostModel,
-)
 from services.participant_data.models import UserToBlueskyProfileModel
 
 
@@ -148,7 +145,6 @@ class LoadedData(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     posts_df: pd.DataFrame
-    posts_models: list[ConsolidatedEnrichedPostModel]
     user_to_social_network_map: dict[str, list[str]]
     superposter_dids: set[str]
     previous_feeds: LatestFeeds  # user handle -> set of URIs

@@ -26,9 +26,6 @@ from services.rank_score_feeds.helper import (
     postprocess_feed,
     preprocess_data,
 )
-from services.consolidate_enrichment_integrations.models import (
-    ConsolidatedEnrichedPostModel,
-)
 from services.rank_score_feeds.models import (
     FeedInputData,
     LoadedData,
@@ -192,14 +189,10 @@ class FeedGenerationOrchestrator:
         # Load raw data
         raw_data: RawFeedData = self._load_raw_data(test_mode)
 
-        # Transform DataFrame to models
+        # Extract posts DataFrame
         posts_df: pd.DataFrame = (
             raw_data.feed_input_data.consolidate_enrichment_integrations
         )
-        posts_models = [
-            ConsolidatedEnrichedPostModel(**row.to_dict())
-            for _, row in posts_df.iterrows()
-        ]
 
         # Filter users if specified
         filtered_study_users = self._filter_study_users(
@@ -209,7 +202,6 @@ class FeedGenerationOrchestrator:
 
         return LoadedData(
             posts_df=posts_df,
-            posts_models=posts_models,
             user_to_social_network_map=raw_data.feed_input_data.scraped_user_social_network,
             superposter_dids=raw_data.feed_input_data.superposters,
             previous_feeds=raw_data.latest_feeds,
