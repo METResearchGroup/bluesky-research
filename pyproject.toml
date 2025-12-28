@@ -40,6 +40,10 @@ dependencies = [
     "tenacity>=8.5.0,<9.0.0",
 ]
 
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project.optional-dependencies]
 # Development tools
 dev = [
@@ -120,8 +124,13 @@ all = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["lib*", "ml_tooling*", "bluesky_database*", "services*", "transform*"]
+include = [
+    "lib*",
+    "ml_tooling*",
+    "bluesky_database*",
+    "services*",
+    "transform*",
+]
 exclude = [
     "demos*", 
     "experiments*", 
@@ -205,9 +214,6 @@ exclude = [
 ]
 venv = "bluesky_research"
 ignoreExternal = true
-
-[tool.uv.workspace]
-members = ["pipelines/get_existing_user_social_network"]
 
 [tool.pytest.ini_options]
 # Add custom markers
