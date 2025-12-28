@@ -130,6 +130,7 @@ include = [
     "bluesky_database*",
     "services*",
     "transform*",
+    "pipelines*",
     "get_existing_user_social_network*",
 ]
 exclude = [
