@@ -9,6 +9,7 @@ from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.constants import timestamp_format
+from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import (
     export_data_to_local_storage,
     load_data_from_local_storage,
@@ -79,7 +80,7 @@ def load_latest_preprocessed_posts(
         service="preprocessed_posts", latest_timestamp=timestamp
     )
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     df_dicts_cleaned = [post for post in df_dicts if post["text"] is not None]
     return [FilteredPreprocessedPostModel(**post) for post in df_dicts_cleaned]
 
@@ -98,7 +99,7 @@ def load_latest_perspective_api_labels(
         service="ml_inference_perspective_api", latest_timestamp=timestamp
     )
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     return [PerspectiveApiLabelsModel(**label) for label in df_dicts]
 
 
@@ -109,7 +110,7 @@ def load_latest_sociopolitical_labels(
         service="ml_inference_sociopolitical", latest_timestamp=timestamp
     )
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     return [SociopoliticalLabelsModel(**label) for label in df_dicts]
 
 
@@ -123,7 +124,7 @@ def load_latest_similarity_scores(timestamp: str) -> list[PostSimilarityScoreMod
     """
     df: pd.DataFrame = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     return [PostSimilarityScoreModel(**score) for score in df_dicts]
 
 

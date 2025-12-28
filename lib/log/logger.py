@@ -102,4 +102,7 @@ def get_logger(filename_dunder: str) -> Logger:
     ]
     root_idx = root_idx[0] if root_idx else 0
     joined_fp = "/".join(word for word in split_fp[root_idx:])
+    # Remove file extension to avoid conflicts with source files
+    if joined_fp.endswith(".py"):
+        joined_fp = joined_fp[:-3]
     return Logger(name=joined_fp)

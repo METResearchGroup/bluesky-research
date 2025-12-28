@@ -11,6 +11,7 @@ from transformers import AutoTokenizer, AutoModel
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
+from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import load_latest_data
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
@@ -101,7 +102,7 @@ def get_posts_to_embed() -> list[FilteredPreprocessedPostModel]:
         logger.info("No posts to embed.")
         return []
     df_dicts = posts_df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     return [FilteredPreprocessedPostModel(**post_dict) for post_dict in df_dicts]  # noqa
 
 

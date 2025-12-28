@@ -146,6 +146,8 @@ def mock_study_user_manager(monkeypatch):
     This fixture ensures:
     - Singleton instance is reset before each test
     - get_study_user_manager returns a mock
+    - get_all_users returns empty list (no DynamoDB calls)
+    - _load_study_user_dids returns empty set (no DynamoDB calls)
     - _load_in_network_user_dids returns empty set (no Parquet loading)
     - load_data_from_local_storage returns empty DataFrame (no Parquet loading)
     - _write_post_uri_to_study_user_did_map_to_s3 does nothing (no S3 writes)
@@ -160,6 +162,19 @@ def mock_study_user_manager(monkeypatch):
     monkeypatch.setattr(
         "services.participant_data.study_users.get_study_user_manager",
         get_mock_study_manager
+    )
+    
+    # Patch get_all_users to avoid DynamoDB calls
+    # This is critical because _load_study_user_dids() calls get_all_users()
+    monkeypatch.setattr(
+        "services.participant_data.helper.get_all_users",
+        lambda test_mode=False: []
+    )
+    
+    # Patch _load_study_user_dids to avoid DynamoDB calls via get_all_users
+    monkeypatch.setattr(
+        "services.participant_data.study_users.StudyUserManager._load_study_user_dids",
+        lambda self: set()
     )
     
     # Patch _load_in_network_user_dids to avoid Parquet loading issues
