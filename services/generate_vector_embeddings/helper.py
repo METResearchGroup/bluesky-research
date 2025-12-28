@@ -64,7 +64,7 @@ def get_latest_embedding_session() -> dict:
             return None
         sorted_sessions = sorted(
             sessions,
-            key=lambda x: x.get("embedding_timestamp", {}).get("S", ""),
+            key=lambda x: x.get("embedding_timestamp", ""),
             reverse=True,
         )  # noqa
         return sorted_sessions[0]
@@ -91,9 +91,7 @@ def get_posts_to_embed() -> list[FilteredPreprocessedPostModel]:
         logger.info("No latest embedding session found. Embedding all posts...")
         latest_embedding_timestamp = None
     else:
-        latest_embedding_timestamp = latest_embedding_session["embedding_timestamp"][
-            "S"
-        ]
+        latest_embedding_timestamp = latest_embedding_session["embedding_timestamp"]
 
     logger.info("Getting posts to embed.")
     posts_df: pd.DataFrame = load_latest_data(
