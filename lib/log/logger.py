@@ -94,35 +94,15 @@ def get_logger(filename_dunder: str) -> Logger:
     Expects the following usage:
     >>> logger = get_logger(__file__)
     """
-    # NOTE:
-    # Callers typically pass `__file__`. In some environments that can be an
-    # absolute path that does *not* include the repo name, and using it directly
-    # can cause the logger to attempt to create a directory that collides with an
-    # existing source file path (e.g. ".../duckdb_metrics.py").
-    fp = os.path.abspath(filename_dunder)
-
-    rel: str
-    split_fp = fp.split(os.sep)
-    root_idx = next(
-        (
-            idx
-            for idx, word in enumerate(split_fp)
-            if word in {"bluesky-research", "bluesky_research"}
-        ),
-        None,
-    )
-    if root_idx is not None:
-        rel = os.sep.join(split_fp[root_idx + 1 :])
-    elif f"{os.sep}workspace{os.sep}" in fp:
-        # Cursor cloud agents typically mount the repo at /workspace.
-        rel = fp.split(f"{os.sep}workspace{os.sep}", 1)[1]
-    else:
-        rel = os.path.basename(fp)
-
-    # Convert to a safe logger name. Avoid using path separators to prevent
-    # directory creation collisions with source file paths.
-    name = rel.replace(os.sep, "__")
-    if name.endswith(".py"):
-        name = name[: -len(".py")]
-
-    return Logger(name=name)
+    split_fp = filename_dunder.split("/")
+    root_idx = [
+        idx
+        for idx, word in enumerate(split_fp)
+        if word == "bluesky-research" or word == "bluesky_research"
+    ]
+    root_idx = root_idx[0] if root_idx else 0
+    joined_fp = "/".join(word for word in split_fp[root_idx:])
+    # Remove file extension to avoid conflicts with source files
+    if joined_fp.endswith(".py"):
+        joined_fp = joined_fp[:-3]
+    return Logger(name=joined_fp)
