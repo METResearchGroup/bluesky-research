@@ -115,7 +115,7 @@ class TestLoadFromRemote:
     """Tests for _load_from_remote function."""
 
     @patch("services.calculate_superposters.load_data._get_athena")
-    @patch("services.calculate_superposters.load_data.parse_converted_pandas_dicts")
+    @patch("lib.db.data_processing.parse_converted_pandas_dicts")
     def test_load_from_remote_success(self, mock_parse_dicts, mock_get_athena):
         """Test successful loading from remote (Athena)."""
         # Arrange
@@ -147,7 +147,7 @@ class TestLoadFromRemote:
         assert result[0]["count"] == 5
 
     @patch("services.calculate_superposters.load_data._get_athena")
-    @patch("services.calculate_superposters.load_data.parse_converted_pandas_dicts")
+    @patch("lib.db.data_processing.parse_converted_pandas_dicts")
     def test_load_from_remote_empty(self, mock_parse_dicts, mock_get_athena):
         """Test loading with empty results from Athena."""
         # Arrange

@@ -22,8 +22,7 @@ class TestLoadEnrichedPosts:
     """Tests for load_enriched_posts function."""
 
     @patch("services.consolidate_enrichment_integrations.load_data.load_data_from_local_storage")
-    @patch("services.consolidate_enrichment_integrations.load_data.parse_converted_pandas_dicts")
-    def test_load_enriched_posts_success(self, mock_parse_dicts, mock_load_data):
+    def test_load_enriched_posts_success(self, mock_load_data):
         """Test successful loading of enriched posts."""
         # Arrange
         mock_df = pd.DataFrame({
@@ -32,22 +31,6 @@ class TestLoadEnrichedPosts:
             "text": ["Post 1", "Post 2"],
         })
         mock_load_data.return_value = mock_df
-
-        mock_dicts = [
-            {
-                "uri": "post1",
-                "author_did": "did:plc:user1",
-                "text": "Post 1",
-                "created_at": "2024-01-01T00:00:00Z",
-            },
-            {
-                "uri": "post2",
-                "author_did": "did:plc:user2",
-                "text": "Post 2",
-                "created_at": "2024-01-01T00:00:00Z",
-            },
-        ]
-        mock_parse_dicts.return_value = mock_dicts
 
         # Act
         result = load_enriched_posts()
@@ -61,12 +44,10 @@ class TestLoadEnrichedPosts:
         )
 
     @patch("services.consolidate_enrichment_integrations.load_data.load_data_from_local_storage")
-    @patch("services.consolidate_enrichment_integrations.load_data.parse_converted_pandas_dicts")
-    def test_load_enriched_posts_with_timestamp(self, mock_parse_dicts, mock_load_data):
+    def test_load_enriched_posts_with_timestamp(self, mock_load_data):
         """Test loading enriched posts with timestamp filter."""
         # Arrange
         mock_load_data.return_value = pd.DataFrame()
-        mock_parse_dicts.return_value = []
 
         # Act
         load_enriched_posts(latest_timestamp="2024-01-01T00:00:00Z")
@@ -78,12 +59,10 @@ class TestLoadEnrichedPosts:
         )
 
     @patch("services.consolidate_enrichment_integrations.load_data.load_data_from_local_storage")
-    @patch("services.consolidate_enrichment_integrations.load_data.parse_converted_pandas_dicts")
-    def test_load_enriched_posts_handles_empty_data(self, mock_parse_dicts, mock_load_data):
+    def test_load_enriched_posts_handles_empty_data(self, mock_load_data):
         """Test loading with empty data."""
         # Arrange
         mock_load_data.return_value = pd.DataFrame()
-        mock_parse_dicts.return_value = []
 
         # Act
         result = load_enriched_posts()
@@ -93,13 +72,15 @@ class TestLoadEnrichedPosts:
         assert len(result) == 0
 
     @patch("services.consolidate_enrichment_integrations.load_data.load_data_from_local_storage")
-    @patch("services.consolidate_enrichment_integrations.load_data.parse_converted_pandas_dicts")
-    def test_load_enriched_posts_raises_validation_error(self, mock_parse_dicts, mock_load_data):
-        """Test that validation errors are raised and logged."""
+    def test_load_enriched_posts_returns_dataframe(self, mock_load_data):
+        """Test that function returns DataFrame regardless of data structure."""
         # Arrange
-        mock_load_data.return_value = pd.DataFrame({"uri": ["post1"]})
-        mock_parse_dicts.return_value = [{"invalid": "data"}]  # Missing required fields
+        # Return DataFrame with any data structure
+        mock_load_data.return_value = pd.DataFrame({"invalid": ["data"]})
 
-        # Act & Assert
-        with pytest.raises(ValidationError):
-            load_enriched_posts()
+        # Act
+        result = load_enriched_posts()
+
+        # Assert
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
