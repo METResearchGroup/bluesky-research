@@ -13,7 +13,7 @@ import pandas as pd
 from unittest.mock import patch, MagicMock
 
 from services.rank_score_feeds.config import FeedConfig
-from services.rank_score_feeds.models import LatestFeeds
+from services.rank_score_feeds.models import FeedInputData, LatestFeeds, RawFeedData
 from services.rank_score_feeds.orchestrator import FeedGenerationOrchestrator
 from services.participant_data.models import UserToBlueskyProfileModel
 
@@ -121,11 +121,11 @@ class TestFeedGenerationOrchestrator:
             )
         ]
 
-        mock_feed_input = {
-            "consolidate_enrichment_integrations": pd.DataFrame({"uri": ["post1"]}),
-            "scraped_user_social_network": {"did:plc:user1": ["did:plc:user2"]},
-            "superposters": {"did:plc:superposter1"},
-        }
+        mock_feed_input = FeedInputData(
+            consolidate_enrichment_integrations=pd.DataFrame({"uri": ["post1"]}),
+            scraped_user_social_network={"did:plc:user1": ["did:plc:user2"]},
+            superposters={"did:plc:superposter1"},
+        )
 
         mock_feeds = LatestFeeds(feeds={"user1.bsky.social": {"post1", "post2"}})
 
@@ -138,13 +138,16 @@ class TestFeedGenerationOrchestrator:
 
         # Assert
         assert result is not None
-        assert "study_users" in result
-        assert "feed_input_data" in result
-        assert "latest_feeds" in result
-        assert result["study_users"] == mock_users
-        assert result["feed_input_data"] == mock_feed_input
-        assert isinstance(result["latest_feeds"], LatestFeeds)
-        assert result["latest_feeds"].feeds == mock_feeds.feeds
+        assert isinstance(result, RawFeedData)
+        assert result.study_users == mock_users
+        assert isinstance(result.feed_input_data, FeedInputData)
+        assert result.feed_input_data.consolidate_enrichment_integrations.equals(
+            mock_feed_input.consolidate_enrichment_integrations
+        )
+        assert result.feed_input_data.scraped_user_social_network == mock_feed_input.scraped_user_social_network
+        assert result.feed_input_data.superposters == mock_feed_input.superposters
+        assert isinstance(result.latest_feeds, LatestFeeds)
+        assert result.latest_feeds.feeds == mock_feeds.feeds
 
     @patch("services.rank_score_feeds.orchestrator.get_all_users")
     def test_load_raw_data_passes_test_mode_to_get_all_users(self, mock_get_users):
@@ -156,11 +159,11 @@ class TestFeedGenerationOrchestrator:
         mock_get_users.return_value = []
         with patch("services.rank_score_feeds.orchestrator.load_feed_input_data") as mock_feed_input, \
              patch("services.rank_score_feeds.orchestrator.load_latest_feeds") as mock_feeds:
-            mock_feed_input.return_value = {
-                "consolidate_enrichment_integrations": pd.DataFrame(),
-                "scraped_user_social_network": {},
-                "superposters": set(),
-            }
+            mock_feed_input.return_value = FeedInputData(
+                consolidate_enrichment_integrations=pd.DataFrame(),
+                scraped_user_social_network={},
+                superposters=set(),
+            )
             mock_feeds.return_value = LatestFeeds(feeds={})
 
             # Act

@@ -44,16 +44,13 @@ class TestLoadFeedInputData:
         result = load_feed_input_data(lookback_days=7)
 
         # Assert
-        assert isinstance(result, dict)
-        assert "consolidate_enrichment_integrations" in result
-        assert "scraped_user_social_network" in result
-        assert "superposters" in result
-        assert isinstance(result["consolidate_enrichment_integrations"], pd.DataFrame)
-        assert isinstance(result["scraped_user_social_network"], dict)
-        assert isinstance(result["superposters"], set)
-        assert result["consolidate_enrichment_integrations"].equals(mock_posts_df)
-        assert result["scraped_user_social_network"] == mock_social_network
-        assert result["superposters"] == mock_superposters
+        assert isinstance(result, FeedInputData)
+        assert isinstance(result.consolidate_enrichment_integrations, pd.DataFrame)
+        assert isinstance(result.scraped_user_social_network, dict)
+        assert isinstance(result.superposters, set)
+        assert result.consolidate_enrichment_integrations.equals(mock_posts_df)
+        assert result.scraped_user_social_network == mock_social_network
+        assert result.superposters == mock_superposters
 
     @patch("services.rank_score_feeds.helper.load_enriched_posts")
     @patch("services.rank_score_feeds.helper.load_user_social_network_map")
@@ -105,8 +102,8 @@ class TestLoadFeedInputData:
         result = load_feed_input_data()
 
         # Assert
-        assert isinstance(result, dict)
-        assert len(result["consolidate_enrichment_integrations"]) == 0
-        assert len(result["scraped_user_social_network"]) == 0
-        assert len(result["superposters"]) == 0
+        assert isinstance(result, FeedInputData)
+        assert len(result.consolidate_enrichment_integrations) == 0
+        assert len(result.scraped_user_social_network) == 0
+        assert len(result.superposters) == 0
 

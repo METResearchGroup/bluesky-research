@@ -124,6 +124,8 @@ class FeedInputData(BaseModel):
     - Superposter DIDs for filtering
     """
 
+    model_config = {"arbitrary_types_allowed": True}
+
     consolidate_enrichment_integrations: pd.DataFrame
     scraped_user_social_network: dict[str, list[str]]
     superposters: set[str]
@@ -140,9 +142,10 @@ class RawFeedData(BaseModel):
     latest_feeds: LatestFeeds
 
 
-@dataclass
 class LoadedData(BaseModel):
     """Container for all loaded input data."""
+
+    model_config = {"arbitrary_types_allowed": True}
 
     posts_df: pd.DataFrame
     posts_models: list[ConsolidatedEnrichedPostModel]

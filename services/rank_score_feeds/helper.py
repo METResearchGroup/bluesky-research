@@ -160,16 +160,16 @@ def load_feed_input_data(lookback_days: int = default_lookback_days) -> FeedInpu
         lookback_days, format=TimestampFormat.BLUESKY
     )
 
-    feed_input_data: FeedInputData = {
-        "consolidate_enrichment_integrations": load_enriched_posts(
+    feed_input_data = FeedInputData(
+        consolidate_enrichment_integrations=load_enriched_posts(
             latest_timestamp=lookback_datetime_str
         ),
-        "scraped_user_social_network": load_user_social_network_map(),
-        "superposters": load_latest_superposters(
+        scraped_user_social_network=load_user_social_network_map(),
+        superposters=load_latest_superposters(
             source=CalculateSuperposterSource.LOCAL,
             latest_timestamp=lookback_datetime_str,
         ),
-    }
+    )
 
     return feed_input_data
 
