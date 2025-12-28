@@ -1,6 +1,6 @@
-from datetime import timedelta
-
-from lib.constants import current_datetime, default_lookback_days, timestamp_format
+from lib.constants import default_lookback_days
+from lib.datetime_utils import calculate_lookback_datetime_str
+from lib.db.data_processing import parse_converted_pandas_dicts
 from services.consolidate_enrichment_integrations.models import (
     ConsolidatedEnrichedPostModel,
 )  # noqa
@@ -17,8 +17,7 @@ def _load_latest_consolidated_enriched_posts(
     from lib.aws.athena import Athena
 
     athena = Athena()
-    lookback_datetime = current_datetime - timedelta(days=lookback_days)
-    lookback_datetime_str = lookback_datetime.strftime(timestamp_format)
+    lookback_datetime_str = calculate_lookback_datetime_str(lookback_days)
     query = f"""
     SELECT *
     FROM consolidated_enriched_post_records 
@@ -26,14 +25,17 @@ def _load_latest_consolidated_enriched_posts(
     """
     df = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     return [ConsolidatedEnrichedPostModel(**post) for post in df_dicts]
 
 
 def _load_superposters() -> set[str]:
-    from services.calculate_superposters.helper import load_latest_superposters
+    from services.calculate_superposters.load_data import load_latest_superposters
+    from services.calculate_superposters.models import CalculateSuperposterSource
 
-    superposter_dids: set[str] = load_latest_superposters()
+    superposter_dids: set[str] = load_latest_superposters(
+        source=CalculateSuperposterSource.REMOTE
+    )
     return superposter_dids
 
 

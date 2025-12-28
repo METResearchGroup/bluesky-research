@@ -10,6 +10,7 @@ from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3, ROOT_BUCKET
+from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.constants import timestamp_format
 from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
@@ -171,7 +172,7 @@ def compact_dedupe_preprocessed_data(
     """
     df = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     df_dicts_cleaned = [post for post in df_dicts if post["text"] is not None]
     df_dict_models = [
         FilteredPreprocessedPostModel(**df_dict) for df_dict in df_dicts_cleaned
