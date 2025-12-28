@@ -26,9 +26,6 @@ from services.calculate_superposters.load_data import load_latest_superposters
 from services.calculate_superposters.models import CalculateSuperposterSource
 from services.consolidate_enrichment_integrations.load_data import load_enriched_posts
 from services.participant_data.social_network import load_user_social_network_map
-from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
-    load_users_to_exclude,
-)
 from services.rank_score_feeds.config import feed_config
 from services.rank_score_feeds.models import (
     CustomFeedModel,
@@ -93,31 +90,6 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
         ),
     )
     logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3 and to cache.")
-
-
-def preprocess_data(consolidated_enriched_posts_df: pd.DataFrame) -> pd.DataFrame:
-    """Preprocesses the data."""
-    # Deduplication based on unique URIs, keeping the most recent consolidation_timestamp
-    len_before = consolidated_enriched_posts_df.shape[0]
-    deduplicated_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
-        by="consolidation_timestamp", ascending=False
-    ).drop_duplicates(subset="uri", keep="first")
-    len_after = deduplicated_df.shape[0]
-
-    if len_before != len_after:
-        logger.info(f"Deduplicated posts from {len_before} to {len_after}.")
-
-    # filter out excluded authors.
-    users_to_exclude: dict[str, set[str]] = load_users_to_exclude()
-    bsky_handles_to_exclude: set[str] = users_to_exclude["bsky_handles_to_exclude"]
-    bsky_dids_to_exclude: set[str] = users_to_exclude["bsky_dids_to_exclude"]
-
-    # keep posts where authors are NOT in the excludelists.
-    mask: pd.Series = ~(
-        consolidated_enriched_posts_df["author_did"].isin(bsky_dids_to_exclude)
-        | consolidated_enriched_posts_df["author_handle"].isin(bsky_handles_to_exclude)
-    )
-    return deduplicated_df[mask]
 
 
 def load_feed_input_data(lookback_days: int = default_lookback_days) -> FeedInputData:
