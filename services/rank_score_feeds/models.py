@@ -1,12 +1,9 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Set
 
 import pandas as pd
 from pydantic import BaseModel, Field
 
-from services.consolidate_enrichment_integrations.models import (
-    ConsolidatedEnrichedPostModel,
-)
 from services.participant_data.models import UserToBlueskyProfileModel
 
 
@@ -61,18 +58,96 @@ class CustomFeedModel(BaseModel):
     )
 
 
+class LatestFeeds(BaseModel):
+    """Model representing the latest feeds per user.
+
+    Maps Bluesky user handles to sets of post URIs from their latest feed.
+    Provides dict-like interface for backward compatibility.
+    """
+
+    feeds: dict[str, set[str]] = Field(
+        ...,
+        description="Mapping of Bluesky user handles to sets of post URIs in their latest feed.",
+    )
+
+    def get(self, handle: str, default: Set[str] | None = None) -> Set[str]:
+        """Get the feed URIs for a specific user handle.
+
+        Args:
+            handle: The Bluesky user handle.
+            default: Default value to return if handle not found. Defaults to empty set.
+
+        Returns:
+            Set of post URIs for the user, or default value if handle not found.
+        """
+        if default is None:
+            default = set()
+        return self.feeds.get(handle, default)
+
+    def __getitem__(self, handle: str) -> Set[str]:
+        """Allow dict-like access: latest_feeds[handle]"""
+        return self.feeds[handle]
+
+    def keys(self):
+        """Get all user handles."""
+        return self.feeds.keys()
+
+    def values(self):
+        """Get all feed URI sets."""
+        return self.feeds.values()
+
+    def items(self):
+        """Get all (handle, uri_set) pairs."""
+        return self.feeds.items()
+
+    def __contains__(self, handle: str) -> bool:
+        """Check if a handle exists: handle in latest_feeds"""
+        return handle in self.feeds
+
+    def __len__(self) -> int:
+        """Get the number of feeds."""
+        return len(self.feeds)
+
+
 # Data carrier dataclasses for orchestrator (Phase 1)
 
 
-@dataclass
-class LoadedData:
+class FeedInputData(BaseModel):
+    """Input data required for feed generation.
+
+    Contains all the data sources needed to generate ranked feeds:
+    - Enriched posts from the consolidation service
+    - User social network mappings
+    - Superposter DIDs for filtering
+    """
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    consolidate_enrichment_integrations: pd.DataFrame
+    scraped_user_social_network: dict[str, list[str]]
+    superposters: set[str]
+
+
+class RawFeedData(BaseModel):
+    """Raw data loaded from all sources before transformation.
+
+    Contains the unprocessed data from all services needed for feed generation.
+    """
+
+    study_users: list[UserToBlueskyProfileModel]
+    feed_input_data: FeedInputData
+    latest_feeds: LatestFeeds
+
+
+class LoadedData(BaseModel):
     """Container for all loaded input data."""
 
+    model_config = {"arbitrary_types_allowed": True}
+
     posts_df: pd.DataFrame
-    posts_models: list[ConsolidatedEnrichedPostModel]
     user_to_social_network_map: dict[str, list[str]]
     superposter_dids: set[str]
-    previous_feeds: dict[str, set[str]]  # user handle -> set of URIs
+    previous_feeds: LatestFeeds  # user handle -> set of URIs
     study_users: list[UserToBlueskyProfileModel]
 
 

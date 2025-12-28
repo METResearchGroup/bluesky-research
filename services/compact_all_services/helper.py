@@ -11,6 +11,7 @@ from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import ROOT_BUCKET, S3
 from lib.constants import default_lookback_days
+from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import (
     delete_files,
     export_data_to_local_storage,
@@ -186,7 +187,7 @@ def compact_single_service(service: str) -> None:
     dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", None)
     df = athena.query_results_as_df(query, dtypes_map=dtypes_map)
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
     logger.info(f"Successfully compacted data for {service}")
     export_compacted_data(service=service, data=df_dicts)
     delete_keys(existing_keys)

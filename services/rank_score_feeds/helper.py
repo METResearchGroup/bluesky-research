@@ -1,33 +1,31 @@
 """Helper functions for the rank_score_feeds service."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import json
 import os
 import random
-from typing import Union
 
 import pandas as pd
+
 from lib.aws.athena import Athena
 from lib.aws.dynamodb import DynamoDB
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
 from lib.constants import (
-    convert_pipeline_to_bsky_dt_format,
-    current_datetime,
     current_datetime_str,
     default_lookback_days,
-    timestamp_format,
 )
+from lib.datetime_utils import TimestampFormat, calculate_lookback_datetime_str
+from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import (
     export_data_to_local_storage,
-    load_data_from_local_storage,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
-from services.consolidate_enrichment_integrations.models import (
-    ConsolidatedEnrichedPostModel,
-)  # noqa
-from services.preprocess_raw_data.classify_language.model import classify
+from services.calculate_superposters.load_data import load_latest_superposters
+from services.calculate_superposters.models import CalculateSuperposterSource
+from services.consolidate_enrichment_integrations.load_data import load_enriched_posts
+from services.participant_data.social_network import load_user_social_network_map
 from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
     load_users_to_exclude,
 )
@@ -35,9 +33,10 @@ from services.rank_score_feeds.config import feed_config
 from services.rank_score_feeds.models import (
     CustomFeedModel,
     CustomFeedPost,
+    FeedInputData,
+    LatestFeeds,
     ScoredPostModel,
 )
-from services.rank_score_feeds.orchestrator import FeedGenerationOrchestrator
 
 consolidated_enriched_posts_table_name = "consolidated_enriched_post_records"
 user_to_social_network_map_table_name = "user_social_networks"
@@ -98,21 +97,6 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
 
 def preprocess_data(consolidated_enriched_posts_df: pd.DataFrame) -> pd.DataFrame:
     """Preprocesses the data."""
-    # immplement filtering (e.g., English-language filtering)
-    # looks like Bluesky's language filter is broken, so I'll do my own manual
-    # filtering here (could've done it upstream too tbh, this is just the quickest
-    # fix). My implementation is also imperfect, but it gets more correct.
-    # It uses fasttext. Some still make it through, but it's pretty good.
-    logger.info(
-        f"Number of posts before filtering: {len(consolidated_enriched_posts_df)}"
-    )
-    consolidated_enriched_posts_df = consolidated_enriched_posts_df[
-        consolidated_enriched_posts_df["text"].apply(filter_post_is_english)
-    ]
-    logger.info(
-        f"Number of posts after filtering: {len(consolidated_enriched_posts_df)}"
-    )
-
     # Deduplication based on unique URIs, keeping the most recent consolidation_timestamp
     len_before = consolidated_enriched_posts_df.shape[0]
     consolidated_enriched_posts_df = consolidated_enriched_posts_df.sort_values(
@@ -137,67 +121,40 @@ def preprocess_data(consolidated_enriched_posts_df: pd.DataFrame) -> pd.DataFram
     return consolidated_enriched_posts_df
 
 
-def load_latest_processed_data(
-    lookback_days: int = default_lookback_days,
-) -> dict[str, Union[dict, list[ConsolidatedEnrichedPostModel]]]:  # noqa
-    """Loads the latest consolidated enriched posts as well as the latest
-    user social network."""
-    lookback_datetime = current_datetime - timedelta(days=lookback_days)
-    lookback_datetime_str = lookback_datetime.strftime(timestamp_format)
-    lookback_datetime_str = convert_pipeline_to_bsky_dt_format(lookback_datetime_str)
+def load_feed_input_data(lookback_days: int = default_lookback_days) -> FeedInputData:
+    """Load feed input data from multiple services.
 
-    output = {}
+    Loads and returns the latest processed data from multiple services:
+    - Consolidated enriched posts (filtered by lookback window)
+    - User social network relationship mappings
+    - Superposter DIDs for identifying high-volume authors
 
-    # get posts
-    posts_df: pd.DataFrame = load_data_from_local_storage(
-        service="consolidated_enriched_post_records",
-        latest_timestamp=lookback_datetime_str,
+    Args:
+        lookback_days: Number of days to look back when loading enriched posts.
+            Defaults to the configured default lookback period.
+
+    Returns:
+        FeedInputData containing:
+            - consolidate_enrichment_integrations: DataFrame of enriched posts
+            - scraped_user_social_network: Mapping of user DIDs to their connection DIDs
+            - superposters: Set of superposter author DIDs
+    """
+    lookback_datetime_str = calculate_lookback_datetime_str(
+        lookback_days, format=TimestampFormat.BLUESKY
     )
-    df_dicts = posts_df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
-    df_models = [ConsolidatedEnrichedPostModel(**post) for post in df_dicts]
-    output["consolidate_enrichment_integrations"] = df_models
 
-    # get user social network
-    user_social_network_df: pd.DataFrame = load_data_from_local_storage(
-        service="scraped_user_social_network",
-        latest_timestamp=None,
-        use_all_data=True,
-        validate_pq_files=True,
+    feed_input_data = FeedInputData(
+        consolidate_enrichment_integrations=load_enriched_posts(
+            latest_timestamp=lookback_datetime_str
+        ),
+        scraped_user_social_network=load_user_social_network_map(),
+        superposters=load_latest_superposters(
+            source=CalculateSuperposterSource.LOCAL,
+            latest_timestamp=lookback_datetime_str,
+        ),
     )
-    social_dicts = user_social_network_df.to_dict(orient="records")
-    social_dicts = athena.parse_converted_pandas_dicts(social_dicts)
 
-    res = {}
-    for row in social_dicts:
-        if row["relationship_to_study_user"] == "follower":
-            study_user_did = row["follow_did"]
-            connection_did = row["follower_did"]
-        elif row["relationship_to_study_user"] == "follow":
-            study_user_did = row["follower_did"]
-            connection_did = row["follow_did"]
-        else:
-            logger.warning(f"Skipping row with unknown relationship: {row}")
-            continue  # Skip if relationship is not recognized
-        if study_user_did not in res:
-            res[study_user_did] = []
-        res[study_user_did].append(connection_did)
-
-    output["scraped_user_social_network"] = res
-
-    # load latest superposters
-    superposters_df: pd.DataFrame = load_data_from_local_storage(
-        service="daily_superposters", latest_timestamp=lookback_datetime_str
-    )
-    if len(superposters_df) == 0:
-        superposters_lst = []
-    else:
-        superposters_lst: list[dict] = json.loads(
-            superposters_df["superposters"].iloc[0]
-        )
-    output["superposters"] = set([res["author_did"] for res in superposters_lst])
-
-    return output
+    return feed_input_data
 
 
 def export_post_scores(scores_to_export: list[dict]):
@@ -273,10 +230,11 @@ def jitter_feed(feed: list[CustomFeedPost], jitter_amount: int) -> list[CustomFe
     return result
 
 
-def load_latest_feeds() -> dict[str, set[str]]:
+def load_latest_feeds() -> LatestFeeds:
     """Loads the latest feeds per user, from S3.
 
-    Returns a map of user to the set of URIs of posts in their latest feed.
+    Returns a model containing a map of user handles to the set of URIs
+    of posts in their latest feed.
     """
     query = """
     SELECT *
@@ -289,19 +247,16 @@ def load_latest_feeds() -> dict[str, set[str]]:
     """
     df = athena.query_results_as_df(query=query)
     df_dicts = df.to_dict(orient="records")
-    df_dicts = athena.parse_converted_pandas_dicts(df_dicts)
-    bluesky_user_handles = []
-    feed_dicts = []
+    df_dicts = parse_converted_pandas_dicts(df_dicts)
+
+    feeds_dict: dict[str, set[str]] = {}
     for df_dict in df_dicts:
-        bluesky_user_handles.append(df_dict["bluesky_handle"])
-        feed_dicts.append(json.loads(df_dict["feed"]))
-    res = {}
-    for handle, feed in zip(bluesky_user_handles, feed_dicts):
-        uris = set()
-        for post in feed:
-            uris.add(post["item"])
-        res[handle] = uris
-    return res
+        handle = df_dict["bluesky_handle"]
+        feed = json.loads(df_dict["feed"])
+        uris = {post["item"] for post in feed}
+        feeds_dict[handle] = uris
+
+    return LatestFeeds(feeds=feeds_dict)
 
 
 def create_ranked_candidate_feed(
@@ -408,22 +363,6 @@ def postprocess_feed(
         )
 
     return feed
-
-
-def filter_post_is_english(text: str) -> bool:
-    """Filters for if a post is English.
-
-    Returns True if the post has text and that text is in English. Returns False
-    if the post either has no text or that text is not in English.
-
-    Looks like posts are being labeled as "en" by Bluesky even when they're not
-    in English, so they're passing our filters since we assume Bluesky's language
-    filter is correct. Given that that isn't the case, we do it manually here.
-    """
-    if not text:
-        return False
-    text = text.replace("\n", " ").strip()
-    return classify(text=text)
 
 
 def generate_feed_statistics(feed: list[CustomFeedPost]) -> str:
@@ -552,6 +491,9 @@ def do_rank_score_feeds(
 
     Also takes as optional input a flag to skip exporting post scores to S3.
     """
+    # Lazy import to avoid circular dependency with orchestrator.py
+    from services.rank_score_feeds.orchestrator import FeedGenerationOrchestrator
+
     orchestrator = FeedGenerationOrchestrator(feed_config=feed_config)
     orchestrator.run(
         users_to_create_feeds_for=users_to_create_feeds_for,
