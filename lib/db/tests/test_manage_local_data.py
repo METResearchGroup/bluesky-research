@@ -1042,6 +1042,12 @@ class TestExportDataToLocalStorage:
                 "local_prefix": "/data/test_service",
                 "timestamp_field": "preprocessing_timestamp",
                 "partition_key": "preprocessing_timestamp",
+                "dtypes_map": {
+                    "col1": "Int64",
+                    "col2": "string",
+                    "preprocessing_timestamp": "string",
+                    "record_type": "string",
+                },
                 "subpaths": {
                     "firehose": "/data/test_service/firehose",
                     "active": "/data/test_service/active",
@@ -1051,6 +1057,12 @@ class TestExportDataToLocalStorage:
                 "local_prefix": "/data/preprocessed_posts",
                 "timestamp_field": "preprocessing_timestamp",
                 "partition_key": "preprocessing_timestamp",
+                "dtypes_map": {
+                    "col1": "Int64",
+                    "col2": "string",
+                    "preprocessing_timestamp": "string",
+                    "record_type": "string",
+                },
                 "subpaths": {
                     "firehose": "/data/preprocessed_posts/firehose",
                     "active": "/data/preprocessed_posts/active",
@@ -1061,6 +1073,14 @@ class TestExportDataToLocalStorage:
                 "timestamp_field": "preprocessing_timestamp",
                 "partition_key": "preprocessing_timestamp",
                 "skip_date_validation": True,
+                "dtypes_map": {
+                    "post": {
+                        "col1": "Int64",
+                        "col2": "string",
+                        "preprocessing_timestamp": "string",
+                        "record_type": "string",
+                    }
+                },
                 "subpaths": {
                     "post": "/data/raw_sync/create/post",
                     "like": "/data/raw_sync/create/like",
@@ -1092,14 +1112,14 @@ class TestExportDataToLocalStorage:
             "data": mock_df
         }])
         mocker.patch("os.makedirs")
-        mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
+        mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
         export_data_to_local_storage(
             service="test_service",
             df=mock_df
         )
         
-        mock_to_parquet.assert_called_once()
+        mock_write_to_dataset.assert_called_once()
 
     def test_override_local_prefix(self, mocker, mock_service_metadata, mock_df, tmp_path):
         """Test export with overridden local prefix."""
@@ -1109,7 +1129,7 @@ class TestExportDataToLocalStorage:
             "data": mock_df
         }])
         mock_makedirs = mocker.patch("os.makedirs")
-        mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
+        mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
         override_path = "/custom/path"
         export_data_to_local_storage(
@@ -1121,7 +1141,7 @@ class TestExportDataToLocalStorage:
         # Verify the override path was used
         assert any(call_args[0][0].startswith(override_path) 
                   for call_args in mock_makedirs.call_args_list)
-        mock_to_parquet.assert_called_once()
+        mock_write_to_dataset.assert_called_once()
 
     def test_export_with_custom_args(self, mocker, mock_service_metadata, mock_df):
         """Test export with custom arguments."""
@@ -1131,7 +1151,7 @@ class TestExportDataToLocalStorage:
             "data": mock_df
         }])
         mocker.patch("os.makedirs")
-        mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
+        mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
         custom_args = {"source": "firehose"}
         export_data_to_local_storage(
@@ -1140,7 +1160,7 @@ class TestExportDataToLocalStorage:
             custom_args=custom_args
         )
         
-        mock_to_parquet.assert_called_once()
+        mock_write_to_dataset.assert_called_once()
 
     def test_export_formats(self, mocker, mock_service_metadata, mock_df):
         """Test different export formats."""
@@ -1151,7 +1171,7 @@ class TestExportDataToLocalStorage:
         }])
         mocker.patch("os.makedirs")
         mock_to_json = mocker.patch.object(pd.DataFrame, "to_json")
-        mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
+        mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
         # Test JSONL format
         export_data_to_local_storage(
@@ -1167,7 +1187,7 @@ class TestExportDataToLocalStorage:
             df=mock_df,
             export_format="parquet"
         )
-        mock_to_parquet.assert_called_once()
+        mock_write_to_dataset.assert_called_once()
         
     def test_raw_sync_service(self, mocker, mock_service_metadata, mock_df):
         """Test export with raw sync service."""
@@ -1178,7 +1198,7 @@ class TestExportDataToLocalStorage:
             "data": mock_df
         }])
         mocker.patch("os.makedirs")
-        mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
+        mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
         # Export to the raw_sync subdirectory
         custom_args = {"record_type": "post"}
@@ -1189,8 +1209,8 @@ class TestExportDataToLocalStorage:
         )
         
         # Verify the export occurred to the correct path
-        mock_to_parquet.assert_called_once()
-        file_path = mock_to_parquet.call_args[1]['path']
+        mock_write_to_dataset.assert_called_once()
+        file_path = mock_write_to_dataset.call_args[1]["root_path"]
         assert file_path == '/data/raw_sync/create/post/cache'
         
         # Verify that partition_data_by_date was called
@@ -1212,7 +1232,7 @@ class TestExportDataToLocalStorage:
             }}
         )
         mocker.patch("os.makedirs")
-        mock_to_parquet = mocker.patch.object(pd.DataFrame, "to_parquet")
+        mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
         # Test export with backfill_sync service which has skip_date_validation=True
         export_data_to_local_storage(
@@ -1224,4 +1244,4 @@ class TestExportDataToLocalStorage:
         mock_partition.assert_not_called()
         
         # Verify the export still occurred
-        mock_to_parquet.assert_called_once()
+        mock_write_to_dataset.assert_called_once()

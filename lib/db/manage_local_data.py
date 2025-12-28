@@ -513,22 +513,76 @@ def export_data_to_local_storage(
             # by default, we partition on the timestamp field. This will
             # allow us to use predicates when doing reads.
             partition_cols = MAP_SERVICE_TO_METADATA[service].get(
-                "partition_cols", "partition_date"
-            )  # noqa
+                "partition_cols", ["partition_date"]
+            )
+            if isinstance(partition_cols, str):
+                partition_cols = [partition_cols]
+
+            if chunk_df.empty:
+                logger.warning(
+                    f"[Service = {service}] Received empty dataframe; skipping parquet export."
+                )
+                continue
+
+            # Ensure `partition_date` exists and matches the schema contract (string).
             if "partition_date" not in chunk_df.columns:
-                chunk_df["partition_date"] = pd.to_datetime(
-                    chunk_df[timestamp_field]
-                ).dt.date
+                ts_series = (
+                    chunk_df[timestamp_field].apply(truncate_string)
+                    if timestamp_field in chunk_df.columns
+                    else pd.Series([DEFAULT_ERROR_PARTITION_DATE] * len(chunk_df))
+                )
+                if timestamp_format:
+                    ts_dt = pd.to_datetime(
+                        ts_series, format=timestamp_format, errors="coerce"
+                    )
+                else:
+                    ts_dt = pd.to_datetime(ts_series, errors="coerce")
+                ts_dt = ts_dt.fillna(
+                    pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format="%Y-%m-%d")
+                )
+                chunk_df["partition_date"] = ts_dt.dt.strftime("%Y-%m-%d").astype(
+                    "string"
+                )
+            else:
+                chunk_df["partition_date"] = chunk_df["partition_date"].astype("string")
+
+            if timestamp_field in chunk_df.columns:
+                # Keep timestamps stable (we typically store them as strings).
+                chunk_df[timestamp_field] = chunk_df[timestamp_field].astype("string")
+
             # NOTE: we don't use local_export_fp here because we want to
             # partition on the date field, and Parquet will include the partition
             # field name in the file path.
-            output_partition_date = chunk_df["partition_date"].iloc[0]
+            output_partition_dates = sorted(chunk_df["partition_date"].dropna().unique())
+            output_partition_date = (
+                output_partition_dates[0] if output_partition_dates else "<unknown>"
+            )
             logger.info(
                 f"[Service = {service}, Partition Date = {output_partition_date}] Exporting n={len(chunk_df)} records to {folder_path}..."
             )
             try:
-                chunk_df.to_parquet(
-                    path=folder_path, index=False, partition_cols=partition_cols
+                # Strongly enforce schema at write-time (avoid pyarrow inference drift).
+                schema: Optional[pa.Schema] = get_service_pa_schema(
+                    service=service, custom_args=custom_args
+                )
+                if schema:
+                    dtypes_map = _get_service_dtypes_map(
+                        service=service, custom_args=custom_args
+                    ) or {}
+                    if "partition_date" not in dtypes_map:
+                        dtypes_map["partition_date"] = "string"
+                    chunk_df = _coerce_df_to_dtypes_map(chunk_df, dtypes_map)
+                    table = pa.Table.from_pandas(
+                        chunk_df[schema.names],
+                        schema=schema,
+                        preserve_index=False,
+                        safe=True,
+                    )
+                else:
+                    table = pa.Table.from_pandas(chunk_df, preserve_index=False)
+
+                pq.write_to_dataset(
+                    table=table, root_path=folder_path, partition_cols=partition_cols
                 )
             except Exception as e:
                 logger.error(f"Error exporting data to local storage: {e}")
@@ -864,6 +918,72 @@ def load_service_cols(service: str) -> list[str]:
     return []
 
 
+def _get_service_dtypes_map(
+    service: str, custom_args: Optional[dict] = None
+) -> Optional[dict[str, str]]:
+    """Return a copy of the configured dtypes map for a service.
+
+    For `raw_sync`, the dtypes map is keyed by `record_type` and must be
+    provided via `custom_args`.
+    """
+    dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", None)
+    if custom_args:
+        record_type = custom_args.get("record_type", None)
+        if record_type:
+            dtypes_map = (
+                MAP_SERVICE_TO_METADATA[service]
+                .get("dtypes_map", {})
+                .get(record_type, {})
+            )
+    if not dtypes_map:
+        return None
+    # Copy to avoid mutating MAP_SERVICE_TO_METADATA.
+    return dict(dtypes_map)
+
+
+def _coerce_df_to_dtypes_map(
+    df: pd.DataFrame, dtypes_map: dict[str, str]
+) -> pd.DataFrame:
+    """Coerce a DataFrame to the configured dtypes map (strict).
+
+    - Missing columns are created as all-null nullable columns.
+    - Extra columns are left as-is (they may be dropped later for schema writes).
+    """
+    for col, dtype in dtypes_map.items():
+        if col not in df.columns:
+            if dtype == "Int64":
+                df[col] = pd.Series([pd.NA] * len(df), dtype="Int64")
+            elif dtype == "Float64":
+                df[col] = pd.Series([pd.NA] * len(df), dtype="Float64")
+            elif dtype == "bool":
+                df[col] = pd.Series([pd.NA] * len(df), dtype="boolean")
+            elif dtype in {"string", "object"}:
+                df[col] = pd.Series([pd.NA] * len(df), dtype="string")
+            elif dtype == "datetime64[ns]":
+                df[col] = pd.Series([pd.NaT] * len(df), dtype="datetime64[ns]")
+            else:
+                df[col] = pd.Series([pd.NA] * len(df), dtype="string")
+            continue
+
+        try:
+            if dtype == "Int64":
+                df[col] = pd.to_numeric(df[col], errors="raise").astype("Int64")
+            elif dtype == "Float64":
+                df[col] = pd.to_numeric(df[col], errors="raise").astype("Float64")
+            elif dtype == "bool":
+                df[col] = df[col].astype("boolean")
+            elif dtype == "datetime64[ns]":
+                df[col] = pd.to_datetime(df[col], errors="raise")
+            elif dtype in {"string", "object"}:
+                df[col] = df[col].astype("string")
+            else:
+                df[col] = df[col].astype("string")
+        except Exception as e:
+            raise ValueError(f"Failed to coerce column={col} to dtype={dtype}: {e}") from e
+
+    return df
+
+
 def pd_type_to_pa_type(pd_type):
     """Convert pandas dtype to PyArrow type.
 
@@ -886,19 +1006,11 @@ def pd_type_to_pa_type(pd_type):
 def get_service_pa_schema(
     service: str, custom_args: Optional[dict] = None
 ) -> Optional[pa.Schema]:
-    dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", None)
-    if custom_args:
-        record_type = custom_args.get("record_type", None)
-        if record_type:
-            dtypes_map = (
-                MAP_SERVICE_TO_METADATA[service]
-                .get("dtypes_map", {})
-                .get(record_type, {})
-            )
+    dtypes_map = _get_service_dtypes_map(service=service, custom_args=custom_args)
     # we add this here since when we transform the initial loaded dicts to
     # df (prior to writes), we don't have partition_date yet. However, we
     # want this to exist on read.
-    if "partition_date" not in dtypes_map:
+    if dtypes_map and "partition_date" not in dtypes_map:
         dtypes_map["partition_date"] = "string"
     if dtypes_map:
         pa_schema = pa.schema(
