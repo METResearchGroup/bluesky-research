@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Optional, Set, TypedDict
+from typing import Optional, Set, TypedDict
 
 import pandas as pd
 from pydantic import BaseModel, Field
@@ -68,7 +68,7 @@ class LatestFeeds(BaseModel):
     Provides dict-like interface for backward compatibility.
     """
 
-    feeds: Dict[str, Set[str]] = Field(
+    feeds: dict[str, set[str]] = Field(
         ...,
         description="Mapping of Bluesky user handles to sets of post URIs in their latest feed.",
     )
