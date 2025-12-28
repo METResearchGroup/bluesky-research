@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Set, TypedDict
+from typing import Optional, Set
 
 import pandas as pd
 from pydantic import BaseModel, Field
@@ -115,7 +115,7 @@ class LatestFeeds(BaseModel):
 # Data carrier dataclasses for orchestrator (Phase 1)
 
 
-class FeedInputData(TypedDict):
+class FeedInputData(BaseModel):
     """Input data required for feed generation.
 
     Contains all the data sources needed to generate ranked feeds:
@@ -129,7 +129,7 @@ class FeedInputData(TypedDict):
     superposters: set[str]
 
 
-class RawFeedData(TypedDict):
+class RawFeedData(BaseModel):
     """Raw data loaded from all sources before transformation.
 
     Contains the unprocessed data from all services needed for feed generation.
@@ -137,11 +137,11 @@ class RawFeedData(TypedDict):
 
     study_users: list[UserToBlueskyProfileModel]
     feed_input_data: FeedInputData
-    latest_feeds: LatestFeeds  # type: ignore[typeddict-item]
+    latest_feeds: LatestFeeds
 
 
 @dataclass
-class LoadedData:
+class LoadedData(BaseModel):
     """Container for all loaded input data."""
 
     posts_df: pd.DataFrame
