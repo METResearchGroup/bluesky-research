@@ -1,17 +1,12 @@
 from __future__ import annotations
 
 import importlib
-import sys
 from unittest.mock import Mock
 
 import boto3
 
 
 def test_get_users_whose_social_network_has_been_fetched(monkeypatch):
-    # Ensure the workspace member package is importable in test runs that rely
-    # only on PYTHONPATH=/workspace (without `pip install -e`).
-    sys.path.insert(0, "/workspace/pipelines/get_existing_user_social_network/src")
-
     # Avoid any real AWS client/resource initialization at import time.
     monkeypatch.setattr("lib.aws.dynamodb.create_client", lambda _name: Mock())
     monkeypatch.setattr("lib.aws.s3.create_client", lambda _name: Mock())
@@ -38,8 +33,6 @@ def test_get_users_whose_social_network_has_been_fetched(monkeypatch):
 
 
 def test_get_users_whose_social_network_has_been_fetched_empty(monkeypatch):
-    sys.path.insert(0, "/workspace/pipelines/get_existing_user_social_network/src")
-
     monkeypatch.setattr("lib.aws.dynamodb.create_client", lambda _name: Mock())
     monkeypatch.setattr("lib.aws.s3.create_client", lambda _name: Mock())
     mock_ddb_resource = Mock()
