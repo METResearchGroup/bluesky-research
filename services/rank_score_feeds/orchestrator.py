@@ -10,6 +10,9 @@ from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
+from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
+    load_users_to_exclude,
+)
 from services.rank_score_feeds.config import FeedConfig
 from services.rank_score_feeds.helper import (
     calculate_feed_analytics,
@@ -24,7 +27,6 @@ from services.rank_score_feeds.helper import (
     load_feed_input_data,
     load_latest_feeds,
     postprocess_feed,
-    preprocess_data,
 )
 from services.rank_score_feeds.models import (
     FeedInputData,
@@ -89,15 +91,13 @@ class FeedGenerationOrchestrator:
         # Step 1: Load all data
         loaded_data = self._load_data(test_mode, users_to_create_feeds_for)
 
-        # Step 2: Preprocess
-        # NOTE: I think this was a one-time patch that should really not
-        # be necessary if the preprocess_raw_data service is working.
-        loaded_data.posts_df = preprocess_data(loaded_data.posts_df)
+        # Step 2: Deduplicate and filter posts
+        loaded_data.posts_df = self._deduplicate_and_filter_posts(loaded_data.posts_df)
 
         # Step 3: Score posts
         scored_posts = self._score_posts(loaded_data)
 
-        # Step 4: Export scores (conditional)
+        # Step 4: Export scores (optional)
         if not skip_export_post_scores:
             self._export_scores(scored_posts)
 
@@ -202,6 +202,41 @@ class FeedGenerationOrchestrator:
             previous_feeds=raw_data.latest_feeds,
             study_users=filtered_study_users,
         )
+
+    def _deduplicate_and_filter_posts(
+        self, consolidated_enriched_posts_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Deduplicates and filters posts.
+
+        Performs two operations:
+        1. Deduplicates posts by URI, keeping the most recent consolidation_timestamp
+        2. Filters out posts from excluded authors (by DID or handle)
+        """
+        # Deduplication based on unique URIs, keeping the most recent consolidation_timestamp
+        len_before = consolidated_enriched_posts_df.shape[0]
+        deduplicated_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
+            by="consolidation_timestamp", ascending=False
+        ).drop_duplicates(subset="uri", keep="first")
+        len_after = deduplicated_df.shape[0]
+
+        if len_before != len_after:
+            logger.info(f"Deduplicated posts from {len_before} to {len_after}.")
+
+        # filter out excluded authors.
+        users_to_exclude: dict[str, set[str]] = load_users_to_exclude()
+        bsky_handles_to_exclude: set[str] = users_to_exclude["bsky_handles_to_exclude"]
+        bsky_dids_to_exclude: set[str] = users_to_exclude["bsky_dids_to_exclude"]
+
+        # keep posts where authors are NOT in the excludelists.
+        # Convert sets to lists for pandas isin() compatibility
+        mask: pd.Series = ~(
+            deduplicated_df["author_did"].isin(
+                list(bsky_dids_to_exclude)
+            )  # convert set to list for pyright check; performance diff negligible.
+            | deduplicated_df["author_handle"].isin(list(bsky_handles_to_exclude))
+        )
+        filtered_df: pd.DataFrame = deduplicated_df[mask]  # type: ignore[assignment] # pyright: ignore[reportUnknownReturnType]
+        return filtered_df
 
     def _score_posts(self, loaded_data: LoadedData) -> ScoredPosts:
         """Calculate scores for all posts.

@@ -67,7 +67,7 @@ NSFW_HANDLES = [
     "onlineworms.bsky.social",
     "bacun.bsky.social",
     "zakimpo.bsky.social",
-    "sammytighe.bsky.social"
+    "sammytighe.bsky.social",
 ]
 
 # art is nice, but users seem to prefer less art content
@@ -193,8 +193,8 @@ def load_users_from_csv() -> pd.DataFrame:
 
 def load_users_to_exclude() -> dict[str, set]:
     users_to_exclude = load_users_from_csv()
-    bsky_handles_to_exclude = set(users_to_exclude["handle"].tolist())
-    bsky_dids_to_exclude = set(users_to_exclude["did"].tolist())
+    bsky_handles_to_exclude: set[str] = set(users_to_exclude["handle"].tolist())
+    bsky_dids_to_exclude: set[str] = set(users_to_exclude["did"].tolist())
     return {
         "bsky_handles_to_exclude": bsky_handles_to_exclude,
         "bsky_dids_to_exclude": bsky_dids_to_exclude,

@@ -1246,6 +1246,34 @@ class TestExportDataToLocalStorage:
         # Verify the export still occurred
         mock_write_to_dataset.assert_called_once()
 
+    def test_value_error_handling(self, mocker, mock_service_metadata, mock_df):
+        """Test that ValueError from dtype coercion is caught and re-raised."""
+        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
+            "start_timestamp": "2024-01-01",
+            "end_timestamp": "2024-01-01",
+            "data": mock_df
+        }])
+        mocker.patch("os.makedirs")
+        mock_coerce = mocker.patch("lib.db.manage_local_data._coerce_df_to_dtypes_map")
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        
+        # Simulate dtype coercion failure
+        coercion_error = ValueError("Failed to coerce column=col1 to dtype=Int64: invalid literal")
+        mock_coerce.side_effect = coercion_error
+        
+        # Should raise the exception after logging
+        with pytest.raises(ValueError, match="Failed to coerce column"):
+            export_data_to_local_storage(
+                service="test_service",
+                df=mock_df
+            )
+        
+        # Verify error was logged with proper context
+        mock_logger.error.assert_called_once()
+        error_call = mock_logger.error.call_args[0][0]
+        assert "Data type coercion error" in error_call
+        assert "test_service" in error_call
+
     def test_arrow_exception_handling(self, mocker, mock_service_metadata, mock_df):
         """Test that PyArrow exceptions are caught and re-raised with proper logging."""
         import pyarrow as pa
@@ -1276,34 +1304,6 @@ class TestExportDataToLocalStorage:
         assert "PyArrow error" in error_call
         assert "test_service" in error_call
 
-    def test_value_error_handling(self, mocker, mock_service_metadata, mock_df):
-        """Test that ValueError from dtype coercion is caught and re-raised."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
-        mocker.patch("os.makedirs")
-        mock_coerce = mocker.patch("lib.db.manage_local_data._coerce_df_to_dtypes_map")
-        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
-        
-        # Simulate dtype coercion failure
-        coercion_error = ValueError("Failed to coerce column=col1 to dtype=Int64: invalid literal")
-        mock_coerce.side_effect = coercion_error
-        
-        # Should raise the exception after logging
-        with pytest.raises(ValueError, match="Failed to coerce column"):
-            export_data_to_local_storage(
-                service="test_service",
-                df=mock_df
-            )
-        
-        # Verify error was logged with proper context
-        mock_logger.error.assert_called_once()
-        error_call = mock_logger.error.call_args[0][0]
-        assert "Data type coercion error" in error_call
-        assert "test_service" in error_call
-
     def test_os_error_handling(self, mocker, mock_service_metadata, mock_df):
         """Test that OSError from file system operations is caught and re-raised."""
         mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
@@ -1311,7 +1311,9 @@ class TestExportDataToLocalStorage:
             "end_timestamp": "2024-01-01",
             "data": mock_df
         }])
-        mocker.patch("os.makedirs")
+        # Mock os.makedirs to prevent real file system errors
+        mocker.patch("lib.db.manage_local_data.os.makedirs")
+        mocker.patch("lib.db.manage_local_data.os.path.exists", return_value=False)
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         mock_logger = mocker.patch("lib.db.manage_local_data.logger")
         
@@ -1339,7 +1341,9 @@ class TestExportDataToLocalStorage:
             "end_timestamp": "2024-01-01",
             "data": mock_df
         }])
-        mocker.patch("os.makedirs")
+        # Mock os.makedirs to prevent real file system errors
+        mocker.patch("lib.db.manage_local_data.os.makedirs")
+        mocker.patch("lib.db.manage_local_data.os.path.exists", return_value=False)
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         mock_logger = mocker.patch("lib.db.manage_local_data.logger")
         
