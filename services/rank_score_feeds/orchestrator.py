@@ -206,7 +206,12 @@ class FeedGenerationOrchestrator:
     def _deduplicate_and_filter_posts(
         self, consolidated_enriched_posts_df: pd.DataFrame
     ) -> pd.DataFrame:
-        """Preprocesses the data."""
+        """Deduplicates and filters posts.
+
+        Performs two operations:
+        1. Deduplicates posts by URI, keeping the most recent consolidation_timestamp
+        2. Filters out posts from excluded authors (by DID or handle)
+        """
         # Deduplication based on unique URIs, keeping the most recent consolidation_timestamp
         len_before = consolidated_enriched_posts_df.shape[0]
         deduplicated_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
@@ -223,13 +228,15 @@ class FeedGenerationOrchestrator:
         bsky_dids_to_exclude: set[str] = users_to_exclude["bsky_dids_to_exclude"]
 
         # keep posts where authors are NOT in the excludelists.
+        # Convert sets to lists for pandas isin() compatibility
         mask: pd.Series = ~(
-            consolidated_enriched_posts_df["author_did"].isin(bsky_dids_to_exclude)
-            | consolidated_enriched_posts_df["author_handle"].isin(
-                bsky_handles_to_exclude
-            )
+            deduplicated_df["author_did"].isin(
+                list(bsky_dids_to_exclude)
+            )  # convert set to list for pyright check; performance diff negligible.
+            | deduplicated_df["author_handle"].isin(list(bsky_handles_to_exclude))
         )
-        return deduplicated_df[mask]
+        filtered_df: pd.DataFrame = deduplicated_df[mask]  # type: ignore[assignment] # pyright: ignore[reportUnknownReturnType]
+        return filtered_df
 
     def _score_posts(self, loaded_data: LoadedData) -> ScoredPosts:
         """Calculate scores for all posts.
