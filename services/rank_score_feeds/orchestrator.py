@@ -37,6 +37,7 @@ from services.rank_score_feeds.models import (
     RunResult,
     ScoredPosts,
     UserFeedResult,
+    LatestFeeds,
 )
 from services.rank_score_feeds.scoring import calculate_post_scores
 
@@ -136,7 +137,7 @@ class FeedGenerationOrchestrator:
             test_mode=test_mode
         )
         feed_input_data: FeedInputData = load_feed_input_data()
-        latest_feeds = load_latest_feeds()
+        latest_feeds: LatestFeeds = load_latest_feeds()
 
         return RawFeedData(
             study_users=study_users,
