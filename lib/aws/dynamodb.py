@@ -61,7 +61,13 @@ class DynamoDB:
         return value
 
     def _deserialize_item(self, item: dict) -> dict:
-        """Deserialize a DynamoDB-typed item into plain Python types."""
+        """Deserialize a DynamoDB-typed item into plain Python types.
+
+        Defensive note:
+            DynamoDB Items are expected to be attribute maps, i.e. `dict[str, Any]`.
+            If we ever get an unexpected structure here, fail loudly rather than
+            returning a subtly-wrong type to downstream callers.
+        """
         deserialized = {k: deserializer.deserialize(v) for k, v in item.items()}
         normalized = self._normalize_deserialized_value(deserialized)
         if not isinstance(normalized, dict):
@@ -114,6 +120,13 @@ class DynamoDB:
         """Gets an item from a table (deserialized).
 
         If the item doesn't exist, returns None.
+
+        Example:
+            DynamoDB returns type-tagged values, e.g.:
+                {"service": {"S": "svc"}, "cursor": {"N": "123"}}
+
+            This method returns plain Python types:
+                {"service": "svc", "cursor": 123}
         """
         try:
             response = self.client.get_item(TableName=table_name, Key=key)
@@ -132,10 +145,19 @@ class DynamoDB:
 
     @retry_on_aws_rate_limit
     def get_all_items_from_table(self, table_name: str) -> list[dict]:
-        """Gets all items from a table (deserialized)."""
+        """Gets all items from a table (deserialized).
+
+        Example:
+            DynamoDB returns:
+                [{"k": {"S": "a"}}, {"k": {"S": "b"}}]
+
+            This method returns:
+                [{"k": "a"}, {"k": "b"}]
+        """
         try:
             response = self.client.scan(TableName=table_name)
-            items = response.get("Items", []) or []
+            # `.get()` covers a missing key; `or []` covers explicit nulls.
+            items = response.get("Items") or []
             return [self._deserialize_item(item) for item in items if item is not None]
         except Exception as e:
             print(f"Failure in getting all items from DynamoDB: {e}")
