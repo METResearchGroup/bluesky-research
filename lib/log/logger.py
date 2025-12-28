@@ -119,7 +119,8 @@ def get_logger(filename_dunder: str) -> Logger:
     else:
         rel = os.path.basename(fp)
 
-    # Convert to a safe logger name and keep paths from becoming directories.
+    # Convert to a safe logger name. Avoid using path separators to prevent
+    # directory creation collisions with source file paths.
     name = rel.replace(os.sep, "__")
     if name.endswith(".py"):
         name = name[: -len(".py")]

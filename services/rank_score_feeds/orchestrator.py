@@ -11,7 +11,6 @@ from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.rank_score_feeds.config import FeedConfig
-from services.rank_score_feeds.constants import TEST_USER_HANDLES
 from services.rank_score_feeds.helper import (
     calculate_feed_analytics,
     calculate_in_network_posts_for_user,
@@ -22,17 +21,20 @@ from services.rank_score_feeds.helper import (
     filter_posts_by_author_count,
     generate_feed_statistics,
     insert_feed_generation_session,
+    load_feed_input_data,
     load_latest_feeds,
-    load_latest_processed_data,
     postprocess_feed,
     preprocess_data,
 )
 from services.rank_score_feeds.models import (
+    FeedInputData,
     LoadedData,
     PostPools,
+    RawFeedData,
     RunResult,
     ScoredPosts,
     UserFeedResult,
+    LatestFeeds,
 )
 from services.rank_score_feeds.scoring import calculate_post_scores
 
@@ -110,59 +112,95 @@ class FeedGenerationOrchestrator:
 
         return run_result
 
+    def _load_raw_data(
+        self,
+        test_mode: bool,
+    ) -> RawFeedData:
+        """Load raw data from all sources.
+
+        Loads data from all services without any transformation or filtering.
+        This is the pure data loading step.
+
+        Args:
+            test_mode: If True, filter to test users only when loading study users.
+
+        Returns:
+            RawFeedData containing:
+                - study_users: All study users (potentially filtered by test_mode)
+                - feed_input_data: Feed input data from multiple services
+                - latest_feeds: Previous feeds per user handle
+        """
+        study_users: list[UserToBlueskyProfileModel] = get_all_users(
+            test_mode=test_mode
+        )
+        feed_input_data: FeedInputData = load_feed_input_data()
+        latest_feeds: LatestFeeds = load_latest_feeds()
+
+        return RawFeedData(
+            study_users=study_users,
+            feed_input_data=feed_input_data,
+            latest_feeds=latest_feeds,
+        )
+
+    def _filter_study_users(
+        self,
+        study_users: list[UserToBlueskyProfileModel],
+        users_to_create_feeds_for: list[str] | None,
+    ) -> list[UserToBlueskyProfileModel]:
+        """Filter study users to only those specified by handles.
+
+        Args:
+            study_users: List of all study users to filter from.
+            users_to_create_feeds_for: Optional list of user handles to filter to.
+                If None, returns all study users unchanged.
+
+        Returns:
+            Filtered list of study users matching the provided handles.
+        """
+        if not users_to_create_feeds_for:
+            return study_users
+
+        self.logger.info(
+            f"Filtering to {len(users_to_create_feeds_for)} specified users."
+        )
+        return [
+            user
+            for user in study_users
+            if user.bluesky_handle in users_to_create_feeds_for
+        ]
+
     def _load_data(
         self,
         test_mode: bool,
         users_to_create_feeds_for: list[str] | None,
     ) -> LoadedData:
-        """Load all required input data.
+        """Load and transform all required input data.
+
+        Loads raw data from all sources, transforms it to the required format,
+        and applies user filtering if specified.
 
         Args:
             test_mode: If True, filter to test users only.
             users_to_create_feeds_for: Optional list of user handles to filter to.
 
         Returns:
-            LoadedData containing all loaded inputs.
+            LoadedData containing all loaded and transformed inputs.
         """
-        study_users: list[UserToBlueskyProfileModel] = get_all_users()
-
-        if test_mode:
-            logger.info(f"Filtering to test users only: {TEST_USER_HANDLES}.")
-            study_users = [
-                user for user in study_users if user.bluesky_handle in TEST_USER_HANDLES
-            ]
-
-        latest_data = load_latest_processed_data()
-        latest_feeds = load_latest_feeds()
-
-        consolidated_enriched_posts: list = latest_data[
-            "consolidate_enrichment_integrations"
-        ]  # type: ignore[assignment]
-        consolidated_enriched_posts_df = pd.DataFrame(
-            [post.dict() for post in consolidated_enriched_posts]
-        )
-        user_to_social_network_map: dict = latest_data["scraped_user_social_network"]  # type: ignore[assignment]
-        superposter_dids: set[str] = latest_data["superposters"]  # type: ignore[assignment]
-        self.logger.info(f"Loaded {len(superposter_dids)} superposters.")
+        # Load raw data
+        raw_data: RawFeedData = self._load_raw_data(test_mode)
 
         # Filter users if specified
-        if users_to_create_feeds_for:
-            self.logger.info(
-                f"Creating custom feeds for {len(users_to_create_feeds_for)} users provided in the input."
-            )
-            study_users = [
-                user
-                for user in study_users
-                if user.bluesky_handle in users_to_create_feeds_for
-            ]
+        filtered_study_users = self._filter_study_users(
+            raw_data.study_users,
+            users_to_create_feeds_for,
+        )
 
         return LoadedData(
-            posts_df=consolidated_enriched_posts_df,
-            posts_models=consolidated_enriched_posts,  # type: ignore[arg-type]
-            user_to_social_network_map=user_to_social_network_map,  # type: ignore[arg-type]
-            superposter_dids=superposter_dids,
-            previous_feeds=latest_feeds,
-            study_users=study_users,
+            posts_df=raw_data.feed_input_data.consolidate_enrichment_integrations,
+            user_to_social_network_map=raw_data.feed_input_data.scraped_user_social_network,
+            superposter_dids=raw_data.feed_input_data.superposters,
+            previous_feeds=raw_data.latest_feeds,
+            study_users=filtered_study_users,
         )
 
     def _score_posts(self, loaded_data: LoadedData) -> ScoredPosts:
