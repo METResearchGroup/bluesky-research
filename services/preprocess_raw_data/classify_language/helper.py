@@ -5,7 +5,6 @@ from typing import Literal
 
 import pandas as pd
 
-from lib.db.bluesky_models.transformations import TransformedRecordModel
 from lib.helper import track_performance
 from services.preprocess_raw_data.classify_language.model import classify
 
