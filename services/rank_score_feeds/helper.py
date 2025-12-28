@@ -99,26 +99,25 @@ def preprocess_data(consolidated_enriched_posts_df: pd.DataFrame) -> pd.DataFram
     """Preprocesses the data."""
     # Deduplication based on unique URIs, keeping the most recent consolidation_timestamp
     len_before = consolidated_enriched_posts_df.shape[0]
-    consolidated_enriched_posts_df = consolidated_enriched_posts_df.sort_values(
+    deduplicated_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
         by="consolidation_timestamp", ascending=False
     ).drop_duplicates(subset="uri", keep="first")
-    len_after = consolidated_enriched_posts_df.shape[0]
+    len_after = deduplicated_df.shape[0]
 
     if len_before != len_after:
         logger.info(f"Deduplicated posts from {len_before} to {len_after}.")
 
-    # manually filter post authors
-    excludes = load_users_to_exclude()
-    bsky_handles_to_exclude = excludes["bsky_handles_to_exclude"]
-    bsky_dids_to_exclude = excludes["bsky_dids_to_exclude"]
-    consolidated_enriched_posts_df = consolidated_enriched_posts_df[
-        consolidated_enriched_posts_df.apply(
-            lambda x: x["author_did"] not in bsky_dids_to_exclude
-            and x["author_handle"] not in bsky_handles_to_exclude,
-            axis=1,
-        )
-    ]
-    return consolidated_enriched_posts_df
+    # filter out excluded authors.
+    users_to_exclude: dict[str, set[str]] = load_users_to_exclude()
+    bsky_handles_to_exclude: set[str] = users_to_exclude["bsky_handles_to_exclude"]
+    bsky_dids_to_exclude: set[str] = users_to_exclude["bsky_dids_to_exclude"]
+
+    # keep posts where authors are NOT in the excludelists.
+    mask: pd.Series = ~(
+        consolidated_enriched_posts_df["author_did"].isin(bsky_dids_to_exclude)
+        | consolidated_enriched_posts_df["author_handle"].isin(bsky_handles_to_exclude)
+    )
+    return deduplicated_df[mask]
 
 
 def load_feed_input_data(lookback_days: int = default_lookback_days) -> FeedInputData:

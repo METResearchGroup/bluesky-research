@@ -97,7 +97,7 @@ class FeedGenerationOrchestrator:
         # Step 3: Score posts
         scored_posts = self._score_posts(loaded_data)
 
-        # Step 4: Export scores (conditional)
+        # Step 4: Export scores (optional)
         if not skip_export_post_scores:
             self._export_scores(scored_posts)
 
