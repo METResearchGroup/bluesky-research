@@ -250,7 +250,7 @@ install_uv_dependencies() {
     uv lock
 
     log_info "Installing dependencies (locked) from pyproject.toml..."
-    uv sync --extra dev --extra ml --extra llm --extra valence --extra telemetry --extra feed_api
+    uv sync --extra dev --extra ml --extra llm --extra valence --extra telemetry --extra feed_api --extra analysis
     
     log_success "All dependencies installed successfully"
 }
@@ -265,7 +265,7 @@ install_conda_dependencies() {
 
     # Install from pyproject.toml (extras mirror CI / uv setup)
     log_info "Installing project (editable) with dependency extras..."
-    pip install -e ".[dev,ml,llm,valence,telemetry,feed_api]"
+    pip install -e ".[dev,ml,llm,valence,telemetry,feed_api,analysis]"
     
     log_success "All dependencies installed successfully"
 }
