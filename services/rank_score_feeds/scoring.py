@@ -169,11 +169,16 @@ def load_previous_post_scores(
     feed_config: FeedConfig,
     lookback_days: int | None = None,
 ) -> dict:
-    """Load previous post scores from storage, for a given lookback period.
+    """DEPRECATED: Use ScoresRepository.load_cached_scores() instead.
+
+    Load previous post scores from storage, for a given lookback period.
 
     Returns a dict with the post uri as the key and the scores dict as the
     value. The scores dict contains the engagement and treatment scores for the
     post.
+
+    This function is kept for backward compatibility during migration.
+    New code should use ScoresRepository.load_cached_scores().
     """
     if lookback_days is None:
         lookback_days = feed_config.default_scoring_lookback_days
@@ -209,7 +214,13 @@ def calculate_post_scores(
     feed_config: FeedConfig,
     load_previous_scores: bool = True,
 ) -> tuple[list[dict], list[str]]:  # noqa
-    """Calculate scores for a list of posts."""
+    """DEPRECATED: Use ScoringService.score_posts() instead.
+
+    Calculate scores for a list of posts.
+
+    This function is kept for backward compatibility during migration.
+    New code should use ScoringService.score_posts().
+    """
     scores = []
     new_post_uris = []
 

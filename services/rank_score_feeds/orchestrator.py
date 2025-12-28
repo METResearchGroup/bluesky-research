@@ -19,7 +19,6 @@ from services.rank_score_feeds.helper import (
     calculate_in_network_posts_for_user,
     create_ranked_candidate_feed,
     export_feed_analytics,
-    export_post_scores,
     export_results,
     filter_posts_by_author_count,
     generate_feed_statistics,
@@ -38,7 +37,8 @@ from services.rank_score_feeds.models import (
     UserFeedResult,
     LatestFeeds,
 )
-from services.rank_score_feeds.scoring import calculate_post_scores
+from services.rank_score_feeds.repositories.scores_repo import ScoresRepository
+from services.rank_score_feeds.services.scoring import ScoringService
 
 logger = get_logger(__name__)
 
@@ -69,6 +69,13 @@ class FeedGenerationOrchestrator:
         self.glue = Glue()
         self.logger = logger
 
+        # Initialize scoring dependencies
+        scores_repo = ScoresRepository(feed_config=feed_config)
+        self.scoring_service = ScoringService(
+            scores_repo=scores_repo,
+            feed_config=feed_config,
+        )
+
     def run(
         self,
         users_to_create_feeds_for: list[str] | None = None,
@@ -94,20 +101,18 @@ class FeedGenerationOrchestrator:
         # Step 2: Deduplicate and filter posts
         loaded_data.posts_df = self._deduplicate_and_filter_posts(loaded_data.posts_df)
 
-        # Step 3: Score posts
-        scored_posts = self._score_posts(loaded_data)
+        # Step 3: Score posts (export is handled by ScoringService unless skipped)
+        scored_posts = self._score_posts(
+            loaded_data, skip_export=skip_export_post_scores
+        )
 
-        # Step 4: Export scores (optional)
-        if not skip_export_post_scores:
-            self._export_scores(scored_posts)
-
-        # Step 5: Build post pools
+        # Step 4: Build post pools
         post_pools = self._build_post_pools(scored_posts.posts_df)
 
-        # Step 6: Generate feeds
+        # Step 5: Generate feeds
         run_result = self._generate_feeds(loaded_data, scored_posts, post_pools)
 
-        # Step 7: Export results
+        # Step 6: Export results
         self._export_results(run_result, test_mode)
 
         return run_result
@@ -238,50 +243,23 @@ class FeedGenerationOrchestrator:
         filtered_df: pd.DataFrame = deduplicated_df[mask]  # type: ignore[assignment] # pyright: ignore[reportUnknownReturnType]
         return filtered_df
 
-    def _score_posts(self, loaded_data: LoadedData) -> ScoredPosts:
+    def _score_posts(
+        self, loaded_data: LoadedData, skip_export: bool = False
+    ) -> ScoredPosts:
         """Calculate scores for all posts.
 
         Args:
             loaded_data: Loaded input data.
+            skip_export: If True, skip exporting new scores to storage.
 
         Returns:
             ScoredPosts containing posts with scores and list of new post URIs.
         """
-        # Calculate scores for all the posts. Load any pre-existing scores and then
-        # calculate scores for new posts.
-        post_scores, new_post_uris = calculate_post_scores(
-            posts=loaded_data.posts_df,
-            superposter_dids=loaded_data.superposter_dids,
-            feed_config=self.config,
-            load_previous_scores=True,
-        )
-
-        engagement_scores = [score["engagement_score"] for score in post_scores]
-        treatment_scores = [score["treatment_score"] for score in post_scores]
-        loaded_data.posts_df["engagement_score"] = engagement_scores
-        loaded_data.posts_df["treatment_score"] = treatment_scores
-
-        self.logger.info(f"Calculated {len(loaded_data.posts_df)} post scores.")
-
-        return ScoredPosts(
+        return self.scoring_service.score_posts(
             posts_df=loaded_data.posts_df,
-            new_post_uris=new_post_uris,
+            superposter_dids=loaded_data.superposter_dids,
+            save_new_scores=not skip_export,
         )
-
-    def _export_scores(self, scored_posts: ScoredPosts) -> None:
-        """Export post scores to storage.
-
-        Args:
-            scored_posts: Posts with scores.
-        """
-        scores_to_export: list[dict] = scored_posts.posts_df[
-            scored_posts.posts_df["uri"].isin(scored_posts.new_post_uris)
-        ][["uri", "text", "source", "engagement_score", "treatment_score"]].to_dict(
-            "records"
-        )  # type: ignore[call-overload]
-
-        self.logger.info(f"Exporting {len(scores_to_export)} post scores.")
-        export_post_scores(scores_to_export=scores_to_export)
 
     def _build_post_pools(self, posts_df: pd.DataFrame) -> PostPools:
         """Build the three post pools used for ranking.
