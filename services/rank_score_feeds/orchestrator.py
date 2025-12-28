@@ -189,11 +189,6 @@ class FeedGenerationOrchestrator:
         # Load raw data
         raw_data: RawFeedData = self._load_raw_data(test_mode)
 
-        # Extract posts DataFrame
-        posts_df: pd.DataFrame = (
-            raw_data.feed_input_data.consolidate_enrichment_integrations
-        )
-
         # Filter users if specified
         filtered_study_users = self._filter_study_users(
             raw_data.study_users,
@@ -201,7 +196,7 @@ class FeedGenerationOrchestrator:
         )
 
         return LoadedData(
-            posts_df=posts_df,
+            posts_df=raw_data.feed_input_data.consolidate_enrichment_integrations,
             user_to_social_network_map=raw_data.feed_input_data.scraped_user_social_network,
             superposter_dids=raw_data.feed_input_data.superposters,
             previous_feeds=raw_data.latest_feeds,
