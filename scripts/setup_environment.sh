@@ -159,8 +159,8 @@ validate_system() {
     log_info "Validating system requirements..."
 
     # Check if we're in the correct directory
-    if [[ ! -f "$PROJECT_ROOT/requirements.in" ]]; then
-        log_error "Please run this script from the project root or ensure requirements.in exists"
+    if [[ ! -f "$PROJECT_ROOT/pyproject.toml" ]]; then
+        log_error "Please run this script from the project root or ensure pyproject.toml exists"
         exit 1
     fi
 
@@ -244,22 +244,13 @@ install_uv_dependencies() {
     
     cd "$PROJECT_ROOT"
     source .venv/bin/activate
-    
-    # Install core dependencies
-    log_info "Installing core dependencies..."
-    uv pip install -r requirements.txt
-    
-    # Install development dependencies
-    log_info "Installing development dependencies..."
-    uv pip install -r dev_requirements.txt
-    
-    # Install ML tooling dependencies
-    log_info "Installing ML tooling dependencies..."
-    uv pip install -r ml_tooling/requirements.txt
-    
-    # Install project in editable mode
-    log_info "Installing project in editable mode..."
-    uv pip install -e .
+
+    # Resolve and install dependencies from pyproject.toml (recommended, consistent with CI)
+    log_info "Resolving dependencies (creating/refreshing uv.lock)..."
+    uv lock
+
+    log_info "Installing dependencies (locked) from pyproject.toml..."
+    uv sync --extra dev --extra ml --extra llm --extra valence --extra telemetry --extra feed_api
     
     log_success "All dependencies installed successfully"
 }
@@ -271,25 +262,10 @@ install_conda_dependencies() {
     # Activate conda environment
     eval "$(conda shell.bash hook)"
     conda activate "$ENV_NAME"
-    
-    # Install pip-tools for requirements compilation
-    pip install pip-tools
-    
-    # Install core dependencies
-    log_info "Installing core dependencies..."
-    pip install -r requirements.txt
-    
-    # Install development dependencies
-    log_info "Installing development dependencies..."
-    pip install -r dev_requirements.txt
-    
-    # Install ML tooling dependencies
-    log_info "Installing ML tooling dependencies..."
-    pip install -r ml_tooling/requirements.txt
-    
-    # Install project in editable mode
-    log_info "Installing project in editable mode..."
-    pip install -e .
+
+    # Install from pyproject.toml (extras mirror CI / uv setup)
+    log_info "Installing project (editable) with dependency extras..."
+    pip install -e ".[dev,ml,llm,valence,telemetry,feed_api]"
     
     log_success "All dependencies installed successfully"
 }
