@@ -26,7 +26,6 @@ from services.calculate_superposters.load_data import load_latest_superposters
 from services.calculate_superposters.models import CalculateSuperposterSource
 from services.consolidate_enrichment_integrations.load_data import load_enriched_posts
 from services.participant_data.social_network import load_user_social_network_map
-from services.preprocess_raw_data.classify_language.model import classify
 from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
     load_users_to_exclude,
 )
@@ -99,21 +98,6 @@ def export_results(user_to_ranked_feed_map: dict, timestamp: str):
 
 def preprocess_data(consolidated_enriched_posts_df: pd.DataFrame) -> pd.DataFrame:
     """Preprocesses the data."""
-    # immplement filtering (e.g., English-language filtering)
-    # looks like Bluesky's language filter is broken, so I'll do my own manual
-    # filtering here (could've done it upstream too tbh, this is just the quickest
-    # fix). My implementation is also imperfect, but it gets more correct.
-    # It uses fasttext. Some still make it through, but it's pretty good.
-    logger.info(
-        f"Number of posts before filtering: {len(consolidated_enriched_posts_df)}"
-    )
-    consolidated_enriched_posts_df = consolidated_enriched_posts_df[
-        consolidated_enriched_posts_df["text"].apply(filter_post_is_english)
-    ]
-    logger.info(
-        f"Number of posts after filtering: {len(consolidated_enriched_posts_df)}"
-    )
-
     # Deduplication based on unique URIs, keeping the most recent consolidation_timestamp
     len_before = consolidated_enriched_posts_df.shape[0]
     consolidated_enriched_posts_df = consolidated_enriched_posts_df.sort_values(
@@ -380,22 +364,6 @@ def postprocess_feed(
         )
 
     return feed
-
-
-def filter_post_is_english(text: str) -> bool:
-    """Filters for if a post is English.
-
-    Returns True if the post has text and that text is in English. Returns False
-    if the post either has no text or that text is not in English.
-
-    Looks like posts are being labeled as "en" by Bluesky even when they're not
-    in English, so they're passing our filters since we assume Bluesky's language
-    filter is correct. Given that that isn't the case, we do it manually here.
-    """
-    if not text:
-        return False
-    text = text.replace("\n", " ").strip()
-    return classify(text=text)
 
 
 def generate_feed_statistics(feed: list[CustomFeedPost]) -> str:
