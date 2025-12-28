@@ -39,6 +39,10 @@ dependencies = [
     "tenacity>=8.5.0,<9.0.0",
 ]
 
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project.optional-dependencies]
 # Development tools
 dev = [
@@ -119,8 +123,15 @@ all = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["lib*", "ml_tooling*", "bluesky_database*", "services*", "transform*"]
+where = [".", "pipelines/get_existing_user_social_network/src"]
+include = [
+    "lib*",
+    "ml_tooling*",
+    "bluesky_database*",
+    "services*",
+    "transform*",
+    "get_existing_user_social_network*",
+]
 exclude = [
     "demos*", 
     "experiments*", 
@@ -142,13 +153,6 @@ max-complexity = 10
 members = ["pipelines/get_existing_user_social_network"]
 
 [tool.pytest.ini_options]
-# Ensure workspace-member `src/` trees are importable in `uv run pytest` /
-# CI environments that only set `PYTHONPATH` to the repo root.
-pythonpath = [
-    ".",
-    "pipelines/get_existing_user_social_network/src",
-]
-
 # Add custom markers
 markers = [
     "integration: marks tests as integration tests",
