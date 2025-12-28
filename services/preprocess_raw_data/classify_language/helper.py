@@ -1,24 +1,13 @@
 """Classifies the language of a post."""
 
 from multiprocessing import Pool, cpu_count
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Literal
 
 import pandas as pd
 
+from lib.db.bluesky_models.transformations import TransformedRecordModel
+from lib.helper import track_performance
 from services.preprocess_raw_data.classify_language.model import classify
-
-if TYPE_CHECKING:  # pragma: no cover
-    from lib.db.bluesky_models.transformations import TransformedRecordModel
-else:  # pragma: no cover
-    TransformedRecordModel = Any
-
-try:
-    # `lib.helper` pulls in optional heavy deps (atproto, etc). This service can
-    # still function without them, so treat the decorator as optional.
-    from lib.helper import track_performance  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover
-    def track_performance(func):  # type: ignore
-        return func
 
 
 def classify_single_post(post) -> dict:
@@ -39,10 +28,6 @@ def preprocess_text_for_filtering(text: str) -> str:
 def text_is_english(text: str) -> bool:
     preprocessed_text = preprocess_text_for_filtering(text)
     return classify(preprocessed_text)
-
-
-def record_is_english(record: TransformedRecordModel) -> bool:
-    return text_is_english(record.text)
 
 
 @track_performance

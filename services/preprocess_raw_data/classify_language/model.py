@@ -13,11 +13,6 @@ posts labeled as "en").
 """  # noqa
 import os
 
-try:
-    import fasttext  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover
-    fasttext = None
-
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 binary_filename = "lid.176.bin"
 fp = os.path.join(current_file_directory, binary_filename)
@@ -28,12 +23,14 @@ def _get_model():
     global _model
     if _model is not None:
         return _model
-    if fasttext is None:
+    try:
+        import fasttext  # type: ignore
+    except ModuleNotFoundError as e:  # pragma: no cover
         raise ModuleNotFoundError(
             "fasttext is required for language classification. "
             "Install it (e.g. from `services/preprocess_raw_data/classify_language/requirements.txt`) "
             "or monkeypatch `classify()` in tests."
-        )
+        ) from e
     if not os.path.exists(fp):
         raise FileNotFoundError(
             f"FastText language ID model not found at {fp}. "

@@ -44,11 +44,6 @@ def test_filter_text_is_english_default_mode_serial(monkeypatch):
 def test_record_and_post_language_do_not_trust_upstream_langs(monkeypatch):
     monkeypatch.setattr(lang_helper, "classify", always_false)
 
-    class FakeRecord:
-        def __init__(self, text: str, langs: str | None):
-            self.text = text
-            self.langs = langs
-
     class FakePost:
         def __init__(self, uri: str, text: str, langs: str | None):
             self.uri = uri
@@ -56,7 +51,7 @@ def test_record_and_post_language_do_not_trust_upstream_langs(monkeypatch):
             self.langs = langs
 
     # Even if upstream says "en", we should still run our classifier and return False.
-    assert lang_helper.record_is_english(FakeRecord(text="hola mundo", langs="en")) is False
+    assert lang_helper.text_is_english("hola mundo") is False
     assert lang_helper.classify_single_post(
         FakePost(uri="at://did:plc:abc/app.bsky.feed.post/123", text="hola mundo", langs="en")
     ) == {"uri": "at://did:plc:abc/app.bsky.feed.post/123", "is_english": False}
