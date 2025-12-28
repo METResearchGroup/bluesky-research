@@ -7,28 +7,49 @@ is trying to classify the language of every post on their end
 - https://github.com/bluesky-social/atproto/pull/2301
 - https://github.com/bluesky-social/atproto/pull/2161/
 
-Our model only runs if the language isn't specificed by the record, so it
-could be the case that we don't have to run our model altogether, depending on
-how Bluesky proceeds.
+We intentionally treat this model as authoritative and run it regardless of any
+upstream `langs` labels, because we've observed false positives (e.g. non-English
+posts labeled as "en").
 """  # noqa
 import os
 
-import fasttext
+try:
+    import fasttext  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    fasttext = None
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 binary_filename = "lid.176.bin"
 fp = os.path.join(current_file_directory, binary_filename)
-model = fasttext.load_model(fp)
+_model = None
+
+
+def _get_model():
+    global _model
+    if _model is not None:
+        return _model
+    if fasttext is None:
+        raise ModuleNotFoundError(
+            "fasttext is required for language classification. "
+            "Install it (e.g. from `services/preprocess_raw_data/classify_language/requirements.txt`) "
+            "or monkeypatch `classify()` in tests."
+        )
+    if not os.path.exists(fp):
+        raise FileNotFoundError(
+            f"FastText language ID model not found at {fp}. "
+            "Download `lid.176.bin` and place it next to this file."
+        )
+    _model = fasttext.load_model(fp)
+    return _model
 
 
 def classify(text: str) -> bool:
     """Classifies if a text is English or not."""
     if not text:
         return False
-    return (
-        model.predict(text)[0][0] == "__label__eng_Latn"
-        or model.predict(text)[0][0] == "__label__en"
-    )
+    model = _get_model()
+    label = model.predict(text)[0][0]
+    return label in {"__label__eng_Latn", "__label__en"}
 
 
 if __name__ == "__main__":
