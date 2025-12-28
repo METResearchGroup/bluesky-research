@@ -1311,6 +1311,7 @@ class TestExportDataToLocalStorage:
             "end_timestamp": "2024-01-01",
             "data": mock_df
         }])
+        mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         mock_logger = mocker.patch("lib.db.manage_local_data.logger")
         
@@ -1338,6 +1339,7 @@ class TestExportDataToLocalStorage:
             "end_timestamp": "2024-01-01",
             "data": mock_df
         }])
+        mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         mock_logger = mocker.patch("lib.db.manage_local_data.logger")
         
