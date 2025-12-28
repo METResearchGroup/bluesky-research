@@ -142,6 +142,13 @@ max-complexity = 10
 members = ["pipelines/get_existing_user_social_network"]
 
 [tool.pytest.ini_options]
+# Ensure workspace-member `src/` trees are importable in `uv run pytest` /
+# CI environments that only set `PYTHONPATH` to the repo root.
+pythonpath = [
+    ".",
+    "pipelines/get_existing_user_social_network/src",
+]
+
 # Add custom markers
 markers = [
     "integration: marks tests as integration tests",
