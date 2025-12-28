@@ -40,7 +40,7 @@ def filter_posts(posts: pd.DataFrame, custom_args: dict) -> tuple[pd.DataFrame, 
     )  # noqa
     logger.info(
         f"After English filtering, number of posts that failed filter: {len(posts) - num_english_posts}"
-    )  # noqas
+    )  # noqa
 
     posts = posts[posts["is_english"]]
 
