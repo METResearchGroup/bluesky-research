@@ -310,12 +310,16 @@ asyncio_default_fixture_loop_scope = "function"
 
 [tool.complexipy]
 # Cognitive complexity analysis configuration
+# Set to true to make complexipy informational only (won't fail CI)
+# This allows developers to see complexity warnings but commit anyway
+ignore-complexity = true
 max-complexity-allowed = 10
 color = "yes"
 snapshot-create = false
-snapshot-ignore = false
+# Set to true to make snapshot checks non-blocking (recommended for CI)
+# The snapshot still tracks complex functions, but won't block commits
+snapshot-ignore = true
 quiet = false
-ignore-complexity = false
 failed = false
 sort = "asc"
 exclude = []
