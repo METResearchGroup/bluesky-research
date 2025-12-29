@@ -57,6 +57,7 @@ dev = [
     "faker>=4.14.0",
     "freezegun>=1.2.2",
     "pre-commit>=3.7.1",
+    "complexipy>=5.1.0",
 ]
 
 # Machine Learning (heavy dependencies with PyTorch)
@@ -306,3 +307,41 @@ required_plugins = [
 
 # Fix asyncio fixture loop scope deprecation warning
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.complexipy]
+# Cognitive complexity analysis configuration
+# Set to true to make complexipy informational only (won't fail CI)
+# This allows developers to see complexity warnings but commit anyway
+ignore-complexity = true
+max-complexity-allowed = 10
+color = "auto"
+snapshot-create = false
+# Set to true to make snapshot checks non-blocking (recommended for CI)
+# The snapshot still tracks complex functions, but won't block commits
+snapshot-ignore = true
+quiet = false
+failed = false
+sort = "asc"
+exclude = [
+    "tests",
+    "tests/**",
+    "test_*/**",
+    "experiments",
+    "experiments/**",
+    "demos",
+    "demos/**",
+    "deprecated",
+    "deprecated/**",
+    "scripts",
+    "scripts/**",
+    ".venv",
+    ".venv/**",
+    "build",
+    "build/**",
+    "dist",
+    "dist/**",
+]
+
+[tool.complexipy.output]
+csv = false
+json = false
