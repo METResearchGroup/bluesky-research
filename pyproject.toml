@@ -38,7 +38,6 @@ dependencies = [
     "packaging>=23.2",
     "typing-extensions>=4.12.2",
     "tenacity>=8.5.0,<9.0.0",
-    "complexipy>=5.1.0",
 ]
 
 [build-system]
@@ -58,6 +57,7 @@ dev = [
     "faker>=4.14.0",
     "freezegun>=1.2.2",
     "pre-commit>=3.7.1",
+    "complexipy>=5.1.0",
 ]
 
 # Machine Learning (heavy dependencies with PyTorch)
@@ -314,7 +314,7 @@ asyncio_default_fixture_loop_scope = "function"
 # This allows developers to see complexity warnings but commit anyway
 ignore-complexity = true
 max-complexity-allowed = 10
-color = "yes"
+color = "auto"
 snapshot-create = false
 # Set to true to make snapshot checks non-blocking (recommended for CI)
 # The snapshot still tracks complex functions, but won't block commits
@@ -322,6 +322,26 @@ snapshot-ignore = true
 quiet = false
 failed = false
 sort = "asc"
-exclude = []
-output-csv = false
-output-json = false
+exclude = [
+    "tests",
+    "tests/**",
+    "test_*/**",
+    "experiments",
+    "experiments/**",
+    "demos",
+    "demos/**",
+    "deprecated",
+    "deprecated/**",
+    "scripts",
+    "scripts/**",
+    ".venv",
+    ".venv/**",
+    "build",
+    "build/**",
+    "dist",
+    "dist/**",
+]
+
+[tool.complexipy.output]
+csv = false
+json = false
