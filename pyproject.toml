@@ -38,6 +38,7 @@ dependencies = [
     "packaging>=23.2",
     "typing-extensions>=4.12.2",
     "tenacity>=8.5.0,<9.0.0",
+    "complexipy>=5.1.0",
 ]
 
 [build-system]
@@ -306,3 +307,17 @@ required_plugins = [
 
 # Fix asyncio fixture loop scope deprecation warning
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.complexipy]
+# Cognitive complexity analysis configuration
+max-complexity-allowed = 10
+color = "yes"
+snapshot-create = false
+snapshot-ignore = false
+quiet = false
+ignore-complexity = false
+failed = false
+sort = "asc"
+exclude = []
+output-csv = false
+output-json = false

@@ -39,6 +39,86 @@ class PostProcessor(RecordProcessorProtocol):
         """
         return transform_post(record, operation)
 
+    def _handle_study_user_post(
+        self,
+        author_did: str,
+        post_uri: str,
+        post_uri_suffix: str,
+        filename: str,
+        study_user_manager,
+    ) -> RoutingDecision:
+        """Handle routing decision for study user posts."""
+        logger.info(f"Study user {author_did} created a new post: {post_uri_suffix}")
+        study_user_manager.insert_study_user_post(
+            post_uri=post_uri, user_did=author_did
+        )
+        return RoutingDecision(
+            handler_key=RecordType.POST,
+            author_did=author_did,
+            filename=filename,
+            metadata={"post_uri": post_uri, "post_uri_suffix": post_uri_suffix},
+        )
+
+    def _get_reply_author_did(
+        self,
+        reply_parent: Optional[str],
+        reply_root: Optional[str],
+        study_user_manager,
+    ) -> Optional[str]:
+        """Get author DID if reply is to a study user post."""
+        if reply_parent:
+            author_did = study_user_manager.is_study_user_post(post_uri=reply_parent)
+            if author_did:
+                return author_did
+        if reply_root:
+            return study_user_manager.is_study_user_post(post_uri=reply_root)
+        return None
+
+    def _handle_reply_to_study_user_post(
+        self,
+        post_uri: str,
+        post_uri_suffix: str,
+        filename: str,
+        reply_parent: Optional[str],
+        reply_root: Optional[str],
+        study_user_manager,
+    ) -> RoutingDecision:
+        """Handle routing decision for replies to study user posts."""
+        reply_author_did = self._get_reply_author_did(
+            reply_parent, reply_root, study_user_manager
+        )
+
+        logger.info(f"Post {post_uri_suffix} is a reply to a post by a study user.")
+        return RoutingDecision(
+            handler_key=RecordType.REPLY_TO_USER_POST,
+            author_did=reply_author_did,
+            filename=filename,
+            metadata={
+                "post_uri": post_uri,
+                "post_uri_suffix": post_uri_suffix,
+                "reply_parent": reply_parent,
+                "reply_root": reply_root,
+            },
+        )
+
+    def _handle_in_network_post(
+        self,
+        author_did: str,
+        post_uri: str,
+        post_uri_suffix: str,
+        filename: str,
+    ) -> RoutingDecision:
+        """Handle routing decision for in-network user posts."""
+        logger.info(
+            f"In-network user {author_did} created a new post: {post_uri_suffix}"
+        )
+        return RoutingDecision(
+            handler_key=HandlerKey.IN_NETWORK_POST,
+            author_did=author_did,
+            filename=filename,
+            metadata={"post_uri": post_uri, "post_uri_suffix": post_uri_suffix},
+        )
+
     def get_routing_decisions(
         self,
         transformed: dict,
@@ -73,23 +153,11 @@ class PostProcessor(RecordProcessorProtocol):
         )
 
         # Case 1: Check if the post was written by the study user
-        is_study_user = study_user_manager.is_study_user(user_did=author_did)
-        if is_study_user:
-            logger.info(
-                f"Study user {author_did} created a new post: {post_uri_suffix}"
-            )
+        if study_user_manager.is_study_user(user_did=author_did):
             decisions.append(
-                RoutingDecision(
-                    handler_key=RecordType.POST,
-                    author_did=author_did,
-                    filename=filename,
-                    metadata={"post_uri": post_uri, "post_uri_suffix": post_uri_suffix},
+                self._handle_study_user_post(
+                    author_did, post_uri, post_uri_suffix, filename, study_user_manager
                 )
-            )
-
-            # Update StudyUserManager for posts (maintains old behavior)
-            study_user_manager.insert_study_user_post(
-                post_uri=post_uri, user_did=author_did
             )
 
         # Case 2: Check if the post is a repost of a post written by the study user
@@ -98,62 +166,27 @@ class PostProcessor(RecordProcessorProtocol):
         # Case 3: Post is a reply to a post written by the study user
         reply_parent = transformed.get("reply_parent")
         reply_root = transformed.get("reply_root")
-
         if reply_parent or reply_root:
-            reply_parent_is_user_study_post: Optional[str] = (
-                study_user_manager.is_study_user_post(post_uri=reply_parent)
-                if reply_parent
-                else None
+            reply_author_did = self._get_reply_author_did(
+                reply_parent, reply_root, study_user_manager
             )
-            reply_root_is_user_study_post: Optional[str] = (
-                study_user_manager.is_study_user_post(post_uri=reply_root)
-                if reply_root
-                else None
-            )
-
-            post_is_reply_to_study_user_post = (
-                reply_parent_is_user_study_post is not None
-                or reply_root_is_user_study_post is not None
-            )
-
-            if post_is_reply_to_study_user_post:
-                logger.info(
-                    f"Post {post_uri_suffix} is a reply to a post by a study user."
-                )
-                # Use the author DID of the post being replied to
-                reply_author_did = (
-                    reply_parent_is_user_study_post
-                    if reply_parent_is_user_study_post
-                    else reply_root_is_user_study_post
-                )
+            if reply_author_did is not None:
                 decisions.append(
-                    RoutingDecision(
-                        handler_key=RecordType.REPLY_TO_USER_POST,
-                        author_did=reply_author_did,
-                        filename=filename,
-                        metadata={
-                            "post_uri": post_uri,
-                            "post_uri_suffix": post_uri_suffix,
-                            "reply_parent": reply_parent,
-                            "reply_root": reply_root,
-                        },
+                    self._handle_reply_to_study_user_post(
+                        post_uri,
+                        post_uri_suffix,
+                        filename,
+                        reply_parent,
+                        reply_root,
+                        study_user_manager,
                     )
                 )
 
         # Case 4: Post is written by an in-network user
-        is_in_network_user: bool = study_user_manager.is_in_network_user(
-            user_did=author_did
-        )
-        if is_in_network_user:
-            logger.info(
-                f"In-network user {author_did} created a new post: {post_uri_suffix}"
-            )
+        if study_user_manager.is_in_network_user(user_did=author_did):
             decisions.append(
-                RoutingDecision(
-                    handler_key=HandlerKey.IN_NETWORK_POST,
-                    author_did=author_did,
-                    filename=filename,
-                    metadata={"post_uri": post_uri, "post_uri_suffix": post_uri_suffix},
+                self._handle_in_network_post(
+                    author_did, post_uri, post_uri_suffix, filename
                 )
             )
 

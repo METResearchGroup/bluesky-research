@@ -2,7 +2,7 @@ name: Python CI
 permissions:
   contents: read
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
   build:
@@ -38,6 +38,18 @@ jobs:
       run: uv sync --extra dev --extra ml --extra llm --extra valence --extra telemetry --extra feed_api
     - name: Add project directory to PYTHONPATH
       run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
+    - name: Get changed Python files
+      id: changed
+      uses: tj-actions/changed-files@v44
+      with:
+        files: |
+          **/*.py
+
+    - name: Run complexipy on changed files
+      if: steps.changed.outputs.any_changed == 'true'
+      run: |
+        uv run complexipy ${{ steps.changed.outputs.all_changed_files }}
+
     - name: Ruff linting
       run: |
         # stop the build if there are Python syntax errors or undefined names

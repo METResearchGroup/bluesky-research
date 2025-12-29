@@ -26,14 +26,8 @@ class CacheDirectoryManager:
         """
         os.makedirs(path, exist_ok=True)
 
-    def rebuild_all(self) -> None:
-        """Rebuild all cache directory structures."""
-        path_mgr = self.path_manager
-
-        # Create root write path
-        os.makedirs(path_mgr.root_write_path, exist_ok=True)
-
-        # Create generic firehose paths (create/delete for each operation type)
+    def _build_generic_firehose_paths(self, path_mgr) -> None:
+        """Build generic firehose cache directory paths."""
         for operation in [Operation.CREATE, Operation.DELETE]:
             op_path = (
                 path_mgr.root_create_path
@@ -46,7 +40,8 @@ class CacheDirectoryManager:
                 op_type_path = os.path.join(op_path, op_type)
                 os.makedirs(op_type_path, exist_ok=True)
 
-        # Create study user activity paths
+    def _build_study_user_activity_paths(self, path_mgr) -> None:
+        """Build study user activity cache directory paths."""
         os.makedirs(path_mgr.study_user_activity_root_local_path, exist_ok=True)
 
         for operation in [Operation.CREATE, Operation.DELETE]:
@@ -80,11 +75,28 @@ class CacheDirectoryManager:
                     )
                     os.makedirs(follow_path, exist_ok=True)
 
-        # Create in-network user activity path
+    def _build_in_network_activity_paths(self, path_mgr) -> None:
+        """Build in-network user activity cache directory paths."""
         os.makedirs(path_mgr.in_network_user_activity_root_local_path, exist_ok=True)
         os.makedirs(
             path_mgr.in_network_user_activity_create_post_local_path, exist_ok=True
         )
+
+    def rebuild_all(self) -> None:
+        """Rebuild all cache directory structures."""
+        path_mgr = self.path_manager
+
+        # Create root write path
+        os.makedirs(path_mgr.root_write_path, exist_ok=True)
+
+        # Create generic firehose paths (create/delete for each operation type)
+        self._build_generic_firehose_paths(path_mgr)
+
+        # Create study user activity paths
+        self._build_study_user_activity_paths(path_mgr)
+
+        # Create in-network user activity path
+        self._build_in_network_activity_paths(path_mgr)
 
     def delete_all(self) -> None:
         """Delete all cache directories."""
