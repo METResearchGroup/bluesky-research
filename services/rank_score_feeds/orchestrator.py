@@ -327,6 +327,157 @@ class FeedGenerationOrchestrator:
             treatment=treatment_post_pool_df,
         )
 
+    def _select_post_pool_for_user(
+        self, user: UserToBlueskyProfileModel, post_pools: PostPools
+    ) -> pd.DataFrame:
+        """Select the appropriate post pool for a user based on their condition.
+
+        Args:
+            user: User to select post pool for.
+            post_pools: Available post pools.
+
+        Returns:
+            Selected post pool DataFrame.
+
+        Raises:
+            ValueError: If user condition is invalid or post pool is empty.
+        """
+        if user.condition == "reverse_chronological":
+            post_pool = post_pools.reverse_chronological
+        elif user.condition == "engagement":
+            post_pool = post_pools.engagement
+        elif user.condition == "representative_diversification":
+            post_pool = post_pools.treatment
+        else:
+            post_pool = None
+
+        if post_pool is None or len(post_pool) == 0:
+            raise ValueError(
+                "post_pool cannot be None. This means that a user condition is unexpected/invalid"
+            )
+
+        return post_pool
+
+    def _generate_feed_for_user(
+        self,
+        user: UserToBlueskyProfileModel,
+        post_pool: pd.DataFrame,
+        in_network_post_uris: list[str],
+        previous_post_uris: set[str],
+    ) -> dict:
+        """Generate a feed for a single user.
+
+        Args:
+            user: User to generate feed for.
+            post_pool: Post pool to use for ranking.
+            in_network_post_uris: List of in-network post URIs for this user.
+            previous_post_uris: Set of previous post URIs to avoid.
+
+        Returns:
+            Dictionary containing feed data and metadata.
+        """
+        candidate_feed = create_ranked_candidate_feed(
+            condition=user.condition,
+            in_network_candidate_post_uris=in_network_post_uris,
+            post_pool=post_pool,
+            max_feed_length=self.config.max_feed_length,
+            max_in_network_posts_ratio=self.config.max_in_network_posts_ratio,
+        )
+
+        feed = postprocess_feed(
+            feed=candidate_feed,
+            max_feed_length=self.config.max_feed_length,
+            max_prop_old_posts=self.config.max_prop_old_posts,
+            feed_preprocessing_multiplier=self.config.feed_preprocessing_multiplier,
+            jitter_amount=self.config.jitter_amount,
+            previous_post_uris=previous_post_uris,
+        )
+
+        if len(feed) == 0:
+            self.logger.error(
+                f"No feed created for user {user.bluesky_user_did}. This shouldn't happen..."
+            )
+
+        return {
+            "feed": feed,
+            "bluesky_handle": user.bluesky_handle,
+            "bluesky_user_did": user.bluesky_user_did,
+            "condition": user.condition,
+            "feed_statistics": generate_feed_statistics(feed=feed),
+        }
+
+    def _create_default_feed(
+        self, post_pools: PostPools, previous_post_uris: set[str]
+    ) -> dict:
+        """Create the default feed for non-study users.
+
+        Args:
+            post_pools: Post pools for ranking.
+            previous_post_uris: Set of previous post URIs to avoid.
+
+        Returns:
+            Dictionary containing default feed data and metadata.
+        """
+        default_feed = create_ranked_candidate_feed(
+            condition="reverse_chronological",
+            in_network_candidate_post_uris=[],
+            post_pool=post_pools.reverse_chronological,
+            max_feed_length=self.config.max_feed_length,
+            max_in_network_posts_ratio=self.config.max_in_network_posts_ratio,
+        )
+
+        postprocessed_default_feed = postprocess_feed(
+            feed=default_feed,
+            max_feed_length=self.config.max_feed_length,
+            max_prop_old_posts=self.config.max_prop_old_posts,
+            feed_preprocessing_multiplier=self.config.feed_preprocessing_multiplier,
+            jitter_amount=self.config.jitter_amount,
+            previous_post_uris=previous_post_uris,
+        )
+
+        return {
+            "feed": postprocessed_default_feed,
+            "bluesky_handle": "default",
+            "bluesky_user_did": "default",
+            "condition": "default",
+            "feed_statistics": generate_feed_statistics(
+                feed=postprocessed_default_feed
+            ),
+        }
+
+    def _prepare_post_dataframes(
+        self, scored_posts: ScoredPosts
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Prepare in-network and out-of-network post DataFrames.
+
+        Args:
+            scored_posts: Posts with scores.
+
+        Returns:
+            Tuple of (in_network_df, out_of_network_df).
+        """
+        candidate_in_network_user_activity_posts_df = scored_posts.posts_df[
+            scored_posts.posts_df["source"] == "firehose"
+        ]
+        # yes, popular posts can also be in-network. For now we'll treat them as
+        # out-of-network (and perhaps revisit treating them as in-network as well.)
+        # TODO: revisit this.
+        out_of_network_user_activity_posts_df = scored_posts.posts_df[
+            scored_posts.posts_df["source"] == "most_liked"
+        ]
+
+        self.logger.info(
+            f"Loaded {len(candidate_in_network_user_activity_posts_df)} in-network posts."
+        )
+        self.logger.info(
+            f"Loaded {len(out_of_network_user_activity_posts_df)} out-of-network posts."
+        )
+
+        return (
+            candidate_in_network_user_activity_posts_df,
+            out_of_network_user_activity_posts_df,
+        )
+
     def _generate_feeds(
         self,
         loaded_data: LoadedData,
@@ -343,25 +494,13 @@ class FeedGenerationOrchestrator:
         Returns:
             RunResult containing all generated feeds and analytics.
         """
-        # List of all in-network user posts, across all study users.
-        # Needs to be filtered for the in-network posts relevant for a given study user.
-        candidate_in_network_user_activity_posts_df = scored_posts.posts_df[
-            scored_posts.posts_df["source"] == "firehose"
-        ]
-        # yes, popular posts can also be in-network. For now we'll treat them as
-        # out-of-network (and perhaps revisit treating them as in-network as well.)
-        # TODO: revisit this.
-        out_of_network_user_activity_posts_df = scored_posts.posts_df[
-            scored_posts.posts_df["source"] == "most_liked"
-        ]
-        self.logger.info(
-            f"Loaded {len(candidate_in_network_user_activity_posts_df)} in-network posts."
-        )
-        self.logger.info(
-            f"Loaded {len(out_of_network_user_activity_posts_df)} out-of-network posts."
-        )
+        # Prepare post DataFrames
+        (
+            candidate_in_network_user_activity_posts_df,
+            _,
+        ) = self._prepare_post_dataframes(scored_posts)
 
-        # Get lists of in-network and out-of-network posts
+        # Get lists of in-network posts for each user
         user_to_in_network_post_uris_map: dict[str, list[str]] = {
             user.bluesky_user_did: calculate_in_network_posts_for_user(
                 user_did=user.bluesky_user_did,
@@ -373,7 +512,7 @@ class FeedGenerationOrchestrator:
             for user in loaded_data.study_users
         }
 
-        # Generate feeds for each user.
+        # Generate feeds for each user
         user_to_ranked_feed_map: dict[str, dict] = {}
         total_users = len(loaded_data.study_users)
         self.logger.info(f"Creating feeds for {total_users} users")
@@ -382,83 +521,28 @@ class FeedGenerationOrchestrator:
             if i % 10 == 0:
                 self.logger.info(f"Creating feed for user {i}/{total_users}")
 
-            post_pool: pd.DataFrame | None = (
-                post_pools.reverse_chronological
-                if user.condition == "reverse_chronological"
-                else post_pools.engagement
-                if user.condition == "engagement"
-                else post_pools.treatment
-                if user.condition == "representative_diversification"
-                else None
+            post_pool = self._select_post_pool_for_user(user, post_pools)
+            in_network_post_uris = user_to_in_network_post_uris_map[
+                user.bluesky_user_did
+            ]
+            previous_post_uris = loaded_data.previous_feeds.get(
+                user.bluesky_handle, set()
             )
 
-            if post_pool is None or len(post_pool) == 0:
-                raise ValueError(
-                    "post_pool cannot be None. This means that a user condition is unexpected/invalid"
-                )
-
-            candidate_feed = create_ranked_candidate_feed(
-                condition=user.condition,
-                in_network_candidate_post_uris=(
-                    user_to_in_network_post_uris_map[user.bluesky_user_did]
-                ),
+            feed_data = self._generate_feed_for_user(
+                user=user,
                 post_pool=post_pool,
-                max_feed_length=self.config.max_feed_length,
-                max_in_network_posts_ratio=self.config.max_in_network_posts_ratio,
+                in_network_post_uris=in_network_post_uris,
+                previous_post_uris=previous_post_uris,
             )
 
-            feed = postprocess_feed(
-                feed=candidate_feed,
-                max_feed_length=self.config.max_feed_length,
-                max_prop_old_posts=self.config.max_prop_old_posts,
-                feed_preprocessing_multiplier=self.config.feed_preprocessing_multiplier,
-                jitter_amount=self.config.jitter_amount,
-                previous_post_uris=loaded_data.previous_feeds.get(
-                    user.bluesky_handle, set()
-                ),
-            )
+            user_to_ranked_feed_map[user.bluesky_user_did] = feed_data
 
-            user_to_ranked_feed_map[user.bluesky_user_did] = {
-                "feed": feed,
-                "bluesky_handle": user.bluesky_handle,
-                "bluesky_user_did": user.bluesky_user_did,
-                "condition": user.condition,
-                "feed_statistics": generate_feed_statistics(feed=feed),
-            }
-
-            if len(feed) == 0:
-                self.logger.error(
-                    f"No feed created for user {user.bluesky_user_did}. This shouldn't happen..."
-                )
-
-        # Insert default feed, for users that aren't logged in or for if a user
-        # isn't in the study but opens the link.
-        default_feed = create_ranked_candidate_feed(
-            condition="reverse_chronological",
-            in_network_candidate_post_uris=[],
-            post_pool=post_pools.reverse_chronological,
-            max_feed_length=self.config.max_feed_length,
-            max_in_network_posts_ratio=self.config.max_in_network_posts_ratio,
+        # Create default feed
+        default_previous_post_uris = loaded_data.previous_feeds.get("default", set())
+        user_to_ranked_feed_map["default"] = self._create_default_feed(
+            post_pools, default_previous_post_uris
         )
-
-        postprocessed_default_feed = postprocess_feed(
-            feed=default_feed,
-            max_feed_length=self.config.max_feed_length,
-            max_prop_old_posts=self.config.max_prop_old_posts,
-            feed_preprocessing_multiplier=self.config.feed_preprocessing_multiplier,
-            jitter_amount=self.config.jitter_amount,
-            previous_post_uris=loaded_data.previous_feeds.get("default", set()),
-        )
-
-        user_to_ranked_feed_map["default"] = {
-            "feed": postprocessed_default_feed,
-            "bluesky_handle": "default",
-            "bluesky_user_did": "default",
-            "condition": "default",
-            "feed_statistics": generate_feed_statistics(
-                feed=postprocessed_default_feed
-            ),
-        }
 
         timestamp = generate_current_datetime_str()
 
