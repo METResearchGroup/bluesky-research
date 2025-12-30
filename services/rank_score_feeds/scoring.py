@@ -14,14 +14,14 @@ from services.rank_score_feeds.models import PostScoreByAlgorithm
 
 logger = get_logger(__name__)
 
+BASELINE_TREATMENT_COEF = 1.0
+
 
 # TODO: add superposter information.
 def score_treatment_algorithm(
     post: pd.Series, superposter_dids: set[str], feed_config: FeedConfig
 ) -> dict:
     """Score posts based on our treatment algorithm."""
-    treatment_coef = 1.0
-
     # update post based on toxicity/constructiveness attributes.
     if (
         post["sociopolitical_was_successfully_labeled"]
@@ -93,6 +93,62 @@ def score_post_freshness(
     return freshness_score
 
 
+def _get_like_count_value(post: pd.Series) -> float | None:
+    """Extract and validate like_count from post.
+
+    Safely extract like_count with proper type handling.
+
+    Returns:
+        Like count as float, or None if missing/invalid.
+    """
+    like_count = post.get("like_count")
+    if like_count is None or pd.isna(like_count):
+        return None
+    try:
+        return float(like_count)
+    except (ValueError, TypeError):
+        return None
+
+
+def _get_similarity_score_value(post: pd.Series) -> float | None:
+    """Extract and validate similarity_score from post.
+
+    Safely extract similarity_score with proper type handling.
+
+    Returns:
+        Similarity score as float, or None if missing/invalid.
+    """
+    similarity_score = post.get("similarity_score")
+    if similarity_score is None or pd.isna(similarity_score):
+        return None
+    try:
+        return float(similarity_score)
+    except (ValueError, TypeError):
+        return None
+
+
+def _calculate_default_like_count_estimate(feed_config: FeedConfig) -> float:
+    """Calculate the default like count estimate.
+
+    Returns:
+        Default like count estimate as float.
+    """
+    expected_like_count: float = (
+        feed_config.average_popular_post_like_count
+        * feed_config.default_similarity_score
+    )
+    return expected_like_count
+
+
+def _calculate_score_based_on_like_count(like_count: float) -> float:
+    """Calculate the score based on the like count (either actual or estimated).
+
+    Returns:
+        Score based on the like count as float.
+    """
+    return np.log(like_count + 1)
+
+
 def score_post_likeability(post: pd.Series, feed_config: FeedConfig) -> float:
     """Score a post's likeability. We either use the actual like count or we
     use an estimation of the like count, based on how similar that post is to
@@ -109,28 +165,34 @@ def score_post_likeability(post: pd.Series, feed_config: FeedConfig) -> float:
     popular feed, which is an OK implication. After all, the user chose to follow
     those accounts, so seeing those posts is still valuable to them.
     """
+
+    default_expected_like_count: float = _calculate_default_like_count_estimate(
+        feed_config
+    )
+    default_expected_like_score: float = _calculate_score_based_on_like_count(
+        default_expected_like_count
+    )
+
     try:
-        if post["like_count"]:
-            like_score = np.log(post["like_count"] + 1)
-        elif post["similarity_score"]:
+        # Step 1: If we empirically have a like count, use it.
+        like_count = _get_like_count_value(post)
+        if like_count:
+            return _calculate_score_based_on_like_count(like_count)
+
+        # Step 2: If we don't have a like count, use the similarity score.
+        similarity_score = _get_similarity_score_value(post)
+        if similarity_score:
             expected_like_count = (
-                feed_config.average_popular_post_like_count * post["similarity_score"]
+                feed_config.average_popular_post_like_count * similarity_score
             )
-            like_score = np.log(expected_like_count + 1)
-        else:
-            expected_like_count = (
-                feed_config.average_popular_post_like_count
-                * feed_config.default_similarity_score
-            )
-            like_score = np.log(expected_like_count + 1)
+            return _calculate_score_based_on_like_count(expected_like_count)
+
+        # Step 3: If we don't have a like count or similarity score,
+        # use the default like score calculation.
+        return default_expected_like_score
     except Exception as e:
         logger.error(f"Error calculating like score for post {post['uri']}: {e}")
-        expected_like_count = (
-            feed_config.average_popular_post_like_count
-            * feed_config.default_similarity_score
-        )
-        like_score = np.log(expected_like_count + 1)
-    return like_score
+        return default_expected_like_score
 
 
 def calculate_post_score(
@@ -143,7 +205,9 @@ def calculate_post_score(
     """
     engagement_score = 0
     treatment_score = 0
-    treatment_coef: float = score_treatment_algorithm(
+
+    # TODO: the treatment algorithm score is treated as a multiplier.
+    treatment_score_multiplier: float = score_treatment_algorithm(
         post=post,
         superposter_dids=superposter_dids,
         feed_config=feed_config,
@@ -151,7 +215,9 @@ def calculate_post_score(
 
     # set the base score to be based on the likeability of the post
     # adn the freshness of the post.
-    post_likeability_score = score_post_likeability(post=post, feed_config=feed_config)
+    post_likeability_score: float = score_post_likeability(
+        post=post, feed_config=feed_config
+    )
     post_freshness_score = score_post_freshness(post=post, feed_config=feed_config)
 
     engagement_score += post_likeability_score
@@ -161,7 +227,7 @@ def calculate_post_score(
 
     # multiply scores by the engagement/treatment coefs.
     engagement_score *= feed_config.engagement_coef
-    treatment_score *= treatment_coef
+    treatment_score *= treatment_score_multiplier
 
     return PostScoreByAlgorithm(
         uri=str(post["uri"]),
