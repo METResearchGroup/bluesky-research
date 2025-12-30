@@ -1,7 +1,6 @@
 """Scoring logic for feed generation."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -10,7 +9,10 @@ from lib.constants import current_datetime, timestamp_format
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
 from services.rank_score_feeds.config import FeedConfig
-from services.rank_score_feeds.models import PostScoreByAlgorithm
+from services.rank_score_feeds.models import (
+    FreshnessScoreFunction,
+    PostScoreByAlgorithm,
+)
 
 logger = get_logger(__name__)
 
@@ -68,29 +70,46 @@ def calculate_post_age(post: pd.Series, lookback_hours: float) -> float:
     return post_age_hours
 
 
+def calculate_linear_freshness_score(post: pd.Series, feed_config: FeedConfig) -> float:
+    """Score a post's freshness using a linear function."""
+    max_freshness_score = feed_config.default_max_freshness_score
+    decay_ratio = feed_config.freshness_decay_ratio
+    lookback_hours = feed_config.freshness_lookback_days * 24
+    post_age_hours: float = calculate_post_age(post=post, lookback_hours=lookback_hours)
+    return max_freshness_score - (post_age_hours * decay_ratio)
+
+
+def calculate_exponential_freshness_score(
+    post: pd.Series, feed_config: FeedConfig
+) -> float:
+    """Score a post's freshness using an exponential function."""
+    max_freshness_score = feed_config.default_max_freshness_score
+    decay_ratio = feed_config.freshness_decay_ratio
+    lookback_hours = feed_config.freshness_lookback_days * 24
+    post_age_hours: float = calculate_post_age(post=post, lookback_hours=lookback_hours)
+
+    base_value = feed_config.freshness_exponential_base
+    decay_factor = 1 - decay_ratio
+    lambda_factor = feed_config.freshness_lambda_factor
+
+    # gives a score between 0 and 1
+    freshness_coef = (base_value * decay_factor * lambda_factor) ** post_age_hours
+    freshness_score = freshness_coef * max_freshness_score
+    return freshness_score
+
+
 def score_post_freshness(
     post: pd.Series,
     feed_config: FeedConfig,
-    score_func: Literal["linear", "exponential"] = "exponential",
+    score_func: FreshnessScoreFunction = FreshnessScoreFunction.EXPONENTIAL,
 ) -> float:
     """Score a post's freshness. The older the post, the lower the score."""
-    max_freshness_score = feed_config.default_max_freshness_score
-    decay_ratio = feed_config.freshness_decay_ratio
-
-    lookback_hours = feed_config.freshness_lookback_days * 24
-    post_age_hours: float = calculate_post_age(post=post, lookback_hours=lookback_hours)
     if score_func == "linear":
-        freshness_score: float = max_freshness_score - (post_age_hours * decay_ratio)
+        return calculate_linear_freshness_score(post=post, feed_config=feed_config)
     elif score_func == "exponential":
-        a = feed_config.freshness_exponential_base
-        decay_factor = 1 - decay_ratio
-        lambda_factor = feed_config.freshness_lambda_factor
-        # gives a score between 0 and 1
-        freshness_coef = (a * decay_factor * lambda_factor) ** post_age_hours
-
-        freshness_score = freshness_coef * max_freshness_score
-
-    return freshness_score
+        return calculate_exponential_freshness_score(post=post, feed_config=feed_config)
+    else:
+        raise ValueError(f"Invalid freshness score function: {score_func}")
 
 
 def _get_like_count_value(post: pd.Series) -> float | None:

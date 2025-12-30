@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional, Set
 
 import pandas as pd
@@ -195,3 +196,14 @@ class RunResult:
     default_feed: UserFeedResult
     analytics: dict
     timestamp: str
+
+
+class FreshnessScoreFunction(str, Enum):
+    """Enum for the freshness score function."""
+
+    LINEAR = "linear"
+    EXPONENTIAL = "exponential"
+
+    def __str__(self) -> str:
+        """Return the string representation of the freshness score function."""
+        return self.value
