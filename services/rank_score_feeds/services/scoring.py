@@ -35,6 +35,21 @@ class ScoringService:
         self.scores_repo = scores_repo
         self.config = feed_config
 
+    def _validate_posts_for_scoring(self, posts_df: pd.DataFrame) -> None:
+        """Validate posts for scoring and raise an error
+        if the posts are empty or missing the 'uri' column.
+
+        Args:
+            posts_df: DataFrame containing posts to score. Must have 'uri' column.
+        """
+        if posts_df.empty:
+            raise ValueError(
+                "Empty posts DataFrame provided. Returning empty ScoredPosts."
+            )
+
+        if "uri" not in posts_df.columns:
+            raise ValueError("posts_df must contain 'uri' column.")
+
     def score_posts(
         self,
         posts_df: pd.DataFrame,
@@ -57,17 +72,7 @@ class ScoringService:
         Raises:
             ValueError: If posts_df is empty or missing required columns.
         """
-        if posts_df.empty:
-            logger.warning(
-                "Empty posts DataFrame provided. Returning empty ScoredPosts."
-            )
-            return ScoredPosts(
-                posts_df=posts_df,
-                new_post_uris=[],
-            )
-
-        if "uri" not in posts_df.columns:
-            raise ValueError("posts_df must contain 'uri' column.")
+        self._validate_posts_for_scoring(posts_df)
 
         total_posts = len(posts_df)
         logger.info(f"Scoring {total_posts} posts.")
