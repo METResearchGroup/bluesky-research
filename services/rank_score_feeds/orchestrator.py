@@ -101,15 +101,15 @@ class FeedGenerationOrchestrator:
         loaded_data.posts_df = self._deduplicate_and_filter_posts(loaded_data.posts_df)
 
         # Step 3: Score posts (export is handled by ScoringService unless skipped)
-        scored_posts = self._score_posts(
+        posts_df_with_scores: pd.DataFrame = self._score_posts(
             loaded_data, export_new_scores=export_new_scores
         )
 
         # Step 4: Build post pools
-        post_pools = self._build_post_pools(scored_posts.posts_df)
+        post_pools = self._build_post_pools(posts_df_with_scores)
 
         # Step 5: Generate feeds
-        run_result = self._generate_feeds(loaded_data, scored_posts, post_pools)
+        run_result = self._generate_feeds(loaded_data, posts_df_with_scores, post_pools)
 
         # Step 6: Export results
         self._export_results(run_result, test_mode)
