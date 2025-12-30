@@ -50,6 +50,36 @@ class ScoringService:
         if "uri" not in posts_df.columns:
             raise ValueError("posts_df must contain 'uri' column.")
 
+    def _calculate_post_scores(
+        self,
+        posts_df: pd.DataFrame,
+        cached_scores,
+        superposter_dids: set[str],
+        feed_config: FeedConfig,
+    ):
+        post_scores: list[dict[str, float]] = []
+        # TODO: why do I record "new_post_uris"?
+        new_post_uris: list[str] = []
+
+        for _, post in posts_df.iterrows():
+            uri: str = post["uri"]
+
+            if uri in cached_scores:
+                # Use cached score
+                post_scores.append(cached_scores[uri])
+            else:
+                # Calculate new score
+                score_by_algorithm: dict[str, float] = calculate_post_score(
+                    post=post,
+                    superposter_dids=superposter_dids,
+                    feed_config=self.config,
+                )
+                post_scores.append(score_by_algorithm)
+                new_post_uris.append(uri)
+
+        # TODO: refactor.
+        return (post_scores, new_post_uris)
+
     def score_posts(
         self,
         posts_df: pd.DataFrame,
@@ -82,30 +112,22 @@ class ScoringService:
             lookback_days=self.config.default_scoring_lookback_days
         )
 
-        # Step 2: Calculate scores (cached or new)
-        post_scores: list[dict[str, float]] = []
-        new_post_uris: list[str] = []
-
-        for _, post in posts_df.iterrows():
-            uri = post["uri"]
-
-            if uri in cached_scores:
-                # Use cached score
-                post_scores.append(cached_scores[uri])
-            else:
-                # Calculate new score
-                score = calculate_post_score(
-                    post=post,
-                    superposter_dids=superposter_dids,
-                    feed_config=self.config,
-                )
-                post_scores.append(score)
-                new_post_uris.append(uri)
+        # Step 2: Calculate scores
+        post_scores_by_algorithm, new_post_uris = self._calculate_post_scores(
+            posts_df=posts_df,
+            cached_scores=cached_scores,
+            superposter_dids=superposter_dids,
+            feed_config=self.config,
+        )
 
         # Step 3: Add scores to DataFrame
-        engagement_scores = [score["engagement_score"] for score in post_scores]
-        treatment_scores = [score["treatment_score"] for score in post_scores]
+        engagement_scores = []
+        treatment_scores = []
+        for scores in post_scores_by_algorithm:
+            engagement_scores.append(scores["engagement_score"])
+            treatment_scores.append(scores["treatment_score"])
 
+        # TODO: this can be a join.
         posts_df = posts_df.copy()  # Avoid mutating input
         posts_df["engagement_score"] = engagement_scores
         posts_df["treatment_score"] = treatment_scores

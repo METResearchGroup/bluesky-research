@@ -134,7 +134,7 @@ def score_post_likeability(post: pd.Series, feed_config: FeedConfig) -> float:
 
 def calculate_post_score(
     post: pd.Series, superposter_dids: set[str], feed_config: FeedConfig
-) -> float:
+) -> dict[str, float]:
     """Calculate a post's score.
 
     Calculates what a score's post would be, depending on whether or not it's
