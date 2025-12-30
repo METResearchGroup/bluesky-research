@@ -27,15 +27,14 @@ class ScoresRepositoryProtocol(Protocol):
     def load_cached_scores(
         self,
         lookback_days: int | None = None,
-    ) -> dict[str, PostScoreByAlgorithm]:
+    ) -> list[PostScoreByAlgorithm]:
         """Load cached scores from storage.
 
         Args:
             lookback_days: Number of days to look back. If None, uses config default.
 
         Returns:
-            Dictionary mapping post URI to PostScoreByAlgorithm:
-            {uri: PostScoreByAlgorithm}
+            List of PostScoreByAlgorithm. Empty list if no cached scores.
         """
         ...
 
@@ -71,7 +70,7 @@ class ScoresRepository:
     def load_cached_scores(
         self,
         lookback_days: int | None = None,
-    ) -> dict[str, PostScoreByAlgorithm]:
+    ) -> PostScoreByAlgorithm:
         """Load cached scores from local storage.
 
         Args:
@@ -79,7 +78,7 @@ class ScoresRepository:
                 feed_config.default_scoring_lookback_days.
 
         Returns:
-            Dictionary mapping post URI to scores dict. Empty dict if no cached scores.
+            List of PostScoreByAlgorithm. Empty list if no cached scores.
         """
         if lookback_days is None:
             lookback_days = self.config.default_scoring_lookback_days
@@ -103,22 +102,25 @@ class ScoresRepository:
                 .dropna(subset=["engagement_score", "treatment_score"])
             )
 
-            previous_scores_by_uri: dict[str, PostScoreByAlgorithm] = {
-                str(row["uri"]): PostScoreByAlgorithm(
-                    engagement_score=float(row["engagement_score"]),
-                    treatment_score=float(row["treatment_score"]),
+            previously_scored_posts: list[PostScoreByAlgorithm] = []
+
+            for _, row in cached_post_scores_df.iterrows():
+                previously_scored_posts.append(
+                    PostScoreByAlgorithm(
+                        uri=str(row["uri"]),
+                        engagement_score=float(row["engagement_score"]),
+                        treatment_score=float(row["treatment_score"]),
+                    )
                 )
-                for _, row in cached_post_scores_df.iterrows()
-            }
 
             logger.info(
-                f"Loaded {len(previous_scores_by_uri)} cached scores from storage."
+                f"Loaded {len(previously_scored_posts)} cached scores from storage."
             )
-            return previous_scores_by_uri
+            return previously_scored_posts
 
         except Exception as e:
             logger.warning(f"Failed to load cached scores: {e}. Returning empty cache.")
-            return {}
+            return []
 
     def save_scores(self, scores: list[dict]) -> None:
         """Save new scores to local storage.

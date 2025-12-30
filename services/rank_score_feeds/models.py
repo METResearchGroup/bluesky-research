@@ -153,6 +153,7 @@ class LoadedData(BaseModel):
 
 @dataclass
 class PostScoreByAlgorithm:
+    uri: str
     engagement_score: float
     treatment_score: float
 

@@ -4,7 +4,7 @@ import pandas as pd
 
 from lib.log.logger import get_logger
 from services.rank_score_feeds.config import FeedConfig
-from services.rank_score_feeds.models import ScoredPosts
+from services.rank_score_feeds.models import PostScoreByAlgorithm, ScoredPosts
 from services.rank_score_feeds.repositories.scores_repo import ScoresRepositoryProtocol
 from services.rank_score_feeds.scoring import calculate_post_score
 
@@ -53,7 +53,7 @@ class ScoringService:
     def _calculate_post_scores(
         self,
         posts_df: pd.DataFrame,
-        cached_scores,
+        cached_scores: list[PostScoreByAlgorithm],
         superposter_dids: set[str],
         feed_config: FeedConfig,
     ):
@@ -108,7 +108,7 @@ class ScoringService:
         logger.info(f"Scoring {total_posts} posts.")
 
         # Step 1: Load cached scores
-        cached_scores = self.scores_repo.load_cached_scores(
+        cached_scores: list[PostScoreByAlgorithm] = self.scores_repo.load_cached_scores(
             lookback_days=self.config.default_scoring_lookback_days
         )
 
