@@ -13,7 +13,7 @@ from lib.db.manage_local_data import (
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
 from services.rank_score_feeds.config import FeedConfig
-from services.rank_score_feeds.models import ScoredPostModel
+from services.rank_score_feeds.models import PostScoreByAlgorithm, ScoredPostModel
 
 logger = get_logger(__name__)
 
@@ -27,15 +27,15 @@ class ScoresRepositoryProtocol(Protocol):
     def load_cached_scores(
         self,
         lookback_days: int | None = None,
-    ) -> dict[str, dict[str, float]]:
+    ) -> dict[str, PostScoreByAlgorithm]:
         """Load cached scores from storage.
 
         Args:
             lookback_days: Number of days to look back. If None, uses config default.
 
         Returns:
-            Dictionary mapping post URI to scores dict:
-            {uri: {"engagement_score": float, "treatment_score": float}}
+            Dictionary mapping post URI to PostScoreByAlgorithm:
+            {uri: PostScoreByAlgorithm}
         """
         ...
 
@@ -71,7 +71,7 @@ class ScoresRepository:
     def load_cached_scores(
         self,
         lookback_days: int | None = None,
-    ) -> dict[str, dict[str, float]]:
+    ) -> dict[str, PostScoreByAlgorithm]:
         """Load cached scores from local storage.
 
         Args:
@@ -90,30 +90,31 @@ class ScoresRepository:
         logger.info(f"Loading previous post scores from {lookback_timestamp}.")
 
         try:
-            df = load_data_from_local_storage(
+            cached_post_scores_df: pd.DataFrame = load_data_from_local_storage(
                 service="post_scores",
                 directory="active",
                 latest_timestamp=lookback_timestamp,
             )
-
-            # Deduplicate by URI, keeping most recent
-            df = df.sort_values(by="scored_timestamp", ascending=False).drop_duplicates(
-                subset="uri", keep="first"
+            cached_post_scores_df = (
+                cached_post_scores_df.sort_values(
+                    by="scored_timestamp", ascending=False
+                )
+                .drop_duplicates(subset="uri", keep="first")
+                .dropna(subset=["engagement_score", "treatment_score"])
             )
 
-            # Convert to dict format
-            previous_scores = {
-                row["uri"]: {
-                    "engagement_score": row["engagement_score"],
-                    "treatment_score": row["treatment_score"],
-                }
-                for _, row in df.iterrows()
-                if not pd.isna(row["engagement_score"])
-                and not pd.isna(row["treatment_score"])
+            previous_scores_by_uri: dict[str, PostScoreByAlgorithm] = {
+                str(row["uri"]): PostScoreByAlgorithm(
+                    engagement_score=float(row["engagement_score"]),
+                    treatment_score=float(row["treatment_score"]),
+                )
+                for _, row in cached_post_scores_df.iterrows()
             }
 
-            logger.info(f"Loaded {len(previous_scores)} cached scores from storage.")
-            return previous_scores
+            logger.info(
+                f"Loaded {len(previous_scores_by_uri)} cached scores from storage."
+            )
+            return previous_scores_by_uri
 
         except Exception as e:
             logger.warning(f"Failed to load cached scores: {e}. Returning empty cache.")

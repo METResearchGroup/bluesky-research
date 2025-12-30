@@ -152,6 +152,12 @@ class LoadedData(BaseModel):
 
 
 @dataclass
+class PostScoreByAlgorithm:
+    engagement_score: float
+    treatment_score: float
+
+
+@dataclass
 class ScoredPosts:
     """Container for posts with scores."""
 
