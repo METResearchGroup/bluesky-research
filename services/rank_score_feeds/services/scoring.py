@@ -123,14 +123,14 @@ class ScoringService:
         self,
         posts_df: pd.DataFrame,
         superposter_dids: set[str],
-        save_new_scores: bool = True,
+        export_new_scores: bool = True,
     ) -> pd.DataFrame:
         """Score all posts, using cache when available.
 
         Args:
             posts_df: DataFrame containing posts to score. Must have 'uri' column.
             superposter_dids: Set of superposter DIDs for scoring algorithm.
-            save_new_scores: If True, save newly calculated scores to repository.
+            export_new_scores: If True, save newly calculated scores to repository.
                 Set to False to skip export (useful for testing).
 
         Returns:
@@ -180,7 +180,7 @@ class ScoringService:
         )
 
         # Step 5: Save new scores to repository (if enabled)
-        if len(newly_calculated_scores) > 0 and save_new_scores:
+        if len(newly_calculated_scores) > 0 and export_new_scores:
             scores_to_export: list[ScoredPostModel] = self._prepare_scores_for_export(
                 posts_with_new_scores=posts_with_new_scores,
             )

@@ -78,7 +78,7 @@ class FeedGenerationOrchestrator:
     def run(
         self,
         users_to_create_feeds_for: list[str] | None = None,
-        skip_export_post_scores: bool = False,
+        export_new_scores: bool = True,
         test_mode: bool = False,
     ) -> RunResult:
         """Execute the feed generation pipeline.
@@ -86,7 +86,7 @@ class FeedGenerationOrchestrator:
         Args:
             users_to_create_feeds_for: Optional list of user handles to create
                 feeds for. If None, creates feeds for all users.
-            skip_export_post_scores: If True, skip exporting post scores.
+            export_new_scores: If True, export new scores.
             test_mode: If True, run in test mode (limited users, no TTL).
 
         Returns:
@@ -102,7 +102,7 @@ class FeedGenerationOrchestrator:
 
         # Step 3: Score posts (export is handled by ScoringService unless skipped)
         scored_posts = self._score_posts(
-            loaded_data, skip_export=skip_export_post_scores
+            loaded_data, export_new_scores=export_new_scores
         )
 
         # Step 4: Build post pools
@@ -243,13 +243,13 @@ class FeedGenerationOrchestrator:
         return filtered_df
 
     def _score_posts(
-        self, loaded_data: LoadedData, skip_export: bool = False
+        self, loaded_data: LoadedData, export_new_scores: bool = True
     ) -> pd.DataFrame:
         """Calculate scores for all posts.
 
         Args:
             loaded_data: Loaded input data.
-            skip_export: If True, skip exporting new scores to storage.
+            export_new_scores: If True, export new scores to storage.
 
         Returns:
             DataFrame with scored posts.
@@ -257,7 +257,7 @@ class FeedGenerationOrchestrator:
         return self.scoring_service.score_posts(
             posts_df=loaded_data.posts_df,
             superposter_dids=loaded_data.superposter_dids,
-            save_new_scores=not skip_export,
+            export_new_scores=export_new_scores,
         )
 
     def _build_post_pools(self, posts_df: pd.DataFrame) -> PostPools:

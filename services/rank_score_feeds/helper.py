@@ -449,7 +449,7 @@ def export_feed_analytics(analytics: dict) -> None:
 
 def do_rank_score_feeds(
     users_to_create_feeds_for: list[str] | None = None,
-    skip_export_post_scores: bool = False,
+    export_new_scores: bool = True,
     test_mode: bool = False,
 ):
     """Do the rank score feeds.
@@ -468,7 +468,7 @@ def do_rank_score_feeds(
     orchestrator = FeedGenerationOrchestrator(feed_config=feed_config)
     orchestrator.run(
         users_to_create_feeds_for=users_to_create_feeds_for,
-        skip_export_post_scores=skip_export_post_scores,
+        export_new_scores=export_new_scores,
         test_mode=test_mode,
     )
 
