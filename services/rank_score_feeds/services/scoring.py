@@ -2,9 +2,13 @@
 
 import pandas as pd
 
+from lib.constants import current_datetime_str
 from lib.log.logger import get_logger
 from services.rank_score_feeds.config import FeedConfig
-from services.rank_score_feeds.models import PostScoreByAlgorithm, ScoredPosts
+from services.rank_score_feeds.models import (
+    PostScoreByAlgorithm,
+    ScoredPostModel,
+)
 from services.rank_score_feeds.repositories.scores_repo import ScoresRepositoryProtocol
 from services.rank_score_feeds.scoring import calculate_post_score
 
@@ -80,12 +84,40 @@ class ScoringService:
 
         return post_scores
 
+    def _add_new_scores_to_posts_df(
+        self,
+        posts_pending_scoring: pd.DataFrame,
+        newly_calculated_scores: list[PostScoreByAlgorithm],
+    ) -> pd.DataFrame:
+        """Add new scores to posts DataFrame.
+
+        Args:
+            posts_pending_scoring: DataFrame containing posts to score. Must have 'uri' column.
+            newly_calculated_scores: List of PostScoreByAlgorithm.
+        """
+        # Convert list of Pydantic models to list of dicts before creating DataFrame
+        newly_calculated_scores_df: pd.DataFrame = pd.DataFrame(
+            [score.model_dump() for score in newly_calculated_scores]
+        )
+        posts_with_scores: pd.DataFrame = posts_pending_scoring.merge(
+            newly_calculated_scores_df, on="uri", how="inner"
+        )
+        if len(posts_with_scores) != len(posts_pending_scoring):
+            logger.warning(f"""
+                Mismatch on number of posts and number of scores.
+                - {len(newly_calculated_scores)} posts scored
+                - {len(posts_pending_scoring)} posts that were due to be scored.
+                - {len(posts_with_scores)} posts with scores post-merge
+                Should investigate.
+                """)
+        return posts_with_scores
+
     def score_posts(
         self,
         posts_df: pd.DataFrame,
         superposter_dids: set[str],
         save_new_scores: bool = True,
-    ) -> ScoredPosts:
+    ) -> list[PostScoreByAlgorithm]:
         """Score all posts, using cache when available.
 
         Args:
@@ -95,10 +127,7 @@ class ScoringService:
                 Set to False to skip export (useful for testing).
 
         Returns:
-            ScoredPosts containing:
-                - posts_df: DataFrame with added 'engagement_score' and 'treatment_score' columns
-                - new_post_uris: List of URIs for posts that were newly scored (not cached)
-
+            List of PostScoreByAlgorithm.
         Raises:
             ValueError: If posts_df is empty or missing required columns.
         """
@@ -125,59 +154,52 @@ class ScoringService:
                 feed_config=self.config,
             )
         )
-        # TODO: delete
-        print(f"newly_calculated_scores: {newly_calculated_scores}")
 
-        # Step 3: Add scores to DataFrame
-        engagement_scores = []
-        treatment_scores = []
-        # for scores in newly_calculated_scores:
-        #     engagement_scores.append(scores["engagement_score"])
-        #     treatment_scores.append(scores["treatment_score"])
+        # Step 4: Add scores to DataFrame
+        posts_with_new_scores: pd.DataFrame = self._add_new_scores_to_posts_df(
+            posts_pending_scoring=posts_pending_scoring,
+            newly_calculated_scores=newly_calculated_scores,
+        )
 
-        # TODO: this can be a join.
-        posts_df = posts_df.copy()  # Avoid mutating input
-        posts_df["engagement_score"] = engagement_scores
-        posts_df["treatment_score"] = treatment_scores
-
-        new_post_uris = set()  # TODO: delete
-
-        # Step 4: Save new scores to repository (if enabled)
-        if new_post_uris and save_new_scores:
-            scores_to_export = self._prepare_scores_for_export(
-                posts_df=posts_df,
-                new_post_uris=new_post_uris,
+        # Step 5: Save new scores to repository (if enabled)
+        if len(newly_calculated_scores) > 0 and save_new_scores:
+            scores_to_export: list[ScoredPostModel] = self._prepare_scores_for_export(
+                posts_with_new_scores=posts_with_new_scores,
             )
             self.scores_repo.save_scores(scores_to_export)
 
-        total_new_scores = len(new_post_uris)
+        total_new_scores = len(posts_with_new_scores)
         logger.info(
             f"Scored {total_posts} posts. "
             f"{total_new_scores} new scores calculated, "
             f"{total_posts - total_new_scores} retrieved from cache."
         )
 
-        return ScoredPosts(
-            posts_df=posts_df,
-            new_post_uris=new_post_uris,
-        )
+        return cached_scores + newly_calculated_scores
 
     def _prepare_scores_for_export(
-        self,
-        posts_df: pd.DataFrame,
-        new_post_uris: list[str],
-    ) -> list[dict]:
+        self, posts_with_new_scores: pd.DataFrame
+    ) -> list[ScoredPostModel]:
         """Prepare new scores for export.
 
         Args:
-            posts_df: DataFrame with scored posts.
-            new_post_uris: List of URIs for newly scored posts.
+            posts_with_new_scores: DataFrame with posts and new scores.
 
         Returns:
-            List of dictionaries ready for repository export.
+            List of ScoredPostModel.
         """
-        scores_to_export = posts_df[posts_df["uri"].isin(new_post_uris)][
-            ["uri", "text", "source", "engagement_score", "treatment_score"]
-        ].to_dict("records")
+        scores_to_export: list[ScoredPostModel] = []
 
-        return scores_to_export  # type: ignore[return-value]
+        for _, post in posts_with_new_scores.iterrows():
+            scores_to_export.append(
+                ScoredPostModel(
+                    uri=str(post["uri"]),
+                    text=str(post["text"]),
+                    engagement_score=float(post["engagement_score"]),
+                    treatment_score=float(post["treatment_score"]),
+                    source=str(post["source"]),
+                    scored_timestamp=current_datetime_str,
+                )
+            )
+
+        return scores_to_export

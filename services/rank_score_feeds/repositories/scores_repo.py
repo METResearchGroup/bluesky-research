@@ -5,7 +5,7 @@ from typing import Protocol
 
 import pandas as pd
 
-from lib.constants import current_datetime, current_datetime_str
+from lib.constants import current_datetime
 from lib.db.manage_local_data import (
     export_data_to_local_storage,
     load_data_from_local_storage,
@@ -38,16 +38,11 @@ class ScoresRepositoryProtocol(Protocol):
         """
         ...
 
-    def save_scores(self, scores: list[dict]) -> None:
+    def save_scores(self, scores: list[ScoredPostModel]) -> None:
         """Save new scores to storage.
 
         Args:
-            scores: List of score dictionaries, each containing:
-                - uri: str
-                - text: str
-                - source: str
-                - engagement_score: float
-                - treatment_score: float
+            scores: List of ScoredPostModel.
         """
         ...
 
@@ -70,7 +65,7 @@ class ScoresRepository:
     def load_cached_scores(
         self,
         lookback_days: int | None = None,
-    ) -> PostScoreByAlgorithm:
+    ) -> list[PostScoreByAlgorithm]:
         """Load cached scores from local storage.
 
         Args:
@@ -122,16 +117,11 @@ class ScoresRepository:
             logger.warning(f"Failed to load cached scores: {e}. Returning empty cache.")
             return []
 
-    def save_scores(self, scores: list[dict]) -> None:
+    def save_scores(self, scores: list[ScoredPostModel]) -> None:
         """Save new scores to local storage.
 
         Args:
-            scores: List of score dictionaries. Each dict must contain:
-                - uri: str
-                - text: str
-                - source: str
-                - engagement_score: float
-                - treatment_score: float
+            scores: List of ScoredPostModel.
         """
         if not scores:
             logger.warning("No scores to save. Skipping export.")
@@ -139,31 +129,19 @@ class ScoresRepository:
 
         logger.info(f"Saving {len(scores)} new post scores to storage.")
 
-        # Convert to ScoredPostModel for validation
-        output: list[ScoredPostModel] = []
-        for score in scores:
-            output.append(
-                ScoredPostModel(
-                    uri=score["uri"],
-                    text=score["text"],
-                    engagement_score=score["engagement_score"],
-                    treatment_score=score["treatment_score"],
-                    scored_timestamp=current_datetime_str,
-                    source=score["source"],
-                )
-            )
-
         # Convert to DataFrame with proper types
-        output_jsons = [post.dict() for post in output]
+        score_dicts: list[dict] = [post.model_dump() for post in scores]
         dtypes_map = MAP_SERVICE_TO_METADATA["post_scores"]["dtypes_map"]
-        df = pd.DataFrame(output_jsons)
+        score_df: pd.DataFrame = pd.DataFrame(score_dicts)
 
-        if "partition_date" not in df.columns:
-            df["partition_date"] = pd.to_datetime(df["scored_timestamp"]).dt.date
+        if "partition_date" not in score_df.columns:
+            score_df["partition_date"] = pd.to_datetime(
+                score_df["scored_timestamp"]
+            ).dt.date
 
-        df = df.astype(dtypes_map)
+        score_df = score_df.astype(dtypes_map)
 
         # Export to local storage
-        export_data_to_local_storage(df=df, service="post_scores")
+        export_data_to_local_storage(df=score_df, service="post_scores")
 
         logger.info(f"Successfully saved {len(scores)} scores to storage.")

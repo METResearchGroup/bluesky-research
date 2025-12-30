@@ -151,19 +151,12 @@ class LoadedData(BaseModel):
     study_users: list[UserToBlueskyProfileModel]
 
 
-@dataclass
-class PostScoreByAlgorithm:
-    uri: str
-    engagement_score: float
-    treatment_score: float
-
-
-@dataclass
-class ScoredPosts:
-    """Container for posts with scores."""
-
-    posts_df: pd.DataFrame  # includes engagement_score and treatment_score columns
-    new_post_uris: list[str]  # URIs of posts that were newly scored
+class PostScoreByAlgorithm(BaseModel):
+    uri: str = Field(..., description="The URI of the post.")
+    engagement_score: float = Field(
+        ..., description="The engagement score of the post."
+    )
+    treatment_score: float = Field(..., description="The treatment score of the post.")
 
 
 @dataclass
