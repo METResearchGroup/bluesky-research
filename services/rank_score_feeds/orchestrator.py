@@ -33,7 +33,6 @@ from services.rank_score_feeds.models import (
     PostPools,
     RawFeedData,
     RunResult,
-    ScoredPosts,
     UserFeedResult,
     LatestFeeds,
 )
@@ -245,7 +244,7 @@ class FeedGenerationOrchestrator:
 
     def _score_posts(
         self, loaded_data: LoadedData, skip_export: bool = False
-    ) -> ScoredPosts:
+    ) -> pd.DataFrame:
         """Calculate scores for all posts.
 
         Args:
@@ -253,7 +252,7 @@ class FeedGenerationOrchestrator:
             skip_export: If True, skip exporting new scores to storage.
 
         Returns:
-            ScoredPosts containing posts with scores and list of new post URIs.
+            DataFrame with scored posts.
         """
         return self.scoring_service.score_posts(
             posts_df=loaded_data.posts_df,
@@ -308,14 +307,14 @@ class FeedGenerationOrchestrator:
     def _generate_feeds(
         self,
         loaded_data: LoadedData,
-        scored_posts: ScoredPosts,
+        scored_posts: pd.DataFrame,
         post_pools: PostPools,
     ) -> RunResult:
         """Generate feeds for all users.
 
         Args:
             loaded_data: Loaded input data.
-            scored_posts: Posts with scores.
+            scored_posts: DataFrame with scored posts.
             post_pools: Post pools for ranking.
 
         Returns:
@@ -323,14 +322,14 @@ class FeedGenerationOrchestrator:
         """
         # List of all in-network user posts, across all study users.
         # Needs to be filtered for the in-network posts relevant for a given study user.
-        candidate_in_network_user_activity_posts_df = scored_posts.posts_df[
-            scored_posts.posts_df["source"] == "firehose"
+        candidate_in_network_user_activity_posts_df = scored_posts[
+            scored_posts["source"] == "firehose"
         ]
         # yes, popular posts can also be in-network. For now we'll treat them as
         # out-of-network (and perhaps revisit treating them as in-network as well.)
         # TODO: revisit this.
-        out_of_network_user_activity_posts_df = scored_posts.posts_df[
-            scored_posts.posts_df["source"] == "most_liked"
+        out_of_network_user_activity_posts_df = scored_posts[
+            scored_posts["source"] == "most_liked"
         ]
         self.logger.info(
             f"Loaded {len(candidate_in_network_user_activity_posts_df)} in-network posts."

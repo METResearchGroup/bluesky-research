@@ -8,6 +8,7 @@ from services.rank_score_feeds.config import FeedConfig
 from services.rank_score_feeds.models import (
     PostScoreByAlgorithm,
     ScoredPostModel,
+    PostsSplitByScoringStatus,
 )
 from services.rank_score_feeds.repositories.scores_repo import ScoresRepositoryProtocol
 from services.rank_score_feeds.scoring import calculate_post_score
@@ -54,17 +55,26 @@ class ScoringService:
         if "uri" not in posts_df.columns:
             raise ValueError("posts_df must contain 'uri' column.")
 
-    def _filter_posts_already_scored(
+    def _split_posts_by_scoring_status(
         self, posts_df: pd.DataFrame, cached_scores: list[PostScoreByAlgorithm]
-    ) -> pd.DataFrame:
-        """Filter out posts that have already been scored.
+    ) -> PostsSplitByScoringStatus:
+        """Split posts into already scored and not yet scored.
 
         Args:
             posts_df: DataFrame containing posts to score. Must have 'uri' column.
             cached_scores: List of PostScoreByAlgorithm.
+
+        Returns:
+            PostsSplitByScoringStatus with:
+                - already_scored: pd.DataFrame of posts that have already been scored
+                - not_scored_yet: pd.DataFrame of posts that have not yet been scored
         """
         previously_scored_post_uris: list[str] = [score.uri for score in cached_scores]
-        return posts_df[~posts_df["uri"].isin(previously_scored_post_uris)]  # type: ignore[reportUnknownReturnType]
+        already_scored_mask = posts_df["uri"].isin(previously_scored_post_uris)
+        return PostsSplitByScoringStatus(
+            already_scored=posts_df[already_scored_mask].copy(),  # type: ignore[reportUnknownReturnType]
+            not_scored_yet=posts_df[~already_scored_mask].copy(),  # type: ignore[reportUnknownReturnType]
+        )
 
     def _calculate_post_scores(
         self,
@@ -84,29 +94,26 @@ class ScoringService:
 
         return post_scores
 
-    def _add_new_scores_to_posts_df(
+    def _add_scores_to_posts_df(
         self,
-        posts_pending_scoring: pd.DataFrame,
-        newly_calculated_scores: list[PostScoreByAlgorithm],
+        posts_df: pd.DataFrame,
+        scores: list[PostScoreByAlgorithm],
     ) -> pd.DataFrame:
         """Add new scores to posts DataFrame.
 
         Args:
-            posts_pending_scoring: DataFrame containing posts to score. Must have 'uri' column.
-            newly_calculated_scores: List of PostScoreByAlgorithm.
+            posts_df: DataFrame containing original posts
+            scores: List of PostScoreByAlgorithm.
         """
-        # Convert list of Pydantic models to list of dicts before creating DataFrame
-        newly_calculated_scores_df: pd.DataFrame = pd.DataFrame(
-            [score.model_dump() for score in newly_calculated_scores]
+        scores_df: pd.DataFrame = pd.DataFrame([score.model_dump() for score in scores])
+        posts_with_scores: pd.DataFrame = posts_df.merge(
+            scores_df, on="uri", how="inner"
         )
-        posts_with_scores: pd.DataFrame = posts_pending_scoring.merge(
-            newly_calculated_scores_df, on="uri", how="inner"
-        )
-        if len(posts_with_scores) != len(posts_pending_scoring):
+        if len(posts_with_scores) != len(scores):
             logger.warning(f"""
                 Mismatch on number of posts and number of scores.
-                - {len(newly_calculated_scores)} posts scored
-                - {len(posts_pending_scoring)} posts that were due to be scored.
+                - {len(scores)} posts scored
+                - {len(posts_df)} posts that were due to be scored.
                 - {len(posts_with_scores)} posts with scores post-merge
                 Should investigate.
                 """)
@@ -117,7 +124,7 @@ class ScoringService:
         posts_df: pd.DataFrame,
         superposter_dids: set[str],
         save_new_scores: bool = True,
-    ) -> list[PostScoreByAlgorithm]:
+    ) -> pd.DataFrame:
         """Score all posts, using cache when available.
 
         Args:
@@ -127,14 +134,11 @@ class ScoringService:
                 Set to False to skip export (useful for testing).
 
         Returns:
-            List of PostScoreByAlgorithm.
+            DataFrame with posts and scores.
         Raises:
             ValueError: If posts_df is empty or missing required columns.
         """
         self._validate_posts_for_scoring(posts_df)
-
-        total_posts = len(posts_df)
-        logger.info(f"Scoring {total_posts} posts.")
 
         # Step 1: Load cached scores
         cached_scores: list[PostScoreByAlgorithm] = self.scores_repo.load_cached_scores(
@@ -142,8 +146,16 @@ class ScoringService:
         )
 
         # Step 2: Filter out posts that have already been scored.
-        posts_pending_scoring: pd.DataFrame = self._filter_posts_already_scored(
-            posts_df=posts_df, cached_scores=cached_scores
+        split_posts_by_scoring_status: PostsSplitByScoringStatus = (
+            self._split_posts_by_scoring_status(
+                posts_df=posts_df, cached_scores=cached_scores
+            )
+        )
+        posts_already_scored: pd.DataFrame = (
+            split_posts_by_scoring_status.already_scored
+        )
+        posts_pending_scoring: pd.DataFrame = (
+            split_posts_by_scoring_status.not_scored_yet
         )
 
         # Step 3: Calculate scores for posts needing new scores.
@@ -155,10 +167,16 @@ class ScoringService:
             )
         )
 
-        # Step 4: Add scores to DataFrame
-        posts_with_new_scores: pd.DataFrame = self._add_new_scores_to_posts_df(
-            posts_pending_scoring=posts_pending_scoring,
-            newly_calculated_scores=newly_calculated_scores,
+        # Step 4: Assemble dataframes with full posts and scores.
+        # Create 2 versions of the posts dataframe:
+        # 1. Posts from cached scores.
+        # 2. Posts with new scores (these will be exported).
+        posts_with_cached_scores: pd.DataFrame = self._add_scores_to_posts_df(
+            posts_df=posts_already_scored, scores=cached_scores
+        )
+        posts_with_new_scores: pd.DataFrame = self._add_scores_to_posts_df(
+            posts_df=posts_pending_scoring,
+            scores=newly_calculated_scores,
         )
 
         # Step 5: Save new scores to repository (if enabled)
@@ -168,14 +186,19 @@ class ScoringService:
             )
             self.scores_repo.save_scores(scores_to_export)
 
-        total_new_scores = len(posts_with_new_scores)
         logger.info(
-            f"Scored {total_posts} posts. "
-            f"{total_new_scores} new scores calculated, "
-            f"{total_posts - total_new_scores} retrieved from cache."
+            f"Scored {len(posts_with_new_scores)} posts. "
+            f"{len(posts_with_cached_scores)} retrieved from cache."
         )
 
-        return cached_scores + newly_calculated_scores
+        posts_df_with_scores: pd.DataFrame = pd.concat(
+            [
+                posts_with_cached_scores,
+                posts_with_new_scores,
+            ]
+        )
+
+        return posts_df_with_scores
 
     def _prepare_scores_for_export(
         self, posts_with_new_scores: pd.DataFrame

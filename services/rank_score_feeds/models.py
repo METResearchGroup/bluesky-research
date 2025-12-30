@@ -160,6 +160,14 @@ class PostScoreByAlgorithm(BaseModel):
 
 
 @dataclass
+class PostsSplitByScoringStatus:
+    """Posts split by whether they've been scored."""
+
+    already_scored: pd.DataFrame
+    not_scored_yet: pd.DataFrame
+
+
+@dataclass
 class PostPools:
     """Container for the three post pools used for ranking."""
 
