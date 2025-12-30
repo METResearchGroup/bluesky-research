@@ -10,6 +10,7 @@ from lib.constants import current_datetime, timestamp_format
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
 from services.rank_score_feeds.config import FeedConfig
+from services.rank_score_feeds.models import PostScoreByAlgorithm
 
 logger = get_logger(__name__)
 
@@ -134,7 +135,7 @@ def score_post_likeability(post: pd.Series, feed_config: FeedConfig) -> float:
 
 def calculate_post_score(
     post: pd.Series, superposter_dids: set[str], feed_config: FeedConfig
-) -> dict[str, float]:
+) -> PostScoreByAlgorithm:
     """Calculate a post's score.
 
     Calculates what a score's post would be, depending on whether or not it's
@@ -162,7 +163,11 @@ def calculate_post_score(
     engagement_score *= feed_config.engagement_coef
     treatment_score *= treatment_coef
 
-    return {"engagement_score": engagement_score, "treatment_score": treatment_score}
+    return PostScoreByAlgorithm(
+        uri=str(post["uri"]),
+        engagement_score=engagement_score,
+        treatment_score=treatment_score,
+    )
 
 
 def load_previous_post_scores(

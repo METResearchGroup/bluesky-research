@@ -50,35 +50,35 @@ class ScoringService:
         if "uri" not in posts_df.columns:
             raise ValueError("posts_df must contain 'uri' column.")
 
+    def _filter_posts_already_scored(
+        self, posts_df: pd.DataFrame, cached_scores: list[PostScoreByAlgorithm]
+    ) -> pd.DataFrame:
+        """Filter out posts that have already been scored.
+
+        Args:
+            posts_df: DataFrame containing posts to score. Must have 'uri' column.
+            cached_scores: List of PostScoreByAlgorithm.
+        """
+        previously_scored_post_uris: list[str] = [score.uri for score in cached_scores]
+        return posts_df[~posts_df["uri"].isin(previously_scored_post_uris)]  # type: ignore[reportUnknownReturnType]
+
     def _calculate_post_scores(
         self,
-        posts_df: pd.DataFrame,
-        cached_scores: list[PostScoreByAlgorithm],
+        posts_pending_scoring: pd.DataFrame,
         superposter_dids: set[str],
         feed_config: FeedConfig,
-    ):
-        post_scores: list[dict[str, float]] = []
-        # TODO: why do I record "new_post_uris"?
-        new_post_uris: list[str] = []
+    ) -> list[PostScoreByAlgorithm]:
+        post_scores: list[PostScoreByAlgorithm] = []
 
-        for _, post in posts_df.iterrows():
-            uri: str = post["uri"]
+        for _, post in posts_pending_scoring.iterrows():
+            score_by_algorithm: PostScoreByAlgorithm = calculate_post_score(
+                post=post,
+                superposter_dids=superposter_dids,
+                feed_config=self.config,
+            )
+            post_scores.append(score_by_algorithm)  # type: ignore[reportUnknownReturnType]
 
-            if uri in cached_scores:
-                # Use cached score
-                post_scores.append(cached_scores[uri])
-            else:
-                # Calculate new score
-                score_by_algorithm: dict[str, float] = calculate_post_score(
-                    post=post,
-                    superposter_dids=superposter_dids,
-                    feed_config=self.config,
-                )
-                post_scores.append(score_by_algorithm)
-                new_post_uris.append(uri)
-
-        # TODO: refactor.
-        return (post_scores, new_post_uris)
+        return post_scores
 
     def score_posts(
         self,
@@ -112,25 +112,35 @@ class ScoringService:
             lookback_days=self.config.default_scoring_lookback_days
         )
 
-        # Step 2: Calculate scores
-        post_scores_by_algorithm, new_post_uris = self._calculate_post_scores(
-            posts_df=posts_df,
-            cached_scores=cached_scores,
-            superposter_dids=superposter_dids,
-            feed_config=self.config,
+        # Step 2: Filter out posts that have already been scored.
+        posts_pending_scoring: pd.DataFrame = self._filter_posts_already_scored(
+            posts_df=posts_df, cached_scores=cached_scores
         )
+
+        # Step 3: Calculate scores for posts needing new scores.
+        newly_calculated_scores: list[PostScoreByAlgorithm] = (
+            self._calculate_post_scores(
+                posts_pending_scoring=posts_pending_scoring,
+                superposter_dids=superposter_dids,
+                feed_config=self.config,
+            )
+        )
+        # TODO: delete
+        print(f"newly_calculated_scores: {newly_calculated_scores}")
 
         # Step 3: Add scores to DataFrame
         engagement_scores = []
         treatment_scores = []
-        for scores in post_scores_by_algorithm:
-            engagement_scores.append(scores["engagement_score"])
-            treatment_scores.append(scores["treatment_score"])
+        # for scores in newly_calculated_scores:
+        #     engagement_scores.append(scores["engagement_score"])
+        #     treatment_scores.append(scores["treatment_score"])
 
         # TODO: this can be a join.
         posts_df = posts_df.copy()  # Avoid mutating input
         posts_df["engagement_score"] = engagement_scores
         posts_df["treatment_score"] = treatment_scores
+
+        new_post_uris = set()  # TODO: delete
 
         # Step 4: Save new scores to repository (if enabled)
         if new_post_uris and save_new_scores:
