@@ -1,12 +1,11 @@
 """Scoring logic for feed generation."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
 
-from lib.constants import current_datetime, timestamp_format
-from lib.db.manage_local_data import load_data_from_local_storage
+from lib.constants import timestamp_format
 from lib.log.logger import get_logger
 from services.rank_score_feeds.config import FeedConfig
 from services.rank_score_feeds.models import (
@@ -311,95 +310,3 @@ def calculate_post_score(
     except Exception as e:
         logger.error(f"Error calculating post score for post {post['uri']}: {e}")
         raise e
-
-
-def load_previous_post_scores(
-    feed_config: FeedConfig,
-    lookback_days: int | None = None,
-) -> dict:
-    """DEPRECATED: Use ScoresRepository.load_cached_scores() instead.
-
-    Load previous post scores from storage, for a given lookback period.
-
-    Returns a dict with the post uri as the key and the scores dict as the
-    value. The scores dict contains the engagement and treatment scores for the
-    post.
-
-    This function is kept for backward compatibility during migration.
-    New code should use ScoresRepository.load_cached_scores().
-    """
-    if lookback_days is None:
-        lookback_days = feed_config.default_scoring_lookback_days
-    lookback_timestamp = (current_datetime - timedelta(days=lookback_days)).strftime(
-        "%Y-%m-%d"
-    )
-    logger.info(f"Loading previous post scores from {lookback_timestamp}.")
-    df = load_data_from_local_storage(
-        service="post_scores",
-        directory="active",
-        latest_timestamp=lookback_timestamp,
-    )
-    df = df.sort_values(by="scored_timestamp", ascending=False).drop_duplicates(
-        subset="uri", keep="first"
-    )
-    previous_scores = {
-        row["uri"]: {
-            "engagement_score": row["engagement_score"],
-            "treatment_score": row["treatment_score"],
-        }
-        for _, row in df.iterrows()
-        if not pd.isna(row["engagement_score"]) and not pd.isna(row["treatment_score"])
-    }
-    del df
-    logger.info("Finished loading previous post scores.")
-    return previous_scores
-
-
-# NOTE: should consider setting default likes at the batch level.
-def calculate_post_scores(
-    posts: pd.DataFrame,
-    superposter_dids: set[str],
-    feed_config: FeedConfig,
-    load_previous_scores: bool = True,
-) -> tuple[list[dict], list[str]]:  # noqa
-    """DEPRECATED: Use ScoringService.score_posts() instead.
-
-    Calculate scores for a list of posts.
-
-    This function is kept for backward compatibility during migration.
-    New code should use ScoringService.score_posts().
-    """
-    scores = []
-    new_post_uris = []
-
-    if not load_previous_scores:
-        return posts.apply(
-            lambda post: calculate_post_score(
-                post=post, superposter_dids=superposter_dids, feed_config=feed_config
-            ),
-            axis=1,
-        ).tolist(), posts["uri"].tolist()
-    else:
-        total_posts = len(posts)
-        previous_post_scores: dict = load_previous_post_scores(feed_config=feed_config)
-
-        def process_post(post: pd.Series):
-            if post["uri"] in previous_post_scores:
-                return previous_post_scores[post["uri"]], None
-            else:
-                score = calculate_post_score(
-                    post=post,
-                    superposter_dids=superposter_dids,
-                    feed_config=feed_config,
-                )
-                return score, post["uri"]
-
-        results = posts.apply(process_post, axis=1)
-        scores, new_post_uris = zip(*results)
-        scores = list(scores)
-        new_post_uris = [uri for uri in new_post_uris if uri is not None]
-
-        total_new_scores = len(new_post_uris)
-        logger.info(f"Calculated {total_new_scores}/{total_posts} new post scores.")
-
-    return list(scores), new_post_uris
