@@ -19,33 +19,80 @@ logger = get_logger(__name__)
 BASELINE_TREATMENT_COEF = 1.0
 
 
-# TODO: add superposter information.
+def _apply_superposter_penalty(
+    post: pd.Series, superposter_dids: set[str], feed_config: FeedConfig
+) -> float:
+    """Apply a penalty to a post for being written by a superposter."""
+    if post["author_did"] in superposter_dids:
+        return feed_config.superposter_coef
+    return 1.0
+
+
+def _fix_constructive_endpoint_bug(post: pd.Series) -> pd.Series:
+    """Backwards-compatibility bug where halfway through the study,
+    the Google Perspective API endpoint for prob_constructive was replaced
+    with prob_reasoning. This function fixes the bug by setting prob_constructive
+    to prob_reasoning if prob_constructive is None.
+    """
+    if post["prob_constructive"] is None:
+        post["prob_constructive"] = post["prob_reasoning"]
+    return post
+
+
+def _calculate_treatment_algorithm_score(
+    post: pd.Series, feed_config: FeedConfig
+) -> float:
+    prob_toxic = float(post["prob_toxic"])
+    prob_constructive = float(post["prob_constructive"])
+    coef_toxicity = float(feed_config.coef_toxicity)
+    coef_constructiveness = float(feed_config.coef_constructiveness)
+    denominator = prob_toxic + prob_constructive
+    if denominator == 0:
+        # Avoid division by zero; return neutral score multiplier
+        return 1.0
+    return (
+        prob_toxic * coef_toxicity + prob_constructive * coef_constructiveness
+    ) / denominator
+
+
+def _post_is_valid_for_treatment_algorithm(post: pd.Series) -> bool:
+    """
+    Check if a post is valid for the treatment algorithm.
+
+    For a post to be valid for the treatment algorithm, it must:
+    - be sociopolitical
+    - have a successfully labeled sociopolitical category
+    - have a successfully labeled perspective
+    """
+    return (
+        bool(post.get("sociopolitical_was_successfully_labeled", False))
+        and bool(post.get("is_sociopolitical", False))
+        and bool(post.get("perspective_was_successfully_labeled", False))
+    )
+
+
 def score_treatment_algorithm(
     post: pd.Series, superposter_dids: set[str], feed_config: FeedConfig
-) -> dict:
-    """Score posts based on our treatment algorithm."""
-    # update post based on toxicity/constructiveness attributes.
-    if (
-        post["sociopolitical_was_successfully_labeled"]
-        and post["is_sociopolitical"]
-        and post["perspective_was_successfully_labeled"]
-    ):
-        if post["prob_constructive"] is None:
-            # backwards-compatbility bug where prob_constructive wasn't
-            # set, but the endpoints for prob_reasoning and prob_constructive
-            # are actually the same.
-            post["prob_constructive"] = post["prob_reasoning"]
-        # if sociopolitical, uprank/downrank based on toxicity/constructiveness.
-        treatment_coef = (
-            post["prob_toxic"] * feed_config.coef_toxicity
-            + post["prob_constructive"] * feed_config.coef_constructiveness
-        ) / (post["prob_toxic"] + post["prob_constructive"])
+) -> float:
+    """Score posts based on our treatment algorithm.
+
+    If a post is sociopolitical, uprank/downrank based on
+    toxicity/constructiveness.
+    """
+    treatment_algorithm_score: float = BASELINE_TREATMENT_COEF
+    if _post_is_valid_for_treatment_algorithm(post):
+        post = _fix_constructive_endpoint_bug(post)
+        treatment_algorithm_score = _calculate_treatment_algorithm_score(
+            post=post, feed_config=feed_config
+        )
 
     # penalize post for being written by a superposter.
-    if post["author_did"] in superposter_dids:
-        treatment_coef *= feed_config.superposter_coef
+    superposter_penalty: float = _apply_superposter_penalty(
+        post=post, superposter_dids=superposter_dids, feed_config=feed_config
+    )
+    treatment_algorithm_score *= superposter_penalty
 
-    return treatment_coef
+    return treatment_algorithm_score
 
 
 def calculate_post_age(post: pd.Series, lookback_hours: float) -> float:
@@ -221,9 +268,28 @@ def calculate_post_score(
 
     Calculates what a score's post would be, depending on whether or not it's
     used for the engagement or the treatment condition.
+
+    Calculates three forms of scores:
+    - Likeability score: adds to the engagement and treatment scores.
+    - Freshness score: adds to the engagement and treatment scores.
+    - Treatment score: multiplies the treatment score by the treatment algorithm score.
     """
-    engagement_score = 0
-    treatment_score = 0
+    engagement_score: float = 0
+    treatment_score: float = 0
+
+    # set the base score to be based on the likeability of the post
+    # adn the freshness of the post.
+    post_likeability_score: float = score_post_likeability(
+        post=post, feed_config=feed_config
+    )
+    post_freshness_score: float = score_post_freshness(
+        post=post, feed_config=feed_config
+    )
+
+    engagement_score += post_likeability_score
+    engagement_score += post_freshness_score
+    treatment_score += post_likeability_score
+    treatment_score += post_freshness_score
 
     # TODO: the treatment algorithm score is treated as a multiplier.
     treatment_score_multiplier: float = score_treatment_algorithm(
@@ -231,18 +297,6 @@ def calculate_post_score(
         superposter_dids=superposter_dids,
         feed_config=feed_config,
     )
-
-    # set the base score to be based on the likeability of the post
-    # adn the freshness of the post.
-    post_likeability_score: float = score_post_likeability(
-        post=post, feed_config=feed_config
-    )
-    post_freshness_score = score_post_freshness(post=post, feed_config=feed_config)
-
-    engagement_score += post_likeability_score
-    engagement_score += post_freshness_score
-    treatment_score += post_likeability_score
-    treatment_score += post_freshness_score
 
     # multiply scores by the engagement/treatment coefs.
     engagement_score *= feed_config.engagement_coef
