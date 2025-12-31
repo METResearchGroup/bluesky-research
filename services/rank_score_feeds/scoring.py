@@ -16,7 +16,7 @@ from services.rank_score_feeds.models import (
 
 logger = get_logger(__name__)
 
-BASELINE_TREATMENT_COEF = 1.0
+BASELINE_TREATMENT_ALGORITHM_COEF = 1.0
 
 
 def _apply_superposter_penalty(
@@ -79,7 +79,7 @@ def score_treatment_algorithm(
     If a post is sociopolitical, uprank/downrank based on
     toxicity/constructiveness.
     """
-    treatment_algorithm_score: float = BASELINE_TREATMENT_COEF
+    treatment_algorithm_score: float = BASELINE_TREATMENT_ALGORITHM_COEF
     if _post_is_valid_for_treatment_algorithm(post):
         post = _fix_constructive_endpoint_bug(post)
         treatment_algorithm_score = _calculate_treatment_algorithm_score(
@@ -274,39 +274,43 @@ def calculate_post_score(
     - Freshness score: adds to the engagement and treatment scores.
     - Treatment score: multiplies the treatment score by the treatment algorithm score.
     """
-    engagement_score: float = 0
-    treatment_score: float = 0
+    try:
+        engagement_score: float = 0
+        treatment_score: float = 0
 
-    # set the base score to be based on the likeability of the post
-    # adn the freshness of the post.
-    post_likeability_score: float = score_post_likeability(
-        post=post, feed_config=feed_config
-    )
-    post_freshness_score: float = score_post_freshness(
-        post=post, feed_config=feed_config
-    )
+        # set the base score to be based on the likeability of the post
+        # and the freshness of the post.
+        post_likeability_score: float = score_post_likeability(
+            post=post, feed_config=feed_config
+        )
+        post_freshness_score: float = score_post_freshness(
+            post=post, feed_config=feed_config
+        )
 
-    engagement_score += post_likeability_score
-    engagement_score += post_freshness_score
-    treatment_score += post_likeability_score
-    treatment_score += post_freshness_score
+        engagement_score += post_likeability_score
+        engagement_score += post_freshness_score
+        treatment_score += post_likeability_score
+        treatment_score += post_freshness_score
 
-    # TODO: the treatment algorithm score is treated as a multiplier.
-    treatment_score_multiplier: float = score_treatment_algorithm(
-        post=post,
-        superposter_dids=superposter_dids,
-        feed_config=feed_config,
-    )
+        # the treatment algorithm score is treated as a multiplier.
+        treatment_algorithm_score: float = score_treatment_algorithm(
+            post=post,
+            superposter_dids=superposter_dids,
+            feed_config=feed_config,
+        )
 
-    # multiply scores by the engagement/treatment coefs.
-    engagement_score *= feed_config.engagement_coef
-    treatment_score *= treatment_score_multiplier
+        # multiply scores by the engagement/treatment coefs.
+        engagement_score *= feed_config.engagement_coef
+        treatment_score *= treatment_algorithm_score
 
-    return PostScoreByAlgorithm(
-        uri=str(post["uri"]),
-        engagement_score=engagement_score,
-        treatment_score=treatment_score,
-    )
+        return PostScoreByAlgorithm(
+            uri=str(post["uri"]),
+            engagement_score=engagement_score,
+            treatment_score=treatment_score,
+        )
+    except Exception as e:
+        logger.error(f"Error calculating post score for post {post['uri']}: {e}")
+        raise e
 
 
 def load_previous_post_scores(
