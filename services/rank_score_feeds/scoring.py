@@ -106,7 +106,7 @@ def calculate_post_age(post: pd.Series, lookback_hours: float) -> float:
         Post age in hours, clamped to lookback_hours maximum.
     """
     post_dt_object: datetime = datetime.strptime(
-        post["synctimestamp"], timestamp_format
+        str(post["synctimestamp"]), timestamp_format
     ).replace(tzinfo=timezone.utc)
     current_dt_object: datetime = datetime.now(timezone.utc)
     time_difference = current_dt_object - post_dt_object
@@ -119,9 +119,9 @@ def calculate_post_age(post: pd.Series, lookback_hours: float) -> float:
 
 def calculate_linear_freshness_score(post: pd.Series, feed_config: FeedConfig) -> float:
     """Score a post's freshness using a linear function."""
-    max_freshness_score = feed_config.default_max_freshness_score
-    decay_ratio = feed_config.freshness_decay_ratio
-    lookback_hours = feed_config.freshness_lookback_days * 24
+    max_freshness_score: float = feed_config.default_max_freshness_score
+    decay_ratio: float = feed_config.freshness_decay_ratio
+    lookback_hours: float = feed_config.freshness_lookback_days * 24
     post_age_hours: float = calculate_post_age(post=post, lookback_hours=lookback_hours)
     return max_freshness_score - (post_age_hours * decay_ratio)
 
@@ -130,14 +130,14 @@ def calculate_exponential_freshness_score(
     post: pd.Series, feed_config: FeedConfig
 ) -> float:
     """Score a post's freshness using an exponential function."""
-    max_freshness_score = feed_config.default_max_freshness_score
-    decay_ratio = feed_config.freshness_decay_ratio
-    lookback_hours = feed_config.freshness_lookback_days * 24
+    max_freshness_score: float = feed_config.default_max_freshness_score
+    decay_ratio: float = feed_config.freshness_decay_ratio
+    lookback_hours: float = feed_config.freshness_lookback_days * 24
     post_age_hours: float = calculate_post_age(post=post, lookback_hours=lookback_hours)
 
-    base_value = feed_config.freshness_exponential_base
-    decay_factor = 1 - decay_ratio
-    lambda_factor = feed_config.freshness_lambda_factor
+    base_value: float = feed_config.freshness_exponential_base
+    decay_factor: float = 1 - decay_ratio
+    lambda_factor: float = feed_config.freshness_lambda_factor
 
     # gives a score between 0 and 1
     freshness_coef = (base_value * decay_factor * lambda_factor) ** post_age_hours
