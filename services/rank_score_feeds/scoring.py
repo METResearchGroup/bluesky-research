@@ -15,7 +15,8 @@ from services.rank_score_feeds.models import (
 
 logger = get_logger(__name__)
 
-BASELINE_TREATMENT_ALGORITHM_COEF = 1.0
+DEFAULT_TREATMENT_ALGORITHM_SCORE: float = 1.0
+DEFAULT_SUPERPOSTER_PENALTY: float = 1.0
 
 
 def _apply_superposter_penalty(
@@ -24,7 +25,7 @@ def _apply_superposter_penalty(
     """Apply a penalty to a post for being written by a superposter."""
     if post["author_did"] in superposter_dids:
         return feed_config.superposter_coef
-    return 1.0
+    return DEFAULT_SUPERPOSTER_PENALTY
 
 
 def _fix_constructive_endpoint_bug(post: pd.Series) -> pd.Series:
@@ -48,7 +49,7 @@ def _calculate_treatment_algorithm_score(
     denominator = prob_toxic + prob_constructive
     if denominator == 0:
         # Avoid division by zero; return neutral score multiplier
-        return 1.0
+        return DEFAULT_TREATMENT_ALGORITHM_SCORE
     return (
         prob_toxic * coef_toxicity + prob_constructive * coef_constructiveness
     ) / denominator
@@ -78,7 +79,7 @@ def score_treatment_algorithm(
     If a post is sociopolitical, uprank/downrank based on
     toxicity/constructiveness.
     """
-    treatment_algorithm_score: float = BASELINE_TREATMENT_ALGORITHM_COEF
+    treatment_algorithm_score: float = DEFAULT_TREATMENT_ALGORITHM_SCORE
     if _post_is_valid_for_treatment_algorithm(post):
         post = _fix_constructive_endpoint_bug(post)
         treatment_algorithm_score = _calculate_treatment_algorithm_score(
