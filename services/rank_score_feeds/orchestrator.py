@@ -36,8 +36,6 @@ from services.rank_score_feeds.models import (
     UserFeedResult,
     LatestFeeds,
 )
-from services.rank_score_feeds.repositories.scores_repo import ScoresRepository
-from services.rank_score_feeds.services.scoring import ScoringService
 
 logger = get_logger(__name__)
 
@@ -61,14 +59,15 @@ class FeedGenerationOrchestrator:
         from lib.aws.glue import Glue
         from lib.aws.s3 import S3
 
+        from services.rank_score_feeds.repositories.scores_repo import ScoresRepository
+        from services.rank_score_feeds.services.scoring import ScoringService
+
         self.config = feed_config
         self.athena = Athena()
         self.s3 = S3()
         self.dynamodb = DynamoDB()
         self.glue = Glue()
         self.logger = logger
-
-        # Initialize scoring dependencies
         scores_repo = ScoresRepository(feed_config=feed_config)
         self.scoring_service = ScoringService(
             scores_repo=scores_repo,
