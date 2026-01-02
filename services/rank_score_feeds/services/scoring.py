@@ -88,7 +88,7 @@ class ScoringService:
             score_by_algorithm: PostScoreByAlgorithm = calculate_post_score(
                 post=post,
                 superposter_dids=superposter_dids,
-                feed_config=self.config,
+                feed_config=feed_config,
             )
             post_scores.append(score_by_algorithm)  # type: ignore[reportUnknownReturnType]
 
