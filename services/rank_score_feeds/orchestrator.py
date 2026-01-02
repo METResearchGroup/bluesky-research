@@ -60,6 +60,11 @@ class FeedGenerationOrchestrator:
         from lib.aws.s3 import S3
 
         from services.rank_score_feeds.repositories.scores_repo import ScoresRepository
+        from services.rank_score_feeds.services.candidate import CandidateGenerationService
+        from services.rank_score_feeds.services.context import UserContextService
+        from services.rank_score_feeds.services.feed import FeedGenerationService
+        from services.rank_score_feeds.services.ranking import RankingService
+        from services.rank_score_feeds.services.reranking import RerankingService
         from services.rank_score_feeds.services.scoring import ScoringService
 
         self.config = feed_config
@@ -68,9 +73,22 @@ class FeedGenerationOrchestrator:
         self.dynamodb = DynamoDB()
         self.glue = Glue()
         self.logger = logger
+        
+        # Scoring service
         scores_repo = ScoresRepository(feed_config=feed_config)
         self.scoring_service = ScoringService(
             scores_repo=scores_repo,
+            feed_config=feed_config,
+        )
+        
+        # Feed generation services
+        self.candidate_service = CandidateGenerationService(feed_config=feed_config)
+        self.context_service = UserContextService()
+        self.ranking_service = RankingService(feed_config=feed_config)
+        self.reranking_service = RerankingService(feed_config=feed_config)
+        self.feed_service = FeedGenerationService(
+            ranking_service=self.ranking_service,
+            reranking_service=self.reranking_service,
             feed_config=feed_config,
         )
 
