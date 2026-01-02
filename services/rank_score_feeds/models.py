@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Set
+from typing import Optional, Set, TypeAlias
 
 import pandas as pd
 from pydantic import BaseModel, Field
@@ -207,3 +207,6 @@ class FreshnessScoreFunction(str, Enum):
     def __str__(self) -> str:
         """Return the string representation of the freshness score function."""
         return self.value
+
+# add a type alias for the user in network posts map for readability.
+UserInNetworkPostsMap: TypeAlias = dict[str, list[str]]  # user_did -> list[post_uri]

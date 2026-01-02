@@ -1,14 +1,9 @@
 """Service for building user context for personalization."""
 
-from typing import TypeAlias
-
 import pandas as pd
 
 from services.participant_data.models import UserToBlueskyProfileModel
-
-# add a type alias for the user in network posts map for readability.
-UserInNetworkPostsMap: TypeAlias = dict[str, list[str]]  # user_did -> list[post_uri]
-
+from services.rank_score_feeds.models import UserInNetworkPostsMap
 class UserContextService:
     """Builds user-specific context for personalization."""
 

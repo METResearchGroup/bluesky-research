@@ -34,6 +34,7 @@ from services.rank_score_feeds.models import (
     RunResult,
     UserFeedResult,
     LatestFeeds,
+    UserInNetworkPostsMap,
 )
 
 logger = get_logger(__name__)
@@ -299,7 +300,13 @@ class FeedGenerationOrchestrator:
             )
         )
 
-        # step 2: generate feeds for each user. Also create default feed.
+        # step 2: generate feeds for each user.
+        user_to_ranked_feed_map: dict[str, dict] = (
+            self.feed_service.generate_feeds_for_users(
+                user_to_in_network_post_uris_map=user_to_in_network_post_uris_map,
+                candidate_post_pools=candidate_post_pools,
+            )
+        )
 
         # step 3: postprocess feeds (both generated and default feeds).
 
