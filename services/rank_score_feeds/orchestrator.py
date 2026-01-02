@@ -288,6 +288,42 @@ class FeedGenerationOrchestrator:
     def _generate_feeds(
         self,
         loaded_data: LoadedData,
+        candidate_post_pools: CandidatePostPools,
+    ) -> RunResult:
+        # step 1: calculate in-network vs out-of-network posts.
+        # turns out, you can calculate this directly with the
+        # posts in candidate_post_pools (any of the 3 candidate post dfs).
+        # the end output is user_to_in_network_post_uris_map.
+        # TODO: maybe name it something else that isn't
+        # "candidate_in_network_user_activity_posts_df", as we already
+        # use "candidate_*" elsewhere.
+        self.context_service.build_in_network_context(
+            scored_posts=loaded_data.posts_df,
+            study_users=loaded_data.study_users,
+            user_to_social_network_map=loaded_data.user_to_social_network_map,
+        )
+
+        # step 2: generate feeds for each user. Also create default feed.
+
+        # step 3: postprocess feeds (both generated and default feeds).
+
+        # step 4: export.
+        return RunResult(
+            user_feeds={},
+            default_feed=UserFeedResult(
+                user_did="default",
+                bluesky_handle="default",
+                condition="default",
+                feed=[],
+                feed_statistics="",
+            ),
+            analytics={},
+            timestamp=generate_current_datetime_str(),
+        )
+
+    def _generate_feeds_v1(
+        self,
+        loaded_data: LoadedData,
         scored_posts: pd.DataFrame,
         post_pools: CandidatePostPools,
     ) -> RunResult:
