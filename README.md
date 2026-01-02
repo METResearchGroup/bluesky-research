@@ -85,36 +85,65 @@ If you prefer manual setup with flexible dependency groups:
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
-3. **Create and activate virtual environment**:
+3. **Install project dependencies with `uv sync`** (recommended method):
+
+   `uv sync` automatically creates a virtual environment and installs dependencies. Choose based on your needs:
+
+   **Option A: Core only (lightweight, ~50 packages)**
+   ```bash
+   uv sync
+   ```
+
+   **Option B: Development setup (core + dev tools)**
+   ```bash
+   uv sync --extra dev
+   ```
+
+   **Option C: Research & LLM work (without heavy ML)**
+   ```bash
+   uv sync --extra dev --extra llm --extra valence --extra telemetry
+   ```
+
+   **Option D: Full ML stack (includes PyTorch)**
+   ```bash
+   uv sync --extra dev --extra ml --extra llm --extra valence --extra telemetry
+   ```
+
+   **Option E: Everything (for CI or comprehensive development)**
+   ```bash
+   uv sync --all-extras
+   # or equivalently:
+   uv sync --extra all
+   ```
+
+   **Note**: `uv sync` automatically creates and manages the virtual environment. To activate it:
+   ```bash
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+
+4. **Alternative: Using `uv pip install`** (if you prefer explicit venv management):
+
+   First create and activate virtual environment:
    ```bash
    uv venv --python 3.10  # or 3.11, 3.12
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    ```
 
-4. **Install project dependencies** (choose based on your needs):
-
-   **Option A: Core only (lightweight, ~50 packages)**
+   Then install dependencies:
    ```bash
+   # Core only
    uv pip install -e .
-   ```
-
-   **Option B: Development setup (core + dev tools)**
-   ```bash
+   
+   # Development setup
    uv pip install -e ".[dev]"
-   ```
-
-   **Option C: Research & LLM work (without heavy ML)**
-   ```bash
+   
+   # Research & LLM work
    uv pip install -e ".[dev,llm,valence,telemetry]"
-   ```
-
-   **Option D: Full ML stack (includes PyTorch)**
-   ```bash
+   
+   # Full ML stack
    uv pip install -e ".[dev,ml,llm,valence,telemetry]"
-   ```
-
-   **Option E: Everything (for CI or comprehensive development)**
-   ```bash
+   
+   # Everything
    uv pip install -e ".[all]"
    ```
 
@@ -176,42 +205,58 @@ The project uses a unified `pyproject.toml` with logical dependency groups:
 
 **`[dev]` - Development Tools (~76 packages)**
 ```bash
+uv sync --extra dev
+# or with uv pip:
 uv pip install -e ".[dev]"
 ```
 - pytest, ruff, pre-commit, autopep8, faker
 
 **`[ml]` - Machine Learning (~73 packages, includes PyTorch)**
 ```bash
+uv sync --extra ml
+# or with uv pip:
 uv pip install -e ".[ml]"
 ```
 - torch, transformers, sentence-transformers, scikit-learn, scipy
 
 **`[llm]` - LLM Services (~135 packages, no PyTorch)**
 ```bash
+uv sync --extra llm
+# or with uv pip:
 uv pip install -e ".[llm]"
 ```
 - openai, langchain, tiktoken, litellm, google-generativeai
 
 **`[valence]` - Lightweight Sentiment (~55 packages)**
 ```bash
+uv sync --extra valence
+# or with uv pip:
 uv pip install -e ".[valence]"
 ```
 - vadersentiment (minimal footprint)
 
 **`[feed_api]` - FastAPI Service**
 ```bash
+uv sync --extra feed_api
+# or with uv pip:
 uv pip install -e ".[feed_api]"
 ```
 - fastapi, uvicorn, mangum, momento (for the feed API service)
 
 **`[telemetry]` - Monitoring & Observability**
 ```bash
+uv sync --extra telemetry
+# or with uv pip:
 uv pip install -e ".[telemetry]"
 ```
 - wandb, comet-ml, sentry-sdk, prometheus-client, grafana-client
 
 **`[all]` - Everything (~185 packages)**
 ```bash
+uv sync --all-extras
+# or:
+uv sync --extra all
+# or with uv pip:
 uv pip install -e ".[all]"
 ```
 - All optional dependencies combined
