@@ -13,7 +13,7 @@ def lambda_handler(event, context):
         payload = {
             "users_to_create_feeds_for": None,
             # "users_to_create_feeds_for": ["markptorres.bsky.social"],
-            "skip_export_post_scores": False,
+            "export_new_scores": True,
             # "skip_export_post_scores": True,
             "test_mode": False,
         }

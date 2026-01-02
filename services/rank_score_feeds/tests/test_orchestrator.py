@@ -85,7 +85,6 @@ class TestFeedGenerationOrchestrator:
             "_load_raw_data",
             "_filter_study_users",
             "_score_posts",
-            "_export_scores",
             "_build_post_pools",
             "_generate_feeds",
             "_export_results",

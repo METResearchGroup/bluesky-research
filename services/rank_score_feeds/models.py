@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional, Set
 
 import pandas as pd
@@ -151,12 +152,20 @@ class LoadedData(BaseModel):
     study_users: list[UserToBlueskyProfileModel]
 
 
-@dataclass
-class ScoredPosts:
-    """Container for posts with scores."""
+class PostScoreByAlgorithm(BaseModel):
+    uri: str = Field(..., description="The URI of the post.")
+    engagement_score: float = Field(
+        ..., description="The engagement score of the post."
+    )
+    treatment_score: float = Field(..., description="The treatment score of the post.")
 
-    posts_df: pd.DataFrame  # includes engagement_score and treatment_score columns
-    new_post_uris: list[str]  # URIs of posts that were newly scored
+
+@dataclass
+class PostsSplitByScoringStatus:
+    """Posts split by whether they've been scored."""
+
+    already_scored: pd.DataFrame
+    not_scored_yet: pd.DataFrame
 
 
 @dataclass
@@ -187,3 +196,14 @@ class RunResult:
     default_feed: UserFeedResult
     analytics: dict
     timestamp: str
+
+
+class FreshnessScoreFunction(str, Enum):
+    """Enum for the freshness score function."""
+
+    LINEAR = "linear"
+    EXPONENTIAL = "exponential"
+
+    def __str__(self) -> str:
+        """Return the string representation of the freshness score function."""
+        return self.value
