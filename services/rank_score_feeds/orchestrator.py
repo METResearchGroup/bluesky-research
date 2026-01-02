@@ -20,7 +20,6 @@ from services.rank_score_feeds.helper import (
     create_ranked_candidate_feed,
     export_feed_analytics,
     export_results,
-    filter_posts_by_author_count,
     generate_feed_statistics,
     insert_feed_generation_session,
     load_feed_input_data,
@@ -30,7 +29,7 @@ from services.rank_score_feeds.helper import (
 from services.rank_score_feeds.models import (
     FeedInputData,
     LoadedData,
-    PostPools,
+    CandidatePostPools,
     RawFeedData,
     RunResult,
     UserFeedResult,
@@ -60,7 +59,9 @@ class FeedGenerationOrchestrator:
         from lib.aws.s3 import S3
 
         from services.rank_score_feeds.repositories.scores_repo import ScoresRepository
-        from services.rank_score_feeds.services.candidate import CandidateGenerationService
+        from services.rank_score_feeds.services.candidate import (
+            CandidateGenerationService,
+        )
         from services.rank_score_feeds.services.context import UserContextService
         from services.rank_score_feeds.services.feed import FeedGenerationService
         from services.rank_score_feeds.services.ranking import RankingService
@@ -73,14 +74,14 @@ class FeedGenerationOrchestrator:
         self.dynamodb = DynamoDB()
         self.glue = Glue()
         self.logger = logger
-        
+
         # Scoring service
         scores_repo = ScoresRepository(feed_config=feed_config)
         self.scoring_service = ScoringService(
             scores_repo=scores_repo,
             feed_config=feed_config,
         )
-        
+
         # Feed generation services
         self.candidate_service = CandidateGenerationService(feed_config=feed_config)
         self.context_service = UserContextService()
@@ -123,10 +124,14 @@ class FeedGenerationOrchestrator:
         )
 
         # Step 4: Build post pools
-        post_pools = self._build_post_pools(posts_df_with_scores)
+        candidate_post_pools: CandidatePostPools = self._generate_candidate_pools(
+            posts_df_with_scores
+        )
 
         # Step 5: Generate feeds
-        run_result = self._generate_feeds(loaded_data, posts_df_with_scores, post_pools)
+        run_result = self._generate_feeds(
+            loaded_data, posts_df_with_scores, candidate_post_pools
+        )
 
         # Step 6: Export results
         self._export_results(run_result, test_mode)
@@ -277,55 +282,14 @@ class FeedGenerationOrchestrator:
             export_new_scores=export_new_scores,
         )
 
-    def _build_post_pools(self, posts_df: pd.DataFrame) -> PostPools:
-        """Build the three post pools used for ranking.
-
-        Args:
-            posts_df: DataFrame with scored posts.
-
-        Returns:
-            PostPools containing the three sorted and filtered post pools.
-        """
-        # Sort feeds (reverse-chronological: timestamp descending, others: score descending)
-        reverse_chronological_post_pool_df = posts_df[
-            posts_df["source"] == "firehose"
-        ].sort_values(by="synctimestamp", ascending=False)  # type: ignore[call-overload]
-
-        engagement_post_pool_df = posts_df.sort_values(
-            by="engagement_score", ascending=False
-        )
-
-        treatment_post_pool_df = posts_df.sort_values(
-            by="treatment_score", ascending=False
-        )
-
-        # Filter so that only first X posts from each author are included.
-        reverse_chronological_post_pool_df = filter_posts_by_author_count(
-            reverse_chronological_post_pool_df,
-            max_count=self.config.max_num_times_user_can_appear_in_feed,
-        )
-
-        engagement_post_pool_df = filter_posts_by_author_count(
-            engagement_post_pool_df,
-            max_count=self.config.max_num_times_user_can_appear_in_feed,
-        )
-
-        treatment_post_pool_df = filter_posts_by_author_count(
-            treatment_post_pool_df,
-            max_count=self.config.max_num_times_user_can_appear_in_feed,
-        )
-
-        return PostPools(
-            reverse_chronological=reverse_chronological_post_pool_df,
-            engagement=engagement_post_pool_df,
-            treatment=treatment_post_pool_df,
-        )
+    def _generate_candidate_pools(self, posts_df: pd.DataFrame) -> CandidatePostPools:
+        return self.candidate_service.generate_candidate_pools(posts_df=posts_df)
 
     def _generate_feeds(
         self,
         loaded_data: LoadedData,
         scored_posts: pd.DataFrame,
-        post_pools: PostPools,
+        post_pools: CandidatePostPools,
     ) -> RunResult:
         """Generate feeds for all users.
 
