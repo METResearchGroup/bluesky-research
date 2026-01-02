@@ -162,9 +162,9 @@ def score_post_freshness(
     score_func: FreshnessScoreFunction = FreshnessScoreFunction.EXPONENTIAL,
 ) -> float:
     """Score a post's freshness. The older the post, the lower the score."""
-    if score_func == "linear":
+    if score_func == FreshnessScoreFunction.LINEAR:
         return calculate_linear_freshness_score(post=post, feed_config=feed_config)
-    elif score_func == "exponential":
+    elif score_func == FreshnessScoreFunction.EXPONENTIAL:
         return calculate_exponential_freshness_score(post=post, feed_config=feed_config)
     else:
         raise ValueError(f"Invalid freshness score function: {score_func}")
