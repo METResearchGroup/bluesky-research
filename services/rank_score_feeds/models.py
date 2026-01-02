@@ -110,8 +110,14 @@ class LatestFeeds(BaseModel):
         return len(self.feeds)
 
 
-# Data carrier dataclasses for orchestrator (Phase 1)
+class FeedWithMetadata(BaseModel):
+    """Model for representing a feed with metadata."""
 
+    feed: list[CustomFeedPost]
+    bluesky_handle: str
+    bluesky_user_did: str
+    condition: str
+    feed_statistics: str
 
 class FeedInputData(BaseModel):
     """Input data required for feed generation.
