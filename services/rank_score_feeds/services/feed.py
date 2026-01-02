@@ -100,7 +100,7 @@ class FeedGenerationService:
         return FeedWithMetadata(
             feed=feed,
             bluesky_handle=user.bluesky_handle,
-            bluesky_user_did=user.bluesky_user_did,
+            user_did=user.bluesky_user_did,
             condition=user.condition,
             feed_statistics=feed_statistics,
         )

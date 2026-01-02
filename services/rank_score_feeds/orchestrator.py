@@ -14,12 +14,8 @@ from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist impor
     load_users_to_exclude,
 )
 from services.rank_score_feeds.config import FeedConfig
-from services.rank_score_feeds.services.context import UserInNetworkPostsMap
 from services.rank_score_feeds.helper import (
-    calculate_feed_analytics,
-    export_feed_analytics,
     export_results,
-    generate_feed_statistics,
     insert_feed_generation_session,
     load_feed_input_data,
     load_latest_feeds,
@@ -33,7 +29,9 @@ from services.rank_score_feeds.models import (
     UserFeedResult,
     LatestFeeds,
     UserInNetworkPostsMap,
+    FeedWithMetadata,
 )
+from services.rank_score_feeds.services.feed_generation_session_analytics import FeedGenerationSessionAnalyticsService
 
 logger = get_logger(__name__)
 
@@ -77,6 +75,8 @@ class FeedGenerationOrchestrator:
         self.glue = Glue()
         self.logger = logger
 
+        self.current_datetime_str: str = generate_current_datetime_str()
+
         # Scoring service
         scores_repo = ScoresRepository(feed_config=feed_config)
         self.scoring_service = ScoringService(
@@ -96,13 +96,14 @@ class FeedGenerationOrchestrator:
             feed_statistics_service=self.feed_statistics_service,
             feed_config=feed_config,
         )
+        self.feed_generation_session_analytics_service = FeedGenerationSessionAnalyticsService()
 
     def run(
         self,
         users_to_create_feeds_for: list[str] | None = None,
         export_new_scores: bool = True,
         test_mode: bool = False,
-    ) -> RunResult:
+    ) -> None:
         """Execute the feed generation pipeline.
 
         Args:
@@ -111,8 +112,6 @@ class FeedGenerationOrchestrator:
             export_new_scores: If True, export new scores.
             test_mode: If True, run in test mode (limited users, no TTL).
 
-        Returns:
-            RunResult containing all generated feeds, analytics, and metadata.
         """
         self.logger.info("Starting rank score feeds.")
 
@@ -127,20 +126,30 @@ class FeedGenerationOrchestrator:
             loaded_data, export_new_scores=export_new_scores
         )
 
-        # Step 4: Build post pools
+        # Step 4: Build candidate post pools.
         candidate_post_pools: CandidatePostPools = self._generate_candidate_pools(
             posts_df_with_scores
         )
 
         # Step 5: Generate feeds
-        run_result = self._generate_feeds(
-            loaded_data, posts_df_with_scores, candidate_post_pools
+        user_to_ranked_feed_map: dict[str, FeedWithMetadata] = self._generate_feeds(
+            loaded_data=loaded_data,
+            candidate_post_pools=candidate_post_pools,
+        )
+        
+
+        # Step 6: calculate analytics for the current session of feed generation.
+        feed_generation_session_analytics: dict = self._calculate_feed_generation_session_analytics(
+            user_to_ranked_feed_map=user_to_ranked_feed_map,
         )
 
-        # Step 6: Export results
-        self._export_results(run_result, test_mode)
+        # step 7: export artifacts.
+        self._export_artifacts()
 
-        return run_result
+
+        # Step 6: Export results
+        # self._export_results(run_result, test_mode)
+
 
     def _load_raw_data(
         self,
@@ -293,8 +302,17 @@ class FeedGenerationOrchestrator:
         self,
         loaded_data: LoadedData,
         candidate_post_pools: CandidatePostPools,
-    ) -> RunResult:
-        # step 1: calculate in-network vs out-of-network posts, per user.
+    ) -> dict[str, FeedWithMetadata]:
+        """Manages generating feeds for all users.
+        
+        Args:
+            loaded_data: Loaded input data.
+            candidate_post_pools: Post pools for ranking.
+
+        Returns:
+            Dictionary mapping user DIDs to feeds.
+        """
+        # step 1: calculate in-network posts, per user.
         user_to_in_network_post_uris_map: UserInNetworkPostsMap = (
             self.context_service.build_in_network_context(
                 scored_posts=loaded_data.posts_df,
@@ -303,29 +321,32 @@ class FeedGenerationOrchestrator:
             )
         )
 
-        # step 2: generate feeds for each user.
-        user_to_ranked_feed_map: dict[str, dict] = (
+        # step 2: generate feeds.
+        user_to_ranked_feed_map: dict[str, FeedWithMetadata] = (
             self.feed_service.generate_feeds_for_users(
                 user_to_in_network_post_uris_map=user_to_in_network_post_uris_map,
                 candidate_post_pools=candidate_post_pools,
+                study_users=loaded_data.study_users,
+                previous_feeds=loaded_data.previous_feeds,
             )
         )
 
-        # step 3: postprocess feeds (both generated and default feeds).
+        return user_to_ranked_feed_map
 
-        # step 4: export.
-        return RunResult(
-            user_feeds={},
-            default_feed=UserFeedResult(
-                user_did="default",
-                bluesky_handle="default",
-                condition="default",
-                feed=[],
-                feed_statistics="",
-            ),
-            analytics={},
-            timestamp=generate_current_datetime_str(),
+    def _calculate_feed_generation_session_analytics(
+        self, user_to_ranked_feed_map: dict[str, FeedWithMetadata]
+    ) -> dict:
+        feed_generation_session_analytics: dict = (
+            self.feed_generation_session_analytics_service.calculate_feed_generation_session_analytics(
+                user_to_ranked_feed_map=user_to_ranked_feed_map,
+                timestamp=self.current_datetime_str,
+            )
         )
+        return feed_generation_session_analytics
+
+    def _export_artifacts(self):
+        # export feeds and analytics to s3 and local storage.
+        pass
 
     def _generate_feeds_v1(
         self,

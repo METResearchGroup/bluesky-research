@@ -115,7 +115,7 @@ class FeedWithMetadata(BaseModel):
 
     feed: list[CustomFeedPost]
     bluesky_handle: str
-    bluesky_user_did: str
+    user_did: str
     condition: str
     feed_statistics: str
 
@@ -194,14 +194,15 @@ class UserFeedResult:
     feed_statistics: str  # JSON string
 
 
-@dataclass
-class RunResult:
-    """Final result of a feed generation run."""
+# TODO: rename to FeedGenerationResult (if I even need it still?)
+# @dataclass
+# class RunResult:
+#     """Final result of a feed generation run."""
 
-    user_feeds: dict[str, UserFeedResult]  # user_did -> feed result
-    default_feed: UserFeedResult
-    analytics: dict
-    timestamp: str
+#     user_feeds: dict[str, UserFeedResult]  # user_did -> feed result
+#     default_feed: UserFeedResult
+#     analytics: dict
+#     timestamp: str
 
 
 class FreshnessScoreFunction(str, Enum):
