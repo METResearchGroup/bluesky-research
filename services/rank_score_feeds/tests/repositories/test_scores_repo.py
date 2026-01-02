@@ -21,10 +21,10 @@ class TestScoresRepository:
         """Create a ScoresRepository instance."""
         return ScoresRepository(feed_config=feed_config)
 
-    def test_load_cached_scores_returns_empty_dict_when_no_cache(
+    def test_load_cached_scores_returns_empty_list_when_no_cache(
         self, scores_repo, mocker
     ):
-        """Test that load_cached_scores returns empty dict when no cached scores exist."""
+        """Test that load_cached_scores returns empty list when no cached scores exist."""
         # Arrange
         mocker.patch(
             "services.rank_score_feeds.repositories.scores_repo.load_data_from_local_storage",
@@ -35,11 +35,13 @@ class TestScoresRepository:
         result = scores_repo.load_cached_scores()
 
         # Assert
-        expected = {}
+        expected = []
         assert result == expected
 
     def test_load_cached_scores_returns_cached_scores(self, scores_repo, mocker):
         """Test that load_cached_scores returns cached scores correctly."""
+        from services.rank_score_feeds.models import PostScoreByAlgorithm
+        
         # Arrange
         mock_df = pd.DataFrame({
             "uri": ["uri1", "uri2"],
@@ -56,14 +58,26 @@ class TestScoresRepository:
         result = scores_repo.load_cached_scores()
 
         # Assert
-        expected = {
-            "uri1": {"engagement_score": 1.0, "treatment_score": 0.5},
-            "uri2": {"engagement_score": 2.0, "treatment_score": 1.5},
-        }
-        assert result == expected
+        expected = [
+            PostScoreByAlgorithm(uri="uri2", engagement_score=2.0, treatment_score=1.5),
+            PostScoreByAlgorithm(uri="uri1", engagement_score=1.0, treatment_score=0.5),
+        ]
+        assert len(result) == 2
+        # Check that both URIs are present (order may vary due to sorting)
+        uris = {score.uri for score in result}
+        assert uris == {"uri1", "uri2"}
+        # Check scores
+        uri1_score = next(score for score in result if score.uri == "uri1")
+        assert uri1_score.engagement_score == 1.0
+        assert uri1_score.treatment_score == 0.5
+        uri2_score = next(score for score in result if score.uri == "uri2")
+        assert uri2_score.engagement_score == 2.0
+        assert uri2_score.treatment_score == 1.5
 
     def test_load_cached_scores_filters_nan_scores(self, scores_repo, mocker):
         """Test that load_cached_scores filters out NaN scores."""
+        from services.rank_score_feeds.models import PostScoreByAlgorithm
+        
         # Arrange
         mock_df = pd.DataFrame({
             "uri": ["uri1", "uri2", "uri3"],
@@ -81,13 +95,13 @@ class TestScoresRepository:
 
         # Assert
         # Only uri1 should be included (uri2 has NaN engagement, uri3 has NaN treatment)
-        expected = {
-            "uri1": {"engagement_score": 1.0, "treatment_score": 0.5},
-        }
-        assert result == expected
+        assert len(result) == 1
+        assert result[0].uri == "uri1"
+        assert result[0].engagement_score == 1.0
+        assert result[0].treatment_score == 0.5
 
     def test_load_cached_scores_handles_exception_gracefully(self, scores_repo, mocker):
-        """Test that load_cached_scores returns empty dict on exception."""
+        """Test that load_cached_scores returns empty list on exception."""
         # Arrange
         mocker.patch(
             "services.rank_score_feeds.repositories.scores_repo.load_data_from_local_storage",
@@ -98,20 +112,23 @@ class TestScoresRepository:
         result = scores_repo.load_cached_scores()
 
         # Assert
-        expected = {}
+        expected = []
         assert result == expected
 
     def test_save_scores_exports_to_storage(self, scores_repo, mocker):
         """Test that save_scores exports scores to storage."""
+        from services.rank_score_feeds.models import ScoredPostModel
+        
         # Arrange
         scores_to_save = [
-            {
-                "uri": "uri1",
-                "text": "test post",
-                "source": "firehose",
-                "engagement_score": 1.0,
-                "treatment_score": 0.5,
-            }
+            ScoredPostModel(
+                uri="uri1",
+                text="test post",
+                source="firehose",
+                engagement_score=1.0,
+                treatment_score=0.5,
+                scored_timestamp="2024-01-01T00:00:00Z",
+            )
         ]
         mock_export = mocker.patch(
             "services.rank_score_feeds.repositories.scores_repo.export_data_to_local_storage"
