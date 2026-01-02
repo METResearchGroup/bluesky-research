@@ -6,6 +6,7 @@ from lib.log.logger import get_logger
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.rank_score_feeds.config import FeedConfig
 from services.rank_score_feeds.models import UserInNetworkPostsMap, CandidatePostPools, LatestFeeds, CustomFeedPost
+from services.rank_score_feeds.services.feed_statistics import FeedStatisticsService
 from services.rank_score_feeds.services.ranking import RankingService
 from services.rank_score_feeds.services.reranking import RerankingService
 
@@ -17,6 +18,7 @@ class FeedGenerationService:
         self,
         ranking_service: RankingService,
         reranking_service: RerankingService,
+        feed_statistics_service: FeedStatisticsService,
         feed_config: FeedConfig,
     ):
         """Initialize with ranking/reranking services and config.
@@ -28,6 +30,7 @@ class FeedGenerationService:
         """
         self.ranking_service = ranking_service
         self.reranking_service = reranking_service
+        self.feed_statistics_service = feed_statistics_service
         self.config = feed_config
         self.logger = get_logger(__name__)
 
@@ -60,23 +63,84 @@ class FeedGenerationService:
             )
             in_network_post_uris: list[str] = user_to_in_network_post_uris_map[user.bluesky_user_did]
             uris_of_posts_used_in_previous_feeds: set[str] = previous_feeds.get(user.bluesky_handle, set())
-            feed = self._generate_feed_for_user(
+
+            feed: list[CustomFeedPost] = self._generate_feed_for_user(
                 user=user,
                 candidate_pool=candidate_pool,
                 in_network_post_uris=in_network_post_uris,
                 uris_of_posts_used_in_previous_feeds=uris_of_posts_used_in_previous_feeds,
             )
 
-            # TODO: should calculate feed metadata after feed generation.
+            feed_statistics: str = self.feed_statistics_service.generate_feed_statistics(feed=feed)
 
-            user_to_ranked_feed_map[user.bluesky_user_did] = feed
+            # TODO: add pydantic model for this.
+            feed_with_metadata = {
+                "feed": feed,
+                "bluesky_handle": user.bluesky_handle,
+                "bluesky_user_did": user.bluesky_user_did,
+                "condition": user.condition,
+                "feed_statistics": feed_statistics,
+            }
 
-        # TODO: generate default feed.
+            user_to_ranked_feed_map[user.bluesky_user_did] = feed_with_metadata
+
+        # generate default feed with metadata, for users who log into the feed
+        # but who aren't in the study.
+        default_feed_with_metadata = self._generate_default_feed_with_metadata(
+            candidate_post_pools=candidate_post_pools,
+            uris_of_posts_used_in_previous_feeds=previous_feeds.get("default", set()),
+        )
+        user_to_ranked_feed_map["default"] = default_feed_with_metadata
 
         return user_to_ranked_feed_map
 
-    def _generate_default_feed(self) -> dict:
-        return {}
+    def _generate_default_feed_with_metadata(
+        self,
+        candidate_post_pools: CandidatePostPools,
+        uris_of_posts_used_in_previous_feeds: set[str],
+    ):
+        candidate_pool: pd.DataFrame = candidate_post_pools.reverse_chronological
+        default_feed: list[CustomFeedPost] = self._generate_default_feed(
+            candidate_pool=candidate_pool,
+            uris_of_posts_used_in_previous_feeds=uris_of_posts_used_in_previous_feeds,
+        )
+        default_feed_statistics: str = self.feed_statistics_service.generate_feed_statistics(feed=default_feed)
+        default_feed_with_metadata = {
+            "feed": default_feed,
+            "bluesky_handle": "default",
+            "bluesky_user_did": "default",
+            "condition": "default",
+            "feed_statistics": default_feed_statistics,
+        }
+        return default_feed_with_metadata
+
+    def _generate_default_feed(
+        self,
+        candidate_pool: pd.DataFrame,
+        uris_of_posts_used_in_previous_feeds: set[str],
+    ) -> list[CustomFeedPost]:
+        """Generate a default feed for users that aren't logged in or for if a user
+        isn't in the study but opens the link.
+        
+        The default feed consists of posts from the reverse-chronological condition
+        (i.e., from the firehose) without personalization.
+        """
+        candidate_feed: list[CustomFeedPost] = self.ranking_service.create_ranked_candidate_feed(
+            condition="reverse_chronological",
+            in_network_candidate_post_uris=[],
+            post_pool=candidate_pool,
+            max_feed_length=self.config.max_feed_length,
+            max_in_network_posts_ratio=self.config.max_in_network_posts_ratio,
+        )
+        reranked_feed: list[CustomFeedPost] = self.reranking_service.rerank_feed(
+            feed=candidate_feed,
+            uris_of_posts_used_in_previous_feeds=uris_of_posts_used_in_previous_feeds,
+        )
+        if len(reranked_feed) == 0:
+            self.logger.error(
+                f"No feed created for default user. This shouldn't happen..."
+            )
+        return reranked_feed
 
     def _generate_feed_for_user(
         self,
@@ -84,7 +148,7 @@ class FeedGenerationService:
         candidate_pool: pd.DataFrame,
         in_network_post_uris: list[str],
         uris_of_posts_used_in_previous_feeds: set[str],
-    ) -> dict:
+    ) -> list[CustomFeedPost]:
         """Generate complete feed: ranking → reranking → statistics.
         
         Args:
@@ -107,7 +171,10 @@ class FeedGenerationService:
             feed=candidate_feed,
             uris_of_posts_used_in_previous_feeds=uris_of_posts_used_in_previous_feeds,
         )
-        # TODO: update what's returned here.
+        if len(reranked_feed) == 0:
+            self.logger.error(
+                f"No feed created for user {user.bluesky_user_did}. This shouldn't happen..."
+            )
         return reranked_feed
     
     def _select_candidate_pool_for_feed_generation(

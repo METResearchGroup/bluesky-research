@@ -17,14 +17,12 @@ from services.rank_score_feeds.config import FeedConfig
 from services.rank_score_feeds.services.context import UserInNetworkPostsMap
 from services.rank_score_feeds.helper import (
     calculate_feed_analytics,
-    create_ranked_candidate_feed,
     export_feed_analytics,
     export_results,
     generate_feed_statistics,
     insert_feed_generation_session,
     load_feed_input_data,
     load_latest_feeds,
-    postprocess_feed,
 )
 from services.rank_score_feeds.models import (
     FeedInputData,
@@ -65,6 +63,9 @@ class FeedGenerationOrchestrator:
         )
         from services.rank_score_feeds.services.context import UserContextService
         from services.rank_score_feeds.services.feed import FeedGenerationService
+        from services.rank_score_feeds.services.feed_statistics import (
+            FeedStatisticsService,
+        )
         from services.rank_score_feeds.services.ranking import RankingService
         from services.rank_score_feeds.services.reranking import RerankingService
         from services.rank_score_feeds.services.scoring import ScoringService
@@ -88,9 +89,11 @@ class FeedGenerationOrchestrator:
         self.context_service = UserContextService()
         self.ranking_service = RankingService(feed_config=feed_config)
         self.reranking_service = RerankingService(feed_config=feed_config)
+        self.feed_statistics_service = FeedStatisticsService()
         self.feed_service = FeedGenerationService(
             ranking_service=self.ranking_service,
             reranking_service=self.reranking_service,
+            feed_statistics_service=self.feed_statistics_service,
             feed_config=feed_config,
         )
 
