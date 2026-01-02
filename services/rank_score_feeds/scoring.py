@@ -16,16 +16,27 @@ from services.rank_score_feeds.models import (
 logger = get_logger(__name__)
 
 DEFAULT_TREATMENT_ALGORITHM_SCORE: float = 1.0
-DEFAULT_SUPERPOSTER_PENALTY: float = 1.0
+DEFAULT_SUPERPOSTER_COEF: float = 1.0
 
 
-def _apply_superposter_penalty(
+def _apply_superposter_coef(
     post: pd.Series, superposter_dids: set[str], feed_config: FeedConfig
 ) -> float:
-    """Apply a penalty to a post for being written by a superposter."""
+    """Apply a penalty to a post for being written by a superposter.
+
+    <1 = penalize, >1 = reward. Defined in config and intended to be <1.
+
+    Args:
+        post: The post to score.
+        superposter_dids: The set of superposter DIDs.
+        feed_config: The feed configuration.
+
+    Returns:
+        The superposter coef as a float.
+    """
     if post["author_did"] in superposter_dids:
         return feed_config.superposter_coef
-    return DEFAULT_SUPERPOSTER_PENALTY
+    return DEFAULT_SUPERPOSTER_COEF
 
 
 def _fix_constructive_endpoint_bug(post: pd.Series) -> pd.Series:
@@ -87,10 +98,10 @@ def score_treatment_algorithm(
         )
 
     # penalize post for being written by a superposter.
-    superposter_penalty: float = _apply_superposter_penalty(
+    superposter_coef: float = _apply_superposter_coef(
         post=post, superposter_dids=superposter_dids, feed_config=feed_config
     )
-    treatment_algorithm_score *= superposter_penalty
+    treatment_algorithm_score *= superposter_coef
 
     return treatment_algorithm_score
 
