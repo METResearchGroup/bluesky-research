@@ -169,7 +169,7 @@ class PostsSplitByScoringStatus:
 
 
 @dataclass
-class PostPools:
+class CandidatePostPools:
     """Container for the three post pools used for ranking."""
 
     reverse_chronological: pd.DataFrame

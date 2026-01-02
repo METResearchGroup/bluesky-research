@@ -1,10 +1,13 @@
 """Service for building user context for personalization."""
 
+from typing import TypeAlias
+
 import pandas as pd
 
 from services.participant_data.models import UserToBlueskyProfileModel
-from services.rank_score_feeds.helper import calculate_in_network_posts_for_user
 
+# add a type alias for the user in network posts map for readability.
+UserInNetworkPostsMap: TypeAlias = dict[str, list[str]]  # user_did -> list[post_uri]
 
 class UserContextService:
     """Builds user-specific context for personalization."""
@@ -26,21 +29,20 @@ class UserContextService:
             Dictionary mapping user_did to list of in-network post URIs.
         """
 
+        # define what posts can be used in the calculation of in-network posts.
         curated_baseline_in_network_posts_df: pd.DataFrame = (
             self._curate_baseline_in_network_posts(posts_df=scored_posts)
         )
 
-        # Get lists of in-network and out-of-network posts
-        user_to_in_network_post_uris_map: dict[str, list[str]] = {
-            user.bluesky_user_did: calculate_in_network_posts_for_user(
-                user_did=user.bluesky_user_did,
+        # calculate in-network posts for each user.
+        user_to_in_network_post_uris_map: UserInNetworkPostsMap = (
+            self._calculate_in_network_posts_for_users(
+                curated_baseline_in_network_posts_df=curated_baseline_in_network_posts_df,
                 user_to_social_network_map=user_to_social_network_map,
-                candidate_in_network_user_activity_posts_df=(
-                    candidate_in_network_user_activity_posts_df  # type: ignore[arg-type]
-                ),
+                study_users=study_users,
             )
-            for user in study_users
-        }
+        )
+
         return user_to_in_network_post_uris_map
 
     def _curate_baseline_in_network_posts(self, posts_df: pd.DataFrame) -> pd.DataFrame:
@@ -71,3 +73,55 @@ class UserContextService:
         mask = posts_df["source"] == "firehose"
         curated_df: pd.DataFrame = posts_df.loc[mask]
         return curated_df
+
+    def _calculate_in_network_posts_for_users(
+        self,
+        curated_baseline_in_network_posts_df: pd.DataFrame,
+        user_to_social_network_map: dict[str, list[str]],
+        study_users: list[UserToBlueskyProfileModel],
+    ) -> UserInNetworkPostsMap:
+        """Calculate in-network post URIs for each user.
+
+        Args:
+            curated_baseline_in_network_posts_df: DataFrame with curated baseline in-network posts.
+            user_to_social_network_map: Mapping of user DIDs to their social network.
+            study_users: List of study users to build context for.
+
+        Returns:
+            UserInNetworkPostsMap mapping user_did to list of in-network post URIs.
+        """
+        user_to_in_network_post_uris_map: UserInNetworkPostsMap = {
+            user.bluesky_user_did: self._calculate_in_network_posts_for_user(
+                user_did=user.bluesky_user_did,
+                user_to_social_network_map=user_to_social_network_map,
+                curated_baseline_in_network_posts_df=curated_baseline_in_network_posts_df,
+            )
+            for user in study_users
+        }
+        return user_to_in_network_post_uris_map
+
+    def _calculate_in_network_posts_for_user(
+        self,
+        user_did: str,
+        user_to_social_network_map: dict,
+        curated_baseline_in_network_posts_df: pd.DataFrame,  # noqa
+    ) -> list[str]:
+        """Calculates the possible in-network and out-of-network posts.
+
+        Loops through the posts and if it is from the most liked feed, add as out-of-network,
+        otherwise it will be checked against the user's social network to see if
+        that post was written by someone in that user's social network.
+        """
+        # get the followee/follower DIDs for the user's social network.
+        # This should only be empty if the user doesn't follow anyone (which is
+        # possible and has been observed) or if their social network hasn't been
+        # synced yet.
+        in_network_social_network_dids = user_to_social_network_map.get(user_did, [])  # noqa
+        # filter the candidate in-network user activity posts to only include the
+        # ones that are in the user's social network.
+        in_network_post_uris: list[str] = curated_baseline_in_network_posts_df[
+            curated_baseline_in_network_posts_df["author_did"].isin(
+                in_network_social_network_dids
+            )
+        ]["uri"].tolist()
+        return in_network_post_uris

@@ -14,9 +14,9 @@ from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist impor
     load_users_to_exclude,
 )
 from services.rank_score_feeds.config import FeedConfig
+from services.rank_score_feeds.services.context import UserInNetworkPostsMap
 from services.rank_score_feeds.helper import (
     calculate_feed_analytics,
-    calculate_in_network_posts_for_user,
     create_ranked_candidate_feed,
     export_feed_analytics,
     export_results,
@@ -290,17 +290,13 @@ class FeedGenerationOrchestrator:
         loaded_data: LoadedData,
         candidate_post_pools: CandidatePostPools,
     ) -> RunResult:
-        # step 1: calculate in-network vs out-of-network posts.
-        # turns out, you can calculate this directly with the
-        # posts in candidate_post_pools (any of the 3 candidate post dfs).
-        # the end output is user_to_in_network_post_uris_map.
-        # TODO: maybe name it something else that isn't
-        # "candidate_in_network_user_activity_posts_df", as we already
-        # use "candidate_*" elsewhere.
-        self.context_service.build_in_network_context(
-            scored_posts=loaded_data.posts_df,
-            study_users=loaded_data.study_users,
-            user_to_social_network_map=loaded_data.user_to_social_network_map,
+        # step 1: calculate in-network vs out-of-network posts, per user.
+        user_to_in_network_post_uris_map: UserInNetworkPostsMap = (
+            self.context_service.build_in_network_context(
+                scored_posts=loaded_data.posts_df,
+                study_users=loaded_data.study_users,
+                user_to_social_network_map=loaded_data.user_to_social_network_map,
+            )
         )
 
         # step 2: generate feeds for each user. Also create default feed.

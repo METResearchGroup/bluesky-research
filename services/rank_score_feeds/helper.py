@@ -150,33 +150,6 @@ def export_post_scores(scores_to_export: list[dict]):
     df = df.astype(dtypes_map)
     export_data_to_local_storage(df=df, service="post_scores")
 
-
-def calculate_in_network_posts_for_user(
-    user_did: str,
-    user_to_social_network_map: dict,
-    candidate_in_network_user_activity_posts_df: pd.DataFrame,  # noqa
-) -> list[str]:
-    """Calculates the possible in-network and out-of-network posts.
-
-    Loops through the posts and if it is from the most liked feed, add as out-of-network,
-    otherwise it will be checked against the user's social network to see if
-    that post was written by someone in that user's social network.
-    """
-    # get the followee/follower DIDs for the user's social network.
-    # This should only be empty if the user doesn't follow anyone (which is
-    # possible and has been observed) or if their social network hasn't been
-    # synced yet.
-    in_network_social_network_dids = user_to_social_network_map.get(user_did, [])  # noqa
-    # filter the candidate in-network user activity posts to only include the
-    # ones that are in the user's social network.
-    in_network_post_uris: list[str] = candidate_in_network_user_activity_posts_df[
-        candidate_in_network_user_activity_posts_df["author_did"].isin(
-            in_network_social_network_dids
-        )
-    ]["uri"].tolist()
-    return in_network_post_uris
-
-
 # make sure that no single user appears more than X times.
 def filter_posts_by_author_count(
     posts_df: pd.DataFrame, max_count: int
