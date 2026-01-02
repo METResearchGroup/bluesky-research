@@ -104,7 +104,34 @@ class ScoringService:
         Args:
             posts_df: DataFrame containing original posts
             scores: List of PostScoreByAlgorithm.
+
+        Returns:
+            DataFrame with posts and scores merged.
+
+        Warns if either posts_df or scores is empty. This can happen and be
+        intentional, we just want to log if it does:
+        - Case 1: We rerun the job and the posts were already scored. In this
+        case, we have no newly scored posts to run `_add_scores_to_posts_df`.
+        - Case 2: We are running a job with no cached scores. In this case, we
+        have no cached scores to add to the posts dataframe.
+
+        For these cases, the corresponding posts_df should also be empty too (this
+        (assuming upstream filtering logic is working correctly.) Therefore, we
+        raise a ValueError if there is a scenario where posts_df is empty but
+        scores is not empty.
         """
+        if len(scores) == 0:
+            logger.warning("Cannot add scores: scores list is empty.")
+            result_df = posts_df.copy()
+            if "engagement_score" not in result_df.columns:
+                result_df["engagement_score"] = pd.Series(dtype=float)
+            if "treatment_score" not in result_df.columns:
+                result_df["treatment_score"] = pd.Series(dtype=float)
+            return result_df
+
+        if len(posts_df) == 0:
+            raise ValueError("posts_df is empty but scores is not empty.")
+
         scores_df: pd.DataFrame = pd.DataFrame([score.model_dump() for score in scores])
         posts_with_scores: pd.DataFrame = posts_df.merge(
             scores_df, on="uri", how="inner"
