@@ -183,15 +183,18 @@ class CandidatePostPools:
     treatment: pd.DataFrame
 
 
-@dataclass
-class UserFeedResult:
-    """Result for a single user's feed."""
 
-    user_did: str
-    bluesky_handle: str
-    condition: str
-    feed: list[CustomFeedPost]
-    feed_statistics: str  # JSON string
+# TODO: delete. Replaced with FeedWithMetadata. Just need to make
+# sure that it is 100% compatible across all call sites.
+# @dataclass
+# class UserFeedResult:
+#     """Result for a single user's feed."""
+
+#     user_did: str
+#     bluesky_handle: str
+#     condition: str
+#     feed: list[CustomFeedPost]
+#     feed_statistics: str  # JSON string
 
 
 # TODO: rename to FeedGenerationResult (if I even need it still?)
@@ -217,3 +220,58 @@ class FreshnessScoreFunction(str, Enum):
 
 # add a type alias for the user in network posts map for readability.
 UserInNetworkPostsMap: TypeAlias = dict[str, list[str]]  # user_did -> list[post_uri]
+
+
+class FeedGenerationSessionAnalytics(BaseModel):
+    """Model for feed generation session analytics.
+    
+    Contains aggregated statistics for a single feed generation session,
+    including counts, proportions, and overlap metrics between different feed conditions.
+    """
+
+    total_feeds: int = Field(..., description="Total number of feeds generated in the session.")
+    total_posts: int = Field(..., description="Total number of posts across all feeds.")
+    total_in_network_posts: int = Field(
+        ..., description="Total number of in-network posts across all feeds."
+    )
+    total_in_network_posts_prop: float = Field(
+        ...,
+        description="Proportion of posts that are in-network (rounded to 2 decimal places).",
+        ge=0.0,
+        le=1.0,
+    )
+    total_unique_engagement_uris: int = Field(
+        ..., description="Total number of unique post URIs in engagement condition feeds."
+    )
+    total_unique_treatment_uris: int = Field(
+        ...,
+        description="Total number of unique post URIs in representative_diversification condition feeds.",
+    )
+    prop_overlap_treatment_uris_in_engagement_uris: float = Field(
+        ...,
+        description=(
+            "Proportion of treatment URIs that overlap with engagement URIs "
+            "(rounded to 3 decimal places)."
+        ),
+        ge=0.0,
+        le=1.0,
+    )
+    prop_overlap_engagement_uris_in_treatment_uris: float = Field(
+        ...,
+        description=(
+            "Proportion of engagement URIs that overlap with treatment URIs "
+            "(rounded to 3 decimal places)."
+        ),
+        ge=0.0,
+        le=1.0,
+    )
+    total_feeds_per_condition: dict[str, int] = Field(
+        ...,
+        description=(
+            "Mapping of condition names to the number of feeds generated for each condition. "
+            "Keys are: 'representative_diversification', 'engagement', 'reverse_chronological'."
+        ),
+    )
+    session_timestamp: str = Field(
+        ..., description="Timestamp when the feed generation session occurred."
+    )

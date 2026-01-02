@@ -25,11 +25,10 @@ from services.rank_score_feeds.models import (
     LoadedData,
     CandidatePostPools,
     RawFeedData,
-    RunResult,
-    UserFeedResult,
     LatestFeeds,
     UserInNetworkPostsMap,
     FeedWithMetadata,
+    FeedGenerationSessionAnalytics,
 )
 from services.rank_score_feeds.services.feed_generation_session_analytics import FeedGenerationSessionAnalyticsService
 
@@ -139,8 +138,10 @@ class FeedGenerationOrchestrator:
         
 
         # Step 6: calculate analytics for the current session of feed generation.
-        feed_generation_session_analytics: dict = self._calculate_feed_generation_session_analytics(
-            user_to_ranked_feed_map=user_to_ranked_feed_map,
+        feed_generation_session_analytics: FeedGenerationSessionAnalytics = (
+            self._calculate_feed_generation_session_analytics(
+                user_to_ranked_feed_map=user_to_ranked_feed_map
+            )
         )
 
         # step 7: export artifacts.
@@ -335,11 +336,12 @@ class FeedGenerationOrchestrator:
 
     def _calculate_feed_generation_session_analytics(
         self, user_to_ranked_feed_map: dict[str, FeedWithMetadata]
-    ) -> dict:
-        feed_generation_session_analytics: dict = (
+    ) -> FeedGenerationSessionAnalytics:
+        """Calculates feed generation session analytics."""
+        feed_generation_session_analytics: FeedGenerationSessionAnalytics = (
             self.feed_generation_session_analytics_service.calculate_feed_generation_session_analytics(
                 user_to_ranked_feed_map=user_to_ranked_feed_map,
-                timestamp=self.current_datetime_str,
+                session_timestamp=self.current_datetime_str,
             )
         )
         return feed_generation_session_analytics
