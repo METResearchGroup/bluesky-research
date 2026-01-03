@@ -38,7 +38,7 @@ class CustomFeedPost(BaseModel):
 
 class StoredFeedModel(BaseModel):
     """Model for representing the version of the feed that is persisted to storage.
-    
+
     This is the version of the feed loaded from storage and served to the user
     via our FastAPI app.
     """
@@ -123,6 +123,7 @@ class FeedWithMetadata(BaseModel):
     condition: str
     feed_statistics: str
 
+
 class FeedInputData(BaseModel):
     """Input data required for feed generation.
 
@@ -187,7 +188,6 @@ class CandidatePostPools:
     treatment: pd.DataFrame
 
 
-
 # TODO: delete. Replaced with FeedWithMetadata. Just need to make
 # sure that it is 100% compatible across all call sites.
 # @dataclass
@@ -222,18 +222,21 @@ class FreshnessScoreFunction(str, Enum):
         """Return the string representation of the freshness score function."""
         return self.value
 
+
 # add a type alias for the user in network posts map for readability.
 UserInNetworkPostsMap: TypeAlias = dict[str, list[str]]  # user_did -> list[post_uri]
 
 
 class FeedGenerationSessionAnalytics(BaseModel):
     """Model for feed generation session analytics.
-    
+
     Contains aggregated statistics for a single feed generation session,
     including counts, proportions, and overlap metrics between different feed conditions.
     """
 
-    total_feeds: int = Field(..., description="Total number of feeds generated in the session.")
+    total_feeds: int = Field(
+        ..., description="Total number of feeds generated in the session."
+    )
     total_posts: int = Field(..., description="Total number of posts across all feeds.")
     total_in_network_posts: int = Field(
         ..., description="Total number of in-network posts across all feeds."
@@ -245,7 +248,8 @@ class FeedGenerationSessionAnalytics(BaseModel):
         le=1.0,
     )
     total_unique_engagement_uris: int = Field(
-        ..., description="Total number of unique post URIs in engagement condition feeds."
+        ...,
+        description="Total number of unique post URIs in engagement condition feeds.",
     )
     total_unique_treatment_uris: int = Field(
         ...,

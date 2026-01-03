@@ -4,6 +4,8 @@ import pandas as pd
 
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.rank_score_feeds.models import UserInNetworkPostsMap
+
+
 class UserContextService:
     """Builds user-specific context for personalization."""
 
@@ -30,12 +32,10 @@ class UserContextService:
         )
 
         # calculate in-network posts for each user.
-        user_to_in_network_post_uris_map: UserInNetworkPostsMap = (
-            self._calculate_in_network_posts_for_users(
-                curated_baseline_in_network_posts_df=curated_baseline_in_network_posts_df,
-                user_to_social_network_map=user_to_social_network_map,
-                study_users=study_users,
-            )
+        user_to_in_network_post_uris_map: UserInNetworkPostsMap = self._calculate_in_network_posts_for_users(
+            curated_baseline_in_network_posts_df=curated_baseline_in_network_posts_df,
+            user_to_social_network_map=user_to_social_network_map,
+            study_users=study_users,
         )
 
         return user_to_in_network_post_uris_map

@@ -165,8 +165,7 @@ class S3FeedTTLAdapter(FeedTTLAdapter):
                 sort_field=sort_field,
             )
             self.logger.info(
-                f"Successfully moved old feeds to cache "
-                f"(kept {keep_count} most recent)"
+                f"Successfully moved old feeds to cache (kept {keep_count} most recent)"
             )
         except Exception as e:
             self.logger.error(f"Failed to move old feeds to cache: {e}")

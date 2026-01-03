@@ -2,6 +2,7 @@ import json
 
 from services.rank_score_feeds.models import CustomFeedPost
 
+
 class FeedStatisticsService:
     """Service for calculating feed statistics."""
 

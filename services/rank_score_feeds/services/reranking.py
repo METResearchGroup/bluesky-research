@@ -11,7 +11,7 @@ class RerankingService:
 
     def __init__(self, feed_config: FeedConfig):
         """Initialize with feed configuration.
-        
+
         Args:
             feed_config: Configuration for feed generation algorithm.
         """
@@ -61,7 +61,9 @@ class RerankingService:
 
         return feed
 
-    def _jitter_feed(self, feed: list[CustomFeedPost], jitter_amount: int) -> list[CustomFeedPost]:
+    def _jitter_feed(
+        self, feed: list[CustomFeedPost], jitter_amount: int
+    ) -> list[CustomFeedPost]:
         """Jitters the feed by a random amount.
 
         This lets us experiment with slight movements in feed order,

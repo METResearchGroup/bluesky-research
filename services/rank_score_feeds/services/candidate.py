@@ -60,9 +60,7 @@ class CandidateGenerationService:
         )
 
     def _filter_posts_by_author_count(
-        self,
-        posts_df: pd.DataFrame,
-        max_count: int
+        self, posts_df: pd.DataFrame, max_count: int
     ) -> pd.DataFrame:
         """Returns the first X rows of each author, filtering out the rest."""
         return posts_df.groupby("author_did").head(max_count)

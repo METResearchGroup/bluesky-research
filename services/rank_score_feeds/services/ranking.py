@@ -2,7 +2,6 @@
 
 import pandas as pd
 
-from services.participant_data.models import UserToBlueskyProfileModel
 from services.rank_score_feeds.config import FeedConfig
 from services.rank_score_feeds.models import CustomFeedPost
 
@@ -12,7 +11,7 @@ class RankingService:
 
     def __init__(self, feed_config: FeedConfig):
         """Initialize with feed configuration.
-        
+
         Args:
             feed_config: Configuration for feed generation algorithm.
         """
@@ -81,4 +80,3 @@ class RankingService:
         ]
 
         return feed
-
