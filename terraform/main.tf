@@ -750,7 +750,7 @@ resource "aws_api_gateway_deployment" "bluesky_feed_api_gateway_deployment" {
   ]
 
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  stage_name  = "prod"
+  # stage_name  = "prod"
 }
 
 # Lambda permission to allow API Gateway to invoke it
@@ -3631,10 +3631,6 @@ resource "aws_glue_catalog_table" "archive_fetch_posts_used_in_feeds" {
       name = "uri"
       type = "string"
     }
-    columns {
-      name = "partition_date"
-      type = "string"
-    }
   }
 
   partition_keys {
@@ -3825,10 +3821,6 @@ resource "aws_glue_catalog_table" "archive_in_network_user_activity" {
       name = "repost_count"
       type = "int"
     }
-    columns {
-      name = "partition_date"
-      type = "string"
-    }
   }
 
   partition_keys {
@@ -3912,10 +3904,6 @@ resource "aws_glue_catalog_table" "archive_ml_inference_ime" {
     }
     columns {
       name = "label_timestamp"
-      type = "string"
-    }
-    columns {
-      name = "partition_date"
       type = "string"
     }
   }
@@ -4067,10 +4055,6 @@ resource "aws_glue_catalog_table" "archive_ml_inference_perspective_api" {
       name = "source"
       type = "string"
     }
-    columns {
-      name = "partition_date"
-      type = "string"
-    }
   }
 
   partition_keys {
@@ -4144,10 +4128,6 @@ resource "aws_glue_catalog_table" "archive_ml_inference_sociopolitical" {
       name = "source"
       type = "string"
     }
-    columns {
-      name = "partition_date"
-      type = "string"
-    }
   }
 
   partition_keys {
@@ -4217,10 +4197,6 @@ resource "aws_glue_catalog_table" "archive_ml_inference_valence_classifier" {
       name = "source"
       type = "string"
     }
-    columns {
-      name = "partition_date"
-      type = "string"
-    }
   }
 
   partition_keys {
@@ -4276,10 +4252,6 @@ resource "aws_glue_catalog_table" "archive_post_scores" {
     }
     columns {
       name = "scored_timestamp"
-      type = "string"
-    }
-    columns {
-      name = "partition_date"
       type = "string"
     }
   }
@@ -4341,10 +4313,6 @@ resource "aws_glue_catalog_table" "archive_user_session_logs" {
     }
     columns {
       name = "timestamp"
-      type = "string"
-    }
-    columns {
-      name = "partition_date"
       type = "string"
     }
   }
@@ -4472,10 +4440,6 @@ resource "aws_glue_catalog_table" "archive_study_user_activity_post" {
       name = "repost_count"
       type = "int"
     }
-    columns {
-      name = "partition_date"
-      type = "string"
-    }
   }
 
   partition_keys {
@@ -4541,10 +4505,6 @@ resource "aws_glue_catalog_table" "archive_study_user_activity_like" {
       name = "synctimestamp"
       type = "string"
     }
-    columns {
-      name = "partition_date"
-      type = "string"
-    }
   }
 
   partition_keys {
@@ -4608,10 +4568,6 @@ resource "aws_glue_catalog_table" "archive_study_user_activity_follow" {
     }
     columns {
       name = "synctimestamp"
-      type = "string"
-    }
-    columns {
-      name = "partition_date"
       type = "string"
     }
   }
@@ -4707,10 +4663,6 @@ resource "aws_glue_catalog_table" "archive_study_user_activity_reply" {
       name = "synctimestamp"
       type = "string"
     }
-    columns {
-      name = "partition_date"
-      type = "string"
-    }
   }
 
   partition_keys {
@@ -4776,10 +4728,6 @@ resource "aws_glue_catalog_table" "archive_study_user_activity_repost" {
       name = "synctimestamp"
       type = "string"
     }
-    columns {
-      name = "partition_date"
-      type = "string"
-    }
   }
 
   partition_keys {
@@ -4843,10 +4791,6 @@ resource "aws_glue_catalog_table" "archive_study_user_activity_block" {
     }
     columns {
       name = "synctimestamp"
-      type = "string"
-    }
-    columns {
-      name = "partition_date"
       type = "string"
     }
   }
