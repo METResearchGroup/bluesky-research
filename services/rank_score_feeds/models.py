@@ -36,8 +36,12 @@ class CustomFeedPost(BaseModel):
     )
 
 
-class CustomFeedModel(BaseModel):
-    """Model for representing a custom feed for a user."""
+class StoredFeedModel(BaseModel):
+    """Model for representing the version of the feed that is persisted to storage.
+    
+    This is the version of the feed loaded from storage and served to the user
+    via our FastAPI app.
+    """
 
     # keeping 'user' field for backwards compatibility.
     feed_id: str = Field(..., description="The feed identifier (DID::timestamp).")

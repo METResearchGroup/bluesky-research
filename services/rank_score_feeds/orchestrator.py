@@ -30,7 +30,6 @@ from services.rank_score_feeds.models import (
     FeedWithMetadata,
     FeedGenerationSessionAnalytics,
 )
-from services.rank_score_feeds.services.feed_generation_session_analytics import FeedGenerationSessionAnalyticsService
 
 logger = get_logger(__name__)
 
@@ -59,10 +58,12 @@ class FeedGenerationOrchestrator:
             CandidateGenerationService,
         )
         from services.rank_score_feeds.services.context import UserContextService
+        from services.rank_score_feeds.services.export import DataExporterService
         from services.rank_score_feeds.services.feed import FeedGenerationService
         from services.rank_score_feeds.services.feed_statistics import (
             FeedStatisticsService,
         )
+        from services.rank_score_feeds.services.feed_generation_session_analytics import FeedGenerationSessionAnalyticsService
         from services.rank_score_feeds.services.ranking import RankingService
         from services.rank_score_feeds.services.reranking import RerankingService
         from services.rank_score_feeds.services.scoring import ScoringService
@@ -96,6 +97,7 @@ class FeedGenerationOrchestrator:
             feed_config=feed_config,
         )
         self.feed_generation_session_analytics_service = FeedGenerationSessionAnalyticsService()
+        self.data_exporter_service = DataExporterService()
 
     def run(
         self,
@@ -144,8 +146,15 @@ class FeedGenerationOrchestrator:
             )
         )
 
-        # step 7: export artifacts.
-        self._export_artifacts()
+        # Step 7: export artifacts.
+        self._export_artifacts(
+            user_to_ranked_feed_map=user_to_ranked_feed_map,
+            feed_generation_session_analytics=feed_generation_session_analytics,
+        )
+
+        # Step 8: TTL old feeds.
+
+        # Step 9: Insert feed generation session metadata.
 
 
         # Step 6: Export results
@@ -346,170 +355,25 @@ class FeedGenerationOrchestrator:
         )
         return feed_generation_session_analytics
 
-    def _export_artifacts(self):
-        # export feeds and analytics to s3 and local storage.
+    def _export_artifacts(
+        self,
+        user_to_ranked_feed_map: dict[str, FeedWithMetadata],
+        feed_generation_session_analytics: FeedGenerationSessionAnalytics,
+    ) -> None:
+        self.data_exporter_service.export_feeds(
+            user_to_ranked_feed_map=user_to_ranked_feed_map,
+            timestamp=self.current_datetime_str,
+        )
+        self.data_exporter_service.export_feed_generation_session_analytics(
+            feed_generation_session_analytics=feed_generation_session_analytics,
+            timestamp=self.current_datetime_str,
+        )
+
+    def _ttl_old_feeds(self, test_mode: bool) -> None:
         pass
 
-    def _generate_feeds_v1(
-        self,
-        loaded_data: LoadedData,
-        scored_posts: pd.DataFrame,
-        post_pools: CandidatePostPools,
-    ) -> RunResult:
-        """Generate feeds for all users.
-
-        Args:
-            loaded_data: Loaded input data.
-            scored_posts: DataFrame with scored posts.
-            post_pools: Post pools for ranking.
-
-        Returns:
-            RunResult containing all generated feeds and analytics.
-        """
-        # List of all in-network user posts, across all study users.
-        # Needs to be filtered for the in-network posts relevant for a given study user.
-        candidate_in_network_user_activity_posts_df = scored_posts[
-            scored_posts["source"] == "firehose"
-        ]
-        # yes, popular posts can also be in-network. For now we'll treat them as
-        # out-of-network (and perhaps revisit treating them as in-network as well.)
-        # TODO: revisit this.
-        out_of_network_user_activity_posts_df = scored_posts[
-            scored_posts["source"] == "most_liked"
-        ]
-        self.logger.info(
-            f"Loaded {len(candidate_in_network_user_activity_posts_df)} in-network posts."
-        )
-        self.logger.info(
-            f"Loaded {len(out_of_network_user_activity_posts_df)} out-of-network posts."
-        )
-
-        # Get lists of in-network and out-of-network posts
-        user_to_in_network_post_uris_map: dict[str, list[str]] = {
-            user.bluesky_user_did: calculate_in_network_posts_for_user(
-                user_did=user.bluesky_user_did,
-                user_to_social_network_map=loaded_data.user_to_social_network_map,
-                candidate_in_network_user_activity_posts_df=(
-                    candidate_in_network_user_activity_posts_df  # type: ignore[arg-type]
-                ),
-            )
-            for user in loaded_data.study_users
-        }
-
-        # Generate feeds for each user.
-        user_to_ranked_feed_map: dict[str, dict] = {}
-        total_users = len(loaded_data.study_users)
-        self.logger.info(f"Creating feeds for {total_users} users")
-
-        for i, user in enumerate(loaded_data.study_users):
-            if i % 10 == 0:
-                self.logger.info(f"Creating feed for user {i}/{total_users}")
-
-            post_pool: pd.DataFrame | None = (
-                post_pools.reverse_chronological
-                if user.condition == "reverse_chronological"
-                else post_pools.engagement
-                if user.condition == "engagement"
-                else post_pools.treatment
-                if user.condition == "representative_diversification"
-                else None
-            )
-
-            if post_pool is None or len(post_pool) == 0:
-                raise ValueError(
-                    "post_pool cannot be None. This means that a user condition is unexpected/invalid"
-                )
-
-            candidate_feed = create_ranked_candidate_feed(
-                condition=user.condition,
-                in_network_candidate_post_uris=(
-                    user_to_in_network_post_uris_map[user.bluesky_user_did]
-                ),
-                post_pool=post_pool,
-                max_feed_length=self.config.max_feed_length,
-                max_in_network_posts_ratio=self.config.max_in_network_posts_ratio,
-            )
-
-            feed = postprocess_feed(
-                feed=candidate_feed,
-                max_feed_length=self.config.max_feed_length,
-                max_prop_old_posts=self.config.max_prop_old_posts,
-                feed_preprocessing_multiplier=self.config.feed_preprocessing_multiplier,
-                jitter_amount=self.config.jitter_amount,
-                previous_post_uris=loaded_data.previous_feeds.get(
-                    user.bluesky_handle, set()
-                ),
-            )
-
-            user_to_ranked_feed_map[user.bluesky_user_did] = {
-                "feed": feed,
-                "bluesky_handle": user.bluesky_handle,
-                "bluesky_user_did": user.bluesky_user_did,
-                "condition": user.condition,
-                "feed_statistics": generate_feed_statistics(feed=feed),
-            }
-
-            if len(feed) == 0:
-                self.logger.error(
-                    f"No feed created for user {user.bluesky_user_did}. This shouldn't happen..."
-                )
-
-        # Insert default feed, for users that aren't logged in or for if a user
-        # isn't in the study but opens the link.
-        default_feed = create_ranked_candidate_feed(
-            condition="reverse_chronological",
-            in_network_candidate_post_uris=[],
-            post_pool=post_pools.reverse_chronological,
-            max_feed_length=self.config.max_feed_length,
-            max_in_network_posts_ratio=self.config.max_in_network_posts_ratio,
-        )
-
-        postprocessed_default_feed = postprocess_feed(
-            feed=default_feed,
-            max_feed_length=self.config.max_feed_length,
-            max_prop_old_posts=self.config.max_prop_old_posts,
-            feed_preprocessing_multiplier=self.config.feed_preprocessing_multiplier,
-            jitter_amount=self.config.jitter_amount,
-            previous_post_uris=loaded_data.previous_feeds.get("default", set()),
-        )
-
-        user_to_ranked_feed_map["default"] = {
-            "feed": postprocessed_default_feed,
-            "bluesky_handle": "default",
-            "bluesky_user_did": "default",
-            "condition": "default",
-            "feed_statistics": generate_feed_statistics(
-                feed=postprocessed_default_feed
-            ),
-        }
-
-        timestamp = generate_current_datetime_str()
-
-        # Calculate analytics
-        analytics = calculate_feed_analytics(
-            user_to_ranked_feed_map=user_to_ranked_feed_map,
-            timestamp=timestamp,
-        )
-
-        # Convert user_to_ranked_feed_map to UserFeedResult objects
-        user_feeds: dict[str, UserFeedResult] = {}
-        for user_did, feed_data in user_to_ranked_feed_map.items():
-            user_feeds[user_did] = UserFeedResult(
-                user_did=feed_data["bluesky_user_did"],
-                bluesky_handle=feed_data["bluesky_handle"],
-                condition=feed_data["condition"],
-                feed=feed_data["feed"],
-                feed_statistics=feed_data["feed_statistics"],
-            )
-
-        default_feed_result = user_feeds.pop("default")
-
-        return RunResult(
-            user_feeds=user_feeds,
-            default_feed=default_feed_result,
-            analytics=analytics,
-            timestamp=timestamp,
-        )
+    def _insert_feed_generation_session_metadata(self, feed_generation_session_analytics: FeedGenerationSessionAnalytics) -> None:
+        pass
 
     def _export_results(self, run_result: RunResult, test_mode: bool) -> None:
         """Export all results (feeds, analytics, session metadata).
