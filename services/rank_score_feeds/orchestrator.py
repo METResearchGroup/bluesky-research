@@ -53,6 +53,7 @@ class FeedGenerationOrchestrator:
         from lib.aws.glue import Glue
         from lib.aws.s3 import S3
 
+        from services.rank_score_feeds.repositories.feed_repo import FeedStorageRepository
         from services.rank_score_feeds.repositories.scores_repo import ScoresRepository
         from services.rank_score_feeds.services.candidate import (
             CandidateGenerationService,
@@ -67,6 +68,7 @@ class FeedGenerationOrchestrator:
         from services.rank_score_feeds.services.ranking import RankingService
         from services.rank_score_feeds.services.reranking import RerankingService
         from services.rank_score_feeds.services.scoring import ScoringService
+        from services.rank_score_feeds.storage.adapters import S3FeedStorageAdapter
 
         self.config = feed_config
         self.athena = Athena()
@@ -97,7 +99,11 @@ class FeedGenerationOrchestrator:
             feed_config=feed_config,
         )
         self.feed_generation_session_analytics_service = FeedGenerationSessionAnalyticsService()
-        self.data_exporter_service = DataExporterService()
+
+        # Export services
+        export_s3_adapter = S3FeedStorageAdapter()
+        export_storage_repository = FeedStorageRepository(adapter=export_s3_adapter)
+        self.data_exporter_service = DataExporterService(feed_storage_repository=export_storage_repository)
 
     def run(
         self,

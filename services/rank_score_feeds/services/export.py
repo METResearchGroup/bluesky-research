@@ -1,11 +1,13 @@
 from services.rank_score_feeds.models import FeedWithMetadata, FeedGenerationSessionAnalytics, StoredFeedModel
+from services.rank_score_feeds.repositories.feed_repo import FeedStorageRepository
 
-
-# TODO: for I/O, probably a good spot for the Repository pattern? That way, I can decouple
-# the export.py from any lower-level specifics of I/O? Also can include adapters for S3 and local storage.
 class DataExporterService:
-    def __init__(self):
-        pass
+    """Service for exporting data to storage."""
+    def __init__(self, feed_storage_repository: FeedStorageRepository):
+        """Initialize data exporter service."""
+        if not isinstance(feed_storage_repository, FeedStorageRepository):
+            raise ValueError("feed_storage_repository must be a subclass of FeedStorageRepository.")
+        self.feed_storage_repository = feed_storage_repository
 
     def export_feeds(
         self,
@@ -18,7 +20,22 @@ class DataExporterService:
             timestamp=timestamp,
         )
         partition_date = "" # TODO: should really get this from a helper.
+        self.feed_storage_repository.write_feeds(
+            feeds=transformed_feed_models,
+            partition_date=partition_date,
+            timestamp=timestamp,
+        )
 
+    def export_feed_generation_session_analytics(
+        self,
+        feed_generation_session_analytics: FeedGenerationSessionAnalytics,
+        timestamp: str
+    ) -> None:
+        """Exports feed generation session analytics."""
+        self.feed_storage_repository.write_feed_generation_session_analytics(
+            feed_generation_session_analytics=feed_generation_session_analytics,
+            timestamp=timestamp,
+        )
 
     def _transform_feed_with_metadata_to_export_models(
         self,
@@ -40,11 +57,3 @@ class DataExporterService:
                 )
             )
         return stored_feed_models
-
-    def export_feed_generation_session_analytics(
-        self,
-        feed_generation_session_analytics: FeedGenerationSessionAnalytics,
-        timestamp: str
-    ) -> None:
-        """Exports feed generation session analytics."""
-        pass
