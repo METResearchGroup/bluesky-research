@@ -77,13 +77,11 @@ class SessionMetadataAdapter(ABC):
     """
 
     @abstractmethod
-    def insert_session_metadata(self, metadata: dict) -> None:
-        """Insert feed generation session metadata.
+    def insert_session_metadata(self, metadata: FeedGenerationSessionAnalytics) -> None:
+        """Insert feed generation session analytics.
 
         Args:
-            metadata: Dictionary containing session metadata:
-                - feed_generation_timestamp: str
-                - number_of_new_feeds: int
+            metadata: Feed generation session analytics
 
         Raises:
             StorageError: If insert operation fails

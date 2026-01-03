@@ -1,16 +1,16 @@
 from lib.constants import STUDY_CONDITIONS
-from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
-import pandas as pd
-from lib.db.manage_local_data import export_data_to_local_storage
-from services.rank_score_feeds.models import FeedWithMetadata, FeedGenerationSessionAnalytics
+from services.rank_score_feeds.models import (
+    FeedWithMetadata,
+    FeedGenerationSessionAnalytics,
+)
 
 logger = get_logger(__name__)
+
 
 class FeedGenerationSessionAnalyticsService:
     def __init__(self):
         pass
-
 
     def calculate_feed_generation_session_analytics(
         self,
@@ -26,8 +26,10 @@ class FeedGenerationSessionAnalyticsService:
         total_feeds_per_condition: dict = self._calculate_total_feeds_per_condition(
             user_to_ranked_feed_map=user_to_ranked_feed_map,
         )
-        analytics_for_prop_overlap_engagement_treatment_uris: dict = self._calculate_analytics_for_prop_overlap_engagement_treatment_uris(
-            user_to_ranked_feed_map=user_to_ranked_feed_map,
+        analytics_for_prop_overlap_engagement_treatment_uris: dict = (
+            self._calculate_analytics_for_prop_overlap_engagement_treatment_uris(
+                user_to_ranked_feed_map=user_to_ranked_feed_map,
+            )
         )
 
         session_analytics.update(analytics_across_all_feeds)
@@ -38,13 +40,23 @@ class FeedGenerationSessionAnalyticsService:
             total_feeds=session_analytics["total_feeds"],
             total_posts=session_analytics["total_posts"],
             total_in_network_posts=session_analytics["total_in_network_posts"],
-            total_in_network_posts_prop=session_analytics["total_in_network_posts_prop"],
-            total_unique_engagement_uris=session_analytics["total_unique_engagement_uris"],
-            total_unique_treatment_uris=session_analytics["total_unique_treatment_uris"],
-            prop_overlap_treatment_uris_in_engagement_uris=session_analytics["prop_overlap_treatment_uris_in_engagement_uris"],
-            prop_overlap_engagement_uris_in_treatment_uris=session_analytics["prop_overlap_engagement_uris_in_treatment_uris"],
+            total_in_network_posts_prop=session_analytics[
+                "total_in_network_posts_prop"
+            ],
+            total_unique_engagement_uris=session_analytics[
+                "total_unique_engagement_uris"
+            ],
+            total_unique_treatment_uris=session_analytics[
+                "total_unique_treatment_uris"
+            ],
+            prop_overlap_treatment_uris_in_engagement_uris=session_analytics[
+                "prop_overlap_treatment_uris_in_engagement_uris"
+            ],
+            prop_overlap_engagement_uris_in_treatment_uris=session_analytics[
+                "prop_overlap_engagement_uris_in_treatment_uris"
+            ],
             total_feeds_per_condition=session_analytics["total_feeds_per_condition"],
-            session_timestamp=session_timestamp
+            session_timestamp=session_timestamp,
         )
 
     def _calculate_analytics_across_all_feeds(
@@ -67,21 +79,28 @@ class FeedGenerationSessionAnalyticsService:
         analytics_across_all_feeds["total_feeds"] = total_feeds
         analytics_across_all_feeds["total_posts"] = total_posts
         analytics_across_all_feeds["total_in_network_posts"] = total_in_network_posts
-        analytics_across_all_feeds["total_in_network_posts_prop"] = total_in_network_posts_prop
+        analytics_across_all_feeds["total_in_network_posts_prop"] = (
+            total_in_network_posts_prop
+        )
         return analytics_across_all_feeds
 
-    def _calculate_total_feeds_per_condition(self, user_to_ranked_feed_map: dict[str, FeedWithMetadata]) -> dict:
-        """"Performs analytics based on the condition of the feed."""
+    def _calculate_total_feeds_per_condition(
+        self, user_to_ranked_feed_map: dict[str, FeedWithMetadata]
+    ) -> dict:
+        """ "Performs analytics based on the condition of the feed."""
         total_feeds_per_condition: dict[str, int] = {}
         for condition in STUDY_CONDITIONS:
             total_feeds_per_condition[condition] = sum(
-                [feed.condition == condition for feed in user_to_ranked_feed_map.values()]
+                [
+                    feed.condition == condition
+                    for feed in user_to_ranked_feed_map.values()
+                ]
             )
-        return {
-            "total_feeds_per_condition": total_feeds_per_condition
-        }
+        return {"total_feeds_per_condition": total_feeds_per_condition}
 
-    def _calculate_analytics_for_prop_overlap_engagement_treatment_uris(self, user_to_ranked_feed_map: dict[str, FeedWithMetadata]) -> dict:
+    def _calculate_analytics_for_prop_overlap_engagement_treatment_uris(
+        self, user_to_ranked_feed_map: dict[str, FeedWithMetadata]
+    ) -> dict:
         """Calculate analytics related to looking at the portion of overlap between the engagement and treatment feeds."""
         analytics_for_prop_overlap_engagement_treatment_uris: dict = {}
         engagement_feed_uris: set[str] = set()
@@ -95,11 +114,15 @@ class FeedGenerationSessionAnalyticsService:
 
         # Find post URIs that appear in both the engagement and treatment feeds.
         # set.intersection(other_set) returns elements common to both sets.
-        overlap_engagement_treatment_uris: set[str] = engagement_feed_uris.intersection(treatment_feed_uris)
+        overlap_engagement_treatment_uris: set[str] = engagement_feed_uris.intersection(
+            treatment_feed_uris
+        )
 
         total_unique_engagement_uris: int = len(engagement_feed_uris)
         total_unique_treatment_uris: int = len(treatment_feed_uris)
-        total_unique_overlap_engagement_treatment_uris: int = len(overlap_engagement_treatment_uris)
+        total_unique_overlap_engagement_treatment_uris: int = len(
+            overlap_engagement_treatment_uris
+        )
 
         prop_treatment_uris_in_engagement_uris: float = (
             round(
@@ -121,17 +144,17 @@ class FeedGenerationSessionAnalyticsService:
             else 0.0
         )
 
-        analytics_for_prop_overlap_engagement_treatment_uris["total_unique_engagement_uris"] = total_unique_engagement_uris
-        analytics_for_prop_overlap_engagement_treatment_uris["total_unique_treatment_uris"] = total_unique_treatment_uris
-        analytics_for_prop_overlap_engagement_treatment_uris["prop_overlap_treatment_uris_in_engagement_uris"] = prop_treatment_uris_in_engagement_uris
-        analytics_for_prop_overlap_engagement_treatment_uris["prop_overlap_engagement_uris_in_treatment_uris"] = prop_engagement_uris_in_treatment_uris
+        analytics_for_prop_overlap_engagement_treatment_uris[
+            "total_unique_engagement_uris"
+        ] = total_unique_engagement_uris
+        analytics_for_prop_overlap_engagement_treatment_uris[
+            "total_unique_treatment_uris"
+        ] = total_unique_treatment_uris
+        analytics_for_prop_overlap_engagement_treatment_uris[
+            "prop_overlap_treatment_uris_in_engagement_uris"
+        ] = prop_treatment_uris_in_engagement_uris
+        analytics_for_prop_overlap_engagement_treatment_uris[
+            "prop_overlap_engagement_uris_in_treatment_uris"
+        ] = prop_engagement_uris_in_treatment_uris
 
         return analytics_for_prop_overlap_engagement_treatment_uris
-
-    def export_feed_analytics(self, analytics: dict) -> None:
-        """Exports feed analytics to S3."""
-        dtype_map = MAP_SERVICE_TO_METADATA["feed_analytics"]["dtypes_map"]
-        df = pd.DataFrame([analytics])
-        df = df.astype(dtype_map)
-        export_data_to_local_storage(df=df, service="feed_analytics")
-        logger.info("Exported session feed analytics.")

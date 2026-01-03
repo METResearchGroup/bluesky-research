@@ -4,6 +4,7 @@ from services.rank_score_feeds.models import (
     StoredFeedModel,
 )
 from services.rank_score_feeds.repositories.feed_repo import FeedStorageRepository
+from services.rank_score_feeds.storage.exceptions import StorageError
 
 
 class DataExporterService:
@@ -11,6 +12,9 @@ class DataExporterService:
 
     def __init__(self, feed_storage_repository: FeedStorageRepository):
         """Initialize data exporter service."""
+        from lib.log.logger import get_logger
+
+        self.logger = get_logger(__name__)
         if not isinstance(feed_storage_repository, FeedStorageRepository):
             raise ValueError(
                 "feed_storage_repository must be a subclass of FeedStorageRepository."
@@ -21,16 +25,20 @@ class DataExporterService:
         self, user_to_ranked_feed_map: dict[str, FeedWithMetadata], timestamp: str
     ) -> None:
         """Exports feeds."""
-        transformed_feed_models: list[StoredFeedModel] = (
-            self._transform_feed_with_metadata_to_export_models(
-                user_to_ranked_feed_map=user_to_ranked_feed_map,
+        try:
+            transformed_feed_models: list[StoredFeedModel] = (
+                self._transform_feed_with_metadata_to_export_models(
+                    user_to_ranked_feed_map=user_to_ranked_feed_map,
+                    timestamp=timestamp,
+                )
+            )
+            self.feed_storage_repository.write_feeds(
+                feeds=transformed_feed_models,
                 timestamp=timestamp,
             )
-        )
-        self.feed_storage_repository.write_feeds(
-            feeds=transformed_feed_models,
-            timestamp=timestamp,
-        )
+        except Exception as e:
+            self.logger.error(f"Failed to export feeds: {e}")
+            raise StorageError(f"Failed to export feeds: {e}")
 
     def export_feed_generation_session_analytics(
         self,
@@ -38,10 +46,18 @@ class DataExporterService:
         timestamp: str,
     ) -> None:
         """Exports feed generation session analytics."""
-        self.feed_storage_repository.write_feed_generation_session_analytics(
-            feed_generation_session_analytics=feed_generation_session_analytics,
-            timestamp=timestamp,
-        )
+        try:
+            self.feed_storage_repository.write_feed_generation_session_analytics(
+                feed_generation_session_analytics=feed_generation_session_analytics,
+                timestamp=timestamp,
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Failed to export feed generation session analytics: {e}"
+            )
+            raise StorageError(
+                f"Failed to export feed generation session analytics: {e}"
+            )
 
     def _transform_feed_with_metadata_to_export_models(
         self, user_to_ranked_feed_map: dict[str, FeedWithMetadata], timestamp: str

@@ -15,8 +15,6 @@ from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist impor
 )
 from services.rank_score_feeds.config import FeedConfig
 from services.rank_score_feeds.helper import (
-    export_results,
-    insert_feed_generation_session,
     load_feed_input_data,
     load_latest_feeds,
 )
@@ -30,6 +28,7 @@ from services.rank_score_feeds.models import (
     FeedWithMetadata,
     FeedGenerationSessionAnalytics,
 )
+from services.rank_score_feeds.storage.exceptions import StorageError
 
 logger = get_logger(__name__)
 
@@ -48,12 +47,9 @@ class FeedGenerationOrchestrator:
         Args:
             feed_config: Configuration for feed generation algorithm.
         """
-        from lib.aws.athena import Athena
-        from lib.aws.dynamodb import DynamoDB
-        from lib.aws.glue import Glue
-        from lib.aws.s3 import S3
-
-        from services.rank_score_feeds.repositories.feed_repo import FeedStorageRepository
+        from services.rank_score_feeds.repositories.feed_repo import (
+            FeedStorageRepository,
+        )
         from services.rank_score_feeds.repositories.scores_repo import ScoresRepository
         from services.rank_score_feeds.services.candidate import (
             CandidateGenerationService,
@@ -64,17 +60,19 @@ class FeedGenerationOrchestrator:
         from services.rank_score_feeds.services.feed_statistics import (
             FeedStatisticsService,
         )
-        from services.rank_score_feeds.services.feed_generation_session_analytics import FeedGenerationSessionAnalyticsService
+        from services.rank_score_feeds.services.feed_generation_session_analytics import (
+            FeedGenerationSessionAnalyticsService,
+        )
         from services.rank_score_feeds.services.ranking import RankingService
         from services.rank_score_feeds.services.reranking import RerankingService
         from services.rank_score_feeds.services.scoring import ScoringService
-        from services.rank_score_feeds.storage.adapters import S3FeedStorageAdapter
+        from services.rank_score_feeds.storage.adapters import (
+            S3FeedStorageAdapter,
+            S3FeedTTLAdapter,
+            DynamoDBSessionMetadataAdapter,
+        )
 
         self.config = feed_config
-        self.athena = Athena()
-        self.s3 = S3()
-        self.dynamodb = DynamoDB()
-        self.glue = Glue()
         self.logger = logger
 
         self.current_datetime_str: str = generate_current_datetime_str()
@@ -98,12 +96,20 @@ class FeedGenerationOrchestrator:
             feed_statistics_service=self.feed_statistics_service,
             feed_config=feed_config,
         )
-        self.feed_generation_session_analytics_service = FeedGenerationSessionAnalyticsService()
+        self.feed_generation_session_analytics_service = (
+            FeedGenerationSessionAnalyticsService()
+        )
 
         # Export services
         export_s3_adapter = S3FeedStorageAdapter()
         export_storage_repository = FeedStorageRepository(adapter=export_s3_adapter)
-        self.data_exporter_service = DataExporterService(feed_storage_repository=export_storage_repository)
+        self.data_exporter_service = DataExporterService(
+            feed_storage_repository=export_storage_repository
+        )
+
+        # TTL services
+        self.feed_ttl_adapter = S3FeedTTLAdapter()
+        self.session_metadata_adapter = DynamoDBSessionMetadataAdapter()
 
     def run(
         self,
@@ -143,7 +149,6 @@ class FeedGenerationOrchestrator:
             loaded_data=loaded_data,
             candidate_post_pools=candidate_post_pools,
         )
-        
 
         # Step 6: calculate analytics for the current session of feed generation.
         feed_generation_session_analytics: FeedGenerationSessionAnalytics = (
@@ -158,14 +163,14 @@ class FeedGenerationOrchestrator:
             feed_generation_session_analytics=feed_generation_session_analytics,
         )
 
-        # Step 8: TTL old feeds.
+        if not test_mode:
+            # Step 8: TTL old feeds.
+            self._ttl_old_feeds()
 
-        # Step 9: Insert feed generation session metadata.
-
-
-        # Step 6: Export results
-        # self._export_results(run_result, test_mode)
-
+            # Step 9: Insert feed generation session metadata.
+            self._insert_feed_generation_session_metadata(
+                feed_generation_session_analytics=feed_generation_session_analytics
+            )
 
     def _load_raw_data(
         self,
@@ -320,7 +325,7 @@ class FeedGenerationOrchestrator:
         candidate_post_pools: CandidatePostPools,
     ) -> dict[str, FeedWithMetadata]:
         """Manages generating feeds for all users.
-        
+
         Args:
             loaded_data: Loaded input data.
             candidate_post_pools: Post pools for ranking.
@@ -353,11 +358,9 @@ class FeedGenerationOrchestrator:
         self, user_to_ranked_feed_map: dict[str, FeedWithMetadata]
     ) -> FeedGenerationSessionAnalytics:
         """Calculates feed generation session analytics."""
-        feed_generation_session_analytics: FeedGenerationSessionAnalytics = (
-            self.feed_generation_session_analytics_service.calculate_feed_generation_session_analytics(
-                user_to_ranked_feed_map=user_to_ranked_feed_map,
-                session_timestamp=self.current_datetime_str,
-            )
+        feed_generation_session_analytics: FeedGenerationSessionAnalytics = self.feed_generation_session_analytics_service.calculate_feed_generation_session_analytics(
+            user_to_ranked_feed_map=user_to_ranked_feed_map,
+            session_timestamp=self.current_datetime_str,
         )
         return feed_generation_session_analytics
 
@@ -375,64 +378,28 @@ class FeedGenerationOrchestrator:
             timestamp=self.current_datetime_str,
         )
 
-    def _ttl_old_feeds(self, test_mode: bool) -> None:
-        pass
-
-    def _insert_feed_generation_session_metadata(self, feed_generation_session_analytics: FeedGenerationSessionAnalytics) -> None:
-        pass
-
-    def _export_results(self, run_result: RunResult, test_mode: bool) -> None:
-        """Export all results (feeds, analytics, session metadata).
-
-        Args:
-            run_result: Result containing feeds and analytics.
-            test_mode: If True, skip TTL and session insert.
-        """
-        # Export analytics
-        export_feed_analytics(analytics=run_result.analytics)
-
-        # Convert RunResult back to dict format for export_results function
-        # (maintaining backward compatibility with existing export function)
-        user_to_ranked_feed_map: dict[str, dict] = {}
-        for user_did, feed_result in run_result.user_feeds.items():
-            user_to_ranked_feed_map[user_did] = {
-                "feed": feed_result.feed,
-                "bluesky_handle": feed_result.bluesky_handle,
-                "bluesky_user_did": feed_result.user_did,
-                "condition": feed_result.condition,
-                "feed_statistics": feed_result.feed_statistics,
-            }
-
-        # Add default feed
-        user_to_ranked_feed_map["default"] = {
-            "feed": run_result.default_feed.feed,
-            "bluesky_handle": run_result.default_feed.bluesky_handle,
-            "bluesky_user_did": run_result.default_feed.user_did,
-            "condition": run_result.default_feed.condition,
-            "feed_statistics": run_result.default_feed.feed_statistics,
-        }
-
-        # Write feeds to S3
-        export_results(
-            user_to_ranked_feed_map=user_to_ranked_feed_map,
-            timestamp=run_result.timestamp,
-        )
-
-        # TTL old feeds
-        if not test_mode:
-            self.logger.info("TTLing old feeds from active to cache.")
-            self.s3.sort_and_move_files_from_active_to_cache(
+    def _ttl_old_feeds(self) -> None:
+        """Move old feeds to cache. Keeps the custom_feeds/active/ directory clean."""
+        try:
+            self.feed_ttl_adapter.move_to_cache(
                 prefix="custom_feeds",
                 keep_count=self.config.keep_count,
                 sort_field="Key",
             )
-            self.logger.info(
-                f"Done TTLing old feeds from active to cache (keeping {self.config.keep_count})."
-            )
+        except Exception as e:
+            self.logger.error(f"Failed to TTL old feeds: {e}")
+            raise StorageError(f"Failed to TTL old feeds: {e}")
 
-            # Insert feed generation session metadata.
-            feed_generation_session = {
-                "feed_generation_timestamp": run_result.timestamp,
-                "number_of_new_feeds": len(user_to_ranked_feed_map),
-            }
-            insert_feed_generation_session(feed_generation_session)
+    def _insert_feed_generation_session_metadata(
+        self, feed_generation_session_analytics: FeedGenerationSessionAnalytics
+    ) -> None:
+        """Insert feed generation session metadata into DynamoDB."""
+        try:
+            self.session_metadata_adapter.insert_session_metadata(
+                metadata=feed_generation_session_analytics
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to insert feed generation session metadata: {e}")
+            raise StorageError(
+                f"Failed to insert feed generation session metadata: {e}"
+            )

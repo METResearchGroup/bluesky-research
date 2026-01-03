@@ -7,14 +7,15 @@ import pandas as pd
 from lib.helper import get_partition_date_from_timestamp
 from lib.log.logger import get_logger
 from services.rank_score_feeds.models import (
-    FeedGenerationSessionAnalytics,
     StoredFeedModel,
+    FeedGenerationSessionAnalytics,
 )
 from services.rank_score_feeds.storage.base import (
     FeedStorageAdapter,
     FeedTTLAdapter,
     SessionMetadataAdapter,
 )
+from services.rank_score_feeds.storage.exceptions import StorageError
 
 
 class S3FeedStorageAdapter(FeedStorageAdapter):
@@ -27,15 +28,20 @@ class S3FeedStorageAdapter(FeedStorageAdapter):
         self.s3 = S3()
         self.feeds_root_s3_key = "custom_feeds"
         self.feed_analytics_root_s3_key = "feed_analytics"
+        self.logger = get_logger(__name__)
 
     def write_feeds(self, feeds: list[StoredFeedModel], timestamp: str) -> None:
         """Write feeds to S3."""
-        feeds_data: list[dict] = [feed.model_dump() for feed in feeds]
-        s3_key: str = self._generate_feeds_s3_key(timestamp)
-        self.s3.write_dicts_jsonl_to_s3(
-            data=feeds_data,
-            key=s3_key,
-        )
+        try:
+            feeds_data: list[dict] = [feed.model_dump() for feed in feeds]
+            s3_key: str = self._generate_feeds_s3_key(timestamp)
+            self.s3.write_dicts_jsonl_to_s3(
+                data=feeds_data,
+                key=s3_key,
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to write feeds to S3: {e}")
+            raise StorageError(f"Failed to write feeds to S3: {e}")
 
     def _generate_feeds_s3_key(self, timestamp: str) -> str:
         partition_date: str = get_partition_date_from_timestamp(timestamp=timestamp)
@@ -52,12 +58,20 @@ class S3FeedStorageAdapter(FeedStorageAdapter):
         timestamp: str,
     ) -> None:
         """Write feed generation session analytics to S3."""
-        feed_analytics_data: dict = feed_generation_session_analytics.model_dump()
-        s3_key: str = self._generate_feed_analytics_s3_key(timestamp)
-        self.s3.write_dicts_jsonl_to_s3(
-            data=[feed_analytics_data],
-            key=s3_key,
-        )
+        try:
+            feed_analytics_data: dict = feed_generation_session_analytics.model_dump()
+            s3_key: str = self._generate_feed_analytics_s3_key(timestamp)
+            self.s3.write_dicts_jsonl_to_s3(
+                data=[feed_analytics_data],
+                key=s3_key,
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Failed to write feed generation session analytics to S3: {e}"
+            )
+            raise StorageError(
+                f"Failed to write feed generation session analytics to S3: {e}"
+            )
 
     def _generate_feed_analytics_s3_key(self, timestamp: str) -> str:
         partition_date: str = get_partition_date_from_timestamp(timestamp=timestamp)
@@ -86,13 +100,18 @@ class LocalFeedStorageAdapter(FeedStorageAdapter):
             "dtypes_map"
         ]
         self.export_func = export_data_to_local_storage
+        self.logger = get_logger(__name__)
 
     def write_feeds(self, feeds: list[StoredFeedModel], timestamp: str) -> None:
         """Write feeds to local filesystem."""
-        feeds_data: list[dict] = [feed.model_dump() for feed in feeds]
-        df: pd.DataFrame = pd.DataFrame(feeds_data)
-        df = df.astype(self.custom_feeds_dtype_map)
-        self.export_func(df=df, service="custom_feeds")
+        try:
+            feeds_data: list[dict] = [feed.model_dump() for feed in feeds]
+            df: pd.DataFrame = pd.DataFrame(feeds_data)
+            df = df.astype(self.custom_feeds_dtype_map)
+            self.export_func(df=df, service="custom_feeds")
+        except Exception as e:
+            self.logger.error(f"Failed to write feeds to local filesystem: {e}")
+            raise StorageError(f"Failed to write feeds to local filesystem: {e}")
 
     def write_feed_generation_session_analytics(
         self,
@@ -100,10 +119,18 @@ class LocalFeedStorageAdapter(FeedStorageAdapter):
         timestamp: str,
     ) -> None:
         """Write feed generation session analytics to local filesystem."""
-        feed_analytics_data: dict = feed_generation_session_analytics.model_dump()
-        df: pd.DataFrame = pd.DataFrame([feed_analytics_data])
-        df = df.astype(self.feed_analytics_dtype_map)
-        self.export_func(df=df, service="feed_analytics")
+        try:
+            feed_analytics_data: dict = feed_generation_session_analytics.model_dump()
+            df: pd.DataFrame = pd.DataFrame([feed_analytics_data])
+            df = df.astype(self.feed_analytics_dtype_map)
+            self.export_func(df=df, service="feed_analytics")
+        except Exception as e:
+            self.logger.error(
+                f"Failed to write feed generation session analytics to local filesystem: {e}"
+            )
+            raise StorageError(
+                f"Failed to write feed generation session analytics to local filesystem: {e}"
+            )
 
 
 class S3FeedTTLAdapter(FeedTTLAdapter):
@@ -127,18 +154,23 @@ class S3FeedTTLAdapter(FeedTTLAdapter):
         sort_field: str = "Key",
     ) -> None:
         """Move old feeds from active to cache in S3."""
-        self.logger.info(
-            f"Moving old feeds to cache: prefix={prefix}, "
-            f"keep_count={keep_count}, sort_field={sort_field}"
-        )
-        self.s3.sort_and_move_files_from_active_to_cache(
-            prefix=prefix,
-            keep_count=keep_count,
-            sort_field=sort_field,
-        )
-        self.logger.info(
-            f"Successfully moved old feeds to cache " f"(kept {keep_count} most recent)"
-        )
+        try:
+            self.logger.info(
+                f"Moving old feeds to cache: prefix={prefix}, "
+                f"keep_count={keep_count}, sort_field={sort_field}"
+            )
+            self.s3.sort_and_move_files_from_active_to_cache(
+                prefix=prefix,
+                keep_count=keep_count,
+                sort_field=sort_field,
+            )
+            self.logger.info(
+                f"Successfully moved old feeds to cache "
+                f"(kept {keep_count} most recent)"
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to move old feeds to cache: {e}")
+            raise StorageError(f"Failed to move old feeds to cache: {e}")
 
 
 class LocalFeedTTLAdapter(FeedTTLAdapter):
@@ -187,12 +219,12 @@ class DynamoDBSessionMetadataAdapter(SessionMetadataAdapter):
         self.table_name = "rank_score_feed_sessions"
         self.logger = get_logger(__name__)
 
-    def insert_session_metadata(self, metadata: dict) -> None:
+    def insert_session_metadata(self, metadata: FeedGenerationSessionAnalytics) -> None:
         """Insert session metadata into DynamoDB."""
         self.logger.info(f"Inserting feed generation session metadata: {metadata}")
         try:
             self.dynamodb.insert_item_into_table(
-                item=metadata,
+                item=metadata.model_dump(),
                 table_name=self.table_name,
             )
             self.logger.info(
@@ -201,4 +233,6 @@ class DynamoDBSessionMetadataAdapter(SessionMetadataAdapter):
             )
         except Exception as e:
             self.logger.error(f"Failed to insert feed generation session metadata: {e}")
-            raise
+            raise StorageError(
+                f"Failed to insert feed generation session metadata: {e}"
+            )

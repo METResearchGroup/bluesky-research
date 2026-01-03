@@ -1,9 +1,6 @@
 """Helper functions for the rank_score_feeds service."""
 
-from datetime import datetime, timezone
 import json
-import os
-import random
 
 import pandas as pd
 
@@ -28,8 +25,6 @@ from services.consolidate_enrichment_integrations.load_data import load_enriched
 from services.participant_data.social_network import load_user_social_network_map
 from services.rank_score_feeds.config import feed_config
 from services.rank_score_feeds.models import (
-    CustomFeedModel,
-    CustomFeedPost,
     FeedInputData,
     LatestFeeds,
     ScoredPostModel,
@@ -45,51 +40,6 @@ s3 = S3()
 dynamodb = DynamoDB()
 glue = Glue()
 logger = get_logger(__name__)
-
-
-def insert_feed_generation_session(feed_generation_session: dict):
-    try:
-        dynamodb.insert_item_into_table(
-            item=feed_generation_session, table_name=dynamodb_table_name
-        )
-        logger.info(
-            f"Successfully inserted feed generation session: {feed_generation_session}"
-        )
-    except Exception as e:
-        logger.error(f"Failed to insert feed generation session: {e}")
-        raise
-
-
-def export_results(user_to_ranked_feed_map: dict, timestamp: str):
-    """Exports results. Partitions on user DID.
-
-    Exports to both S3 and the cache.
-    """
-    outputs: list[CustomFeedModel] = []
-    for _, user_obj in user_to_ranked_feed_map.items():
-        data = {
-            "feed_id": f"{user_obj['bluesky_user_did']}::{timestamp}",
-            "user": user_obj["bluesky_user_did"],
-            "bluesky_handle": user_obj["bluesky_handle"],
-            "bluesky_user_did": user_obj["bluesky_user_did"],
-            "condition": user_obj["condition"],
-            "feed_statistics": user_obj["feed_statistics"],
-            "feed": user_obj["feed"],
-            "feed_generation_timestamp": timestamp,
-        }
-        custom_feed_model = CustomFeedModel(**data)
-        outputs.append(custom_feed_model.dict())
-    partition_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    s3.write_dicts_jsonl_to_s3(
-        data=outputs,
-        key=os.path.join(
-            feeds_root_s3_key,
-            "active",
-            f"partition_date={partition_date}",
-            f"custom_feeds_{timestamp}.jsonl",
-        ),
-    )
-    logger.info(f"Exported {len(user_to_ranked_feed_map)} feeds to S3 and to cache.")
 
 
 def load_feed_input_data(lookback_days: int = default_lookback_days) -> FeedInputData:
@@ -150,6 +100,7 @@ def export_post_scores(scores_to_export: list[dict]):
     df = df.astype(dtypes_map)
     export_data_to_local_storage(df=df, service="post_scores")
 
+
 def load_latest_feeds() -> LatestFeeds:
     """Loads the latest feeds per user, from S3.
 
@@ -177,6 +128,7 @@ def load_latest_feeds() -> LatestFeeds:
         feeds_dict[handle] = uris
 
     return LatestFeeds(feeds=feeds_dict)
+
 
 def do_rank_score_feeds(
     users_to_create_feeds_for: list[str] | None = None,
