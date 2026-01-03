@@ -14,10 +14,6 @@ from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist impor
     load_users_to_exclude,
 )
 from services.rank_score_feeds.config import FeedConfig
-from services.rank_score_feeds.helper import (
-    load_feed_input_data,
-    load_latest_feeds,
-)
 from services.rank_score_feeds.models import (
     FeedInputData,
     LoadedData,
@@ -55,6 +51,7 @@ class FeedGenerationOrchestrator:
             CandidateGenerationService,
         )
         from services.rank_score_feeds.services.context import UserContextService
+        from services.rank_score_feeds.services.data_loading import DataLoadingService
         from services.rank_score_feeds.services.export import DataExporterService
         from services.rank_score_feeds.services.feed import FeedGenerationService
         from services.rank_score_feeds.services.feed_statistics import (
@@ -76,6 +73,9 @@ class FeedGenerationOrchestrator:
         self.logger = logger
 
         self.current_datetime_str: str = generate_current_datetime_str()
+
+        # Data loading service
+        self.data_loading_service = DataLoadingService(feed_config=feed_config)
 
         # Scoring service
         scores_repo = ScoresRepository(feed_config=feed_config)
@@ -193,8 +193,10 @@ class FeedGenerationOrchestrator:
         study_users: list[UserToBlueskyProfileModel] = get_all_users(
             test_mode=test_mode
         )
-        feed_input_data: FeedInputData = load_feed_input_data()
-        latest_feeds: LatestFeeds = load_latest_feeds()
+        feed_input_data: FeedInputData = (
+            self.data_loading_service.load_feed_input_data()
+        )
+        latest_feeds: LatestFeeds = self.data_loading_service.load_latest_feeds()
 
         return RawFeedData(
             study_users=study_users,
