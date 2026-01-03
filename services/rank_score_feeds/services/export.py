@@ -1,4 +1,3 @@
-from lib.helper import get_partition_date_from_timestamp
 from services.rank_score_feeds.models import (
     FeedWithMetadata,
     FeedGenerationSessionAnalytics,
@@ -28,10 +27,8 @@ class DataExporterService:
                 timestamp=timestamp,
             )
         )
-        partition_date: str = get_partition_date_from_timestamp(timestamp)
         self.feed_storage_repository.write_feeds(
             feeds=transformed_feed_models,
-            partition_date=partition_date,
             timestamp=timestamp,
         )
 
