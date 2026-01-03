@@ -88,7 +88,16 @@ apply_target() {
         return 1
     }
     
-    # Apply with auto-approve (since we're using -target, it's safe)
+    # Apply with auto-approve.
+    # NOTE: Using -target reduces the scope of changes but does NOT guarantee safety.
+    # -target can still affect dependent resources or resources that reference the target.
+    # Auto-approve is acceptable here because:
+    # 1. We've reviewed the terraform plan output above
+    # 2. These are additive-only resources (new archive tables)
+    # 3. The archive tables are isolated and don't modify existing infrastructure
+    # However, always review the plan output for any unexpected dependent changes
+    # before using -auto-approve. If the plan shows modifications to existing resources,
+    # do NOT use -auto-approve and investigate the dependencies first.
     terraform apply -target="$target" -auto-approve || {
         print_error "Terraform apply failed for $target"
         return 1
@@ -102,17 +111,13 @@ show_overall_plan() {
     print_info "Showing overall plan for all archive tables..."
     cd "$TERRAFORM_DIR"
     
-    # Build target string
-    local targets=""
+    # Build target array
+    local targets=()
     for table in "${ARCHIVE_TABLES[@]}"; do
-        if [ -z "$targets" ]; then
-            targets="-target=$table"
-        else
-            targets="$targets -target=$table"
-        fi
+        targets+=("-target=$table")
     done
     
-    terraform plan $targets || {
+    terraform plan "${targets[@]}" || {
         print_error "Terraform plan failed"
         return 1
     }
@@ -170,10 +175,10 @@ main() {
     if [ "$SKIP_PLAN" = false ]; then
         echo ""
         print_info "Showing overall plan for all archive tables..."
-        read -p "Press Enter to continue or Ctrl+C to cancel..."
+        read -r -p "Press Enter to continue or Ctrl+C to cancel..."
         show_overall_plan
         echo ""
-        read -p "Review the plan above. Press Enter to continue with individual applies or Ctrl+C to cancel..."
+        read -r -p "Review the plan above. Press Enter to continue with individual applies or Ctrl+C to cancel..."
     fi
     
     # Apply each table individually
