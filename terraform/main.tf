@@ -3811,15 +3811,15 @@ resource "aws_glue_catalog_table" "archive_in_network_user_activity" {
     }
     columns {
       name = "like_count"
-      type = "int"
+      type = "bigint"
     }
     columns {
       name = "reply_count"
-      type = "int"
+      type = "bigint"
     }
     columns {
       name = "repost_count"
-      type = "int"
+      type = "bigint"
     }
   }
 
@@ -3884,19 +3884,19 @@ resource "aws_glue_catalog_table" "archive_ml_inference_ime" {
     }
     columns {
       name = "label_emotion"
-      type = "int"
+      type = "bigint"
     }
     columns {
       name = "label_intergroup"
-      type = "int"
+      type = "bigint"
     }
     columns {
       name = "label_moral"
-      type = "int"
+      type = "bigint"
     }
     columns {
       name = "label_other"
-      type = "int"
+      type = "bigint"
     }
     columns {
       name = "source"
@@ -4301,11 +4301,11 @@ resource "aws_glue_catalog_table" "archive_user_session_logs" {
     }
     columns {
       name = "limit"
-      type = "int"
+      type = "bigint"
     }
     columns {
       name = "feed_length"
-      type = "int"
+      type = "bigint"
     }
     columns {
       name = "feed"
@@ -4430,15 +4430,15 @@ resource "aws_glue_catalog_table" "archive_study_user_activity_post" {
     }
     columns {
       name = "like_count"
-      type = "int"
+      type = "bigint"
     }
     columns {
       name = "reply_count"
-      type = "int"
+      type = "bigint"
     }
     columns {
       name = "repost_count"
-      type = "int"
+      type = "bigint"
     }
   }
 
