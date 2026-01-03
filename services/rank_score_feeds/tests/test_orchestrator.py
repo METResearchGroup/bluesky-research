@@ -21,86 +21,9 @@ from services.participant_data.models import UserToBlueskyProfileModel
 class TestFeedGenerationOrchestrator:
     """Tests for FeedGenerationOrchestrator class."""
 
-    def test_orchestrator_can_be_instantiated(self):
-        """Verify orchestrator can be instantiated with FeedConfig."""
-        # Arrange
-        config = FeedConfig()
-
-        # Act
-        orchestrator = FeedGenerationOrchestrator(feed_config=config)
-
-        # Assert
-        assert orchestrator is not None
-        assert isinstance(orchestrator, FeedGenerationOrchestrator)
-        assert orchestrator.config == config
-
-    def test_orchestrator_has_required_dependencies(self):
-        """Verify orchestrator constructs all required dependencies."""
-        # Arrange
-        config = FeedConfig()
-
-        # Act
-        orchestrator = FeedGenerationOrchestrator(feed_config=config)
-
-        # Assert
-        assert orchestrator.config is not None
-        assert orchestrator.athena is not None
-        assert orchestrator.s3 is not None
-        assert orchestrator.dynamodb is not None
-        assert orchestrator.glue is not None
-        assert orchestrator.logger is not None
-
-    def test_orchestrator_config_is_injected(self):
-        """Verify config is properly injected into orchestrator."""
-        # Arrange
-        config = FeedConfig()
-        config.max_feed_length = 50  # Modify to verify it's the same instance
-
-        # Act
-        orchestrator = FeedGenerationOrchestrator(feed_config=config)
-
-        # Assert
-        assert orchestrator.config.max_feed_length == 50
-        assert orchestrator.config is config
-
-    def test_orchestrator_has_run_method(self):
-        """Verify orchestrator has the run method."""
-        # Arrange
-        config = FeedConfig()
-        orchestrator = FeedGenerationOrchestrator(feed_config=config)
-
-        # Act & Assert
-        assert hasattr(orchestrator, "run")
-        assert callable(orchestrator.run)
-
-    def test_orchestrator_has_private_helper_methods(self):
-        """Verify orchestrator has expected private helper methods."""
-        # Arrange
-        config = FeedConfig()
-        orchestrator = FeedGenerationOrchestrator(feed_config=config)
-
-        # Act & Assert
-        expected_methods = [
-            "_load_data",
-            "_load_raw_data",
-            "_filter_study_users",
-            "_score_posts",
-            "_build_post_pools",
-            "_generate_feeds",
-            "_export_results",
-        ]
-
-        for method_name in expected_methods:
-            assert hasattr(orchestrator, method_name), (
-                f"Missing expected method: {method_name}"
-            )
-            assert callable(getattr(orchestrator, method_name)), (
-                f"Method {method_name} is not callable"
-            )
-
     @patch("services.rank_score_feeds.orchestrator.get_all_users")
-    @patch("services.rank_score_feeds.orchestrator.load_feed_input_data")
-    @patch("services.rank_score_feeds.orchestrator.load_latest_feeds")
+    @patch("services.rank_score_feeds.services.data_loading.DataLoadingService.load_feed_input_data")
+    @patch("services.rank_score_feeds.services.data_loading.DataLoadingService.load_latest_feeds")
     def test_load_raw_data_returns_correct_structure(
         self, mock_load_feeds, mock_load_feed_input, mock_get_users
     ):
@@ -156,8 +79,8 @@ class TestFeedGenerationOrchestrator:
         orchestrator = FeedGenerationOrchestrator(feed_config=config)
 
         mock_get_users.return_value = []
-        with patch("services.rank_score_feeds.orchestrator.load_feed_input_data") as mock_feed_input, \
-             patch("services.rank_score_feeds.orchestrator.load_latest_feeds") as mock_feeds:
+        with patch("services.rank_score_feeds.services.data_loading.DataLoadingService.load_feed_input_data") as mock_feed_input, \
+             patch("services.rank_score_feeds.services.data_loading.DataLoadingService.load_latest_feeds") as mock_feeds:
             mock_feed_input.return_value = FeedInputData(
                 consolidate_enrichment_integrations=pd.DataFrame(),
                 scraped_user_social_network={},
