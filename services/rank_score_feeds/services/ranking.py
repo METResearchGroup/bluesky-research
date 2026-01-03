@@ -63,7 +63,7 @@ class RankingService:
         if len(in_network_candidate_post_uris) == 0:
             # if no in-network posts, return the out-of-network posts.
             feed = [
-                CustomFeedPost(item=post["uri"], is_in_network=False)
+                CustomFeedPost(item=str(post["uri"]), is_in_network=False)
                 for _, post in out_of_network_posts_df.iterrows()
             ]
             return feed
@@ -74,7 +74,7 @@ class RankingService:
 
         feed: list[CustomFeedPost] = [
             CustomFeedPost(
-                item=post["uri"], is_in_network=post["uri"] in in_network_post_set
+                item=str(post["uri"]), is_in_network=post["uri"] in in_network_post_set
             )
             for _, post in output_posts_df.iterrows()
         ]

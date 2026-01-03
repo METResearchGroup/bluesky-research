@@ -188,30 +188,6 @@ class CandidatePostPools:
     treatment: pd.DataFrame
 
 
-# TODO: delete. Replaced with FeedWithMetadata. Just need to make
-# sure that it is 100% compatible across all call sites.
-# @dataclass
-# class UserFeedResult:
-#     """Result for a single user's feed."""
-
-#     user_did: str
-#     bluesky_handle: str
-#     condition: str
-#     feed: list[CustomFeedPost]
-#     feed_statistics: str  # JSON string
-
-
-# TODO: rename to FeedGenerationResult (if I even need it still?)
-# @dataclass
-# class RunResult:
-#     """Final result of a feed generation run."""
-
-#     user_feeds: dict[str, UserFeedResult]  # user_did -> feed result
-#     default_feed: UserFeedResult
-#     analytics: dict
-#     timestamp: str
-
-
 class FreshnessScoreFunction(str, Enum):
     """Enum for the freshness score function."""
 
