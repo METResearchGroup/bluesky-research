@@ -432,3 +432,18 @@ def determine_backfill_latest_timestamp(
 
     # Format and return timestamp
     return backfill_time.strftime(timestamp_format)
+
+
+# TODO: a lot of the utilities in lib/helper.py are time-related, so could
+# eventually move these to a lib/time_utils.py file.
+def get_partition_date_from_timestamp(
+    timestamp: str,
+    ts_fmt: str | None = None,
+    partition_date_fmt: str | None = None,
+) -> str:
+    """Get the partition date from a timestamp."""
+    if ts_fmt is None:
+        ts_fmt = timestamp_format
+    if partition_date_fmt is None:
+        partition_date_fmt = partition_date_format
+    return datetime.strptime(timestamp, ts_fmt).strftime(partition_date_fmt)
