@@ -750,7 +750,7 @@ resource "aws_api_gateway_deployment" "bluesky_feed_api_gateway_deployment" {
   ]
 
   rest_api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  stage_name  = "prod"
+  # stage_name  = "prod"
 }
 
 # Lambda permission to allow API Gateway to invoke it
@@ -3597,6 +3597,1207 @@ resource "aws_dynamodb_table" "compaction_sessions" {
 
   tags = {
     Name = "compaction_sessions"
+  }
+}
+
+### Archive Tables for Nature Paper 2024 Data (Analysis Use Only) ###
+
+# Archive table for fetch_posts_used_in_feeds
+resource "aws_glue_catalog_table" "archive_fetch_posts_used_in_feeds" {
+  name          = "archive_fetch_posts_used_in_feeds"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/fetch_posts_used_in_feeds/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for generated_feeds
+resource "aws_glue_catalog_table" "archive_generated_feeds" {
+  name          = "archive_generated_feeds"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/generated_feeds/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "feed_id"
+      type = "string"
+    }
+    columns {
+      name = "user"
+      type = "string"
+    }
+    columns {
+      name = "bluesky_handle"
+      type = "string"
+    }
+    columns {
+      name = "bluesky_user_did"
+      type = "string"
+    }
+    columns {
+      name = "condition"
+      type = "string"
+    }
+    columns {
+      name = "feed_statistics"
+      type = "string"
+    }
+    columns {
+      name = "feed"
+      type = "string"
+    }
+    columns {
+      name = "feed_generation_timestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for in_network_user_activity
+resource "aws_glue_catalog_table" "archive_in_network_user_activity" {
+  name          = "archive_in_network_user_activity"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/in_network_user_activity/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "indexed_at"
+      type = "string"
+    }
+    columns {
+      name = "author_did"
+      type = "string"
+    }
+    columns {
+      name = "author_handle"
+      type = "string"
+    }
+    columns {
+      name = "author_avatar"
+      type = "string"
+    }
+    columns {
+      name = "author_display_name"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "embed"
+      type = "string"
+    }
+    columns {
+      name = "entities"
+      type = "string"
+    }
+    columns {
+      name = "facets"
+      type = "string"
+    }
+    columns {
+      name = "labels"
+      type = "string"
+    }
+    columns {
+      name = "langs"
+      type = "string"
+    }
+    columns {
+      name = "reply_parent"
+      type = "string"
+    }
+    columns {
+      name = "reply_root"
+      type = "string"
+    }
+    columns {
+      name = "tags"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+    columns {
+      name = "url"
+      type = "string"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "like_count"
+      type = "bigint"
+    }
+    columns {
+      name = "reply_count"
+      type = "bigint"
+    }
+    columns {
+      name = "repost_count"
+      type = "bigint"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for ml_inference_ime
+resource "aws_glue_catalog_table" "archive_ml_inference_ime" {
+  name          = "archive_ml_inference_ime"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/ml_inference_ime/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "preprocessing_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "prob_emotion"
+      type = "double"
+    }
+    columns {
+      name = "prob_intergroup"
+      type = "double"
+    }
+    columns {
+      name = "prob_moral"
+      type = "double"
+    }
+    columns {
+      name = "prob_other"
+      type = "double"
+    }
+    columns {
+      name = "label_emotion"
+      type = "bigint"
+    }
+    columns {
+      name = "label_intergroup"
+      type = "bigint"
+    }
+    columns {
+      name = "label_moral"
+      type = "bigint"
+    }
+    columns {
+      name = "label_other"
+      type = "bigint"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "label_timestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for ml_inference_perspective_api
+resource "aws_glue_catalog_table" "archive_ml_inference_perspective_api" {
+  name          = "archive_ml_inference_perspective_api"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/ml_inference_perspective_api/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "preprocessing_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "was_successfully_labeled"
+      type = "boolean"
+    }
+    columns {
+      name = "reason"
+      type = "string"
+    }
+    columns {
+      name = "label_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "prob_toxic"
+      type = "double"
+    }
+    columns {
+      name = "prob_severe_toxic"
+      type = "double"
+    }
+    columns {
+      name = "prob_identity_attack"
+      type = "double"
+    }
+    columns {
+      name = "prob_insult"
+      type = "double"
+    }
+    columns {
+      name = "prob_profanity"
+      type = "double"
+    }
+    columns {
+      name = "prob_threat"
+      type = "double"
+    }
+    columns {
+      name = "prob_affinity"
+      type = "double"
+    }
+    columns {
+      name = "prob_compassion"
+      type = "double"
+    }
+    columns {
+      name = "prob_constructive"
+      type = "double"
+    }
+    columns {
+      name = "prob_curiosity"
+      type = "double"
+    }
+    columns {
+      name = "prob_nuance"
+      type = "double"
+    }
+    columns {
+      name = "prob_personal_story"
+      type = "double"
+    }
+    columns {
+      name = "prob_reasoning"
+      type = "double"
+    }
+    columns {
+      name = "prob_respect"
+      type = "double"
+    }
+    columns {
+      name = "prob_alienation"
+      type = "double"
+    }
+    columns {
+      name = "prob_fearmongering"
+      type = "double"
+    }
+    columns {
+      name = "prob_generalization"
+      type = "double"
+    }
+    columns {
+      name = "prob_moral_outrage"
+      type = "double"
+    }
+    columns {
+      name = "prob_scapegoating"
+      type = "double"
+    }
+    columns {
+      name = "prob_sexually_explicit"
+      type = "double"
+    }
+    columns {
+      name = "prob_flirtation"
+      type = "double"
+    }
+    columns {
+      name = "prob_spam"
+      type = "double"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for ml_inference_sociopolitical
+resource "aws_glue_catalog_table" "archive_ml_inference_sociopolitical" {
+  name          = "archive_ml_inference_sociopolitical"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/ml_inference_sociopolitical/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "preprocessing_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "llm_model_name"
+      type = "string"
+    }
+    columns {
+      name = "was_successfully_labeled"
+      type = "boolean"
+    }
+    columns {
+      name = "reason"
+      type = "string"
+    }
+    columns {
+      name = "label_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "is_sociopolitical"
+      type = "boolean"
+    }
+    columns {
+      name = "political_ideology_label"
+      type = "string"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for ml_inference_valence_classifier
+resource "aws_glue_catalog_table" "archive_ml_inference_valence_classifier" {
+  name          = "archive_ml_inference_valence_classifier"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/ml_inference_valence_classifier/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "preprocessing_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "valence_label"
+      type = "string"
+    }
+    columns {
+      name = "compound"
+      type = "double"
+    }
+    columns {
+      name = "was_successfully_labeled"
+      type = "boolean"
+    }
+    columns {
+      name = "reason"
+      type = "string"
+    }
+    columns {
+      name = "label_timestamp"
+      type = "string"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for post_scores
+resource "aws_glue_catalog_table" "archive_post_scores" {
+  name          = "archive_post_scores"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/post_scores/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "engagement_score"
+      type = "double"
+    }
+    columns {
+      name = "treatment_score"
+      type = "double"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "scored_timestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for user_session_logs
+resource "aws_glue_catalog_table" "archive_user_session_logs" {
+  name          = "archive_user_session_logs"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/user_session_logs/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "user_did"
+      type = "string"
+    }
+    columns {
+      name = "feed_id"
+      type = "string"
+    }
+    columns {
+      name = "cursor"
+      type = "string"
+    }
+    columns {
+      name = "limit"
+      type = "bigint"
+    }
+    columns {
+      name = "feed_length"
+      type = "bigint"
+    }
+    columns {
+      name = "feed"
+      type = "string"
+    }
+    columns {
+      name = "timestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for study_user_activity_post
+resource "aws_glue_catalog_table" "archive_study_user_activity_post" {
+  name          = "archive_study_user_activity_post"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/study_user_activity/create/post/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "indexed_at"
+      type = "string"
+    }
+    columns {
+      name = "author_did"
+      type = "string"
+    }
+    columns {
+      name = "author_handle"
+      type = "string"
+    }
+    columns {
+      name = "author_avatar"
+      type = "string"
+    }
+    columns {
+      name = "author_display_name"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "embed"
+      type = "string"
+    }
+    columns {
+      name = "entities"
+      type = "string"
+    }
+    columns {
+      name = "facets"
+      type = "string"
+    }
+    columns {
+      name = "labels"
+      type = "string"
+    }
+    columns {
+      name = "langs"
+      type = "string"
+    }
+    columns {
+      name = "reply_parent"
+      type = "string"
+    }
+    columns {
+      name = "reply_root"
+      type = "string"
+    }
+    columns {
+      name = "tags"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+    columns {
+      name = "url"
+      type = "string"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "like_count"
+      type = "bigint"
+    }
+    columns {
+      name = "reply_count"
+      type = "bigint"
+    }
+    columns {
+      name = "repost_count"
+      type = "bigint"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for study_user_activity_like
+resource "aws_glue_catalog_table" "archive_study_user_activity_like" {
+  name          = "archive_study_user_activity_like"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/study_user_activity/create/like/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "author"
+      type = "string"
+    }
+    columns {
+      name = "py_type"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "subject"
+      type = "string"
+    }
+    columns {
+      name = "record_type"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for study_user_activity_follow
+resource "aws_glue_catalog_table" "archive_study_user_activity_follow" {
+  name          = "archive_study_user_activity_follow"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/study_user_activity/create/follow/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "author"
+      type = "string"
+    }
+    columns {
+      name = "py_type"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "subject"
+      type = "string"
+    }
+    columns {
+      name = "record_type"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for study_user_activity_reply
+resource "aws_glue_catalog_table" "archive_study_user_activity_reply" {
+  name          = "archive_study_user_activity_reply"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/study_user_activity/create/reply/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "author"
+      type = "string"
+    }
+    columns {
+      name = "py_type"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "embed"
+      type = "string"
+    }
+    columns {
+      name = "entities"
+      type = "string"
+    }
+    columns {
+      name = "facets"
+      type = "string"
+    }
+    columns {
+      name = "reply"
+      type = "string"
+    }
+    columns {
+      name = "labels"
+      type = "string"
+    }
+    columns {
+      name = "langs"
+      type = "string"
+    }
+    columns {
+      name = "tags"
+      type = "string"
+    }
+    columns {
+      name = "record_type"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for study_user_activity_repost
+resource "aws_glue_catalog_table" "archive_study_user_activity_repost" {
+  name          = "archive_study_user_activity_repost"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/study_user_activity/create/repost/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "author"
+      type = "string"
+    }
+    columns {
+      name = "py_type"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "subject"
+      type = "string"
+    }
+    columns {
+      name = "record_type"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for study_user_activity_block
+resource "aws_glue_catalog_table" "archive_study_user_activity_block" {
+  name          = "archive_study_user_activity_block"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/study_user_activity/create/block/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "author"
+      type = "string"
+    }
+    columns {
+      name = "py_type"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "subject"
+      type = "string"
+    }
+    columns {
+      name = "record_type"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
   }
 }
 
