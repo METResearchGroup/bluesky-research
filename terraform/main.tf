@@ -3960,6 +3960,10 @@ resource "aws_glue_catalog_table" "archive_ml_inference_perspective_api" {
       type = "string"
     }
     columns {
+      name = "preprocessing_timestamp"
+      type = "string"
+    }
+    columns {
       name = "was_successfully_labeled"
       type = "boolean"
     }
@@ -4060,6 +4064,10 @@ resource "aws_glue_catalog_table" "archive_ml_inference_perspective_api" {
       type = "double"
     }
     columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
       name = "partition_date"
       type = "string"
     }
@@ -4105,6 +4113,10 @@ resource "aws_glue_catalog_table" "archive_ml_inference_sociopolitical" {
       type = "string"
     }
     columns {
+      name = "preprocessing_timestamp"
+      type = "string"
+    }
+    columns {
       name = "llm_model_name"
       type = "string"
     }
@@ -4126,6 +4138,10 @@ resource "aws_glue_catalog_table" "archive_ml_inference_sociopolitical" {
     }
     columns {
       name = "political_ideology_label"
+      type = "string"
+    }
+    columns {
+      name = "source"
       type = "string"
     }
     columns {
