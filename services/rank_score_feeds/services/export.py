@@ -1,25 +1,34 @@
-from services.rank_score_feeds.models import FeedWithMetadata, FeedGenerationSessionAnalytics, StoredFeedModel
+from lib.helper import get_partition_date_from_timestamp
+from services.rank_score_feeds.models import (
+    FeedWithMetadata,
+    FeedGenerationSessionAnalytics,
+    StoredFeedModel,
+)
 from services.rank_score_feeds.repositories.feed_repo import FeedStorageRepository
+
 
 class DataExporterService:
     """Service for exporting data to storage."""
+
     def __init__(self, feed_storage_repository: FeedStorageRepository):
         """Initialize data exporter service."""
         if not isinstance(feed_storage_repository, FeedStorageRepository):
-            raise ValueError("feed_storage_repository must be a subclass of FeedStorageRepository.")
+            raise ValueError(
+                "feed_storage_repository must be a subclass of FeedStorageRepository."
+            )
         self.feed_storage_repository = feed_storage_repository
 
     def export_feeds(
-        self,
-        user_to_ranked_feed_map: dict[str, FeedWithMetadata],
-        timestamp: str
+        self, user_to_ranked_feed_map: dict[str, FeedWithMetadata], timestamp: str
     ) -> None:
         """Exports feeds."""
-        transformed_feed_models: list[StoredFeedModel] = self._transform_feed_with_metadata_to_export_models(
-            user_to_ranked_feed_map=user_to_ranked_feed_map,
-            timestamp=timestamp,
+        transformed_feed_models: list[StoredFeedModel] = (
+            self._transform_feed_with_metadata_to_export_models(
+                user_to_ranked_feed_map=user_to_ranked_feed_map,
+                timestamp=timestamp,
+            )
         )
-        partition_date = "" # TODO: should really get this from a helper.
+        partition_date: str = get_partition_date_from_timestamp(timestamp)
         self.feed_storage_repository.write_feeds(
             feeds=transformed_feed_models,
             partition_date=partition_date,
@@ -29,7 +38,7 @@ class DataExporterService:
     def export_feed_generation_session_analytics(
         self,
         feed_generation_session_analytics: FeedGenerationSessionAnalytics,
-        timestamp: str
+        timestamp: str,
     ) -> None:
         """Exports feed generation session analytics."""
         self.feed_storage_repository.write_feed_generation_session_analytics(
@@ -38,9 +47,7 @@ class DataExporterService:
         )
 
     def _transform_feed_with_metadata_to_export_models(
-        self,
-        user_to_ranked_feed_map: dict[str, FeedWithMetadata],
-        timestamp: str
+        self, user_to_ranked_feed_map: dict[str, FeedWithMetadata], timestamp: str
     ) -> list[StoredFeedModel]:
         stored_feed_models: list[StoredFeedModel] = []
         for _, feed_with_metadata in user_to_ranked_feed_map.items():
