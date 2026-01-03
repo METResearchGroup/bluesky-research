@@ -21,7 +21,6 @@
 *.tar.gz
 *.zip
 *.rar
-*terraform*
 *.tfstate
 *.tfstate.backup
 *.tfvars*
