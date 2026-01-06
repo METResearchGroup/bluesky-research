@@ -8,18 +8,8 @@ class StorageError(Exception):
     encounters an error. It provides a consistent error interface across all
     storage adapters.
 
-    Attributes:
-        message: Human-readable error message describing what went wrong
-        original_error: Optional original exception that caused this error
+    The original exception is automatically preserved via Python's exception
+    chaining when raised with 'raise StorageError(...) from e'.
     """
 
-    def __init__(self, message: str, original_error: Exception | None = None):
-        """Initialize StorageError.
-
-        Args:
-            message: Human-readable error message
-            original_error: Optional original exception that caused this error
-        """
-        super().__init__(message)
-        self.message = message
-        self.original_error = original_error
+    pass

@@ -3,7 +3,6 @@ from services.rank_score_feeds.models import (
     StoredFeedModel,
 )
 from services.rank_score_feeds.storage.base import FeedStorageAdapter
-from services.rank_score_feeds.storage.exceptions import StorageError
 
 
 class FeedStorageRepository:
@@ -20,11 +19,7 @@ class FeedStorageRepository:
 
     def write_feeds(self, feeds: list[StoredFeedModel], timestamp: str) -> None:
         """Write feeds to storage."""
-        try:
-            self.adapter.write_feeds(feeds=feeds, timestamp=timestamp)
-        except Exception as e:
-            self.logger.error(f"Failed to write feeds to storage: {e}")
-            raise StorageError(f"Failed to write feeds to storage: {e}")
+        self.adapter.write_feeds(feeds=feeds, timestamp=timestamp)
 
     def write_feed_generation_session_analytics(
         self,
@@ -32,15 +27,7 @@ class FeedStorageRepository:
         timestamp: str,
     ) -> None:
         """Write feed generation session analytics to storage."""
-        try:
-            self.adapter.write_feed_generation_session_analytics(
-                feed_generation_session_analytics=feed_generation_session_analytics,
-                timestamp=timestamp,
-            )
-        except Exception as e:
-            self.logger.error(
-                f"Failed to write feed generation session analytics to storage: {e}"
-            )
-            raise StorageError(
-                f"Failed to write feed generation session analytics to storage: {e}"
-            )
+        self.adapter.write_feed_generation_session_analytics(
+            feed_generation_session_analytics=feed_generation_session_analytics,
+            timestamp=timestamp,
+        )

@@ -402,7 +402,7 @@ class FeedGenerationOrchestrator:
                 metadata=feed_generation_session_analytics
             )
         except Exception as e:
-            self.logger.exception("Failed to insert feed generation session metadata")
+            self.logger.error(f"Failed to insert feed generation session metadata: {e}")
             raise StorageError(
                 f"Failed to insert feed generation session metadata: {e}"
             ) from e

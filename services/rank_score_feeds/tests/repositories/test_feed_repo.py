@@ -38,7 +38,7 @@ class TestFeedStorageRepository:
         assert isinstance(repo, FeedStorageRepository)
 
         # Invalid adapter type should raise
-        with pytest.raises(ValueError, match="Adapter must be a an instance of FeedStorageAdapter."):
+        with pytest.raises(ValueError, match="Adapter must be an instance of FeedStorageAdapter."):
             FeedStorageRepository(adapter=object())  # type: ignore[arg-type]
 
     def test_write_feeds_calls_adapter(self):
@@ -67,13 +67,12 @@ class TestFeedStorageRepository:
         # Assert
         adapter.write_feeds.assert_called_once_with(feeds=feeds, timestamp=timestamp)
 
-    def test_write_feeds_raises_storage_error_and_logs(self):
-        """write_feeds logs error and raises StorageError when adapter fails."""
+    def test_write_feeds_propagates_storage_error(self):
+        """write_feeds propagates StorageError from adapter."""
         # Arrange
         adapter = _FakeAdapter()
-        adapter.write_feeds = Mock(side_effect=Exception("boom"))  # type: ignore[method-assign]
+        adapter.write_feeds = Mock(side_effect=StorageError("boom"))  # type: ignore[method-assign]
         repo = FeedStorageRepository(adapter=adapter)
-        repo.logger = Mock()
         timestamp = "2024-01-02T03:04:05"
         feeds = [
             StoredFeedModel(
@@ -89,9 +88,8 @@ class TestFeedStorageRepository:
         ]
 
         # Act & Assert
-        with pytest.raises(StorageError, match="Failed to write feeds to storage: boom"):
+        with pytest.raises(StorageError, match="boom"):
             repo.write_feeds(feeds=feeds, timestamp=timestamp)
-        repo.logger.error.assert_called_once()
 
     def test_write_session_analytics_calls_adapter(self):
         """write_feed_generation_session_analytics forwards call to adapter."""
@@ -127,13 +125,12 @@ class TestFeedStorageRepository:
             feed_generation_session_analytics=analytics, timestamp=timestamp
         )
 
-    def test_write_session_analytics_raises_storage_error_and_logs(self):
-        """write_feed_generation_session_analytics logs and raises when adapter fails."""
+    def test_write_session_analytics_propagates_storage_error(self):
+        """write_feed_generation_session_analytics propagates StorageError from adapter."""
         # Arrange
         adapter = _FakeAdapter()
-        adapter.write_feed_generation_session_analytics = Mock(side_effect=Exception("down"))  # type: ignore[method-assign]
+        adapter.write_feed_generation_session_analytics = Mock(side_effect=StorageError("down"))  # type: ignore[method-assign]
         repo = FeedStorageRepository(adapter=adapter)
-        repo.logger = Mock()
         timestamp = "2024-01-02T03:04:05"
         analytics = FeedGenerationSessionAnalytics(
             total_feeds=1,
@@ -153,11 +150,7 @@ class TestFeedStorageRepository:
         )
 
         # Act & Assert
-        with pytest.raises(
-            StorageError,
-            match="Failed to write feed generation session analytics to storage: down",
-        ):
+        with pytest.raises(StorageError, match="down"):
             repo.write_feed_generation_session_analytics(
                 feed_generation_session_analytics=analytics, timestamp=timestamp
             )
-        repo.logger.error.assert_called_once()

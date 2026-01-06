@@ -41,7 +41,7 @@ class S3FeedStorageAdapter(FeedStorageAdapter):
             )
         except Exception as e:
             self.logger.error(f"Failed to write feeds to S3: {e}")
-            raise StorageError(f"Failed to write feeds to S3: {e}")
+            raise StorageError(f"Failed to write feeds to S3: {e}") from e
 
     def _generate_feeds_s3_key(self, timestamp: str) -> str:
         partition_date: str = get_partition_date_from_timestamp(timestamp=timestamp)
@@ -71,7 +71,7 @@ class S3FeedStorageAdapter(FeedStorageAdapter):
             )
             raise StorageError(
                 f"Failed to write feed generation session analytics to S3: {e}"
-            )
+            ) from e
 
     def _generate_feed_analytics_s3_key(self, timestamp: str) -> str:
         partition_date: str = get_partition_date_from_timestamp(timestamp=timestamp)
@@ -111,7 +111,7 @@ class LocalFeedStorageAdapter(FeedStorageAdapter):
             self.export_func(df=df, service="custom_feeds")
         except Exception as e:
             self.logger.error(f"Failed to write feeds to local filesystem: {e}")
-            raise StorageError(f"Failed to write feeds to local filesystem: {e}")
+            raise StorageError(f"Failed to write feeds to local filesystem: {e}") from e
 
     def write_feed_generation_session_analytics(
         self,
@@ -130,7 +130,7 @@ class LocalFeedStorageAdapter(FeedStorageAdapter):
             )
             raise StorageError(
                 f"Failed to write feed generation session analytics to local filesystem: {e}"
-            )
+            ) from e
 
 
 class S3FeedTTLAdapter(FeedTTLAdapter):
@@ -169,7 +169,7 @@ class S3FeedTTLAdapter(FeedTTLAdapter):
             )
         except Exception as e:
             self.logger.error(f"Failed to move old feeds to cache: {e}")
-            raise StorageError(f"Failed to move old feeds to cache: {e}")
+            raise StorageError(f"Failed to move old feeds to cache: {e}") from e
 
 
 class LocalFeedTTLAdapter(FeedTTLAdapter):
@@ -234,4 +234,4 @@ class DynamoDBSessionMetadataAdapter(SessionMetadataAdapter):
             self.logger.error(f"Failed to insert feed generation session metadata: {e}")
             raise StorageError(
                 f"Failed to insert feed generation session metadata: {e}"
-            )
+            ) from e

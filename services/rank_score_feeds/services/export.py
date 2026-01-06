@@ -4,7 +4,6 @@ from services.rank_score_feeds.models import (
     StoredFeedModel,
 )
 from services.rank_score_feeds.repositories.feed_repo import FeedStorageRepository
-from services.rank_score_feeds.storage.exceptions import StorageError
 
 
 class DataExporterService:
@@ -25,20 +24,16 @@ class DataExporterService:
         self, user_to_ranked_feed_map: dict[str, FeedWithMetadata], timestamp: str
     ) -> None:
         """Exports feeds."""
-        try:
-            transformed_feed_models: list[StoredFeedModel] = (
-                self._transform_feed_with_metadata_to_export_models(
-                    user_to_ranked_feed_map=user_to_ranked_feed_map,
-                    timestamp=timestamp,
-                )
-            )
-            self.feed_storage_repository.write_feeds(
-                feeds=transformed_feed_models,
+        transformed_feed_models: list[StoredFeedModel] = (
+            self._transform_feed_with_metadata_to_export_models(
+                user_to_ranked_feed_map=user_to_ranked_feed_map,
                 timestamp=timestamp,
             )
-        except Exception as e:
-            self.logger.error(f"Failed to export feeds: {e}")
-            raise StorageError(f"Failed to export feeds: {e}")
+        )
+        self.feed_storage_repository.write_feeds(
+            feeds=transformed_feed_models,
+            timestamp=timestamp,
+        )
 
     def export_feed_generation_session_analytics(
         self,
@@ -46,18 +41,10 @@ class DataExporterService:
         timestamp: str,
     ) -> None:
         """Exports feed generation session analytics."""
-        try:
-            self.feed_storage_repository.write_feed_generation_session_analytics(
-                feed_generation_session_analytics=feed_generation_session_analytics,
-                timestamp=timestamp,
-            )
-        except Exception as e:
-            self.logger.error(
-                f"Failed to export feed generation session analytics: {e}"
-            )
-            raise StorageError(
-                f"Failed to export feed generation session analytics: {e}"
-            )
+        self.feed_storage_repository.write_feed_generation_session_analytics(
+            feed_generation_session_analytics=feed_generation_session_analytics,
+            timestamp=timestamp,
+        )
 
     def _transform_feed_with_metadata_to_export_models(
         self, user_to_ranked_feed_map: dict[str, FeedWithMetadata], timestamp: str

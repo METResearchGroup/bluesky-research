@@ -77,8 +77,8 @@ class TestDataExporterService:
         # Assert
         repo.write_feeds.assert_called_once()
         args, kwargs = repo.write_feeds.call_args
-        written_models: list[StoredFeedModel] = args[0]
-        written_timestamp = kwargs.get("timestamp") if "timestamp" in kwargs else args[1]
+        written_models: list[StoredFeedModel] = kwargs["feeds"]
+        written_timestamp = kwargs["timestamp"]
 
         assert written_timestamp == timestamp
         assert isinstance(written_models, list)
@@ -98,13 +98,12 @@ class TestDataExporterService:
         assert model2.feed[0].item == "p2"
         assert model2.feed_statistics == '{"prop_in_network":0.0}'
 
-    def test_export_feeds_raises_storage_error_and_logs_on_failure(self):
-        """export_feeds logs error and raises StorageError when repository write fails."""
+    def test_export_feeds_propagates_storage_error_on_failure(self):
+        """export_feeds propagates StorageError when repository write fails."""
         # Arrange
         repo = FeedStorageRepository(adapter=_FakeAdapter())
-        repo.write_feeds = Mock(side_effect=Exception("boom"))  # type: ignore[method-assign]
+        repo.write_feeds = Mock(side_effect=StorageError("boom"))  # type: ignore[method-assign]
         service = DataExporterService(feed_storage_repository=repo)
-        service.logger = Mock()
         timestamp = "2024-01-02T03:04:05"
         user_to_ranked_feed_map = {
             "did:1": FeedWithMetadata(
@@ -117,9 +116,8 @@ class TestDataExporterService:
         }
 
         # Act & Assert
-        with pytest.raises(StorageError, match="Failed to export feeds: boom"):
+        with pytest.raises(StorageError, match="boom"):
             service.export_feeds(user_to_ranked_feed_map=user_to_ranked_feed_map, timestamp=timestamp)
-        service.logger.error.assert_called_once()
 
     def test_export_session_analytics_calls_repository(self):
         """export_feed_generation_session_analytics forwards call with same params."""
@@ -155,13 +153,12 @@ class TestDataExporterService:
             feed_generation_session_analytics=analytics, timestamp=timestamp
         )
 
-    def test_export_session_analytics_raises_storage_error_and_logs_on_failure(self):
-        """export_feed_generation_session_analytics logs error and raises on failure."""
+    def test_export_session_analytics_propagates_storage_error_on_failure(self):
+        """export_feed_generation_session_analytics propagates StorageError on failure."""
         # Arrange
         repo = FeedStorageRepository(adapter=_FakeAdapter())
-        repo.write_feed_generation_session_analytics = Mock(side_effect=Exception("down"))  # type: ignore[method-assign]
+        repo.write_feed_generation_session_analytics = Mock(side_effect=StorageError("down"))  # type: ignore[method-assign]
         service = DataExporterService(feed_storage_repository=repo)
-        service.logger = Mock()
         timestamp = "2024-01-02T03:04:05"
         analytics = FeedGenerationSessionAnalytics(
             total_feeds=1,
@@ -181,11 +178,10 @@ class TestDataExporterService:
         )
 
         # Act & Assert
-        with pytest.raises(StorageError, match="Failed to export feed generation session analytics: down"):
+        with pytest.raises(StorageError, match="down"):
             service.export_feed_generation_session_analytics(
                 feed_generation_session_analytics=analytics, timestamp=timestamp
             )
-        service.logger.error.assert_called_once()
 
     def test_transform_feed_with_metadata_to_export_models_outputs_expected(self):
         """_transform_feed_with_metadata_to_export_models produces correct StoredFeedModel list."""
