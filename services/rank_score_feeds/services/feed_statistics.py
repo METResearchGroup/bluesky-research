@@ -12,11 +12,11 @@ class FeedStatisticsService:
     def generate_feed_statistics(self, feed: list[CustomFeedPost]) -> str:
         """Generates statistics about a given feed."""
         feed_length = len(feed)
-        total_in_network = sum([post.is_in_network for post in feed])
+        total_in_network = sum(post.is_in_network for post in feed)
         prop_in_network = (
             round(total_in_network / feed_length, 3) if feed_length > 0 else 0.0
         )
-        feed_statistics: dict[str, float] = {
+        feed_statistics: dict[str, int | float] = {
             "prop_in_network": prop_in_network,
             "total_in_network": total_in_network,
             "feed_length": feed_length,
