@@ -124,23 +124,25 @@ class FeedGenerationSessionAnalyticsService:
             overlap_engagement_treatment_uris
         )
 
+        # proportion of the treatment URIs that are also in the engagement URIs.
         prop_treatment_uris_in_engagement_uris: float = (
-            round(
-                total_unique_overlap_engagement_treatment_uris
-                / total_unique_engagement_uris,
-                3,
-            )
-            if total_unique_engagement_uris > 0
-            else 0.0
-        )
-
-        prop_engagement_uris_in_treatment_uris: float = (
             round(
                 total_unique_overlap_engagement_treatment_uris
                 / total_unique_treatment_uris,
                 3,
             )
             if total_unique_treatment_uris > 0
+            else 0.0
+        )
+
+        # proportion of the engagement URIs that are also in the treatment URIs.
+        prop_engagement_uris_in_treatment_uris: float = (
+            round(
+                total_unique_overlap_engagement_treatment_uris
+                / total_unique_engagement_uris,
+                3,
+            )
+            if total_unique_engagement_uris > 0
             else 0.0
         )
 
