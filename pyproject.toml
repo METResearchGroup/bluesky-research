@@ -346,3 +346,26 @@ exclude = [
 [tool.complexipy.output]
 csv = false
 json = false
+
+[tool.vulture]
+min_confidence = 80
+exclude = [
+    ".git",
+    ".venv",
+    "tests",
+    "demos",
+    "experiments",
+    "deprecated",
+    "assets",
+    "terraform",
+    "Dockerfiles",
+]
+paths = [
+    "lib",
+    "ml_tooling",
+    "services",
+    "pipelines",
+    "orchestration",
+    "transform",
+    "feed_api",
+]

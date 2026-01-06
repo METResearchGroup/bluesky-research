@@ -56,8 +56,7 @@ jobs:
         uv run ruff check .
     - name: Vulture (dead code)
       run: |
-        uv run vulture --min-confidence 80 --exclude ".git,.venv,tests,demos,experiments,deprecated,assets,terraform,Dockerfiles" \
-          lib ml_tooling services pipelines orchestration transform feed_api
+        uv run vulture --config pyproject.toml
     - name: Test with pytest
       timeout-minutes: 15
       run: |
