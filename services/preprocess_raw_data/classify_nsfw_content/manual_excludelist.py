@@ -4,8 +4,6 @@ import os
 
 import pandas as pd
 
-from transform.bluesky_helper import get_author_did_from_handle
-
 NSFW_HANDLES = [
     "ruffusbleu.bsky.social",
     "fujiyamasamoyed.bsky.social",
@@ -202,6 +200,13 @@ def load_users_to_exclude() -> dict[str, set]:
 
 
 def get_dids_to_exclude(load_existing_exclusions: bool = False) -> list[str]:
+    # NOTE:
+    # Importing `transform.bluesky_helper` can pull in Bluesky client setup via
+    # transitive imports. To avoid any import-time side effects for modules that
+    # only need the excludelist data (e.g. rank_score_feeds), we import the DID
+    # resolver lazily at runtime.
+    from transform.bluesky_helper import get_author_did_from_handle
+
     if load_existing_exclusions:
         users_to_exclude: pd.DataFrame = load_users_from_csv()
     else:
