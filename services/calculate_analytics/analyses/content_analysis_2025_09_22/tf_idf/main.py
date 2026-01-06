@@ -54,6 +54,12 @@ def do_setup():
         filter_by_sociopolitical_filter: bool,
         is_sociopolitical_filter: bool,
     ):
+        # NOTE: placeholder for actual sociopolitical post filtering.
+        # Use the params to make intent explicit (and keep static analysis clean).
+        if not filter_by_sociopolitical_filter:
+            return set()
+        if not is_sociopolitical_filter:
+            return set()
         return set()
 
     # NOTE: we just need

@@ -79,12 +79,23 @@ def filter_posts_df(df: pd.DataFrame, strict: bool = False) -> pd.DataFrame:
     # Only apply text filters if text column exists
     if "text" in filtered_df.columns:
         # Basic filtering - remove None, empty strings, short text, and null-like strings
-        filtered_df = filtered_df[
+        base_mask = (
             filtered_df["text"].notna()
             & (filtered_df["text"].astype(str) != "")
             & (filtered_df["text"].str.strip().str.len() >= MIN_POST_TEXT_LENGTH)
-            & ~filtered_df["text"].apply(check_if_string_is_empty)
-        ]
+            & ~filtered_df["text"]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .isin({"null", "none", "nan"})
+        )
+
+        # When strict, also filter out strings that are "empty" after Unicode normalization,
+        # including zero-width spaces and other invisible characters.
+        if strict:
+            base_mask &= ~filtered_df["text"].apply(check_if_string_is_empty)
+
+        filtered_df = filtered_df[base_mask]
 
     # Only apply timestamp filter if preprocessing_timestamp column exists
     if "preprocessing_timestamp" in filtered_df.columns:
