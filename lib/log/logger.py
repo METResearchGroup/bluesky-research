@@ -4,11 +4,12 @@ import json
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import tempfile
 from typing import Any, Dict
 
 # if running in lambda, log to /tmp. Otherwise, log to the current directory.
 if os.path.exists("/app"):
-    log_directory = "/tmp"
+    log_directory = tempfile.gettempdir()
 else:
     log_directory = os.path.dirname(os.path.abspath(__file__))
 if not os.path.exists(log_directory):

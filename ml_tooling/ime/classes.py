@@ -41,14 +41,16 @@ class MultiLabelClassifier(nn.Module):
             return
 
         model_name = model_to_asset_paths_map[model]["model_name"]
-        self.model = AutoModel.from_pretrained(model_name)
+        revision = model_to_asset_paths_map[model].get("revision", "main")
+        self.model = AutoModel.from_pretrained(model_name, revision=revision)  # nosec B615
         self.classifier = nn.Linear(self.model.config.hidden_size, n_classes)
         self.sigmoid = nn.Sigmoid()
 
         pretrained_weights_path = model_to_asset_paths_map[model][
             "pretrained_weights_path"
         ]
-        state_dict = torch.load(pretrained_weights_path, map_location=device)
+        # Load weights from a local, bundled path (not user input).
+        state_dict = torch.load(pretrained_weights_path, map_location=device, weights_only=True)
         self.load_state_dict(state_dict)
 
     def forward(self, input_ids, attention_mask):

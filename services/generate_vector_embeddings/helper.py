@@ -20,6 +20,7 @@ from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 
 DEFAULT_EMBEDDING_MODEL_NAME = "bert-base-uncased"
+DEFAULT_EMBEDDING_MODEL_REVISION = os.getenv("HF_EMBEDDING_MODEL_REVISION", "main")
 vector_embeddings_root_s3_key = "vector_embeddings"
 
 logger = get_logger(__name__)
@@ -50,8 +51,12 @@ def get_device():
 
 torch.cuda.empty_cache()
 device = get_device()
-tokenizer = AutoTokenizer.from_pretrained(DEFAULT_EMBEDDING_MODEL_NAME)
-model = AutoModel.from_pretrained(DEFAULT_EMBEDDING_MODEL_NAME).to(device)
+tokenizer = AutoTokenizer.from_pretrained(  # nosec B615
+    DEFAULT_EMBEDDING_MODEL_NAME, revision=DEFAULT_EMBEDDING_MODEL_REVISION
+)
+model = AutoModel.from_pretrained(  # nosec B615
+    DEFAULT_EMBEDDING_MODEL_NAME, revision=DEFAULT_EMBEDDING_MODEL_REVISION
+).to(device)
 
 
 def get_latest_embedding_session() -> dict:

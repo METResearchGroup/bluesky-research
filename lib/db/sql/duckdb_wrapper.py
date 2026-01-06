@@ -1,6 +1,7 @@
 """Helper functions for DuckDB."""
 
 from typing import Optional, Any
+import re
 
 import duckdb
 from duckdb import DuckDBPyConnection
@@ -13,6 +14,20 @@ logger = get_logger(__file__)
 metrics_collector = DuckDBMetricsCollector()
 
 DEFAULT_TABLE_NAME = "parquet_data"
+
+_DUCKDB_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _quote_duckdb_identifier(identifier: str) -> str:
+    """Safely quote a DuckDB identifier (view/table/column name)."""
+    if not _DUCKDB_IDENTIFIER_RE.match(identifier):
+        raise ValueError(f"Invalid DuckDB identifier: {identifier!r}")
+    return f'"{identifier}"'
+
+
+def _escape_sql_string_literal(value: str) -> str:
+    """Escape a string for inclusion in a single-quoted SQL literal."""
+    return value.replace("'", "''")
 
 
 class DuckDB:
@@ -36,21 +51,24 @@ class DuckDB:
             DuckDB connection configured for Parquet querying
         """
         conn = duckdb.connect(":memory:")
-        files_str = ",".join([f"'{f}'" for f in filepaths])
+        files_str = ",".join([f"'{_escape_sql_string_literal(f)}'" for f in filepaths])
 
         # If specific columns are requested, only read those
         if tables:
             for table in tables:
-                name = table["name"]
+                name = _quote_duckdb_identifier(table["name"])
                 columns = table["columns"]
-                cols_str = ", ".join(columns)
-                conn.execute(
+                cols_str = ", ".join(_quote_duckdb_identifier(c) for c in columns)
+                query = (
                     f"CREATE VIEW {name} AS SELECT {cols_str} FROM read_parquet([{files_str}])"
-                )
+                )  # nosec B608
+                conn.execute(query)
         else:
-            conn.execute(
+            table_name = _quote_duckdb_identifier(table_name or DEFAULT_TABLE_NAME)
+            query = (
                 f"CREATE VIEW {table_name} AS SELECT * FROM read_parquet([{files_str}])"
-            )
+            )  # nosec B608
+            conn.execute(query)
 
         return conn
 

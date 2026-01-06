@@ -8,6 +8,21 @@ repos:
         args: [ --fix ]
       # Run the formatter.
       - id: ruff-format
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.2
+    hooks:
+      - id: bandit
+        args:
+          [
+            "-r",
+            ".",
+            "--exclude",
+            "*/.git/*,*/.venv/*,*/venv/*,*/build/*,*/dist/*,*/node_modules/*,*/assets/*,*/demos/*,*/experiments/*,*/deprecated/*,*/terraform/*,*/tests/*,*/demo/*",
+            "--severity-level",
+            "medium",
+            "--confidence-level",
+            "medium",
+          ]
   - repo: https://github.com/rohaquinlop/complexipy-pre-commit
     rev: v3.0.0
     hooks:
