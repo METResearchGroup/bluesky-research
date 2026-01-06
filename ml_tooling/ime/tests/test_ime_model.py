@@ -8,6 +8,7 @@ This test suite verifies the functionality of the IME model deployment code. The
 - Error handling and failed label processing
 """
 
+import importlib
 import sys
 from unittest.mock import Mock, MagicMock, patch
 
@@ -47,6 +48,11 @@ def mock_log_batch_classification():
 
 def test_model_module_does_not_import_inference_on_import():
     """Ensure importing ml_tooling.ime.model doesn't import heavy ML deps."""
+    # This test should be robust even when other tests imported inference earlier.
+    # We specifically verify that importing `ml_tooling.ime.model` does not
+    # *cause* `ml_tooling.ime.inference` to be imported.
+    sys.modules.pop("ml_tooling.ime.inference", None)
+    importlib.reload(ime_model)
     assert "ml_tooling.ime.inference" not in sys.modules
 
 
