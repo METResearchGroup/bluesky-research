@@ -72,8 +72,6 @@ class FeedGenerationOrchestrator:
         self.config = feed_config
         self.logger = logger
 
-        self.current_datetime_str: str = generate_current_datetime_str()
-
         # Data loading service
         self.data_loading_service = DataLoadingService(feed_config=feed_config)
 
@@ -126,6 +124,9 @@ class FeedGenerationOrchestrator:
             test_mode: If True, run in test mode (limited users, no TTL).
 
         """
+        # Generate fresh timestamp for this run
+        self.current_datetime_str: str = generate_current_datetime_str()
+
         self.logger.info("Starting rank score feeds.")
 
         # Step 1: Load all data
@@ -390,7 +391,7 @@ class FeedGenerationOrchestrator:
             )
         except Exception as e:
             self.logger.error(f"Failed to TTL old feeds: {e}")
-            raise StorageError(f"Failed to TTL old feeds: {e}")
+            raise StorageError(f"Failed to TTL old feeds: {e}") from e
 
     def _insert_feed_generation_session_metadata(
         self, feed_generation_session_analytics: FeedGenerationSessionAnalytics
@@ -401,7 +402,7 @@ class FeedGenerationOrchestrator:
                 metadata=feed_generation_session_analytics
             )
         except Exception as e:
-            self.logger.error(f"Failed to insert feed generation session metadata: {e}")
+            self.logger.exception("Failed to insert feed generation session metadata")
             raise StorageError(
                 f"Failed to insert feed generation session metadata: {e}"
-            )
+            ) from e
