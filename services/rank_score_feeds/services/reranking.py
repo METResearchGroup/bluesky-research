@@ -118,7 +118,8 @@ class RerankingService:
         """
         n = len(feed)
         result = feed.copy()
-        for i in range(n):
+        # Iterate backwards to avoid index shifting issues when modifying list in-place
+        for i in range(n - 1, -1, -1):
             shift = random.randint(-jitter_amount, jitter_amount)
             new_pos = max(0, min(n - 1, i + shift))
             if i != new_pos:
