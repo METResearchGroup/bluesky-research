@@ -15,7 +15,7 @@ class FeedStorageRepository:
 
         self.logger = get_logger(__name__)
         if not isinstance(adapter, FeedStorageAdapter):
-            raise ValueError("Adapter must be a an instance of FeedStorageAdapter.")
+            raise ValueError("Adapter must be an instance of FeedStorageAdapter.")
         self.adapter = adapter
 
     def write_feeds(self, feeds: list[StoredFeedModel], timestamp: str) -> None:
