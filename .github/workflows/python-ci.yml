@@ -56,7 +56,9 @@ jobs:
         uv run ruff check .
     - name: Bandit security scan
       run: |
-        uv run python scripts/run_bandit.py
+        uv run bandit -r . \
+          --exclude "*/.git/*,*/.venv/*,*/venv/*,*/build/*,*/dist/*,*/node_modules/*,*/assets/*,*/demos/*,*/experiments/*,*/deprecated/*,*/terraform/*,*/tests/*,*/demo/*" \
+          --severity-level medium --confidence-level medium
     - name: Test with pytest
       timeout-minutes: 15
       run: |
