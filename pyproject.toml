@@ -54,6 +54,7 @@ dev = [
     "pytest-xdist>=3.5.0",
     "ruff>=0.4.5",
     "bandit>=1.9.2",
+    "tomli>=2.0.1; python_version < '3.11'",
     "autopep8>=2.1.0",
     "faker>=4.14.0",
     "freezegun>=1.2.2",
@@ -346,3 +347,25 @@ exclude = [
 [tool.complexipy.output]
 csv = false
 json = false
+
+[tool.bandit]
+# Central Bandit configuration (used by `scripts/run_bandit.py`).
+severity_level = "medium"
+confidence_level = "medium"
+
+# Bandit expects a comma-separated string for --exclude; we keep it structured here.
+exclude = [
+    "*/.git/*",
+    "*/.venv/*",
+    "*/venv/*",
+    "*/build/*",
+    "*/dist/*",
+    "*/node_modules/*",
+    "*/assets/*",
+    "*/demos/*",
+    "*/experiments/*",
+    "*/deprecated/*",
+    "*/terraform/*",
+    "*/tests/*",
+    "*/demo/*",
+]
