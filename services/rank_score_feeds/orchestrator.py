@@ -8,18 +8,10 @@ import pandas as pd
 
 from lib.helper import generate_current_datetime_str
 from lib.log.logger import get_logger
-from services.participant_data.helper import get_all_users
-from services.participant_data.models import UserToBlueskyProfileModel
-from services.preprocess_raw_data.classify_nsfw_content.manual_excludelist import (
-    load_users_to_exclude,
-)
 from services.rank_score_feeds.config import FeedConfig
 from services.rank_score_feeds.models import (
-    FeedInputData,
     LoadedData,
     CandidatePostPools,
-    RawFeedData,
-    LatestFeeds,
     UserInNetworkPostsMap,
     FeedWithMetadata,
     FeedGenerationSessionAnalytics,
@@ -51,7 +43,7 @@ class FeedGenerationOrchestrator:
             CandidateGenerationService,
         )
         from services.rank_score_feeds.services.context import UserContextService
-        from services.rank_score_feeds.services.data_loading import DataLoadingService
+        from services.rank_score_feeds.services.data_loading import FeedDataLoader
         from services.rank_score_feeds.services.export import DataExporterService
         from services.rank_score_feeds.services.feed import FeedGenerationService
         from services.rank_score_feeds.services.feed_statistics import (
@@ -72,8 +64,8 @@ class FeedGenerationOrchestrator:
         self.config = feed_config
         self.logger = logger
 
-        # Data loading service
-        self.data_loading_service = DataLoadingService(feed_config=feed_config)
+        # Data loading facade
+        self.feed_data_loader = FeedDataLoader(feed_config=feed_config)
 
         # Scoring service
         scores_repo = ScoresRepository(feed_config=feed_config)
@@ -130,12 +122,11 @@ class FeedGenerationOrchestrator:
         self.logger.info("Starting rank score feeds.")
 
         # Step 1: Load all data
-        loaded_data = self._load_data(test_mode, users_to_create_feeds_for)
+        loaded_data = self._load_data(
+            test_mode=test_mode, users_to_create_feeds_for=users_to_create_feeds_for
+        )
 
-        # Step 2: Deduplicate and filter posts
-        loaded_data.posts_df = self._deduplicate_and_filter_posts(loaded_data.posts_df)
-
-        # Step 3: Score posts (export is handled by ScoringService unless skipped)
+        # Step 2: Score posts (export is handled by ScoringService unless skipped)
         posts_df_with_scores: pd.DataFrame = self._score_posts(
             loaded_data, export_new_scores=export_new_scores
         )
@@ -172,134 +163,6 @@ class FeedGenerationOrchestrator:
             self._insert_feed_generation_session_metadata(
                 feed_generation_session_analytics=feed_generation_session_analytics
             )
-
-    def _load_raw_data(
-        self,
-        test_mode: bool,
-    ) -> RawFeedData:
-        """Load raw data from all sources.
-
-        Loads data from all services without any transformation or filtering.
-        This is the pure data loading step.
-
-        Args:
-            test_mode: If True, filter to test users only when loading study users.
-
-        Returns:
-            RawFeedData containing:
-                - study_users: All study users (potentially filtered by test_mode)
-                - feed_input_data: Feed input data from multiple services
-                - latest_feeds: Previous feeds per user handle
-        """
-        study_users: list[UserToBlueskyProfileModel] = get_all_users(
-            test_mode=test_mode
-        )
-        feed_input_data: FeedInputData = (
-            self.data_loading_service.load_feed_input_data()
-        )
-        latest_feeds: LatestFeeds = self.data_loading_service.load_latest_feeds()
-
-        return RawFeedData(
-            study_users=study_users,
-            feed_input_data=feed_input_data,
-            latest_feeds=latest_feeds,
-        )
-
-    def _filter_study_users(
-        self,
-        study_users: list[UserToBlueskyProfileModel],
-        users_to_create_feeds_for: list[str] | None,
-    ) -> list[UserToBlueskyProfileModel]:
-        """Filter study users to only those specified by handles.
-
-        Args:
-            study_users: List of all study users to filter from.
-            users_to_create_feeds_for: Optional list of user handles to filter to.
-                If None, returns all study users unchanged.
-
-        Returns:
-            Filtered list of study users matching the provided handles.
-        """
-        if not users_to_create_feeds_for:
-            return study_users
-
-        self.logger.info(
-            f"Filtering to {len(users_to_create_feeds_for)} specified users."
-        )
-        return [
-            user
-            for user in study_users
-            if user.bluesky_handle in users_to_create_feeds_for
-        ]
-
-    def _load_data(
-        self,
-        test_mode: bool,
-        users_to_create_feeds_for: list[str] | None,
-    ) -> LoadedData:
-        """Load and transform all required input data.
-
-        Loads raw data from all sources, transforms it to the required format,
-        and applies user filtering if specified.
-
-        Args:
-            test_mode: If True, filter to test users only.
-            users_to_create_feeds_for: Optional list of user handles to filter to.
-
-        Returns:
-            LoadedData containing all loaded and transformed inputs.
-        """
-        # Load raw data
-        raw_data: RawFeedData = self._load_raw_data(test_mode)
-
-        # Filter users if specified
-        filtered_study_users = self._filter_study_users(
-            raw_data.study_users,
-            users_to_create_feeds_for,
-        )
-
-        return LoadedData(
-            posts_df=raw_data.feed_input_data.consolidate_enrichment_integrations,
-            user_to_social_network_map=raw_data.feed_input_data.scraped_user_social_network,
-            superposter_dids=raw_data.feed_input_data.superposters,
-            previous_feeds=raw_data.latest_feeds,
-            study_users=filtered_study_users,
-        )
-
-    def _deduplicate_and_filter_posts(
-        self, consolidated_enriched_posts_df: pd.DataFrame
-    ) -> pd.DataFrame:
-        """Deduplicates and filters posts.
-
-        Performs two operations:
-        1. Deduplicates posts by URI, keeping the most recent consolidation_timestamp
-        2. Filters out posts from excluded authors (by DID or handle)
-        """
-        # Deduplication based on unique URIs, keeping the most recent consolidation_timestamp
-        len_before = consolidated_enriched_posts_df.shape[0]
-        deduplicated_df: pd.DataFrame = consolidated_enriched_posts_df.sort_values(
-            by="consolidation_timestamp", ascending=False
-        ).drop_duplicates(subset="uri", keep="first")
-        len_after = deduplicated_df.shape[0]
-
-        if len_before != len_after:
-            logger.info(f"Deduplicated posts from {len_before} to {len_after}.")
-
-        # filter out excluded authors.
-        users_to_exclude: dict[str, set[str]] = load_users_to_exclude()
-        bsky_handles_to_exclude: set[str] = users_to_exclude["bsky_handles_to_exclude"]
-        bsky_dids_to_exclude: set[str] = users_to_exclude["bsky_dids_to_exclude"]
-
-        # keep posts where authors are NOT in the excludelists.
-        # Convert sets to lists for pandas isin() compatibility
-        mask: pd.Series = ~(
-            deduplicated_df["author_did"].isin(
-                list(bsky_dids_to_exclude)
-            )  # convert set to list for pyright check; performance diff negligible.
-            | deduplicated_df["author_handle"].isin(list(bsky_handles_to_exclude))
-        )
-        filtered_df: pd.DataFrame = deduplicated_df[mask]  # type: ignore[assignment] # pyright: ignore[reportUnknownReturnType]
-        return filtered_df
 
     def _score_posts(
         self, loaded_data: LoadedData, export_new_scores: bool = True
@@ -356,6 +219,33 @@ class FeedGenerationOrchestrator:
         )
 
         return user_to_ranked_feed_map
+
+    def _load_data(
+        self,
+        test_mode: bool = False,
+        users_to_create_feeds_for: list[str] | None = None,
+    ) -> LoadedData:
+        """Load and prepare data for feed generation.
+
+        Args:
+            test_mode: If True, filter to test users only when loading study users.
+            users_to_create_feeds_for: Optional list of user handles to create
+                feeds for. If None, creates feeds for all users.
+
+        Returns:
+            LoadedData with filtered and deduplicated posts.
+        """
+        # Load all data
+        loaded_data = self.feed_data_loader.load_complete_data(
+            test_mode=test_mode, users_to_create_feeds_for=users_to_create_feeds_for
+        )
+
+        # Deduplicate and filter posts
+        loaded_data.posts_df = self.feed_data_loader.deduplicate_and_filter_posts(
+            loaded_data.posts_df
+        )
+
+        return loaded_data
 
     def _calculate_feed_generation_session_analytics(
         self, user_to_ranked_feed_map: dict[str, FeedWithMetadata]
