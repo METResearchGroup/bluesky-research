@@ -23,13 +23,12 @@ sys.modules['lib.telemetry.cometml'] = MagicMock()
 # sys.modules['lib.helper'] = MagicMock()
 # sys.modules['lib.log.logger'] = MagicMock()
 
-# Now import the model module
-from ml_tooling.ime.model import (
-    create_labels,
-    batch_classify_posts,
-    run_batch_classification,
-)
-from ml_tooling.ime.constants import default_hyperparameters
+from ml_tooling.ime import model as ime_model  # noqa: E402
+create_labels = ime_model.create_labels
+batch_classify_posts = ime_model.batch_classify_posts
+run_batch_classification = ime_model.run_batch_classification
+
+from ml_tooling.ime.constants import default_hyperparameters  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def mock_log_batch_classification():
@@ -44,6 +43,11 @@ def mock_log_batch_classification():
         return_value=mock_decorator
     ) as mock:
         yield mock
+
+
+def test_model_module_does_not_import_inference_on_import():
+    """Ensure importing ml_tooling.ime.model doesn't import heavy ML deps."""
+    assert "ml_tooling.ime.inference" not in sys.modules
 
 
 class TestCreateLabels:
@@ -104,12 +108,15 @@ class TestBatchClassifyPosts:
     def mock_dependencies(self):
         """Set up common mock dependencies."""
         with patch('ml_tooling.ime.model.create_batches') as mock_create_batches, \
-             patch('ml_tooling.ime.model.process_ime_batch') as mock_process_batch, \
+             patch('ml_tooling.ime.model._process_ime_batch') as mock_process_batch, \
+             patch('ml_tooling.ime.model._get_model_and_tokenizer') as mock_get_model_and_tokenizer, \
              patch('ml_tooling.ime.model.write_posts_to_cache') as mock_write_cache, \
              patch('ml_tooling.ime.model.return_failed_labels_to_input_queue') as mock_return_failed:
+            mock_get_model_and_tokenizer.return_value = (Mock(), Mock())
             yield {
                 'create_batches': mock_create_batches,
                 'process_batch': mock_process_batch,
+                'get_model_and_tokenizer': mock_get_model_and_tokenizer,
                 'write_cache': mock_write_cache,
                 'return_failed': mock_return_failed
             }
@@ -125,6 +132,7 @@ class TestBatchClassifyPosts:
             batch_size=2
         )
         mock_dependencies['process_batch'].assert_not_called()
+        mock_dependencies['get_model_and_tokenizer'].assert_not_called()
         
         assert result['metadata']['total_posts_successfully_labeled'] == 0
         assert result['metadata']['total_posts_failed_to_label'] == 0
