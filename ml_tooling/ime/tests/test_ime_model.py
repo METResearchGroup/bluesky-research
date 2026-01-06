@@ -8,7 +8,6 @@ This test suite verifies the functionality of the IME model deployment code. The
 - Error handling and failed label processing
 """
 
-import importlib
 import sys
 from unittest.mock import Mock, MagicMock, patch
 
@@ -24,10 +23,11 @@ sys.modules['lib.telemetry.cometml'] = MagicMock()
 # sys.modules['lib.helper'] = MagicMock()
 # sys.modules['lib.log.logger'] = MagicMock()
 
-from ml_tooling.ime import model as ime_model  # noqa: E402
-create_labels = ime_model.create_labels
-batch_classify_posts = ime_model.batch_classify_posts
-run_batch_classification = ime_model.run_batch_classification
+from ml_tooling.ime.model import (  # noqa: E402
+    create_labels,
+    batch_classify_posts,
+    run_batch_classification,
+)
 
 from ml_tooling.ime.constants import default_hyperparameters  # noqa: E402
 
