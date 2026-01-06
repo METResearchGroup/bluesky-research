@@ -44,7 +44,7 @@ class UserContextService:
         """Curate the baseline in-network posts.
 
         For now, we only treat firehose posts as possible in-network
-        posts. We will revisit this later. This is because in our sync pipeilne,
+        posts. We will revisit this later. This is because in our sync pipeline,
         we explicitly look for and save posts that are from accounts followed by
         users in the study. We have two sources of posts:
         - firehose: a general sync of all posts from all accounts on Bluesky
@@ -98,7 +98,7 @@ class UserContextService:
     def _calculate_in_network_posts_for_user(
         self,
         user_did: str,
-        user_to_social_network_map: dict,
+        user_to_social_network_map: dict[str, list[str]],
         curated_baseline_in_network_posts_df: pd.DataFrame,  # noqa
     ) -> list[str]:
         """Calculates the possible in-network and out-of-network posts.
@@ -111,12 +111,15 @@ class UserContextService:
         # This should only be empty if the user doesn't follow anyone (which is
         # possible and has been observed) or if their social network hasn't been
         # synced yet.
-        in_network_social_network_dids = user_to_social_network_map.get(user_did, [])  # noqa
+        in_network_social_network_dids: list[str] = user_to_social_network_map.get(
+            user_did, []
+        )  # noqa
         # filter the candidate in-network user activity posts to only include the
         # ones that are in the user's social network.
-        in_network_post_uris: list[str] = curated_baseline_in_network_posts_df[
-            curated_baseline_in_network_posts_df["author_did"].isin(
-                in_network_social_network_dids
-            )
-        ]["uri"].tolist()
+        mask: pd.Series = curated_baseline_in_network_posts_df["author_did"].isin(
+            in_network_social_network_dids
+        )  # type: ignore[assignment]
+        in_network_post_uris: list[str] = curated_baseline_in_network_posts_df.loc[
+            mask, "uri"
+        ].tolist()
         return in_network_post_uris
