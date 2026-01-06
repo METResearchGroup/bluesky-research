@@ -117,11 +117,16 @@ class LatestFeeds(BaseModel):
 class FeedWithMetadata(BaseModel):
     """Model for representing a feed with metadata."""
 
-    feed: list[CustomFeedPost]
-    bluesky_handle: str
-    user_did: str
-    condition: str
-    feed_statistics: str
+    feed: list[CustomFeedPost] = Field(
+        ...,
+        description="List of posts in the feed along with if the post is in-network or not.",
+    )
+    bluesky_handle: str = Field(..., description="The Bluesky handle of the user.")
+    user_did: str = Field(..., description="The Bluesky user DID.")
+    condition: str = Field(..., description="The condition of the study user and feed.")
+    feed_statistics: str = Field(
+        ..., description="The JSON-dumped statistics of the feed."
+    )
 
 
 class FeedInputData(BaseModel):
