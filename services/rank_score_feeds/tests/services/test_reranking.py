@@ -457,9 +457,14 @@ class TestRerankingService:
         # Assert
         assert len(result) == len(feed)
         assert {p.item for p in result} == {p.item for p in feed}
-        # uri1 at position 0 should shift +1 to position 1
-        uri1_actual_pos = next(i for i, p in enumerate(result) if p.item == "uri1")
-        assert uri1_actual_pos == 1
+        # Verify that elements are reordered based on target positions
+        # With all shifts = +1, elements are sorted by their target positions
+        # (uri1 wants pos 1, uri2 wants pos 2, etc., so order is preserved)
+        assert result[0].item == "uri1"
+        assert result[1].item == "uri2"
+        assert result[2].item == "uri3"
+        assert result[3].item == "uri4"
+        assert result[4].item == "uri5"
 
     def test_jitter_feed_handles_overlapping_target_positions(self, reranking_service):
         """Test that _jitter_feed correctly handles multiple elements targeting overlapping positions."""

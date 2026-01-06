@@ -131,5 +131,5 @@ class RerankingService:
         # Sort by target position, then by original index (preserves relative order for ties)
         positioned_items.sort(key=lambda x: (x[0], x[1]))
 
-        # Return items in sorted order
+        # Return items in sorted order (naturally reorders based on target positions)
         return [item for _, _, item in positioned_items]
