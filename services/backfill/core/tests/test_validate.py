@@ -34,28 +34,28 @@ class TestValidateTimeRangeRecord:
     - Records outside the range are rejected
     - Default range is used if not specified
     """
-    @patch("services.backfill.core.validate.convert_bsky_dt_to_pipeline_dt")
+    @patch("lib.datetime_utils.convert_bsky_dt_to_pipeline_dt")
     def test_within_range(self, mock_convert):
         """Test record within the default time range."""
         mock_convert.return_value = "2024-09-15-12:00:00"
         record = {"value": {"createdAt": "2024-09-15T12:00:00Z"}}
         assert validate_time_range_record(record) is True
 
-    @patch("services.backfill.core.validate.convert_bsky_dt_to_pipeline_dt")
+    @patch("lib.datetime_utils.convert_bsky_dt_to_pipeline_dt")
     def test_before_range(self, mock_convert):
         """Test record before the default time range."""
         mock_convert.return_value = "2024-08-31-23:59:59"
         record = {"value": {"createdAt": "2024-08-31T23:59:59Z"}}
         assert validate_time_range_record(record) is False
 
-    @patch("services.backfill.core.validate.convert_bsky_dt_to_pipeline_dt")
+    @patch("lib.datetime_utils.convert_bsky_dt_to_pipeline_dt")
     def test_after_range(self, mock_convert):
         """Test record after the default time range."""
         mock_convert.return_value = "2024-12-02-00:00:01"
         record = {"value": {"createdAt": "2024-12-02T00:00:01Z"}}
         assert validate_time_range_record(record) is False
 
-    @patch("services.backfill.core.validate.convert_bsky_dt_to_pipeline_dt")
+    @patch("lib.datetime_utils.convert_bsky_dt_to_pipeline_dt")
     def test_custom_range(self, mock_convert):
         """Test record with custom time range."""
         mock_convert.return_value = "2024-10-01-00:00:00"

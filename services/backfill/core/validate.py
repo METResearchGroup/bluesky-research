@@ -3,7 +3,7 @@
 import re
 from typing import Optional
 
-from lib.constants import convert_bsky_dt_to_pipeline_dt
+from lib.datetime_utils import convert_bsky_dt_to_pipeline_dt
 from lib.log.logger import get_logger
 from services.backfill.core.constants import (
     default_start_timestamp,
