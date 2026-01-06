@@ -13,8 +13,9 @@ import gc
 import numpy as np
 import pandas as pd
 import pytest
-import torch
 from unittest.mock import Mock, patch, MagicMock, call
+
+torch = pytest.importorskip("torch")
 
 from ml_tooling.ime.inference import (
     default_to_other,
