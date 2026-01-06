@@ -3652,7 +3652,7 @@ resource "aws_glue_catalog_table" "archive_generated_feeds" {
   }
 
   storage_descriptor {
-    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/generated_feeds/"
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/generated_feeds/cache/"
     input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
     output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
 
