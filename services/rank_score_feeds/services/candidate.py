@@ -31,7 +31,7 @@ class CandidateGenerationService:
             posts_df: DataFrame with scored posts.
 
         Returns:
-            PostPools containing the three sorted and filtered candidate pools.
+            CandidatePostPools containing the three sorted and filtered candidate pools.
         """
         filtered_posts_df: pd.DataFrame = self._filter_posts_by_author_count(
             posts_df=posts_df,
