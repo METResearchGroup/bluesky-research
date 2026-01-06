@@ -6,7 +6,7 @@ try:
     import torch  # type: ignore
 
     _cuda_device_count = torch.cuda.device_count()
-except Exception:  # pragma: no cover
+except (ImportError, ModuleNotFoundError):  # pragma: no cover
     torch = None  # type: ignore
     _cuda_device_count = 0
 
