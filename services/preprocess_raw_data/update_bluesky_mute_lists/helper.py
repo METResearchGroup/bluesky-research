@@ -8,6 +8,7 @@ def save_list_and_user_data_to_db(
 ) -> None:
     """Given a list of lists and a list of users, save them to the mute list
     database."""
+    _ = (lists, users)
     print("Saved list and user data to the database.")
 
 

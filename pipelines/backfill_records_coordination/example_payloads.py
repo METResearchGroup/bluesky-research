@@ -20,7 +20,7 @@ payloads = {
         """,
         "command": """
             python app.py --record-type posts_used_in_feeds --add-to-queue
-            \ --start-date 2024-01-01 --end-date 2024-01-31
+            --start-date 2024-01-01 --end-date 2024-01-31
         """,
     },
     "perspective_api_insert_dummy_records_only": {

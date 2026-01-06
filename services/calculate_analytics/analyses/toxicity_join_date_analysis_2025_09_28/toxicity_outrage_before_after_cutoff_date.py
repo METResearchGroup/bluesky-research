@@ -199,7 +199,7 @@ def calculate_before_after_averages(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     # Calculate statistics for each metric
-    def calculate_group_stats(group_data, group_name):
+    def calculate_group_stats(group_data, _group_name):
         n = len(group_data)
         mean = group_data.mean()
         std = group_data.std(ddof=1)
