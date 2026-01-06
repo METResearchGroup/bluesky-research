@@ -2,12 +2,17 @@
 
 import pandas as pd
 
+from lib.log.logger import get_logger
 from services.participant_data.models import UserToBlueskyProfileModel
 from services.rank_score_feeds.models import UserInNetworkPostsMap
 
 
 class UserContextService:
     """Builds user-specific context for personalization."""
+
+    def __init__(self):
+        """Initialize the service with a logger."""
+        self.logger = get_logger(__name__)
 
     def build_in_network_context(
         self,
@@ -67,6 +72,10 @@ class UserContextService:
         """
         mask = posts_df["source"] == "firehose"
         curated_df: pd.DataFrame = posts_df.loc[mask]
+        if len(curated_df) == 0:
+            self.logger.warning(
+                "Curated baseline in-network posts DataFrame has length 0. This should not happen."
+            )
         return curated_df
 
     def _calculate_in_network_posts_for_users(

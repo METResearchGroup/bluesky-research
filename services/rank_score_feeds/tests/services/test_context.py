@@ -1,5 +1,7 @@
 """Tests for UserContextService."""
 
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 
@@ -222,52 +224,79 @@ class TestUserContextService:
         assert "uri2" not in result["uri"].values
 
     def test_curate_baseline_in_network_posts_handles_empty_dataframe(self, context_service):
-        """Test that _curate_baseline_in_network_posts handles empty DataFrame."""
+        """Test that _curate_baseline_in_network_posts handles empty DataFrame and logs warning."""
         # Arrange
-        posts_df = pd.DataFrame({
-            "uri": [],
-            "author_did": [],
-            "source": [],
-        })
+        with patch.object(context_service, "logger") as mock_logger:
+            posts_df = pd.DataFrame({
+                "uri": [],
+                "author_did": [],
+                "source": [],
+            })
 
-        # Act
-        result = context_service._curate_baseline_in_network_posts(posts_df=posts_df)
+            # Act
+            result = context_service._curate_baseline_in_network_posts(posts_df=posts_df)
 
-        # Assert
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 0
+            # Assert
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 0
+            # Should log warning when empty DataFrame results in empty curated DataFrame
+            mock_logger.warning.assert_called_once_with("Curated baseline in-network posts DataFrame has length 0. This should not happen.")
+
+    def test_curate_baseline_in_network_posts_logs_warning_when_empty(self, context_service):
+        """Test that _curate_baseline_in_network_posts logs warning when curated DataFrame is empty."""
+        # Arrange
+        with patch.object(context_service, "logger") as mock_logger:
+            posts_df = pd.DataFrame({
+                "uri": ["uri1", "uri2"],
+                "author_did": ["did:test:author1", "did:test:author2"],
+                "source": ["most_liked", "most_liked"],  # No firehose posts
+            })
+
+            # Act
+            result = context_service._curate_baseline_in_network_posts(posts_df=posts_df)
+
+            # Assert
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 0
+            mock_logger.warning.assert_called_once_with("Curated baseline in-network posts DataFrame has length 0. This should not happen.")
 
     def test_curate_baseline_in_network_posts_handles_all_firehose(self, context_service):
-        """Test that _curate_baseline_in_network_posts handles all firehose posts."""
+        """Test that _curate_baseline_in_network_posts handles all firehose posts and does not log warning."""
         # Arrange
-        posts_df = pd.DataFrame({
-            "uri": ["uri1", "uri2"],
-            "author_did": ["did:test:author1", "did:test:author2"],
-            "source": ["firehose", "firehose"],
-        })
+        with patch.object(context_service, "logger") as mock_logger:
+            posts_df = pd.DataFrame({
+                "uri": ["uri1", "uri2"],
+                "author_did": ["did:test:author1", "did:test:author2"],
+                "source": ["firehose", "firehose"],
+            })
 
-        # Act
-        result = context_service._curate_baseline_in_network_posts(posts_df=posts_df)
+            # Act
+            result = context_service._curate_baseline_in_network_posts(posts_df=posts_df)
 
-        # Assert
-        assert len(result) == 2
-        assert all(result["source"] == "firehose")
+            # Assert
+            assert len(result) == 2
+            assert all(result["source"] == "firehose")
+            # Should not log warning when curated DataFrame has posts
+            mock_logger.warning.assert_not_called()
 
     def test_curate_baseline_in_network_posts_handles_no_firehose(self, context_service):
         """Test that _curate_baseline_in_network_posts handles no firehose posts."""
         # Arrange
-        posts_df = pd.DataFrame({
-            "uri": ["uri1", "uri2"],
-            "author_did": ["did:test:author1", "did:test:author2"],
-            "source": ["most_liked", "most_liked"],
-        })
+        with patch.object(context_service, "logger") as mock_logger:
+            posts_df = pd.DataFrame({
+                "uri": ["uri1", "uri2"],
+                "author_did": ["did:test:author1", "did:test:author2"],
+                "source": ["most_liked", "most_liked"],
+            })
 
-        # Act
-        result = context_service._curate_baseline_in_network_posts(posts_df=posts_df)
+            # Act
+            result = context_service._curate_baseline_in_network_posts(posts_df=posts_df)
 
-        # Assert
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 0
+            # Assert
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 0
+            # Should log warning when no firehose posts result in empty curated DataFrame
+            mock_logger.warning.assert_called_once_with("Curated baseline in-network posts DataFrame has length 0. This should not happen.")
 
     def test_calculate_in_network_posts_for_users_returns_map_for_all_users(self, context_service, sample_study_users):
         """Test that _calculate_in_network_posts_for_users returns map for all study users."""
