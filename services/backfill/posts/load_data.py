@@ -5,10 +5,10 @@ from typing import Literal, Optional
 import pandas as pd
 
 from lib.constants import (
-    convert_bsky_dt_to_pipeline_dt,
     partition_date_format,
     timestamp_format,
 )
+from lib.datetime_utils import convert_bsky_dt_to_pipeline_dt
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.helper import track_performance
 from lib.log.logger import get_logger

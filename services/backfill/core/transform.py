@@ -4,7 +4,8 @@ from datetime import datetime
 import json
 import traceback
 
-from lib.constants import convert_bsky_dt_to_pipeline_dt, timestamp_format
+from lib.constants import timestamp_format
+from lib.datetime_utils import convert_bsky_dt_to_pipeline_dt
 from lib.db.bluesky_models.transformations import (
     TransformedBlock,
     TransformedFollow,
