@@ -3717,7 +3717,7 @@ resource "aws_glue_catalog_table" "archive_in_network_user_activity" {
   }
 
   storage_descriptor {
-    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/in_network_user_activity/"
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/in_network_user_activity/cache/"
     input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
     output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
 
