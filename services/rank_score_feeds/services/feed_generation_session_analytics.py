@@ -1,16 +1,15 @@
 from lib.constants import STUDY_CONDITIONS
-from lib.log.logger import get_logger
 from services.rank_score_feeds.models import (
     FeedWithMetadata,
     FeedGenerationSessionAnalytics,
 )
 
-logger = get_logger(__name__)
-
 
 class FeedGenerationSessionAnalyticsService:
     def __init__(self):
-        pass
+        from lib.log.logger import get_logger
+
+        self.logger = get_logger(__name__)
 
     def calculate_feed_generation_session_analytics(
         self,
