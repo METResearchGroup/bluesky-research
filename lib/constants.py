@@ -48,6 +48,12 @@ TEST_USER_HANDLES = [
     "markptorres.bsky.social",
 ]
 
+STUDY_CONDITIONS = [
+    "representative_diversification",
+    "engagement",
+    "reverse_chronological",
+]
+
 
 def convert_pipeline_to_bsky_dt_format(pipeline_dt: str) -> str:
     """Converts a pipeline datetime string to a Bluesky datetime string."""
