@@ -1,5 +1,7 @@
 """Tests for CandidateGenerationService."""
 
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 
@@ -248,6 +250,36 @@ class TestCandidateGenerationService:
         assert len(result.treatment) == 3
         assert "most_liked" in result.engagement["source"].values
         assert "most_liked" in result.treatment["source"].values
+
+    def test_generate_candidate_pools_handles_empty_reverse_chronological_pool(self, candidate_service):
+        """Test that generate_candidate_pools handles empty reverse_chronological pool when no firehose posts exist."""
+        # Arrange
+        posts_df = pd.DataFrame({
+            "uri": ["uri1", "uri2", "uri3"],
+            "author_did": ["did:test:1", "did:test:2", "did:test:3"],
+            "source": ["most_liked", "most_liked", "most_liked"],  # No firehose posts
+            "synctimestamp": ["2024-01-01T00:00:00", "2024-01-01T01:00:00", "2024-01-01T02:00:00"],
+            "engagement_score": [1.0, 2.0, 3.0],
+            "treatment_score": [0.5, 1.5, 2.5],
+        })
+
+        # Act
+        with patch.object(candidate_service, "logger") as mock_logger:
+            result = candidate_service.generate_candidate_pools(posts_df=posts_df)
+
+        # Assert
+        assert isinstance(result, CandidatePostPools)
+        # Reverse chronological should be empty but with correct schema
+        assert len(result.reverse_chronological) == 0
+        assert list(result.reverse_chronological.columns) == list(posts_df.columns)
+        # Engagement and treatment should still have all posts
+        assert len(result.engagement) == 3
+        assert len(result.treatment) == 3
+        # Verify warning was logged
+        mock_logger.warning.assert_called_once()
+        warning_message = str(mock_logger.warning.call_args[0][0])
+        assert "reverse_chronological_candidate_pool is empty" in warning_message
+        assert "no firehose source posts found" in warning_message
 
     def test_filter_posts_by_author_count_keeps_first_n_posts_per_author(self, candidate_service):
         """Test that _filter_posts_by_author_count keeps first N posts per author."""

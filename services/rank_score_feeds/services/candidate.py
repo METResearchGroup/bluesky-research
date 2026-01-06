@@ -2,6 +2,7 @@
 
 import pandas as pd
 
+from lib.log.logger import get_logger
 from services.rank_score_feeds.config import FeedConfig
 from services.rank_score_feeds.models import CandidatePostPools
 
@@ -16,6 +17,7 @@ class CandidateGenerationService:
             feed_config: Configuration for feed generation algorithm.
         """
         self.config = feed_config
+        self.logger = get_logger(__name__)
 
     def generate_candidate_pools(
         self,
@@ -44,6 +46,18 @@ class CandidateGenerationService:
         reverse_chronological_candidate_pool_df: pd.DataFrame = filtered_posts_df[
             filtered_posts_df["source"] == "firehose"
         ].sort_values(by="synctimestamp", ascending=False)  # type: ignore[call-overload]
+
+        # Guard against empty reverse_chronological pool: if no firehose posts exist,
+        # create an empty DataFrame with the expected schema and log a warning.
+        if len(reverse_chronological_candidate_pool_df) == 0:
+            self.logger.warning(
+                "reverse_chronological_candidate_pool is empty (no firehose source posts found). "
+                "Creating empty DataFrame with expected schema."
+            )
+            # Create empty DataFrame preserving the schema from filtered_posts_df
+            reverse_chronological_candidate_pool_df = pd.DataFrame(
+                columns=filtered_posts_df.columns
+            )
 
         engagement_candidate_pool_df: pd.DataFrame = filtered_posts_df.sort_values(
             by="engagement_score", ascending=False
