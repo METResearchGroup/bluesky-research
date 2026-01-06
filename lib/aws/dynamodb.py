@@ -144,7 +144,13 @@ class DynamoDB:
             return False
 
     @retry_on_aws_rate_limit
-    def get_all_items_from_table(self, table_name: str) -> list[dict]:
+    def get_all_items_from_table(
+        self,
+        table_name: str,
+        *,
+        max_pages: int | None = None,
+        max_items: int | None = None,
+    ) -> list[dict]:
         """Gets all items from a table (deserialized).
 
         Example:
@@ -155,10 +161,35 @@ class DynamoDB:
                 [{"k": "a"}, {"k": "b"}]
         """
         try:
-            response = self.client.scan(TableName=table_name)
-            # `.get()` covers a missing key; `or []` covers explicit nulls.
-            items = response.get("Items") or []
-            return [self._deserialize_item(item) for item in items if item is not None]
+            out: list[dict] = []
+            exclusive_start_key: Optional[dict] = None
+            pages_scanned = 0
+
+            while True:
+                scan_kwargs: dict[str, Any] = {"TableName": table_name}
+                if exclusive_start_key is not None:
+                    scan_kwargs["ExclusiveStartKey"] = exclusive_start_key
+
+                response = self.client.scan(**scan_kwargs)
+
+                # `.get()` covers a missing key; `or []` covers explicit nulls.
+                page_items = response.get("Items") or []
+                for item in page_items:
+                    if item is None:
+                        continue
+                    out.append(self._deserialize_item(item))
+                    if max_items is not None and len(out) >= max_items:
+                        return out[:max_items]
+
+                pages_scanned += 1
+                if max_pages is not None and pages_scanned >= max_pages:
+                    return out
+
+                exclusive_start_key = response.get("LastEvaluatedKey")
+                if not exclusive_start_key:
+                    break
+
+            return out
         except Exception as e:
             print(f"Failure in getting all items from DynamoDB: {e}")
             raise e

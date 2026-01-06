@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import boto3
 import pytest
@@ -61,4 +61,24 @@ def test_get_all_items_from_table_deserializes_items(dynamodb: DynamoDB) -> None
 
     out = dynamodb.get_all_items_from_table(table_name="t")
     assert out == [{"k": "a", "n": 1}, {"k": "b", "n": 2}]
+
+
+def test_get_all_items_from_table_paginates_scan(dynamodb: DynamoDB) -> None:
+    last_evaluated_key = {"k": {"S": "b"}}
+    dynamodb.client.scan = Mock(
+        side_effect=[
+            {
+                "Items": [{"k": {"S": "a"}, "n": {"N": "1"}}],
+                "LastEvaluatedKey": last_evaluated_key,
+            },
+            {"Items": [{"k": {"S": "c"}, "n": {"N": "3"}}]},
+        ]
+    )
+
+    out = dynamodb.get_all_items_from_table(table_name="t")
+    assert out == [{"k": "a", "n": 1}, {"k": "c", "n": 3}]
+    assert dynamodb.client.scan.call_args_list == [
+        call(TableName="t"),
+        call(TableName="t", ExclusiveStartKey=last_evaluated_key),
+    ]
 
