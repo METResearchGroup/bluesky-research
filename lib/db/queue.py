@@ -37,6 +37,19 @@ existing_sqlite_dbs = [
 DEFAULT_BATCH_CHUNK_SIZE = 1000
 DEFAULT_BATCH_WRITE_SIZE = 25
 
+_SQLITE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _quote_sqlite_identifier(identifier: str) -> str:
+    """Safely quote a SQLite identifier (table/column name).
+
+    SQLite parameterization does not support identifiers, so we validate with a
+    strict allowlist and then quote.
+    """
+    if not _SQLITE_IDENTIFIER_RE.match(identifier):
+        raise ValueError(f"Invalid SQLite identifier: {identifier!r}")
+    return f'"{identifier}"'
+
 
 class QueueItem(BaseModel):
     """Represents a single item in the queue table.
@@ -121,6 +134,7 @@ class Queue:
             self.queue_name = NAME_TO_QUEUE_NAME_MAP[queue_name]
 
         self.queue_table_name = "queue"
+        self._queue_table_sql = _quote_sqlite_identifier(self.queue_table_name)
 
         if temp_queue and temp_queue_path:
             self.db_path = temp_queue_path
@@ -221,7 +235,7 @@ class Queue:
             try:
                 with self._get_connection() as conn:
                     cursor = conn.execute(
-                        f"SELECT COUNT(*) FROM {self.queue_table_name}"
+                        f"SELECT COUNT(*) FROM {self._queue_table_sql}"  # nosec B608
                     )
                     return cursor.fetchone()[0]
             except sqlite3.OperationalError as e:
@@ -248,13 +262,14 @@ class Queue:
 
         try:
             with sqlite3.connect(self.db_path) as conn:
-                conn.execute(
-                    f"""
-                    INSERT INTO {self.queue_table_name} 
-                    (payload, metadata, created_at, status) 
+                query = f"""
+                    INSERT INTO {self._queue_table_sql}
+                    (payload, metadata, created_at, status)
                     VALUES (?, ?, ?, ?)
                     RETURNING id
-                    """,
+                    """
+                conn.execute(
+                    query,
                     (
                         json_payload,
                         json_metadata,
@@ -336,11 +351,12 @@ class Queue:
             if i % 10 == 0:
                 logger.info(f"Processing batch {i + 1}/{total_batches}...")
             with sqlite3.connect(self.db_path) as conn:
-                conn.executemany(
-                    f"""
-                    INSERT INTO {self.queue_table_name} (payload, metadata, created_at, status)
+                query = f"""
+                    INSERT INTO {self._queue_table_sql} (payload, metadata, created_at, status)
                     VALUES (?, ?, ?, ?)
-                    """,
+                    """
+                conn.executemany(
+                    query,
                     batch_chunk,
                 )
             conn.commit()
@@ -393,11 +409,12 @@ class Queue:
                 logger.info(f"Processing batch {i + 1}/{total_batches}...")
             conn = await self._async_get_connection()
             try:
-                await conn.executemany(
-                    f"""
-                    INSERT INTO {self.queue_table_name} (payload, metadata, created_at, status)
+                query = f"""
+                    INSERT INTO {self._queue_table_sql} (payload, metadata, created_at, status)
                     VALUES (?, ?, ?, ?)
-                    """,
+                    """
+                await conn.executemany(
+                    query,
                     batch_chunk,
                 )
                 await conn.commit()
@@ -470,10 +487,13 @@ class Queue:
         Returns:
             int: Number of items actually deleted
         """
+        ids_list = list(ids)
+        if not ids_list:
+            return 0
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(
-                f"DELETE FROM {self.queue_table_name} WHERE id IN ({','.join(map(str, ids))})"
-            )
+            placeholders = ",".join("?" for _ in ids_list)
+            query = f"DELETE FROM {self._queue_table_sql} WHERE id IN ({placeholders})"
+            cursor = conn.execute(query, tuple(ids_list))
             deleted_count = cursor.rowcount
             logger.info(f"Deleted {deleted_count} items from queue.")
             return deleted_count
@@ -485,7 +505,7 @@ class Queue:
             int: Number of items deleted
         """
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(f"DELETE FROM {self.queue_table_name}")
+            cursor = conn.execute(f"DELETE FROM {self._queue_table_sql}")  # nosec B608
             deleted_count = cursor.rowcount
             logger.info(f"Cleared {deleted_count} items from queue {self.queue_name}")
             return deleted_count

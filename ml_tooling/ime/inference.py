@@ -53,7 +53,8 @@ def load_model_and_tokenizer(
     model.eval()
 
     tokenizer_path = model_to_asset_paths_map[model_name]["tokenizer"]
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+    revision = model_to_asset_paths_map[model_name].get("revision", "main")
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, revision=revision)  # nosec B615
 
     return model, tokenizer
 

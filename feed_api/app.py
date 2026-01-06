@@ -348,4 +348,10 @@ def handler(event, context):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import os
+
+    # Default to loopback to avoid accidentally exposing locally.
+    # In containers/Lambda, set HOST=0.0.0.0 if you intend to bind externally.
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run(app, host=host, port=port)
