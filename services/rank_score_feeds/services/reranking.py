@@ -117,11 +117,19 @@ class RerankingService:
         controlled by `jitter_amount`.
         """
         n = len(feed)
-        result = feed.copy()
-        # Iterate backwards to avoid index shifting issues when modifying list in-place
-        for i in range(n - 1, -1, -1):
+        if n == 0:
+            return []
+
+        # Compute target positions for all elements without mutating during iteration
+        # This avoids index corruption that occurs with in-place pop/insert operations
+        positioned_items = []
+        for i, item in enumerate(feed):
             shift = random.randint(-jitter_amount, jitter_amount)
             new_pos = max(0, min(n - 1, i + shift))
-            if i != new_pos:
-                result.insert(new_pos, result.pop(i))
-        return result
+            positioned_items.append((new_pos, i, item))
+
+        # Sort by target position, then by original index (preserves relative order for ties)
+        positioned_items.sort(key=lambda x: (x[0], x[1]))
+
+        # Return items in sorted order
+        return [item for _, _, item in positioned_items]

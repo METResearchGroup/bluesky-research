@@ -461,6 +461,35 @@ class TestRerankingService:
         uri1_actual_pos = next(i for i, p in enumerate(result) if p.item == "uri1")
         assert uri1_actual_pos == 1
 
+    def test_jitter_feed_handles_overlapping_target_positions(self, reranking_service):
+        """Test that _jitter_feed correctly handles multiple elements targeting overlapping positions."""
+        # Arrange
+        feed = [
+            CustomFeedPost(item=f"uri{i}", is_in_network=(i % 2 == 0))
+            for i in range(1, 6)
+        ]
+        jitter_amount = 10
+
+        # Act
+        with patch("services.rank_score_feeds.services.reranking.random.randint") as mock_randint:
+            # Mock shifts to create the rotation scenario:
+            # i=0: shift=+2 -> new_pos=2 (uri1 moves to position 2)
+            # i=1: shift=-1 -> new_pos=0 (uri2 moves to position 0)
+            # i=2: shift=-1 -> new_pos=1 (uri3 moves to position 1)
+            # i=3: shift=0 -> new_pos=3 (uri4 stays)
+            # i=4: shift=0 -> new_pos=4 (uri5 stays)
+            mock_randint.side_effect = [2, -1, -1, 0, 0]
+            result = reranking_service._jitter_feed(feed=feed, jitter_amount=jitter_amount)
+
+        # Assert
+        assert len(result) == len(feed)
+        assert {p.item for p in result} == {p.item for p in feed}
+        assert result[0].item == "uri2"
+        assert result[1].item == "uri3"
+        assert result[2].item == "uri1"
+        assert result[3].item == "uri4"
+        assert result[4].item == "uri5"
+
     def test_rerank_feed_with_all_fresh_posts(self, reranking_service):
         """Test that rerank_feed works correctly when all posts are fresh."""
         # Arrange
