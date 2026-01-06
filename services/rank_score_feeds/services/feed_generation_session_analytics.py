@@ -9,7 +9,7 @@ class FeedGenerationSessionAnalyticsService:
     def __init__(self):
         from lib.log.logger import get_logger
 
-        self.logger = get_logger(__name__)
+        self.logger = get_logger(__file__)
 
     def calculate_feed_generation_session_analytics(
         self,
@@ -90,10 +90,7 @@ class FeedGenerationSessionAnalyticsService:
         total_feeds_per_condition: dict[str, int] = {}
         for condition in STUDY_CONDITIONS:
             total_feeds_per_condition[condition] = sum(
-                [
-                    feed.condition == condition
-                    for feed in user_to_ranked_feed_map.values()
-                ]
+                feed.condition == condition for feed in user_to_ranked_feed_map.values()
             )
         return {"total_feeds_per_condition": total_feeds_per_condition}
 

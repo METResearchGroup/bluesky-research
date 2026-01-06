@@ -16,7 +16,7 @@ class DataExporterService:
         self.logger = get_logger(__name__)
         if not isinstance(feed_storage_repository, FeedStorageRepository):
             raise ValueError(
-                "feed_storage_repository must be a subclass of FeedStorageRepository."
+                "feed_storage_repository must be an instance of FeedStorageRepository."
             )
         self.feed_storage_repository = feed_storage_repository
 

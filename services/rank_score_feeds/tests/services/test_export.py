@@ -43,7 +43,7 @@ class TestDataExporterService:
         assert isinstance(service, DataExporterService)
 
         # Invalid type: not a FeedStorageRepository
-        with pytest.raises(ValueError, match="feed_storage_repository must be a subclass of FeedStorageRepository"):
+        with pytest.raises(ValueError, match="feed_storage_repository must be an instance of FeedStorageRepository"):
             DataExporterService(feed_storage_repository=object())  # type: ignore[arg-type]
 
     def test_export_feeds_transforms_and_calls_repository(self):
