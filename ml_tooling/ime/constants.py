@@ -5,7 +5,14 @@ import os
 try:
     import torch  # type: ignore
 
-    _cuda_device_count = torch.cuda.device_count()
+    # CUDA detection can itself fail (e.g. driver/CUDA init issues). Default to
+    # CPU-safe values without breaking imports, while keeping `torch` available.
+    try:
+        _cuda_device_count = torch.cuda.device_count()
+    except RuntimeError:  # pragma: no cover
+        _cuda_device_count = 0
+    except Exception:  # pragma: no cover
+        _cuda_device_count = 0
 except (ImportError, ModuleNotFoundError):  # pragma: no cover
     torch = None  # type: ignore
     _cuda_device_count = 0
