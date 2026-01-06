@@ -215,7 +215,9 @@ class TestFeedGenerationService:
     ):
         """Raise ValueError when user condition is invalid (post_pool None)."""
         # Arrange
-        bad_user = UserToBlueskyProfileModel(
+        # Use model_construct to bypass Pydantic validation and test service's
+        # ValueError handling for invalid conditions that bypass model validation
+        bad_user = UserToBlueskyProfileModel.model_construct(
             study_user_id="u5",
             is_study_user=True,
             created_timestamp="2024-01-01T00:00:00",

@@ -22,6 +22,8 @@ class TestInit:
         mock_logger = Mock()
         mock_athena = Mock()
 
+        # Patch get_logger before any imports that might call it at module level
+        # This includes S3 (imported by athena) and athena itself
         with patch("lib.log.logger.get_logger", return_value=mock_logger) as p_logger, patch(
             "lib.aws.athena.Athena", return_value=mock_athena
         ) as p_athena:
@@ -32,7 +34,17 @@ class TestInit:
         assert service.config == feed_config
         assert service.logger is mock_logger
         assert service.athena is mock_athena
-        p_logger.assert_called_once()
+        # get_logger is called multiple times due to module-level initialization:
+        # 1. S3 module (imported by athena)
+        # 2. athena module
+        # 3. DataLoadingService.__init__
+        # We verify it was called at least once (for DataLoadingService)
+        assert p_logger.call_count >= 1
+        # Verify at least one call was for DataLoadingService
+        data_loading_module = "services.rank_score_feeds.services.data_loading"
+        assert any(
+            call[0][0] == data_loading_module for call in p_logger.call_args_list
+        ), "get_logger should be called for DataLoadingService"
         p_athena.assert_called_once()
 
 
