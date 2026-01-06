@@ -54,6 +54,7 @@ dev = [
     "pytest-xdist>=3.5.0",
     "ruff>=0.4.5",
     "bandit>=1.9.2",
+    "vulture>=2.11.0",
     "autopep8>=2.1.0",
     "faker>=4.14.0",
     "freezegun>=1.2.2",
@@ -346,3 +347,26 @@ exclude = [
 [tool.complexipy.output]
 csv = false
 json = false
+
+[tool.vulture]
+min_confidence = 80
+exclude = [
+    ".git",
+    ".venv",
+    "tests",
+    "demos",
+    "experiments",
+    "deprecated",
+    "assets",
+    "terraform",
+    "Dockerfiles",
+]
+paths = [
+    "lib",
+    "ml_tooling",
+    "services",
+    "pipelines",
+    "orchestration",
+    "transform",
+    "feed_api",
+]

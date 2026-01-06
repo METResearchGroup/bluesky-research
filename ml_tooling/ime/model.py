@@ -6,7 +6,10 @@ in which the batch classification logic is encapsulated in the "model.py" file
 but not neccessarily the model inference itself.
 """
 
-from typing import Optional
+from __future__ import annotations
+
+from threading import Lock
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -15,10 +18,6 @@ from lib.helper import create_batches, track_performance, RUN_MODE
 from lib.log.logger import get_logger
 from ml_tooling.ime.constants import default_hyperparameters, default_model
 from ml_tooling.ime.helper import get_device
-from ml_tooling.ime.inference import (
-    load_model_and_tokenizer,
-    process_ime_batch,
-)
 from services.ml_inference.export_data import (
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
@@ -26,9 +25,53 @@ from services.ml_inference.export_data import (
 from services.ml_inference.models import ImeLabelModel
 
 logger = get_logger(__file__)
-device = get_device()
 
-model, tokenizer = load_model_and_tokenizer(model_name=default_model, device=device)
+# Keep IME importable without heavy ML deps; load lazily at call time.
+_model_and_tokenizer_cache: dict[tuple[str, str], tuple[Any, Any]] = {}
+_model_and_tokenizer_lock = Lock()
+
+
+def _load_model_and_tokenizer(model_name: str, device: Any) -> tuple[Any, Any]:
+    """Import and load IME model/tokenizer only when needed."""
+    from ml_tooling.ime.inference import load_model_and_tokenizer
+
+    return load_model_and_tokenizer(model_name=model_name, device=device)
+
+
+def _process_ime_batch(
+    *,
+    batch: list[dict],
+    minibatch_size: int,
+    model: Any,
+    tokenizer: Any,
+) -> pd.DataFrame:
+    """Import and run IME batch processing only when needed."""
+    from ml_tooling.ime.inference import process_ime_batch
+
+    return process_ime_batch(
+        batch=batch,
+        minibatch_size=minibatch_size,
+        model=model,
+        tokenizer=tokenizer,
+    )
+
+
+def _get_model_and_tokenizer(*, model_name: str = default_model) -> tuple[Any, Any]:
+    """Lazy-load and cache the IME model/tokenizer."""
+    device = get_device()
+    cache_key = (model_name, str(device))
+
+    cached = _model_and_tokenizer_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    with _model_and_tokenizer_lock:
+        cached = _model_and_tokenizer_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        loaded = _load_model_and_tokenizer(model_name=model_name, device=device)
+        _model_and_tokenizer_cache[cache_key] = loaded
+        return loaded
 
 # gets around errors related to importing cometml in tests.
 if RUN_MODE == "test":
@@ -135,6 +178,7 @@ def batch_classify_posts(
     posts: list[dict],
     batch_size: int,
     minibatch_size: int,
+    model_name: str = default_model,
 ) -> dict:
     """Run batch classification on the given posts."""
     batches: list[list[dict]] = create_batches(batch_list=posts, batch_size=batch_size)
@@ -203,11 +247,13 @@ def batch_classify_posts(
             "classification_breakdown": classification_breakdown,
         }
 
+    model, tokenizer = _get_model_and_tokenizer(model_name=model_name)
+
     for i, batch in enumerate(batches):
         if i % 10 == 0:
             logger.info(f"Processing batch {i}/{total_batches}")
 
-        output_df: pd.DataFrame = process_ime_batch(
+        output_df: pd.DataFrame = _process_ime_batch(
             batch=batch,
             minibatch_size=minibatch_size,
             model=model,
@@ -355,6 +401,7 @@ def run_batch_classification(
     """Run batch classification on the given posts and logs to W&B."""
     results: dict = batch_classify_posts(
         posts=posts,
+        model_name=hyperparameters.get("model_name", default_model),
         batch_size=hyperparameters["batch_size"],
         minibatch_size=hyperparameters["minibatch_size"],
     )

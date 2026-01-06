@@ -43,14 +43,14 @@ request_count = 0
 
 @events.request.add_listener
 def on_request(
-    request_type,
-    name,
-    response_time,
-    response_length,
-    response,
-    context,
-    exception,
-    **kwargs,
+    _request_type,
+    _name,
+    _response_time,
+    _response_length,
+    _response,
+    _context,
+    _exception,
+    **_kwargs,
 ):
     global request_count
     request_count += 1
