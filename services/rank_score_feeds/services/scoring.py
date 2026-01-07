@@ -49,6 +49,8 @@ def _fix_constructive_endpoint_bug(post: pd.Series) -> pd.Series:
     the Google Perspective API endpoint for prob_constructive was replaced
     with prob_reasoning. This function fixes the bug by setting prob_constructive
     to prob_reasoning if prob_constructive is None.
+
+    Note: This function mutates the input Series in place.
     """
     if post["prob_constructive"] is None:
         post["prob_constructive"] = post["prob_reasoning"]
