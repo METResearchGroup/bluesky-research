@@ -7,6 +7,9 @@ from query_interface.backend.agents.tools.can_answer_with_sql.models import (
 from query_interface.backend.agents.tools.can_answer_with_sql.prompt import (
     build_answerability_prompt,
 )
+from query_interface.backend.agents.tools.can_answer_with_sql.exceptions import (
+    SQLAnswerabilityError,
+)
 
 
 def can_answer_with_sql(query: str) -> SQLAnswerabilityResult:
@@ -41,4 +44,6 @@ def can_answer_with_sql(query: str) -> SQLAnswerabilityResult:
         return result
 
     except Exception as e:
-        raise Exception(f"Failed to check SQL answerability for query: {str(e)}") from e
+        raise SQLAnswerabilityError(
+            f"Failed to check SQL answerability for query '{query}': {str(e)}"
+        ) from e

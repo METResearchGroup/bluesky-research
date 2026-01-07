@@ -7,6 +7,9 @@ from query_interface.backend.agents.tools.generate_sql.models import (
 from query_interface.backend.agents.tools.generate_sql.prompt import (
     build_sql_generation_prompt,
 )
+from query_interface.backend.agents.tools.generate_sql.exceptions import (
+    SQLGenerationError,
+)
 
 
 # TODO: need to have a step to clean up the SQL query (either here
@@ -41,4 +44,6 @@ def generate_sql(query: str, schema_context: str | None = None) -> SQLGeneration
         return result
 
     except Exception as e:
-        raise Exception(f"Failed to generate SQL for query: {str(e)}") from e
+        raise SQLGenerationError(
+            f"Failed to generate SQL for query '{query}': {str(e)}"
+        ) from e
