@@ -141,7 +141,8 @@ def calculate_linear_freshness_score(post: pd.Series, feed_config: FeedConfig) -
     decay_ratio: float = feed_config.freshness_decay_ratio
     lookback_hours: float = feed_config.freshness_lookback_days * 24
     post_age_hours: float = calculate_post_age(post=post, lookback_hours=lookback_hours)
-    return max_freshness_score - (post_age_hours * decay_ratio)
+    score = max_freshness_score - (post_age_hours * decay_ratio)
+    return max(0.0, score)
 
 
 def calculate_exponential_freshness_score(

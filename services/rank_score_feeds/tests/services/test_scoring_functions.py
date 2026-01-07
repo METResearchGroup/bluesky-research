@@ -23,12 +23,7 @@ from services.rank_score_feeds.services.scoring import (
 class TestCalculatePostAge:
     """Tests for calculate_post_age function."""
 
-    @pytest.fixture
-    def feed_config(self):
-        """Create a test FeedConfig."""
-        return FeedConfig()
-
-    def test_calculates_age_for_recent_post(self, feed_config):
+    def test_calculates_age_for_recent_post(self):
         """Test that calculate_post_age returns correct age for recent post."""
         # Arrange
         now = datetime.now(timezone.utc)
@@ -45,7 +40,7 @@ class TestCalculatePostAge:
         # Assert
         assert result == pytest.approx(expected, abs=0.1)
 
-    def test_clamps_age_to_lookback_hours(self, feed_config):
+    def test_clamps_age_to_lookback_hours(self):
         """Test that calculate_post_age clamps age to lookback_hours maximum."""
         # Arrange
         now = datetime.now(timezone.utc)
@@ -62,7 +57,7 @@ class TestCalculatePostAge:
         # Assert
         assert result == expected
 
-    def test_handles_exact_lookback_boundary(self, feed_config):
+    def test_handles_exact_lookback_boundary(self):
         """Test that calculate_post_age handles exact lookback boundary correctly."""
         # Arrange
         now = datetime.now(timezone.utc)
@@ -580,19 +575,30 @@ class TestCalculatePostScore:
         """Test that engagement score includes likeability and freshness components."""
         # Arrange
         superposter_dids = set()
+        feed_config.engagement_coef = 1.0
 
         # Act
-        result = calculate_post_score(
+        result_a = calculate_post_score(
+            post=sample_post,
+            superposter_dids=superposter_dids,
+            feed_config=feed_config,
+        )
+
+        # Test with different engagement_coef
+        feed_config.engagement_coef = 2.0
+        result_b = calculate_post_score(
             post=sample_post,
             superposter_dids=superposter_dids,
             feed_config=feed_config,
         )
 
         # Assert
-        # Engagement score should be positive (likeability + freshness) * engagement_coef
-        assert result.engagement_score > 0
-        assert result.engagement_score == pytest.approx(
-            result.engagement_score / feed_config.engagement_coef * feed_config.engagement_coef
+        # Engagement score should be positive
+        assert result_a.engagement_score > 0
+        assert result_b.engagement_score > 0
+        # Verify engagement_coef actually scales the score
+        assert result_b.engagement_score == pytest.approx(
+            result_a.engagement_score * (2.0 / 1.0)
         )
 
     def test_treatment_score_includes_likeability_and_freshness(self, feed_config, sample_post):
