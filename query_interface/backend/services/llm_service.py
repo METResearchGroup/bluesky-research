@@ -23,7 +23,7 @@ class LLMService:
     def chat_completion(
         self,
         messages: list[dict],
-        model: str = DEFAULT_MODEL,
+        model: str | None = None,
         response_format: type[BaseModel] | None = None,
         **kwargs,
     ) -> ModelResponse:
@@ -39,6 +39,9 @@ class LLMService:
         Returns:
             The chat completion response from litellm
         """
+        if model is None:
+            model = DEFAULT_MODEL
+
         # If response_format is a Pydantic model, we need to fix the schema
         # to add additionalProperties: false for OpenAI compatibility
         if response_format is not None:
