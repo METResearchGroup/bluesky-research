@@ -1,0 +1,30 @@
+[project]
+name = "query-interface-cli"
+version = "0.1.0"
+description = "CLI tool for querying Athena with natural language"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    {name = "Mark Torres", email = "markptorres1@gmail.com"},
+]
+license = "MIT"
+
+dependencies = [
+    "typer>=0.9.0",
+    "openai>=1.55.3",
+    "pandas>=2.2.2",
+    "rich>=13.0.0",
+]
+
+[project.scripts]
+query-athena = "query_interface.backend.cli:app"
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["../.."]
+include = ["query_interface.backend*", "query_interface.backend.agents*", "query_interface.backend.services*"]
+
+
