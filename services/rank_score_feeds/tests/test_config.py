@@ -268,7 +268,7 @@ class TestFeedConfig:
         # If the import of feed_config in scoring.py failed, we'd get ImportError
         # Other errors (like FileExistsError) are environment issues, not import issues
         try:
-            scoring_module = importlib.import_module("services.rank_score_feeds.scoring")
+            scoring_module = importlib.import_module("services.rank_score_feeds.services.scoring")
             result = scoring_module is not None
         except ImportError as e:
             # If we get ImportError, it might be related to feed_config import
