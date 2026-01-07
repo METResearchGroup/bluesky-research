@@ -1,2 +1,1 @@
 """Services for query interface."""
-

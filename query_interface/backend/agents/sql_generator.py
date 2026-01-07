@@ -56,9 +56,9 @@ Generate the SQL query (SQL only, no explanations):"""
         content = completion.choices[0].message.content
         if content is None:
             raise Exception("OpenAI API returned empty response")
-        
+
         sql = content.strip()
-        
+
         # Remove markdown code blocks if present
         if sql.startswith("```"):
             lines = sql.split("\n")
@@ -68,7 +68,7 @@ Generate the SQL query (SQL only, no explanations):"""
             if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
             sql = "\n".join(lines).strip()
-        
+
         return sql
 
     except Exception as e:

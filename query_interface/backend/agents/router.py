@@ -45,16 +45,16 @@ Example responses:
         )
 
         response = completion.choices[0].message.content.strip()
-        
+
         # Parse response
         response_upper = response.upper()
         if response_upper.startswith("YES"):
-            reason = response[len("YES"):].strip()
+            reason = response[len("YES") :].strip()
             if reason.startswith("-"):
                 reason = reason[1:].strip()
             return True, reason if reason else "Query can be converted to SQL"
         elif response_upper.startswith("NO"):
-            reason = response[len("NO"):].strip()
+            reason = response[len("NO") :].strip()
             if reason.startswith("-"):
                 reason = reason[1:].strip()
             return False, reason if reason else "Query cannot be converted to SQL"
@@ -67,4 +67,3 @@ Example responses:
 
     except Exception as e:
         raise Exception(f"Router agent API call failed: {str(e)}")
-

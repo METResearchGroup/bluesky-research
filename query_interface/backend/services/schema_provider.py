@@ -27,17 +27,25 @@ def get_schema_context() -> str:
             if isinstance(first_value, dict):
                 # Nested structure - create entries for each sub-table
                 for sub_table, columns in dtypes_map.items():
-                    table_name = f"{glue_table_name}_{sub_table}" if sub_table != glue_table_name else glue_table_name
+                    table_name = (
+                        f"{glue_table_name}_{sub_table}"
+                        if sub_table != glue_table_name
+                        else glue_table_name
+                    )
                     # Prepend "archive_" to table name for analysis tables
                     table_name = f"archive_{table_name}"
-                    column_list = ", ".join([f"{col} ({dtype})" for col, dtype in columns.items()])
+                    column_list = ", ".join(
+                        [f"{col} ({dtype})" for col, dtype in columns.items()]
+                    )
                     schema_lines.append(f"Table: {table_name}")
                     schema_lines.append(f"  Columns: {column_list}\n")
             else:
                 # Flat structure - single table
                 # Prepend "archive_" to table name for analysis tables
                 table_name = f"archive_{glue_table_name}"
-                column_list = ", ".join([f"{col} ({dtype})" for col, dtype in dtypes_map.items()])
+                column_list = ", ".join(
+                    [f"{col} ({dtype})" for col, dtype in dtypes_map.items()]
+                )
                 schema_lines.append(f"Table: {table_name}")
                 schema_lines.append(f"  Columns: {column_list}\n")
 
@@ -54,4 +62,3 @@ def get_cached_schema_context() -> str:
     if _SCHEMA_CONTEXT_CACHE is None:
         _SCHEMA_CONTEXT_CACHE = get_schema_context()
     return _SCHEMA_CONTEXT_CACHE
-

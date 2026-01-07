@@ -1,2 +1,1 @@
 """Agents for query interface."""
-
