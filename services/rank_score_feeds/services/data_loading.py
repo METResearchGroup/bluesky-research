@@ -208,11 +208,8 @@ class DataTransformationService:
         self.logger.info(
             f"Filtering to {len(users_to_create_feeds_for)} specified users."
         )
-        return [
-            user
-            for user in study_users
-            if user.bluesky_handle in users_to_create_feeds_for
-        ]
+        handles_set = set(users_to_create_feeds_for)
+        return [user for user in study_users if user.bluesky_handle in handles_set]
 
     def deduplicate_and_filter_posts(
         self, consolidated_enriched_posts_df: pd.DataFrame
