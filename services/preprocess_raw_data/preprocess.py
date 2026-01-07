@@ -2,6 +2,7 @@
 
 import pandas as pd
 
+from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.preprocess_raw_data.filters import filter_posts
@@ -27,22 +28,33 @@ def prepare_posts_for_preprocessing(latest_posts: pd.DataFrame) -> pd.DataFrame:
     return latest_posts
 
 
-def postprocess_posts(posts: pd.DataFrame) -> pd.DataFrame:
+def postprocess_posts(posts: pd.DataFrame) -> list[dict]:
     """Postprocesses posts.
 
-    Makes sure that it conforms to expected data model."""
-    post_dicts = posts.to_dict(orient="records")
-    records = []
+    Makes sure that it conforms to expected data model.
+
+    Note: We intentionally avoid per-row Pydantic validation here. The write/read
+    path uses PyArrow schemas which already enforce the contract, and row-wise
+    validation adds significant overhead for large batches.
+    """
+    model_fields = list(FilteredPreprocessedPostModel.model_fields.keys())
+    required_fields = [
+        name
+        for name, field in FilteredPreprocessedPostModel.model_fields.items()
+        if field.is_required()
+    ]
+
+    missing_required = [f for f in required_fields if f not in posts.columns]
+    if missing_required:
+        raise ValueError(
+            f"Missing required columns for FilteredPreprocessedPostModel: {missing_required}"
+        )
+
     try:
-        for post_dict in post_dicts:
-            # Extract only the fields required by FilteredPreprocessedPostModel
-            filtered_dict = {
-                field: post_dict[field]
-                for field in FilteredPreprocessedPostModel.__annotations__.keys()
-                if field in post_dict
-            }
-            record = FilteredPreprocessedPostModel(**filtered_dict)
-            records.append(record.model_dump())
+        # Project to the model schema (adds missing optional fields as NaN)
+        projected_df = posts.reindex(columns=model_fields)
+        records: list[dict] = projected_df.to_dict(orient="records")
+        records = parse_converted_pandas_dicts(records)
     except Exception as e:
         logger.error(f"Error postprocessing posts in preprocessing pipeline: {e}")
         raise e

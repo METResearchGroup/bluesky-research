@@ -74,8 +74,11 @@ def load_user_social_network_map() -> dict[str, list[str]]:
     social_dicts: list[dict] = user_social_network_df.to_dict(orient="records")
     social_dicts = parse_converted_pandas_dicts(social_dicts)
 
-    # Convert dicts to Pydantic models for type safety
+    # Construct models without validation. These records are loaded from Parquet
+    # with PyArrow schema enforcement, so per-row Pydantic validation is redundant
+    # and adds significant overhead for large datasets.
     social_network_records = [
-        SocialNetworkRelationshipModel(**record) for record in social_dicts
+        SocialNetworkRelationshipModel.model_construct(**record)
+        for record in social_dicts
     ]
     return build_user_social_network_map(social_network_records)
