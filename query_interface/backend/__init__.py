@@ -1,2 +1,1 @@
 """Query interface backend package."""
-

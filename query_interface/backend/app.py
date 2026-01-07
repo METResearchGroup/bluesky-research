@@ -1,14 +1,37 @@
 """FastAPI server for query interface backend.
 
-Takes natural language queries and returns mock SQL queries.
+Takes natural language queries and returns SQL query results.
 """
 
-from fastapi import FastAPI
+from typing import Any
+
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+
+from query_interface.backend.agents.tools.can_answer_with_sql.exceptions import (
+    SQLAnswerabilityError,
+)
+from query_interface.backend.agents.tools.can_answer_with_sql.tool import (
+    can_answer_with_sql,
+)
+from query_interface.backend.agents.tools.generate_sql.exceptions import (
+    SQLGenerationError,
+)
+from query_interface.backend.agents.tools.generate_sql.tool import generate_sql
+from query_interface.backend.agents.tools.prepare_sql_for_execution.exceptions import (
+    SQLPreparationForExecutionError,
+)
+from query_interface.backend.agents.tools.prepare_sql_for_execution.tool import (
+    prepare_sql_for_execution,
+)
+from query_interface.backend.agents.tools.run_sql_query.exceptions import (
+    SQLQueryExecutionError,
+)
+from query_interface.backend.agents.tools.run_sql_query.tool import run_sql_query
 
 app = FastAPI(
     title="Query Interface Backend",
-    description="Backend service for converting natural language queries to SQL",
+    description="Backend service for converting natural language queries to SQL and executing them",
     version="0.1.0",
 )
 
@@ -20,10 +43,12 @@ class QueryRequest(BaseModel):
 
 
 class QueryResponse(BaseModel):
-    """Response model containing the generated SQL query."""
+    """Response model containing the query results."""
 
     sql_query: str
     original_query: str
+    results: list[dict[str, Any]]
+    row_count: int
 
 
 @app.get("/")
@@ -40,31 +65,61 @@ async def health():
 
 @app.post("/query", response_model=QueryResponse)
 async def convert_query(request: QueryRequest) -> QueryResponse:
-    """Convert a natural language query to a mock SQL query.
+    """Convert a natural language query to SQL and execute it.
 
     Args:
         request: The query request containing the natural language query.
 
     Returns:
-        A response containing the mock SQL query and original query.
+        A response containing the generated SQL query, original query, and results.
+
+    Raises:
+        HTTPException: If the query cannot be answered, SQL generation fails, or execution fails.
     """
-    # Simple mock SQL generation based on keywords in the query
-    query_lower = request.query.lower()
+    try:
+        # Step 1: Check if query can be answered with SQL
+        answerability_result = can_answer_with_sql(request.query)
+        if not answerability_result.can_answer:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Query cannot be answered with SQL: {answerability_result.reason}",
+            )
 
-    # Basic keyword detection for mock SQL generation
-    if "count" in query_lower or "how many" in query_lower:
-        sql = "SELECT COUNT(*) FROM posts WHERE created_at >= CURRENT_DATE - INTERVAL '7 days';"
-    elif "average" in query_lower or "avg" in query_lower or "mean" in query_lower:
-        sql = "SELECT AVG(like_count) FROM posts WHERE created_at >= CURRENT_DATE - INTERVAL '30 days';"
-    elif "top" in query_lower or "most" in query_lower:
-        sql = "SELECT * FROM posts ORDER BY like_count DESC LIMIT 10;"
-    elif "user" in query_lower or "author" in query_lower:
-        sql = "SELECT DISTINCT author_did FROM posts WHERE created_at >= CURRENT_DATE - INTERVAL '1 day';"
-    else:
-        # Default mock SQL query
-        sql = "SELECT * FROM posts WHERE created_at >= CURRENT_DATE - INTERVAL '7 days' LIMIT 100;"
+        # Step 2: Generate SQL from natural language query
+        generation_result = generate_sql(request.query)
+        raw_sql = generation_result.sql_query
 
-    return QueryResponse(sql_query=sql, original_query=request.query)
+        # Step 3: Prepare SQL for execution (clean and enforce LIMIT 10)
+        prepared_sql = prepare_sql_for_execution(raw_sql)
+
+        # Step 4: Execute the SQL query
+        df = run_sql_query(prepared_sql)
+
+        # Step 5: Convert DataFrame to list of dictionaries for JSON response
+        results = df.to_dict(orient="records")
+
+        return QueryResponse(
+            sql_query=prepared_sql,
+            original_query=request.query,
+            results=results,
+            row_count=len(df),
+        )
+
+    except SQLAnswerabilityError as e:
+        raise HTTPException(
+            status_code=500, detail=f"Answerability check failed: {str(e)}"
+        )
+    except SQLGenerationError as e:
+        raise HTTPException(status_code=500, detail=f"SQL generation failed: {str(e)}")
+    except SQLPreparationForExecutionError as e:
+        raise HTTPException(status_code=500, detail=f"SQL preparation failed: {str(e)}")
+    except SQLQueryExecutionError as e:
+        raise HTTPException(status_code=500, detail=f"Query execution failed: {str(e)}")
+    except HTTPException:
+        # Re-raise HTTP exceptions (like our 400 for unanswerable queries)
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
 if __name__ == "__main__":
