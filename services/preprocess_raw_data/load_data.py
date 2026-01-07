@@ -16,7 +16,6 @@ from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.helper import track_performance
 from lib.log.logger import get_logger
-from services.consolidate_post_records.models import ConsolidatedPostRecordModel  # noqa
 
 logger = get_logger(__file__)
 
@@ -41,7 +40,7 @@ def load_previous_session_metadata():
     return latest_item
 
 
-def transform_latest_posts(df: pd.DataFrame) -> list[ConsolidatedPostRecordModel]:
+def transform_latest_posts(df: pd.DataFrame) -> list[dict]:
     df_dicts = df.to_dict(orient="records")
     df_dicts = parse_converted_pandas_dicts(df_dicts)
     df_dicts_cleaned = [post for post in df_dicts if post["text"] is not None]
@@ -65,13 +64,15 @@ def transform_latest_posts(df: pd.DataFrame) -> list[ConsolidatedPostRecordModel
             # NOTE: could also be None, in which case the extra check is required.
             if post["embed"]["external"]:
                 post["embed"]["external"] = json.loads(post["embed"]["external"])
-    return [ConsolidatedPostRecordModel(**post) for post in df_dicts_cleaned]
+    # Avoid per-row Pydantic validation; downstream can treat these as plain dicts.
+    # (This helper is currently not used in CI-tested paths.)
+    return df_dicts_cleaned
 
 
 @track_performance
 def load_latest_firehose_posts(
     timestamp: str, limit: Optional[int] = None
-) -> list[ConsolidatedPostRecordModel]:
+) -> pd.DataFrame:
     """Queries the firehose table for the latest posts."""
     in_network_user_posts_df: pd.DataFrame = load_data_from_local_storage(
         service="in_network_user_activity",
@@ -92,7 +93,7 @@ def load_latest_firehose_posts(
 @track_performance
 def load_latest_most_liked_posts(
     timestamp: str, limit: Optional[int] = None
-) -> list[ConsolidatedPostRecordModel]:  # noqa
+) -> pd.DataFrame:  # noqa
     df: pd.DataFrame = load_data_from_local_storage(
         service="sync_most_liked_posts", latest_timestamp=timestamp, directory="active"
     )

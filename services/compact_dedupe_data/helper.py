@@ -175,7 +175,9 @@ def compact_dedupe_preprocessed_data(
     df_dicts = parse_converted_pandas_dicts(df_dicts)
     df_dicts_cleaned = [post for post in df_dicts if post["text"] is not None]
     df_dict_models = [
-        FilteredPreprocessedPostModel(**df_dict) for df_dict in df_dicts_cleaned
+        # Avoid per-row Pydantic validation; records are schema-enforced via PyArrow.
+        FilteredPreprocessedPostModel.model_construct(**df_dict)
+        for df_dict in df_dicts_cleaned
     ]
     del df
     del df_dicts
