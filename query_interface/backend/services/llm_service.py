@@ -8,8 +8,7 @@ from litellm import ModelResponse
 from pydantic import BaseModel
 
 from lib.helper import OPENAI_API_KEY
-
-DEFAULT_MODEL = "gpt-4o-mini-2024-07-18"
+from query_interface.backend.config import get_config_value
 
 
 class LLMService:
@@ -40,7 +39,7 @@ class LLMService:
             The chat completion response from litellm
         """
         if model is None:
-            model = DEFAULT_MODEL
+            model = get_config_value("llm", "default_model")
 
         # If response_format is a Pydantic model, we need to fix the schema
         # to add additionalProperties: false for OpenAI compatibility

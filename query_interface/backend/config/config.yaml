@@ -1,0 +1,12 @@
+llm:
+  default_model: "gpt-4o-mini-2024-07-18"
+  can_answer_with_sql:
+    max_tokens: 150
+    temperature: 0.3
+  generate_sql:
+    max_tokens: 500
+    temperature: 0.3
+
+sql:
+  default_limit: 10
+

@@ -1,5 +1,6 @@
 """Tool to generate SQL from natural language queries."""
 
+from query_interface.backend.config import get_config_value
 from query_interface.backend.services.llm_service import get_llm_service
 from query_interface.backend.agents.tools.generate_sql.models import (
     SQLGenerationResult,
@@ -35,8 +36,8 @@ def generate_sql(query: str, schema_context: str | None = None) -> SQLGeneration
         response = llm_service.chat_completion(
             messages=[{"role": "user", "content": prompt}],
             response_format=SQLGenerationResult,
-            max_tokens=500,
-            temperature=0.3,
+            max_tokens=get_config_value("llm", "generate_sql", "max_tokens"),
+            temperature=get_config_value("llm", "generate_sql", "temperature"),
         )
 
         content: str = response.choices[0].message.content  # type: ignore

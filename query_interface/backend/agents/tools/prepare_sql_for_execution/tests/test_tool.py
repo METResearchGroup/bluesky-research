@@ -5,11 +5,11 @@ import pytest
 from query_interface.backend.agents.tools.prepare_sql_for_execution.exceptions import (
     SQLPreparationForExecutionError,
 )
+from query_interface.backend.config import get_config_value
 from query_interface.backend.agents.tools.prepare_sql_for_execution.tool import (
     _clean_sql_formatting,
     _enforce_limit,
     prepare_sql_for_execution,
-    DEFAULT_LIMIT,
 )
 
 
@@ -237,9 +237,9 @@ class TestEnforceLimit:
         assert result == expected
 
     def test_default_limit_constant_is_10(self):
-        """Test that DEFAULT_LIMIT constant is 10."""
+        """Test that default limit from config is 10."""
         # Assert
-        assert DEFAULT_LIMIT == 10
+        assert get_config_value("sql", "default_limit") == 10
 
 
 class TestPrepareSqlForExecution:
@@ -327,7 +327,7 @@ ORDER BY p.created_at DESC;
         result = prepare_sql_for_execution(sql)
 
         # Assert
-        # Note: current implementation always enforces DEFAULT_LIMIT
+        # Note: current implementation always enforces default limit from config
         assert result == expected
 
     def test_handles_whitespace_around_query(self):

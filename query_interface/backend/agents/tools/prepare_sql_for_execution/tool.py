@@ -2,12 +2,10 @@
 
 import re
 
+from query_interface.backend.config import get_config_value
 from query_interface.backend.agents.tools.prepare_sql_for_execution.exceptions import (
     SQLPreparationForExecutionError,
 )
-
-# Default limit for SQL queries
-DEFAULT_LIMIT = 10
 
 
 def _clean_sql_formatting(sql: str) -> str:
@@ -38,16 +36,18 @@ def _clean_sql_formatting(sql: str) -> str:
     return sql
 
 
-def _enforce_limit(sql: str, limit: int = DEFAULT_LIMIT) -> str:
+def _enforce_limit(sql: str, limit: int | None = None) -> str:
     """Enforce a LIMIT clause on a SQL query.
 
     Args:
         sql: The SQL query string.
-        limit: The limit value to enforce (default: DEFAULT_LIMIT).
+        limit: The limit value to enforce (default: from config).
 
     Returns:
         SQL query with the specified LIMIT enforced.
     """
+    if limit is None:
+        limit = get_config_value("sql", "default_limit")
     # Case-insensitive regex to find LIMIT clause
     # Matches: LIMIT 123, LIMIT 123; (with semicolon), etc.
     limit_pattern = r"\bLIMIT\s+\d+\b"
@@ -81,7 +81,7 @@ def prepare_sql_for_execution(sql: str) -> str:
     """
     try:
         sql = _clean_sql_formatting(sql)
-        sql = _enforce_limit(sql, DEFAULT_LIMIT)
+        sql = _enforce_limit(sql)
         return sql
     except Exception as e:
         raise SQLPreparationForExecutionError(

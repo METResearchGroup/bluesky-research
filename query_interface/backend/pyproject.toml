@@ -17,6 +17,7 @@ dependencies = [
     "langchain>=1.2.1",
     "langchain-openai>=1.1.7",
     "litellm>=1.80.12",
+    "pyyaml>=6.0.3",
 ]
 
 [project.scripts]
