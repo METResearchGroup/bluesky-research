@@ -1,9 +1,9 @@
-"""Tool to validate and clean SQL queries before execution."""
+"""Tool to prepare SQL queries for execution."""
 
 import re
 
-from query_interface.backend.agents.tools.validate_sql.exceptions import (
-    SQLValidationError,
+from query_interface.backend.agents.tools.prepare_sql_for_execution.exceptions import (
+    SQLPreparationForExecutionError,
 )
 
 # Default limit for SQL queries
@@ -62,8 +62,8 @@ def _enforce_limit(sql: str, limit: int = DEFAULT_LIMIT) -> str:
     return sql
 
 
-def validate_sql(sql: str) -> str:
-    """Validate and clean a SQL query, enforcing LIMIT 10.
+def prepare_sql_for_execution(sql: str) -> str:
+    """Prepare a SQL query for execution by cleaning and enforcing constraints.
 
     This function:
     - Removes markdown code blocks if present
@@ -74,16 +74,16 @@ def validate_sql(sql: str) -> str:
         sql: The raw SQL query string (may include markdown formatting).
 
     Returns:
-        Cleaned and validated SQL query with LIMIT 10 enforced.
+        Prepared SQL query ready for execution with LIMIT 10 enforced.
 
     Raises:
-        SQLValidationError: If the SQL query is invalid or cannot be cleaned.
+        SQLPreparationForExecutionError: If the SQL query cannot be prepared.
     """
     try:
         sql = _clean_sql_formatting(sql)
         sql = _enforce_limit(sql, DEFAULT_LIMIT)
         return sql
     except Exception as e:
-        raise SQLValidationError(
-            f"Failed to validate SQL query '{sql}': {str(e)}"
+        raise SQLPreparationForExecutionError(
+            f"Failed to prepare SQL query for execution '{sql}': {str(e)}"
         ) from e

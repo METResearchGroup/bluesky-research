@@ -13,12 +13,12 @@ from query_interface.backend.agents.tools.run_sql_query.exceptions import (
 def run_sql_query(sql: str, dtypes_map: Optional[dict] = None) -> pd.DataFrame:
     """Execute a SQL query against Athena and return results as DataFrame.
 
-    Note: This function assumes the SQL query has already been validated
-    (e.g., via validate_sql tool). It does NOT enforce LIMIT 10 - that
-    should be done during validation.
+    Note: This function assumes the SQL query has already been prepared
+    (e.g., via prepare_sql_for_execution tool). It does NOT enforce LIMIT 10 - that
+    should be done during preparation.
 
     Args:
-        sql: The validated SQL query to execute (should already have LIMIT 10).
+        sql: The prepared SQL query to execute (should already have LIMIT 10).
         dtypes_map: Optional dictionary mapping column names to pandas dtypes.
 
     Returns:
