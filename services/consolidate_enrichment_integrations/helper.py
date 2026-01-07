@@ -82,10 +82,7 @@ def load_latest_preprocessed_posts(
     df_dicts = df.to_dict(orient="records")
     df_dicts = parse_converted_pandas_dicts(df_dicts)
     df_dicts_cleaned = [post for post in df_dicts if post["text"] is not None]
-    return [
-        FilteredPreprocessedPostModel.model_construct(**post)
-        for post in df_dicts_cleaned
-    ]
+    return [FilteredPreprocessedPostModel(**post) for post in df_dicts_cleaned]
 
 
 def load_previously_consolidated_enriched_post_uris() -> set[str]:
@@ -103,7 +100,7 @@ def load_latest_perspective_api_labels(
     )
     df_dicts = df.to_dict(orient="records")
     df_dicts = parse_converted_pandas_dicts(df_dicts)
-    return [PerspectiveApiLabelsModel.model_construct(**label) for label in df_dicts]
+    return [PerspectiveApiLabelsModel(**label) for label in df_dicts]
 
 
 def load_latest_sociopolitical_labels(
@@ -114,7 +111,7 @@ def load_latest_sociopolitical_labels(
     )
     df_dicts = df.to_dict(orient="records")
     df_dicts = parse_converted_pandas_dicts(df_dicts)
-    return [SociopoliticalLabelsModel.model_construct(**label) for label in df_dicts]
+    return [SociopoliticalLabelsModel(**label) for label in df_dicts]
 
 
 # NOTE: might have to be migrated at some point TBH.
@@ -128,7 +125,7 @@ def load_latest_similarity_scores(timestamp: str) -> list[PostSimilarityScoreMod
     df: pd.DataFrame = athena.query_results_as_df(query)
     df_dicts = df.to_dict(orient="records")
     df_dicts = parse_converted_pandas_dicts(df_dicts)
-    return [PostSimilarityScoreModel.model_construct(**score) for score in df_dicts]
+    return [PostSimilarityScoreModel(**score) for score in df_dicts]
 
 
 @track_performance

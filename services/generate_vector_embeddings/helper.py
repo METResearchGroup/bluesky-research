@@ -108,12 +108,7 @@ def get_posts_to_embed() -> list[FilteredPreprocessedPostModel]:
         return []
     df_dicts = posts_df.to_dict(orient="records")
     df_dicts = parse_converted_pandas_dicts(df_dicts)
-    # Avoid per-row Pydantic validation; records are already schema-enforced on
-    # ingestion/load (PyArrow). We only need attribute access downstream.
-    return [
-        FilteredPreprocessedPostModel.model_construct(**post_dict)
-        for post_dict in df_dicts
-    ]  # noqa
+    return [FilteredPreprocessedPostModel(**post_dict) for post_dict in df_dicts]  # noqa
 
 
 def get_embeddings(
