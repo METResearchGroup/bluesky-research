@@ -3,10 +3,7 @@
 Takes natural language queries and returns SQL query results.
 """
 
-from typing import Any
-
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 
 from query_interface.backend.agents.tools.can_answer_with_sql.exceptions import (
     SQLAnswerabilityError,
@@ -28,27 +25,13 @@ from query_interface.backend.agents.tools.run_sql_query.exceptions import (
     SQLQueryExecutionError,
 )
 from query_interface.backend.agents.tools.run_sql_query.tool import run_sql_query
+from query_interface.backend.api.schemas import QueryRequest, QueryResponse
 
 app = FastAPI(
     title="Query Interface Backend",
     description="Backend service for converting natural language queries to SQL and executing them",
     version="0.1.0",
 )
-
-
-class QueryRequest(BaseModel):
-    """Request model for natural language query."""
-
-    query: str
-
-
-class QueryResponse(BaseModel):
-    """Response model containing the query results."""
-
-    sql_query: str
-    original_query: str
-    results: list[dict[str, Any]]
-    row_count: int
 
 
 @app.get("/")
