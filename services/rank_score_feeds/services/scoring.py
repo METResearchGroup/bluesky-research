@@ -260,7 +260,7 @@ def score_post_likeability(post: pd.Series, feed_config: FeedConfig) -> float:
     try:
         # Step 1: If we empirically have a like count, use it.
         like_count = _get_like_count_value(post)
-        if like_count:
+        if like_count is not None:
             return _calculate_score_based_on_like_count(like_count)
 
         # Step 2: If we don't have a like count, use the similarity score.
