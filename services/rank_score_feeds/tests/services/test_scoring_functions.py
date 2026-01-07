@@ -364,6 +364,28 @@ class TestScorePostLikeability:
         # Assert
         assert result == pytest.approx(expected)
 
+    def test_handles_zero_similarity_score(self, feed_config):
+        """Test that score_post_likeability handles zero similarity score correctly.
+        
+        Zero similarity score is treated as a valid value (not None), so the function
+        will use the zero value directly instead of falling through to default.
+        """
+        # Arrange
+        post = pd.Series({
+            "uri": "test_uri",
+            "like_count": None,
+            "similarity_score": 0.0,
+        })
+        # Zero is a valid value, so it will use the zero similarity score
+        expected_like_count = feed_config.average_popular_post_like_count * 0.0
+        expected = np.log(expected_like_count + 1)  # np.log(1) = 0.0
+
+        # Act
+        result = score_post_likeability(post=post, feed_config=feed_config)
+
+        # Assert
+        assert result == pytest.approx(expected)
+
     def test_handles_invalid_like_count_gracefully(self, feed_config):
         """Test that score_post_likeability handles invalid like count gracefully."""
         # Arrange
