@@ -256,18 +256,24 @@ class DataTransformationService:
         self,
         raw_data: RawFeedData,
         filtered_study_users: list[UserToBlueskyProfileModel],
+        posts_df: pd.DataFrame | None = None,
     ) -> LoadedData:
         """Transform raw data to LoadedData format.
 
         Args:
             raw_data: Raw data loaded from all sources.
             filtered_study_users: Filtered list of study users.
+            posts_df: Optional processed posts DataFrame. If provided, uses this
+                instead of raw_data.feed_input_data.consolidate_enrichment_integrations.
 
         Returns:
             LoadedData containing all loaded and transformed inputs.
         """
+        if posts_df is None:
+            posts_df = raw_data.feed_input_data.consolidate_enrichment_integrations
+
         return LoadedData(
-            posts_df=raw_data.feed_input_data.consolidate_enrichment_integrations,
+            posts_df=posts_df,
             user_to_social_network_map=raw_data.feed_input_data.scraped_user_social_network,
             superposter_dids=raw_data.feed_input_data.superposters,
             previous_feeds=raw_data.latest_feeds,
@@ -300,17 +306,21 @@ class FeedDataLoader:
         self,
         test_mode: bool = False,
         users_to_create_feeds_for: list[str] | None = None,
+        deduplicate_posts: bool = False,
     ) -> LoadedData:
         """Load and transform all required input data.
 
         This is the main entry point for loading data. It:
         1. Loads raw data from all sources
         2. Filters study users if specified
-        3. Transforms data to LoadedData format
+        3. Optionally deduplicates and filters posts
+        4. Transforms data to LoadedData format
 
         Args:
             test_mode: If True, filter to test users only.
             users_to_create_feeds_for: Optional list of user handles to filter to.
+            deduplicate_posts: If True, deduplicate and filter posts before
+                constructing LoadedData.
 
         Returns:
             LoadedData containing all loaded and transformed inputs.
@@ -323,9 +333,16 @@ class FeedDataLoader:
             raw_data.study_users, users_to_create_feeds_for
         )
 
-        # Step 3: Transform to LoadedData
+        # Step 3: Optionally deduplicate and filter posts
+        posts_df: pd.DataFrame | None = None
+        if deduplicate_posts:
+            posts_df = self.deduplicate_and_filter_posts(
+                raw_data.feed_input_data.consolidate_enrichment_integrations
+            )
+
+        # Step 4: Transform to LoadedData
         loaded_data = self.data_transformation_service.transform_to_loaded_data(
-            raw_data, filtered_study_users
+            raw_data, filtered_study_users, posts_df=posts_df
         )
 
         return loaded_data

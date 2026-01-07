@@ -630,6 +630,27 @@ class TestTransformToLoadedData:
         assert len(result.study_users) == 1
         assert result.study_users[0].bluesky_handle == "user2"
 
+    def test_uses_provided_posts_df_when_specified(self, service, sample_raw_data):
+        """Test that transform_to_loaded_data uses provided posts_df instead of raw_data."""
+        # Arrange
+        filtered_users = sample_raw_data.study_users
+        custom_posts_df = pd.DataFrame({"uri": ["post2", "post3"]})
+
+        # Act
+        result = service.transform_to_loaded_data(
+            sample_raw_data, filtered_users, posts_df=custom_posts_df
+        )
+
+        # Assert
+        assert isinstance(result, LoadedData)
+        assert len(result.posts_df) == 2
+        assert result.posts_df.iloc[0]["uri"] == "post2"
+        assert result.posts_df.iloc[1]["uri"] == "post3"
+        assert result.user_to_social_network_map == {"did:1": ["did:2"]}
+        assert result.superposter_dids == {"did:sp"}
+        assert result.previous_feeds == sample_raw_data.latest_feeds
+        assert result.study_users == filtered_users
+
 
 class TestFeedDataLoaderInit:
     """Tests for FeedDataLoader.__init__."""
@@ -728,7 +749,7 @@ class TestLoadCompleteData:
             sample_raw_data.study_users, None
         )
         loader.data_transformation_service.transform_to_loaded_data.assert_called_once_with(
-            sample_raw_data, sample_raw_data.study_users
+            sample_raw_data, sample_raw_data.study_users, posts_df=None
         )
 
     def test_loads_complete_data_with_user_filtering(self, loader, sample_raw_data):
@@ -761,7 +782,47 @@ class TestLoadCompleteData:
             sample_raw_data.study_users, ["user1"]
         )
         loader.data_transformation_service.transform_to_loaded_data.assert_called_once_with(
-            sample_raw_data, filtered_users
+            sample_raw_data, filtered_users, posts_df=None
+        )
+
+    def test_loads_complete_data_with_deduplication(self, loader, sample_raw_data):
+        """Test that load_complete_data deduplicates posts when deduplicate_posts=True."""
+        # Arrange
+        deduplicated_posts_df = pd.DataFrame({"uri": ["post1"]})
+        filtered_users = [sample_raw_data.study_users[0]]
+        expected_loaded_data = LoadedData(
+            posts_df=deduplicated_posts_df,
+            user_to_social_network_map=sample_raw_data.feed_input_data.scraped_user_social_network,
+            superposter_dids=sample_raw_data.feed_input_data.superposters,
+            previous_feeds=sample_raw_data.latest_feeds,
+            study_users=filtered_users,
+        )
+
+        loader.data_loading_service.load_raw_data.return_value = sample_raw_data
+        loader.data_transformation_service.filter_study_users.return_value = filtered_users
+        loader.data_transformation_service.deduplicate_and_filter_posts.return_value = (
+            deduplicated_posts_df
+        )
+        loader.data_transformation_service.transform_to_loaded_data.return_value = (
+            expected_loaded_data
+        )
+
+        # Act
+        result = loader.load_complete_data(
+            test_mode=False, users_to_create_feeds_for=None, deduplicate_posts=True
+        )
+
+        # Assert
+        assert result == expected_loaded_data
+        loader.data_loading_service.load_raw_data.assert_called_once_with(test_mode=False)
+        loader.data_transformation_service.filter_study_users.assert_called_once_with(
+            sample_raw_data.study_users, None
+        )
+        loader.data_transformation_service.deduplicate_and_filter_posts.assert_called_once_with(
+            sample_raw_data.feed_input_data.consolidate_enrichment_integrations
+        )
+        loader.data_transformation_service.transform_to_loaded_data.assert_called_once_with(
+            sample_raw_data, filtered_users, posts_df=deduplicated_posts_df
         )
 
 

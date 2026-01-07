@@ -59,11 +59,8 @@ class TestFeedGenerationOrchestrator:
 
         with patch.object(
             orchestrator.feed_data_loader, "load_complete_data"
-        ) as mock_load_complete, patch.object(
-            orchestrator.feed_data_loader, "deduplicate_and_filter_posts"
-        ) as mock_dedup:
+        ) as mock_load_complete:
             mock_load_complete.return_value = mock_loaded_data
-            mock_dedup.return_value = mock_posts_df
 
             # Act
             result = orchestrator._load_data(test_mode=False, users_to_create_feeds_for=None)
@@ -76,9 +73,8 @@ class TestFeedGenerationOrchestrator:
             assert result.previous_feeds == mock_loaded_data.previous_feeds
             assert result.study_users == mock_loaded_data.study_users
             mock_load_complete.assert_called_once_with(
-                test_mode=False, users_to_create_feeds_for=None
+                test_mode=False, users_to_create_feeds_for=None, deduplicate_posts=True
             )
-            mock_dedup.assert_called_once_with(mock_posts_df)
 
     def test_load_data_filters_users_when_specified(self):
         """Verify _load_data filters users correctly."""
@@ -107,11 +103,8 @@ class TestFeedGenerationOrchestrator:
 
         with patch.object(
             orchestrator.feed_data_loader, "load_complete_data"
-        ) as mock_load_complete, patch.object(
-            orchestrator.feed_data_loader, "deduplicate_and_filter_posts"
-        ) as mock_dedup:
+        ) as mock_load_complete:
             mock_load_complete.return_value = mock_loaded_data
-            mock_dedup.return_value = pd.DataFrame()
 
             # Act
             result = orchestrator._load_data(
@@ -122,7 +115,9 @@ class TestFeedGenerationOrchestrator:
             assert len(result.study_users) == 1
             assert result.study_users[0].bluesky_handle == "user1.bsky.social"
             mock_load_complete.assert_called_once_with(
-                test_mode=False, users_to_create_feeds_for=["user1.bsky.social"]
+                test_mode=False,
+                users_to_create_feeds_for=["user1.bsky.social"],
+                deduplicate_posts=True,
             )
 
     def test_score_posts_delegates_to_scoring_service(self):

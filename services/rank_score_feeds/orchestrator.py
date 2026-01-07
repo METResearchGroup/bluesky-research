@@ -235,14 +235,11 @@ class FeedGenerationOrchestrator:
         Returns:
             LoadedData with filtered and deduplicated posts.
         """
-        # Load all data
+        # Load all data with deduplication
         loaded_data = self.feed_data_loader.load_complete_data(
-            test_mode=test_mode, users_to_create_feeds_for=users_to_create_feeds_for
-        )
-
-        # Deduplicate and filter posts
-        loaded_data.posts_df = self.feed_data_loader.deduplicate_and_filter_posts(
-            loaded_data.posts_df
+            test_mode=test_mode,
+            users_to_create_feeds_for=users_to_create_feeds_for,
+            deduplicate_posts=True,
         )
 
         return loaded_data
