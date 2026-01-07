@@ -96,10 +96,12 @@ class GenericRecordHandler(RecordHandlerProtocol):
             base_path = os.path.join(base_path, nested_path)
 
         # Construct full path
-        full_path = os.path.join(base_path, filename)
-
-        # Write record
-        self.file_utilities.write_json(full_path, record)
+        # We batch writes per directory for throughput. The `filename` provided by
+        # the routing decision is treated as a hint only (it is preserved in the
+        # record for debugging) and is not used as the on-disk filename.
+        record_with_hint = dict(record)
+        record_with_hint["_cache_filename_hint"] = filename
+        self.file_utilities.append_record_to_batch(base_path, record_with_hint)
 
     def read_records(self, base_path: str) -> tuple[list[dict], list[str]]:
         """Read all records from cache using configured read strategy.
