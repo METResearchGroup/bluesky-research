@@ -41,8 +41,7 @@ class LLMService:
         if model is None:
             model = get_config_value("llm", "default_model")
 
-        # If response_format is a Pydantic model, we need to fix the schema
-        # to add additionalProperties: false for OpenAI compatibility
+        # Prepare the parameters for litellm.completion
         if response_format is not None:
             schema = response_format.model_json_schema()
             # NOTE: later on, we'll see if there's a better way to do this.
@@ -59,15 +58,27 @@ class LLMService:
                     "schema": fixed_schema,
                 },
             }
-            return litellm.completion(
-                model=model,
+            result = litellm.completion(
+                model=model,  # type: ignore
                 messages=messages,
                 response_format=response_format_dict,
                 **kwargs,
             )
+        else:
+            result = litellm.completion(
+                model=model,  # type: ignore
+                messages=messages,
+                response_format=response_format,
+                **kwargs,
+            )
 
-        return litellm.completion(
-            model=model, messages=messages, response_format=response_format, **kwargs
+        # coercion here to make sure that it is of type ModelResponse
+        # LiteLLM can return either ModelResponse or a CustomStreamWrapper;
+        # our use case isn't stream-based. This is to satisfy pyright.
+        return (
+            result
+            if isinstance(result, ModelResponse)
+            else ModelResponse(**result.__dict__)  # type: ignore
         )
 
     def _fix_schema_for_openai(self, schema: dict) -> dict:
