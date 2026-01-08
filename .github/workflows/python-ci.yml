@@ -146,7 +146,7 @@ jobs:
       working-directory: query_interface/backend
       timeout-minutes: 10
       run: |
-        uv run pytest --import-mode=importlib \
+        uv run pytest --import-mode=importlib -n auto --dist loadfile \
           services/tests \
           agents/tools/run_sql_query/tests \
           agents/tools/enforce_user_query_constraints/tests \
