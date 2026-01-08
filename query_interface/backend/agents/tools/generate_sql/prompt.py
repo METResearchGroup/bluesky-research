@@ -30,7 +30,6 @@ def _get_schema_context() -> str:
         schema_lines.append(schema_context_str)
 
     full_schema_context: str = "\n".join(schema_lines)
-    print(f"Full schema context: {full_schema_context}")
     return full_schema_context
 
 
