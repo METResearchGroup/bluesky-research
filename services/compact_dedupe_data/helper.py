@@ -12,7 +12,8 @@ from lib.aws.glue import Glue
 from lib.aws.s3 import S3, ROOT_BUCKET
 from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.constants import timestamp_format
-from lib.helper import generate_current_datetime_str, track_performance
+from lib.helper import track_performance
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 

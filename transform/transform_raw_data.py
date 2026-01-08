@@ -27,7 +27,7 @@ from atproto_client.models.com.atproto.label.defs import SelfLabel, SelfLabels
 from atproto_client.models.com.atproto.repo.strong_ref import Main as StrongRef
 from atproto_client.models.dot_dict import DotDict
 
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.db.bluesky_models.transformations import (
     PostMetadataModel,
     TransformedFeedViewPostModel,

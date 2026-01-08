@@ -9,7 +9,7 @@ import os
 import csv
 import matplotlib.pyplot as plt
 from typing import Dict
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 
 
 def load_entities_from_csv(csv_file: str) -> Dict[str, int]:

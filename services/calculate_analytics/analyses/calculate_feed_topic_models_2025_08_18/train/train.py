@@ -12,7 +12,7 @@ import os
 import pandas as pd
 
 
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from ml_tooling.topic_modeling.bertopic_wrapper import BERTopicWrapper
 from services.calculate_analytics.analyses.calculate_feed_topic_models_2025_08_18.load.load_data import (

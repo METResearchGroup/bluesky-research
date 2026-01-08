@@ -3,7 +3,7 @@
 from typing import Optional
 
 from lib.db.queue import Queue
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 from lib.log.logger import get_logger
 from services.backfill.posts_used_in_feeds.load_data import load_posts_to_backfill
 

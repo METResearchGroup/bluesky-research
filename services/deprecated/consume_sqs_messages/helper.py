@@ -5,7 +5,7 @@ import os
 from lib.aws.glue import Glue
 from lib.aws.s3 import S3
 from lib.aws.sqs import queue_to_queue_url_map, SQS
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)

@@ -10,7 +10,7 @@ import os
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
-from lib.helper import calculate_start_end_date_for_lookback, get_partition_dates
+from lib.datetime_utils import calculate_start_end_date_for_lookback, get_partition_dates
 
 
 current_filedir = os.path.dirname(os.path.abspath(__file__))

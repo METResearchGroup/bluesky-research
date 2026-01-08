@@ -13,7 +13,7 @@ from typing import Optional
 import pandas as pd
 import numpy as np
 
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 current_dir = os.path.dirname(os.path.abspath(__file__))

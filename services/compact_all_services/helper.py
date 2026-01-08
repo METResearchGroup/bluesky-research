@@ -21,7 +21,8 @@ from lib.db.manage_local_data import (
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
-from lib.helper import generate_current_datetime_str, track_performance
+from lib.helper import track_performance
+from lib.datetime_utils import generate_current_datetime_str
 
 athena = Athena()
 s3 = S3()

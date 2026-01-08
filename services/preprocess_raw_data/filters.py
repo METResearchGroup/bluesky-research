@@ -2,7 +2,8 @@
 
 import pandas as pd
 
-from lib.helper import generate_current_datetime_str, track_performance
+from lib.helper import track_performance
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import Logger
 from services.preprocess_raw_data.classify_bots.helper import (
     filter_posts_written_by_bot_accounts,

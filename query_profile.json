@@ -1,0 +1,51 @@
+{
+    "total_bytes_written": 0,
+    "total_bytes_read": 0,
+    "rows_returned": 1,
+    "latency": 0.000152962,
+    "result_set_size": 4,
+    "query_name": "SELECT 1 as id",
+    "blocked_thread_time": 0.0,
+    "system_peak_buffer_memory": 0,
+    "system_peak_temp_dir_size": 0,
+    "cpu_time": 7.56e-7,
+    "extra_info": {},
+    "cumulative_cardinality": 2,
+    "cumulative_rows_scanned": 0,
+    "children": [
+        {
+            "total_bytes_written": 0,
+            "total_bytes_read": 0,
+            "result_set_size": 4,
+            "operator_name": "PROJECTION",
+            "cpu_time": 7.56e-7,
+            "extra_info": {
+                "Projections": "id",
+                "Estimated Cardinality": "1"
+            },
+            "cumulative_cardinality": 2,
+            "operator_type": "PROJECTION",
+            "operator_cardinality": 1,
+            "cumulative_rows_scanned": 0,
+            "operator_rows_scanned": 0,
+            "operator_timing": 4.55e-7,
+            "children": [
+                {
+                    "total_bytes_written": 0,
+                    "total_bytes_read": 0,
+                    "result_set_size": 4,
+                    "operator_name": "DUMMY_SCAN",
+                    "cpu_time": 3.01e-7,
+                    "extra_info": {},
+                    "cumulative_cardinality": 1,
+                    "operator_type": "DUMMY_SCAN",
+                    "operator_cardinality": 1,
+                    "cumulative_rows_scanned": 0,
+                    "operator_rows_scanned": 0,
+                    "operator_timing": 3.01e-7,
+                    "children": []
+                }
+            ]
+        }
+    ]
+}

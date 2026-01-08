@@ -4,7 +4,7 @@
 We can't do this backfill all at once, so we do it every X days.
 """
 
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 from services.backfill.posts.load_data import INTEGRATIONS_LIST
 
 start_date = "2024-10-01"

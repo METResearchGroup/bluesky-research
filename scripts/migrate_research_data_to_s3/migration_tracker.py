@@ -3,7 +3,7 @@ import os
 import sqlite3
 
 from lib.constants import root_local_data_directory
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)

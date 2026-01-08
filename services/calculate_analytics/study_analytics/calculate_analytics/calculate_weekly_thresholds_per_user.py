@@ -9,7 +9,7 @@ from typing import Optional
 
 import pandas as pd
 
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 from lib.log.logger import get_logger
 from services.calculate_analytics.study_analytics.generate_reports.constants import (
     wave_1_study_start_date_inclusive,

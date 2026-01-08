@@ -2,7 +2,7 @@
 
 import os
 
-from lib.helper import generate_current_datetime_str, get_partition_dates
+from lib.datetime_utils import generate_current_datetime_str, get_partition_dates
 from lib.log.logger import get_logger
 from ml_tooling.tf_idf.model import fit_model
 from services.calculate_analytics.shared.constants import (

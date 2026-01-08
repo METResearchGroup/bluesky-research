@@ -2,7 +2,7 @@ import json
 import traceback
 
 from lib.pipeline_invocation.constants import dynamodb_table_name
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import Logger
 from services.preprocess_raw_data.helper import preprocess_latest_raw_data
 

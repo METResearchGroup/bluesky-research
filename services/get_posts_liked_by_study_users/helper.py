@@ -19,7 +19,7 @@ from lib.db.manage_local_data import (
     load_data_from_local_storage,
     export_data_to_local_storage,
 )
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 from lib.log.logger import get_logger
 from services.backfill.posts_used_in_feeds.load_data import (
     calculate_start_end_date_for_lookback,
