@@ -33,15 +33,12 @@ def generate_sql(query: str, schema_context: str | None = None) -> SQLGeneration
     prompt = build_sql_generation_prompt(query, schema_context)
 
     try:
-        response = llm_service.chat_completion(
+        result = llm_service.structured_completion(
             messages=[{"role": "user", "content": prompt}],
-            response_format=SQLGenerationResult,
+            response_model=SQLGenerationResult,
             max_tokens=get_config_value("llm", "generate_sql", "max_tokens"),
             temperature=get_config_value("llm", "generate_sql", "temperature"),
         )
-
-        content: str = response.choices[0].message.content  # type: ignore
-        result: SQLGenerationResult = SQLGenerationResult.model_validate_json(content)
         return result
 
     except Exception as e:

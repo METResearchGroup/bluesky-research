@@ -2,6 +2,7 @@
 
 import copy
 import threading
+from typing import TypeVar
 
 import litellm
 from litellm import ModelResponse
@@ -9,6 +10,8 @@ from pydantic import BaseModel
 
 from lib.helper import OPENAI_API_KEY
 from query_interface.backend.config import get_config_value
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class LLMService:
@@ -105,6 +108,48 @@ class LLMService:
 
         patch(schema_copy)
         return schema_copy
+
+    def structured_completion(
+        self,
+        messages: list[dict],
+        response_model: type[T],
+        model: str | None = None,
+        **kwargs,
+    ) -> T:
+        """
+        Create a chat completion request and return the result as a Pydantic model.
+
+        This is a convenience method that combines chat_completion with response
+        parsing. It handles extracting the content from the response and parsing
+        it into the specified Pydantic model.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys
+            response_model: Pydantic model class to parse the response into
+            model: Model to use (default: gpt-4o-mini-2024-07-18)
+            **kwargs: Additional parameters to pass to the API (temperature, max_tokens, etc.)
+
+        Returns:
+            An instance of the specified Pydantic model parsed from the response
+
+        Raises:
+            ValueError: If the response content is missing or invalid
+            ValidationError: If the response cannot be parsed into the Pydantic model
+        """
+        response: ModelResponse = self.chat_completion(
+            messages=messages,
+            model=model,
+            response_format=response_model,
+            **kwargs,
+        )
+
+        content: str | None = response.choices[0].message.content  # type: ignore
+        if content is None:
+            raise ValueError(
+                "Response content is None. Expected structured output from LLM."
+            )
+
+        return response_model.model_validate_json(content)
 
 
 # Provider function for dependency injection

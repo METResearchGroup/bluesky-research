@@ -30,18 +30,12 @@ def can_answer_with_sql(query: str) -> SQLAnswerabilityResult:
     prompt = build_answerability_prompt(query)
 
     try:
-        response = llm_service.chat_completion(
+        result = llm_service.structured_completion(
             messages=[{"role": "user", "content": prompt}],
-            response_format=SQLAnswerabilityResult,
+            response_model=SQLAnswerabilityResult,
             max_tokens=get_config_value("llm", "can_answer_with_sql", "max_tokens"),
             temperature=get_config_value("llm", "can_answer_with_sql", "temperature"),
         )
-
-        content: str = response.choices[0].message.content  # type: ignore
-        result: SQLAnswerabilityResult = SQLAnswerabilityResult.model_validate_json(
-            content
-        )
-
         return result
 
     except Exception as e:
