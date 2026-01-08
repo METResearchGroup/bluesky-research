@@ -1,13 +1,13 @@
+from functools import lru_cache
+
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from query_interface.backend.constants import AVAILABLE_ATHENA_TABLES
 
 
-# Cache the schema context at module load
-_SCHEMA_CONTEXT_CACHE = None
-
 ANALYSIS_TABLE_PREFIX = "archive_"
 
 
+@lru_cache(maxsize=1)
 def _get_schema_context() -> str:
     """Extract table schemas and build a context string for LLM.
 
@@ -85,10 +85,7 @@ def _get_column_to_type_str(column_to_type_map: dict) -> str:
 
 def _get_cached_schema_context() -> str:
     """Get cached schema context, building it if not already cached."""
-    global _SCHEMA_CONTEXT_CACHE
-    if _SCHEMA_CONTEXT_CACHE is None:
-        _SCHEMA_CONTEXT_CACHE = _get_schema_context()
-    return _SCHEMA_CONTEXT_CACHE
+    return _get_schema_context()
 
 
 def build_sql_generation_prompt(query: str, schema_context: str | None = None) -> str:
