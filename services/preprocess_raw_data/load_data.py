@@ -71,7 +71,7 @@ def transform_latest_posts(df: pd.DataFrame) -> list[ConsolidatedPostRecordModel
 @track_performance
 def load_latest_firehose_posts(
     timestamp: str, limit: Optional[int] = None
-) -> list[ConsolidatedPostRecordModel]:
+) -> pd.DataFrame:
     """Queries the firehose table for the latest posts."""
     in_network_user_posts_df: pd.DataFrame = load_data_from_local_storage(
         service="in_network_user_activity",
@@ -92,7 +92,7 @@ def load_latest_firehose_posts(
 @track_performance
 def load_latest_most_liked_posts(
     timestamp: str, limit: Optional[int] = None
-) -> list[ConsolidatedPostRecordModel]:  # noqa
+) -> pd.DataFrame:  # noqa
     df: pd.DataFrame = load_data_from_local_storage(
         service="sync_most_liked_posts", latest_timestamp=timestamp, directory="active"
     )

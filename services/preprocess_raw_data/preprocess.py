@@ -6,7 +6,6 @@ from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.preprocess_raw_data.filters import filter_posts
 from services.preprocess_raw_data.export_data import write_posts_to_cache
-from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 
 logger = get_logger(__name__)
@@ -27,22 +26,17 @@ def prepare_posts_for_preprocessing(latest_posts: pd.DataFrame) -> pd.DataFrame:
     return latest_posts
 
 
-def postprocess_posts(posts: pd.DataFrame) -> pd.DataFrame:
+def postprocess_posts(posts: pd.DataFrame) -> list[dict]:
     """Postprocesses posts.
 
-    Makes sure that it conforms to expected data model."""
-    post_dicts = posts.to_dict(orient="records")
-    records = []
+    Converts a DataFrame of posts to list-of-dicts.
+
+    Note: We intentionally avoid per-row Pydantic validation and any additional
+    column projection/transformation here. Schema enforcement happens at write
+    time via PyArrow.
+    """
     try:
-        for post_dict in post_dicts:
-            # Extract only the fields required by FilteredPreprocessedPostModel
-            filtered_dict = {
-                field: post_dict[field]
-                for field in FilteredPreprocessedPostModel.__annotations__.keys()
-                if field in post_dict
-            }
-            record = FilteredPreprocessedPostModel(**filtered_dict)
-            records.append(record.model_dump())
+        records: list[dict] = posts.to_dict(orient="records")
     except Exception as e:
         logger.error(f"Error postprocessing posts in preprocessing pipeline: {e}")
         raise e

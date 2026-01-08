@@ -11,7 +11,7 @@ from lib.helper import generate_current_datetime_str, track_performance
 from lib.log.logger import get_logger
 from lib.utils import filter_posts_df
 from services.ml_inference.config import InferenceConfig
-from services.ml_inference.models import ClassificationSessionModel, PostToLabelModel
+from services.ml_inference.models import ClassificationSessionModel
 
 
 logger = get_logger(__name__)
@@ -141,8 +141,6 @@ def get_posts_to_classify(
 
     # Select only requested columns
     dicts = posts_df[columns].to_dict(orient="records")
-    dict_models = [PostToLabelModel(**d) for d in dicts]  # to verify fields
-    dicts = [d.model_dump() for d in dict_models]
     return dicts
 
 

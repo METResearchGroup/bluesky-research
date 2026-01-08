@@ -74,7 +74,8 @@ def load_user_social_network_map() -> dict[str, list[str]]:
     social_dicts: list[dict] = user_social_network_df.to_dict(orient="records")
     social_dicts = parse_converted_pandas_dicts(social_dicts)
 
-    # Convert dicts to Pydantic models for type safety
+    # Convert dicts to Pydantic models for type safety.
+    # Note: we keep models here because downstream logic relies on attribute access.
     social_network_records = [
         SocialNetworkRelationshipModel(**record) for record in social_dicts
     ]
