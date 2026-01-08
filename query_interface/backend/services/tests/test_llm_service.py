@@ -48,13 +48,13 @@ class TestLLMService:
     def test_chat_completion_returns_model_response(self, mock_litellm_completion):
         """Test that chat_completion returns ModelResponse successfully."""
         # Arrange
-        from litellm import ModelResponse
+        from litellm import ModelResponse, Choices, Message
 
         service = LLMService()
         messages = [{"role": "user", "content": "test prompt"}]
         mock_response = ModelResponse(
             id="test-id",
-            choices=[MagicMock(message=MagicMock(content="test response"))],
+            choices=[Choices(message=Message(role="assistant", content="test response"))],
         )
         mock_litellm_completion.return_value = mock_response
 
