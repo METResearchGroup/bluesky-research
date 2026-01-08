@@ -18,6 +18,11 @@ dependencies = [
     "langchain-openai>=1.1.7",
     "litellm>=1.80.12",
     "pyyaml>=6.0.3",
+    "boto3>=1.40.11",
+    "memory-profiler>=0.60.0",
+    "requests>=2.31.0",
+    "urllib3>=2.2.2",
+    "atproto>=0.0.61",
 ]
 
 [project.scripts]
@@ -69,6 +74,3 @@ required_plugins = [
     "pytest-env",
     "pytest-mock"
 ]
-
-# Fix asyncio fixture loop scope deprecation warning
-asyncio_default_fixture_loop_scope = "function"
