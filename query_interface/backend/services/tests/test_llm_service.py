@@ -141,3 +141,235 @@ class TestLLMService:
         # Assert
         call_kwargs = service.chat_completion.call_args[1]
         assert call_kwargs["model"] == "gpt-4"
+
+
+class TestFixSchemaForOpenai:
+    """Tests for _fix_schema_for_openai method."""
+
+    def test_adds_additional_properties_to_single_object(self):
+        """Test that additionalProperties: false is added to a single object type."""
+        # Arrange
+        service = LLMService()
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"},
+            },
+        }
+
+        # Act
+        result = service._fix_schema_for_openai(schema)
+
+        # Assert
+        assert result["additionalProperties"] is False
+        assert result["type"] == "object"
+        assert "properties" in result
+
+    def test_adds_additional_properties_to_nested_objects(self):
+        """Test that additionalProperties: false is added to nested objects."""
+        # Arrange
+        service = LLMService()
+        schema = {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "type": "object",
+                    "properties": {
+                        "profile": {
+                            "type": "object",
+                            "properties": {"name": {"type": "string"}},
+                        },
+                    },
+                },
+            },
+        }
+
+        # Act
+        result = service._fix_schema_for_openai(schema)
+
+        # Assert
+        assert result["additionalProperties"] is False
+        assert result["properties"]["user"]["additionalProperties"] is False
+        assert (
+            result["properties"]["user"]["properties"]["profile"]["additionalProperties"]
+            is False
+        )
+
+    def test_adds_additional_properties_to_objects_in_lists(self):
+        """Test that additionalProperties: false is added to objects within lists."""
+        # Arrange
+        service = LLMService()
+        schema = {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {"value": {"type": "string"}},
+                    },
+                },
+            },
+        }
+
+        # Act
+        result = service._fix_schema_for_openai(schema)
+
+        # Assert
+        assert result["additionalProperties"] is False
+        assert result["properties"]["items"]["items"]["additionalProperties"] is False
+
+    def test_does_not_modify_non_object_types(self):
+        """Test that non-object types are not modified."""
+        # Arrange
+        service = LLMService()
+        schema = {
+            "type": "string",
+            "enum": ["option1", "option2"],
+            "description": "A string field",
+        }
+
+        # Act
+        result = service._fix_schema_for_openai(schema)
+
+        # Assert
+        assert "additionalProperties" not in result
+        assert result["type"] == "string"
+        assert result["enum"] == ["option1", "option2"]
+
+    def test_handles_empty_schema(self):
+        """Test that empty schema is handled correctly."""
+        # Arrange
+        service = LLMService()
+        schema = {}
+
+        # Act
+        result = service._fix_schema_for_openai(schema)
+
+        # Assert
+        assert result == {}
+        assert "additionalProperties" not in result
+
+    def test_handles_schema_with_no_objects(self):
+        """Test that schema with no object types returns unchanged."""
+        # Arrange
+        service = LLMService()
+        schema = {
+            "type": "string",
+            "properties": {
+                "field1": {"type": "string"},
+                "field2": {"type": "integer"},
+            },
+        }
+
+        # Act
+        result = service._fix_schema_for_openai(schema)
+
+        # Assert
+        assert "additionalProperties" not in result
+        assert result["type"] == "string"
+
+    def test_handles_complex_nested_structure(self):
+        """Test that complex nested structures with objects in various locations are handled."""
+        # Arrange
+        service = LLMService()
+        schema = {
+            "type": "object",
+            "properties": {
+                "nested": {
+                    "type": "object",
+                    "properties": {
+                        "array_of_objects": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "deep_nested": {
+                                        "type": "object",
+                                        "properties": {"value": {"type": "string"}},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        }
+
+        # Act
+        result = service._fix_schema_for_openai(schema)
+
+        # Assert
+        assert result["additionalProperties"] is False
+        assert result["properties"]["nested"]["additionalProperties"] is False
+        assert (
+            result["properties"]["nested"]["properties"]["array_of_objects"]["items"][
+                "additionalProperties"
+            ]
+            is False
+        )
+        assert (
+            result["properties"]["nested"]["properties"]["array_of_objects"]["items"][
+                "properties"
+            ]["deep_nested"]["additionalProperties"]
+            is False
+        )
+
+    def test_preserves_existing_additional_properties(self):
+        """Test that existing additionalProperties values are overwritten to False."""
+        # Arrange
+        service = LLMService()
+        schema = {
+            "type": "object",
+            "additionalProperties": True,
+            "properties": {
+                "nested": {
+                    "type": "object",
+                    "additionalProperties": {"type": "string"},
+                },
+            },
+        }
+
+        # Act
+        result = service._fix_schema_for_openai(schema)
+
+        # Assert
+        assert result["additionalProperties"] is False
+        assert result["properties"]["nested"]["additionalProperties"] is False
+
+    def test_does_not_modify_original_schema(self):
+        """Test that the original schema is not modified (deep copy)."""
+        # Arrange
+        service = LLMService()
+        original_schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "nested": {
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                },
+            },
+        }
+        # Store original state
+        original_has_additional_props = "additionalProperties" in original_schema
+        original_nested_has_additional_props = (
+            "additionalProperties" in original_schema["properties"]["nested"]
+        )
+
+        # Act
+        result = service._fix_schema_for_openai(original_schema)
+
+        # Assert
+        # Result should have additionalProperties
+        assert result["additionalProperties"] is False
+        assert result["properties"]["nested"]["additionalProperties"] is False
+        # Original should remain unchanged
+        assert ("additionalProperties" in original_schema) == original_has_additional_props
+        assert (
+            "additionalProperties" in original_schema["properties"]["nested"]
+        ) == original_nested_has_additional_props
+        # Verify structure is preserved
+        assert result["type"] == original_schema["type"]
+        assert result["properties"]["name"] == original_schema["properties"]["name"]
