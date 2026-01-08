@@ -5,7 +5,6 @@ from typing import Literal, Optional
 
 import pandas as pd
 
-from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.helper import determine_backfill_latest_timestamp
 from lib.db.queue import Queue
 from lib.helper import generate_current_datetime_str, track_performance
@@ -142,10 +141,6 @@ def get_posts_to_classify(
 
     # Select only requested columns
     dicts = posts_df[columns].to_dict(orient="records")
-    # Normalize any NaN values introduced by the DataFrame conversion.
-    # We avoid per-row Pydantic validation here since schemas are already
-    # enforced at ingestion/load time (pyarrow) and this path can be hot.
-    dicts = parse_converted_pandas_dicts(dicts)
     return dicts
 
 

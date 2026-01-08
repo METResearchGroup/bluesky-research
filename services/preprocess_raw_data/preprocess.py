@@ -2,12 +2,10 @@
 
 import pandas as pd
 
-from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.preprocess_raw_data.filters import filter_posts
 from services.preprocess_raw_data.export_data import write_posts_to_cache
-from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 
 logger = get_logger(__name__)
@@ -31,30 +29,14 @@ def prepare_posts_for_preprocessing(latest_posts: pd.DataFrame) -> pd.DataFrame:
 def postprocess_posts(posts: pd.DataFrame) -> list[dict]:
     """Postprocesses posts.
 
-    Makes sure that it conforms to expected data model.
+    Converts a DataFrame of posts to list-of-dicts.
 
-    Note: We intentionally avoid per-row Pydantic validation here. The write/read
-    path uses PyArrow schemas which already enforce the contract, and row-wise
-    validation adds significant overhead for large batches.
+    Note: We intentionally avoid per-row Pydantic validation and any additional
+    column projection/transformation here. Schema enforcement happens at write
+    time via PyArrow.
     """
-    model_fields = list(FilteredPreprocessedPostModel.model_fields.keys())
-    required_fields = [
-        name
-        for name, field in FilteredPreprocessedPostModel.model_fields.items()
-        if field.is_required()
-    ]
-
-    missing_required = [f for f in required_fields if f not in posts.columns]
-    if missing_required:
-        raise ValueError(
-            f"Missing required columns for FilteredPreprocessedPostModel: {missing_required}"
-        )
-
     try:
-        # Project to the model schema (adds missing optional fields as NaN)
-        projected_df = posts.reindex(columns=model_fields)
-        records: list[dict] = projected_df.to_dict(orient="records")
-        records = parse_converted_pandas_dicts(records)
+        records: list[dict] = posts.to_dict(orient="records")
     except Exception as e:
         logger.error(f"Error postprocessing posts in preprocessing pipeline: {e}")
         raise e
