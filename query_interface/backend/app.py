@@ -124,8 +124,8 @@ if __name__ == "__main__":
     import os
     import uvicorn
 
-    # Default to loopback to avoid accidentally exposing locally.
-    # In containers/Lambda, set HOST=0.0.0.0 if you intend to bind externally.
-    host = os.getenv("HOST", "127.0.0.1")
+    # Railway sets PORT env var, default to 8000 for local
+    # Use 0.0.0.0 to bind to all interfaces (required for Railway)
+    host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
     uvicorn.run(app, host=host, port=port)
