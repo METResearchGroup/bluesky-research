@@ -10,3 +10,6 @@ llm:
 sql:
   default_limit: 10
 
+query:
+  max_length: 5000
+
