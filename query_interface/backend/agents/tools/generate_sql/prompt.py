@@ -1,57 +1,87 @@
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
+from query_interface.backend.constants import AVAILABLE_ATHENA_TABLES
+
 
 # Cache the schema context at module load
 _SCHEMA_CONTEXT_CACHE = None
 
+ANALYSIS_TABLE_PREFIX = "archive_"
 
-# TODO: refactor this (or hardcode) as it's pretty complicated to understand.
+
 def _get_schema_context() -> str:
     """Extract table schemas and build a context string for LLM.
 
     Returns:
         A formatted string containing all available tables and their columns.
     """
-    schema_lines = []
+    schema_lines: list[str] = []
     schema_lines.append("Available Athena Tables and Columns:\n")
 
-    for _, metadata in MAP_SERVICE_TO_METADATA.items():
-        glue_table_name = metadata.get("glue_table_name", "")
-        dtypes_map = metadata.get("dtypes_map", {})
+    for athena_table_name in AVAILABLE_ATHENA_TABLES:
+        if "study_user_activity" in athena_table_name:
+            schema_context_str = _get_schema_context_for_study_user_activity_tables(
+                table_name=athena_table_name
+            )
+        else:
+            schema_context_str = _get_schema_context_regular(
+                table_name=athena_table_name
+            )
 
-        # Skip services without a glue table name
-        if not glue_table_name:
-            continue
+        schema_lines.append(schema_context_str)
 
-        # Handle nested dtypes_map (like raw_sync with post/reply/etc.)
-        if dtypes_map and isinstance(dtypes_map, dict):
-            # Check if first value is a dict (nested structure)
-            first_value = next(iter(dtypes_map.values()), None)
-            if isinstance(first_value, dict):
-                # Nested structure - create entries for each sub-table
-                for sub_table, columns in dtypes_map.items():
-                    table_name = (
-                        f"{glue_table_name}_{sub_table}"
-                        if sub_table != glue_table_name
-                        else glue_table_name
-                    )
-                    # Prepend "archive_" to table name for analysis tables
-                    table_name = f"archive_{table_name}"
-                    column_list = ", ".join(
-                        [f"{col} ({dtype})" for col, dtype in columns.items()]
-                    )
-                    schema_lines.append(f"Table: {table_name}")
-                    schema_lines.append(f"  Columns: {column_list}\n")
-            else:
-                # Flat structure - single table
-                # Prepend "archive_" to table name for analysis tables
-                table_name = f"archive_{glue_table_name}"
-                column_list = ", ".join(
-                    [f"{col} ({dtype})" for col, dtype in dtypes_map.items()]
-                )
-                schema_lines.append(f"Table: {table_name}")
-                schema_lines.append(f"  Columns: {column_list}\n")
+    full_schema_context: str = "\n".join(schema_lines)
+    print(f"Full schema context: {full_schema_context}")
+    return full_schema_context
 
-    return "\n".join(schema_lines)
+
+def _get_schema_context_regular(table_name: str) -> str:
+    """Get the schema context for a regular table (not a special case)."""
+    normalized_table_name: str = _normalize_athena_table_name(table_name)
+    column_to_type_map: dict = MAP_SERVICE_TO_METADATA[normalized_table_name][
+        "dtypes_map"
+    ]
+    column_to_type_str: str = _get_column_to_type_str(column_to_type_map)
+    schema_context_str: str = f"""
+        Table: {table_name}
+        Columns: {column_to_type_str}
+    """
+    return schema_context_str
+
+
+def _get_schema_context_for_study_user_activity_tables(table_name: str) -> str:
+    """We treat study user activity tables as a special case of backwards compatibility.
+
+    Basically, we didn't know what we wanted to do with them, so we tried
+    to just dump the raw data into a table.
+
+    There isn't a separate "study_user_activity" service in the
+    service_constants.py, but the dtypes that we use for study_user_activity
+    are defined in raw_sync (this is an oversight that should've really been
+    handled better).
+    """
+    activity_type: str = table_name.split("_")[-1]  # post, like, etc.
+    dtypes_map: dict = MAP_SERVICE_TO_METADATA["raw_sync"]["dtypes_map"]
+    column_to_type_map: dict = dtypes_map[activity_type]
+    column_to_type_str: str = _get_column_to_type_str(column_to_type_map)
+    schema_context_str: str = f"""
+        Table: {table_name}
+        Columns: {column_to_type_str}
+    """
+    return schema_context_str
+
+
+def _normalize_athena_table_name(table_name: str) -> str:
+    """Normalize the Athena table name to get the service-level
+    representation of that table name."""
+    return table_name.removeprefix(ANALYSIS_TABLE_PREFIX)
+
+
+def _get_column_to_type_str(column_to_type_map: dict) -> str:
+    """Get the column-to-type string for a dtypes map."""
+    column_to_type_str_list: list[str] = [
+        f"{col} ({dtype})" for col, dtype in column_to_type_map.items()
+    ]  # e.g., "uri (string), created_at (string)"
+    return ", ".join(column_to_type_str_list)
 
 
 def _get_cached_schema_context() -> str:
