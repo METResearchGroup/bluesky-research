@@ -280,6 +280,10 @@ testpaths = [
     "pipelines/classify_records/valence_classifier/tests",
     "lib/pipeline_invocation/tests",
     "transform/tests",
+    "query_interface/backend/services/tests",
+    "query_interface/backend/agents/tools/run_sql_query/tests",
+    "query_interface/backend/agents/tools/enforce_user_query_constraints/tests",
+    "query_interface/backend/agents/tools/prepare_sql_for_execution/tests",
 ]
 
 # Ignore certain directories

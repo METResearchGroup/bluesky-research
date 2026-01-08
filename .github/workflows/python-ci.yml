@@ -93,7 +93,11 @@ jobs:
           services/sync/stream/tests \
           services/sync/jetstream/tests \
           lib/pipeline_invocation/tests \
-          transform/tests
+          transform/tests \
+          query_interface/backend/services/tests \
+          query_interface/backend/agents/tools/run_sql_query/tests \
+          query_interface/backend/agents/tools/enforce_user_query_constraints/tests \
+          query_interface/backend/agents/tools/prepare_sql_for_execution/tests
 
     - name: Lint Dockerfiles with Hadolint
       uses: hadolint/hadolint-action@v3.1.0
