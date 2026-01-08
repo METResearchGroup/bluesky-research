@@ -11,6 +11,12 @@ from query_interface.backend.agents.tools.can_answer_with_sql.exceptions import 
 from query_interface.backend.agents.tools.can_answer_with_sql.tool import (
     can_answer_with_sql,
 )
+from query_interface.backend.agents.tools.enforce_user_query_constraints.exceptions import (
+    UserQueryConstraintError,
+)
+from query_interface.backend.agents.tools.enforce_user_query_constraints.tool import (
+    enforce_user_query_constraints,
+)
 from query_interface.backend.agents.tools.generate_sql.exceptions import (
     SQLGenerationError,
 )
@@ -57,9 +63,12 @@ async def convert_query(request: QueryRequest) -> QueryResponse:
         A response containing the generated SQL query, original query, and results.
 
     Raises:
-        HTTPException: If the query cannot be answered, SQL generation fails, or execution fails.
+        HTTPException: If validation fails, query cannot be answered, SQL generation fails, or execution fails.
     """
     try:
+        # Step 0: Enforce user query constraints (basic business logic)
+        enforce_user_query_constraints(request.query)
+
         # Step 1: Check if query can be answered with SQL
         answerability_result = can_answer_with_sql(request.query)
         if not answerability_result.can_answer:
@@ -88,6 +97,12 @@ async def convert_query(request: QueryRequest) -> QueryResponse:
             row_count=len(df),
         )
 
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid query: {str(e)}")
+    except UserQueryConstraintError as e:
+        raise HTTPException(
+            status_code=400, detail=f"Query constraint violation: {str(e)}"
+        )
     except SQLAnswerabilityError as e:
         raise HTTPException(
             status_code=500, detail=f"Answerability check failed: {str(e)}"

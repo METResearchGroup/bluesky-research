@@ -133,6 +133,7 @@ include = [
     "bluesky_database*",
     "services*",
     "transform*",
+    "query_interface*",
 ]
 exclude = [
     "demos*", 
