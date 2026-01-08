@@ -20,11 +20,10 @@ def can_answer_with_sql(query: str) -> SQLAnswerabilityResult:
         query: The natural language query to evaluate.
 
     Returns:
-        A SQLAnswerabilityResult object containing the analysis.
+        SQLAnswerabilityResult: A SQLAnswerabilityResult object containing the analysis.
 
     Raises:
-        ValueError: If the LLM service cannot be initialized.
-        Exception: If the API call fails.
+        SQLAnswerabilityError: If SQL answerability check fails (e.g., LLM service errors, API failures).
     """
     llm_service = get_llm_service()
     prompt = build_answerability_prompt(query)

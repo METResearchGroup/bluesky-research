@@ -23,11 +23,10 @@ def generate_sql(query: str, schema_context: str | None = None) -> SQLGeneration
         schema_context: Optional schema context string. If None, will use cached context.
 
     Returns:
-        A SQLGenerationResult object containing the generated SQL query.
+        SQLGenerationResult: A SQLGenerationResult object containing the generated SQL query.
 
     Raises:
-        ValueError: If the LLM service cannot be initialized.
-        Exception: If the API call fails.
+        SQLGenerationError: If SQL generation fails (e.g., LLM service errors, API failures).
     """
     llm_service = get_llm_service()
     prompt = build_sql_generation_prompt(query, schema_context)
