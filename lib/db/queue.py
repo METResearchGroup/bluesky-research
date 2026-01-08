@@ -18,7 +18,8 @@ from pydantic import BaseModel, Field, field_validator
 import typing_extensions as te
 
 from lib.db.queue_constants import NAME_TO_QUEUE_NAME_MAP
-from lib.helper import BSKY_DATA_DIR, generate_current_datetime_str
+from lib.helper import BSKY_DATA_DIR
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 logger = get_logger(__file__)

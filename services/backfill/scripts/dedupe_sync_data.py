@@ -1,7 +1,7 @@
 """Goes through each record type in the sync storage and deduplicates it."""
 
 from lib.db.manage_local_data import load_data_from_local_storage
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 
 
 def get_total_duplicates_for_date(record_type: str, date: str) -> int:

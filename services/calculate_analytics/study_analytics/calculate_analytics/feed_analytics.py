@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from lib.log.logger import get_logger
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 from services.calculate_analytics.study_analytics.generate_reports.constants import (
     wave_1_study_start_date_inclusive,
     wave_2_study_end_date_inclusive,

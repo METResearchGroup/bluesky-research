@@ -7,7 +7,8 @@ import pandas as pd
 
 from lib.helper import determine_backfill_latest_timestamp
 from lib.db.queue import Queue
-from lib.helper import generate_current_datetime_str, track_performance
+from lib.helper import track_performance
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.utils import filter_posts_df
 from services.ml_inference.config import InferenceConfig

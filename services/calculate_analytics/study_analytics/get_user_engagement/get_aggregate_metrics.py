@@ -8,7 +8,7 @@ import os
 import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
-from lib.helper import get_partition_dates, generate_current_datetime_str
+from lib.datetime_utils import get_partition_dates, generate_current_datetime_str
 from services.calculate_analytics.study_analytics.generate_reports.weekly_user_logins import (
     load_user_date_to_week_df,
 )

@@ -2,7 +2,8 @@ from datetime import datetime, timezone
 from freezegun import freeze_time
 import pytest
 
-from lib.helper import calculate_start_end_date_for_lookback, determine_backfill_latest_timestamp
+from lib.helper import determine_backfill_latest_timestamp
+from lib.datetime_utils import calculate_start_end_date_for_lookback
 
 
 class TestCalculateStartEndDateForLookback:

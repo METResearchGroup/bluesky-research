@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import glob
 from typing import Optional, List, Tuple
 from lib.log.logger import get_logger
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 
 logger = get_logger(__name__)
 

@@ -23,7 +23,7 @@ from lib.db.manage_local_data import (
     load_data_from_local_storage,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 from lib.log.logger import get_logger
 
 logger = get_logger(__file__)

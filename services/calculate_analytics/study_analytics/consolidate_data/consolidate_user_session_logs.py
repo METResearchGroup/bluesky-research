@@ -8,7 +8,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 from services.calculate_analytics.study_analytics.constants import (
     raw_data_root_path,
     consolidated_data_root_path,

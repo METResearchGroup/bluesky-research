@@ -32,7 +32,7 @@ from feed_api.helper import (
 from feed_api.user_session_queue import background_s3_writer, log_queue
 from lib.aws.s3 import S3
 from lib.aws.secretsmanager import get_secret
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 

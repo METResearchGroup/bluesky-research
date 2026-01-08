@@ -13,7 +13,7 @@ import botocore
 import pandas as pd
 
 from lib.aws.helper import create_client, retry_on_aws_rate_limit
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 ROOT_BUCKET = "bluesky-research"

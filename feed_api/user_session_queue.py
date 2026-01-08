@@ -6,7 +6,7 @@ import queue
 import time
 
 from lib.aws.s3 import S3
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)

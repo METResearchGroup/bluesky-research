@@ -9,7 +9,7 @@ import os
 
 import pandas as pd
 
-from lib.helper import (
+from lib.datetime_utils import (
     generate_current_datetime_str,
     get_partition_dates,
     create_date_to_week_mapping,

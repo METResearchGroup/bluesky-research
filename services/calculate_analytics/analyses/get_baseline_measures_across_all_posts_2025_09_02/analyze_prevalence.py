@@ -18,7 +18,7 @@ from typing import Optional, Dict
 
 import pandas as pd
 
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 current_dir = os.path.dirname(os.path.abspath(__file__))

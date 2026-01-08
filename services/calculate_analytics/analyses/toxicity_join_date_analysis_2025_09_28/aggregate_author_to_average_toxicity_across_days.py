@@ -15,7 +15,7 @@ from services.calculate_analytics.shared.constants import (
     STUDY_START_DATE,
     exclude_partition_dates,
 )
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 
 
 def aggregate_author_toxicity_across_days(partition_dates: list[str]) -> pd.DataFrame:

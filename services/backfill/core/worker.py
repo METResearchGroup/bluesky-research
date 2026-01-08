@@ -24,7 +24,8 @@ from lib.db.manage_local_data import (
 )
 from lib.db.queue import Queue
 from lib.db.rate_limiter import AsyncTokenBucket
-from lib.helper import generate_current_datetime_str, create_batches
+from lib.helper import create_batches
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.prometheus.service import pds_backfill_metrics as pdm

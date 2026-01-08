@@ -7,7 +7,8 @@ from comet_ml import Experiment
 import matplotlib.pyplot as plt
 import numpy as np
 
-from lib.helper import COMET_API_KEY, generate_current_datetime_str
+from lib.helper import COMET_API_KEY
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 workspace = "mtorres98"

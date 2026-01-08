@@ -13,7 +13,8 @@ from lib.aws.dynamodb import DynamoDB
 from lib.aws.s3 import S3
 from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.db.manage_local_data import load_latest_data
-from lib.helper import generate_current_datetime_str, track_performance
+from lib.helper import track_performance
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.generate_vector_embeddings.models import PostSimilarityScoreModel
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel

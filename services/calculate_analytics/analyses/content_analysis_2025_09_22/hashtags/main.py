@@ -6,7 +6,7 @@ import os
 
 import pandas as pd
 
-from lib.helper import get_partition_dates, generate_current_datetime_str
+from lib.datetime_utils import get_partition_dates, generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.calculate_analytics.shared.constants import (
     STUDY_START_DATE,

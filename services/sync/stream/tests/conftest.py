@@ -211,7 +211,7 @@ def mock_s3_fixture(monkeypatch):
     # patch the `generate_current_datetime_str` since this'll determine the
     # compressed file's name.
     monkeypatch.setattr(
-        "lib.helper.generate_current_datetime_str",
+        "services.sync.stream.exporters.base.generate_current_datetime_str",
         lambda: "2024-08-01-20:39:38"
     )
 
@@ -353,7 +353,7 @@ def patched_export_dataframe(monkeypatch, mock_service_metadata):
     """
     import pandas as pd
     from services.sync.stream.exporters.base import BaseActivityExporter
-    from lib.helper import generate_current_datetime_str
+    from lib.datetime_utils import generate_current_datetime_str
     from lib.constants import timestamp_format
     
     def patched_export(self, data, service, record_type=None):

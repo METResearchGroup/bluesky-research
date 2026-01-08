@@ -9,7 +9,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 
 
 # Define enums for job and task states

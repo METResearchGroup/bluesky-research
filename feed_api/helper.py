@@ -12,7 +12,7 @@ from lib.aws.s3 import S3
 from lib.db.data_processing import parse_converted_pandas_dicts
 from lib.constants import TEST_USER_HANDLES
 from lib.log.logger import get_logger
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.serverless_cache import (
     default_cache_name,
     default_ttl_seconds,

@@ -13,7 +13,7 @@ from lib.constants import current_datetime, current_datetime_str  # noqa
 from lib.datetime_utils import calculate_lookback_datetime_str
 from lib.db.manage_local_data import load_latest_data, export_data_to_local_storage
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.calculate_superposters.models import (
     SuperposterModel,
