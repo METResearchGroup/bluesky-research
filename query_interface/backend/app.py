@@ -125,7 +125,7 @@ if __name__ == "__main__":
     import uvicorn
 
     # Railway sets PORT env var, default to 8000 for local
-    # Use 0.0.0.0 to bind to all interfaces (required for Railway)
-    host = os.getenv("HOST", "0.0.0.0")
+    # Default to localhost for safer local development; deployments can set HOST=0.0.0.0 if needed.
+    host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "8000"))
     uvicorn.run(app, host=host, port=port)
