@@ -40,49 +40,55 @@ class LLMService:
 
         Returns:
             The chat completion response from litellm
+
+        Raises:
+            Exception: Re-raises any exception from litellm.completion
         """
-        if model is None:
-            model = get_config_value("llm", "default_model")
+        try:
+            if model is None:
+                model = get_config_value("llm", "default_model")
 
-        # Prepare the parameters for litellm.completion
-        if response_format is not None:
-            schema = response_format.model_json_schema()
-            # NOTE: later on, we'll see if there's a better way to do this.
-            # Right now, looks like OpenAI is annoyingly strict with their schema
-            # and I haven't found a better way to do this.
-            fixed_schema = self._fix_schema_for_openai(schema)
+            # Prepare the parameters for litellm.completion
+            if response_format is not None:
+                schema = response_format.model_json_schema()
+                # NOTE: later on, we'll see if there's a better way to do this.
+                # Right now, looks like OpenAI is annoyingly strict with their schema
+                # and I haven't found a better way to do this.
+                fixed_schema = self._fix_schema_for_openai(schema)
 
-            # Convert to OpenAI's structured output format
-            response_format_dict = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": response_format.__name__.lower(),
-                    "strict": True,
-                    "schema": fixed_schema,
-                },
-            }
-            result = litellm.completion(
-                model=model,  # type: ignore
-                messages=messages,
-                response_format=response_format_dict,
-                **kwargs,
+                # Convert to OpenAI's structured output format
+                response_format_dict = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": response_format.__name__.lower(),
+                        "strict": True,
+                        "schema": fixed_schema,
+                    },
+                }
+                result = litellm.completion(
+                    model=model,  # type: ignore
+                    messages=messages,
+                    response_format=response_format_dict,
+                    **kwargs,
+                )
+            else:
+                result = litellm.completion(
+                    model=model,  # type: ignore
+                    messages=messages,
+                    response_format=response_format,
+                    **kwargs,
+                )
+
+            # coercion here to make sure that it is of type ModelResponse
+            # LiteLLM can return either ModelResponse or a CustomStreamWrapper;
+            # our use case isn't stream-based. This is to satisfy pyright.
+            return (
+                result
+                if isinstance(result, ModelResponse)
+                else ModelResponse(**result.__dict__)  # type: ignore
             )
-        else:
-            result = litellm.completion(
-                model=model,  # type: ignore
-                messages=messages,
-                response_format=response_format,
-                **kwargs,
-            )
-
-        # coercion here to make sure that it is of type ModelResponse
-        # LiteLLM can return either ModelResponse or a CustomStreamWrapper;
-        # our use case isn't stream-based. This is to satisfy pyright.
-        return (
-            result
-            if isinstance(result, ModelResponse)
-            else ModelResponse(**result.__dict__)  # type: ignore
-        )
+        except Exception:
+            raise
 
     def _fix_schema_for_openai(self, schema: dict) -> dict:
         """

@@ -17,6 +17,55 @@ class SamplePydanticModel(BaseModel):
 class TestLLMService:
     """Tests for LLMService."""
 
+    @patch("query_interface.backend.services.llm_service.litellm.completion")
+    def test_chat_completion_raises_exception_from_litellm(self, mock_litellm_completion):
+        """Test that chat_completion re-raises exceptions from litellm.completion."""
+        # Arrange
+        service = LLMService()
+        messages = [{"role": "user", "content": "test prompt"}]
+        mock_litellm_completion.side_effect = Exception("API error")
+
+        # Act & Assert
+        with pytest.raises(Exception, match="API error"):
+            service.chat_completion(messages=messages)
+
+    @patch("query_interface.backend.services.llm_service.litellm.completion")
+    def test_chat_completion_raises_exception_with_response_format(self, mock_litellm_completion):
+        """Test that chat_completion re-raises exceptions when using response_format."""
+        # Arrange
+        service = LLMService()
+        messages = [{"role": "user", "content": "test prompt"}]
+        mock_litellm_completion.side_effect = ValueError("Invalid schema")
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="Invalid schema"):
+            service.chat_completion(
+                messages=messages,
+                response_format=SamplePydanticModel,
+            )
+
+    @patch("query_interface.backend.services.llm_service.litellm.completion")
+    def test_chat_completion_returns_model_response(self, mock_litellm_completion):
+        """Test that chat_completion returns ModelResponse successfully."""
+        # Arrange
+        from litellm import ModelResponse
+
+        service = LLMService()
+        messages = [{"role": "user", "content": "test prompt"}]
+        mock_response = ModelResponse(
+            id="test-id",
+            choices=[MagicMock(message=MagicMock(content="test response"))],
+        )
+        mock_litellm_completion.return_value = mock_response
+
+        # Act
+        result = service.chat_completion(messages=messages)
+
+        # Assert
+        assert isinstance(result, ModelResponse)
+        assert result.id == "test-id"
+        mock_litellm_completion.assert_called_once()
+
     def test_structured_completion_returns_parsed_model(self):
         """Test that structured_completion returns a parsed Pydantic model."""
         # Arrange
