@@ -3,7 +3,7 @@ name = "query-interface-cli"
 version = "0.1.0"
 description = "CLI tool for querying Athena with natural language"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 authors = [
     {name = "Mark Torres", email = "markptorres1@gmail.com"},
 ]
@@ -22,6 +22,14 @@ dependencies = [
 
 [project.scripts]
 query-athena = "query_interface.backend.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.3",
+    "black>=24.0.0",
+    "ruff>=0.4.5",
+    "mypy>=1.8.0",
+]
 
 [build-system]
 requires = ["setuptools>=69", "wheel"]
