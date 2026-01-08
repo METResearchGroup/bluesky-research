@@ -22,7 +22,7 @@ from services.add_context.current_events_enrichment.models import (
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 news_pickle_fp = os.path.join(current_file_directory, "news_domains.pkl")
 
-newsapi_client = NewsApiClient(api_key=EnvVarsContainer.get_env_var("NEWSAPI_API_KEY") or "")
+newsapi_client = NewsApiClient(api_key=EnvVarsContainer.get_env_var("NEWSAPI_API_KEY"))
 
 political_party_to_news_outlet_domains_map = {
     "democrat": [

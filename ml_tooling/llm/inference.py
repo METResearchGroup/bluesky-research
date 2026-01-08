@@ -15,10 +15,10 @@ from lib.helper import track_performance
 from lib.load_env_vars import EnvVarsContainer
 
 # https://litellm.vercel.app/docs/providers/gemini
-os.environ["GEMINI_API_KEY"] = EnvVarsContainer.get_env_var("GOOGLE_AI_STUDIO_KEY") or ""
-os.environ["HUGGINGFACE_API_KEY"] = EnvVarsContainer.get_env_var("HF_TOKEN") or ""
-os.environ["GROQ_API_KEY"] = EnvVarsContainer.get_env_var("GROQ_API_KEY") or ""
-os.environ["OPENAI_API_KEY"] = EnvVarsContainer.get_env_var("OPENAI_API_KEY") or ""
+os.environ["GEMINI_API_KEY"] = EnvVarsContainer.get_env_var("GOOGLE_AI_STUDIO_KEY")
+os.environ["HUGGINGFACE_API_KEY"] = EnvVarsContainer.get_env_var("HF_TOKEN")
+os.environ["GROQ_API_KEY"] = EnvVarsContainer.get_env_var("GROQ_API_KEY")
+os.environ["OPENAI_API_KEY"] = EnvVarsContainer.get_env_var("OPENAI_API_KEY")
 os.environ["OPIK_PROJECT_NAME"] = "ml_inference_llm"
 
 if EnvVarsContainer.get_env_var("RUN_MODE") != "test":

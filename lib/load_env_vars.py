@@ -15,7 +15,7 @@ import json
 import os
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 
@@ -30,14 +30,74 @@ class EnvVarsContainer:
 
     def __init__(self) -> None:
         self._initialized = False
-        self._env_vars: dict[str, Optional[str]] = {}
+        # Store raw values; apply defaults/casting at retrieval time.
+        self._env_vars: dict[str, Any] = {}
+        # Known env-var expected types. If a key is not present here, `get_env_var`
+        # will return None when missing.
+        self._env_var_types: dict[str, type] = {
+            # Execution/config
+            "RUN_MODE": str,
+            "BSKY_DATA_DIR": str,
+            # Bluesky credentials
+            "BLUESKY_HANDLE": str,
+            "BLUESKY_PASSWORD": str,
+            "DEV_BLUESKY_HANDLE": str,
+            "DEV_BLUESKY_PASSWORD": str,
+            # API keys / integration secrets
+            "GOOGLE_API_KEY": str,
+            "NYTIMES_KEY": str,
+            "HF_TOKEN": str,
+            "OPENAI_API_KEY": str,
+            "GOOGLE_AI_STUDIO_KEY": str,
+            "NEWSAPI_API_KEY": str,
+            "GROQ_API_KEY": str,
+            "MONGODB_URI": str,
+            "LANGTRACE_API_KEY": str,
+            "COMET_API_KEY": str,
+        }
         self._init_lock = threading.Lock()
 
     @classmethod
-    def get_env_var(cls, name: str) -> Optional[str]:
-        """Get an environment variable value after container initialization."""
+    def get_env_var(cls, name: str) -> Any:
+        """Get an environment variable value after container initialization.
+
+        Defaults when missing:
+        - `str`  -> ""
+        - `int`  -> 0
+        - `float`-> 0.0
+        - other/unknown -> None
+        """
         instance = cls._get_instance()
-        return instance._env_vars.get(name)
+        expected_type = instance._env_var_types.get(name)
+        raw = instance._env_vars.get(name, None)
+
+        # Missing value: apply defaults by expected type.
+        if raw is None:
+            if expected_type is str:
+                return ""
+            if expected_type is int:
+                return 0
+            if expected_type is float:
+                return 0.0
+            return None
+
+        # Present: cast if needed.
+        if expected_type is None:
+            return raw
+        if expected_type is str:
+            return str(raw)
+        if expected_type is int:
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                return 0
+        if expected_type is float:
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                return 0.0
+        # Unknown/unsupported expected type -> return as-is.
+        return raw
 
     @classmethod
     def _get_instance(cls) -> "EnvVarsContainer":

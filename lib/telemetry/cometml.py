@@ -271,7 +271,7 @@ def log_batch_classification_to_cometml(service="ml_inference_ime"):
     def decorator(func):
         def wrapper(*args, **kwargs):
             experiment = Experiment(
-                api_key=EnvVarsContainer.get_env_var("COMET_API_KEY") or "",
+                api_key=EnvVarsContainer.get_env_var("COMET_API_KEY"),
                 project_name=service_to_project_name_map[service],
                 workspace=workspace,
             )

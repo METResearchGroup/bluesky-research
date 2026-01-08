@@ -31,7 +31,7 @@ def generate_request_url(endpoint: str) -> str:
     """Generates the request URL."""
     return (
         f"https://api.nytimes.com/svc/{endpoint}?api-key="
-        f"{EnvVarsContainer.get_env_var('NYTIMES_KEY') or ''}"
+        f"{EnvVarsContainer.get_env_var('NYTIMES_KEY')}"
     )
 
 

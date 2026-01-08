@@ -47,14 +47,14 @@ def get_client() -> RateLimitedClient:
     client = RateLimitedClient()
     try:
         client.login(
-            EnvVarsContainer.get_env_var("BLUESKY_HANDLE") or "",
-            EnvVarsContainer.get_env_var("BLUESKY_PASSWORD") or "",
+            EnvVarsContainer.get_env_var("BLUESKY_HANDLE"),
+            EnvVarsContainer.get_env_var("BLUESKY_PASSWORD"),
         )
     except Exception as e:
         print(f"Error logging in to Bluesky: {e}\nLogging in to dev account...")
         client.login(
-            EnvVarsContainer.get_env_var("DEV_BLUESKY_HANDLE") or "",
-            EnvVarsContainer.get_env_var("DEV_BLUESKY_PASSWORD") or "",
+            EnvVarsContainer.get_env_var("DEV_BLUESKY_HANDLE"),
+            EnvVarsContainer.get_env_var("DEV_BLUESKY_PASSWORD"),
         )
     return client
 

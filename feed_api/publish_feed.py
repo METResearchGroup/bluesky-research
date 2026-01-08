@@ -9,11 +9,11 @@ from atproto import Client, models
 
 # YOUR bluesky handle
 # Ex: user.bsky.social
-HANDLE: str = EnvVarsContainer.get_env_var("BLUESKY_HANDLE") or ""
+HANDLE: str = EnvVarsContainer.get_env_var("BLUESKY_HANDLE")
 
 # YOUR bluesky password, or preferably an App Password (found in your client settings) # noqa
 # Ex: abcd-1234-efgh-5678
-PASSWORD: str = EnvVarsContainer.get_env_var("BLUESKY_PASSWORD") or ""
+PASSWORD: str = EnvVarsContainer.get_env_var("BLUESKY_PASSWORD")
 
 # The hostname of the server where feed server will be hosted
 # Ex: feed.bsky.dev

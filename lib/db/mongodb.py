@@ -9,7 +9,7 @@ from pymongo.mongo_client import MongoClient
 from lib.load_env_vars import EnvVarsContainer
 
 
-mongodb_uri = EnvVarsContainer.get_env_var("MONGODB_URI") or ""
+mongodb_uri = EnvVarsContainer.get_env_var("MONGODB_URI")
 mongo_db_name = "bluesky-research-posts"
 mongodb_client = MongoClient(mongodb_uri)
 mongo_db = mongodb_client[mongo_db_name]

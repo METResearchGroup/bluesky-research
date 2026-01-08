@@ -8,7 +8,7 @@ import requests
 from lib.load_env_vars import EnvVarsContainer
 from ml_tooling.llm.inference import run_query
 
-api_key = EnvVarsContainer.get_env_var("GOOGLE_AI_STUDIO_KEY") or ""
+api_key = EnvVarsContainer.get_env_var("GOOGLE_AI_STUDIO_KEY")
 
 
 def get_article_contents(url: str):
