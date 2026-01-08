@@ -13,15 +13,15 @@ from query_interface.backend.agents.tools.run_sql_query.tool import run_sql_quer
 class TestRunSqlQuery:
     """Tests for run_sql_query function."""
 
-    @patch("query_interface.backend.agents.tools.run_sql_query.tool.Athena")
-    def test_executes_query_successfully(self, mock_athena_class):
+    @patch("query_interface.backend.agents.tools.run_sql_query.tool._get_athena_client")
+    def test_executes_query_successfully(self, mock_get_athena_client):
         """Test that SQL query is executed successfully and returns DataFrame."""
         # Arrange
         sql = "SELECT * FROM table LIMIT 10"
         expected_df = pd.DataFrame({"col1": [1, 2, 3], "col2": ["a", "b", "c"]})
         mock_athena_instance = MagicMock()
         mock_athena_instance.query_results_as_df.return_value = expected_df
-        mock_athena_class.return_value = mock_athena_instance
+        mock_get_athena_client.return_value = mock_athena_instance
 
         # Act
         result = run_sql_query(sql)
@@ -29,14 +29,14 @@ class TestRunSqlQuery:
         # Assert
         assert isinstance(result, pd.DataFrame)
         pd.testing.assert_frame_equal(result, expected_df)
-        mock_athena_class.assert_called_once()
+        mock_get_athena_client.assert_called_once()
         mock_athena_instance.query_results_as_df.assert_called_once_with(
             query=sql,
             dtypes_map=None,
         )
 
-    @patch("query_interface.backend.agents.tools.run_sql_query.tool.Athena")
-    def test_executes_query_with_dtypes_map(self, mock_athena_class):
+    @patch("query_interface.backend.agents.tools.run_sql_query.tool._get_athena_client")
+    def test_executes_query_with_dtypes_map(self, mock_get_athena_client):
         """Test that SQL query is executed successfully with dtypes_map parameter."""
         # Arrange
         sql = "SELECT * FROM table LIMIT 10"
@@ -44,7 +44,7 @@ class TestRunSqlQuery:
         expected_df = pd.DataFrame({"col1": [1, 2, 3], "col2": ["a", "b", "c"]})
         mock_athena_instance = MagicMock()
         mock_athena_instance.query_results_as_df.return_value = expected_df
-        mock_athena_class.return_value = mock_athena_instance
+        mock_get_athena_client.return_value = mock_athena_instance
 
         # Act
         result = run_sql_query(sql, dtypes_map=dtypes_map)
@@ -52,21 +52,21 @@ class TestRunSqlQuery:
         # Assert
         assert isinstance(result, pd.DataFrame)
         pd.testing.assert_frame_equal(result, expected_df)
-        mock_athena_class.assert_called_once()
+        mock_get_athena_client.assert_called_once()
         mock_athena_instance.query_results_as_df.assert_called_once_with(
             query=sql,
             dtypes_map=dtypes_map,
         )
 
-    @patch("query_interface.backend.agents.tools.run_sql_query.tool.Athena")
-    def test_returns_empty_dataframe(self, mock_athena_class):
+    @patch("query_interface.backend.agents.tools.run_sql_query.tool._get_athena_client")
+    def test_returns_empty_dataframe(self, mock_get_athena_client):
         """Test that empty DataFrame is returned when query has no results."""
         # Arrange
         sql = "SELECT * FROM empty_table LIMIT 10"
         expected_df = pd.DataFrame()
         mock_athena_instance = MagicMock()
         mock_athena_instance.query_results_as_df.return_value = expected_df
-        mock_athena_class.return_value = mock_athena_instance
+        mock_get_athena_client.return_value = mock_athena_instance
 
         # Act
         result = run_sql_query(sql)
@@ -80,9 +80,9 @@ class TestRunSqlQuery:
             dtypes_map=None,
         )
 
-    @patch("query_interface.backend.agents.tools.run_sql_query.tool.Athena")
+    @patch("query_interface.backend.agents.tools.run_sql_query.tool._get_athena_client")
     def test_raises_sql_query_execution_error_on_generic_exception(
-        self, mock_athena_class
+        self, mock_get_athena_client
     ):
         """Test that generic exceptions are wrapped in SQLQueryExecutionError."""
         # Arrange
@@ -91,7 +91,7 @@ class TestRunSqlQuery:
         mock_athena_instance.query_results_as_df.side_effect = Exception(
             "Table does not exist"
         )
-        mock_athena_class.return_value = mock_athena_instance
+        mock_get_athena_client.return_value = mock_athena_instance
 
         # Act & Assert
         with pytest.raises(SQLQueryExecutionError) as exc_info:
@@ -102,9 +102,9 @@ class TestRunSqlQuery:
         )
         assert isinstance(exc_info.value.__cause__, Exception)
 
-    @patch("query_interface.backend.agents.tools.run_sql_query.tool.Athena")
+    @patch("query_interface.backend.agents.tools.run_sql_query.tool._get_athena_client")
     def test_raises_sql_query_execution_error_on_value_error(
-        self, mock_athena_class
+        self, mock_get_athena_client
     ):
         """Test that ValueError exceptions are wrapped in SQLQueryExecutionError."""
         # Arrange
@@ -113,7 +113,7 @@ class TestRunSqlQuery:
         mock_athena_instance.query_results_as_df.side_effect = ValueError(
             "Invalid query syntax"
         )
-        mock_athena_class.return_value = mock_athena_instance
+        mock_get_athena_client.return_value = mock_athena_instance
 
         # Act & Assert
         with pytest.raises(SQLQueryExecutionError) as exc_info:
@@ -125,14 +125,14 @@ class TestRunSqlQuery:
         )
         assert isinstance(exc_info.value.__cause__, ValueError)
 
-    @patch("query_interface.backend.agents.tools.run_sql_query.tool.Athena")
+    @patch("query_interface.backend.agents.tools.run_sql_query.tool._get_athena_client")
     def test_raises_sql_query_execution_error_on_athena_initialization_failure(
-        self, mock_athena_class
+        self, mock_get_athena_client
     ):
         """Test that Athena initialization failures are caught and wrapped."""
         # Arrange
         sql = "SELECT * FROM table LIMIT 10"
-        mock_athena_class.side_effect = Exception("Failed to create Athena client")
+        mock_get_athena_client.side_effect = Exception("Failed to create Athena client")
 
         # Act & Assert
         with pytest.raises(SQLQueryExecutionError) as exc_info:
@@ -144,9 +144,9 @@ class TestRunSqlQuery:
         )
         assert isinstance(exc_info.value.__cause__, Exception)
 
-    @patch("query_interface.backend.agents.tools.run_sql_query.tool.Athena")
+    @patch("query_interface.backend.agents.tools.run_sql_query.tool._get_athena_client")
     def test_preserves_exception_context_in_error_message(
-        self, mock_athena_class
+        self, mock_get_athena_client
     ):
         """Test that original exception message is preserved in error message."""
         # Arrange
@@ -156,7 +156,7 @@ class TestRunSqlQuery:
         mock_athena_instance.query_results_as_df.side_effect = Exception(
             original_error_message
         )
-        mock_athena_class.return_value = mock_athena_instance
+        mock_get_athena_client.return_value = mock_athena_instance
 
         # Act & Assert
         with pytest.raises(SQLQueryExecutionError) as exc_info:
@@ -166,15 +166,15 @@ class TestRunSqlQuery:
         assert sql in error_message
         assert original_error_message in error_message
 
-    @patch("query_interface.backend.agents.tools.run_sql_query.tool.Athena")
-    def test_passes_dtypes_map_none_explicitly(self, mock_athena_class):
+    @patch("query_interface.backend.agents.tools.run_sql_query.tool._get_athena_client")
+    def test_passes_dtypes_map_none_explicitly(self, mock_get_athena_client):
         """Test that None is explicitly passed as dtypes_map when not provided."""
         # Arrange
         sql = "SELECT * FROM table LIMIT 10"
         expected_df = pd.DataFrame({"col1": [1, 2, 3]})
         mock_athena_instance = MagicMock()
         mock_athena_instance.query_results_as_df.return_value = expected_df
-        mock_athena_class.return_value = mock_athena_instance
+        mock_get_athena_client.return_value = mock_athena_instance
 
         # Act
         run_sql_query(sql)
@@ -185,9 +185,9 @@ class TestRunSqlQuery:
             dtypes_map=None,
         )
 
-    @patch("query_interface.backend.agents.tools.run_sql_query.tool.Athena")
+    @patch("query_interface.backend.agents.tools.run_sql_query.tool._get_athena_client")
     def test_handles_complex_dataframe_with_multiple_columns(
-        self, mock_athena_class
+        self, mock_get_athena_client
     ):
         """Test that complex DataFrame with multiple columns is handled correctly."""
         # Arrange
@@ -202,7 +202,7 @@ class TestRunSqlQuery:
         )
         mock_athena_instance = MagicMock()
         mock_athena_instance.query_results_as_df.return_value = expected_df
-        mock_athena_class.return_value = mock_athena_instance
+        mock_get_athena_client.return_value = mock_athena_instance
 
         # Act
         result = run_sql_query(sql)

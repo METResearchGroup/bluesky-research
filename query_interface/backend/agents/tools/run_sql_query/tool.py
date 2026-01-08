@@ -1,5 +1,6 @@
 """Tool to execute SQL queries against Athena."""
 
+import threading
 from typing import Optional
 
 import pandas as pd
@@ -8,6 +9,20 @@ from lib.aws.athena import Athena
 from query_interface.backend.agents.tools.run_sql_query.exceptions import (
     SQLQueryExecutionError,
 )
+
+# Thread-safe singleton pattern
+_athena_client: Athena | None = None
+_athena_client_lock = threading.Lock()
+
+
+def _get_athena_client() -> Athena:
+    """Get thread-safe singleton Athena client instance."""
+    global _athena_client
+    if _athena_client is None:
+        with _athena_client_lock:
+            if _athena_client is None:
+                _athena_client = Athena()
+    return _athena_client
 
 
 def run_sql_query(sql: str, dtypes_map: Optional[dict] = None) -> pd.DataFrame:
@@ -28,7 +43,7 @@ def run_sql_query(sql: str, dtypes_map: Optional[dict] = None) -> pd.DataFrame:
         SQLQueryExecutionError: If the query execution fails.
     """
     try:
-        athena = Athena()
+        athena = _get_athena_client()
 
         df = athena.query_results_as_df(
             query=sql,
