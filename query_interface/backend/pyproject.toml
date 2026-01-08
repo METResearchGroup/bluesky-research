@@ -18,6 +18,11 @@ dependencies = [
     "langchain-openai>=1.1.7",
     "litellm>=1.80.12",
     "pyyaml>=6.0.3",
+    "boto3>=1.40.11",
+    "memory-profiler>=0.60.0",
+    "requests>=2.31.0",
+    "urllib3>=2.2.2",
+    "atproto>=0.0.61",
 ]
 
 [project.scripts]
@@ -26,6 +31,8 @@ query-athena = "query_interface.backend.cli:app"
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.3",
+    "pytest-env>=0.8.2",
+    "pytest-mock>=3.12.0",
     "black>=24.0.0",
     "ruff>=0.4.5",
     "mypy>=1.8.0",
@@ -39,4 +46,31 @@ build-backend = "setuptools.build_meta"
 where = ["../.."]
 include = ["query_interface.backend*", "query_interface.backend.agents*", "query_interface.backend.services*"]
 
+[tool.pytest.ini_options]
+# Set environment variables for all tests
+env = [
+    "ENVIRONMENT=test",
+    "RUN_MODE=test",
+    "AWS_DEFAULT_REGION=us-east-1",
+    "AWS_ACCESS_KEY_ID=testing",
+    "AWS_SECRET_ACCESS_KEY=testing",
+    "AWS_SECURITY_TOKEN=testing",
+    "AWS_SESSION_TOKEN=testing",
+    "GOOGLE_API_KEY=testing",
+    "OPENAI_API_KEY=testing",
+    "GOOGLE_AI_STUDIO_KEY=testing",
+    "GROQ_API_KEY=testing",
+]
 
+# Add command line default options
+addopts = [
+    "--verbose",
+    "--tb=short",
+    "--strict-markers",
+]
+
+# Configure pytest plugins
+required_plugins = [
+    "pytest-env",
+    "pytest-mock"
+]
