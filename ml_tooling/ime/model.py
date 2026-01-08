@@ -14,7 +14,8 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
-from lib.helper import create_batches, track_performance, RUN_MODE
+from lib.helper import create_batches, track_performance
+from lib.load_env_vars import EnvVarsContainer
 from lib.log.logger import get_logger
 from ml_tooling.ime.constants import default_hyperparameters, default_model
 from ml_tooling.ime.helper import get_device
@@ -74,7 +75,7 @@ def _get_model_and_tokenizer(*, model_name: str = default_model) -> tuple[Any, A
         return loaded
 
 # gets around errors related to importing cometml in tests.
-if RUN_MODE == "test":
+if EnvVarsContainer.get_env_var("RUN_MODE") == "test":
 
     def log_batch_classification_to_cometml(service="ml_inference_ime"):
         def decorator(func):

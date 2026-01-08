@@ -9,7 +9,8 @@ from typing import Optional, Literal
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
-from lib.helper import GOOGLE_API_KEY, create_batches, logger, track_performance  # noqa
+from lib.helper import create_batches, logger, track_performance  # noqa
+from lib.load_env_vars import EnvVarsContainer
 from services.ml_inference.models import PerspectiveApiLabelsModel
 from services.ml_inference.export_data import (
     return_failed_labels_to_input_queue,
@@ -27,7 +28,7 @@ def get_google_client():
     return discovery.build(
         "commentanalyzer",
         "v1alpha1",
-        developerKey=GOOGLE_API_KEY,
+        developerKey=EnvVarsContainer.get_env_var("GOOGLE_API_KEY") or "",
         discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",  # noqa
         static_discovery=False,
     )

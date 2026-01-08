@@ -7,8 +7,8 @@ from comet_ml import Experiment
 import matplotlib.pyplot as plt
 import numpy as np
 
-from lib.helper import COMET_API_KEY
 from lib.datetime_utils import generate_current_datetime_str
+from lib.load_env_vars import EnvVarsContainer
 from lib.log.logger import get_logger
 
 workspace = "mtorres98"
@@ -271,7 +271,7 @@ def log_batch_classification_to_cometml(service="ml_inference_ime"):
     def decorator(func):
         def wrapper(*args, **kwargs):
             experiment = Experiment(
-                api_key=COMET_API_KEY,
+                api_key=EnvVarsContainer.get_env_var("COMET_API_KEY") or "",
                 project_name=service_to_project_name_map[service],
                 workspace=workspace,
             )

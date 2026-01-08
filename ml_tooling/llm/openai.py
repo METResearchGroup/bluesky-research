@@ -8,7 +8,7 @@ meaningful topic names from topic keywords.
 
 from openai import OpenAI
 
-from lib.helper import OPENAI_API_KEY
+from lib.load_env_vars import EnvVarsContainer
 
 
 def run_query(
@@ -33,10 +33,11 @@ def run_query(
         ValueError: If OPENAI_API_KEY is not set
         Exception: If the API call fails
     """
-    if not OPENAI_API_KEY:
+    openai_api_key = EnvVarsContainer.get_env_var("OPENAI_API_KEY")
+    if not openai_api_key:
         raise ValueError("OPENAI_API_KEY environment variable is not set")
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = OpenAI(api_key=openai_api_key)
 
     try:
         completion = client.chat.completions.create(

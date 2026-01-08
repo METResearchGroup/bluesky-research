@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 
 from lib.constants import current_datetime_str
-from lib.helper import RUN_MODE
+from lib.load_env_vars import EnvVarsContainer
 from lib.log.logger import get_logger
 from ml_tooling.ime.classes import MultiLabelClassifier
 from ml_tooling.ime.constants import default_num_classes, model_to_asset_paths_map
@@ -25,7 +25,7 @@ def load_model_and_tokenizer(
     model_name: str, device: torch.device
 ) -> tuple[MultiLabelClassifier, AutoTokenizer]:
     """Load the model and tokenizer for the given model name."""
-    if RUN_MODE == "test":
+    if EnvVarsContainer.get_env_var("RUN_MODE") == "test":
         # Return dummy versions for testing
         model = MultiLabelClassifier(n_classes=default_num_classes, model=model_name)
         model.eval()

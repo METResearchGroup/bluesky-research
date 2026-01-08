@@ -8,13 +8,13 @@ each cache independently.
 
 import os
 
-from lib.helper import BSKY_DATA_DIR
+from lib.load_env_vars import EnvVarsContainer
 from lib.log.logger import get_logger
 
 
 logger = get_logger(__file__)
 
-root_db_path = os.path.join(BSKY_DATA_DIR, "cache")
+root_db_path = os.path.join(EnvVarsContainer.get_env_var("BSKY_DATA_DIR") or "", "cache")
 if not os.path.exists(root_db_path):
     logger.info(f"Creating new directory for cache data at {root_db_path}...")
     # exist_ok=True handles TOCTOU race condition when parallel test workers

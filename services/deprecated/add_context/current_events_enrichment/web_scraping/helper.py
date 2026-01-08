@@ -5,10 +5,10 @@ GitHub repo: https://github.com/VinciGit00/Scrapegraph-ai
 
 import requests
 
-from lib.helper import GOOGLE_AI_STUDIO_KEY
+from lib.load_env_vars import EnvVarsContainer
 from ml_tooling.llm.inference import run_query
 
-api_key = GOOGLE_AI_STUDIO_KEY
+api_key = EnvVarsContainer.get_env_var("GOOGLE_AI_STUDIO_KEY") or ""
 
 
 def get_article_contents(url: str):

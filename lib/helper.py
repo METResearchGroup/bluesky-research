@@ -1,84 +1,24 @@
 """Helper functions.
 
 Note: `lib.helper` is intentionally a grab-bag and performs environment setup at
-import time. Datetime-specific helpers have been migrated to
+import time (historically; env var loading has been migrated to
+`lib.load_env_vars`). Datetime-specific helpers have been migrated to
 `lib.datetime_utils` to avoid importing this module from lightweight, pure
 date-math call sites.
 """
 
 from datetime import datetime, timezone, timedelta
-from dotenv import load_dotenv
 from functools import wraps
-import json
 import logging
 from memory_profiler import memory_usage
-import os
 import threading
 import time
 from typing import Literal, Optional, TypeVar, Callable, ParamSpec
 
 from atproto import Client
 
-from lib.aws.secretsmanager import get_secret
 from lib.constants import timestamp_format, partition_date_format
-
-current_file_directory = os.path.dirname(os.path.abspath(__file__))
-
-
-def setup_env() -> None:
-    env_path = os.path.abspath(os.path.join(current_file_directory, "../.env"))
-    load_dotenv(env_path)
-
-
-setup_env()
-
-BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
-BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_PASSWORD")
-DEV_BLUESKY_HANDLE = os.getenv("DEV_BLUESKY_HANDLE")
-DEV_BLUESKY_PASSWORD = os.getenv("DEV_BLUESKY_PASSWORD")
-RUN_MODE = os.getenv("RUN_MODE", "test")  # local (local dev), test (CI), or prod
-
-if RUN_MODE == "test":
-    print("Running in test mode...")
-    BLUESKY_HANDLE = "test"
-    BLUESKY_APP_PASSWORD = "test"
-    DEV_BLUESKY_HANDLE = "test"
-    DEV_BLUESKY_PASSWORD = "test"
-    BSKY_DATA_DIR = "~/tmp/"
-    if not os.path.exists(BSKY_DATA_DIR):
-        # exist_ok=True handles TOCTOU race condition when parallel test workers
-        # concurrently import this module and attempt to create the directory
-        os.makedirs(BSKY_DATA_DIR, exist_ok=True)
-    print(f"BSKY_DATA_DIR: {BSKY_DATA_DIR}")
-else:
-    BSKY_DATA_DIR = os.getenv("BSKY_DATA_DIR")
-
-
-if (not BLUESKY_HANDLE or not BLUESKY_APP_PASSWORD) and RUN_MODE == "prod":
-    print("Fetching secrets from AWS Secrets Manager instead of the env...")
-    bsky_credentials = json.loads(get_secret("bluesky_account_credentials"))
-    BLUESKY_HANDLE = bsky_credentials["bluesky_handle"]
-    BLUESKY_APP_PASSWORD = bsky_credentials["bluesky_password"]
-else:
-    print("Fetching secrets from the local env...")
-
-if not RUN_MODE:
-    raise ValueError("RUN_MODE must be set to either 'local' or 'prod'")
-if not BSKY_DATA_DIR and RUN_MODE == "prod":
-    raise ValueError(
-        "BSKY_DATA_DIR must be set to the path to the Bluesky data directory"
-    )
-
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-NYTIMES_API_KEY = os.getenv("NYTIMES_KEY")
-HF_TOKEN = os.getenv("HF_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-GOOGLE_AI_STUDIO_KEY = os.getenv("GOOGLE_AI_STUDIO_KEY")
-NEWSAPI_API_KEY = os.getenv("NEWSAPI_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-MONGODB_URI = os.getenv("MONGODB_URI")
-LANGTRACE_API_KEY = os.getenv("LANGTRACE_API_KEY")
-COMET_API_KEY = os.getenv("COMET_API_KEY")
+from lib.load_env_vars import EnvVarsContainer
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -106,10 +46,16 @@ class RateLimitedClient(Client):
 def get_client() -> RateLimitedClient:
     client = RateLimitedClient()
     try:
-        client.login(BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)
+        client.login(
+            EnvVarsContainer.get_env_var("BLUESKY_HANDLE") or "",
+            EnvVarsContainer.get_env_var("BLUESKY_PASSWORD") or "",
+        )
     except Exception as e:
         print(f"Error logging in to Bluesky: {e}\nLogging in to dev account...")
-        client.login(DEV_BLUESKY_HANDLE, DEV_BLUESKY_PASSWORD)
+        client.login(
+            EnvVarsContainer.get_env_var("DEV_BLUESKY_HANDLE") or "",
+            EnvVarsContainer.get_env_var("DEV_BLUESKY_PASSWORD") or "",
+        )
     return client
 
 

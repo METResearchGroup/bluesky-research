@@ -9,7 +9,7 @@ import pickle
 from newsapi import NewsApiClient
 
 from lib.constants import current_datetime
-from lib.helper import NEWSAPI_API_KEY
+from lib.load_env_vars import EnvVarsContainer
 from services.add_context.current_events_enrichment.database import (
     bulk_insert_news_articles,
     bulk_insert_news_outlets,
@@ -22,7 +22,7 @@ from services.add_context.current_events_enrichment.models import (
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
 news_pickle_fp = os.path.join(current_file_directory, "news_domains.pkl")
 
-newsapi_client = NewsApiClient(api_key=NEWSAPI_API_KEY)
+newsapi_client = NewsApiClient(api_key=EnvVarsContainer.get_env_var("NEWSAPI_API_KEY") or "")
 
 political_party_to_news_outlet_domains_map = {
     "democrat": [

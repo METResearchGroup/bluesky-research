@@ -26,7 +26,6 @@ from ml_tooling.perspective_api.model import (
 )
 
 from services.ml_inference.models import PerspectiveApiLabelsModel
-from lib.helper import GOOGLE_API_KEY
 
 
 class TestProcessPerspectiveBatch:
@@ -682,8 +681,8 @@ class TestHelperFunctions:
     """Tests for various helper functions in the model."""
     
     @patch('ml_tooling.perspective_api.model.discovery')
-    @patch('lib.helper.GOOGLE_API_KEY', 'testing')
-    def test_get_google_client(self, mock_discovery):
+    @patch('lib.load_env_vars.EnvVarsContainer.get_env_var', return_value='testing')
+    def test_get_google_client(self, mock_get_env_var, mock_discovery):
         """Test Google client creation."""
         mock_client = Mock()
         mock_discovery.build.return_value = mock_client

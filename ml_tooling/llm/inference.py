@@ -11,23 +11,17 @@ import tiktoken
 
 from services.ml_inference.models import LLMSociopoliticalLabelsModel
 
-from lib.helper import (
-    GOOGLE_AI_STUDIO_KEY,
-    GROQ_API_KEY,
-    HF_TOKEN,
-    OPENAI_API_KEY,
-    track_performance,
-    RUN_MODE,
-)
+from lib.helper import track_performance
+from lib.load_env_vars import EnvVarsContainer
 
 # https://litellm.vercel.app/docs/providers/gemini
-os.environ["GEMINI_API_KEY"] = GOOGLE_AI_STUDIO_KEY
-os.environ["HUGGINGFACE_API_KEY"] = HF_TOKEN
-os.environ["GROQ_API_KEY"] = GROQ_API_KEY
-os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+os.environ["GEMINI_API_KEY"] = EnvVarsContainer.get_env_var("GOOGLE_AI_STUDIO_KEY") or ""
+os.environ["HUGGINGFACE_API_KEY"] = EnvVarsContainer.get_env_var("HF_TOKEN") or ""
+os.environ["GROQ_API_KEY"] = EnvVarsContainer.get_env_var("GROQ_API_KEY") or ""
+os.environ["OPENAI_API_KEY"] = EnvVarsContainer.get_env_var("OPENAI_API_KEY") or ""
 os.environ["OPIK_PROJECT_NAME"] = "ml_inference_llm"
 
-if not RUN_MODE == "test":
+if EnvVarsContainer.get_env_var("RUN_MODE") != "test":
     import opik
 
     opik_logger = OpikLogger()

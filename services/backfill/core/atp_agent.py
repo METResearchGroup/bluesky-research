@@ -3,14 +3,16 @@ import os
 import requests
 import time
 
+from lib.load_env_vars import EnvVarsContainer
+
 default_service = "https://bsky.social"
 
 
 class AtpAgent:
     def __init__(self, service: str = default_service):
         self.service = service
-        self.handle = os.getenv("BLUESKY_HANDLE") or ""
-        self.password = os.getenv("BLUESKY_PASSWORD") or ""
+        self.handle = EnvVarsContainer.get_env_var("BLUESKY_HANDLE") or ""
+        self.password = EnvVarsContainer.get_env_var("BLUESKY_PASSWORD") or ""
         self.session = None
         self.headers = None
 

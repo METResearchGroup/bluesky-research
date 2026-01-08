@@ -18,13 +18,13 @@ from pydantic import BaseModel, Field, field_validator
 import typing_extensions as te
 
 from lib.db.queue_constants import NAME_TO_QUEUE_NAME_MAP
-from lib.helper import BSKY_DATA_DIR
+from lib.load_env_vars import EnvVarsContainer
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 logger = get_logger(__file__)
 
-root_db_path = os.path.join(BSKY_DATA_DIR, "queue")
+root_db_path = os.path.join(EnvVarsContainer.get_env_var("BSKY_DATA_DIR") or "", "queue")
 if not os.path.exists(root_db_path):
     logger.info(f"Creating new directory for queue data at {root_db_path}...")
     # exist_ok=True handles TOCTOU race condition when parallel test workers

@@ -3,7 +3,8 @@
 from typing import Callable, Optional
 
 from lib.aws.dynamodb import DynamoDB
-from lib.helper import RUN_MODE, track_performance
+from lib.helper import track_performance
+from lib.load_env_vars import EnvVarsContainer
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
 from lib.pipeline_invocation.constants import dynamodb_table_name
@@ -35,7 +36,7 @@ def _default_wandb_logger() -> Callable[[str, dict], None]:
 
     def log_to_wandb(service: str, metadata: dict) -> None:
         """Log metadata to WandB."""
-        if RUN_MODE == "test":
+        if EnvVarsContainer.get_env_var("RUN_MODE") == "test":
             return
         try:
             # Only initialize if no active run exists to avoid creating orphaned runs

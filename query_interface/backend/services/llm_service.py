@@ -8,7 +8,7 @@ import litellm
 from litellm import ModelResponse
 from pydantic import BaseModel
 
-from lib.helper import OPENAI_API_KEY
+from lib.load_env_vars import EnvVarsContainer
 from query_interface.backend.config import get_config_value
 
 T = TypeVar("T", bound=BaseModel)
@@ -18,7 +18,7 @@ class LLMService:
     """LLM service for making API requests via LiteLLM."""
 
     def __init__(self):
-        self.openai_api_key = OPENAI_API_KEY
+        self.openai_api_key = EnvVarsContainer.get_env_var("OPENAI_API_KEY") or ""
         # Set the API key for litellm to use
         litellm.api_key = self.openai_api_key
 
