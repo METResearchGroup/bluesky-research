@@ -92,22 +92,19 @@ class LLMService:
         additionalProperties: false explicitly set.
         """
         schema_copy = copy.deepcopy(schema)
-
-        def patch(obj: dict) -> None:
-            if isinstance(obj, dict):
-                if obj.get("type") == "object":
-                    obj["additionalProperties"] = False
-                # Recursively patch nested objects
-                for value in obj.values():
-                    if isinstance(value, dict):
-                        patch(value)
-                    elif isinstance(value, list):
-                        for item in value:
-                            if isinstance(item, dict):
-                                patch(item)
-
-        patch(schema_copy)
+        self._patch_recursive(schema_copy)
         return schema_copy
+
+    def _patch_recursive(self, obj) -> None:
+        """Recursively patch schema, handling dicts and lists."""
+        if isinstance(obj, dict):
+            if obj.get("type") == "object":
+                obj["additionalProperties"] = False
+            for value in obj.values():
+                self._patch_recursive(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                self._patch_recursive(item)
 
     def structured_completion(
         self,
