@@ -8,7 +8,7 @@ import seaborn as sns
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
 from lib.constants import project_home_directory
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 
 
 def plot_baseline_time_series(

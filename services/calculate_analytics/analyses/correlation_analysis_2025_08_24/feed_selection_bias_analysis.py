@@ -45,7 +45,7 @@ from services.calculate_analytics.shared.constants import (
     exclude_partition_dates,
 )
 from lib.log.logger import get_logger
-from lib.helper import get_partition_dates, generate_current_datetime_str
+from lib.datetime_utils import get_partition_dates, generate_current_datetime_str
 
 logger = get_logger(__name__)
 output_dir = os.path.join(os.path.dirname(__file__), "results")

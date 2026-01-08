@@ -7,7 +7,7 @@ import os
 
 import pandas as pd
 
-from lib.helper import generate_current_datetime_str, get_partition_dates
+from lib.datetime_utils import generate_current_datetime_str, get_partition_dates
 from lib.log.logger import get_logger
 from services.calculate_analytics.shared.analysis.content_analysis import (
     get_daily_feed_content_per_user_metrics,

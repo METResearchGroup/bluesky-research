@@ -9,7 +9,7 @@ import json
 import csv
 import matplotlib.pyplot as plt
 from typing import Dict
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.constants import project_home_directory
 
 # Configuration constants

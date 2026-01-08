@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 from umap import UMAP
 
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)

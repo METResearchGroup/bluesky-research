@@ -12,7 +12,7 @@ from lib.db.manage_local_data import (
     export_data_to_local_storage,
     load_data_from_local_storage,
 )
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel

@@ -3,7 +3,7 @@ from services.calculate_analytics.shared.constants import (
     STUDY_START_DATE,
     exclude_partition_dates,
 )
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 from services.get_author_to_average_toxicity_outrage.helper import (
     get_and_export_daily_author_to_average_toxicity_outrage,
 )

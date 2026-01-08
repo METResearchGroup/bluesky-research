@@ -16,7 +16,7 @@ import sqlite3
 import pandas as pd
 
 from lib.constants import study_start_date, study_end_date
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.db.queue import Queue

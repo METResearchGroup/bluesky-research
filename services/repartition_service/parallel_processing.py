@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.log.logger import get_logger
 from services.repartition_service.helper import (

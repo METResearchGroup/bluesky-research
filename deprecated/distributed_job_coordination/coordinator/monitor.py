@@ -6,7 +6,7 @@ from typing import Optional
 from distributed_job_coordination.coordinator.models import TaskStatus
 from distributed_job_coordination.lib.job_state import JobState, TaskState
 from lib.constants import timestamp_format
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)

@@ -11,7 +11,7 @@ from typing import Dict, List
 
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
-from lib.helper import get_partition_dates
+from lib.datetime_utils import get_partition_dates
 
 logger = get_logger(__file__)
 

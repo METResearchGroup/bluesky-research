@@ -2,7 +2,7 @@ import json
 import traceback
 
 from lib.pipeline_invocation.constants import dynamodb_table_name
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.ml_inference.models import ClassificationSessionModel
 from services.ml_inference.ime.ime import classify_latest_posts

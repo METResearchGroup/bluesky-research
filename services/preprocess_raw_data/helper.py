@@ -6,7 +6,8 @@ from typing import Optional
 from lib.helper import determine_backfill_latest_timestamp
 from lib.constants import current_datetime_str
 from lib.db.queue import Queue
-from lib.helper import track_performance, generate_current_datetime_str
+from lib.helper import track_performance
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.preprocess_raw_data.preprocess import preprocess_latest_posts
 

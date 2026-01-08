@@ -6,7 +6,7 @@ all the components of the feed generation process using dependency injection.
 
 import pandas as pd
 
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.rank_score_feeds.config import FeedConfig
 from services.rank_score_feeds.models import (

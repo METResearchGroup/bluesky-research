@@ -27,7 +27,7 @@ from distributed_job_coordination.coordinator.dispatch import Dispatch
 from distributed_job_coordination.coordinator.monitor import JobMonitor
 from distributed_job_coordination.lib.manifest import ManifestWriter
 from distributed_job_coordination.lib.s3_utils import S3Utils
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)

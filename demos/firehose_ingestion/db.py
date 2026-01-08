@@ -14,7 +14,8 @@ from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
-from lib.helper import BSKY_DATA_DIR, generate_current_datetime_str
+from lib.helper import BSKY_DATA_DIR
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 logger = get_logger(__file__)

@@ -3,7 +3,7 @@
 from typing import Literal, Optional
 
 from lib.db.queue import Queue
-from lib.helper import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)
