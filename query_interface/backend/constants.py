@@ -1,0 +1,17 @@
+AVAILABLE_ATHENA_TABLES = [
+    "archive_fetch_posts_used_in_feeds",
+    "archive_generated_feeds",
+    "archive_in_network_user_activity",
+    "archive_ml_inference_ime",
+    "archive_ml_inference_perspective_api",
+    "archive_ml_inference_sociopolitical",
+    "archive_ml_inference_valence_classifier",
+    "archive_post_scores",
+    "archive_study_user_activity_block",
+    "archive_study_user_activity_follow",
+    "archive_study_user_activity_like",
+    "archive_study_user_activity_post",
+    "archive_study_user_activity_reply",
+    "archive_study_user_activity_repost",
+    "archive_user_session_logs",
+]
