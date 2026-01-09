@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from pydantic import BaseModel, Field
 
-from query_interface.backend.services.llm_service import LLMService
+from ml_tooling.llm.llm_service import LLMService
 
 
 class SamplePydanticModel(BaseModel):
@@ -17,7 +17,7 @@ class SamplePydanticModel(BaseModel):
 class TestLLMService:
     """Tests for LLMService."""
 
-    @patch("query_interface.backend.services.llm_service.litellm.completion")
+    @patch("ml_tooling.llm.llm_service.litellm.completion")
     def test_chat_completion_raises_exception_from_litellm(self, mock_litellm_completion):
         """Test that chat_completion re-raises exceptions from litellm.completion."""
         # Arrange
@@ -29,7 +29,7 @@ class TestLLMService:
         with pytest.raises(Exception, match="API error"):
             service.chat_completion(messages=messages)
 
-    @patch("query_interface.backend.services.llm_service.litellm.completion")
+    @patch("ml_tooling.llm.llm_service.litellm.completion")
     def test_chat_completion_raises_exception_with_response_format(self, mock_litellm_completion):
         """Test that chat_completion re-raises exceptions when using response_format."""
         # Arrange
@@ -44,7 +44,7 @@ class TestLLMService:
                 response_format=SamplePydanticModel,
             )
 
-    @patch("query_interface.backend.services.llm_service.litellm.completion")
+    @patch("ml_tooling.llm.llm_service.litellm.completion")
     def test_chat_completion_returns_model_response(self, mock_litellm_completion):
         """Test that chat_completion returns ModelResponse successfully."""
         # Arrange
