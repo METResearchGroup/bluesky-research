@@ -58,18 +58,39 @@ class EnvVarsContainer:
         self._init_lock = threading.Lock()
 
     @classmethod
-    def get_env_var(cls, name: str) -> Any:
+    def get_env_var(cls, name: str, required: bool = False) -> Any:
         """Get an environment variable value after container initialization.
 
-        Defaults when missing:
+        Args:
+            name: The name of the environment variable to retrieve
+            required: If True, raises ValueError when the env var is missing or empty
+
+        Defaults when missing (if not required):
         - `str`  -> ""
         - `int`  -> 0
         - `float`-> 0.0
         - other/unknown -> None
+
+        Raises:
+            ValueError: If required=True and the env var is missing or empty
         """
         instance = cls._get_instance()
         expected_type = instance._env_var_types.get(name)
         raw = instance._env_vars.get(name, None)
+
+        # Check if required and missing/empty
+        if required:
+            if raw is None:
+                raise ValueError(
+                    f"{name} is required but is missing. "
+                    f"Please set the {name} environment variable."
+                )
+            # For string types, also check if empty after stripping
+            if expected_type is str and isinstance(raw, str) and not raw.strip():
+                raise ValueError(
+                    f"{name} is required but is empty. "
+                    f"Please set the {name} environment variable to a non-empty value."
+                )
 
         # Missing value: apply defaults by expected type.
         if raw is None:

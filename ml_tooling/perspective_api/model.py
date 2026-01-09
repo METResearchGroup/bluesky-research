@@ -28,7 +28,7 @@ def get_google_client():
     return discovery.build(
         "commentanalyzer",
         "v1alpha1",
-        developerKey=EnvVarsContainer.get_env_var("GOOGLE_API_KEY"),
+        developerKey=EnvVarsContainer.get_env_var("GOOGLE_API_KEY", required=True),
         discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",  # noqa
         static_discovery=False,
     )

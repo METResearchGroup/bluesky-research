@@ -79,3 +79,58 @@ def test_singleton_is_thread_safe(monkeypatch, tmp_path):
     assert results and all(r == "test" for r in results)
     assert EnvVarsContainer._instance is not None
 
+
+def test_required_env_var_missing_raises_error(monkeypatch, tmp_path):
+    """Test that required=True raises ValueError when env var is missing."""
+    monkeypatch.setenv("RUN_MODE", "test")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    with pytest.raises(ValueError, match="OPENAI_API_KEY is required but is missing"):
+        EnvVarsContainer.get_env_var("OPENAI_API_KEY", required=True)
+
+
+def test_required_env_var_empty_string_raises_error(monkeypatch, tmp_path):
+    """Test that required=True raises ValueError when env var is an empty string."""
+    monkeypatch.setenv("RUN_MODE", "test")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+
+    with pytest.raises(ValueError, match="OPENAI_API_KEY is required but is empty"):
+        EnvVarsContainer.get_env_var("OPENAI_API_KEY", required=True)
+
+
+def test_required_env_var_whitespace_only_raises_error(monkeypatch, tmp_path):
+    """Test that required=True raises ValueError when env var is only whitespace."""
+    monkeypatch.setenv("RUN_MODE", "test")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "   ")
+
+    with pytest.raises(ValueError, match="OPENAI_API_KEY is required but is empty"):
+        EnvVarsContainer.get_env_var("OPENAI_API_KEY", required=True)
+
+
+def test_required_env_var_with_valid_value_returns_value(monkeypatch, tmp_path):
+    """Test that required=True returns the value when env var is set."""
+    monkeypatch.setenv("RUN_MODE", "test")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key-123")
+
+    result = EnvVarsContainer.get_env_var("OPENAI_API_KEY", required=True)
+    assert result == "sk-test-key-123"
+
+
+def test_required_false_returns_defaults_when_missing(monkeypatch, tmp_path):
+    """Test that required=False (default) returns defaults when env var is missing."""
+    monkeypatch.setenv("RUN_MODE", "test")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    # Should return empty string for string type when not required
+    result = EnvVarsContainer.get_env_var("OPENAI_API_KEY", required=False)
+    assert result == ""
+
+    # Should also work with default (required=False)
+    result_default = EnvVarsContainer.get_env_var("OPENAI_API_KEY")
+    assert result_default == ""
+

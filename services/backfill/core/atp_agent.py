@@ -11,8 +11,8 @@ default_service = "https://bsky.social"
 class AtpAgent:
     def __init__(self, service: str = default_service):
         self.service = service
-        self.handle = EnvVarsContainer.get_env_var("BLUESKY_HANDLE")
-        self.password = EnvVarsContainer.get_env_var("BLUESKY_PASSWORD")
+        self.handle = EnvVarsContainer.get_env_var("BLUESKY_HANDLE", required=True)
+        self.password = EnvVarsContainer.get_env_var("BLUESKY_PASSWORD", required=True)
         self.session = None
         self.headers = None
 
