@@ -146,13 +146,22 @@ class LLMService:
             response_format=response_model,
             **kwargs,
         )
+        transformed_response: T = self.handle_completion_response(
+            response, response_model
+        )
+        return transformed_response
 
+    def handle_completion_response(
+        self,
+        response: ModelResponse,
+        response_model: type[T],
+    ) -> T:
+        """Handles the completion response."""
         content: str | None = response.choices[0].message.content  # type: ignore
         if content is None:
             raise ValueError(
                 "Response content is None. Expected structured output from LLM."
             )
-
         return response_model.model_validate_json(content)
 
 
