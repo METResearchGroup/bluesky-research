@@ -32,7 +32,7 @@ class LLMProviderProtocol(ABC):
         ...
 
     @abstractmethod
-    def initialize(self, api_key: str) -> None:
+    def initialize(self, api_key: str | None = None) -> None:
         """Initialize the provider with the given API key.
 
         Args:
