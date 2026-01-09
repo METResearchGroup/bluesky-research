@@ -7,8 +7,8 @@ from comet_ml import Experiment
 import matplotlib.pyplot as plt
 import numpy as np
 
-from lib.helper import COMET_API_KEY
 from lib.datetime_utils import generate_current_datetime_str
+from lib.load_env_vars import EnvVarsContainer
 from lib.log.logger import get_logger
 
 workspace = "mtorres98"
@@ -270,14 +270,26 @@ def log_batch_classification_to_cometml(service="ml_inference_ime"):
 
     def decorator(func):
         def wrapper(*args, **kwargs):
-            experiment = Experiment(
-                api_key=COMET_API_KEY,
-                project_name=service_to_project_name_map[service],
-                workspace=workspace,
-            )
+            # Fetch and validate COMET_API_KEY before creating Experiment
+            comet_api_key = EnvVarsContainer.get_env_var("COMET_API_KEY")
+
+            if not comet_api_key:
+                logger.warning(
+                    f"COMET_API_KEY is missing or empty. Skipping CometML telemetry "
+                    f"for service '{service}'. Batch classification will continue without telemetry."
+                )
+                experiment = None
+            else:
+                experiment = Experiment(
+                    api_key=comet_api_key,
+                    project_name=service_to_project_name_map[service],
+                    workspace=workspace,
+                )
+
             hyperparameters = kwargs["hyperparameters"]
             hyperparameters["start_timestamp"] = generate_current_datetime_str()
-            experiment.log_parameters(hyperparameters)
+            if experiment is not None:
+                experiment.log_parameters(hyperparameters)
 
             total_start_time = time.time()
             metadata: dict = func(*args, **kwargs)
@@ -294,12 +306,20 @@ def log_batch_classification_to_cometml(service="ml_inference_ime"):
                 f"Total batch classification run finished in {total_time} seconds."
             )
 
-            log_telemetry_to_cometml(
-                experiment=experiment,
-                run_metadata=run_metadata,
-                metrics=telemetry_metadata["metrics"],
-                classification_breakdown=telemetry_metadata["classification_breakdown"],
-            )
+            if experiment is not None:
+                log_telemetry_to_cometml(
+                    experiment=experiment,
+                    run_metadata=run_metadata,
+                    metrics=telemetry_metadata["metrics"],
+                    classification_breakdown=telemetry_metadata[
+                        "classification_breakdown"
+                    ],
+                )
+            else:
+                logger.debug(
+                    f"Skipping CometML telemetry logging due to missing/invalid API key "
+                    f"for service '{service}'."
+                )
 
             return metadata
 

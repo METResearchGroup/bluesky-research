@@ -2,7 +2,7 @@
 
 import wandb
 
-from lib.helper import RUN_MODE
+from lib.load_env_vars import EnvVarsContainer
 from lib.metadata.models import RunExecutionMetadata
 
 
@@ -15,7 +15,7 @@ def log_run_to_wandb(service_name: str):
 
     def decorator(func):
         def wrapper(*args, **kwargs):
-            if RUN_MODE == "test":
+            if EnvVarsContainer.get_env_var("RUN_MODE") == "test":
                 return func(*args, **kwargs)
             wandb.init(project=service_name)
             run_metadata: RunExecutionMetadata = func(*args, **kwargs)
@@ -33,7 +33,7 @@ def log_run_to_wandb(service_name: str):
 def log_batch_classification_to_wandb(service="ml_inference_ime"):
     def decorator(func):
         def wrapper(*args, **kwargs):
-            if RUN_MODE == "test":
+            if EnvVarsContainer.get_env_var("RUN_MODE") == "test":
                 return func(*args, **kwargs)
             wandb.init(project=service)
             run_metadata: dict = func(*args, **kwargs)

@@ -25,9 +25,8 @@ def mock_posts_to_backfill():
 
 @pytest.fixture(autouse=True)
 def mock_run_mode():
-    """Mock RUN_MODE to be 'test' for all tests."""
-    with patch("lib.helper.RUN_MODE", "test"):
-        yield
+    """Compatibility fixture (RUN_MODE is set via pytest config)."""
+    yield
 
 
 @patch("services.backfill.posts.main.invoke_pipeline_handler")

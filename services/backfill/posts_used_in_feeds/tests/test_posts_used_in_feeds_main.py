@@ -42,9 +42,8 @@ class TestBackfillPostsUsedInFeeds:
 
     @pytest.fixture(autouse=True)
     def mock_run_mode(self):
-        """Mock RUN_MODE to be 'test' for all tests."""
-        with patch("lib.helper.RUN_MODE", "test"):
-            yield
+        """Compatibility fixture (RUN_MODE is set via pytest config)."""
+        yield
 
     @patch("services.backfill.posts_used_in_feeds.main.invoke_pipeline_handler")
     @patch("services.backfill.posts_used_in_feeds.helper.Queue")

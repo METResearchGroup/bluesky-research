@@ -10,7 +10,8 @@ import time
 from typing import Optional
 
 from lib.constants import current_datetime
-from lib.helper import NYTIMES_API_KEY, track_function_runtime
+from lib.helper import track_function_runtime
+from lib.load_env_vars import EnvVarsContainer
 from services.add_context.current_events_enrichment.experiments.database import batch_write_articles  # noqa
 
 
@@ -28,7 +29,10 @@ DEFAULT_SECTIONS = ["home", "business", "politics", "us", "world", "technology"]
 
 def generate_request_url(endpoint: str) -> str:
     """Generates the request URL."""
-    return f"https://api.nytimes.com/svc/{endpoint}?api-key={NYTIMES_API_KEY}"
+    return (
+        f"https://api.nytimes.com/svc/{endpoint}?api-key="
+        f"{EnvVarsContainer.get_env_var('NYTIMES_KEY')}"
+    )
 
 
 # rate limit of 5 queries/min

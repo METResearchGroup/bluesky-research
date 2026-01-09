@@ -27,7 +27,6 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from demos.firehose_ingestion.db import FirehoseDB, FirehoseRecord
-from lib.helper import BSKY_DATA_DIR
 from lib.log.logger import get_logger
 
 logger = get_logger(__file__)

@@ -3,17 +3,17 @@
 Copied from https://github.com/MarshalX/bluesky-feed-generator/blob/main/publish_feed.py
 """  # noqa
 
-from lib.helper import BLUESKY_HANDLE, BLUESKY_APP_PASSWORD
+from lib.load_env_vars import EnvVarsContainer
 
 from atproto import Client, models
 
 # YOUR bluesky handle
 # Ex: user.bsky.social
-HANDLE: str = BLUESKY_HANDLE
+HANDLE: str = EnvVarsContainer.get_env_var("BLUESKY_HANDLE", required=True)
 
 # YOUR bluesky password, or preferably an App Password (found in your client settings) # noqa
 # Ex: abcd-1234-efgh-5678
-PASSWORD: str = BLUESKY_APP_PASSWORD
+PASSWORD: str = EnvVarsContainer.get_env_var("BLUESKY_PASSWORD", required=True)
 
 # The hostname of the server where feed server will be hosted
 # Ex: feed.bsky.dev

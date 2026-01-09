@@ -14,14 +14,18 @@ from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
-from lib.helper import BSKY_DATA_DIR
+from lib.load_env_vars import EnvVarsContainer
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 
 logger = get_logger(__file__)
 
 # Define the root path for firehose databases
-root_db_path = os.path.join(BSKY_DATA_DIR, "firehose")
+bsky_data_dir = EnvVarsContainer.get_env_var("BSKY_DATA_DIR")
+if not bsky_data_dir:
+    raise ValueError("BSKY_DATA_DIR must be set to use demos.firehose_ingestion.db")
+
+root_db_path = os.path.join(bsky_data_dir, "firehose")
 if not os.path.exists(root_db_path):
     logger.info(f"Creating new directory for firehose data at {root_db_path}...")
     os.makedirs(root_db_path)
