@@ -18,6 +18,7 @@ INTEGRATIONS_LIST = [
     "ml_inference_sociopolitical",
     "ml_inference_ime",
     "ml_inference_valence_classifier",
+    "ml_inference_intergroup",
 ]
 
 default_table_columns = ["uri", "text", "preprocessing_timestamp"]

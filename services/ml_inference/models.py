@@ -257,6 +257,50 @@ class ValenceClassifierLabelModel(BaseModel):
     )
 
 
+class LLMIntergroupLabelModel(BaseModel):
+    """Stores results of intergroup labels from the LLM."""
+
+    is_intergroup: bool = Field(
+        ..., description="Whether the text has intergroup content"
+    )
+
+
+class LLMIntergroupLabelsModel(BaseModel):
+    """Wrapper model for batch LLM responses."""
+
+    labels: list[LLMIntergroupLabelModel] = Field(
+        ..., description="The labels for the posts."
+    )
+
+
+class IntergroupLabelsModel(BaseModel):
+    """Stores results of intergroup classification."""
+
+    uri: str = Field(..., description="The URI of the post.")
+    text: str = Field(..., description="The text of the post.")
+    preprocessing_timestamp: str = Field(
+        ..., description="The preprocessing_timestamp timestamp of the post."
+    )
+    llm_model_name: Optional[str] = Field(
+        default=None, description="Name of LLM model used for inference."
+    )  # noqa
+    was_successfully_labeled: bool = Field(
+        ...,
+        description="Indicates if the post was successfully labeled.",
+    )  # noqa
+    reason: Optional[str] = Field(
+        default=None,
+        description="Reason for why the post was not labeled successfully.",
+    )  # noqa
+    label_timestamp: str = Field(
+        ...,
+        description="Timestamp when the post was labeled.",
+    )  # noqa
+    is_intergroup: Optional[bool] = Field(
+        default=None, description="The intergroup label of the post."
+    )  # noqa
+
+
 class PostToLabelModel(BaseModel):
     """A model for a post to be labeled."""
 

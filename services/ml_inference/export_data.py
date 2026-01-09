@@ -14,6 +14,7 @@ _INPUT_QUEUE_NAMES = {
     "sociopolitical": "input_ml_inference_sociopolitical",
     "ime": "input_ml_inference_ime",
     "valence_classifier": "input_ml_inference_valence_classifier",
+    "intergroup": "input_ml_inference_intergroup",
 }
 
 _OUTPUT_QUEUE_NAMES = {
@@ -21,6 +22,7 @@ _OUTPUT_QUEUE_NAMES = {
     "sociopolitical": "output_ml_inference_sociopolitical",
     "ime": "output_ml_inference_ime",
     "valence_classifier": "output_ml_inference_valence_classifier",
+    "intergroup": "output_ml_inference_intergroup",
 }
 
 
@@ -31,6 +33,7 @@ def _default_input_queue(
         "sociopolitical",
         "ime",
         "valence_classifier",
+        "intergroup",
     ],
 ) -> Queue:
     """Factory for default input queue (lazy-loaded, no import-time creation).
@@ -51,6 +54,7 @@ def _default_output_queue(
         "sociopolitical",
         "ime",
         "valence_classifier",
+        "intergroup",
     ],
 ) -> Queue:
     """Factory for default output queue (lazy-loaded, no import-time creation).
@@ -71,6 +75,7 @@ def return_failed_labels_to_input_queue(
         "sociopolitical",
         "ime",
         "valence_classifier",
+        "intergroup",
     ],
     failed_label_models: list[dict],
     batch_size: Optional[int] = None,
@@ -115,6 +120,7 @@ def write_posts_to_cache(
         "sociopolitical",
         "ime",
         "valence_classifier",
+        "intergroup",
     ],
     posts: list[dict],
     batch_size: Optional[int] = None,

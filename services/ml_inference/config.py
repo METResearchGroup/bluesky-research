@@ -24,7 +24,7 @@ class InferenceConfig:
 
     inference_type: str
     queue_inference_type: Literal[
-        "sociopolitical", "perspective_api", "ime", "valence_classifier"
+        "sociopolitical", "perspective_api", "ime", "valence_classifier", "intergroup"
     ]  # For get_posts_to_classify()
     classification_func: Callable
     log_message_template: str = "Classifying {count} posts..."
