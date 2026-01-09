@@ -18,7 +18,9 @@ class LLMService:
     """LLM service for making API requests via LiteLLM."""
 
     def __init__(self):
-        self.openai_api_key = EnvVarsContainer.get_env_var("OPENAI_API_KEY", required=True)
+        self.openai_api_key = EnvVarsContainer.get_env_var(
+            "OPENAI_API_KEY", required=True
+        )
         litellm.api_key = self.openai_api_key
 
     def chat_completion(

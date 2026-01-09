@@ -272,7 +272,7 @@ def log_batch_classification_to_cometml(service="ml_inference_ime"):
         def wrapper(*args, **kwargs):
             # Fetch and validate COMET_API_KEY before creating Experiment
             comet_api_key = EnvVarsContainer.get_env_var("COMET_API_KEY")
-            
+
             if not comet_api_key:
                 logger.warning(
                     f"COMET_API_KEY is missing or empty. Skipping CometML telemetry "
@@ -311,7 +311,9 @@ def log_batch_classification_to_cometml(service="ml_inference_ime"):
                     experiment=experiment,
                     run_metadata=run_metadata,
                     metrics=telemetry_metadata["metrics"],
-                    classification_breakdown=telemetry_metadata["classification_breakdown"],
+                    classification_breakdown=telemetry_metadata[
+                        "classification_breakdown"
+                    ],
                 )
             else:
                 logger.debug(

@@ -146,7 +146,9 @@ class EnvVarsContainer:
 
         run_mode = os.getenv("RUN_MODE", "test")  # local, test, or prod
         if run_mode not in {"local", "test", "prod"}:
-            raise ValueError("RUN_MODE must be set to either 'local', 'test', or 'prod'")
+            raise ValueError(
+                "RUN_MODE must be set to either 'local', 'test', or 'prod'"
+            )
 
         # RUN_MODE is itself an "env var" we serve via this container.
         self._env_vars["RUN_MODE"] = run_mode
@@ -170,13 +172,15 @@ class EnvVarsContainer:
             self._env_vars["BSKY_DATA_DIR"] = os.getenv("BSKY_DATA_DIR")
 
         # Prod-only secret loading for Bluesky creds.
-        if (
-            run_mode == "prod"
-            and (not self._env_vars.get("BLUESKY_HANDLE") or not self._env_vars.get("BLUESKY_PASSWORD"))
+        if run_mode == "prod" and (
+            not self._env_vars.get("BLUESKY_HANDLE")
+            or not self._env_vars.get("BLUESKY_PASSWORD")
         ):
             bsky_credentials = json.loads(get_secret("bluesky_account_credentials"))
             self._env_vars["BLUESKY_HANDLE"] = bsky_credentials.get("bluesky_handle")
-            self._env_vars["BLUESKY_PASSWORD"] = bsky_credentials.get("bluesky_password")
+            self._env_vars["BLUESKY_PASSWORD"] = bsky_credentials.get(
+                "bluesky_password"
+            )
 
         # Required prod settings.
         if run_mode == "prod" and not self._env_vars.get("BSKY_DATA_DIR"):
@@ -195,4 +199,3 @@ class EnvVarsContainer:
         self._env_vars["MONGODB_URI"] = os.getenv("MONGODB_URI")
         self._env_vars["LANGTRACE_API_KEY"] = os.getenv("LANGTRACE_API_KEY")
         self._env_vars["COMET_API_KEY"] = os.getenv("COMET_API_KEY")
-
