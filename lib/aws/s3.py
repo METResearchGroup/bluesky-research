@@ -313,7 +313,7 @@ class S3:
                 logger.info(f"No JSON files found in directory: {directory}.")
                 logger.info("Not writing anything to S3.")
             if not key:
-                key = os.path.join(S3_FIREHOSE_KEY_ROOT, filename)
+                key = str(os.path.join(S3_FIREHOSE_KEY_ROOT, filename))
             if compressed:
                 key += ".gz"
             try:
@@ -438,7 +438,7 @@ class S3:
         """
         jsonl_dicts: list[dict] = []
         for key in keys:
-            res: list[dict] = self.read_jsonl_from_s3(key=key)
+            res = self.read_jsonl_from_s3(key=key)
             if res:
                 jsonl_dicts.extend(res)
         return pd.DataFrame(jsonl_dicts)
