@@ -1,9 +1,11 @@
 # Experiments, 2026-01-10
 
-In this set of experiments, we take our eval dataset, we upload to opik, and then we iterate on a few prompts to be able to refine and perfect the prompt that we wanna use for our intergroup classifier.
+In this set of experiments, we take our eval dataset, we upload to Opik, and then we iterate on a few prompts to be able to refine and perfect the prompt that we want to use for our intergroup classifier.
 
 Steps:
 
 1. Run `create_opik_dataset.py` to upload the .csv file to Opik.
 2. Run `run_prompt_on_eval_dataset.py`, which runs the prompt on the Opik dataset.
 3. Go to the Opik dashboard and review results.
+
+See [this PR](https://github.com/METResearchGroup/bluesky-research/pull/316) for a more extensive breakdown of the work here.
