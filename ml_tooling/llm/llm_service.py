@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from ml_tooling.llm.config.model_registry import ModelConfigRegistry
 from ml_tooling.llm.providers.base import LLMProviderProtocol
 from ml_tooling.llm.providers.registry import LLMProviderRegistry
+from ml_tooling.llm.retry import retry_llm_http_call
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -96,6 +97,32 @@ class LLMService:
 
         return completion_kwargs, response_format_dict
 
+    @retry_llm_http_call(max_retries=3, initial_delay=1.0, max_delay=60.0)
+    def _llm_completion(self, completion_kwargs: dict) -> ModelResponse:
+        """Make the actual call to litellm.completion.
+
+        This method is wrapped with retry logic. Only HTTP errors are retried.
+
+        Args:
+            completion_kwargs: Prepared kwargs for litellm.completion
+
+        Returns:
+            ModelResponse from litellm
+
+        Raises:
+            Exception: Re-raises any exception from litellm.completion
+        """
+        result = litellm.completion(**completion_kwargs)  # type: ignore
+
+        # Coerce to ModelResponse for type safety
+        # LiteLLM can return either ModelResponse or a CustomStreamWrapper;
+        # our use case isn't stream-based. This is to satisfy pyright.
+        return (
+            result
+            if isinstance(result, ModelResponse)
+            else ModelResponse(**result.__dict__)  # type: ignore
+        )
+
     def _chat_completion(
         self,
         messages: list[dict],
@@ -124,28 +151,48 @@ class LLMService:
         Raises:
             Exception: Re-raises any exception from litellm.completion
         """
-        try:
-            completion_kwargs, _ = self._prepare_completion_kwargs(
-                model=model,
-                provider=provider,
-                response_format=response_format,
-                **kwargs,
-            )
-            completion_kwargs["messages"] = messages
-            # Avoid global LiteLLM state; use the provider instance's key per request.
-            completion_kwargs["api_key"] = provider.api_key
-            result = litellm.completion(**completion_kwargs)  # type: ignore
+        completion_kwargs, _ = self._prepare_completion_kwargs(
+            model=model,
+            provider=provider,
+            response_format=response_format,
+            **kwargs,
+        )
+        completion_kwargs["messages"] = messages
+        # Avoid global LiteLLM state; use the provider instance's key per request.
+        completion_kwargs["api_key"] = provider.api_key
 
-            # Coercion here to make sure that it is of type ModelResponse
-            # LiteLLM can return either ModelResponse or a CustomStreamWrapper;
-            # our use case isn't stream-based. This is to satisfy pyright.
-            return (
+        # This is the only place we retry - the HTTP call itself
+        return self._llm_completion(completion_kwargs)
+
+    @retry_llm_http_call(max_retries=3, initial_delay=1.0, max_delay=60.0)
+    def _llm_batch_completion(self, completion_kwargs: dict) -> list[ModelResponse]:
+        """Make the actual call to litellm.batch_completion.
+
+        This method is wrapped with retry logic. Only HTTP errors are retried.
+
+        Args:
+            completion_kwargs: Prepared kwargs for litellm.batch_completion
+
+        Returns:
+            List of ModelResponse objects from litellm
+
+        Raises:
+            Exception: Re-raises any exception from litellm.batch_completion
+        """
+        results: list[ModelResponse] = batch_completion(**completion_kwargs)  # type: ignore
+
+        # Coerce each result to ModelResponse for type safety
+        # LiteLLM batch_completion may return dict-like objects
+        coerced_results = []
+        for result in results:
+            coerced_result = (
                 result
                 if isinstance(result, ModelResponse)
                 else ModelResponse(**result.__dict__)  # type: ignore
             )
-        except Exception:
-            raise
+            coerced_results.append(coerced_result)
+
+        return coerced_results
 
     def _batch_completion(
         self,
@@ -178,40 +225,21 @@ class LLMService:
             TODO: Consider supporting partial results for batch completions instead of
                 all-or-nothing error handling.
         """
-        try:
-            completion_kwargs, _ = self._prepare_completion_kwargs(
-                model=model,
-                provider=provider,
-                response_format=response_format,
-                **kwargs,
-            )
+        completion_kwargs, _ = self._prepare_completion_kwargs(
+            model=model,
+            provider=provider,
+            response_format=response_format,
+            **kwargs,
+        )
 
-            # Remove placeholder messages from kwargs since batch_completion takes it separately
-            completion_kwargs.pop("messages", None)
+        # Remove placeholder messages from kwargs since batch_completion takes it separately
+        completion_kwargs.pop("messages", None)
+        completion_kwargs["messages"] = messages_list
+        # Avoid global LiteLLM state; use the provider instance's key per request.
+        completion_kwargs["api_key"] = provider.api_key
 
-            completion_kwargs["messages"] = messages_list
-            # Avoid global LiteLLM state; use the provider instance's key per request.
-            completion_kwargs["api_key"] = provider.api_key
-
-            # Make the batch API call
-            # TODO: Consider supporting partial results for batch completions instead of
-            # all-or-nothing error handling.
-            results: list[ModelResponse] = batch_completion(**completion_kwargs)  # type: ignore
-
-            # Coerce each result to ModelResponse for type safety
-            # LiteLLM batch_completion may return dict-like objects
-            coerced_results = []
-            for result in results:
-                coerced_result = (
-                    result
-                    if isinstance(result, ModelResponse)
-                    else ModelResponse(**result.__dict__)  # type: ignore
-                )
-                coerced_results.append(coerced_result)
-
-            return coerced_results
-        except Exception:
-            raise
+        # This is the only place we retry - the HTTP call itself
+        return self._llm_batch_completion(completion_kwargs)
 
     def structured_completion(
         self,
