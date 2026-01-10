@@ -9,6 +9,8 @@
 
 models:
   default:
+    # our default model is gpt-4o-mini.
+    default_model: "gpt-4o-mini"
     llm_inference_kwargs:
       temperature: 0.0
   

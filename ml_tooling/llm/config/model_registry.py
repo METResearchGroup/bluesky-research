@@ -242,3 +242,20 @@ class ModelConfigRegistry:
         for provider_name in cls.list_providers():
             all_models.extend(cls.list_models_for_provider(provider_name))
         return all_models
+
+    @classmethod
+    def get_default_model(cls) -> str:
+        """Get the default model from the configuration.
+
+        Returns:
+            Default model identifier (e.g., 'gpt-4o-mini')
+
+        Raises:
+            KeyError: If default_model is not found in the default configuration
+        """
+        config = cls._load_config()
+        default_config = config.get("models", {}).get("default", {})
+        default_model = default_config.get("default_model")
+        if default_model is None:
+            raise KeyError("default_model not found in models.default configuration")
+        return default_model
