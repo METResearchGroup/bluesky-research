@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from pydantic import BaseModel, Field
@@ -91,13 +91,12 @@ class TestLLMService:
         messages = [{"role": "user", "content": "test prompt"}]
         dummy_provider = _DummyProvider()
 
-        mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content='{"value": "test", "number": 42}'))
-        ]
+        parsed_model = SamplePydanticModel(value="test", number=42)
 
         with patch.object(service, "_get_provider_for_model", return_value=dummy_provider):
-            with patch.object(service, "_chat_completion", return_value=mock_response) as mock_chat:
+            with patch.object(
+                service, "_complete_and_validate_structured", return_value=parsed_model
+            ) as mock_complete:
                 result = service.structured_completion(
                     messages=messages,
                     response_model=SamplePydanticModel,
@@ -109,7 +108,7 @@ class TestLLMService:
         assert isinstance(result, SamplePydanticModel)
         assert result.value == "test"
         assert result.number == 42
-        mock_chat.assert_called_once()
+        mock_complete.assert_called_once()
 
     def test_structured_completion_raises_value_error_when_content_is_none(self):
         """Verify structured_completion raises ValueError when response content is None."""
@@ -117,11 +116,15 @@ class TestLLMService:
         dummy_provider = _DummyProvider()
         messages = [{"role": "user", "content": "test prompt"}]
 
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock(message=MagicMock(content=None))]
-
         with patch.object(service, "_get_provider_for_model", return_value=dummy_provider):
-            with patch.object(service, "_chat_completion", return_value=mock_response):
+            # Mock _complete_and_validate_structured to raise ValueError (simulating handle_completion_response)
+            with patch.object(
+                service,
+                "_complete_and_validate_structured",
+                side_effect=ValueError(
+                    "Response content is None. Expected structured output from LLM."
+                ),
+            ):
                 with pytest.raises(ValueError, match="Response content is None"):
                     service.structured_completion(
                         messages=messages,
@@ -137,11 +140,21 @@ class TestLLMService:
         dummy_provider = _DummyProvider()
         messages = [{"role": "user", "content": "test prompt"}]
 
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock(message=MagicMock(content='{"invalid": "json"}'))]
+        # Create a ValidationError by trying to parse invalid data
+        # This will definitely raise a ValidationError since required fields are missing
+        validation_error: ValidationError
+        try:
+            SamplePydanticModel.model_validate({})  # Empty dict will fail validation
+            # This should never happen, but satisfy type checker
+            raise AssertionError("Expected ValidationError was not raised")
+        except ValidationError as e:
+            validation_error = e
 
         with patch.object(service, "_get_provider_for_model", return_value=dummy_provider):
-            with patch.object(service, "_chat_completion", return_value=mock_response):
+            # Mock _complete_and_validate_structured to raise ValidationError
+            with patch.object(
+                service, "_complete_and_validate_structured", side_effect=validation_error
+            ):
                 with pytest.raises(ValidationError):
                     service.structured_completion(
                         messages=messages,
@@ -149,19 +162,18 @@ class TestLLMService:
                         model="gpt-4o-mini",
                     )
 
-    def test_structured_completion_passes_kwargs_to__chat_completion(self):
-        """Verify structured_completion passes kwargs through to _chat_completion."""
+    def test_structured_completion_passes_kwargs_to_complete_and_validate(self):
+        """Verify structured_completion passes kwargs through to _complete_and_validate_structured."""
         service = LLMService()
         dummy_provider = _DummyProvider()
         messages = [{"role": "user", "content": "test prompt"}]
 
-        mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content='{"value": "test", "number": 42}'))
-        ]
+        parsed_model = SamplePydanticModel(value="test", number=42)
 
         with patch.object(service, "_get_provider_for_model", return_value=dummy_provider):
-            with patch.object(service, "_chat_completion", return_value=mock_response) as mock_chat:
+            with patch.object(
+                service, "_complete_and_validate_structured", return_value=parsed_model
+            ) as mock_complete:
                 service.structured_completion(
                     messages=messages,
                     response_model=SamplePydanticModel,
@@ -171,7 +183,7 @@ class TestLLMService:
                     top_p=0.9,
                 )
 
-        call_kwargs = mock_chat.call_args.kwargs
+        call_kwargs = mock_complete.call_args.kwargs
         assert call_kwargs["model"] == "gpt-4o-mini"
         assert call_kwargs["response_format"] == SamplePydanticModel
         assert call_kwargs["max_tokens"] == 200
