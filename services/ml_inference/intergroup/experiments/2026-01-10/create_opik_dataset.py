@@ -23,8 +23,8 @@ def insert_rows_into_opik_dataset(df: pd.DataFrame, dataset: opik.Dataset):
     records_to_insert = []
     for record in df_dicts:
         record_to_insert = {
-            "input": record["text"],
-            "expected_output": record["gold_label"],
+            "input": str(record["text"]),
+            "reference": str(record["gold_label"]),  # "Equals" metric expects 'reference' to be a string.
         }
         records_to_insert.append(record_to_insert)
     dataset.insert(records_to_insert)

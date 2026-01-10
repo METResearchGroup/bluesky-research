@@ -6,7 +6,7 @@ See the following for more information:
 """
 import os
 
-from opik.evaluation import evaluate_prompt, models
+from opik.evaluation import evaluate_prompt
 from opik.evaluation.metrics import Equals
 
 from lib.load_env_vars import EnvVarsContainer
@@ -19,11 +19,6 @@ from prompts import INTERGROUP_PROMPT
 # in benchmarks; probably true also in this task as well).
 # https://platform.openai.com/docs/pricing
 # https://llm-stats.com/models/compare/gpt-4o-mini-2024-07-18-vs-gpt-5-nano-2025-08-07
-gpt5_nano = models.LiteLLMChatModel(
-    model="gpt-5-nano",
-    temperature=1.0, # gpt-5-nano doesn't support temperature=0.0, we'll see if this affects results.
-    max_tokens=512,
-)
 
 def main():
     env_vars = EnvVarsContainer()
@@ -31,18 +26,17 @@ def main():
     openai_api_key = env_vars.get_env_var("OPENAI_API_KEY", required=True)
     os.environ["OPENAI_API_KEY"] = openai_api_key # need to set this so LiteLLM client can use it.
 
+
     opik_client = OpikClient(project_name=opik_project_name)
     dataset = opik_client.get_or_create_dataset("intergroup_eval_dataset_2026-01-10")
-    evaluation_result = evaluate_prompt(
+    evaluate_prompt(
         dataset=dataset,
         messages=[
             {"role": "user", "content": INTERGROUP_PROMPT},
         ],
-        # model=gpt5_nano,
         model="gpt-5-nano",
         scoring_metrics=[Equals()],
     )
-    print(evaluation_result)
 
 if __name__ == "__main__":
     main()
