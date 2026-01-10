@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from ml_tooling.llm.model import (
+from services.ml_inference.sociopolitical.model import (
     generate_prompt,
     parse_llm_result,
     process_sociopolitical_batch,
@@ -145,7 +145,7 @@ class TestParseLLMResult:
 class TestProcessSociopoliticalBatch:
     """Tests for process_sociopolitical_batch() function."""
 
-    @patch('ml_tooling.llm.model.get_llm_service')
+    @patch('services.ml_inference.sociopolitical.model.get_llm_service')
     def test_batch_size_boundaries(self, mock_get_service):
         """Test processing with different batch sizes.
         
@@ -169,7 +169,7 @@ class TestProcessSociopoliticalBatch:
         assert len(results) == 10
         assert all(isinstance(r, dict) for r in results)
 
-    @patch('ml_tooling.llm.model.get_llm_service')
+    @patch('services.ml_inference.sociopolitical.model.get_llm_service')
     def test_large_batch_handling(self, mock_get_service):
         """Test processing with batch larger than DEFAULT_MINIBATCH_SIZE.
         
@@ -211,7 +211,7 @@ class TestProcessSociopoliticalBatch:
         assert len(results) == 25
         assert all(isinstance(r, dict) for r in results)
 
-    @patch('ml_tooling.llm.model.get_llm_service')
+    @patch('services.ml_inference.sociopolitical.model.get_llm_service')
     def test_single_post_batch(self, mock_get_service):
         """Test processing with single-post batch.
         
@@ -354,9 +354,9 @@ class TestCreateLabels:
 class TestBatchClassifyPosts:
     """Tests for batch_classify_posts() function."""
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch_with_retries')
-    @patch('ml_tooling.llm.model.write_posts_to_cache')
-    @patch('ml_tooling.llm.model.return_failed_labels_to_input_queue')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch_with_retries')
+    @patch('services.ml_inference.sociopolitical.model.write_posts_to_cache')
+    @patch('services.ml_inference.sociopolitical.model.return_failed_labels_to_input_queue')
     def test_successful_batch_classification(
         self, 
         mock_return_failed,
@@ -394,9 +394,9 @@ class TestBatchClassifyPosts:
         mock_write_cache.assert_called_once()
         mock_return_failed.assert_not_called()
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch_with_retries')
-    @patch('ml_tooling.llm.model.write_posts_to_cache')
-    @patch('ml_tooling.llm.model.return_failed_labels_to_input_queue')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch_with_retries')
+    @patch('services.ml_inference.sociopolitical.model.write_posts_to_cache')
+    @patch('services.ml_inference.sociopolitical.model.return_failed_labels_to_input_queue')
     def test_failed_batch_classification(
         self,
         mock_return_failed,
@@ -431,9 +431,9 @@ class TestBatchClassifyPosts:
         mock_write_cache.assert_not_called()
         mock_return_failed.assert_called_once()
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch_with_retries')
-    @patch('ml_tooling.llm.model.write_posts_to_cache')
-    @patch('ml_tooling.llm.model.return_failed_labels_to_input_queue')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch_with_retries')
+    @patch('services.ml_inference.sociopolitical.model.write_posts_to_cache')
+    @patch('services.ml_inference.sociopolitical.model.return_failed_labels_to_input_queue')
     def test_mixed_batch_classification(
         self,
         mock_return_failed,
@@ -484,7 +484,7 @@ class TestBatchClassifyPosts:
 class TestRunBatchClassification:
     """Tests for run_batch_classification() function."""
 
-    @patch('ml_tooling.llm.model.batch_classify_posts')
+    @patch('services.ml_inference.sociopolitical.model.batch_classify_posts')
     def test_run_classification(self, mock_batch_classify):
         """Test running batch classification.
         
@@ -522,7 +522,7 @@ def create_mock_result(success: bool = True) -> dict:
     return None
 
 
-@patch('ml_tooling.llm.model.process_sociopolitical_batch')
+@patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
 @patch('time.sleep')  # Mock sleep to speed up tests
 def test_classification_passes_first_try(mock_sleep, mock_process_batch, sample_posts):
     """Test case where all posts are successfully classified on the first attempt."""
@@ -545,7 +545,7 @@ def test_classification_passes_first_try(mock_sleep, mock_process_batch, sample_
     assert all(r.get('is_sociopolitical') is True for r in results)
 
 
-@patch('ml_tooling.llm.model.process_sociopolitical_batch')
+@patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
 @patch('time.sleep')
 def test_classification_passes_after_two_tries(mock_sleep, mock_process_batch, sample_posts):
     """Test case where half posts pass on first try, rest on second try."""
@@ -574,7 +574,7 @@ def test_classification_passes_after_two_tries(mock_sleep, mock_process_batch, s
     assert all(r.get('is_sociopolitical') is True for r in results)
 
 
-@patch('ml_tooling.llm.model.process_sociopolitical_batch')
+@patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
 @patch('time.sleep')
 def test_classification_fails_all_retries(mock_sleep, mock_process_batch, sample_posts):
     """Test case where all posts fail across all retries."""
@@ -600,7 +600,7 @@ def test_classification_fails_all_retries(mock_sleep, mock_process_batch, sample
     assert all(r is None for r in results)
 
 
-@patch('ml_tooling.llm.model.process_sociopolitical_batch')
+@patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
 @patch('time.sleep')
 def test_classification_partial_success_after_retries(mock_sleep, mock_process_batch, sample_posts):
     """Test case where some posts succeed and 3 ultimately fail after all retries."""
@@ -658,7 +658,7 @@ class TestProcessSociopoliticalBatchWithRetries:
             process_sociopolitical_batch_with_retries(invalid_posts)
         assert "text" in str(exc_info.value)
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     @patch('time.sleep')
     def test_custom_retry_parameters(self, mock_sleep, mock_process_batch):
         """Test custom max_retries and initial_delay parameters.
@@ -689,7 +689,7 @@ class TestProcessSociopoliticalBatchWithRetries:
             call(4.0)   # initial_delay * (2 ** 1)
         ])
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     @patch('time.sleep')
     def test_zero_retries(self, mock_sleep, mock_process_batch):
         """Test behavior when max_retries is set to 0.
@@ -707,7 +707,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         assert len(results) == 1
         assert results[0] is None
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     @patch('time.sleep')
     def test_negative_retries(self, mock_sleep, mock_process_batch):
         """Test behavior when max_retries is negative.
@@ -725,7 +725,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         assert len(results) == 1
         assert results[0] is None
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     @patch('time.sleep')
     def test_negative_initial_delay(self, mock_sleep, mock_process_batch):
         """Test behavior when initial_delay is negative.
@@ -750,7 +750,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         assert len(results) == 1
         assert results[0]["result"] == "success"
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     def test_empty_posts_list(self, mock_process_batch):
         """Test behavior with empty posts list.
         
@@ -761,7 +761,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         mock_process_batch.assert_not_called()
         assert results == []
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     @patch('time.sleep')
     def test_partial_success_result_order(self, mock_sleep, mock_process_batch):
         """Test that result order is preserved with partial successes.
@@ -788,7 +788,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         assert results[1]["result"] == "middle"
         assert results[2]["result"] == "last"
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     @patch('time.sleep')
     def test_exact_retry_timing(self, mock_sleep, mock_process_batch):
         """Test exact timing of retries with exponential backoff.
@@ -815,7 +815,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         mock_sleep.assert_called_once_with(initial_delay * (2 ** 0))  # 0.5 seconds
         assert results[0]["result"] == "success"
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     @patch('time.sleep')
     def test_retry_sleep_timing(self, mock_sleep, mock_process_batch):
         """Test that sleep is called before each retry attempt."""
@@ -840,7 +840,7 @@ class TestProcessSociopoliticalBatchWithRetries:
             call(2.0)   # initial_delay * (2 ** 1)
         ])
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     @patch('time.sleep')
     def test_output_order_with_mixed_retries(self, mock_sleep, mock_process_batch):
         """Test that output order matches input order when posts succeed at different retry attempts.
@@ -886,7 +886,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         assert results[3]["result"] == "success-3"  # Fourth post
         assert results[4]["result"] == "success-4"  # Fifth post
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     @patch('time.sleep')
     def test_output_order_with_failures(self, mock_sleep, mock_process_batch):
         """Test that output order matches input order when some posts permanently fail.
@@ -931,7 +931,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         assert results[2] is None  # Third post (failed)
         assert results[3]["result"] == "success-3"  # Fourth post
 
-    @patch('ml_tooling.llm.model.get_llm_service')
+    @patch('services.ml_inference.sociopolitical.model.get_llm_service')
     def test_process_batch_kwargs_handling(self, mock_get_service):
         """Test that process_sociopolitical_batch correctly handles kwargs for batch_completion.
         
@@ -963,7 +963,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         assert isinstance(call_args.args[0], list)  # First arg should be list of prompts
         assert len(call_args.args[0]) == 1  # Should have one prompt for one post
 
-    @patch('ml_tooling.llm.model.process_sociopolitical_batch')
+    @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     @patch('time.sleep')
     def test_process_batch_with_retries_kwargs_handling(self, mock_sleep, mock_process_batch):
         """Test that process_sociopolitical_batch_with_retries correctly handles and validates kwargs.
