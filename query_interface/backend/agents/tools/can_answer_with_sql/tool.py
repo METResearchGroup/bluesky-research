@@ -1,7 +1,7 @@
 """Tool to determine if a natural language query can be answered with SQL."""
 
 from query_interface.backend.config import get_config_value
-from query_interface.backend.services.llm_service import get_llm_service
+from ml_tooling.llm.llm_service import get_llm_service
 from query_interface.backend.agents.tools.can_answer_with_sql.models import (
     SQLAnswerabilityResult,
 )
@@ -32,6 +32,7 @@ def can_answer_with_sql(query: str) -> SQLAnswerabilityResult:
         result = llm_service.structured_completion(
             messages=[{"role": "user", "content": prompt}],
             response_model=SQLAnswerabilityResult,
+            model=get_config_value("llm", "default_model"),
             max_tokens=get_config_value("llm", "can_answer_with_sql", "max_tokens"),
             temperature=get_config_value("llm", "can_answer_with_sql", "temperature"),
         )

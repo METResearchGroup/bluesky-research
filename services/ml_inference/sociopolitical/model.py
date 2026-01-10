@@ -8,7 +8,7 @@ from typing import Optional
 from lib.constants import timestamp_format
 from lib.helper import create_batches, track_performance
 from lib.log.logger import get_logger
-from ml_tooling.llm.inference import run_batch_queries
+from ml_tooling.llm.llm_service import get_llm_service
 from services.ml_inference.models import (
     LLMSociopoliticalLabelModel,
     LLMSociopoliticalLabelsModel,
@@ -21,7 +21,7 @@ from services.ml_inference.export_data import (
 
 
 logger = get_logger(__name__)
-LLM_MODEL_NAME = "GPT-4o mini"
+LLM_MODEL_NAME = "gpt-4o-mini"
 DEFAULT_BATCH_SIZE = 100
 DEFAULT_MINIBATCH_SIZE = 10
 # max_num_posts = 15_000  # given our batching, we can handle ~500 posts/minute.
@@ -137,8 +137,8 @@ def process_sociopolitical_batch(posts: list[dict]) -> list[dict]:
         for i in range(0, len(posts), DEFAULT_MINIBATCH_SIZE)
     ]
     prompts: list[str] = [generate_prompt(batch) for batch in minibatches]
-    json_results: list[str] = run_batch_queries(
-        prompts, role="user", model_name=LLM_MODEL_NAME
+    json_results: list[str] = get_llm_service().batch_completion(
+        prompts, model=LLM_MODEL_NAME, role="user"
     )
     if len(json_results) != len(minibatches):
         logger.warning(
@@ -231,12 +231,12 @@ def process_sociopolitical_batch_with_retries(
     return final_results
 
 
-def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
+def create_labels(posts: list[dict], responses: list[dict | None]) -> list[dict]:
     """Creates label models by combining post data with corresponding LLM responses.
 
     Args:
         posts (list[dict]): A list of post dictionaries. Each dictionary should contain keys like "uri", "text", and "preprocessing_timestamp".
-        responses (list[dict]): A list of response dictionaries produced by the LLM for each corresponding post.
+        responses (list[dict | None]): A list of response dictionaries produced by the LLM for each corresponding post, or None for failed responses.
 
     Returns:
         list[dict]: A list of dictionaries representing the labeled post information, which includes:
