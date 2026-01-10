@@ -30,6 +30,17 @@ class LLMProviderProtocol(ABC):
         """
         ...
 
+    @property
+    @abstractmethod
+    def api_key(self) -> str:
+        """Return the API key for this provider instance.
+
+        This is used to avoid mutating global LiteLLM state (e.g. litellm.api_key).
+        Providers should store the key on the instance during initialize() and
+        callers should pass api_key=provider.api_key on each LiteLLM call.
+        """
+        ...
+
     @abstractmethod
     def initialize(self, api_key: str | None = None) -> None:
         """Initialize the provider with the given API key.

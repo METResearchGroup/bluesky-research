@@ -8,6 +8,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from ml_tooling.llm.llm_service import LLMService
+from ml_tooling.llm.providers.base import LLMProviderProtocol
 
 
 class SamplePydanticModel(BaseModel):
@@ -15,10 +16,23 @@ class SamplePydanticModel(BaseModel):
     number: int = Field(description="A test number")
 
 
-class _DummyProvider:
+class _DummyProvider(LLMProviderProtocol):
     """Minimal provider stub to satisfy LLMService internals in unit tests."""
 
     _initialized = True
+    _api_key = "dummy-test-key"
+
+    @property
+    def provider_name(self) -> str:
+        return "dummy"
+
+    @property
+    def supported_models(self) -> list[str]:
+        return ["dummy-model"]
+
+    @property
+    def api_key(self) -> str:
+        return self._api_key
 
     def initialize(self, api_key=None) -> None:  # noqa: ANN001
         return None
@@ -30,7 +44,7 @@ class _DummyProvider:
         return {"type": "json_schema", "json_schema": {"schema": {}}}
 
     def prepare_completion_kwargs(
-        self, *, model: str, messages: list[dict], response_format, model_config, **kwargs  # noqa: ANN001,ARG002
+        self, model: str, messages: list[dict], response_format, model_config, **kwargs  # noqa: ANN001,ARG002
     ) -> dict:
         return {"model": model, "messages": messages, **kwargs}
 

@@ -39,6 +39,7 @@ class GeminiProvider(LLMProviderProtocol):
 
     def __init__(self):
         self._initialized = False
+        self._api_key: str | None = None
 
     @property
     def provider_name(self) -> str:
@@ -51,12 +52,22 @@ class GeminiProvider(LLMProviderProtocol):
             "gemini/gemini-1.5-pro-latest",
         ]
 
+    @property
+    def api_key(self) -> str:
+        if self._api_key is None:
+            raise RuntimeError(
+                "GeminiProvider has not been initialized with an API key. "
+                "Call initialize() before making LiteLLM requests."
+            )
+        return self._api_key
+
     def initialize(self, api_key: str | None = None) -> None:
         if api_key is None:
             api_key = EnvVarsContainer.get_env_var(
                 "GOOGLE_AI_STUDIO_KEY", required=True
             )
         if not self._initialized:
+            self._api_key = api_key
             os.environ["GEMINI_API_KEY"] = api_key  # type: ignore
             self._initialized = True
 

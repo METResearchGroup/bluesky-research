@@ -132,6 +132,8 @@ class LLMService:
                 **kwargs,
             )
             completion_kwargs["messages"] = messages
+            # Avoid global LiteLLM state; use the provider instance's key per request.
+            completion_kwargs["api_key"] = provider.api_key
             result = litellm.completion(**completion_kwargs)  # type: ignore
 
             # Coercion here to make sure that it is of type ModelResponse
@@ -188,6 +190,8 @@ class LLMService:
             completion_kwargs.pop("messages", None)
 
             completion_kwargs["messages"] = messages_list
+            # Avoid global LiteLLM state; use the provider instance's key per request.
+            completion_kwargs["api_key"] = provider.api_key
 
             # Make the batch API call
             # TODO: Consider supporting partial results for batch completions instead of
