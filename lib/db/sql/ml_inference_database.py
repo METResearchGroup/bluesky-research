@@ -1,18 +1,18 @@
 """Database logic for storing results of ML inference."""
+
 import peewee
-from peewee import (
-    CharField, TextField, IntegerField, FloatField, BooleanField
-)
+from peewee import CharField, TextField, IntegerField, FloatField, BooleanField
 import os
 import sqlite3
 from typing import Optional, Union
 
-from lib.helper import create_batches
+from lib.batching_utils import create_batches
 from lib.log.logger import Logger
 
 from services.ml_inference.models import (
-    RecordClassificationMetadataModel, PerspectiveApiLabelsModel,
-    SociopoliticalLabelsModel
+    RecordClassificationMetadataModel,
+    PerspectiveApiLabelsModel,
+    SociopoliticalLabelsModel,
 )
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
@@ -39,13 +39,12 @@ class BaseModel(peewee.Model):
 
 class RecordClassificationMetadata(BaseModel):
     """Metadata for the classification of a record."""
+
     uri = CharField(unique=True, index=True)
     text = TextField()
     synctimestamp = CharField()
     preprocessing_timestamp = CharField()
-    source = CharField(
-        choices=[("firehose", "firehose"), ("most_liked", "most_liked")]
-    )
+    source = CharField(choices=[("firehose", "firehose"), ("most_liked", "most_liked")])
     url = CharField(null=True)
     like_count = IntegerField(null=True)
     reply_count = IntegerField(null=True)
@@ -54,6 +53,7 @@ class RecordClassificationMetadata(BaseModel):
 
 class PerspectiveApiLabels(BaseModel):
     """Stores results of classifications from Perspective API."""
+
     uri = CharField(unique=True, index=True)
     text = TextField()
     was_successfully_labeled = BooleanField()
@@ -86,6 +86,7 @@ class PerspectiveApiLabels(BaseModel):
 class SociopoliticalLabels(BaseModel):
     """Stores results of sociopolitical and political ideology labels from
     the LLM."""
+
     uri = CharField(unique=True, index=True)
     text = TextField()
     llm_model_name = TextField(null=True)
@@ -101,22 +102,23 @@ class SociopoliticalLabels(BaseModel):
 def get_existing_metadata_uris() -> set[str]:
     """Get URIs of existing metadata."""
     uris = set()
-    query = RecordClassificationMetadata.select(
-        RecordClassificationMetadata.uri)
+    query = RecordClassificationMetadata.select(RecordClassificationMetadata.uri)
     for row in query:
         uris.add(row.uri)
     return uris
 
 
 def batch_insert_metadata(
-    metadata_lst: list[RecordClassificationMetadataModel]
+    metadata_lst: list[RecordClassificationMetadataModel],
 ) -> None:
     """Batch insert metadata into the database."""
     deduped_metadata_lst = []
     existing_uris = get_existing_metadata_uris()
     seen_uris = set()
     seen_uris.update(existing_uris)
-    print(f"Attempting to insert {len(metadata_lst)} metadata objects into the database.")  # noqa
+    print(
+        f"Attempting to insert {len(metadata_lst)} metadata objects into the database."
+    )  # noqa
     for metadata in metadata_lst:
         if metadata.uri not in seen_uris:
             deduped_metadata_lst.append(metadata)
@@ -137,12 +139,14 @@ def batch_insert_metadata(
     print(f"Metadata count after insertion: {record_count}")
 
 
-def get_metadata(source: Optional[str] = None) -> list[RecordClassificationMetadataModel]:  # noqa
+def get_metadata(
+    source: Optional[str] = None,
+) -> list[RecordClassificationMetadataModel]:  # noqa
     query = RecordClassificationMetadata.select()
     res = list(query)
     if source:
         res = [r for r in res if r.source == source]
-    res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
+    res_dicts: list[dict] = [r.__dict__["__data__"] for r in res]
     transformed_res: list[RecordClassificationMetadataModel] = [
         RecordClassificationMetadataModel(
             uri=r["uri"],
@@ -153,7 +157,7 @@ def get_metadata(source: Optional[str] = None) -> list[RecordClassificationMetad
             url=r["url"],
             like_count=r["like_count"],
             reply_count=r["reply_count"],
-            repost_count=r["repost_count"]
+            repost_count=r["repost_count"],
         )
         for r in res_dicts
     ]
@@ -170,7 +174,7 @@ def get_existing_perspective_api_uris() -> set[str]:
 
 
 def batch_insert_perspective_api_labels(
-    labels: list[PerspectiveApiLabelsModel]
+    labels: list[PerspectiveApiLabelsModel],
 ) -> None:
     """Batch insert Perspective API labels into the database."""
     deduped_labels = []
@@ -201,7 +205,7 @@ def batch_insert_perspective_api_labels(
 def get_perspective_api_labels() -> list[PerspectiveApiLabelsModel]:
     query = PerspectiveApiLabels.select()
     res = list(query)
-    res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
+    res_dicts: list[dict] = [r.__dict__["__data__"] for r in res]
     transformed_res: list[PerspectiveApiLabelsModel] = [
         PerspectiveApiLabelsModel(
             uri=r["uri"],
@@ -230,7 +234,7 @@ def get_perspective_api_labels() -> list[PerspectiveApiLabelsModel]:
             prob_scapegoating=r["prob_scapegoating"],
             prob_sexually_explicit=r["prob_sexually_explicit"],
             prob_flirtation=r["prob_flirtation"],
-            prob_spam=r["prob_spam"]
+            prob_spam=r["prob_spam"],
         )
         for r in res_dicts
     ]
@@ -246,9 +250,7 @@ def get_existing_sociopolitical_uris() -> set[str]:
     return uris
 
 
-def batch_insert_sociopolitical_labels(
-    labels: list[SociopoliticalLabelsModel]
-) -> None:
+def batch_insert_sociopolitical_labels(labels: list[SociopoliticalLabelsModel]) -> None:
     """Batch insert sociopolitical labels into the database."""
     deduped_labels = []
     existing_uris: set[str] = get_existing_sociopolitical_uris()
@@ -276,9 +278,7 @@ def batch_insert_sociopolitical_labels(
 
 
 def batch_insert_labels(
-    labels: Union[
-        list[PerspectiveApiLabelsModel], list[SociopoliticalLabelsModel]
-    ]
+    labels: Union[list[PerspectiveApiLabelsModel], list[SociopoliticalLabelsModel]],
 ) -> None:
     """Batch insert labels into the database."""
     if isinstance(labels[0], PerspectiveApiLabelsModel):
@@ -292,11 +292,9 @@ def batch_insert_labels(
 def create_initial_tables() -> None:
     """Create the initial tables."""
     with db.atomic():
-        db.create_tables([
-            RecordClassificationMetadata,
-            PerspectiveApiLabels,
-            SociopoliticalLabels
-        ])
+        db.create_tables(
+            [RecordClassificationMetadata, PerspectiveApiLabels, SociopoliticalLabels]
+        )
 
 
 if __name__ == "__main__":

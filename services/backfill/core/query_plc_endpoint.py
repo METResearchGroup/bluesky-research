@@ -8,7 +8,7 @@ import time
 from services.backfill.config.schema import BackfillConfigSchema
 from lib.constants import project_home_directory
 from lib.db.queue import Queue
-from lib.helper import create_batches
+from lib.batching_utils import create_batches
 from lib.log.logger import get_logger
 from services.backfill.core.backfill import get_plc_directory_doc
 from services.backfill.core.models import PlcResult

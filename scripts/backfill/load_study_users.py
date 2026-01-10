@@ -19,7 +19,7 @@ Each row in the SQLite DB is a list of user DIDs.
 import os
 
 from lib.db.queue import Queue
-from lib.helper import create_batches
+from lib.batching_utils import create_batches
 from lib.log.logger import get_logger
 from services.participant_data.helper import get_all_users
 from services.participant_data.models import UserToBlueskyProfileModel

@@ -14,7 +14,8 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
-from lib.helper import create_batches, track_performance
+from lib.batching_utils import create_batches
+from lib.helper import track_performance
 from lib.load_env_vars import EnvVarsContainer
 from lib.log.logger import get_logger
 from ml_tooling.ime.constants import default_hyperparameters, default_model

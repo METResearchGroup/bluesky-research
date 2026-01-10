@@ -6,7 +6,8 @@ import time
 from typing import Optional
 
 from lib.constants import timestamp_format
-from lib.helper import create_batches, track_performance
+from lib.batching_utils import create_batches
+from lib.helper import track_performance
 from lib.log.logger import get_logger
 from ml_tooling.llm.llm_service import get_llm_service
 from services.ml_inference.models import (

@@ -1,11 +1,12 @@
 """Database logic for storing in-network posts."""
+
 import os
 import peewee
 import sqlite3
 from typing import Optional
 
 from lib.constants import current_datetime_str
-from lib.helper import create_batches
+from lib.batching_utils import create_batches
 from services.preprocess_raw_data.models import FilteredPreprocessedPostModel
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
@@ -33,6 +34,7 @@ class InNetworkPosts(BaseModel):
     `FilteredPreprocessedPosts` table, but adds an additional field for the
     post's indexing timestamp.
     """
+
     uri = peewee.CharField(unique=True)
     cid = peewee.CharField(index=True)
     indexed_at = peewee.CharField(null=True)
@@ -61,9 +63,11 @@ def create_initial_tables():
 def get_latest_indexed_in_network_timestamp() -> Optional[str]:
     """Load the timestamp of when the latest in-network post was indexed."""
     try:
-        latest_post = InNetworkPosts.select().order_by(
-            InNetworkPosts.indexed_in_network_timestamp.desc()
-        ).get()
+        latest_post = (
+            InNetworkPosts.select()
+            .order_by(InNetworkPosts.indexed_in_network_timestamp.desc())
+            .get()
+        )
         return latest_post.indexed_in_network_timestamp
     except InNetworkPosts.DoesNotExist:
         return None
@@ -77,8 +81,9 @@ def batch_insert_in_network_posts(posts: list[FilteredPreprocessedPostModel]):
             batch_dicts = [
                 {
                     **post.dict(),
-                    **{"indexed_in_network_timestamp": current_datetime_str}
-                } for post in batch
+                    **{"indexed_in_network_timestamp": current_datetime_str},
+                }
+                for post in batch
             ]
             InNetworkPosts.insert_many(batch_dicts).execute()  # noqa
     print(f"Inserted {len(posts)} in-network posts.")

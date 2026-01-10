@@ -1,11 +1,13 @@
 """Database connection and setup for storing network data."""
+
 import os
 import peewee
 import sqlite3
 
-from lib.helper import create_batches
+from lib.batching_utils import create_batches
 from services.update_network_connections.models import (
-    UserSocialNetworkCountsModel, UserToConnectionModel
+    UserSocialNetworkCountsModel,
+    UserToConnectionModel,
 )
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
@@ -28,6 +30,7 @@ class BaseModel(peewee.Model):
 
 class UserToConnection(BaseModel):
     """Class for tracking user connections."""
+
     study_user_id = peewee.CharField()
     user_did = peewee.CharField()
     user_handle = peewee.CharField()
@@ -39,11 +42,12 @@ class UserToConnection(BaseModel):
     synctimestamp = peewee.CharField()
 
     class Meta:
-        primary_key = peewee.CompositeKey('user_did', 'connection_did')
+        primary_key = peewee.CompositeKey("user_did", "connection_did")
 
 
 class UserSocialNetworkCounts(BaseModel):
     """Class for tracking user social network counts."""
+
     study_user_id = peewee.CharField()
     user_did = peewee.CharField()
     user_handle = peewee.CharField()
@@ -72,7 +76,9 @@ def get_connection_dids_for_user(user_did: str) -> set[str]:
     return connection_dids
 
 
-def get_user_connections(user_did: str, connection_dids_list: list[str]) -> list[UserToConnectionModel]:  # noqa
+def get_user_connections(
+    user_did: str, connection_dids_list: list[str]
+) -> list[UserToConnectionModel]:  # noqa
     """
     Retrieves a list of user connections filtered by a specific user ID and a list of connection IDs.
 
@@ -83,14 +89,14 @@ def get_user_connections(user_did: str, connection_dids_list: list[str]) -> list
     Returns:
         list[UserToConnectionModel]: A list of UserToConnectionModel instances representing the filtered user connections.
     """  # noqa
-    res = list(UserToConnection.select().where(
-        (UserToConnection.user_did == user_did) &
-        (UserToConnection.connection_did << connection_dids_list)
-    ))
-    res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
-    transformed_res = [
-        UserToConnectionModel(**res_dict) for res_dict in res_dicts
-    ]
+    res = list(
+        UserToConnection.select().where(
+            (UserToConnection.user_did == user_did)
+            & (UserToConnection.connection_did << connection_dids_list)
+        )
+    )
+    res_dicts: list[dict] = [r.__dict__["__data__"] for r in res]
+    transformed_res = [UserToConnectionModel(**res_dict) for res_dict in res_dicts]
     return transformed_res
 
 
@@ -101,11 +107,11 @@ def get_all_followed_connections() -> list[UserToConnectionModel]:
     combination of study user + account, so if multiple users follow the same
     account, we only want to count that account once.
     """
-    res = list(UserToConnection.select().where(UserToConnection.user_follows_connection == True))  # noqa
-    res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
-    transformed_res = [
-        UserToConnectionModel(**res_dict) for res_dict in res_dicts
-    ]
+    res = list(
+        UserToConnection.select().where(UserToConnection.user_follows_connection)
+    )  # noqa
+    res_dicts: list[dict] = [r.__dict__["__data__"] for r in res]
+    transformed_res = [UserToConnectionModel(**res_dict) for res_dict in res_dicts]
     deduped_res: list[UserToConnectionModel] = []
     seen_connection_did = set()
     seen_connection_handle = set()
@@ -121,22 +127,28 @@ def get_all_followed_connections() -> list[UserToConnectionModel]:
 
 
 def insert_user_network_counts(user_network_counts: UserSocialNetworkCountsModel):  # noqa
-    UserSocialNetworkCounts.insert(**user_network_counts.dict()).on_conflict_replace().execute()  # noqa
+    UserSocialNetworkCounts.insert(
+        **user_network_counts.dict()
+    ).on_conflict_replace().execute()  # noqa
     print(f"Inserted user network counts for user {user_network_counts.study_user_id}.")  # noqa
 
 
-def batch_insert_user_network_counts(user_network_counts: list[UserSocialNetworkCountsModel]):  # noqa
+def batch_insert_user_network_counts(
+    user_network_counts: list[UserSocialNetworkCountsModel],
+):  # noqa
     with db.atomic():
         batches = create_batches(user_network_counts, insert_batch_size)
         for batch in batches:
             batch_dicts = [counts.dict() for counts in batch]
-            UserSocialNetworkCounts.insert_many(batch_dicts).on_conflict_replace().execute()  # noqa
+            UserSocialNetworkCounts.insert_many(
+                batch_dicts
+            ).on_conflict_replace().execute()  # noqa
     print(f"Inserted {len(user_network_counts)} user network counts.")
 
 
 def get_user_network_counts() -> list[UserSocialNetworkCountsModel]:
     res = list(UserSocialNetworkCounts.select())
-    res_dicts: list[dict] = [r.__dict__['__data__'] for r in res]
+    res_dicts: list[dict] = [r.__dict__["__data__"] for r in res]
     transformed_res = [
         UserSocialNetworkCountsModel(**res_dict) for res_dict in res_dicts
     ]
@@ -151,4 +163,6 @@ if __name__ == "__main__":
         user_handle = user_network_count.user_handle
         user_followers_count = user_network_count.user_followers_count
         user_following_count = user_network_count.user_following_count
-        print(f"User handle: {user_handle}, followers: {user_followers_count}, following: {user_following_count}")  # noqa
+        print(
+            f"User handle: {user_handle}, followers: {user_followers_count}, following: {user_following_count}"
+        )  # noqa

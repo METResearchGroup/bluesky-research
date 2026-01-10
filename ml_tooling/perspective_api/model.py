@@ -9,7 +9,8 @@ from typing import Optional, Literal
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
-from lib.helper import create_batches, logger, track_performance  # noqa
+from lib.batching_utils import create_batches
+from lib.helper import logger, track_performance  # noqa
 from lib.load_env_vars import EnvVarsContainer
 from services.ml_inference.models import PerspectiveApiLabelsModel
 from services.ml_inference.export_data import (
