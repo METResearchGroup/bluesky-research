@@ -471,6 +471,7 @@ class TestModelConfigRegistry:
         ModelConfigRegistry._config = None  # Clear cache
         
         results = []
+        errors = []
         
         def load_config():
             """Load config in a thread."""
@@ -478,7 +479,9 @@ class TestModelConfigRegistry:
                 config = ModelConfigRegistry._load_config()
                 results.append(config is not None)
             except Exception as e:
-                results.append(str(e))
+                # Ensure thread failures are detected: never append a truthy error string into results.
+                results.append(False)
+                errors.append(str(e))
         
         # Act - create multiple threads
         threads = [threading.Thread(target=load_config) for _ in range(5)]
@@ -489,7 +492,8 @@ class TestModelConfigRegistry:
         
         # Assert - all threads should successfully load config
         assert len(results) == 5
-        assert all(results)
+        assert all(results) is True
+        assert errors == []
         
         # Cleanup
         ModelConfigRegistry._config = None

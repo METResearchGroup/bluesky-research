@@ -112,6 +112,7 @@ class TestLLMService:
         mock_chat.assert_called_once()
 
     def test_structured_completion_raises_value_error_when_content_is_none(self):
+        """Verify structured_completion raises ValueError when response content is None."""
         service = LLMService()
         dummy_provider = _DummyProvider()
         messages = [{"role": "user", "content": "test prompt"}]
@@ -129,6 +130,7 @@ class TestLLMService:
                     )
 
     def test_structured_completion_raises_validation_error_for_invalid_json(self):
+        """Verify structured_completion raises ValidationError for invalid JSON response."""
         from pydantic import ValidationError
 
         service = LLMService()
@@ -148,6 +150,7 @@ class TestLLMService:
                     )
 
     def test_structured_completion_passes_kwargs_to__chat_completion(self):
+        """Verify structured_completion passes kwargs through to _chat_completion."""
         service = LLMService()
         dummy_provider = _DummyProvider()
         messages = [{"role": "user", "content": "test prompt"}]
