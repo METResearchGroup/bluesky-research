@@ -512,7 +512,7 @@ def sample_posts():
     ]
 
 
-def create_mock_result(success: bool = True) -> dict:
+def create_mock_result(success: bool = True) -> dict | None:
     """Helper to create a mock result dictionary."""
     if success:
         return {
@@ -957,7 +957,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         mock_service.batch_completion.assert_called_once()
         call_args = mock_service.batch_completion.call_args
         assert call_args.kwargs['role'] == 'user'
-        assert call_args.kwargs['model'] == 'GPT-4o mini'
+        assert call_args.kwargs['model'] == 'gpt-4o-mini'
         
         # Verify the prompts were passed correctly
         assert isinstance(call_args.args[0], list)  # First arg should be list of prompts
