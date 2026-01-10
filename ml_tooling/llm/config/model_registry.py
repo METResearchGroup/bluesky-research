@@ -103,15 +103,17 @@ class ModelConfig:
             ValueError: If config cannot be traversed (parent is not a dict).
         """
         value = self._config_data
+        path_so_far: list[str] = []
         for key in keys:
+            path_so_far.append(key)
             if not isinstance(value, dict):
                 raise ValueError(
                     f"Cannot traverse key '{key}' - parent is not a dictionary. "
-                    f"Path so far: {' -> '.join(keys[:keys.index(key)])}"
+                    f"Path so far: {' -> '.join(path_so_far)}"
                 )
             if key not in value:
                 raise KeyError(
-                    f"Configuration key not found: {' -> '.join(keys[:keys.index(key) + 1])}"
+                    f"Configuration key not found: {' -> '.join(path_so_far)}"
                 )
             value = value[key]
         return value
