@@ -50,11 +50,11 @@ class OpikClient:
             f"[Project {self.client.project_name}]: Prompt '{prompt_name}' registered with Opik."
         )
 
-    def get_prompt(self, prompt_name: str) -> opik.Prompt | None:
+    def get_prompt(self, prompt_name: str) -> opik.Prompt:
         prompt = self.client.get_prompt(prompt_name)
         if prompt is None:
             logger.error(
                 f"[Project {self.client.project_name}]: Prompt '{prompt_name}' not found in Opik."
             )
-            return None
+            raise ValueError(f"Prompt '{prompt_name}' not found in Opik.")
         return prompt

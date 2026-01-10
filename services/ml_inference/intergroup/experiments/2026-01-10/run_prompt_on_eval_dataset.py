@@ -32,9 +32,10 @@ def main():
     evaluate_prompt(
         dataset=dataset,
         messages=[
-            {"role": "user", "content": opik_prompt},
+            {"role": "user", "content": opik_prompt.prompt},
         ],
         model="gpt-5-nano",
+        prompt=opik_prompt,
         scoring_metrics=[Equals()],
     )
 
