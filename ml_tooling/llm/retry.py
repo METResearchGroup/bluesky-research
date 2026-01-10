@@ -3,7 +3,6 @@
 import logging
 from typing import Callable, ParamSpec, TypeVar
 
-import litellm.exceptions as litellm_exceptions  # type: ignore[import-untyped]
 from tenacity import (
     before_sleep_log,
     retry,
@@ -12,17 +11,18 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from ml_tooling.llm.exceptions import ExceptionCategory, LLMException
+
 P = ParamSpec("P")
 R = TypeVar("R")
 logger = logging.getLogger(__name__)
 
-
-# Exceptions that should NOT be retried (fail hard immediately)
-NON_RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
-    litellm_exceptions.AuthenticationError,  # type: ignore[attr-defined]
-    litellm_exceptions.InvalidRequestError,  # type: ignore[attr-defined]
-    litellm_exceptions.PermissionDeniedError,  # type: ignore[attr-defined]
-)
+# Categories that should NOT be retried (fail hard immediately)
+NON_RETRYABLE_CATEGORIES = {
+    ExceptionCategory.AUTH_ERROR,
+    ExceptionCategory.INVALID_REQUEST,
+    ExceptionCategory.UNRECOVERABLE,
+}
 
 
 def _should_retry(exception: BaseException) -> bool:
@@ -37,11 +37,12 @@ def _should_retry(exception: BaseException) -> bool:
     Returns:
         True if the exception should be retried, False otherwise
     """
-    # Fail hard on authentication/invalid request errors - retrying won't help
-    if isinstance(exception, NON_RETRYABLE_EXCEPTIONS):
-        return False
+    # Check if this is an internal LLM exception with a category
+    if isinstance(exception, LLMException):
+        return exception.category not in NON_RETRYABLE_CATEGORIES
 
-    # Retry everything else (HTTP errors, validation errors, missing content, etc.)
+    # For non-LLM exceptions (ValueError, ValidationError, etc.), retry by default
+    # This maintains backward compatibility and allows retries on validation errors
     return True
 
 

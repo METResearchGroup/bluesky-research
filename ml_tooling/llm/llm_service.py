@@ -8,6 +8,9 @@ from litellm import ModelResponse, batch_completion
 from pydantic import BaseModel
 
 from ml_tooling.llm.config.model_registry import ModelConfigRegistry
+from ml_tooling.llm.exceptions import (
+    standardize_litellm_exception,
+)
 from ml_tooling.llm.providers.base import LLMProviderProtocol
 from ml_tooling.llm.providers.registry import LLMProviderRegistry
 from ml_tooling.llm.retry import retry_llm_completion
@@ -123,7 +126,7 @@ class LLMService:
             The chat completion response from litellm
 
         Raises:
-            Exception: Re-raises any exception from litellm.completion
+            LLMException: Standardized internal exception (LiteLLM exceptions are converted)
         """
         completion_kwargs, _ = self._prepare_completion_kwargs(
             model=model,
@@ -135,7 +138,12 @@ class LLMService:
         # Avoid global LiteLLM state; use the provider instance's key per request.
         completion_kwargs["api_key"] = provider.api_key
 
-        result = litellm.completion(**completion_kwargs)  # type: ignore
+        try:
+            result = litellm.completion(**completion_kwargs)  # type: ignore
+        except Exception as e:
+            # Standardize LiteLLM exceptions to internal exception types at the boundary
+            # This decouples retry logic from provider-specific exception types
+            raise standardize_litellm_exception(e) from e
 
         # Coerce to ModelResponse for type safety
         # LiteLLM can return either ModelResponse or a CustomStreamWrapper;
@@ -173,7 +181,7 @@ class LLMService:
             List of ModelResponse objects from litellm
 
         Raises:
-            Exception: Re-raises any exception from litellm.batch_completion
+            LLMException: Standardized internal exception (LiteLLM exceptions are converted)
             TODO: Consider supporting partial results for batch completions instead of
                 all-or-nothing error handling.
         """
@@ -190,7 +198,12 @@ class LLMService:
         # Avoid global LiteLLM state; use the provider instance's key per request.
         completion_kwargs["api_key"] = provider.api_key
 
-        results: list[ModelResponse] = batch_completion(**completion_kwargs)  # type: ignore
+        try:
+            results: list[ModelResponse] = batch_completion(**completion_kwargs)  # type: ignore
+        except Exception as e:
+            # Standardize LiteLLM exceptions to internal exception types at the boundary
+            # This decouples retry logic from provider-specific exception types
+            raise standardize_litellm_exception(e) from e
 
         # Coerce each result to ModelResponse for type safety
         # LiteLLM batch_completion may return dict-like objects
@@ -232,11 +245,11 @@ class LLMService:
             Validated Pydantic model instance
 
         Raises:
-            AuthenticationError, InvalidRequestError, PermissionDeniedError:
+            LLMAuthError, LLMInvalidRequestError, LLMPermissionDeniedError:
                 These exceptions are NOT retried and fail hard immediately.
             ValueError: If response content is None (will be retried)
             ValidationError: If schema validation fails (will be retried)
-            Exception: Any other exception will trigger retry, then be re-raised
+            LLMException: Any other LLM exception will trigger retry, then be re-raised
                 after all retries are exhausted.
         """
         # Step 1: Make the HTTP call
@@ -278,11 +291,11 @@ class LLMService:
             List of validated Pydantic model instances
 
         Raises:
-            AuthenticationError, InvalidRequestError, PermissionDeniedError:
+            LLMAuthError, LLMInvalidRequestError, LLMPermissionDeniedError:
                 These exceptions are NOT retried and fail hard immediately.
             ValueError: If any response content is None (will be retried)
             ValidationError: If any schema validation fails (will be retried)
-            Exception: Any other exception will trigger retry, then be re-raised
+            LLMException: Any other LLM exception will trigger retry, then be re-raised
                 after all retries are exhausted.
         """
         # Step 1: Make the batch HTTP call
