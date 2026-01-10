@@ -3,7 +3,6 @@
 import logging
 from typing import Callable, ParamSpec, TypeVar
 
-import litellm
 from tenacity import (
     before_sleep_log,
     retry,
@@ -24,14 +23,6 @@ class HTTPErrorClassifier:
     (e.g., ValueError, AttributeError) are not retried.
     """
 
-    # LiteLLM exception types that indicate HTTP/network errors
-    RETRYABLE_HTTP_EXCEPTIONS: tuple[type[Exception], ...] = (
-        litellm.RateLimitError,  # 429 Too Many Requests
-        litellm.Timeout,  # Network/HTTP timeout
-        litellm.ServiceUnavailableError,  # 503 Service Unavailable
-        litellm.APIError,  # Generic API errors (filtered by status code)
-    )
-
     # HTTP status codes that indicate transient HTTP errors
     RETRYABLE_HTTP_STATUS_CODES: set[int] = {
         429,  # Too Many Requests
@@ -41,15 +32,13 @@ class HTTPErrorClassifier:
         504,  # Gateway Timeout
     }
 
-    # Non-retryable exceptions (auth errors, invalid requests, etc.)
-    NON_RETRYABLE_EXCEPTIONS: tuple[type[Exception], ...] = (
-        litellm.AuthenticationError,
-        litellm.InvalidRequestError,
-        litellm.PermissionDeniedError,
-    )
+    @classmethod
+    def _get_exception_type_name(cls, exception: BaseException) -> str:
+        """Get the fully qualified exception type name."""
+        return f"{type(exception).__module__}.{type(exception).__name__}"
 
     @classmethod
-    def is_retryable_http_error(cls, exception: Exception) -> bool:
+    def is_retryable_http_error(cls, exception: BaseException) -> bool:
         """Determine if an exception is a retryable HTTP error.
 
         Args:
@@ -58,17 +47,45 @@ class HTTPErrorClassifier:
         Returns:
             True if the error is a retryable HTTP error, False otherwise
         """
-        # Check non-retryable exceptions first (most specific)
-        if isinstance(exception, cls.NON_RETRYABLE_EXCEPTIONS):
+        exception_type_name = cls._get_exception_type_name(exception)
+
+        # Check for non-retryable exception types (auth errors, invalid requests, etc.)
+        # These are checked by type name to avoid import issues
+        non_retryable_names = {
+            "litellm.exceptions.AuthenticationError",
+            "litellm.AuthenticationError",
+            "litellm.exceptions.InvalidRequestError",
+            "litellm.InvalidRequestError",
+            "litellm.exceptions.PermissionDeniedError",
+            "litellm.PermissionDeniedError",
+        }
+        if exception_type_name in non_retryable_names:
             return False
 
-        # Check for HTTP-related exception types
-        if isinstance(exception, cls.RETRYABLE_HTTP_EXCEPTIONS):
+        # Check for retryable HTTP exception types by name
+        retryable_names = {
+            "litellm.exceptions.RateLimitError",
+            "litellm.RateLimitError",
+            "litellm.exceptions.Timeout",
+            "litellm.Timeout",
+            "litellm.exceptions.ServiceUnavailableError",
+            "litellm.ServiceUnavailableError",
+            "litellm.exceptions.APIError",
+            "litellm.APIError",
+        }
+
+        # Check if it's a known retryable exception type
+        if exception_type_name in retryable_names:
             # For APIError, verify it's a retryable status code
-            if isinstance(exception, litellm.APIError):
+            if "APIError" in exception_type_name:
                 status_code = getattr(exception, "status_code", None)
                 if status_code and status_code not in cls.RETRYABLE_HTTP_STATUS_CODES:
                     return False
+            return True
+
+        # Check for HTTP status codes in exception attributes (fallback)
+        status_code = getattr(exception, "status_code", None)
+        if status_code and status_code in cls.RETRYABLE_HTTP_STATUS_CODES:
             return True
 
         # Default: don't retry (not an HTTP error we recognize)
@@ -95,7 +112,7 @@ def retry_llm_http_call(
 
     Example:
         @retry_llm_http_call(max_retries=3)
-        def _make_http_call(self, ...):
+        def _llm_completion(self, ...):
             return litellm.completion(...)
     """
     return retry(
