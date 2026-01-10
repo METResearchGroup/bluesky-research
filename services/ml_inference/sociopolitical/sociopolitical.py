@@ -10,7 +10,7 @@ Perspective API classification.
 from typing import Literal, Optional
 
 from lib.helper import track_performance
-from ml_tooling.llm.model import run_batch_classification
+from services.ml_inference.sociopolitical.model import run_batch_classification
 from services.ml_inference.config import InferenceConfig
 from services.ml_inference.helper import orchestrate_classification
 from services.ml_inference.models import ClassificationSessionModel
