@@ -4,21 +4,33 @@ See the following for more information:
 - Evaluating prompts: https://www.comet.com/docs/opik/evaluation/evaluate_prompt
 - Eval metrics: https://www.comet.com/docs/opik/evaluation/metrics/overview
 """
+import os
+
 from opik.evaluation import evaluate_prompt, models
 from opik.evaluation.metrics import Equals
 
+from lib.load_env_vars import EnvVarsContainer
 from lib.opik import OpikClient
 
 from constants import opik_project_name
 from prompts import INTERGROUP_PROMPT
 
-gpt4o_mini = models.LiteLLMChatModel(
-    model="gpt-4o-mini",
-    temperature=0.0,
+# gpt-5-nano is much cheaper than gpt-4o-mini while also outperforming it (at least
+# in benchmarks; probably true also in this task as well).
+# https://platform.openai.com/docs/pricing
+# https://llm-stats.com/models/compare/gpt-4o-mini-2024-07-18-vs-gpt-5-nano-2025-08-07
+gpt5_nano = models.LiteLLMChatModel(
+    model="gpt-5-nano",
+    temperature=1.0, # gpt-5-nano doesn't support temperature=0.0, we'll see if this affects results.
     max_tokens=512,
 )
 
 def main():
+    env_vars = EnvVarsContainer()
+    env_vars._initialize_env_vars()
+    openai_api_key = env_vars.get_env_var("OPENAI_API_KEY", required=True)
+    os.environ["OPENAI_API_KEY"] = openai_api_key # need to set this so LiteLLM client can use it.
+
     opik_client = OpikClient(project_name=opik_project_name)
     dataset = opik_client.get_or_create_dataset("intergroup_eval_dataset_2026-01-10")
     evaluation_result = evaluate_prompt(
@@ -26,13 +38,11 @@ def main():
         messages=[
             {"role": "user", "content": INTERGROUP_PROMPT},
         ],
-        model=gpt4o_mini,
+        # model=gpt5_nano,
+        model="gpt-5-nano",
         scoring_metrics=[Equals()],
     )
+    print(evaluation_result)
 
 if __name__ == "__main__":
-    metric = Equals()
-    score = metric.score(output="1", reference="1")
-    print(score)
-
-    # main()
+    main()

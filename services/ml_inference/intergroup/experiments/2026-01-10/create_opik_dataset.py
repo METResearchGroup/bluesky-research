@@ -6,6 +6,8 @@ import pandas as pd
 
 from lib.opik import OpikClient
 
+from constants import opik_project_name
+
 dataset_filename = "intergroup_eval_dataset.csv"
 dataset_fp = os.path.join(os.path.dirname(__file__), dataset_filename)
 opik_dataset_name = "intergroup_eval_dataset_2026-01-10"
@@ -29,7 +31,7 @@ def insert_rows_into_opik_dataset(df: pd.DataFrame, dataset: opik.Dataset):
 
 if __name__ == "__main__":
     df = pd.read_csv(dataset_fp)
-    opik_client = OpikClient()
+    opik_client = OpikClient(project_name=opik_project_name)
     dataset = opik_client.get_or_create_dataset(opik_dataset_name)
     insert_rows_into_opik_dataset(df, dataset)
     print(f"Inserted {len(df)} rows into Opik dataset.")
