@@ -112,21 +112,21 @@ def parse_llm_result(
     return label_models
 
 
-def process_sociopolitical_batch(posts: list[dict]) -> list[dict]:
+def process_sociopolitical_batch(posts: list[dict]) -> list[dict | None]:
     """Processes a batch of posts through LLM classification by splitting them into mini-batches and aggregating the results.
 
     Args:
         posts (list[dict]): A list of dictionaries, each representing a post, where each post must include a "text" key.
 
     Returns:
-        list[dict]: A list of result dictionaries from the LLM classification for each post; if a mini-batch fails, corresponding entries are empty dictionaries.
+        list[dict | None]: A list of result dictionaries from the LLM classification for each post; if a mini-batch fails, corresponding entries are None.
 
     Behavior:
         1. Splits the posts into mini-batches of size defined by DEFAULT_MINIBATCH_SIZE.
         2. Generates a prompt for each mini-batch using generate_prompt.
-        3. Sends the prompts to the LLM via run_batch_queries.
-        4. For each mini-batch, attempts to parse the JSON result with parse_llm_result.
-        5. Logs errors and replaces results with empty dictionaries if parsing fails.
+        3. Sends the prompts to the LLM via structured_batch_completion.
+        4. For each mini-batch, validates that the number of labels matches the number of posts.
+        5. Logs errors and replaces results with None if validation fails.
         6. Combines all mini-batch results into a single list and returns it.
     """
     if not posts:
@@ -137,23 +137,25 @@ def process_sociopolitical_batch(posts: list[dict]) -> list[dict]:
         for i in range(0, len(posts), DEFAULT_MINIBATCH_SIZE)
     ]
     prompts: list[str] = [generate_prompt(batch) for batch in minibatches]
-    json_results: list[str] = get_llm_service().batch_completion(
-        prompts, model=LLM_MODEL_NAME, role="user"
+    structured_results: list[LLMSociopoliticalLabelsModel] = (
+        get_llm_service().structured_batch_completion(prompts=prompts, response_model=LLMSociopoliticalLabelsModel, model=LLM_MODEL_NAME, role="user")
     )
-    if len(json_results) != len(minibatches):
+    if len(structured_results) != len(minibatches):
         logger.warning(
-            f"Number of results ({len(json_results)}) does not match number of posts ({len(minibatches)}). Need to retry."
+            f"Number of results ({len(structured_results)}) does not match number of mini-batches ({len(minibatches)}). Need to retry."
         )
         return [None] * len(posts)
-    results: list[dict] = []
-    for json_result, minibatch in zip(json_results, minibatches):
+    results: list[dict | None] = []
+    for structured_result, minibatch in zip(structured_results, minibatches):
         try:
-            parsed_llm_results: list[LLMSociopoliticalLabelModel] = parse_llm_result(
-                json_result=json_result, expected_number_of_posts=len(minibatch)
-            )
-            results.extend([result.model_dump() for result in parsed_llm_results])
+            label_models: list[LLMSociopoliticalLabelModel] = structured_result.labels
+            if len(label_models) != len(minibatch):
+                raise ValueError(
+                    f"Number of labels ({len(label_models)}) does not match number of posts ({len(minibatch)})."
+                )
+            results.extend([result.model_dump() for result in label_models])
         except ValueError as e:
-            logger.error(f"Error parsing LLM result: {e}")
+            logger.error(f"Error validating LLM result: {e}")
             results.extend([None for _ in range(len(minibatch))])
     return results
 
@@ -162,7 +164,7 @@ def process_sociopolitical_batch_with_retries(
     posts: list[dict],
     max_retries: int = 4,
     initial_delay: float = 1.0,
-) -> list[dict]:
+) -> list[dict | None]:
     """Processes a batch of posts through LLM classification with retry logic.
 
     Args:
@@ -171,7 +173,7 @@ def process_sociopolitical_batch_with_retries(
         initial_delay (float): The initial delay in seconds before the first retry. If negative, absolute value is used.
 
     Returns:
-        list[dict]: A list of result dictionaries from the LLM classification for each post.
+        list[dict | None]: A list of result dictionaries from the LLM classification for each post.
             Successful results contain classification data, failed results are None.
 
     Raises:
@@ -319,7 +321,9 @@ def batch_classify_posts(
     for i, batch in enumerate(batches):
         if i % 10 == 0:
             logger.info(f"Processing batch {i}/{total_batches}")
-        responses: list[dict] = process_sociopolitical_batch_with_retries(posts=batch)
+        responses: list[dict | None] = process_sociopolitical_batch_with_retries(
+            posts=batch
+        )
         labels: list[dict] = create_labels(posts=batch, responses=responses)
 
         successful_labels: list[dict] = []

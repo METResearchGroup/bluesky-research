@@ -387,64 +387,6 @@ class LLMService:
 
         return [response_model.model_validate_json(content) for content in contents]
 
-    def batch_completion(
-        self,
-        prompts: list[str],
-        model: str | None = None,
-        role: str = "user",
-        **kwargs,
-    ) -> list[str]:
-        """
-        Create batch completion requests and return content strings.
-
-        This is the main public API for unstructured batch completions. It orchestrates:
-        1. Determining the correct provider for the model
-        2. Converting prompts to message lists
-        3. Running batch completion via _batch_completion (which delegates to provider)
-        4. Handling the batch completion responses
-
-        Args:
-            prompts: List of prompt strings
-            model: Model to use (default: from config, falls back to gpt-4o-mini-2024-07-18)
-            role: Message role for all prompts (default: 'user')
-            **kwargs: Additional parameters to pass to the API (temperature, max_tokens, etc.)
-                These override any default kwargs from the model configuration.
-
-        Returns:
-            List of response content strings
-
-        Raises:
-            ValueError: If the model is not supported by any provider, or if any response
-                content is missing or invalid
-        """
-        # Step 1: Determine model
-        if model is None:
-            model = ModelConfigRegistry.get_default_model()
-
-        # Step 2: Get provider for this model
-        provider = self._get_provider_for_model(model)
-
-        # Step 3: Convert prompts to message lists
-        messages_list = [[{"role": role, "content": prompt}] for prompt in prompts]
-
-        # Step 4: Run batch completion (delegates provider-specific logic)
-        responses: list[ModelResponse] = self._batch_completion(
-            messages_list=messages_list,
-            model=model,
-            provider=provider,
-            response_format=None,
-            **kwargs,
-        )
-
-        # Step 5: Extract content strings from responses
-        contents = []
-        for response in responses:
-            content: str | None = response.choices[0].message.content  # type: ignore
-            if content is None:
-                raise ValueError("Response content is None. Expected output from LLM.")
-            contents.append(content)
-        return contents
-
     def structured_batch_completion(
         self,
         prompts: list[str],
