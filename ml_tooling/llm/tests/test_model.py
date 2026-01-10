@@ -145,8 +145,8 @@ class TestParseLLMResult:
 class TestProcessSociopoliticalBatch:
     """Tests for process_sociopolitical_batch() function."""
 
-    @patch('ml_tooling.llm.model.run_batch_queries')
-    def test_batch_size_boundaries(self, mock_run_queries):
+    @patch('ml_tooling.llm.model.get_llm_service')
+    def test_batch_size_boundaries(self, mock_get_service):
         """Test processing with different batch sizes.
         
         Should properly handle various batch sizes including edge cases.
@@ -161,14 +161,16 @@ class TestProcessSociopoliticalBatch:
                 }
             ] * 10
         })
-        mock_run_queries.return_value = [mock_result]
+        mock_service = Mock()
+        mock_service.batch_completion.return_value = [mock_result]
+        mock_get_service.return_value = mock_service
         
         results = process_sociopolitical_batch(posts)
         assert len(results) == 10
         assert all(isinstance(r, dict) for r in results)
 
-    @patch('ml_tooling.llm.model.run_batch_queries')
-    def test_large_batch_handling(self, mock_run_queries):
+    @patch('ml_tooling.llm.model.get_llm_service')
+    def test_large_batch_handling(self, mock_get_service):
         """Test processing with batch larger than DEFAULT_MINIBATCH_SIZE.
         
         Should properly split into mini-batches and combine results.
@@ -201,14 +203,16 @@ class TestProcessSociopoliticalBatch:
                 ] * 5
             })
         ]
-        mock_run_queries.return_value = mock_results
+        mock_service = Mock()
+        mock_service.batch_completion.return_value = mock_results
+        mock_get_service.return_value = mock_service
         
         results = process_sociopolitical_batch(posts)
         assert len(results) == 25
         assert all(isinstance(r, dict) for r in results)
 
-    @patch('ml_tooling.llm.model.run_batch_queries')
-    def test_single_post_batch(self, mock_run_queries):
+    @patch('ml_tooling.llm.model.get_llm_service')
+    def test_single_post_batch(self, mock_get_service):
         """Test processing with single-post batch.
         
         Should handle single post batches efficiently.
@@ -222,7 +226,9 @@ class TestProcessSociopoliticalBatch:
                 }
             ]
         })
-        mock_run_queries.return_value = [mock_result]
+        mock_service = Mock()
+        mock_service.batch_completion.return_value = [mock_result]
+        mock_get_service.return_value = mock_service
         
         results = process_sociopolitical_batch(posts)
         assert len(results) == 1
@@ -925,12 +931,12 @@ class TestProcessSociopoliticalBatchWithRetries:
         assert results[2] is None  # Third post (failed)
         assert results[3]["result"] == "success-3"  # Fourth post
 
-    @patch('ml_tooling.llm.model.run_batch_queries')
-    def test_process_batch_kwargs_handling(self, mock_run_queries):
-        """Test that process_sociopolitical_batch correctly handles kwargs for run_batch_queries.
+    @patch('ml_tooling.llm.model.get_llm_service')
+    def test_process_batch_kwargs_handling(self, mock_get_service):
+        """Test that process_sociopolitical_batch correctly handles kwargs for batch_completion.
         
-        This test verifies that the function correctly passes through the role and model_name
-        parameters to run_batch_queries.
+        This test verifies that the function correctly passes through the role and model
+        parameters to batch_completion.
         """
         posts = [{"text": "test post"}]
         mock_result = json.dumps({
@@ -941,15 +947,17 @@ class TestProcessSociopoliticalBatchWithRetries:
                 }
             ]
         })
-        mock_run_queries.return_value = [mock_result]
+        mock_service = Mock()
+        mock_service.batch_completion.return_value = [mock_result]
+        mock_get_service.return_value = mock_service
         
         process_sociopolitical_batch(posts)
         
-        # Verify run_batch_queries was called with correct kwargs
-        mock_run_queries.assert_called_once()
-        call_args = mock_run_queries.call_args
+        # Verify batch_completion was called with correct kwargs
+        mock_service.batch_completion.assert_called_once()
+        call_args = mock_service.batch_completion.call_args
         assert call_args.kwargs['role'] == 'user'
-        assert call_args.kwargs['model_name'] == 'GPT-4o mini'
+        assert call_args.kwargs['model'] == 'GPT-4o mini'
         
         # Verify the prompts were passed correctly
         assert isinstance(call_args.args[0], list)  # First arg should be list of prompts

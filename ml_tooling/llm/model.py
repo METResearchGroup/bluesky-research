@@ -8,7 +8,7 @@ from typing import Optional
 from lib.constants import timestamp_format
 from lib.helper import create_batches, track_performance
 from lib.log.logger import get_logger
-from ml_tooling.llm.inference import run_batch_queries
+from ml_tooling.llm.llm_service import get_llm_service
 from services.ml_inference.models import (
     LLMSociopoliticalLabelModel,
     LLMSociopoliticalLabelsModel,
@@ -137,8 +137,8 @@ def process_sociopolitical_batch(posts: list[dict]) -> list[dict]:
         for i in range(0, len(posts), DEFAULT_MINIBATCH_SIZE)
     ]
     prompts: list[str] = [generate_prompt(batch) for batch in minibatches]
-    json_results: list[str] = run_batch_queries(
-        prompts, role="user", model_name=LLM_MODEL_NAME
+    json_results: list[str] = get_llm_service().batch_completion(
+        prompts, model=LLM_MODEL_NAME, role="user"
     )
     if len(json_results) != len(minibatches):
         logger.warning(
