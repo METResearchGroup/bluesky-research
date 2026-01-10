@@ -1,131 +1,15 @@
 """Basic interface for doing LLM-based inference."""
 
-import os
 import time
 
-import litellm
 from litellm import acompletion, batch_completion, completion
-from litellm.integrations.opik.opik import OpikLogger
 from litellm.utils import ModelResponse
 import tiktoken
 
-from services.ml_inference.models import LLMSociopoliticalLabelsModel
 
 from lib.helper import track_performance
-from lib.load_env_vars import EnvVarsContainer
 
-# https://litellm.vercel.app/docs/providers/gemini
-os.environ["GEMINI_API_KEY"] = EnvVarsContainer.get_env_var("GOOGLE_AI_STUDIO_KEY")
-os.environ["HUGGINGFACE_API_KEY"] = EnvVarsContainer.get_env_var("HF_TOKEN")
-os.environ["GROQ_API_KEY"] = EnvVarsContainer.get_env_var("GROQ_API_KEY")
-os.environ["OPENAI_API_KEY"] = EnvVarsContainer.get_env_var("OPENAI_API_KEY")
-os.environ["OPIK_PROJECT_NAME"] = "ml_inference_llm"
-
-if EnvVarsContainer.get_env_var("RUN_MODE") != "test":
-    import opik
-
-    opik_logger = OpikLogger()
-    opik.configure(use_local=False)
-    litellm.callbacks = [opik_logger]
-
-encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
-
-DEFAULT_GEMINI_SAFETY_SETTINGS = [
-    {
-        "category": "HARM_CATEGORY_HARASSMENT",
-        "threshold": "BLOCK_NONE",
-    },
-    {
-        "category": "HARM_CATEGORY_HATE_SPEECH",
-        "threshold": "BLOCK_NONE",
-    },
-    {
-        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-        "threshold": "BLOCK_NONE",
-    },
-    {
-        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-        "threshold": "BLOCK_NONE",
-    },
-]
-
-GEMINI_1_0_PRO_MODEL_NAME = "gemini-1.0-pro-latest"
-GEMINI_1_5_PRO_MODEL_NAME = "gemini-1.5-pro-latest"
-
-BACKEND_OPTIONS = {
-    "Gemini": {
-        # "model": "gemini/gemini-pro",
-        # "model": f"gemini/{GEMINI_1_0_PRO_MODEL_NAME}",
-        "model": f"gemini/{GEMINI_1_5_PRO_MODEL_NAME}",
-        "kwargs": {
-            "temperature": 0.0,
-            "safety_settings": DEFAULT_GEMINI_SAFETY_SETTINGS,
-        },
-    },
-    "Gemini-1.0": {
-        # "model": "gemini/gemini-pro",
-        "model": f"gemini/{GEMINI_1_0_PRO_MODEL_NAME}",
-        "kwargs": {
-            "temperature": 0.0,
-            "safety_settings": DEFAULT_GEMINI_SAFETY_SETTINGS,
-        },
-    },
-    "Gemini-1.5": {
-        # "model": "gemini/gemini-pro",
-        "model": f"gemini/{GEMINI_1_5_PRO_MODEL_NAME}",
-        "kwargs": {
-            "temperature": 0.0,
-            "safety_settings": DEFAULT_GEMINI_SAFETY_SETTINGS,
-        },
-    },
-    "Llama3-8B (via HuggingFace) (NOT SUPPORTED YET)": {
-        "model": "huggingface/unsloth/llama-3-8b",
-        "kwargs": {
-            "api_base": "https://api-inference.huggingface.co/models/unsloth/llama-3-8b"  # noqa
-        },
-    },
-    "Mixtral 8x22B (via HuggingFace)": {
-        "model": "huggingface/mistralai/Mixtral-8x22B-v0.1",
-        "kwargs": {
-            "api_base": "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x22B-v0.1"  # noqa
-        },
-    },
-    "Llama3-8b (via Groq)": {  # 8k context limit
-        "model": "groq/llama3-8b-8192",
-        "kwargs": {
-            "temperature": 0.0,
-            # https://console.groq.com/docs/text-chat#json-mode
-            "response_format": {"type": "json_object"},
-        },
-    },
-    "Llama3-70b (via Groq)": {
-        "model": "groq/llama3-70b-8192",
-        "kwargs": {
-            "temperature": 0.0,
-            # https://console.groq.com/docs/text-chat#json-mode
-            "response_format": {"type": "json_object"},
-        },
-    },
-    "GPT-4o mini": {
-        "model": "gpt-4o-mini",
-        "kwargs": {
-            "temperature": 0.0,
-            # https://docs.litellm.ai/docs/completion/json_mode
-            # https://docs.litellm.ai/docs/completion/json_mode#pass-in-json_schema
-            # "response_format": {
-            #     "type": "json_schema",
-            #     # if this doesn't work for a list of samples,
-            #     # can try the LLMSociopoliticalLabelsModel
-            #     "json_schema": LLMSociopoliticalLabelModel.model_json_schema(),
-            #     "strict": True,
-            # },
-            "response_format": LLMSociopoliticalLabelsModel,
-        },
-    },
-}
-
-# https://litellm.vercel.app/docs/completion/input
-# https://litellm.vercel.app/docs/completion/reliable_completions
+BACKEND_OPTIONS = {}  # TODO: temporary for now until we finish deprecation of inference.py
 
 
 @track_performance
