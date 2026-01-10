@@ -6,8 +6,6 @@ from typing import Any
 
 import yaml
 
-from ml_tooling.llm.providers.registry import LLMProviderRegistry
-
 
 class ModelConfig:
     """Configuration wrapper for a specific model with hierarchical kwarg resolution.
@@ -33,6 +31,9 @@ class ModelConfig:
         self._config_data = config_data
 
         # Find which provider supports this model
+        # Lazy import to allow mocking in tests
+        from ml_tooling.llm.providers.registry import LLMProviderRegistry
+
         try:
             provider_instance = LLMProviderRegistry.get_provider(model_identifier)
             self.provider_name = provider_instance.provider_name
@@ -194,6 +195,9 @@ class ModelConfigRegistry:
         config = cls._load_config()
 
         # Verify provider exists for this model
+        # Lazy import to allow mocking in tests
+        from ml_tooling.llm.providers.registry import LLMProviderRegistry
+
         try:
             LLMProviderRegistry.get_provider(model_identifier)
         except ValueError as e:

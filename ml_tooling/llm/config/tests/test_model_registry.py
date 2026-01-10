@@ -1,5 +1,46 @@
 """Unit tests for ModelConfig and ModelConfigRegistry."""
 
+# Mock providers.registry module before any imports to prevent actual provider registration
+import sys
+from unittest.mock import MagicMock
+
+# Create mock registry module
+mock_provider_registry_module = MagicMock()
+
+class MockLLMProviderRegistry:
+    """Mock LLMProviderRegistry for testing."""
+    
+    @staticmethod
+    def get_provider(model_identifier: str):
+        """Mock get_provider that returns a provider based on model identifier."""
+        mock_provider = MagicMock()
+        if model_identifier.startswith("gpt-4"):
+            mock_provider.provider_name = "openai"
+        elif model_identifier.startswith("gemini/"):
+            mock_provider.provider_name = "gemini"
+        elif model_identifier.startswith("groq/"):
+            mock_provider.provider_name = "groq"
+        elif model_identifier.startswith("huggingface/"):
+            mock_provider.provider_name = "huggingface"
+        else:
+            raise ValueError(f"No provider found for model {model_identifier}")
+        return mock_provider
+    
+    @staticmethod
+    def list_providers():
+        """Mock list_providers."""
+        return ["openai", "gemini", "groq", "huggingface"]
+    
+    @staticmethod
+    def clear():
+        """Mock clear."""
+        pass
+
+mock_provider_registry_module.LLMProviderRegistry = MockLLMProviderRegistry
+
+# Insert mock module before imports
+sys.modules['ml_tooling.llm.providers.registry'] = mock_provider_registry_module
+
 import pytest
 from pathlib import Path
 from unittest.mock import patch
@@ -17,24 +58,9 @@ def actual_config_path():
 @pytest.fixture
 def mock_provider_registry():
     """Fixture that mocks LLMProviderRegistry to avoid actual provider initialization."""
-    with patch("ml_tooling.llm.config.model_registry.LLMProviderRegistry") as mock_registry:
-        # Create mock provider instances for different models
-        def get_provider_side_effect(model_identifier: str):
-            mock_provider = MagicMock()
-            if model_identifier.startswith("gpt-4"):
-                mock_provider.provider_name = "openai"
-            elif model_identifier.startswith("gemini/"):
-                mock_provider.provider_name = "gemini"
-            elif model_identifier.startswith("groq/"):
-                mock_provider.provider_name = "groq"
-            elif model_identifier.startswith("huggingface/"):
-                mock_provider.provider_name = "huggingface"
-            else:
-                raise ValueError(f"No provider found for model {model_identifier}")
-            return mock_provider
-        
-        mock_registry.get_provider.side_effect = get_provider_side_effect
-        yield mock_registry
+    # The registry is already mocked at module level, so this fixture just provides access
+    # Return the mock registry module that was set up at module import time
+    yield sys.modules['ml_tooling.llm.providers.registry'].LLMProviderRegistry
 
 
 @pytest.fixture
@@ -60,8 +86,9 @@ class TestModelConfig:
     def test_init_raises_value_error_for_unsupported_model(self, loaded_config):
         """Test that __init__ raises ValueError when model is not supported by any provider."""
         # Arrange
+        # Patch at source module since we use lazy imports
         with patch(
-            "ml_tooling.llm.config.model_registry.LLMProviderRegistry.get_provider"
+            "ml_tooling.llm.providers.registry.LLMProviderRegistry.get_provider"
         ) as mock_get_provider:
             mock_get_provider.side_effect = ValueError("No provider found")
             
@@ -325,8 +352,9 @@ class TestModelConfigRegistry:
         """Test that get_model_config raises ValueError for unsupported model."""
         # Arrange
         ModelConfigRegistry.set_config_path(actual_config_path)
+        # Patch at source module since we use lazy imports
         with patch(
-            "ml_tooling.llm.config.model_registry.LLMProviderRegistry.get_provider"
+            "ml_tooling.llm.providers.registry.LLMProviderRegistry.get_provider"
         ) as mock_get_provider:
             mock_get_provider.side_effect = ValueError("No provider found")
             
