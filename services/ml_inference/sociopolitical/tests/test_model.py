@@ -16,7 +16,10 @@ from services.ml_inference.sociopolitical.model import (
     run_batch_classification,
     process_sociopolitical_batch_with_retries,
 )
-from services.ml_inference.models import LLMSociopoliticalLabelModel
+from services.ml_inference.models import (
+    LLMSociopoliticalLabelModel,
+    LLMSociopoliticalLabelsModel,
+)
 
 
 class TestGeneratePrompt:
@@ -153,16 +156,15 @@ class TestProcessSociopoliticalBatch:
         """
         # Test with exactly DEFAULT_MINIBATCH_SIZE posts
         posts = [{"text": f"post{i}"} for i in range(10)]  # DEFAULT_MINIBATCH_SIZE is 10
-        mock_result = json.dumps({
-            "labels": [
-                {
-                    "is_sociopolitical": True,
-                    "political_ideology_label": "left"
-                }
-            ] * 10
-        })
+        mock_labels = [
+            LLMSociopoliticalLabelModel(
+                is_sociopolitical=True,
+                political_ideology_label="left"
+            )
+        ] * 10
+        mock_result = LLMSociopoliticalLabelsModel(labels=mock_labels)
         mock_service = Mock()
-        mock_service.batch_completion.return_value = [mock_result]
+        mock_service.structured_batch_completion.return_value = [mock_result]
         mock_get_service.return_value = mock_service
         
         results = process_sociopolitical_batch(posts)
@@ -178,33 +180,33 @@ class TestProcessSociopoliticalBatch:
         # Test with 2.5 times DEFAULT_MINIBATCH_SIZE
         posts = [{"text": f"post{i}"} for i in range(25)]
         mock_results = [
-            json.dumps({
-                "labels": [
-                    {
-                        "is_sociopolitical": True,
-                        "political_ideology_label": "left"
-                    }
+            LLMSociopoliticalLabelsModel(
+                labels=[
+                    LLMSociopoliticalLabelModel(
+                        is_sociopolitical=True,
+                        political_ideology_label="left"
+                    )
                 ] * 10
-            }),
-            json.dumps({
-                "labels": [
-                    {
-                        "is_sociopolitical": True,
-                        "political_ideology_label": "left"
-                    }
+            ),
+            LLMSociopoliticalLabelsModel(
+                labels=[
+                    LLMSociopoliticalLabelModel(
+                        is_sociopolitical=True,
+                        political_ideology_label="left"
+                    )
                 ] * 10
-            }),
-            json.dumps({
-                "labels": [
-                    {
-                        "is_sociopolitical": True,
-                        "political_ideology_label": "left"
-                    }
+            ),
+            LLMSociopoliticalLabelsModel(
+                labels=[
+                    LLMSociopoliticalLabelModel(
+                        is_sociopolitical=True,
+                        political_ideology_label="left"
+                    )
                 ] * 5
-            })
+            )
         ]
         mock_service = Mock()
-        mock_service.batch_completion.return_value = mock_results
+        mock_service.structured_batch_completion.return_value = mock_results
         mock_get_service.return_value = mock_service
         
         results = process_sociopolitical_batch(posts)
@@ -218,16 +220,16 @@ class TestProcessSociopoliticalBatch:
         Should handle single post batches efficiently.
         """
         posts = [{"text": "single post"}]
-        mock_result = json.dumps({
-            "labels": [
-                {
-                    "is_sociopolitical": True,
-                    "political_ideology_label": "left"
-                }
+        mock_result = LLMSociopoliticalLabelsModel(
+            labels=[
+                LLMSociopoliticalLabelModel(
+                    is_sociopolitical=True,
+                    political_ideology_label="left"
+                )
             ]
-        })
+        )
         mock_service = Mock()
-        mock_service.batch_completion.return_value = [mock_result]
+        mock_service.structured_batch_completion.return_value = [mock_result]
         mock_get_service.return_value = mock_service
         
         results = process_sociopolitical_batch(posts)
@@ -933,35 +935,33 @@ class TestProcessSociopoliticalBatchWithRetries:
 
     @patch('services.ml_inference.sociopolitical.model.get_llm_service')
     def test_process_batch_kwargs_handling(self, mock_get_service):
-        """Test that process_sociopolitical_batch correctly handles kwargs for batch_completion.
+        """Test that process_sociopolitical_batch correctly handles kwargs for structured_batch_completion.
         
         This test verifies that the function correctly passes through the role and model
-        parameters to batch_completion.
+        parameters to structured_batch_completion.
         """
         posts = [{"text": "test post"}]
-        mock_result = json.dumps({
-            "labels": [
-                {
-                    "is_sociopolitical": True,
-                    "political_ideology_label": "left"
-                }
-            ]
-        })
+        mock_label = LLMSociopoliticalLabelModel(
+            is_sociopolitical=True,
+            political_ideology_label="left"
+        )
+        mock_result = LLMSociopoliticalLabelsModel(labels=[mock_label])
         mock_service = Mock()
-        mock_service.batch_completion.return_value = [mock_result]
+        mock_service.structured_batch_completion.return_value = [mock_result]
         mock_get_service.return_value = mock_service
         
         process_sociopolitical_batch(posts)
         
-        # Verify batch_completion was called with correct kwargs
-        mock_service.batch_completion.assert_called_once()
-        call_args = mock_service.batch_completion.call_args
+        # Verify structured_batch_completion was called with correct kwargs
+        mock_service.structured_batch_completion.assert_called_once()
+        call_args = mock_service.structured_batch_completion.call_args
         assert call_args.kwargs['role'] == 'user'
         assert call_args.kwargs['model'] == 'gpt-4o-mini'
+        assert call_args.kwargs['response_model'] == LLMSociopoliticalLabelsModel
         
         # Verify the prompts were passed correctly
-        assert isinstance(call_args.args[0], list)  # First arg should be list of prompts
-        assert len(call_args.args[0]) == 1  # Should have one prompt for one post
+        assert isinstance(call_args.kwargs['prompts'], list)  # prompts should be passed as kwarg
+        assert len(call_args.kwargs['prompts']) == 1  # Should have one prompt for one post
 
     @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     @patch('time.sleep')

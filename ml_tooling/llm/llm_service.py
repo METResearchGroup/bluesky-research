@@ -8,8 +8,12 @@ from litellm import ModelResponse, batch_completion
 from pydantic import BaseModel
 
 from ml_tooling.llm.config.model_registry import ModelConfigRegistry
+from ml_tooling.llm.exceptions import (
+    standardize_litellm_exception,
+)
 from ml_tooling.llm.providers.base import LLMProviderProtocol
 from ml_tooling.llm.providers.registry import LLMProviderRegistry
+from ml_tooling.llm.retry import retry_llm_completion
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -122,30 +126,33 @@ class LLMService:
             The chat completion response from litellm
 
         Raises:
-            Exception: Re-raises any exception from litellm.completion
+            LLMException: Standardized internal exception (LiteLLM exceptions are converted)
         """
-        try:
-            completion_kwargs, _ = self._prepare_completion_kwargs(
-                model=model,
-                provider=provider,
-                response_format=response_format,
-                **kwargs,
-            )
-            completion_kwargs["messages"] = messages
-            # Avoid global LiteLLM state; use the provider instance's key per request.
-            completion_kwargs["api_key"] = provider.api_key
-            result = litellm.completion(**completion_kwargs)  # type: ignore
+        completion_kwargs, _ = self._prepare_completion_kwargs(
+            model=model,
+            provider=provider,
+            response_format=response_format,
+            **kwargs,
+        )
+        completion_kwargs["messages"] = messages
+        # Avoid global LiteLLM state; use the provider instance's key per request.
+        completion_kwargs["api_key"] = provider.api_key
 
-            # Coercion here to make sure that it is of type ModelResponse
-            # LiteLLM can return either ModelResponse or a CustomStreamWrapper;
-            # our use case isn't stream-based. This is to satisfy pyright.
-            return (
-                result
-                if isinstance(result, ModelResponse)
-                else ModelResponse(**result.__dict__)  # type: ignore
-            )
-        except Exception:
-            raise
+        try:
+            result = litellm.completion(**completion_kwargs)  # type: ignore
+        except Exception as e:
+            # Standardize LiteLLM exceptions to internal exception types at the boundary
+            # This decouples retry logic from provider-specific exception types
+            raise standardize_litellm_exception(e) from e
+
+        # Coerce to ModelResponse for type safety
+        # LiteLLM can return either ModelResponse or a CustomStreamWrapper;
+        # our use case isn't stream-based. This is to satisfy pyright.
+        return (
+            result
+            if isinstance(result, ModelResponse)
+            else ModelResponse(**result.__dict__)  # type: ignore
+        )
 
     def _batch_completion(
         self,
@@ -174,44 +181,134 @@ class LLMService:
             List of ModelResponse objects from litellm
 
         Raises:
-            Exception: Re-raises any exception from litellm.batch_completion
+            LLMException: Standardized internal exception (LiteLLM exceptions are converted)
             TODO: Consider supporting partial results for batch completions instead of
                 all-or-nothing error handling.
         """
+        completion_kwargs, _ = self._prepare_completion_kwargs(
+            model=model,
+            provider=provider,
+            response_format=response_format,
+            **kwargs,
+        )
+
+        # Remove placeholder messages from kwargs since batch_completion takes it separately
+        completion_kwargs.pop("messages", None)
+        completion_kwargs["messages"] = messages_list
+        # Avoid global LiteLLM state; use the provider instance's key per request.
+        completion_kwargs["api_key"] = provider.api_key
+
         try:
-            completion_kwargs, _ = self._prepare_completion_kwargs(
-                model=model,
-                provider=provider,
-                response_format=response_format,
-                **kwargs,
-            )
-
-            # Remove placeholder messages from kwargs since batch_completion takes it separately
-            completion_kwargs.pop("messages", None)
-
-            completion_kwargs["messages"] = messages_list
-            # Avoid global LiteLLM state; use the provider instance's key per request.
-            completion_kwargs["api_key"] = provider.api_key
-
-            # Make the batch API call
-            # TODO: Consider supporting partial results for batch completions instead of
-            # all-or-nothing error handling.
             results: list[ModelResponse] = batch_completion(**completion_kwargs)  # type: ignore
+        except Exception as e:
+            # Standardize LiteLLM exceptions to internal exception types at the boundary
+            # This decouples retry logic from provider-specific exception types
+            raise standardize_litellm_exception(e) from e
 
-            # Coerce each result to ModelResponse for type safety
-            # LiteLLM batch_completion may return dict-like objects
-            coerced_results = []
-            for result in results:
-                coerced_result = (
-                    result
-                    if isinstance(result, ModelResponse)
-                    else ModelResponse(**result.__dict__)  # type: ignore
-                )
-                coerced_results.append(coerced_result)
+        # Coerce each result to ModelResponse for type safety
+        # LiteLLM batch_completion may return dict-like objects
+        coerced_results = []
+        for result in results:
+            coerced_result = (
+                result
+                if isinstance(result, ModelResponse)
+                else ModelResponse(**result.__dict__)  # type: ignore
+            )
+            coerced_results.append(coerced_result)
 
-            return coerced_results
-        except Exception:
-            raise
+        return coerced_results
+
+    @retry_llm_completion(max_retries=3, initial_delay=1.0, max_delay=60.0)
+    def _complete_and_validate_structured(
+        self,
+        messages: list[dict],
+        model: str,
+        provider: LLMProviderProtocol,
+        response_format: type[T],
+        **kwargs,
+    ) -> T:
+        """Execute chat completion and validate/parse the response.
+
+        This method combines the HTTP call and response validation into a single
+        retryable operation. Any failure (HTTP error, missing content, invalid schema)
+        will trigger a retry, EXCEPT for non-retryable errors like authentication
+        failures which fail hard immediately.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys
+            model: Model identifier to use
+            provider: Provider instance for this model
+            response_format: Pydantic model class for structured outputs (required)
+            **kwargs: Additional parameters to pass to the API
+
+        Returns:
+            Validated Pydantic model instance
+
+        Raises:
+            LLMAuthError, LLMInvalidRequestError, LLMPermissionDeniedError:
+                These exceptions are NOT retried and fail hard immediately.
+            ValueError: If response content is None (will be retried)
+            ValidationError: If schema validation fails (will be retried)
+            LLMException: Any other LLM exception will trigger retry, then be re-raised
+                after all retries are exhausted.
+        """
+        # Step 1: Make the HTTP call
+        response = self._chat_completion(
+            messages=messages,
+            model=model,
+            provider=provider,
+            response_format=response_format,
+            **kwargs,
+        )
+
+        # Step 2: Validate and parse the response
+        return self.handle_completion_response(response, response_format)
+
+    @retry_llm_completion(max_retries=3, initial_delay=1.0, max_delay=60.0)
+    def _complete_and_validate_structured_batch(
+        self,
+        messages_list: list[list[dict]],
+        model: str,
+        provider: LLMProviderProtocol,
+        response_format: type[T],
+        **kwargs,
+    ) -> list[T]:
+        """Execute batch completion and validate/parse all responses.
+
+        This method combines the batch HTTP call and response validation into a single
+        retryable operation. Any failure (HTTP error, missing content, invalid schema)
+        will trigger a retry, EXCEPT for non-retryable errors like authentication
+        failures which fail hard immediately.
+
+        Args:
+            messages_list: List of message lists, where each inner list is one request
+            model: Model identifier to use
+            provider: Provider instance for this model
+            response_format: Pydantic model class for structured outputs (required)
+            **kwargs: Additional parameters to pass to the API
+
+        Returns:
+            List of validated Pydantic model instances
+
+        Raises:
+            LLMAuthError, LLMInvalidRequestError, LLMPermissionDeniedError:
+                These exceptions are NOT retried and fail hard immediately.
+            ValueError: If any response content is None (will be retried)
+            ValidationError: If any schema validation fails (will be retried)
+            LLMException: Any other LLM exception will trigger retry, then be re-raised
+                after all retries are exhausted.
+        """
+        # Step 1: Make the batch HTTP call
+        responses = self._batch_completion(
+            messages_list=messages_list,
+            model=model,
+            provider=provider,
+            response_format=response_format,
+            **kwargs,
+        )
+
+        # Step 2: Validate and parse all responses
+        return self.handle_batch_completion_responses(responses, response_format)
 
     def structured_completion(
         self,
@@ -225,8 +322,7 @@ class LLMService:
 
         This is the main public API for structured completions. It orchestrates:
         1. Determining the correct provider for the model
-        2. Running chat completion via _chat_completion (which delegates to provider)
-        3. Handling the completion response
+        2. Executing completion with validation and retry logic
 
         Args:
             messages: List of message dicts with 'role' and 'content' keys
@@ -240,8 +336,9 @@ class LLMService:
 
         Raises:
             ValueError: If the model is not supported by any provider, or if the response
-                content is missing or invalid
+                content is missing or invalid (after all retries)
             ValidationError: If the response cannot be parsed into the Pydantic model
+                (after all retries)
         """
         # Step 1: Determine model (use default from config if not provided)
         if model is None:
@@ -250,20 +347,14 @@ class LLMService:
         # Step 2: Get provider for this model
         provider = self._get_provider_for_model(model)
 
-        # Step 3: Run chat completion (delegates provider-specific logic)
-        response: ModelResponse = self._chat_completion(
+        # Step 3: Execute with retry and validation
+        return self._complete_and_validate_structured(
             messages=messages,
             model=model,
             provider=provider,
             response_format=response_model,
             **kwargs,
         )
-
-        # Step 4: Handle completion response
-        transformed_response: T = self.handle_completion_response(
-            response, response_model
-        )
-        return transformed_response
 
     def handle_completion_response(
         self,
@@ -309,64 +400,6 @@ class LLMService:
 
         return [response_model.model_validate_json(content) for content in contents]
 
-    def batch_completion(
-        self,
-        prompts: list[str],
-        model: str | None = None,
-        role: str = "user",
-        **kwargs,
-    ) -> list[str]:
-        """
-        Create batch completion requests and return content strings.
-
-        This is the main public API for unstructured batch completions. It orchestrates:
-        1. Determining the correct provider for the model
-        2. Converting prompts to message lists
-        3. Running batch completion via _batch_completion (which delegates to provider)
-        4. Handling the batch completion responses
-
-        Args:
-            prompts: List of prompt strings
-            model: Model to use (default: from config, falls back to gpt-4o-mini-2024-07-18)
-            role: Message role for all prompts (default: 'user')
-            **kwargs: Additional parameters to pass to the API (temperature, max_tokens, etc.)
-                These override any default kwargs from the model configuration.
-
-        Returns:
-            List of response content strings
-
-        Raises:
-            ValueError: If the model is not supported by any provider, or if any response
-                content is missing or invalid
-        """
-        # Step 1: Determine model
-        if model is None:
-            model = ModelConfigRegistry.get_default_model()
-
-        # Step 2: Get provider for this model
-        provider = self._get_provider_for_model(model)
-
-        # Step 3: Convert prompts to message lists
-        messages_list = [[{"role": role, "content": prompt}] for prompt in prompts]
-
-        # Step 4: Run batch completion (delegates provider-specific logic)
-        responses: list[ModelResponse] = self._batch_completion(
-            messages_list=messages_list,
-            model=model,
-            provider=provider,
-            response_format=None,
-            **kwargs,
-        )
-
-        # Step 5: Extract content strings from responses
-        contents = []
-        for response in responses:
-            content: str | None = response.choices[0].message.content  # type: ignore
-            if content is None:
-                raise ValueError("Response content is None. Expected output from LLM.")
-            contents.append(content)
-        return contents
-
     def structured_batch_completion(
         self,
         prompts: list[str],
@@ -381,8 +414,7 @@ class LLMService:
         This is the main public API for structured batch completions. It orchestrates:
         1. Determining the correct provider for the model
         2. Converting prompts to message lists
-        3. Running batch completion via _batch_completion (which delegates to provider)
-        4. Handling the batch completion responses
+        3. Executing batch completion with validation and retry logic
 
         Args:
             prompts: List of prompt strings
@@ -397,7 +429,7 @@ class LLMService:
 
         Raises:
             ValueError: If the model is not supported by any provider, or if any response
-                content is missing or invalid
+                content is missing or invalid (after all retries)
             ValidationError: If any response cannot be parsed into the Pydantic model
         """
         # Step 1: Determine model
@@ -410,18 +442,13 @@ class LLMService:
         # Step 3: Convert prompts to message lists
         messages_list = [[{"role": role, "content": prompt}] for prompt in prompts]
 
-        # Step 4: Run batch completion (delegates provider-specific logic)
-        responses: list[ModelResponse] = self._batch_completion(
+        # Step 4: Execute with retry and validation
+        return self._complete_and_validate_structured_batch(
             messages_list=messages_list,
             model=model,
             provider=provider,
             response_format=response_model,
             **kwargs,
-        )
-
-        # Step 5: Handle batch completion responses (returns list[T])
-        return self.handle_batch_completion_responses(
-            responses, response_model=response_model
         )
 
 
