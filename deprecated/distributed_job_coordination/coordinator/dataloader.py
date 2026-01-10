@@ -14,7 +14,7 @@ from typing import Any, Iterator
 import pandas as pd
 
 from distributed_job_coordination.coordinator.models import Batch
-from lib.helper import create_batches
+from lib.batching_utils import create_batches
 from lib.log.logger import get_logger
 
 logger = get_logger(__name__)
