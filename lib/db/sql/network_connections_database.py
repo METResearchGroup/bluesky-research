@@ -108,9 +108,7 @@ def get_all_followed_connections() -> list[UserToConnectionModel]:
     account, we only want to count that account once.
     """
     res = list(
-        UserToConnection.select().where(
-            UserToConnection.user_follows_connection == True
-        )
+        UserToConnection.select().where(UserToConnection.user_follows_connection)
     )  # noqa
     res_dicts: list[dict] = [r.__dict__["__data__"] for r in res]
     transformed_res = [UserToConnectionModel(**res_dict) for res_dict in res_dicts]
