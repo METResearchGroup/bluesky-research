@@ -22,7 +22,7 @@ from distributed_job_coordination.lib.job_state import TaskState
 from distributed_job_coordination.lib.manifest import ManifestWriter
 from distributed_job_coordination.lib.s3_utils import S3Utils
 from lib.db.manage_local_data import export_data_to_local_storage
-from lib.helper import create_batches
+from lib.batching_utils import create_batches
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 

@@ -1,9 +1,10 @@
-""""Database for storing superposters."""
+""" "Database for storing superposters."""
+
 import os
 import peewee
 import sqlite3
 
-from lib.helper import create_batches
+from lib.batching_utils import create_batches
 from services.calculate_superposters.models import SuperposterModel
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
@@ -30,6 +31,7 @@ class Superposter(BaseModel):
     In practice, we will pull the superposters from a particular
     `superposter_date`.
     """
+
     user_did = peewee.CharField()
     user_handle = peewee.CharField()
     number_of_posts = peewee.IntegerField()

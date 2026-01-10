@@ -1,13 +1,16 @@
 """Database for tracking user engagement."""
+
 import os
 import peewee
 import sqlite3
 from typing import Optional
 
-from lib.helper import create_batches
+from lib.batching_utils import create_batches
 from services.update_user_bluesky_engagement.models import (
-    PostWrittenByStudyUserModel, UserEngagementMetricsModel, UserLikeModel,
-    UserLikedPostModel
+    PostWrittenByStudyUserModel,
+    UserEngagementMetricsModel,
+    UserLikeModel,
+    UserLikedPostModel,
 )
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
@@ -30,6 +33,7 @@ class BaseModel(peewee.Model):
 
 class UserLike(BaseModel):
     """Class for tracking user likes."""
+
     created_at = peewee.CharField()
     author_did = peewee.CharField()
     author_handle = peewee.CharField()
@@ -42,6 +46,7 @@ class UserLike(BaseModel):
 
 class UserLikedPost(BaseModel):
     """Class for tracking user liked posts."""
+
     uri = peewee.CharField()
     cid = peewee.CharField()
     url = peewee.CharField()
@@ -61,6 +66,7 @@ class UserLikedPost(BaseModel):
 
 class PostsWrittenByStudyUsers(BaseModel):
     """Class for the posts written by study users."""
+
     uri = peewee.CharField(unique=True)
     cid = peewee.CharField(index=True)
     indexed_at = peewee.CharField()
@@ -182,7 +188,7 @@ def batch_insert_posts_written(posts_written: list[PostWrittenByStudyUserModel])
 
 
 def batch_insert_engagement_metrics(
-    latest_engagement_metrics: list[UserEngagementMetricsModel]
+    latest_engagement_metrics: list[UserEngagementMetricsModel],
 ):
     """Batch insert the latest user engagement metrics for a given user."""
     with db.atomic():
@@ -193,9 +199,15 @@ def batch_insert_engagement_metrics(
             new_posts_written = len(user_engagement_metrics.latest_posts_written)  # noqa
             new_likes = len(user_engagement_metrics.latest_likes)
             new_liked_posts = len(user_engagement_metrics.latest_liked_posts)
-            print(f"Finished inserting engagement metrics for user {user_engagement_metrics.user_handle}.")  # noqa
-            print(f"Inserted {new_posts_written} new posts written, {new_likes} new likes, and {new_liked_posts} new liked posts.")  # noqa
-        print(f"Finished inserting engagement metrics for {len(latest_engagement_metrics)} users.")  # noqa
+            print(
+                f"Finished inserting engagement metrics for user {user_engagement_metrics.user_handle}."
+            )  # noqa
+            print(
+                f"Inserted {new_posts_written} new posts written, {new_likes} new likes, and {new_liked_posts} new liked posts."
+            )  # noqa
+        print(
+            f"Finished inserting engagement metrics for {len(latest_engagement_metrics)} users."
+        )  # noqa
 
 
 def print_aggregate_metrics():
@@ -212,21 +224,27 @@ def print_metrics_per_user():
     # join author_handle from PostsWrittenByStudyUsers and liked_by_user_handle
     # from UserLike and get the count of posts written and likes given by
     # each user
-    total_metrics_per_user = PostsWrittenByStudyUsers.select(
-        PostsWrittenByStudyUsers.author_handle,
-        peewee.fn.COUNT(PostsWrittenByStudyUsers.author_handle).alias(
-            "post_count"),
-        peewee.fn.COUNT(UserLike.liked_by_user_handle).alias("like_count")
-    ).join(
-        UserLike,
-        on=(PostsWrittenByStudyUsers.author_handle ==
-            UserLike.liked_by_user_handle)
-    ).group_by(PostsWrittenByStudyUsers.author_handle)
+    total_metrics_per_user = (
+        PostsWrittenByStudyUsers.select(
+            PostsWrittenByStudyUsers.author_handle,
+            peewee.fn.COUNT(PostsWrittenByStudyUsers.author_handle).alias("post_count"),
+            peewee.fn.COUNT(UserLike.liked_by_user_handle).alias("like_count"),
+        )
+        .join(
+            UserLike,
+            on=(
+                PostsWrittenByStudyUsers.author_handle == UserLike.liked_by_user_handle
+            ),
+        )
+        .group_by(PostsWrittenByStudyUsers.author_handle)
+    )
     print("Metrics per user:")
-    print('-' * 10)
+    print("-" * 10)
     for metric in total_metrics_per_user:
-        print(f"{metric.author_handle} -> Post count: {metric.post_count}, Like count: {metric.like_count}")  # noqa
-    print('-' * 10)
+        print(
+            f"{metric.author_handle} -> Post count: {metric.post_count}, Like count: {metric.like_count}"
+        )  # noqa
+    print("-" * 10)
 
 
 if __name__ == "__main__":

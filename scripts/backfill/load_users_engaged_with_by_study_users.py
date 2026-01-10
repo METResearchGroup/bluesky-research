@@ -9,7 +9,7 @@ import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.db.queue import Queue
-from lib.helper import create_batches
+from lib.batching_utils import create_batches
 from lib.log.logger import get_logger
 from transform.transform_raw_data import get_author_did_from_post_uri
 

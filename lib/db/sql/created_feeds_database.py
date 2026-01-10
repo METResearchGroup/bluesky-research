@@ -1,10 +1,11 @@
 """Database logic for storing created feeds."""
+
 import os
 import sqlite3
 
 import peewee
 
-from lib.helper import create_batches
+from lib.batching_utils import create_batches
 from services.create_feeds.models import CreatedFeedModel
 
 current_file_directory = os.path.dirname(os.path.abspath(__file__))
@@ -28,6 +29,7 @@ class BaseModel(peewee.Model):
 
 class CreatedFeeds(BaseModel):
     """Table of all feeds generated per user."""
+
     id = peewee.AutoField()
     study_user_id = peewee.CharField()
     bluesky_user_did = peewee.CharField()
@@ -56,7 +58,9 @@ def write_created_feed(data: dict) -> None:
         try:
             CreatedFeeds.create(**data)
         except peewee.IntegrityError as e:
-            print(f"Error inserting created feed for user {data['bluesky_user_did']} into DB: {e}")  # noqa
+            print(
+                f"Error inserting created feed for user {data['bluesky_user_did']} into DB: {e}"
+            )  # noqa
             return
 
 
@@ -70,10 +74,14 @@ def batch_insert_created_feeds(feeds: list[CreatedFeedModel]) -> None:
     print(f"Batch inserted {len(feeds)} created feeds into the database.")
     print(f"Latest timestamp for feed creation: {feeds[-1].timestamp}")
     print(f"Total feed count: {CreatedFeeds.select().count()}")
-    for condition in ["reverse_chronological", "engagement", "representative_diversification"]:  # noqa
-        total_count = CreatedFeeds.select().where(
-            CreatedFeeds.condition == condition
-        ).count()
+    for condition in [
+        "reverse_chronological",
+        "engagement",
+        "representative_diversification",
+    ]:  # noqa
+        total_count = (
+            CreatedFeeds.select().where(CreatedFeeds.condition == condition).count()
+        )
         print(f"Total feed count for {condition} condition: {total_count}")
 
 
@@ -86,17 +94,17 @@ def get_created_feeds() -> list[dict]:
 def load_latest_created_feeds_per_user() -> list[CreatedFeedModel]:
     """For each unique study_user_id, load the latest created feed."""
     with db.atomic():
-        query = CreatedFeeds.select(
-            CreatedFeeds.study_user_id,
-            CreatedFeeds.bluesky_user_did,
-            CreatedFeeds.bluesky_user_handle,
-            CreatedFeeds.condition,
-            CreatedFeeds.feed_uris,
-            CreatedFeeds.timestamp
-        ).distinct(
-            CreatedFeeds.study_user_id
-        ).order_by(
-            CreatedFeeds.timestamp.desc()
+        query = (
+            CreatedFeeds.select(
+                CreatedFeeds.study_user_id,
+                CreatedFeeds.bluesky_user_did,
+                CreatedFeeds.bluesky_user_handle,
+                CreatedFeeds.condition,
+                CreatedFeeds.feed_uris,
+                CreatedFeeds.timestamp,
+            )
+            .distinct(CreatedFeeds.study_user_id)
+            .order_by(CreatedFeeds.timestamp.desc())
         )
         return [CreatedFeedModel(**feed) for feed in query.dicts()]
 
@@ -104,11 +112,12 @@ def load_latest_created_feeds_per_user() -> list[CreatedFeedModel]:
 def load_latest_created_feed_for_user(bluesky_user_did: str) -> CreatedFeedModel:  # noqa
     """Load the latest created feed for a user."""
     with db.atomic():
-        query = CreatedFeeds.select().where(
-            CreatedFeeds.bluesky_user_did == bluesky_user_did
-        ).order_by(
-            CreatedFeeds.timestamp.desc()
-        ).first()
+        query = (
+            CreatedFeeds.select()
+            .where(CreatedFeeds.bluesky_user_did == bluesky_user_did)
+            .order_by(CreatedFeeds.timestamp.desc())
+            .first()
+        )
         return CreatedFeedModel(**query.__dict__["__data__"])
 
 
@@ -122,9 +131,9 @@ if __name__ == "__main__":
     # create_initial_created_feeds_table()
     num_created_feeds = get_num_created_feeds()
     print(f"Total number of created feeds: {num_created_feeds}")
-    latest_timestamp = CreatedFeeds.select().order_by(
-        CreatedFeeds.timestamp.desc()
-    ).first().timestamp
+    latest_timestamp = (
+        CreatedFeeds.select().order_by(CreatedFeeds.timestamp.desc()).first().timestamp
+    )
     print(f"Latest timestamp for feed creation: {latest_timestamp}")
     feeds = get_created_feeds()
     print(f"Total number of feeds: {len(feeds)}")
