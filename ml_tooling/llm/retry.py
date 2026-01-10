@@ -9,7 +9,7 @@ from tenacity import (
     retry,
     retry_if_exception,
     stop_after_attempt,
-    wait_exponential,
+    wait_exponential_jitter,
 )
 
 P = ParamSpec("P")
@@ -72,9 +72,7 @@ def retry_llm_completion(
     """
     return retry(
         stop=stop_after_attempt(max_retries + 1),  # +1 for initial attempt
-        wait=wait_exponential(
-            multiplier=initial_delay, min=initial_delay, max=max_delay
-        ),
+        wait=wait_exponential_jitter(initial=initial_delay, max=max_delay),
         retry=retry_if_exception(_should_retry),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,  # Re-raise the exception after all retries exhausted
