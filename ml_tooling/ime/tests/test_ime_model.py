@@ -122,7 +122,7 @@ class TestBatchClassifyPosts:
     @pytest.fixture
     def mock_dependencies(self):
         """Set up common mock dependencies."""
-        with patch('ml_tooling.ime.model.create_batches') as mock_create_batches, \
+        with patch('lib.batching_utils.create_batches') as mock_create_batches, \
              patch('ml_tooling.ime.model._process_ime_batch') as mock_process_batch, \
              patch('ml_tooling.ime.model._get_model_and_tokenizer') as mock_get_model_and_tokenizer, \
              patch('ml_tooling.ime.model.write_posts_to_cache') as mock_write_cache, \
