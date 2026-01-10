@@ -13,7 +13,6 @@ from lib.load_env_vars import EnvVarsContainer
 from lib.opik import OpikClient
 
 from constants import opik_project_name
-from prompts import INTERGROUP_PROMPT
 
 # gpt-5-nano is much cheaper than gpt-4o-mini while also outperforming it (at least
 # in benchmarks; probably true also in this task as well).
@@ -26,13 +25,14 @@ def main():
     openai_api_key = env_vars.get_env_var("OPENAI_API_KEY", required=True)
     os.environ["OPENAI_API_KEY"] = openai_api_key # need to set this so LiteLLM client can use it.
 
-
     opik_client = OpikClient(project_name=opik_project_name)
+    opik_prompt = opik_client.get_prompt("intergroup_prompt")
     dataset = opik_client.get_or_create_dataset("intergroup_eval_dataset_2026-01-10")
+
     evaluate_prompt(
         dataset=dataset,
         messages=[
-            {"role": "user", "content": INTERGROUP_PROMPT},
+            {"role": "user", "content": opik_prompt},
         ],
         model="gpt-5-nano",
         scoring_metrics=[Equals()],
