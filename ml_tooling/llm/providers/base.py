@@ -3,7 +3,6 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from litellm import ModelResponse
 from pydantic import BaseModel
 
 
@@ -94,22 +93,5 @@ class LLMProviderProtocol(ABC):
 
         Returns:
             Complete kwargs dict ready for litellm.completion
-        """
-        ...
-
-    @abstractmethod
-    def handle_completion_response(
-        self,
-        response: ModelResponse,
-        response_model: type[BaseModel] | None = None,
-    ) -> BaseModel | None:
-        """Handle the completion response.
-
-        Args:
-            response: The completion response from litellm.completion
-            response_model: Pydantic model class to parse response into
-
-        Returns:
-            The parsed response as a Pydantic model, or None if the response is not valid
         """
         ...

@@ -3,7 +3,6 @@
 import os
 from typing import Any
 
-from litellm import ModelResponse
 from pydantic import BaseModel
 
 from lib.load_env_vars import EnvVarsContainer
@@ -63,16 +62,6 @@ class HuggingFaceProvider(LLMProviderProtocol):
         **kwargs,
     ) -> dict[str, Any]:
         """Prepare HuggingFace-specific completion kwargs."""
-        raise NotImplementedError(
-            "We'll revisit this later when actively working with HuggingFace models."
-        )
-
-    def handle_completion_response(
-        self,
-        response: ModelResponse,
-        response_model: type[BaseModel] | None = None,
-    ) -> BaseModel | None:
-        """Handle the completion response from HuggingFace."""
         raise NotImplementedError(
             "We'll revisit this later when actively working with HuggingFace models."
         )

@@ -3,7 +3,6 @@
 from typing import Any
 
 import litellm
-from litellm import ModelResponse
 from pydantic import BaseModel
 
 from lib.load_env_vars import EnvVarsContainer
@@ -62,16 +61,6 @@ class GroqProvider(LLMProviderProtocol):
         **kwargs,
     ) -> dict[str, Any]:
         """Prepare Groq-specific completion kwargs."""
-        raise NotImplementedError(
-            "We'll revisit this later when actively working with Groq models."
-        )
-
-    def handle_completion_response(
-        self,
-        response: ModelResponse,
-        response_model: type[BaseModel] | None = None,
-    ) -> BaseModel | None:
-        """Handle the completion response from Groq."""
         raise NotImplementedError(
             "We'll revisit this later when actively working with Groq models."
         )

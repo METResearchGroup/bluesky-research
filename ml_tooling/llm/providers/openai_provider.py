@@ -30,7 +30,8 @@ class OpenAIProvider(LLMProviderProtocol):
     def supported_models(self) -> list[str]:
         return [
             "gpt-4o-mini",
-            "gpt-4o-mini-2024-07-18" "gpt-4",
+            "gpt-4o-mini-2024-07-18",
+            "gpt-4",
         ]
 
     def initialize(self, api_key: str | None = None) -> None:

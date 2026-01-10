@@ -3,7 +3,6 @@
 import os
 from typing import Any
 
-from litellm import ModelResponse
 from pydantic import BaseModel
 
 from lib.load_env_vars import EnvVarsContainer
@@ -100,13 +99,3 @@ class GeminiProvider(LLMProviderProtocol):
         }
 
         return completion_kwargs
-
-    def handle_completion_response(
-        self,
-        response: ModelResponse,
-        response_model: type[BaseModel] | None = None,
-    ) -> BaseModel | None:
-        """Handle the completion response from Gemini."""
-        raise NotImplementedError(
-            "We'll revisit this later when actively working with Gemini models."
-        )
