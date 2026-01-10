@@ -37,11 +37,11 @@ class ModelConfig:
         try:
             provider_instance = LLMProviderRegistry.get_provider(model_identifier)
             self.provider_name = provider_instance.provider_name
-        except ValueError:
+        except ValueError as e:
             raise ValueError(
                 f"No provider found for model '{model_identifier}'. "
                 f"Cannot create ModelConfig without a provider."
-            )
+            ) from e
 
         # Get model-specific config if it exists
         provider_config = config_data.get("models", {}).get(self.provider_name, {})
