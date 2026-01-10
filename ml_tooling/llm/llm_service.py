@@ -20,9 +20,10 @@ class LLMService:
     def __init__(self):
         """Initialize the LLM service.
 
-        Initializes all registered provider instances on startup."""
-        for provider_instance in LLMProviderRegistry._instances.values():
-            provider_instance.initialize()
+        Note: Providers are initialized lazily when first used to avoid
+        requiring API keys for all providers when only one is needed.
+        """
+        pass
 
     def _get_provider_for_model(self, model: str) -> LLMProviderProtocol:
         """Get the provider instance for a given model.
@@ -37,6 +38,9 @@ class LLMService:
             ValueError: If no provider supports the given model
         """
         provider = LLMProviderRegistry.get_provider(model)
+        # Lazy initialization: only initialize the provider when it's actually used
+        if not getattr(provider, "_initialized", False):
+            provider.initialize()
         return provider
 
     def _chat_completion(
