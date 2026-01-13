@@ -18,6 +18,7 @@ INTEGRATIONS_LIST = [
     "ml_inference_sociopolitical",
     "ml_inference_ime",
     "ml_inference_valence_classifier",
+    "ml_inference_intergroup",
 ]
 
 default_table_columns = ["uri", "text", "preprocessing_timestamp"]
@@ -26,8 +27,8 @@ logger = get_logger(__file__)
 
 
 def load_preprocessed_posts(
-    start_date: str = "",
-    end_date: str = "",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     sorted_by_partition_date: bool = False,
     ascending: bool = False,
     table_columns: Optional[list[str]] = None,
@@ -95,12 +96,6 @@ def load_preprocessed_posts(
     )
     logger.info(f"Loaded {len(active_df)} posts from active")
     df = pd.concat([cached_df, active_df]).drop_duplicates(subset="uri", keep="first")
-    print(f"Columns in cached_df: {cached_df.columns}")
-    print(f"Columns in active_df: {active_df.columns}")
-    print(f"Columns in df: {df.columns}")
-    print(f"Index names in cached_df: {cached_df.index.names}")
-    print(f"Index names in active_df: {active_df.index.names}")
-    print(f"Index names in df: {df.index.names}")
     logger.info(f"Loaded {len(df)} posts from cache and active")
 
     if convert_ts_fields:
@@ -188,7 +183,7 @@ def load_posts_to_backfill(
     if not valid_integrations:
         return {}  # Return empty dict if no valid integrations
 
-    total_posts: list[dict] = load_preprocessed_posts(
+    total_posts: list[dict] = load_preprocessed_posts(  # type: ignore
         start_date=start_date,
         end_date=end_date,
         sorted_by_partition_date=False,
