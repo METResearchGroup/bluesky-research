@@ -23,6 +23,11 @@ def update_batching_progress(
     logger: Logger,
 ) -> None:
     """Update batching progress."""
+    if total_batches <= 0:
+        # nothing to do here, but also not necessarily an error
+        # (can imagine, for example a case of no batches to process)
+        # (we want other functions to validate total_batches, not this one)
+        return
     if batch_index % batch_interval == 0:
         total_progress_percentage: int = int((batch_index / total_batches) * 100)
         logger.info(
