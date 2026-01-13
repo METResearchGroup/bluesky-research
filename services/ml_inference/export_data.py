@@ -129,6 +129,8 @@ def return_failed_labels_to_input_queue(
             {
                 "uri": post["uri"],
                 "text": post["text"],
+                # Keep preprocessing_timestamp so we can reconstruct PostToLabelModel on reads.
+                # See PR #326.
                 "preprocessing_timestamp": post["preprocessing_timestamp"],
             }
             for post in failed_dicts

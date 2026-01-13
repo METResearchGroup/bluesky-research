@@ -146,19 +146,6 @@ def get_posts_to_classify(
     # Select only requested columns
     dicts = posts_df[columns].to_dict(orient="records")
 
-    required_for_model = {
-        "uri",
-        "text",
-        "preprocessing_timestamp",
-        "batch_id",
-        "batch_metadata",
-    }
-    if not required_for_model.issubset(set(columns)):
-        raise ValueError(
-            "get_posts_to_classify must be called with columns including "
-            f"{sorted(required_for_model)} to construct PostToLabelModel."
-        )
-
     return [PostToLabelModel(**row) for row in dicts]
 
 

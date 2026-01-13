@@ -15,7 +15,6 @@ import pandas as pd
 import pytest
 import numpy as np
 
-# PostToLabelModel is the unified inference input contract.
 from services.ml_inference.models import PostToLabelModel  # noqa: E402
 
 # Mock comet_ml and other dependencies BEFORE any imports

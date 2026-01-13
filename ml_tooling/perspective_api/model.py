@@ -774,7 +774,7 @@ def run_batch_classification(
         through explicit delays. Failed classifications are automatically requeued
         for retry.
     """
-    # Keep internal implementation dict-based, but enforce typed interface at entrypoint.
+    # Implementation keeps dict-based internals for compatibility; see PR #326.
     dict_posts: list[dict] = [post.model_dump() for post in posts]
 
     loop = asyncio.get_event_loop()
