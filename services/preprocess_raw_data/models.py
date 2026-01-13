@@ -54,7 +54,6 @@ class FilteredPreprocessedPostModel(BaseModel):
     tags: Optional[str] = Field(
         default=None, description="The tags of the record, if any."
     )  # noqa
-    synctimestamp: str = Field(..., description="The synctimestamp of the post.")  # noqa
     url: Optional[str] = Field(
         default=None,
         description="The URL of the post. Available only if the post is from feed view. Firehose posts won't have this hydrated.",
