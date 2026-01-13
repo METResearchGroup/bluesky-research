@@ -15,10 +15,11 @@ from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from ml_tooling.valence_classifier.inference import run_vader_on_posts
 from services.ml_inference.export_data import (
+    attach_batch_id_to_label_dicts,
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
 )
-from services.ml_inference.models import ValenceClassifierLabelModel
+from services.ml_inference.models import LabelWithBatchId, ValenceClassifierLabelModel
 
 logger = get_logger(__file__)
 
@@ -102,13 +103,20 @@ def batch_classify_posts(posts: list[dict], batch_size: int = 100) -> dict[str, 
         output_df = run_vader_on_posts(batch)
         labels = create_labels(batch, output_df)
 
-        successful_labels: list[dict] = []
-        failed_labels: list[dict] = []
+        # Create URI mapping for robust batch_id attachment
+        uri_to_batch_id = {p["uri"]: p["batch_id"] for p in batch}
 
-        for post, label in zip(batch, labels):
-            post_batch_id = post["batch_id"]
-            label["batch_id"] = post_batch_id
-            if label["was_successfully_labeled"]:
+        # Attach batch_id using URI mapping and create LabelWithBatchId instances
+        labels_with_batch_id = attach_batch_id_to_label_dicts(
+            labels=labels,
+            uri_to_batch_id=uri_to_batch_id,
+        )
+
+        successful_labels: list[LabelWithBatchId] = []
+        failed_labels: list[LabelWithBatchId] = []
+
+        for label in labels_with_batch_id:
+            if label.was_successfully_labeled:
                 successful_labels.append(label)
                 total_successful_labels += 1
             else:
@@ -135,7 +143,7 @@ def batch_classify_posts(posts: list[dict], batch_size: int = 100) -> dict[str, 
             )
 
         for label in successful_labels:
-            total_labels_by_class[label["valence_label"]] += 1
+            total_labels_by_class[label.valence_label] += 1
 
     metadata = {
         "total_batches": len(batches),

@@ -10,6 +10,7 @@ import psutil
 import os
 import asyncio
 
+from services.ml_inference.models import LabelWithBatchId
 from ml_tooling.perspective_api.model import (
     process_perspective_batch,
     create_labels,
@@ -298,7 +299,7 @@ class TestCreateLabelModels:
                 'uri': 'test_uri',
                 'text': 'test text',
                 'preprocessing_timestamp': '2024-01-01',  # Add this field
-                'batch_id': 'batch1'
+                'batch_id': 1
             }
         ]
         responses = [{
@@ -324,7 +325,7 @@ class TestCreateLabelModels:
                 'uri': 'test_uri',
                 'text': 'test text',
                 'preprocessing_timestamp': '2024-01-01',  # Add this field
-                'batch_id': 'batch1'
+                'batch_id': 1
             }
         ]
         responses = [{"error": "API Error"}]
@@ -353,13 +354,13 @@ class TestCreateLabelModels:
                 'uri': 'test1',
                 'text': 'text1',
                 'preprocessing_timestamp': '2024-01-01',  # Add this field
-                'batch_id': 'batch1'
+                'batch_id': 1
             },
             {
                 'uri': 'test2',
                 'text': 'text2',
                 'preprocessing_timestamp': '2024-01-01',  # Add this field
-                'batch_id': 'batch1'
+                'batch_id': 1
             }
         ]
         responses = [{
@@ -438,7 +439,7 @@ class TestBatchClassifyPosts:
                 'uri': 'test1',
                 'text': 'text1',
                 'preprocessing_timestamp': '2024-01-01',  # Add this field
-                'batch_id': 'batch1'
+                'batch_id': 1
             }
         ]
         
@@ -460,11 +461,12 @@ class TestBatchClassifyPosts:
         assert "total_posts_successfully_labeled" in metadata
         assert "total_posts_failed_to_label" in metadata
         
-        # Verify write_posts_to_cache was called with dicts
+        # Verify write_posts_to_cache was called with LabelWithBatchId instances
         mock_write.assert_called()
         called_posts = mock_write.call_args[1]["posts"]
         assert isinstance(called_posts, list)
-        assert all(isinstance(post, dict) for post in called_posts)
+        from services.ml_inference.models import LabelWithBatchId
+        assert all(isinstance(post, LabelWithBatchId) for post in called_posts)
 
     @pytest.mark.asyncio
     @patch('ml_tooling.perspective_api.model.process_perspective_batch_with_retries')
@@ -476,8 +478,8 @@ class TestBatchClassifyPosts:
     ):
         """Test batch classification with mixed success/failure."""
         posts = [
-            {'uri': 'test1', 'text': 'text1', 'batch_id': 'batch1', 'preprocessing_timestamp': '2024-01-01'},
-            {'uri': 'test2', 'text': 'text2', 'batch_id': 'batch1', 'preprocessing_timestamp': '2024-01-01'}
+            {'uri': 'test1', 'text': 'text1', 'batch_id': 1, 'preprocessing_timestamp': '2024-01-01'},
+            {'uri': 'test2', 'text': 'text2', 'batch_id': 1, 'preprocessing_timestamp': '2024-01-01'}
         ]
         
         # Mock process_batch to return raw API responses
@@ -495,7 +497,8 @@ class TestBatchClassifyPosts:
         mock_create_labels.return_value = [
             {
                 "uri": "test1",
-                "batch_id": "batch1",
+                "text": "text1",
+                "preprocessing_timestamp": "2024-01-01",
                 "prob_toxic": 0.8,
                 "label_toxic": 1,
                 "prob_reasoning": 0.6,
@@ -506,7 +509,8 @@ class TestBatchClassifyPosts:
             },
             {
                 "uri": "test2",
-                "batch_id": "batch1",
+                "text": "text2",
+                "preprocessing_timestamp": "2024-01-01",
                 "prob_toxic": None,
                 "label_toxic": None,
                 "prob_reasoning": None,
@@ -530,15 +534,17 @@ class TestBatchClassifyPosts:
         mock_write.assert_called_once()
         written_posts = mock_write.call_args[1]["posts"]
         assert len(written_posts) == 1
-        assert written_posts[0]["batch_id"] == "batch1"
-        assert written_posts[0]["was_successfully_labeled"]
+        assert isinstance(written_posts[0], LabelWithBatchId)
+        assert written_posts[0].batch_id == 1
+        assert written_posts[0].was_successfully_labeled
         
         # Verify the failed post was returned to queue
         mock_return.assert_called_once()
         failed_posts = mock_return.call_args[1]["failed_label_models"]
         assert len(failed_posts) == 1
-        assert failed_posts[0]["batch_id"] == "batch1"
-        assert not failed_posts[0]["was_successfully_labeled"]
+        assert isinstance(failed_posts[0], LabelWithBatchId)
+        assert failed_posts[0].batch_id == 1
+        assert not failed_posts[0].was_successfully_labeled
 
     @pytest.mark.asyncio
     @patch('ml_tooling.perspective_api.model.get_google_client')
@@ -596,7 +602,7 @@ class TestBatchClassifyPosts:
         mock_client.new_batch_http_request.side_effect = mock_new_batch
         
         # Test maximum batch size
-        max_posts = [{'uri': f'test{i}', 'text': f'text{i}', 'batch_id': 'batch1', 'preprocessing_timestamp': '2024-01-01'} 
+        max_posts = [{'uri': f'test{i}', 'text': f'text{i}', 'batch_id': 1, 'preprocessing_timestamp': '2024-01-01'} 
                     for i in range(DEFAULT_BATCH_SIZE + 1)]
         
         metadata = await batch_classify_posts(

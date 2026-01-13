@@ -1,11 +1,12 @@
 """Exports the results of classifying posts."""
 
-from typing import Optional, Sequence, TypeVar
+from typing import Any, Optional, Sequence, TypeVar
 
 from lib.db.queue import Queue
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from services.ml_inference.config import QueueInferenceType
+from services.ml_inference.models import LabelWithBatchId
 
 logger = get_logger(__name__)
 
@@ -60,9 +61,42 @@ def _default_output_queue(
     return Queue(queue_name=queue_name, create_new_queue=True)
 
 
+def attach_batch_id_to_label_dicts(
+    labels: list[dict[str, Any]],
+    uri_to_batch_id: dict[str, int],
+) -> list[LabelWithBatchId]:
+    """Attaches batch_id to label dicts using URI mapping and creates LabelWithBatchId instances.
+
+    Args:
+        labels: List of label dicts (from create_labels functions)
+        uri_to_batch_id: Mapping from URI to batch_id from original posts
+
+    Returns:
+        List of LabelWithBatchId instances with batch_id attached
+
+    Raises:
+        KeyError: If a label's URI is not found in uri_to_batch_id mapping
+        ValidationError: If a label dict is missing required fields
+    """
+    result: list[LabelWithBatchId] = []
+    for label in labels:
+        uri = label["uri"]
+
+        if uri not in uri_to_batch_id:
+            raise KeyError(
+                f"Label with URI {uri} not found in uri_to_batch_id mapping. "
+                "This indicates a mismatch between labels and original posts."
+            )
+
+        label_with_batch_id = LabelWithBatchId(batch_id=uri_to_batch_id[uri], **label)
+        result.append(label_with_batch_id)
+
+    return result
+
+
 def return_failed_labels_to_input_queue(
     inference_type: QueueInferenceType,
-    failed_label_models: list[dict],
+    failed_label_models: list[LabelWithBatchId],
     batch_size: Optional[int] = None,
     input_queue: Optional[Queue] = None,
 ):
@@ -76,7 +110,7 @@ def return_failed_labels_to_input_queue(
 
     Args:
         inference_type: The type of inference being processed
-        failed_label_models: List of failed label models to return to queue
+        failed_label_models: List of failed LabelWithBatchId instances to return to queue.
         batch_size: Optional batch size for queue operations
         input_queue: Optional Queue instance for dependency injection (defaults to real queue)
     """
@@ -86,14 +120,16 @@ def return_failed_labels_to_input_queue(
     queue = (
         input_queue if input_queue is not None else _default_input_queue(inference_type)
     )
+
+    # Convert Pydantic models to dicts for queue operations
+    failed_dicts = [label.model_dump() for label in failed_label_models]
+
     queue.batch_add_items_to_queue(
-        items=[
-            {"uri": post["uri"], "text": post["text"]} for post in failed_label_models
-        ],
+        items=[{"uri": post["uri"], "text": post["text"]} for post in failed_dicts],
         batch_size=batch_size,
         metadata={
             "reason": f"failed_label_{inference_type}",
-            "model_reason": failed_label_models[0]["reason"],
+            "model_reason": failed_dicts[0].get("reason", "Unknown error"),
             "label_timestamp": generate_current_datetime_str(),
         },
     )
@@ -101,7 +137,7 @@ def return_failed_labels_to_input_queue(
 
 def write_posts_to_cache(
     inference_type: QueueInferenceType,
-    posts: list[dict],
+    posts: list[LabelWithBatchId],
     batch_size: Optional[int] = None,
     input_queue: Optional[Queue] = None,
     output_queue: Optional[Queue] = None,
@@ -119,7 +155,7 @@ def write_posts_to_cache(
 
     Args:
         inference_type: The type of inference being processed
-        posts: List of successfully classified posts to write to cache
+        posts: List of successfully classified LabelWithBatchId instances to write to cache.
         batch_size: Optional batch size for queue operations
         input_queue: Optional input Queue instance for dependency injection (defaults to real queue)
         output_queue: Optional output Queue instance for dependency injection (defaults to real queue)
@@ -128,7 +164,7 @@ def write_posts_to_cache(
         logger.info("No posts to write to cache.")
         return
 
-    successfully_labeled_batch_ids = set(post["batch_id"] for post in posts)
+    successfully_labeled_batch_ids = set(post.batch_id for post in posts)
 
     in_queue = (
         input_queue if input_queue is not None else _default_input_queue(inference_type)
@@ -139,9 +175,12 @@ def write_posts_to_cache(
         else _default_output_queue(inference_type)
     )
 
+    # Convert Pydantic models to dicts for queue operations
+    posts_dicts = [post.model_dump() for post in posts]
+
     logger.info(f"Adding {len(posts)} posts to the output queue.")
     out_queue.batch_add_items_to_queue(
-        items=posts,
+        items=posts_dicts,
         batch_size=batch_size,
     )
     logger.info(

@@ -173,8 +173,8 @@ class TestBatchClassifyPosts:
     def test_successful_batch_processing(self, mock_dependencies):
         """Test processing batches with successful labels."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'text1', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 'batch1'},
-            {'uri': 'uri2', 'text': 'text2', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 'batch1'}
+            {'uri': 'uri1', 'text': 'text1', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1},
+            {'uri': 'uri2', 'text': 'text2', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1}
         ]
         
         mock_dependencies['create_batches'].return_value = [input_posts]
@@ -207,8 +207,8 @@ class TestBatchClassifyPosts:
     def test_failed_batch_processing(self, mock_dependencies):
         """Test handling of completely failed batch."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'text1', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 'batch1'},
-            {'uri': 'uri2', 'text': 'text2', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 'batch1'}
+            {'uri': 'uri1', 'text': 'text1', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1},
+            {'uri': 'uri2', 'text': 'text2', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1}
         ]
         
         mock_dependencies['create_batches'].return_value = [input_posts]
@@ -228,8 +228,8 @@ class TestBatchClassifyPosts:
     def test_partial_success_batch_processing(self, mock_dependencies):
         """Test handling of partially successful batch."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'text1', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 'batch1'},
-            {'uri': 'uri2', 'text': 'text2', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 'batch1'}
+            {'uri': 'uri1', 'text': 'text1', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1},
+            {'uri': 'uri2', 'text': 'text2', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1}
         ]
         
         mock_dependencies['create_batches'].return_value = [input_posts]
@@ -262,8 +262,8 @@ class TestBatchClassifyPosts:
     def test_metric_collection(self, mock_dependencies):
         """Test that metrics are correctly calculated for a batch."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'short', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 'batch1'},
-            {'uri': 'uri2', 'text': 'very long text', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 'batch1'}
+            {'uri': 'uri1', 'text': 'short', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1},
+            {'uri': 'uri2', 'text': 'very long text', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1}
         ]
         
         mock_dependencies['create_batches'].return_value = [input_posts]
