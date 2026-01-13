@@ -1,6 +1,6 @@
 """Loading data for backfilling."""
 
-from typing import Literal, Optional
+from typing import Literal
 
 import pandas as pd
 
@@ -27,11 +27,11 @@ logger = get_logger(__file__)
 
 
 def load_preprocessed_posts(
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     sorted_by_partition_date: bool = False,
     ascending: bool = False,
-    table_columns: Optional[list[str]] = None,
+    table_columns: list[str] | None = None,
     output_format: Literal["list", "df"] = "list",
     convert_ts_fields: bool = False,
 ) -> list[dict] | pd.DataFrame:
@@ -119,8 +119,8 @@ def load_preprocessed_posts(
 def load_service_post_uris(
     service: str,
     id_field: str = "uri",
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> set[str]:
     """Load the post URIs of all posts for a service.
 
@@ -162,8 +162,8 @@ def load_service_post_uris(
 @track_performance
 def load_posts_to_backfill(
     integrations: list[str],
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> dict[str, list[dict]]:
     """Given an integration, return the URIs of the posts to be backfilled.
 

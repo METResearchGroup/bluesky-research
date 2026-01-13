@@ -7,7 +7,7 @@ from lib.pipeline_invocation.constants import dynamodb_table_name
 from services.ml_inference.intergroup.intergroup import classify_latest_posts
 from services.ml_inference.models import ClassificationSessionModel
 
-logger = get_logger(__name__)
+logger = get_logger(__file__)
 
 
 def lambda_handler(event, context) -> dict:
@@ -34,7 +34,7 @@ def lambda_handler(event, context) -> dict:
             "service": "ml_inference_intergroup",
             "timestamp": session_metadata["inference_timestamp"],
             "status_code": 200,
-            "body": json.dumps("Classification of latest posts completed successfully"),
+            "body": "Classification of latest posts completed successfully",
             "metadata_table_name": dynamodb_table_name,
             "metadata": json.dumps(session_metadata),
         }
