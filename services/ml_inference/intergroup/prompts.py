@@ -33,6 +33,6 @@ Answer: 0
 Post: "Several men argued loudly outside the bar."
 Answer: 0
 
-Post: {{input}}
+Post: {input}
 Answer:
 """

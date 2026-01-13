@@ -2,6 +2,10 @@ from typing import Sequence, Mapping, TypeVar
 
 T = TypeVar("T")
 
+# add a sentinel value to distinguish between missing values and None values
+# during interpolation.
+_MISSING_VALUE_SENTINEL = "MISSING_VALUE"
+
 
 # TODO: add unit testing.
 def generate_batch_prompts(
@@ -16,7 +20,7 @@ def generate_batch_prompts(
     Args:
         batch: A sequence of data structures (e.g., Pydantic models, dataclasses, dicts).
         prompt_template: A string template using Python format placeholders (e.g., "Hello {name}").
-        field_mapping: A mapping from string template variable names to the attribute or key
+        template_variable_to_model_field_mapping: A mapping from string template variable names to the attribute or key
             name on model objects to use for that field.
 
     Returns:
@@ -43,10 +47,14 @@ def _interpolate_prompt_with_values(
     """
     values_to_interpolate: dict[str, str] = {}
     for template_var, model_field in template_variable_to_model_field_mapping.items():
-        value = getattr(batch_item, model_field, None)
-        if value is None:
+        value = getattr(batch_item, model_field, _MISSING_VALUE_SENTINEL)
+        if value == _MISSING_VALUE_SENTINEL:
             raise AttributeError(
                 f"Item {batch_item} has neither attribute nor key '{model_field}' required for template variable '{template_var}'"
+            )
+        elif value is None:
+            raise ValueError(
+                f"Item {batch_item} has a value of None for attribute or key '{model_field}' required for template variable '{template_var}'"
             )
         values_to_interpolate[template_var] = value
     return prompt_template.format(**values_to_interpolate)
