@@ -17,6 +17,8 @@ from services.ml_inference.models import PostToLabelModel
 
 logger = get_logger(__name__)
 
+_DEFAULT_FAILED_LABEL_VALUE = -1
+
 
 class IntergroupClassifier:
     """Pure intergroup classifier.
@@ -85,7 +87,7 @@ class IntergroupClassifier:
                 preprocessing_timestamp=post.preprocessing_timestamp,
                 was_successfully_labeled=False,
                 reason=reason,
-                label=0,  # set default of 0 for now.
+                label=_DEFAULT_FAILED_LABEL_VALUE,
             )
             for post in batch
         ]

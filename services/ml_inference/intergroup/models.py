@@ -14,5 +14,5 @@ class IntergroupLabelModel(BaseModel):
     was_successfully_labeled: bool = Field(
         ..., description="Whether the post was successfully labeled."
     )
-    reason: Optional[str] = Field(..., description="The reason for the label.")
+    reason: Optional[str] = Field(default=None, description="The reason for the label.")
     label: int = Field(..., description="The label for the post.")
