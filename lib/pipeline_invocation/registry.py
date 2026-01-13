@@ -149,6 +149,14 @@ def _get_valence_classifier_handler():
     return lambda_handler
 
 
+@PipelineHandlerRegistry.register("ml_inference_intergroup")
+def _get_intergroup_handler():
+    """Lazy-load the intergroup handler."""
+    from pipelines.classify_records.intergroup.handler import lambda_handler
+
+    return lambda_handler
+
+
 @PipelineHandlerRegistry.register("preprocess_raw_data")
 def _get_preprocess_raw_data_handler():
     """Lazy-load the preprocess raw data handler."""
