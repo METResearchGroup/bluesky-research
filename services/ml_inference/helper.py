@@ -21,7 +21,11 @@ logger = get_logger(__name__)
 @track_performance
 def get_posts_to_classify(
     inference_type: Literal[
-        "sociopolitical", "perspective_api", "ime", "valence_classifier"
+        "sociopolitical",
+        "perspective_api",
+        "ime",
+        "valence_classifier",
+        "intergroup",
     ],
     timestamp: Optional[str] = None,
     previous_run_metadata: Optional[dict] = None,
@@ -77,6 +81,7 @@ def get_posts_to_classify(
         "sociopolitical": "input_ml_inference_sociopolitical",
         "ime": "input_ml_inference_ime",
         "valence_classifier": "input_ml_inference_valence_classifier",
+        "intergroup": "input_ml_inference_intergroup",
     }
 
     if inference_type not in queue_mapping:
