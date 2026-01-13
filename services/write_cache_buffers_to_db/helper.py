@@ -20,6 +20,7 @@ SERVICES_TO_WRITE = [
     "ml_inference_ime",
     "preprocess_raw_data",
     "ml_inference_valence_classifier",
+    "ml_inference_intergroup",
 ]
 
 

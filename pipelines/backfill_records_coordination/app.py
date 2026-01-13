@@ -133,6 +133,7 @@ def validate_date_format(ctx, param, value):
             "ml_inference_sociopolitical",
             "ml_inference_ime",
             "ml_inference_valence_classifier",
+            "ml_inference_intergroup",
             "preprocess_raw_data",
         ]
     ),
