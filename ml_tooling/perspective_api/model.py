@@ -14,9 +14,11 @@ from lib.helper import logger, track_performance  # noqa
 from lib.load_env_vars import EnvVarsContainer
 from services.ml_inference.models import PerspectiveApiLabelsModel
 from services.ml_inference.export_data import (
+    attach_batch_id_to_label_dicts,
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
 )
+from services.ml_inference.models import LabelWithBatchId
 
 # current max of 100 QPS for the Perspective API. Also put a wait time of 1.05
 # seconds to make it more unlikely that more than 2 batches go off in 1 second
@@ -665,14 +667,22 @@ async def batch_classify_posts(
 
         labels: list[dict] = create_labels(posts=post_batch, responses=responses)
 
-        successful_labels: list[dict] = []
-        failed_labels: list[dict] = []
+        # Create URI mapping for robust batch_id attachment
+        post_batch_list = list(post_batch)  # Convert zip result to list
+        uri_to_batch_id = {p["uri"]: p["batch_id"] for p in post_batch_list}
+
+        # Attach batch_id using URI mapping and create LabelWithBatchId instances
+        labels_with_batch_id = attach_batch_id_to_label_dicts(
+            labels=labels,
+            uri_to_batch_id=uri_to_batch_id,
+        )
+
+        successful_labels: list[LabelWithBatchId] = []
+        failed_labels: list[LabelWithBatchId] = []
 
         # Process labels and update counters
-        for post, label in zip(post_batch, labels):
-            post_batch_id = post["batch_id"]
-            label["batch_id"] = post_batch_id
-            if label["was_successfully_labeled"]:
+        for label in labels_with_batch_id:
+            if label.was_successfully_labeled:
                 successful_labels.append(label)
             else:
                 failed_labels.append(label)

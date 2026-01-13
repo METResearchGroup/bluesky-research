@@ -262,6 +262,7 @@ testpaths = [
     "services/ml_inference/ime/tests",
     "services/ml_inference/perspective_api/tests",
     "services/ml_inference/sociopolitical/tests",
+    "services/ml_inference/intergroup/tests",
     "services/get_preprocessed_posts_used_in_feeds/tests",
     "services/repartition_service/tests",
     "services/calculate_analytics/tests",

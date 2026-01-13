@@ -6,9 +6,9 @@ import pandas as pd
 @pytest.fixture
 def sample_posts():
     return [
-        {"uri": "1", "text": "I love this!", "batch_id": "batch1", "preprocessing_timestamp": "2023-01-01T00:00:00Z"},
-        {"uri": "2", "text": "This is okay.", "batch_id": "batch1", "preprocessing_timestamp": "2023-01-01T00:00:00Z"},
-        {"uri": "3", "text": "I hate this.", "batch_id": "batch1", "preprocessing_timestamp": "2023-01-01T00:00:00Z"},
+        {"uri": "1", "text": "I love this!", "batch_id": 1, "preprocessing_timestamp": "2023-01-01T00:00:00Z"},
+        {"uri": "2", "text": "This is okay.", "batch_id": 1, "preprocessing_timestamp": "2023-01-01T00:00:00Z"},
+        {"uri": "3", "text": "I hate this.", "batch_id": 1, "preprocessing_timestamp": "2023-01-01T00:00:00Z"},
     ]
 
 def test_batch_classify_posts_empty():

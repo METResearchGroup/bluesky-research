@@ -24,6 +24,8 @@ models:
         llm_inference_kwargs: {}
       "gpt-4":
         llm_inference_kwargs: {}
+      "gpt-5-nano":
+        llm_inference_kwargs: {}
   
   gemini:
     llm_inference_kwargs:

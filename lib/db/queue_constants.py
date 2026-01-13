@@ -13,6 +13,8 @@ NAME_TO_QUEUE_NAME_MAP = {
     "output_ml_inference_ime": "output_ml_inference_ime",
     "input_ml_inference_valence_classifier": "input_ml_inference_valence_classifier",
     "output_ml_inference_valence_classifier": "output_ml_inference_valence_classifier",
+    "input_ml_inference_intergroup": "input_ml_inference_intergroup",
+    "output_ml_inference_intergroup": "output_ml_inference_intergroup",
     "jetstream_sync": "jetstream_sync",
     "output_backfill_sync": "output_backfill_sync",
     "output_backfill_sync_block": "output_backfill_sync_block",

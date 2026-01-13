@@ -4,6 +4,7 @@ import json
 from typing import Literal, Optional
 
 import pandas as pd
+from pydantic import BaseModel
 
 from lib.helper import determine_backfill_latest_timestamp
 from lib.db.queue import Queue
@@ -11,7 +12,7 @@ from lib.helper import track_performance
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.utils import filter_posts_df
-from services.ml_inference.config import InferenceConfig
+from services.ml_inference.config import InferenceConfig, QueueInferenceType
 from services.ml_inference.models import ClassificationSessionModel
 
 
@@ -20,9 +21,7 @@ logger = get_logger(__name__)
 
 @track_performance
 def get_posts_to_classify(
-    inference_type: Literal[
-        "sociopolitical", "perspective_api", "ime", "valence_classifier"
-    ],
+    inference_type: QueueInferenceType,
     timestamp: Optional[str] = None,
     previous_run_metadata: Optional[dict] = None,
     columns: Optional[list[str]] = None,
@@ -34,11 +33,13 @@ def get_posts_to_classify(
     post filtering, and data formatting.
 
     Args:
-        inference_type (Literal["sociopolitical", "perspective_api", "ime", "valence_classifier"]): Type of inference to run.
+        inference_type: Type of inference to run (QueueInferenceType).
             Maps to specific queue names:
             - "perspective_api" -> "input_ml_inference_perspective_api"
             - "sociopolitical" -> "input_ml_inference_sociopolitical"
             - "ime" -> "input_ml_inference_ime"
+            - "valence_classifier" -> "input_ml_inference_valence_classifier"
+            - "intergroup" -> "input_ml_inference_intergroup"
         timestamp (Optional[str]): Optional timestamp in YYYY-MM-DD-HH:MM:SS format to
             override latest inference timestamp for filtering posts.
         previous_run_metadata (Optional[dict]): Metadata from previous run containing:
@@ -77,6 +78,7 @@ def get_posts_to_classify(
         "sociopolitical": "input_ml_inference_sociopolitical",
         "ime": "input_ml_inference_ime",
         "valence_classifier": "input_ml_inference_valence_classifier",
+        "intergroup": "input_ml_inference_intergroup",
     }
 
     if inference_type not in queue_mapping:
@@ -208,6 +210,11 @@ def orchestrate_classification(
             posts=posts_to_classify,
             **classification_kwargs,
         )
+        # Convert Pydantic models to dict for ClassificationSessionModel
+        # NOTE: should deprecate this once we've fully migrated to using
+        # pydantic models for all classification results.
+        if isinstance(classification_metadata, BaseModel):
+            classification_metadata = classification_metadata.model_dump()
         total_classified = len(posts_to_classify)
     else:
         logger.info("Skipping classification and exporting cached results...")
