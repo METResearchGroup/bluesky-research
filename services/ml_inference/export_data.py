@@ -1,6 +1,6 @@
 """Exports the results of classifying posts."""
 
-from typing import Literal, Optional
+from typing import Literal, Optional, Sequence, TypeVar
 
 from lib.db.queue import Queue
 from lib.datetime_utils import generate_current_datetime_str
@@ -14,6 +14,7 @@ _INPUT_QUEUE_NAMES = {
     "sociopolitical": "input_ml_inference_sociopolitical",
     "ime": "input_ml_inference_ime",
     "valence_classifier": "input_ml_inference_valence_classifier",
+    "intergroup": "input_ml_inference_intergroup",
 }
 
 _OUTPUT_QUEUE_NAMES = {
@@ -21,7 +22,10 @@ _OUTPUT_QUEUE_NAMES = {
     "sociopolitical": "output_ml_inference_sociopolitical",
     "ime": "output_ml_inference_ime",
     "valence_classifier": "output_ml_inference_valence_classifier",
+    "intergroup": "output_ml_inference_intergroup",
 }
+
+T = TypeVar("T")
 
 
 # Default implementation factories (lazy loading to avoid import-time initialization)
@@ -31,6 +35,7 @@ def _default_input_queue(
         "sociopolitical",
         "ime",
         "valence_classifier",
+        "intergroup",
     ],
 ) -> Queue:
     """Factory for default input queue (lazy-loaded, no import-time creation).
@@ -51,6 +56,7 @@ def _default_output_queue(
         "sociopolitical",
         "ime",
         "valence_classifier",
+        "intergroup",
     ],
 ) -> Queue:
     """Factory for default output queue (lazy-loaded, no import-time creation).
@@ -71,6 +77,7 @@ def return_failed_labels_to_input_queue(
         "sociopolitical",
         "ime",
         "valence_classifier",
+        "intergroup",
     ],
     failed_label_models: list[dict],
     batch_size: Optional[int] = None,
@@ -115,6 +122,7 @@ def write_posts_to_cache(
         "sociopolitical",
         "ime",
         "valence_classifier",
+        "intergroup",
     ],
     posts: list[dict],
     batch_size: Optional[int] = None,
@@ -165,3 +173,30 @@ def write_posts_to_cache(
     in_queue.batch_delete_items_by_ids(
         ids=list(successfully_labeled_batch_ids),
     )
+
+
+# TODO: add unit tests.
+def split_labels_into_successful_and_failed_labels(
+    labels: Sequence[T],
+    successful_label_attribute_name: str = "was_successfully_labeled",
+) -> tuple[list[T], list[T]]:
+    """Splits labels into successful and failed labels.
+
+    Args:
+        labels: List of labels to split into successful and failed labels
+        successful_label_attribute_name: Attribute name of the successful label
+
+    Returns:
+        Tuple of lists: (successful_labels, failed_labels)
+    """
+    successful_labels: list[T] = []
+    failed_labels: list[T] = []
+    for label in labels:
+        # add defensiveness in case labels aren't Pydantic models.
+        if isinstance(label, dict):
+            raise ValueError("Labels must be a sequence of Pydantic models or dicts.")
+        if getattr(label, successful_label_attribute_name, False):
+            successful_labels.append(label)
+        else:
+            failed_labels.append(label)
+    return successful_labels, failed_labels
