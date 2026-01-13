@@ -1,10 +1,11 @@
 """Exports the results of classifying posts."""
 
-from typing import Literal, Optional, Sequence, TypeVar
+from typing import Optional, Sequence, TypeVar
 
 from lib.db.queue import Queue
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
+from services.ml_inference.config import QueueInferenceType
 
 logger = get_logger(__name__)
 
@@ -30,13 +31,7 @@ T = TypeVar("T")
 
 # Default implementation factories (lazy loading to avoid import-time initialization)
 def _default_input_queue(
-    inference_type: Literal[
-        "perspective_api",
-        "sociopolitical",
-        "ime",
-        "valence_classifier",
-        "intergroup",
-    ],
+    inference_type: QueueInferenceType,
 ) -> Queue:
     """Factory for default input queue (lazy-loaded, no import-time creation).
 
@@ -51,13 +46,7 @@ def _default_input_queue(
 
 
 def _default_output_queue(
-    inference_type: Literal[
-        "perspective_api",
-        "sociopolitical",
-        "ime",
-        "valence_classifier",
-        "intergroup",
-    ],
+    inference_type: QueueInferenceType,
 ) -> Queue:
     """Factory for default output queue (lazy-loaded, no import-time creation).
 
@@ -72,13 +61,7 @@ def _default_output_queue(
 
 
 def return_failed_labels_to_input_queue(
-    inference_type: Literal[
-        "perspective_api",
-        "sociopolitical",
-        "ime",
-        "valence_classifier",
-        "intergroup",
-    ],
+    inference_type: QueueInferenceType,
     failed_label_models: list[dict],
     batch_size: Optional[int] = None,
     input_queue: Optional[Queue] = None,
@@ -117,13 +100,7 @@ def return_failed_labels_to_input_queue(
 
 
 def write_posts_to_cache(
-    inference_type: Literal[
-        "perspective_api",
-        "sociopolitical",
-        "ime",
-        "valence_classifier",
-        "intergroup",
-    ],
+    inference_type: QueueInferenceType,
     posts: list[dict],
     batch_size: Optional[int] = None,
     input_queue: Optional[Queue] = None,

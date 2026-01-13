@@ -1,7 +1,16 @@
 """Configuration for inference types."""
 
 from dataclasses import dataclass
-from typing import Callable, Literal, Optional
+from typing import Callable, Literal, Optional, TypeAlias
+
+# Type alias for queue inference types - used across ML inference modules
+QueueInferenceType: TypeAlias = Literal[
+    "sociopolitical",
+    "perspective_api",
+    "ime",
+    "valence_classifier",
+    "intergroup",
+]
 
 
 @dataclass
@@ -23,13 +32,7 @@ class InferenceConfig:
     """
 
     inference_type: str
-    queue_inference_type: Literal[
-        "sociopolitical",
-        "perspective_api",
-        "ime",
-        "valence_classifier",
-        "intergroup",
-    ]  # For get_posts_to_classify()
+    queue_inference_type: QueueInferenceType
     classification_func: Callable
     log_message_template: str = "Classifying {count} posts..."
     empty_result_message: str = "No posts to classify. Exiting..."
