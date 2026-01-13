@@ -13,6 +13,7 @@ import pytest
 from services.ml_inference.helper import (
     get_posts_to_classify,
 )
+from services.ml_inference.models import PostToLabelModel
 
 # Create a mock datetime class that supports subtraction
 class MockDateTime:
@@ -63,8 +64,9 @@ class TestGetPostsToClassify:
         ]
         result = get_posts_to_classify("perspective_api")
         assert len(result) == 1
-        assert result[0]["uri"] == "test1"
-        assert result[0]["text"] == "test post 1"
+        assert isinstance(result[0], PostToLabelModel)
+        assert result[0].uri == "test1"
+        assert result[0].text == "test post 1"
 
     def test_deduplication(self, mock_queue):
         """Test that posts are properly deduplicated by URI."""
@@ -93,7 +95,7 @@ class TestGetPostsToClassify:
         ]
         result = get_posts_to_classify("perspective_api")
         assert len(result) == 2
-        uris = {post["uri"] for post in result}
+        uris = {post.uri for post in result}
         assert uris == {"test1", "test2"}
 
     def test_filtering_invalid_posts(self, mock_queue):
@@ -130,7 +132,7 @@ class TestGetPostsToClassify:
         ]
         result = get_posts_to_classify("perspective_api")
         assert len(result) == 1
-        assert result[0]["uri"] == "test4"
+        assert result[0].uri == "test4"
 
     def test_custom_columns(self, mock_queue):
         """Test requesting specific columns."""
@@ -146,8 +148,12 @@ class TestGetPostsToClassify:
         ]
         result = get_posts_to_classify("perspective_api", columns=["uri", "text", "preprocessing_timestamp", "batch_id", "batch_metadata"])
         assert len(result) == 1
-        assert set(result[0].keys()) == {"uri", "text", "preprocessing_timestamp", "batch_id", "batch_metadata"}
-        assert "extra_field" not in result[0]
+        assert result[0].uri == "test1"
+        assert result[0].text == "test post"
+        assert result[0].preprocessing_timestamp == "2024-01-01-12:00:00"
+        assert result[0].batch_id == 1
+        assert result[0].batch_metadata == json.dumps({"source": "test"})
+        assert not hasattr(result[0], "extra_field")
 
     def test_previous_metadata_handling(self, mock_queue):
         """Test using previous run metadata."""

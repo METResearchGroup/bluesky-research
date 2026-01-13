@@ -12,7 +12,7 @@ from googleapiclient.errors import HttpError
 from lib.batching_utils import create_batches
 from lib.helper import logger, track_performance  # noqa
 from lib.load_env_vars import EnvVarsContainer
-from services.ml_inference.models import PerspectiveApiLabelsModel
+from services.ml_inference.models import PerspectiveApiLabelsModel, PostToLabelModel
 from services.ml_inference.export_data import (
     attach_batch_id_to_label_dicts,
     return_failed_labels_to_input_queue,
@@ -727,7 +727,7 @@ async def batch_classify_posts(
 
 
 def run_batch_classification(
-    posts: list[dict],
+    posts: list[PostToLabelModel],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
     seconds_delay_per_batch: Optional[float] = DEFAULT_DELAY_SECONDS,
 ) -> dict:
@@ -774,10 +774,13 @@ def run_batch_classification(
         through explicit delays. Failed classifications are automatically requeued
         for retry.
     """
+    # Keep internal implementation dict-based, but enforce typed interface at entrypoint.
+    dict_posts: list[dict] = [post.model_dump() for post in posts]
+
     loop = asyncio.get_event_loop()
     metadata = loop.run_until_complete(
         batch_classify_posts(
-            posts=posts,
+            posts=dict_posts,
             batch_size=batch_size,
             seconds_delay_per_batch=seconds_delay_per_batch,
         )

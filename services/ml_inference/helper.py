@@ -14,6 +14,7 @@ from lib.log.logger import get_logger
 from lib.utils import filter_posts_df
 from services.ml_inference.config import InferenceConfig, QueueInferenceType
 from services.ml_inference.models import ClassificationSessionModel
+from services.ml_inference.models import PostToLabelModel
 
 
 logger = get_logger(__name__)
@@ -25,7 +26,7 @@ def get_posts_to_classify(
     timestamp: Optional[str] = None,
     previous_run_metadata: Optional[dict] = None,
     columns: Optional[list[str]] = None,
-) -> list[dict]:
+) -> list[PostToLabelModel]:
     """Retrieves posts from the appropriate queue for classification.
 
     This is the single entry point for getting data for inference. All inference modules
@@ -50,12 +51,12 @@ def get_posts_to_classify(
             Defaults to ["uri", "text", "preprocessing_timestamp", "batch_id", "batch_metadata"].
 
     Returns:
-        list[dict]: List of posts to classify, where each post is a dictionary containing
-            the requested columns. Posts are filtered to remove:
+        list[PostToLabelModel]: List of posts to classify as strongly-typed models.
+            Posts are filtered to remove:
             - Duplicates (based on uri)
             - Invalid text (missing, empty, or too short)
             - Missing timestamps
-            If a requested column doesn't exist, it will be included with None values.
+            If required columns are missing, raises ValueError.
 
     Control Flow:
         1. Maps inference type to appropriate queue name
@@ -70,7 +71,7 @@ def get_posts_to_classify(
         7. Drops duplicate URIs
         8. Filters posts using filter_posts_df()
         9. Ensures all requested columns exist (adds missing ones with None)
-        10. Returns filtered posts as list of dicts with requested columns
+        10. Returns filtered posts as PostToLabelModel instances
     """
     # Map inference types to queue names
     queue_mapping = {
@@ -137,14 +138,28 @@ def get_posts_to_classify(
     posts_df = filter_posts_df(posts_df)
     logger.info(f"After filtering, {len(posts_df)} posts remain.")
 
-    # Verify required columns exist and add missing ones with None values
+    # Verify required columns exist.
     missing_columns = [col for col in columns if col not in posts_df.columns]
     if missing_columns:
         raise ValueError(f"Missing required columns: {missing_columns}")
 
     # Select only requested columns
     dicts = posts_df[columns].to_dict(orient="records")
-    return dicts
+
+    required_for_model = {
+        "uri",
+        "text",
+        "preprocessing_timestamp",
+        "batch_id",
+        "batch_metadata",
+    }
+    if not required_for_model.issubset(set(columns)):
+        raise ValueError(
+            "get_posts_to_classify must be called with columns including "
+            f"{sorted(required_for_model)} to construct PostToLabelModel."
+        )
+
+    return [PostToLabelModel(**row) for row in dicts]
 
 
 @track_performance
@@ -185,7 +200,7 @@ def orchestrate_classification(
             backfill_duration=backfill_duration,
             backfill_period=backfill_period,
         )
-        posts_to_classify: list[dict] = get_posts_to_classify(
+        posts_to_classify: list[PostToLabelModel] = get_posts_to_classify(
             inference_type=config.queue_inference_type,
             timestamp=backfill_latest_timestamp,
             previous_run_metadata=previous_run_metadata,

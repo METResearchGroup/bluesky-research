@@ -1,7 +1,6 @@
 """Tests for batch_classifier.py.
 
 This test suite verifies the functionality of intergroup batch classification:
-- _dict_to_post_model: Conversion from dict to PostToLabelModel
 - run_batch_classification: Main batch classification orchestration
 - _manage_failed_labels: Handling of failed labels
 - _manage_successful_labels: Handling of successful labels
@@ -9,10 +8,8 @@ This test suite verifies the functionality of intergroup batch classification:
 
 import pytest
 from unittest.mock import Mock, patch
-from pydantic import ValidationError
 
 from services.ml_inference.intergroup.batch_classifier import (
-    _dict_to_post_model,
     _manage_failed_labels,
     _manage_successful_labels,
     run_batch_classification,
@@ -22,90 +19,6 @@ from services.ml_inference.models import (
     BatchClassificationMetadataModel,
     PostToLabelModel,
 )
-
-
-class TestDictToPostModel:
-    """Tests for _dict_to_post_model function."""
-
-    def test_successful_conversion(self):
-        """Test successful conversion from dict to PostToLabelModel.
-
-        Expected behavior:
-            - Should create PostToLabelModel with all required fields
-            - Should preserve all field values from input dict
-        """
-        # Arrange
-        post_dict = {
-            "uri": "test_uri_1",
-            "text": "test post text",
-            "preprocessing_timestamp": "2024-01-01-12:00:00",
-            "batch_id": 123,
-            "batch_metadata": '{"source": "test"}',
-        }
-
-        # Act
-        result = _dict_to_post_model(post_dict)
-
-        # Assert
-        assert isinstance(result, PostToLabelModel)
-        assert result.uri == "test_uri_1"
-        assert result.text == "test post text"
-        assert result.preprocessing_timestamp == "2024-01-01-12:00:00"
-        assert result.batch_id == 123
-        assert result.batch_metadata == '{"source": "test"}'
-
-    @pytest.mark.parametrize(
-        "uri,text,preprocessing_timestamp,batch_id,batch_metadata",
-        [
-            ("uri_2", "Another test post", "2024-01-02-13:00:00", 456, "metadata_string"),
-            ("uri_3", "Test post", "2024-01-01-12:00:00", 789, "simple_string_metadata"),
-        ],
-    )
-    def test_conversion_with_various_inputs(
-        self, uri, text, preprocessing_timestamp, batch_id, batch_metadata
-    ):
-        """Test conversion with various input values.
-
-        Expected behavior:
-            - Should successfully create PostToLabelModel when all fields are present
-            - Should handle batch_metadata as string value
-        """
-        # Arrange
-        post_dict = {
-            "uri": uri,
-            "text": text,
-            "preprocessing_timestamp": preprocessing_timestamp,
-            "batch_id": batch_id,
-            "batch_metadata": batch_metadata,
-        }
-
-        # Act
-        result = _dict_to_post_model(post_dict)
-
-        # Assert
-        assert isinstance(result, PostToLabelModel)
-        assert result.uri == uri
-        assert result.text == text
-        assert result.preprocessing_timestamp == preprocessing_timestamp
-        assert result.batch_id == batch_id
-        assert result.batch_metadata == batch_metadata
-
-    def test_missing_required_fields_raises_key_error(self):
-        """Test that missing required fields raises KeyError.
-
-        Expected behavior:
-            - Should raise KeyError when accessing missing dict keys
-        """
-        # Arrange
-        post_dict = {
-            "uri": "test_uri",
-            # Missing: text, preprocessing_timestamp, batch_id, batch_metadata
-        }
-
-        # Act & Assert
-        with pytest.raises(KeyError):
-            _dict_to_post_model(post_dict)
-
 
 class TestRunBatchClassification:
     """Tests for run_batch_classification function."""
@@ -169,7 +82,7 @@ class TestRunBatchClassification:
             - Should call write_posts_to_cache for successful labels
         """
         # Arrange
-        posts = [
+        post_dicts = [
             {
                 "uri": "uri_1",
                 "text": "test post 1",
@@ -185,6 +98,7 @@ class TestRunBatchClassification:
                 "batch_metadata": "{}",
             },
         ]
+        posts = [PostToLabelModel(**d) for d in post_dicts]
         mock_create_batches.return_value = [posts]
 
         successful_label = IntergroupLabelModel(
@@ -233,7 +147,7 @@ class TestRunBatchClassification:
             - Should call return_failed_labels_to_input_queue for failed labels
         """
         # Arrange
-        posts = [
+        post_dicts = [
             {
                 "uri": "uri_1",
                 "text": "test post 1",
@@ -242,6 +156,7 @@ class TestRunBatchClassification:
                 "batch_metadata": "{}",
             }
         ]
+        posts = [PostToLabelModel(**d) for d in post_dicts]
         mock_create_batches.return_value = [posts]
 
         failed_label = IntergroupLabelModel(
@@ -281,7 +196,7 @@ class TestRunBatchClassification:
             - Should call both write_posts_to_cache and return_failed_labels_to_input_queue
         """
         # Arrange
-        posts = [
+        post_dicts = [
             {
                 "uri": "uri_1",
                 "text": "test post 1",
@@ -297,6 +212,7 @@ class TestRunBatchClassification:
                 "batch_metadata": "{}",
             },
         ]
+        posts = [PostToLabelModel(**d) for d in post_dicts]
         mock_create_batches.return_value = [posts]
 
         successful_label = IntergroupLabelModel(
@@ -349,7 +265,7 @@ class TestRunBatchClassification:
             - Should aggregate counts across all batches
         """
         # Arrange
-        posts = [
+        post_dicts = [
             {
                 "uri": f"uri_{i}",
                 "text": f"test post {i}",
@@ -359,6 +275,7 @@ class TestRunBatchClassification:
             }
             for i in range(4)
         ]
+        posts = [PostToLabelModel(**d) for d in post_dicts]
         batch_1 = posts[:2]
         batch_2 = posts[2:]
         mock_create_batches.return_value = [batch_1, batch_2]
@@ -408,7 +325,7 @@ class TestRunBatchClassification:
             - Should pass batch_size to create_batches
         """
         # Arrange
-        posts = [
+        post_dicts = [
             {
                 "uri": f"uri_{i}",
                 "text": f"test post {i}",
@@ -418,6 +335,7 @@ class TestRunBatchClassification:
             }
             for i in range(5)
         ]
+        posts = [PostToLabelModel(**d) for d in post_dicts]
         mock_create_batches.return_value = [posts]
 
         successful_label = IntergroupLabelModel(
@@ -455,7 +373,7 @@ class TestRunBatchClassification:
             - Should pass correct PostToLabelModel instances to classifier
         """
         # Arrange
-        posts = [
+        post_dicts = [
             {
                 "uri": "uri_1",
                 "text": "test post 1",
@@ -464,6 +382,7 @@ class TestRunBatchClassification:
                 "batch_metadata": "{}",
             }
         ]
+        posts = [PostToLabelModel(**d) for d in post_dicts]
         mock_create_batches.return_value = [posts]
 
         successful_label = IntergroupLabelModel(
@@ -505,7 +424,7 @@ class TestRunBatchClassification:
             - Should use mapping when attaching batch_ids to labels
         """
         # Arrange
-        posts = [
+        post_dicts = [
             {
                 "uri": "uri_1",
                 "text": "test post 1",
@@ -521,6 +440,7 @@ class TestRunBatchClassification:
                 "batch_metadata": "{}",
             },
         ]
+        posts = [PostToLabelModel(**d) for d in post_dicts]
         mock_create_batches.return_value = [posts]
 
         successful_label = IntergroupLabelModel(
@@ -573,7 +493,7 @@ class TestRunBatchClassification:
             - Should have correct field types and values
         """
         # Arrange
-        posts = [
+        post_dicts = [
             {
                 "uri": "uri_1",
                 "text": "test post 1",
@@ -582,6 +502,7 @@ class TestRunBatchClassification:
                 "batch_metadata": "{}",
             }
         ]
+        posts = [PostToLabelModel(**d) for d in post_dicts]
         mock_create_batches.return_value = [posts]
 
         successful_label = IntergroupLabelModel(

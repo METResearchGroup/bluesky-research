@@ -125,7 +125,14 @@ def return_failed_labels_to_input_queue(
     failed_dicts = [label.model_dump() for label in failed_label_models]
 
     queue.batch_add_items_to_queue(
-        items=[{"uri": post["uri"], "text": post["text"]} for post in failed_dicts],
+        items=[
+            {
+                "uri": post["uri"],
+                "text": post["text"],
+                "preprocessing_timestamp": post["preprocessing_timestamp"],
+            }
+            for post in failed_dicts
+        ],
         batch_size=batch_size,
         metadata={
             "reason": f"failed_label_{inference_type}",
