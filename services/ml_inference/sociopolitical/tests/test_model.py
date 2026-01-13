@@ -351,21 +351,24 @@ class TestCreateLabels:
         Should properly handle both successful and failed responses in same batch.
         """
         posts = [
-            {
-                "uri": "test1",
-                "text": "post1",
-                "preprocessing_timestamp": "2023-01-01T00:00:00Z"
-            },
-            {
-                "uri": "test2",
-                "text": "post2", 
-                "preprocessing_timestamp": "2023-01-01T00:00:00Z"
-            },
-            {
-                "uri": "test3",
-                "text": "post3",
-                "preprocessing_timestamp": "2023-01-01T00:00:00Z"
-            }
+            _make_post(
+                uri="test1",
+                text="post1",
+                preprocessing_timestamp="2023-01-01T00:00:00Z",
+                batch_id=1,
+            ),
+            _make_post(
+                uri="test2",
+                text="post2",
+                preprocessing_timestamp="2023-01-01T00:00:00Z",
+                batch_id=1,
+            ),
+            _make_post(
+                uri="test3",
+                text="post3",
+                preprocessing_timestamp="2023-01-01T00:00:00Z",
+                batch_id=1,
+            ),
         ]
         responses = [
             {
@@ -403,18 +406,18 @@ class TestBatchClassifyPosts:
         Should process all posts and return correct metadata.
         """
         posts = [
-            {
-                "uri": "test1",
-                "text": "post1",
-                "batch_id": 1,
-                "preprocessing_timestamp": "2024-01-01-00:00:00"
-            },
-            {
-                "uri": "test2",
-                "text": "post2",
-                "batch_id": 1,
-                "preprocessing_timestamp": "2024-01-01-00:00:00"
-            }
+            _make_post(
+                uri="test1",
+                text="post1",
+                batch_id=1,
+                preprocessing_timestamp="2024-01-01-00:00:00",
+            ),
+            _make_post(
+                uri="test2",
+                text="post2",
+                batch_id=1,
+                preprocessing_timestamp="2024-01-01-00:00:00",
+            ),
         ]
         
         mock_process_batch.return_value = [
@@ -443,18 +446,18 @@ class TestBatchClassifyPosts:
         Should properly handle failed classifications and return correct metadata.
         """
         posts = [
-            {
-                "uri": "test1",
-                "text": "post1",
-                "batch_id": 1,
-                "preprocessing_timestamp": "2024-01-01-00:00:00"
-            },
-            {
-                "uri": "test2",
-                "text": "post2",
-                "batch_id": 1,
-                "preprocessing_timestamp": "2024-01-01-00:00:00"
-            }
+            _make_post(
+                uri="test1",
+                text="post1",
+                batch_id=1,
+                preprocessing_timestamp="2024-01-01-00:00:00",
+            ),
+            _make_post(
+                uri="test2",
+                text="post2",
+                batch_id=1,
+                preprocessing_timestamp="2024-01-01-00:00:00",
+            ),
         ]
         
         mock_process_batch.return_value = [None, None]  # None represents failed classifications
