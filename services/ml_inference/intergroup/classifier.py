@@ -10,7 +10,10 @@ from ml_tooling.llm.exceptions import (
     LLMUnrecoverableError,
 )
 from services.ml_inference.intergroup.constants import DEFAULT_LLM_MODEL_NAME
-from services.ml_inference.intergroup.models import IntergroupLabelModel
+from services.ml_inference.intergroup.models import (
+    IntergroupLabelModel,
+    LabelChoiceModel,
+)
 from services.ml_inference.intergroup.prompts import INTERGROUP_PROMPT
 from services.ml_inference.models import PostToLabelModel
 
@@ -42,15 +45,17 @@ class IntergroupClassifier:
         """Classifies a single batch of posts."""
         batch_prompts = self._generate_batch_prompts(batch=batch)
         try:
-            labels: list[IntergroupLabelModel] = (
+            llm_responses: list[LabelChoiceModel] = (
                 self.llm_service.structured_batch_completion(
                     prompts=batch_prompts,
-                    response_model=IntergroupLabelModel,
+                    response_model=LabelChoiceModel,
                     model=llm_model_name,
                     role="user",
                 )
             )
-            return labels
+            return self._merge_llm_responses_with_batch(
+                batch=batch, llm_responses=llm_responses
+            )
         except (
             LLMAuthError,
             LLMInvalidRequestError,
@@ -72,6 +77,42 @@ class IntergroupClassifier:
             # NOTE: we currently treat the entire batch as failed, which is
             # our current design choice.
             return self._generate_failed_labels(batch=batch, reason=str(e))
+
+    def _merge_llm_responses_with_batch(
+        self,
+        batch: list[PostToLabelModel],
+        llm_responses: list[LabelChoiceModel],
+    ) -> list[IntergroupLabelModel]:
+        """Merges LLM responses with input batch to create full IntergroupLabelModel instances.
+
+        Args:
+            batch: List of input posts to be labeled
+            llm_responses: List of lightweight LLM responses containing only the label
+
+        Returns:
+            List of complete IntergroupLabelModel instances with all required fields
+
+        Raises:
+            ValueError: If the number of LLM responses doesn't match the number of posts
+        """
+        if len(llm_responses) != len(batch):
+            raise ValueError(
+                f"Number of LLM responses ({len(llm_responses)}) does not match "
+                f"number of posts ({len(batch)})."
+            )
+
+        labels: list[IntergroupLabelModel] = [
+            IntergroupLabelModel(
+                uri=post.uri,
+                text=post.text,
+                preprocessing_timestamp=post.preprocessing_timestamp,
+                was_successfully_labeled=True,
+                reason=None,
+                label=llm_response.label,
+            )
+            for post, llm_response in zip(batch, llm_responses)
+        ]
+        return labels
 
     def _generate_failed_labels(
         self,

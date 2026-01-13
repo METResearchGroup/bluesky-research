@@ -3,6 +3,12 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
+class LabelChoiceModel(BaseModel):
+    """Lightweight model for LLM response containing only the label choice."""
+
+    label: int = Field(..., description="The binary label for the post (0 or 1).")
+
+
 class IntergroupLabelModel(BaseModel):
     """Model for intergroup label."""
 
