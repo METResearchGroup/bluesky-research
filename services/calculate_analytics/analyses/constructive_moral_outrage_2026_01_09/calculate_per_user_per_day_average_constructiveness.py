@@ -35,6 +35,7 @@ REQUIRED_COLUMNS = [
     "condition",
     "feed_generation_timestamp",
     "avg_prob_constructive",
+    "date",
 ]
 
 
@@ -46,15 +47,14 @@ def add_date_column(df: pd.DataFrame) -> pd.DataFrame:
 
 def get_unique_study_handles_and_conditions(df: pd.DataFrame) -> pd.DataFrame:
     """Get unique handles and conditions from the dataframe."""
-    result: pd.DataFrame = df[["bluesky_handle", "condition"]].drop_duplicates()  # type: ignore
+    # Note: df has 'handle' column
+    # (renamed from 'bluesky_handle' in aggregate_by_user_and_date)
+    result: pd.DataFrame = df[["handle", "condition"]].drop_duplicates()  # type: ignore
     return result
 
 
 def filter_records(df: pd.DataFrame) -> pd.DataFrame:
     """Filter records based on business logic."""
-
-    # get only the required columns
-    df = df.loc[:, REQUIRED_COLUMNS].copy()
 
     # filter by date range
     date_range_mask = (df["date"] >= study_start_date) & (df["date"] <= study_end_date)
@@ -63,6 +63,10 @@ def filter_records(df: pd.DataFrame) -> pd.DataFrame:
     # filter out placeholder handle
     handle_mask = df["bluesky_handle"] != "default"
     df = df[handle_mask].copy()  # type: ignore
+
+    # grab only relevant columns.
+    columns_to_keep = REQUIRED_COLUMNS
+    df = df.loc[:, columns_to_keep].copy()
 
     return df
 
@@ -77,10 +81,15 @@ def aggregate_by_user_and_date(df: pd.DataFrame) -> pd.DataFrame:
         as_index=False,
         dropna=False,
     )
-    aggregated = grouped.agg(
+    aggregated: pd.DataFrame = grouped.agg(
         feed_average_constructiveness=("avg_prob_constructive", "mean"),
-    )
-    result = aggregated.rename(columns={"bluesky_handle": "handle"})  # type: ignore
+    )  # type: ignore
+    return aggregated
+
+
+def rename_handle_column(aggregated: pd.DataFrame) -> pd.DataFrame:
+    """Rename the 'bluesky_handle' column to 'handle'."""
+    result: pd.DataFrame = aggregated.rename(columns={"bluesky_handle": "handle"})  # type: ignore
     return result
 
 
@@ -209,6 +218,7 @@ def main() -> None:
     df = filter_records(df)
 
     per_user_per_day: pd.DataFrame = aggregate_by_user_and_date(df)
+    per_user_per_day = rename_handle_column(per_user_per_day)
 
     handle_condition_df: pd.DataFrame = get_unique_study_handles_and_conditions(
         per_user_per_day
