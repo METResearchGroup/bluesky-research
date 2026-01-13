@@ -4,6 +4,7 @@ import json
 from typing import Literal, Optional
 
 import pandas as pd
+from pydantic import BaseModel
 
 from lib.helper import determine_backfill_latest_timestamp
 from lib.db.queue import Queue
@@ -213,6 +214,11 @@ def orchestrate_classification(
             posts=posts_to_classify,
             **classification_kwargs,
         )
+        # Convert Pydantic models to dict for ClassificationSessionModel
+        # NOTE: should deprecate this once we've fully migrated to using
+        # pydantic models for all classification results.
+        if isinstance(classification_metadata, BaseModel):
+            classification_metadata = classification_metadata.model_dump()
         total_classified = len(posts_to_classify)
     else:
         logger.info("Skipping classification and exporting cached results...")

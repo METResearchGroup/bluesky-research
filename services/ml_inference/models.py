@@ -269,6 +269,24 @@ class PostToLabelModel(BaseModel):
     batch_metadata: str = Field(..., description="The batch metadata of the post.")
 
 
+class BatchClassificationMetadataModel(BaseModel):
+    """Common metadata structure for batch classification results.
+
+    This is the standard metadata structure returned by run_batch_classification
+    functions across inference services (sociopolitical, intergroup, etc.).
+    Some services (like IME) wrap this in additional structure, but all
+    share these core fields.
+    """
+
+    total_batches: int = Field(..., ge=0, description="Number of batches processed")
+    total_posts_successfully_labeled: int = Field(
+        ..., ge=0, description="Count of successfully labeled posts"
+    )
+    total_posts_failed_to_label: int = Field(
+        ..., ge=0, description="Count of failed post classifications"
+    )
+
+
 class ClassificationSessionModel(BaseModel):
     """Model for classification session summary output.
 
