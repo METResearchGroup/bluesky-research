@@ -29,7 +29,9 @@ from lib.helper import get_partition_date_from_timestamp
 
 BASE_DIR = os.path.dirname(__file__)
 INPUT_CSV = os.path.join(BASE_DIR, "per_feed_average_constructiveness.csv")
-OUTPUT_CSV = os.path.join(BASE_DIR, "per_user_per_day_average_constructiveness.csv")
+OUTPUT_CSV = os.path.join(
+    BASE_DIR, "constructiveness_only_daily_feed_content_aggregated_results_per_user.csv"
+)
 REQUIRED_COLUMNS = [
     "bluesky_handle",
     "condition",
