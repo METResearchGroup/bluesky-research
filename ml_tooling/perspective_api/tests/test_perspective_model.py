@@ -10,7 +10,7 @@ import psutil
 import os
 import asyncio
 
-from services.ml_inference.models import LabelWithBatchId
+from services.ml_inference.models import LabelWithBatchId, PostToLabelModel
 from ml_tooling.perspective_api.model import (
     process_perspective_batch,
     create_labels,
@@ -647,7 +647,15 @@ class TestRunBatchClassification:
             }
         mock_batch_classify.return_value = async_return()
 
-        posts = [{"uri": "test", "text": "test text", "batch_id": 1}]
+        posts = [
+            PostToLabelModel(
+                uri="test",
+                text="test text",
+                preprocessing_timestamp="2024-01-01-00:00:00",
+                batch_id=1,
+                batch_metadata="{}",
+            )
+        ]
         
         metadata = run_batch_classification(
             posts=posts,
@@ -675,7 +683,15 @@ class TestRunBatchClassification:
             }
         mock_batch_classify.return_value = async_return()
 
-        posts = [{"uri": "test", "text": "test text", "batch_id": 1}]
+        posts = [
+            PostToLabelModel(
+                uri="test",
+                text="test text",
+                preprocessing_timestamp="2024-01-01-00:00:00",
+                batch_id=1,
+                batch_metadata="{}",
+            )
+        ]
         
         metadata = run_batch_classification(posts=posts)
         

@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import Mock, patch, call
 
 from services.ml_inference.perspective_api.perspective_api import classify_latest_posts
+from services.ml_inference.models import PostToLabelModel
 
 
 class TestClassifyLatestPosts:
@@ -33,18 +34,20 @@ class TestClassifyLatestPosts:
             "services.ml_inference.helper.get_posts_to_classify"
         ) as mock:
             mock.return_value = [
-                {
-                    "uri": "test1", 
-                    "text": "test post 1",
-                    "preprocessing_timestamp": "2024-01-01-12:00:00",
-                    "batch_id": 1
-                },
-                {
-                    "uri": "test2", 
-                    "text": "test post 2",
-                    "preprocessing_timestamp": "2024-01-01-12:00:00",
-                    "batch_id": 2
-                }
+                PostToLabelModel(
+                    uri="test1",
+                    text="test post 1",
+                    preprocessing_timestamp="2024-01-01-12:00:00",
+                    batch_id=1,
+                    batch_metadata="{}",
+                ),
+                PostToLabelModel(
+                    uri="test2",
+                    text="test post 2",
+                    preprocessing_timestamp="2024-01-01-12:00:00",
+                    batch_id=2,
+                    batch_metadata="{}",
+                ),
             ]
             yield mock
 
@@ -334,12 +337,13 @@ class TestClassifyLatestPosts:
         """
         # Setup initial test data
         initial_posts = [
-            {
-                "uri": f"test{i}", 
-                "text": f"test post {i}", 
-                "batch_id": i,
-                "preprocessing_timestamp": "2024-01-01-12:00:00"
-            }
+            PostToLabelModel(
+                uri=f"test{i}",
+                text=f"test post {i}",
+                preprocessing_timestamp="2024-01-01-12:00:00",
+                batch_id=i,
+                batch_metadata="{}",
+            )
             for i in range(50)
         ]
         
@@ -362,12 +366,13 @@ class TestClassifyLatestPosts:
         
         # Step 2: Second run (18 success, 12 fail)
         remaining_posts = [
-            {
-                "uri": f"test{i}", 
-                "text": f"test post {i}", 
-                "batch_id": i+50,
-                "preprocessing_timestamp": "2024-01-01-12:00:00"
-            }
+            PostToLabelModel(
+                uri=f"test{i}",
+                text=f"test post {i}",
+                preprocessing_timestamp="2024-01-01-12:00:00",
+                batch_id=i + 50,
+                batch_metadata="{}",
+            )
             for i in range(30)
         ]
         mock_get_posts.return_value = remaining_posts
@@ -388,12 +393,13 @@ class TestClassifyLatestPosts:
         
         # Step 3: Final run (12 success, 0 fail)
         final_posts = [
-            {
-                "uri": f"test{i}", 
-                "text": f"test post {i}", 
-                "batch_id": i+80,
-                "preprocessing_timestamp": "2024-01-01-12:00:00"
-            }
+            PostToLabelModel(
+                uri=f"test{i}",
+                text=f"test post {i}",
+                preprocessing_timestamp="2024-01-01-12:00:00",
+                batch_id=i + 80,
+                batch_metadata="{}",
+            )
             for i in range(12)
         ]
         mock_get_posts.return_value = final_posts

@@ -1,13 +1,32 @@
 import pytest
 from unittest.mock import patch
 from services.ml_inference.valence_classifier import valence_classifier
+from services.ml_inference.models import PostToLabelModel
 
 @pytest.fixture
 def sample_posts():
     return [
-        {"uri": "1", "text": "I love this!", "batch_id": 1, "preprocessing_timestamp": "2023-01-01T00:00:00Z"},
-        {"uri": "2", "text": "It's okay, it's fine.", "batch_id": 1, "preprocessing_timestamp": "2023-01-01T00:00:00Z"},
-        {"uri": "3", "text": "I hate this.", "batch_id": 1, "preprocessing_timestamp": "2023-01-01T00:00:00Z"},
+        PostToLabelModel(
+            uri="1",
+            text="I love this!",
+            batch_id=1,
+            preprocessing_timestamp="2023-01-01T00:00:00Z",
+            batch_metadata="{}",
+        ),
+        PostToLabelModel(
+            uri="2",
+            text="It's okay, it's fine.",
+            batch_id=1,
+            preprocessing_timestamp="2023-01-01T00:00:00Z",
+            batch_metadata="{}",
+        ),
+        PostToLabelModel(
+            uri="3",
+            text="I hate this.",
+            batch_id=1,
+            preprocessing_timestamp="2023-01-01T00:00:00Z",
+            batch_metadata="{}",
+        ),
     ]
 
 def test_classify_latest_posts_no_posts():

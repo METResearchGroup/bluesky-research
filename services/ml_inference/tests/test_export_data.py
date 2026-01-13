@@ -76,7 +76,13 @@ class TestReturnFailedLabelsToInputQueue:
         )
             
         mock_queue.batch_add_items_to_queue.assert_called_once_with(
-            items=[{"uri": "test_uri", "text": "test_text"}],
+            items=[
+                {
+                    "uri": "test_uri",
+                    "text": "test_text",
+                    "preprocessing_timestamp": "2024-01-01-12:00:00",
+                }
+            ],
             batch_size=None,
             metadata={
                 "reason": f"failed_label_{inference_type}",
@@ -125,7 +131,14 @@ class TestReturnFailedLabelsToInputQueue:
         )
         
         mock_queue.batch_add_items_to_queue.assert_called_once_with(
-            items=[{"uri": f"uri_{i}", "text": f"text_{i}"} for i in range(3)],
+            items=[
+                {
+                    "uri": f"uri_{i}",
+                    "text": f"text_{i}",
+                    "preprocessing_timestamp": "2024-01-01-12:00:00",
+                }
+                for i in range(3)
+            ],
             batch_size=2,
             metadata={
                 "reason": f"failed_label_{inference_type}",

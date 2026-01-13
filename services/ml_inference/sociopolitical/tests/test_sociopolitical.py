@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 
 from services.ml_inference.sociopolitical import sociopolitical
 from services.ml_inference.sociopolitical.sociopolitical import classify_latest_posts
+from services.ml_inference.models import PostToLabelModel
 
 
 class TestClassifyLatestPosts:
@@ -34,8 +35,20 @@ class TestClassifyLatestPosts:
             "services.ml_inference.helper.get_posts_to_classify"
         ) as mock:
             mock.return_value = [
-                {"uri": "test1", "text": "test post 1"},
-                {"uri": "test2", "text": "test post 2"}
+                PostToLabelModel(
+                    uri="test1",
+                    text="test post 1",
+                    preprocessing_timestamp="2024-01-01-12:00:00",
+                    batch_id=1,
+                    batch_metadata="{}",
+                ),
+                PostToLabelModel(
+                    uri="test2",
+                    text="test post 2",
+                    preprocessing_timestamp="2024-01-01-12:00:00",
+                    batch_id=2,
+                    batch_metadata="{}",
+                ),
             ]
             yield mock
 

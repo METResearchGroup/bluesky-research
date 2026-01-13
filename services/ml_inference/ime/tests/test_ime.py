@@ -20,6 +20,7 @@ sys.modules['lib.telemetry.cometml'] = MagicMock()
 
 from ml_tooling.ime.constants import default_hyperparameters
 from services.ml_inference.ime.ime import classify_latest_posts
+from services.ml_inference.models import PostToLabelModel
 
 
 class TestClassifyLatestPosts:
@@ -37,18 +38,20 @@ class TestClassifyLatestPosts:
         """Mock the get_posts_to_classify function."""
         with patch("services.ml_inference.helper.get_posts_to_classify") as mock:
             mock.return_value = [
-                {
-                    "uri": "post1", 
-                    "text": "text1", 
-                    "preprocessing_timestamp": "2024-01-01T00:00:00",
-                    "batch_id": "batch1"
-                },
-                {
-                    "uri": "post2", 
-                    "text": "text2", 
-                    "preprocessing_timestamp": "2024-01-01T00:00:00",
-                    "batch_id": "batch1"
-                }
+                PostToLabelModel(
+                    uri="post1",
+                    text="text1",
+                    preprocessing_timestamp="2024-01-01T00:00:00",
+                    batch_id=1,
+                    batch_metadata="{}",
+                ),
+                PostToLabelModel(
+                    uri="post2",
+                    text="text2",
+                    preprocessing_timestamp="2024-01-01T00:00:00",
+                    batch_id=1,
+                    batch_metadata="{}",
+                ),
             ]
             yield mock
 

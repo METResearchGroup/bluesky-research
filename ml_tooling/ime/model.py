@@ -25,7 +25,7 @@ from services.ml_inference.export_data import (
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
 )
-from services.ml_inference.models import ImeLabelModel, LabelWithBatchId
+from services.ml_inference.models import ImeLabelModel, LabelWithBatchId, PostToLabelModel
 
 logger = get_logger(__file__)
 
@@ -179,13 +179,14 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
 
 @track_performance
 def batch_classify_posts(
-    posts: list[dict],
+    posts: list[PostToLabelModel],
     batch_size: int,
     minibatch_size: int,
     model_name: str = default_model,
 ) -> dict:
     """Run batch classification on the given posts."""
-    batches: list[list[dict]] = create_batches(batch_list=posts, batch_size=batch_size)
+    dict_posts: list[dict] = [post.model_dump() for post in posts]
+    batches: list[list[dict]] = create_batches(batch_list=dict_posts, batch_size=batch_size)
     total_batches = len(batches)
     total_posts_successfully_labeled = 0
     total_posts_failed_to_label = 0
@@ -407,7 +408,8 @@ def batch_classify_posts(
 @track_performance
 @log_batch_classification_to_cometml(service="ml_inference_ime")
 def run_batch_classification(
-    posts: list[dict], hyperparameters: Optional[dict] = default_hyperparameters
+    posts: list[PostToLabelModel],
+    hyperparameters: Optional[dict] = default_hyperparameters,
 ) -> dict:
     """Run batch classification on the given posts and logs to W&B."""
     results: dict = batch_classify_posts(
