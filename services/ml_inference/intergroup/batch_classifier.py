@@ -15,6 +15,7 @@ from lib.batching_utils import create_batches, update_batching_progress
 from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.ml_inference.export_data import (
+    attach_batch_id_to_label_dicts,
     return_failed_labels_to_input_queue,
     split_labels_into_successful_and_failed_labels,
     write_posts_to_cache,
@@ -25,6 +26,7 @@ from services.ml_inference.intergroup.models import IntergroupLabelModel
 from services.ml_inference.models import (
     BatchClassificationMetadataModel,
     PostToLabelModel,
+    LabelWithBatchId,
 )
 
 logger = get_logger(__name__)
@@ -122,20 +124,18 @@ def _manage_failed_labels(
     """Manages failed labels and returns the updated total number of
     failed labels.
     """
-    failed_dicts: list[dict] = []
-    for label in failed_labels:
-        dumped_label = label.model_dump()
-        # TODO: figure out why we do this again...??
-        dumped_label["batch_id"] = uri_to_batch_id.get(dumped_label["uri"])
-        failed_dicts.append(dumped_label)
+    failed_label_models: list[LabelWithBatchId] = attach_batch_id_to_label_dicts(
+        labels=[label.model_dump() for label in failed_labels],
+        uri_to_batch_id=uri_to_batch_id,
+    )
     logger.warning(
-        f"Failed to label {len(failed_dicts)} posts. Re-inserting into queue."
+        f"Failed to label {len(failed_label_models)} posts. Re-inserting into queue."
     )
     return_failed_labels_to_input_queue(
         inference_type="intergroup",
-        failed_label_models=failed_dicts,
+        failed_label_models=failed_label_models,
     )
-    return total_failed_so_far + len(failed_dicts)
+    return total_failed_so_far + len(failed_label_models)
 
 
 def _manage_successful_labels(
@@ -145,16 +145,18 @@ def _manage_successful_labels(
 ) -> int:
     """Manages successful labels and returns the updated total number of
     successful labels.
+
+    Attaches batch_id to labels for queue management operations.
+    Creates validated LabelWithBatchId instances.
     """
-    successful_dicts: list[dict] = []
-    for label in successful_labels:
-        dumped_label = label.model_dump()
-        # TODO: figure out why we do this again...??
-        dumped_label["batch_id"] = uri_to_batch_id.get(dumped_label["uri"])
-        successful_dicts.append(dumped_label)
-    logger.info(f"Successfully labeled {len(successful_dicts)} posts.")
+    # Use helper function - enforces contract and documents intent
+    successful_label_models: list[LabelWithBatchId] = attach_batch_id_to_label_dicts(
+        labels=[label.model_dump() for label in successful_labels],
+        uri_to_batch_id=uri_to_batch_id,
+    )
+    logger.info(f"Successfully labeled {len(successful_label_models)} posts.")
     write_posts_to_cache(
         inference_type="intergroup",
-        posts=successful_dicts,
+        posts=successful_label_models,
     )
-    return total_successful_so_far + len(successful_dicts)
+    return total_successful_so_far + len(successful_label_models)

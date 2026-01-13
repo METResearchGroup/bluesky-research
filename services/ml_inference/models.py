@@ -1,8 +1,35 @@
 """Pydantic models for storing Perspective API labels."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Literal, Optional
 import typing_extensions as te
+
+
+# Export contract: labels must include batch_id for queue management
+class LabelWithBatchId(BaseModel):
+    """Contract for labels exported to cache/queue.
+
+    All labels passed to write_posts_to_cache() and return_failed_labels_to_input_queue()
+    must include batch_id for queue management operations.
+
+    Required fields:
+    - batch_id: Used to delete items from input queue
+    - uri: Identifier for the post
+    - text: Post content
+    - preprocessing_timestamp: Post timestamp
+    - was_successfully_labeled: Success/failure flag
+
+    All other fields are optional and service-specific (e.g., reason, label, prob_*).
+    Additional fields are allowed via model_config.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    batch_id: int = Field(..., description="Used to delete items from input queue")
+    uri: str = Field(..., description="Identifier for the post")
+    text: str = Field(..., description="Post content")
+    preprocessing_timestamp: str = Field(..., description="Post timestamp")
+    was_successfully_labeled: bool = Field(..., description="Success/failure flag")
 
 
 class RecordClassificationMetadataModel(BaseModel):

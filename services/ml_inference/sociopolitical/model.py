@@ -16,9 +16,11 @@ from services.ml_inference.models import (
     SociopoliticalLabelsModel,
 )
 from services.ml_inference.export_data import (
+    attach_batch_id_to_label_dicts,
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
 )
+from services.ml_inference.models import LabelWithBatchId
 
 
 logger = get_logger(__name__)
@@ -327,16 +329,23 @@ def batch_classify_posts(
         )
         labels: list[dict] = create_labels(posts=batch, responses=responses)
 
-        successful_labels: list[dict] = []
-        failed_labels: list[dict] = []
+        # Create URI mapping for robust batch_id attachment
+        uri_to_batch_id = {p["uri"]: p["batch_id"] for p in batch}
+
+        # Attach batch_id using URI mapping and create LabelWithBatchId instances
+        labels_with_batch_id = attach_batch_id_to_label_dicts(
+            labels=labels,
+            uri_to_batch_id=uri_to_batch_id,
+        )
+
+        successful_labels: list[LabelWithBatchId] = []
+        failed_labels: list[LabelWithBatchId] = []
 
         total_failed_labels = 0
         total_successful_labels = 0
 
-        for post, label in zip(batch, labels):
-            post_batch_id = post["batch_id"]
-            label["batch_id"] = post_batch_id
-            if label["was_successfully_labeled"]:
+        for label in labels_with_batch_id:
+            if label.was_successfully_labeled:
                 successful_labels.append(label)
                 total_successful_labels += 1
             else:

@@ -460,11 +460,12 @@ class TestBatchClassifyPosts:
         assert "total_posts_successfully_labeled" in metadata
         assert "total_posts_failed_to_label" in metadata
         
-        # Verify write_posts_to_cache was called with dicts
+        # Verify write_posts_to_cache was called with LabelWithBatchId instances
         mock_write.assert_called()
         called_posts = mock_write.call_args[1]["posts"]
         assert isinstance(called_posts, list)
-        assert all(isinstance(post, dict) for post in called_posts)
+        from services.ml_inference.models import LabelWithBatchId
+        assert all(isinstance(post, LabelWithBatchId) for post in called_posts)
 
     @pytest.mark.asyncio
     @patch('ml_tooling.perspective_api.model.process_perspective_batch_with_retries')

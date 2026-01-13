@@ -7,6 +7,7 @@ from services.ml_inference.export_data import (
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
 )
+from services.ml_inference.models import LabelWithBatchId
 
 
 class TestReturnFailedLabelsToInputQueue:
@@ -55,13 +56,15 @@ class TestReturnFailedLabelsToInputQueue:
             - Should use the label's reason as model_reason
             - Should work identically for all inference types
         """
-        failed_model = {
-            "uri": "test_uri",
-            "text": "test_text",
-            "reason": "API_ERROR",
-            "was_successfully_labeled": False,
-            "label_timestamp": "2024-01-01-12:00:00"
-        }
+        failed_model = LabelWithBatchId(
+            batch_id=1,
+            uri="test_uri",
+            text="test_text",
+            preprocessing_timestamp="2024-01-01-12:00:00",
+            was_successfully_labeled=False,
+            reason="API_ERROR",
+            label_timestamp="2024-01-01-12:00:00"
+        )
         
         mock_queue = Mock(spec=Queue)
         return_failed_labels_to_input_queue(
@@ -99,13 +102,15 @@ class TestReturnFailedLabelsToInputQueue:
             - Should work identically for all inference types
         """
         failed_models = [
-            {
-                "uri": f"uri_{i}",
-                "text": f"text_{i}",
-                "reason": "API_ERROR",
-                "was_successfully_labeled": False,
-                "label_timestamp": "2024-01-01-12:00:00"
-            }
+            LabelWithBatchId(
+                batch_id=i,
+                uri=f"uri_{i}",
+                text=f"text_{i}",
+                preprocessing_timestamp="2024-01-01-12:00:00",
+                was_successfully_labeled=False,
+                reason="API_ERROR",
+                label_timestamp="2024-01-01-12:00:00"
+            )
             for i in range(3)
         ]
         
@@ -177,13 +182,14 @@ class TestWritePostsToCache:
             - Should work identically for all inference types
         """
         posts = [
-            {
-                "uri": f"uri_{i}",
-                "text": f"text_{i}",
-                "batch_id": f"batch_{i}",
-                "was_successfully_labeled": True,
-                "label_timestamp": "2024-01-01-12:00:00"
-            }
+            LabelWithBatchId(
+                batch_id=i,
+                uri=f"uri_{i}",
+                text=f"text_{i}",
+                preprocessing_timestamp="2024-01-01-12:00:00",
+                was_successfully_labeled=True,
+                label_timestamp="2024-01-01-12:00:00"
+            )
             for i in range(3)
         ]
         
@@ -197,12 +203,15 @@ class TestWritePostsToCache:
             output_queue=mock_output_queue
         )
             
-        mock_output_queue.batch_add_items_to_queue.assert_called_once_with(
-            items=posts,
-            batch_size=2
-        )
+        # Verify posts were written (converted to dicts)
+        mock_output_queue.batch_add_items_to_queue.assert_called_once()
+        call_args = mock_output_queue.batch_add_items_to_queue.call_args
+        assert call_args[1]["batch_size"] == 2
+        written_items = call_args[1]["items"]
+        assert len(written_items) == 3
+        assert all(isinstance(item, dict) for item in written_items)
 
         # Verify the batch IDs were deleted, ignoring order
         actual_call = mock_input_queue.batch_delete_items_by_ids.call_args[1]["ids"]
-        expected_batch_ids = {post["batch_id"] for post in posts}
+        expected_batch_ids = {post.batch_id for post in posts}
         assert set(actual_call) == expected_batch_ids

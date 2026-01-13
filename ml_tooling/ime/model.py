@@ -21,10 +21,11 @@ from lib.log.logger import get_logger
 from ml_tooling.ime.constants import default_hyperparameters, default_model
 from ml_tooling.ime.helper import get_device
 from services.ml_inference.export_data import (
+    attach_batch_id_to_label_dicts,
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
 )
-from services.ml_inference.models import ImeLabelModel
+from services.ml_inference.models import ImeLabelModel, LabelWithBatchId
 
 logger = get_logger(__file__)
 
@@ -74,6 +75,7 @@ def _get_model_and_tokenizer(*, model_name: str = default_model) -> tuple[Any, A
         loaded = _load_model_and_tokenizer(model_name=model_name, device=device)
         _model_and_tokenizer_cache[cache_key] = loaded
         return loaded
+
 
 # gets around errors related to importing cometml in tests.
 if EnvVarsContainer.get_env_var("RUN_MODE") == "test":
@@ -263,15 +265,22 @@ def batch_classify_posts(
         )
         labels: list[dict] = create_labels(posts=batch, output_df=output_df)
 
+        # Create URI mapping for robust batch_id attachment
+        uri_to_batch_id = {p["uri"]: p["batch_id"] for p in batch}
+
+        # Attach batch_id using URI mapping and create LabelWithBatchId instances
+        labels_with_batch_id = attach_batch_id_to_label_dicts(
+            labels=labels,
+            uri_to_batch_id=uri_to_batch_id,
+        )
+
         total_failed_labels = 0
         total_successful_labels = 0
-        successful_labels: list[dict] = []
-        failed_labels: list[dict] = []
+        successful_labels: list[LabelWithBatchId] = []
+        failed_labels: list[LabelWithBatchId] = []
 
-        for post, label in zip(batch, labels):
-            post_batch_id = post["batch_id"]
-            label["batch_id"] = post_batch_id
-            if label["was_successfully_labeled"]:
+        for label in labels_with_batch_id:
+            if label.was_successfully_labeled:
                 successful_labels.append(label)
                 total_successful_labels += 1
             else:
