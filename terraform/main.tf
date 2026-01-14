@@ -1,8 +1,8 @@
 # certificate requested in us-east-1
 # https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-requirements.html
 provider "aws" {
-  alias   = "us-east-1"
-  region  = "us-east-1"
+  alias  = "us-east-1"
+  region = "us-east-1"
 }
 
 # most infra was build on us-east-2
@@ -137,7 +137,7 @@ resource "aws_instance" "feed_api" {
     Name = "feed-api-ec2-instance"
   }
 
-  iam_instance_profile = "EC2InstanceProfile"
+  iam_instance_profile   = "EC2InstanceProfile"
   vpc_security_group_ids = [aws_security_group.feed_api_sg.id]
 }
 
@@ -149,7 +149,7 @@ resource "aws_instance" "firehose" {
   tags = {
     Name = "firehose-ec2-instance"
   }
-  iam_instance_profile = "EC2InstanceProfile"
+  iam_instance_profile   = "EC2InstanceProfile"
   vpc_security_group_ids = [aws_security_group.firehose_sg.id]
 }
 
@@ -161,9 +161,9 @@ resource "aws_instance" "firehose" {
 
 # Create VPC
 resource "aws_vpc" "main" {
-  cidr_block = "172.31.0.0/16"
+  cidr_block           = "172.31.0.0/16"
   enable_dns_hostnames = true
-  enable_dns_support = true
+  enable_dns_support   = true
   tags = {
     Name = "bluesky-research-vpc"
   }
@@ -175,7 +175,7 @@ resource "aws_lb" "api_nlb" {
   internal           = true
   load_balancer_type = "network"
   # aws ec2 describe-subnets --filters "Name=vpc-id,Values=vpc-052fa7eed9a020314" --query 'Subnets[*].{SubnetId:SubnetId,AvailabilityZone:AvailabilityZone,CidrBlock:CidrBlock,Name:Tags[?Key==`Name`].Value|[0]}' --output table
-  subnets            = ["subnet-0bb65ec9f850af1c6", "subnet-015f7cb4b6125b8c5", "subnet-0df87a873992b1e8e"]
+  subnets = ["subnet-0bb65ec9f850af1c6", "subnet-015f7cb4b6125b8c5", "subnet-0df87a873992b1e8e"]
 
   enable_deletion_protection = false
 }
@@ -248,7 +248,7 @@ resource "aws_security_group" "feed_api_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["3.16.146.0/29",  "3.17.228.0/29", "3.130.192.0/29"]  # AWS Console IP ranges
+    cidr_blocks = ["3.16.146.0/29", "3.17.228.0/29", "3.130.192.0/29"] # AWS Console IP ranges
   }
 
   egress {
@@ -273,7 +273,7 @@ resource "aws_security_group" "firehose_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["3.16.146.0/29"]  # AWS Console IP ranges
+    cidr_blocks = ["3.16.146.0/29"] # AWS Console IP ranges
   }
 
   egress {
@@ -296,7 +296,7 @@ resource "aws_lambda_function" "bluesky_feed_api_lambda" {
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.feed_api_service.repository_url}:latest"
   architectures = ["arm64"] # since images are built locally with an M1 Mac.
-  timeout       = 15 # 15 second timeout.
+  timeout       = 15        # 15 second timeout.
   memory_size   = 512
 
   lifecycle {
@@ -330,8 +330,8 @@ resource "aws_lambda_function" "preprocess_raw_data_lambda" {
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.preprocess_raw_data_service.repository_url}:latest"
   architectures = ["arm64"] # since images are built locally with an M1 Mac.
-  timeout       = 180 # 3 minute timeout
-  memory_size   = 1024 # 1 GB of memory
+  timeout       = 180       # 3 minute timeout
+  memory_size   = 1024      # 1 GB of memory
 
   lifecycle {
     ignore_changes = [image_uri]
@@ -349,7 +349,7 @@ resource "aws_lambda_function" "calculate_superposters_lambda" {
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.calculate_superposters_service.repository_url}:latest"
   architectures = ["arm64"]
-  timeout       = 90 # 90 seconds timeout
+  timeout       = 90  # 90 seconds timeout
   memory_size   = 512 # 512 MB of memory
 
   lifecycle {
@@ -387,7 +387,7 @@ resource "aws_lambda_function" "compact_dedupe_data_lambda" {
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.compact_dedupe_data_service.repository_url}:latest"
   architectures = ["arm64"]
-  timeout       = 480 # 480 seconds timeout, the lambda can run for 8 minutes.
+  timeout       = 480  # 480 seconds timeout, the lambda can run for 8 minutes.
   memory_size   = 1024 # 1024 MB of memory.
 
   lifecycle {
@@ -502,8 +502,8 @@ resource "aws_cloudwatch_log_group" "rank_score_feeds_lambda_log_group" {
 # 24-hour sync for most liked feed.
 resource "aws_cloudwatch_event_rule" "sync_most_liked_feed_rule" {
   name                = "sync_most_liked_feed_rule"
-  schedule_expression = "cron(0 0 * * ? *)"  # Triggers at 00:00 UTC every day
-  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
+  schedule_expression = "cron(0 0 * * ? *)" # Triggers at 00:00 UTC every day
+  state               = "DISABLED"          # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "sync_most_liked_feed_target" {
@@ -523,8 +523,8 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sync_most_liked_fee
 # Trigger for preprocessing lambda every 45 minutes.
 resource "aws_cloudwatch_event_rule" "preprocess_raw_data_event_rule" {
   name                = "preprocess_raw_data_event_rule"
-  schedule_expression = "cron(0/45 * * * ? *)"  # Triggers every 45 minutes
-  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
+  schedule_expression = "cron(0/45 * * * ? *)" # Triggers every 45 minutes
+  state               = "DISABLED"             # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "preprocess_raw_data_event_target" {
@@ -564,8 +564,8 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_preprocess_raw_data
 # Trigger to calculate superposters every 12 hours.
 resource "aws_cloudwatch_event_rule" "calculate_superposters_event_rule" {
   name                = "calculate_superposters_event_rule"
-  schedule_expression = "cron(0 0/12 * * ? *)"  # Triggers every 12 hours
-  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
+  schedule_expression = "cron(0 0/12 * * ? *)" # Triggers every 12 hours
+  state               = "DISABLED"             # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "calculate_superposters_event_target" {
@@ -585,8 +585,8 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_calculate_superpost
 # Trigger for compact_dedupe_data_lambda every 8 hours.
 resource "aws_cloudwatch_event_rule" "compact_dedupe_data_event_rule" {
   name                = "compact_dedupe_data_event_rule"
-  schedule_expression = "cron(0 0/8 * * ? *)"  # Triggers every 8 hours
-  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
+  schedule_expression = "cron(0 0/8 * * ? *)" # Triggers every 8 hours
+  state               = "DISABLED"            # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "compact_dedupe_data_event_target" {
@@ -606,8 +606,8 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_compact_dedupe_data
 # Trigger ML lambdas every 4 hours.
 resource "aws_cloudwatch_event_rule" "perspective_api_event_rule" {
   name                = "perspective_api_event_rule"
-  schedule_expression = "cron(0 0/4 * * ? *)"  # Triggers every 4 hours
-  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
+  schedule_expression = "cron(0 0/4 * * ? *)" # Triggers every 4 hours
+  state               = "DISABLED"            # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "perspective_api_event_target" {
@@ -626,8 +626,8 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_perspective_api" {
 
 resource "aws_cloudwatch_event_rule" "sociopolitical_event_rule" {
   name                = "sociopolitical_event_rule"
-  schedule_expression = "cron(0 0/4 * * ? *)"  # Triggers every 4 hours
-  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
+  schedule_expression = "cron(0 0/4 * * ? *)" # Triggers every 4 hours
+  state               = "DISABLED"            # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "sociopolitical_event_target" {
@@ -649,8 +649,8 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_sociopolitical" {
 # the ML lambdas are still running and modifying the data.
 resource "aws_cloudwatch_event_rule" "consolidate_enrichment_integrations_event_rule" {
   name                = "consolidate_enrichment_integrations_event_rule"
-  schedule_expression = "cron(20 0/4 * * ? *)"  # Triggers every 4 hours, starting at 20 minutes past the hour
-  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
+  schedule_expression = "cron(20 0/4 * * ? *)" # Triggers every 4 hours, starting at 20 minutes past the hour
+  state               = "DISABLED"             # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "consolidate_enrichment_integrations_event_target" {
@@ -670,8 +670,8 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_invoke_consolidate_enrichm
 # Rank score feeds every 8 hours, starting at 45 minutes past the hour.
 resource "aws_cloudwatch_event_rule" "rank_score_feeds_event_rule" {
   name                = "rank_score_feeds_event_rule"
-  schedule_expression = "cron(45 0/8 * * ? *)"  # Triggers every 8 hours, 45 minutes past the hour
-  state               = "DISABLED" # turn off the event rule. Triggering in Quest now.
+  schedule_expression = "cron(45 0/8 * * ? *)" # Triggers every 8 hours, 45 minutes past the hour
+  state               = "DISABLED"             # turn off the event rule. Triggering in Quest now.
 }
 
 resource "aws_cloudwatch_event_target" "rank_score_feeds_event_target" {
@@ -738,7 +738,7 @@ resource "aws_api_gateway_integration" "bluesky_feed_api_proxy_integration" {
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.bluesky_feed_api_lambda.invoke_arn
-  timeout_milliseconds    = 15000  # Set to 15 seconds, to match lambda.
+  timeout_milliseconds    = 15000 # Set to 15 seconds, to match lambda.
 }
 
 # Deploy API
@@ -802,7 +802,7 @@ resource "aws_api_gateway_integration" "bluesky_ec2_feed_api_integration" {
 
 ### Custom domain + API Gateway mapping ###
 resource "aws_api_gateway_domain_name" "custom_domain" {
-  domain_name = var.custom_domain_name
+  domain_name              = var.custom_domain_name
   regional_certificate_arn = var.acm_certificate_arn
 
   # we don't need edge-optimized. We don't need CloudFront CDNs to optimize
@@ -813,8 +813,8 @@ resource "aws_api_gateway_domain_name" "custom_domain" {
 }
 
 resource "aws_api_gateway_base_path_mapping" "custom_domain_mapping" {
-  api_id = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  stage_name = aws_api_gateway_stage.api_gateway_stage.stage_name
+  api_id      = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
+  stage_name  = aws_api_gateway_stage.api_gateway_stage.stage_name
   domain_name = aws_api_gateway_domain_name.custom_domain.domain_name
 }
 
@@ -863,7 +863,7 @@ resource "aws_iam_role_policy_attachment" "api_gateway_cloudwatch_role_policy" {
 
 resource "aws_api_gateway_account" "api_gateway_account" {
   cloudwatch_role_arn = aws_iam_role.api_gateway_cloudwatch_role.arn
-  depends_on = [aws_iam_role_policy_attachment.api_gateway_cloudwatch_role_policy]
+  depends_on          = [aws_iam_role_policy_attachment.api_gateway_cloudwatch_role_policy]
 }
 resource "aws_cloudwatch_log_group" "api_gateway_log_group" {
   name              = "/aws/api-gateway/bluesky_feed_api_gateway"
@@ -873,21 +873,21 @@ resource "aws_cloudwatch_log_group" "api_gateway_log_group" {
 resource "aws_api_gateway_stage" "api_gateway_stage" {
   stage_name    = "prod"
   rest_api_id   = aws_api_gateway_rest_api.bluesky_feed_api_gateway.id
-  deployment_id = aws_api_gateway_deployment.bluesky_feed_api_gateway_deployment.id  # Corrected reference
+  deployment_id = aws_api_gateway_deployment.bluesky_feed_api_gateway_deployment.id # Corrected reference
 
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_gateway_log_group.arn
-    format          = jsonencode({
-      requestId       = "$context.requestId"
-      ip              = "$context.identity.sourceIp"
-      caller          = "$context.identity.caller"
-      user            = "$context.identity.user"
-      requestTime     = "$context.requestTime"
-      httpMethod      = "$context.httpMethod"
-      resourcePath    = "$context.resourcePath"
-      status          = "$context.status"
-      protocol        = "$context.protocol"
-      responseLength  = "$context.responseLength"
+    format = jsonencode({
+      requestId      = "$context.requestId"
+      ip             = "$context.identity.sourceIp"
+      caller         = "$context.identity.caller"
+      user           = "$context.identity.user"
+      requestTime    = "$context.requestTime"
+      httpMethod     = "$context.httpMethod"
+      resourcePath   = "$context.resourcePath"
+      status         = "$context.status"
+      protocol       = "$context.protocol"
+      responseLength = "$context.responseLength"
     })
   }
 
@@ -975,7 +975,7 @@ resource "aws_iam_policy" "lambda_access_policy" {
           "s3:PutObjectAcl",
           "s3:*"
         ],
-        Effect   = "Allow",
+        Effect = "Allow",
         Resource = [
           "arn:aws:s3:::${var.s3_root_bucket_name}",
           "arn:aws:s3:::${var.s3_root_bucket_name}/*"
@@ -986,7 +986,7 @@ resource "aws_iam_policy" "lambda_access_policy" {
         Action = [
           "secretsmanager:GetSecretValue"
         ],
-        Effect   = "Allow",
+        Effect = "Allow",
         Resource = [
           "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:bluesky_account_credentials-cX3wOk",
           "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:bsky-internal-api-key-jNloNG",
@@ -1078,20 +1078,20 @@ resource "aws_iam_policy" "lambda_access_policy" {
       },
       # get SSM messages permissions
       {
-          "Effect": "Allow",
-          "Action": [
-              "ssmmessages:*",
-          ],
-          "Resource": "*"
+        "Effect" : "Allow",
+        "Action" : [
+          "ssmmessages:*",
+        ],
+        "Resource" : "*"
       },
       # get EC2 messages permissions
-        {
-            "Effect": "Allow",
-            "Action": [
-                "ec2messages:*",
-            ],
-            "Resource": "*"
-        }
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "ec2messages:*",
+        ],
+        "Resource" : "*"
+      }
     ]
   })
 }
@@ -1110,18 +1110,18 @@ resource "aws_iam_role_policy_attachment" "lambda_cloudwatch_logs" {
 
 # S3 bucket policy, to allow read access for lambda.
 resource "aws_s3_bucket_policy" "bluesky_research_bucket_policy" {
-  provider = aws.us-east-2  # Specify the correct provider for us-east-2
+  provider = aws.us-east-2 # Specify the correct provider for us-east-2
   bucket   = var.s3_root_bucket_name
 
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
       {
-        Effect    = "Allow",
+        Effect = "Allow",
         Principal = {
           AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${aws_iam_role.lambda_exec.name}"
         },
-        Action   = [
+        Action = [
           "s3:GetObject",
           "s3:ListBucket",
           "s3:GetObjectVersion",
@@ -1190,8 +1190,8 @@ resource "aws_iam_instance_profile" "cloudwatch_agent_instance_profile" {
 }
 ### SQS Queue ###
 resource "aws_sqs_queue" "syncs_to_be_processed_queue" {
-  name                      = "syncsToBeProcessedQueue.fifo"
-  fifo_queue                = true
+  name                        = "syncsToBeProcessedQueue.fifo"
+  fifo_queue                  = true
   content_based_deduplication = true
 
   redrive_policy = jsonencode({
@@ -1201,13 +1201,13 @@ resource "aws_sqs_queue" "syncs_to_be_processed_queue" {
 }
 
 resource "aws_sqs_queue" "dead_letter_queue" {
-  name = "syncsToBeProcessedDLQ.fifo"
+  name       = "syncsToBeProcessedDLQ.fifo"
   fifo_queue = true
 }
 
 resource "aws_sqs_queue" "firehose_syncs_to_be_processed_queue" {
-  name                      = "firehoseSyncsToBeProcessedQueue.fifo"
-  fifo_queue                = true
+  name                        = "firehoseSyncsToBeProcessedQueue.fifo"
+  fifo_queue                  = true
   content_based_deduplication = true
 
   redrive_policy = jsonencode({
@@ -1217,13 +1217,13 @@ resource "aws_sqs_queue" "firehose_syncs_to_be_processed_queue" {
 }
 
 resource "aws_sqs_queue" "firehose_dead_letter_queue" {
-  name = "firehoseSyncsToBeProcessedDLQ.fifo"
+  name       = "firehoseSyncsToBeProcessedDLQ.fifo"
   fifo_queue = true
 }
 
 resource "aws_sqs_queue" "most_liked_syncs_to_be_processed_queue" {
-  name                      = "mostLikedSyncsToBeProcessedQueue.fifo"
-  fifo_queue                = true
+  name                        = "mostLikedSyncsToBeProcessedQueue.fifo"
+  fifo_queue                  = true
   content_based_deduplication = true
 
   redrive_policy = jsonencode({
@@ -1233,15 +1233,15 @@ resource "aws_sqs_queue" "most_liked_syncs_to_be_processed_queue" {
 }
 
 resource "aws_sqs_queue" "most_liked_dead_letter_queue" {
-  name = "mostLikedSyncsToBeProcessedDLQ.fifo"
+  name       = "mostLikedSyncsToBeProcessedDLQ.fifo"
   fifo_queue = true
 }
 
 
 ### IAM Policies for SQS ###
 resource "aws_iam_role_policy" "lambda_sqs_policy" {
-  name   = "LambdaSQSPolicy"
-  role   = aws_iam_role.lambda_exec.id
+  name = "LambdaSQSPolicy"
+  role = aws_iam_role.lambda_exec.id
 
   policy = jsonencode({
     Version = "2012-10-17",
@@ -1276,7 +1276,7 @@ resource "aws_glue_catalog_database" "default" {
 resource "aws_glue_catalog_table" "backfill_metadata" {
   database_name = aws_glue_catalog_database.default.name
   name          = "backfill_metadata"
-  
+
   storage_descriptor {
     columns {
       name = "did"
@@ -1904,7 +1904,7 @@ resource "aws_glue_catalog_table" "perspective_api_labels" {
   table_type    = "EXTERNAL_TABLE"
 
   parameters = {
-    "classification" = "json"
+    "classification"  = "json"
     "compressionType" = "none"
   }
 
@@ -2060,7 +2060,7 @@ resource "aws_glue_catalog_table" "llm_sociopolitical_labels" {
   table_type    = "EXTERNAL_TABLE"
 
   parameters = {
-    "classification" = "json"
+    "classification"  = "json"
     "compressionType" = "none"
   }
 
@@ -2317,8 +2317,8 @@ resource "aws_glue_catalog_table" "consolidated_enriched_post_records" {
   table_type = "EXTERNAL_TABLE"
 
   parameters = {
-    EXTERNAL              = "TRUE"
-    "classification"      = "json"
+    EXTERNAL         = "TRUE"
+    "classification" = "json"
   }
 
   storage_descriptor {
@@ -2585,8 +2585,8 @@ resource "aws_glue_catalog_table" "post_scores" {
   table_type = "EXTERNAL_TABLE"
 
   parameters = {
-    EXTERNAL              = "TRUE"
-    "classification"      = "json"
+    EXTERNAL         = "TRUE"
+    "classification" = "json"
   }
 
   storage_descriptor {
@@ -2639,8 +2639,8 @@ resource "aws_glue_catalog_table" "custom_feeds" {
   table_type = "EXTERNAL_TABLE"
 
   parameters = {
-    EXTERNAL              = "TRUE"
-    "classification"      = "json"
+    EXTERNAL         = "TRUE"
+    "classification" = "json"
   }
 
   storage_descriptor {
@@ -2702,9 +2702,9 @@ resource "aws_glue_catalog_table" "cached_custom_feeds" {
   table_type = "EXTERNAL_TABLE"
 
   parameters = {
-    EXTERNAL              = "TRUE"
-    "classification"      = "json"
-    "compressionType"     = "none" # for some reason the crawler is expecting this? But this isn't true for other tables? Unsure why, but it does work.
+    EXTERNAL          = "TRUE"
+    "classification"  = "json"
+    "compressionType" = "none" # for some reason the crawler is expecting this? But this isn't true for other tables? Unsure why, but it does work.
   }
 
   storage_descriptor {
@@ -2772,8 +2772,8 @@ resource "aws_glue_catalog_table" "feed_generation_session_analytics" {
   table_type = "EXTERNAL_TABLE"
 
   parameters = {
-    EXTERNAL              = "TRUE"
-    "classification"      = "json"
+    EXTERNAL         = "TRUE"
+    "classification" = "json"
   }
 
   storage_descriptor {
@@ -2837,8 +2837,8 @@ resource "aws_glue_catalog_table" "daily_superposters" {
   table_type = "EXTERNAL_TABLE"
 
   parameters = {
-    EXTERNAL              = "TRUE"
-    "classification"      = "json"
+    EXTERNAL         = "TRUE"
+    "classification" = "json"
   }
 
   storage_descriptor {
@@ -2926,7 +2926,7 @@ resource "aws_glue_catalog_table" "user_session_logs" {
   table_type    = "EXTERNAL_TABLE"
 
   parameters = {
-    "classification" = "json"
+    "classification"  = "json"
     "compressionType" = "none"
   }
 
@@ -3148,8 +3148,8 @@ resource "aws_glue_catalog_table" "user_session_logs" {
 # }
 
 resource "aws_glue_crawler" "user_session_logs_glue_crawler" {
-  name        = "user_session_logs_glue_crawler"
-  role        = aws_iam_role.glue_crawler_role.arn
+  name          = "user_session_logs_glue_crawler"
+  role          = aws_iam_role.glue_crawler_role.arn
   database_name = var.default_glue_database_name
 
   s3_target {
@@ -3160,7 +3160,7 @@ resource "aws_glue_crawler" "user_session_logs_glue_crawler" {
     "Version" = 1.0,
     "CrawlerOutput" = {
       Partitions = { AddOrUpdateBehavior = "InheritFromTable" } # prevents crawler from changing schema: https://docs.aws.amazon.com/glue/latest/dg/crawler-schema-changes-prevent.html
-      Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
+      Tables     = { AddOrUpdateBehavior = "MergeNewColumns" }
     }
     Grouping = {
       TableGroupingPolicy = "CombineCompatibleSchemas"
@@ -3186,7 +3186,7 @@ resource "aws_glue_crawler" "cached_custom_feeds_crawler" {
     "Version" = 1.0,
     "CrawlerOutput" = {
       Partitions = { AddOrUpdateBehavior = "InheritFromTable" }
-      Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
+      Tables     = { AddOrUpdateBehavior = "MergeNewColumns" }
     }
     Grouping = {
       TableGroupingPolicy = "CombineCompatibleSchemas"
@@ -3202,7 +3202,7 @@ resource "aws_glue_crawler" "cached_custom_feeds_crawler" {
 
 resource "aws_cloudwatch_log_group" "glue_crawler_logs" {
   name              = "/aws-glue/crawlers"
-  retention_in_days = 14  # Retain logs for 14 days
+  retention_in_days = 14 # Retain logs for 14 days
 }
 
 resource "aws_cloudwatch_log_stream" "llm_sociopolitical_labels_crawler_stream" {
@@ -3232,7 +3232,7 @@ resource "aws_cloudwatch_log_stream" "preprocessed_posts_crawler_stream" {
 
 # Log group.
 resource "aws_cloudwatch_log_group" "sync_firehose_logs" {
-  name = "sync-firehose-logs"
+  name              = "sync-firehose-logs"
   retention_in_days = 5
 }
 
@@ -3265,7 +3265,7 @@ resource "aws_cloudwatch_metric_alarm" "no_logs_alarm" {
   evaluation_periods  = "1"
   metric_name         = "EventCount"
   namespace           = "SyncFirehoseMetrics"
-  period              = "1800"  # 30 minutes
+  period              = "1800" # 30 minutes
   statistic           = "Sum"
   threshold           = "1"
   alarm_description   = "This alarm goes off if no logs are received in 30 minutes"
@@ -3308,7 +3308,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   evaluation_periods  = "1"
   metric_name         = "Errors"
   namespace           = "AWS/Lambda"
-  period              = "60"  # 1 minute
+  period              = "60" # 1 minute
   statistic           = "Sum"
   threshold           = "0"
   alarm_description   = "This alarm monitors for any errors in the Lambda function ${each.key}"
@@ -3334,7 +3334,7 @@ resource "aws_cloudwatch_dashboard" "lambda_errors_dashboard" {
         "ml_inference_sociopolitical_lambda",
         "consolidate_enrichment_integrations_lambda",
         "rank_score_feeds_lambda",
-      ] : {
+        ] : {
         type   = "metric"
         x      = 0
         y      = 0
@@ -3347,7 +3347,7 @@ resource "aws_cloudwatch_dashboard" "lambda_errors_dashboard" {
           ]
           view    = "timeSeries"
           stacked = false
-          region  = "us-east-1"  # replace with your region
+          region  = "us-east-1" # replace with your region
           title   = "Errors for ${lambda_name}"
         }
       }
@@ -3372,9 +3372,9 @@ resource "aws_athena_workgroup" "prod_workgroup" {
 
 ### DynamoDB ###
 resource "aws_dynamodb_table" "users_whose_social_network_has_been_fetched" {
-  name           = "users_whose_social_network_has_been_fetched"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "user_handle"
+  name         = "users_whose_social_network_has_been_fetched"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "user_handle"
 
   attribute {
     name = "user_handle"
@@ -3387,10 +3387,10 @@ resource "aws_dynamodb_table" "users_whose_social_network_has_been_fetched" {
 }
 
 resource "aws_dynamodb_table" "backfill_user_metadata" {
-  name             = "backfill_user_metadata"
-  billing_mode     = "PAY_PER_REQUEST"
-  hash_key         = "pds_service_endpoint"
-  range_key        = "did_timestamp"  # Composite sort key
+  name         = "backfill_user_metadata"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "pds_service_endpoint"
+  range_key    = "did_timestamp" # Composite sort key
 
   attribute {
     name = "pds_service_endpoint"
@@ -3399,7 +3399,7 @@ resource "aws_dynamodb_table" "backfill_user_metadata" {
 
   attribute {
     name = "did_timestamp"
-    type = "S"  # Format: "did#timestamp"
+    type = "S" # Format: "did#timestamp"
   }
 
   attribute {
@@ -3413,15 +3413,15 @@ resource "aws_dynamodb_table" "backfill_user_metadata" {
   }
 
   global_secondary_index {
-    name               = "did-index"
-    hash_key           = "did"
-    projection_type    = "ALL"
+    name            = "did-index"
+    hash_key        = "did"
+    projection_type = "ALL"
   }
 
   global_secondary_index {
-    name               = "bluesky_handle-index"
-    hash_key           = "bluesky_handle"
-    projection_type    = "ALL"
+    name            = "bluesky_handle-index"
+    hash_key        = "bluesky_handle"
+    projection_type = "ALL"
   }
 
   point_in_time_recovery {
@@ -3435,9 +3435,9 @@ resource "aws_dynamodb_table" "backfill_user_metadata" {
 }
 
 resource "aws_dynamodb_table" "integration_run_metadata" {
-  name           = "integration_run_metadata"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "timestamp"
+  name         = "integration_run_metadata"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "timestamp"
 
   attribute {
     name = "timestamp"
@@ -3450,9 +3450,9 @@ resource "aws_dynamodb_table" "integration_run_metadata" {
   }
 
   global_secondary_index {
-    name               = "service-index"
-    hash_key           = "service"
-    projection_type    = "ALL"
+    name            = "service-index"
+    hash_key        = "service"
+    projection_type = "ALL"
   }
 
   tags = {
@@ -3461,9 +3461,9 @@ resource "aws_dynamodb_table" "integration_run_metadata" {
 }
 
 resource "aws_dynamodb_table" "backfill_metadata" {
-  name           = "backfill_metadata"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "timestamp"
+  name         = "backfill_metadata"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "timestamp"
 
   attribute {
     name = "timestamp"
@@ -3476,9 +3476,9 @@ resource "aws_dynamodb_table" "backfill_metadata" {
   }
 
   global_secondary_index {
-    name               = "service-index"
-    hash_key           = "service"
-    projection_type    = "ALL"
+    name            = "service-index"
+    hash_key        = "service"
+    projection_type = "ALL"
   }
 
   tags = {
@@ -3488,9 +3488,9 @@ resource "aws_dynamodb_table" "backfill_metadata" {
 
 
 resource "aws_dynamodb_table" "ml_inference_labeling_sessions" {
-  name           = "ml_inference_labeling_sessions"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "inference_timestamp"
+  name         = "ml_inference_labeling_sessions"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "inference_timestamp"
 
   attribute {
     name = "inference_timestamp"
@@ -3503,15 +3503,15 @@ resource "aws_dynamodb_table" "ml_inference_labeling_sessions" {
   }
 
   global_secondary_index {
-    name               = "inference_type-index"
-    hash_key           = "inference_type"
-    projection_type    = "ALL"
+    name            = "inference_type-index"
+    hash_key        = "inference_type"
+    projection_type = "ALL"
   }
 
   global_secondary_index {
-    name               = "inference_timestamp-index"
-    hash_key           = "inference_timestamp"
-    projection_type    = "ALL"
+    name            = "inference_timestamp-index"
+    hash_key        = "inference_timestamp"
+    projection_type = "ALL"
   }
 
   tags = {
@@ -3520,9 +3520,9 @@ resource "aws_dynamodb_table" "ml_inference_labeling_sessions" {
 }
 
 resource "aws_dynamodb_table" "vector_embedding_sessions" {
-  name           = "vector_embedding_sessions"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "embedding_timestamp"
+  name         = "vector_embedding_sessions"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "embedding_timestamp"
 
   attribute {
     name = "embedding_timestamp"
@@ -3535,9 +3535,9 @@ resource "aws_dynamodb_table" "vector_embedding_sessions" {
 }
 
 resource "aws_dynamodb_table" "enrichment_consolidation_sessions" {
-  name           = "enrichment_consolidation_sessions"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "enrichment_consolidation_timestamp"
+  name         = "enrichment_consolidation_sessions"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "enrichment_consolidation_timestamp"
 
   attribute {
     name = "enrichment_consolidation_timestamp"
@@ -3550,9 +3550,9 @@ resource "aws_dynamodb_table" "enrichment_consolidation_sessions" {
 }
 
 resource "aws_dynamodb_table" "rank_score_feed_sessions" {
-  name           = "rank_score_feed_sessions"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "feed_generation_timestamp"
+  name         = "rank_score_feed_sessions"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "feed_generation_timestamp"
 
   attribute {
     name = "feed_generation_timestamp"
@@ -3560,9 +3560,9 @@ resource "aws_dynamodb_table" "rank_score_feed_sessions" {
   }
 
   global_secondary_index {
-    name               = "feed_generation_timestamp-index"
-    hash_key           = "feed_generation_timestamp"
-    projection_type    = "ALL"
+    name            = "feed_generation_timestamp-index"
+    hash_key        = "feed_generation_timestamp"
+    projection_type = "ALL"
   }
 
   tags = {
@@ -3571,9 +3571,9 @@ resource "aws_dynamodb_table" "rank_score_feed_sessions" {
 }
 
 resource "aws_dynamodb_table" "superposter_calculation_sessions" {
-  name           = "superposter_calculation_sessions"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "insert_date_timestamp"
+  name         = "superposter_calculation_sessions"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "insert_date_timestamp"
 
   attribute {
     name = "insert_date_timestamp"
@@ -3586,9 +3586,9 @@ resource "aws_dynamodb_table" "superposter_calculation_sessions" {
 }
 
 resource "aws_dynamodb_table" "compaction_sessions" {
-  name           = "compaction_sessions"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "compaction_timestamp"
+  name         = "compaction_sessions"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "compaction_timestamp"
 
   attribute {
     name = "compaction_timestamp"
@@ -3629,6 +3629,147 @@ resource "aws_glue_catalog_table" "archive_fetch_posts_used_in_feeds" {
 
     columns {
       name = "uri"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "partition_date"
+    type = "string"
+  }
+}
+
+# Archive table for preprocessed_posts
+resource "aws_glue_catalog_table" "archive_preprocessed_posts" {
+  name          = "archive_preprocessed_posts"
+  database_name = var.default_glue_database_name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    EXTERNAL              = "TRUE"
+    "parquet.compression" = "SNAPPY"
+    "comment"             = "Archived Nature paper 2024 data - analysis use only, not production"
+  }
+
+  storage_descriptor {
+    location      = "s3://${var.s3_root_bucket_name}/bluesky_research/2024_nature_paper_study_data/preprocessed_posts/cache/"
+    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+    ser_de_info {
+      name                  = "ParquetHiveSerDe"
+      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+      parameters = {
+        "serialization.format" = 1
+      }
+    }
+
+    columns {
+      name = "uri"
+      type = "string"
+    }
+    columns {
+      name = "cid"
+      type = "string"
+    }
+    columns {
+      name = "indexed_at"
+      type = "string"
+    }
+    columns {
+      name = "author_did"
+      type = "string"
+    }
+    columns {
+      name = "author_handle"
+      type = "string"
+    }
+    columns {
+      name = "author_avatar"
+      type = "string"
+    }
+    columns {
+      name = "author_display_name"
+      type = "string"
+    }
+    columns {
+      name = "created_at"
+      type = "string"
+    }
+    columns {
+      name = "text"
+      type = "string"
+    }
+    columns {
+      name = "embed"
+      type = "string"
+    }
+    columns {
+      name = "entities"
+      type = "string"
+    }
+    columns {
+      name = "facets"
+      type = "string"
+    }
+    columns {
+      name = "labels"
+      type = "string"
+    }
+    columns {
+      name = "langs"
+      type = "string"
+    }
+    columns {
+      name = "reply_parent"
+      type = "string"
+    }
+    columns {
+      name = "reply_root"
+      type = "string"
+    }
+    columns {
+      name = "tags"
+      type = "string"
+    }
+    columns {
+      name = "synctimestamp"
+      type = "string"
+    }
+    columns {
+      name = "url"
+      type = "string"
+    }
+    columns {
+      name = "source"
+      type = "string"
+    }
+    columns {
+      name = "like_count"
+      type = "bigint"
+    }
+    columns {
+      name = "reply_count"
+      type = "bigint"
+    }
+    columns {
+      name = "repost_count"
+      type = "bigint"
+    }
+    columns {
+      name = "passed_filters"
+      type = "boolean"
+    }
+    columns {
+      name = "filtered_at"
+      type = "string"
+    }
+    columns {
+      name = "filtered_by_func"
+      type = "string"
+    }
+    columns {
+      name = "preprocessing_timestamp"
       type = "string"
     }
   }
