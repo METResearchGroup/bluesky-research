@@ -26,6 +26,11 @@ _PREPROCESSED_POSTS_CACHE_SOURCE_PREFIXES = (
 _PARTITION_DATE_DIR_RE = re.compile(r"^partition_date=\d{4}-\d{2}-\d{2}$")
 
 
+def is_valid_partition_date_dirname(dirname: str) -> bool:
+    """Returns True if dirname matches partition_date=YYYY-MM-DD."""
+    return bool(_PARTITION_DATE_DIR_RE.match(dirname))
+
+
 def get_filepaths_for_local_prefix(local_prefix: str) -> list[str]:
     """Given a local prefix, get all the filepaths for that prefix.
 
@@ -43,7 +48,12 @@ def get_filepaths_for_local_prefix(local_prefix: str) -> list[str]:
     with tqdm(
         total=total_files, desc=f"Discovering files in {local_prefix}", leave=False
     ) as pbar:
-        for root, _, files in os.walk(full_local_prefix):
+        for root, dirs, files in os.walk(full_local_prefix):
+            # For cache directories, we only want partition_date=YYYY-MM-DD folders
+            # directly under the cache root, and we ignore other top-level artifacts
+            # (e.g., startTimestamp=... directories).
+            if root == full_local_prefix and local_prefix.endswith("/cache"):
+                dirs[:] = [d for d in dirs if is_valid_partition_date_dirname(d)]
             for file in files:
                 full_path = os.path.join(root, file)
                 filepaths.append(full_path)
@@ -76,7 +86,7 @@ def _iter_preprocessed_posts_cache_parquet_files() -> list[dict[str, str]]:
             continue
 
         for entry in os.listdir(cache_root):
-            if not _PARTITION_DATE_DIR_RE.match(entry):
+            if not is_valid_partition_date_dirname(entry):
                 continue
             partition_dir = os.path.join(cache_root, entry)
             if not os.path.isdir(partition_dir):
