@@ -24,6 +24,7 @@ TERRAFORM_DIR="$PROJECT_ROOT/terraform"
 # List of all archive table resource names
 ARCHIVE_TABLES=(
     "aws_glue_catalog_table.archive_fetch_posts_used_in_feeds"
+    "aws_glue_catalog_table.archive_daily_superposters"
     "aws_glue_catalog_table.archive_generated_feeds"
     "aws_glue_catalog_table.archive_in_network_user_activity"
     "aws_glue_catalog_table.archive_ml_inference_ime"

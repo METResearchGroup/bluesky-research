@@ -1,4 +1,5 @@
 PREFIXES_TO_MIGRATE = [
+    "daily_superposters/cache",
     "feeds",
     "fetch_posts_used_in_feeds",
     "generated_feeds",

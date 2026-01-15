@@ -55,11 +55,11 @@ variable "custom_domain_name" {
 variable "acm_certificate_arn" {
   description = "The ARN of the ACM certificate for the custom domain"
   type        = string
-  default     = ""  # set using 'TF_VAR_acm_certificate_arn' env var
+  default     = "" # set using 'TF_VAR_acm_certificate_arn' env var
 }
 
 variable "route53_zone_id" {
   description = "The Route 53 Hosted Zone ID"
   type        = string
-  default     = ""  # set using 'TF_VAR_route53_zone_id' env var
+  default     = "" # set using 'TF_VAR_route53_zone_id' env var
 }
