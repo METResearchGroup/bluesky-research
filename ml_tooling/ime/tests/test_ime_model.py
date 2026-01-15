@@ -15,6 +15,8 @@ import pandas as pd
 import pytest
 import numpy as np
 
+from services.ml_inference.models import PostToLabelModel  # noqa: E402
+
 # Mock comet_ml and other dependencies BEFORE any imports
 mock_comet = MagicMock()
 
@@ -30,6 +32,24 @@ from ml_tooling.ime.model import (  # noqa: E402
 )
 
 from ml_tooling.ime.constants import default_hyperparameters  # noqa: E402
+
+
+def _make_post_model(
+    *,
+    uri: str,
+    text: str,
+    preprocessing_timestamp: str = "2024-01-01",
+    batch_id: int = 1,
+    batch_metadata: str = "{}",
+) -> PostToLabelModel:
+    """Create a PostToLabelModel for IME unit tests."""
+    return PostToLabelModel(
+        uri=uri,
+        text=text,
+        preprocessing_timestamp=preprocessing_timestamp,
+        batch_id=batch_id,
+        batch_metadata=batch_metadata,
+    )
 
 @pytest.fixture(autouse=True)
 def mock_log_batch_classification():
@@ -173,11 +193,12 @@ class TestBatchClassifyPosts:
     def test_successful_batch_processing(self, mock_dependencies):
         """Test processing batches with successful labels."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'text1', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1},
-            {'uri': 'uri2', 'text': 'text2', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1}
+            _make_post_model(uri="uri1", text="text1", batch_id=1),
+            _make_post_model(uri="uri2", text="text2", batch_id=1),
         ]
+        input_post_dicts = [p.model_dump() for p in input_posts]
         
-        mock_dependencies['create_batches'].return_value = [input_posts]
+        mock_dependencies['create_batches'].return_value = [input_post_dicts]
         mock_dependencies['process_batch'].return_value = pd.DataFrame({
             'uri': ['uri1', 'uri2'],
             'text': ['text1', 'text2'],
@@ -207,11 +228,12 @@ class TestBatchClassifyPosts:
     def test_failed_batch_processing(self, mock_dependencies):
         """Test handling of completely failed batch."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'text1', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1},
-            {'uri': 'uri2', 'text': 'text2', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1}
+            _make_post_model(uri="uri1", text="text1", batch_id=1),
+            _make_post_model(uri="uri2", text="text2", batch_id=1),
         ]
+        input_post_dicts = [p.model_dump() for p in input_posts]
         
-        mock_dependencies['create_batches'].return_value = [input_posts]
+        mock_dependencies['create_batches'].return_value = [input_post_dicts]
         mock_dependencies['process_batch'].return_value = pd.DataFrame()  # Empty DataFrame to simulate failure
 
         result = batch_classify_posts(
@@ -228,11 +250,12 @@ class TestBatchClassifyPosts:
     def test_partial_success_batch_processing(self, mock_dependencies):
         """Test handling of partially successful batch."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'text1', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1},
-            {'uri': 'uri2', 'text': 'text2', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1}
+            _make_post_model(uri="uri1", text="text1", batch_id=1),
+            _make_post_model(uri="uri2", text="text2", batch_id=1),
         ]
+        input_post_dicts = [p.model_dump() for p in input_posts]
         
-        mock_dependencies['create_batches'].return_value = [input_posts]
+        mock_dependencies['create_batches'].return_value = [input_post_dicts]
         mock_dependencies['process_batch'].return_value = pd.DataFrame({
             'uri': ['uri1'],  # Only first post processed
             'text': ['text1'],
@@ -262,11 +285,12 @@ class TestBatchClassifyPosts:
     def test_metric_collection(self, mock_dependencies):
         """Test that metrics are correctly calculated for a batch."""
         input_posts = [
-            {'uri': 'uri1', 'text': 'short', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1},
-            {'uri': 'uri2', 'text': 'very long text', 'preprocessing_timestamp': '2024-01-01', 'batch_id': 1}
+            _make_post_model(uri="uri1", text="short", batch_id=1),
+            _make_post_model(uri="uri2", text="very long text", batch_id=1),
         ]
+        input_post_dicts = [p.model_dump() for p in input_posts]
         
-        mock_dependencies['create_batches'].return_value = [input_posts]
+        mock_dependencies['create_batches'].return_value = [input_post_dicts]
         
         # Create DataFrame with known values to verify metrics
         mock_dependencies['process_batch'].return_value = pd.DataFrame({

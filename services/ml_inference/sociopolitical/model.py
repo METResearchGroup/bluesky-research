@@ -13,6 +13,7 @@ from ml_tooling.llm.llm_service import get_llm_service
 from services.ml_inference.models import (
     LLMSociopoliticalLabelModel,
     LLMSociopoliticalLabelsModel,
+    PostToLabelModel,
     SociopoliticalLabelsModel,
 )
 from services.ml_inference.export_data import (
@@ -31,11 +32,11 @@ DEFAULT_MINIBATCH_SIZE = 10
 max_num_posts = 40_000  # should run in ~40 minutes with current runtime.
 
 
-def generate_prompt(posts: list[dict]) -> str:
+def generate_prompt(posts: list[PostToLabelModel]) -> str:
     """Generates a structured prompt for LLM-based sociopolitical classification.
 
     Args:
-        posts (list[dict]): A list of dictionaries, each representing a post. Each dictionary must contain a "text" key with the post's content.
+        posts (list[PostToLabelModel]): A list of posts to classify.
 
     Returns:
         str: A formatted prompt string that includes numbered texts of posts along with instructions for classification.
@@ -52,7 +53,7 @@ def generate_prompt(posts: list[dict]) -> str:
     """
     enumerated_texts = ""
     for i, post in enumerate(posts):
-        post_text = post["text"].strip()
+        post_text = post.text.strip()
         enumerated_texts += f"{i+1}. {post_text}\n"
     prompt = f"""
 You are a classifier that predicts whether a post has sociopolitical content or not. Sociopolitical refers \
@@ -115,11 +116,11 @@ def parse_llm_result(
     return label_models
 
 
-def process_sociopolitical_batch(posts: list[dict]) -> list[dict | None]:
+def process_sociopolitical_batch(posts: list[PostToLabelModel]) -> list[dict | None]:
     """Processes a batch of posts through LLM classification by splitting them into mini-batches and aggregating the results.
 
     Args:
-        posts (list[dict]): A list of dictionaries, each representing a post, where each post must include a "text" key.
+        posts (list[PostToLabelModel]): A list of posts to classify.
 
     Returns:
         list[dict | None]: A list of result dictionaries from the LLM classification for each post; if a mini-batch fails, corresponding entries are None.
@@ -135,7 +136,7 @@ def process_sociopolitical_batch(posts: list[dict]) -> list[dict | None]:
     if not posts:
         return []
 
-    minibatches: list[list[dict]] = [
+    minibatches: list[list[PostToLabelModel]] = [
         posts[i : i + DEFAULT_MINIBATCH_SIZE]
         for i in range(0, len(posts), DEFAULT_MINIBATCH_SIZE)
     ]
@@ -164,14 +165,14 @@ def process_sociopolitical_batch(posts: list[dict]) -> list[dict | None]:
 
 
 def process_sociopolitical_batch_with_retries(
-    posts: list[dict],
+    posts: list[PostToLabelModel],
     max_retries: int = 4,
     initial_delay: float = 1.0,
 ) -> list[dict | None]:
     """Processes a batch of posts through LLM classification with retry logic.
 
     Args:
-        posts (list[dict]): A list of dictionaries, each representing a post, where each post must include a "text" key.
+        posts (list[PostToLabelModel]): A list of posts to classify.
         max_retries (int): The maximum number of retry attempts. If negative, treated as 0.
         initial_delay (float): The initial delay in seconds before the first retry. If negative, absolute value is used.
 
@@ -184,11 +185,6 @@ def process_sociopolitical_batch_with_retries(
     """
     if not posts:
         return []
-
-    # Input validation
-    for post in posts:
-        if "text" not in post:
-            raise KeyError("All posts must contain a 'text' field")
 
     # Normalize parameters
     max_retries = max(0, max_retries)
@@ -236,11 +232,13 @@ def process_sociopolitical_batch_with_retries(
     return final_results
 
 
-def create_labels(posts: list[dict], responses: list[dict | None]) -> list[dict]:
+def create_labels(
+    posts: list[PostToLabelModel], responses: list[dict | None]
+) -> list[dict]:
     """Creates label models by combining post data with corresponding LLM responses.
 
     Args:
-        posts (list[dict]): A list of post dictionaries. Each dictionary should contain keys like "uri", "text", and "preprocessing_timestamp".
+        posts (list[PostToLabelModel]): Posts to label.
         responses (list[dict | None]): A list of response dictionaries produced by the LLM for each corresponding post, or None for failed responses.
 
     Returns:
@@ -272,9 +270,9 @@ def create_labels(posts: list[dict], responses: list[dict | None]) -> list[dict]
     res = []
     for post, response_obj in zip(posts, responses):
         label = SociopoliticalLabelsModel(
-            uri=post["uri"],
-            text=post["text"],
-            preprocessing_timestamp=post["preprocessing_timestamp"],
+            uri=post.uri,
+            text=post.text,
+            preprocessing_timestamp=post.preprocessing_timestamp,
             llm_model_name=LLM_MODEL_NAME,
             was_successfully_labeled=True if response_obj else False,
             label_timestamp=label_timestamp,
@@ -291,13 +289,13 @@ def create_labels(posts: list[dict], responses: list[dict | None]) -> list[dict]
 
 @track_performance
 def batch_classify_posts(
-    posts: list[dict],
+    posts: list[PostToLabelModel],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
 ) -> dict:
     """Classifies posts in batches using LLM inference and aggregates classification results.
 
     Args:
-        posts (list[dict]): A list of post dictionaries representing the posts to classify.
+        posts (list[PostToLabelModel]): Posts to classify.
         batch_size (Optional[int]): The number of posts to process per batch. Defaults to DEFAULT_BATCH_SIZE.
 
     Returns:
@@ -317,7 +315,9 @@ def batch_classify_posts(
             - Otherwise, caches the successful labels.
         3. Aggregates and returns a summary of the total batches processed and label outcomes.
     """
-    batches: list[list[dict]] = create_batches(batch_list=posts, batch_size=batch_size)
+    batches: list[list[PostToLabelModel]] = create_batches(
+        batch_list=posts, batch_size=batch_size
+    )
     total_batches = len(batches)
     total_posts_successfully_labeled = 0
     total_posts_failed_to_label = 0
@@ -330,7 +330,7 @@ def batch_classify_posts(
         labels: list[dict] = create_labels(posts=batch, responses=responses)
 
         # Create URI mapping for robust batch_id attachment
-        uri_to_batch_id = {p["uri"]: p["batch_id"] for p in batch}
+        uri_to_batch_id = {p.uri: p.batch_id for p in batch}
 
         # Attach batch_id using URI mapping and create LabelWithBatchId instances
         labels_with_batch_id = attach_batch_id_to_label_dicts(
@@ -381,13 +381,13 @@ def batch_classify_posts(
 
 @track_performance
 def run_batch_classification(
-    posts: list[dict],
+    posts: list[PostToLabelModel],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
 ) -> dict:
     """Executes batch classification of posts using the LLM and returns metadata.
 
     Args:
-        posts (list[dict]): A list of post dictionaries to classify.
+        posts (list[PostToLabelModel]): Posts to classify.
         batch_size (Optional[int]): The number of posts per batch. Defaults to DEFAULT_BATCH_SIZE.
 
     Returns:

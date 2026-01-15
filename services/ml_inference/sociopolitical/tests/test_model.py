@@ -19,7 +19,26 @@ from services.ml_inference.sociopolitical.model import (
 from services.ml_inference.models import (
     LLMSociopoliticalLabelModel,
     LLMSociopoliticalLabelsModel,
+    PostToLabelModel,
 )
+
+
+def _make_post(
+    *,
+    uri: str = "test_uri",
+    text: str = "test post",
+    preprocessing_timestamp: str = "2024-01-01-00:00:00",
+    batch_id: int = 1,
+    batch_metadata: str = "{}",
+) -> PostToLabelModel:
+    """Create a PostToLabelModel for sociopolitical unit tests."""
+    return PostToLabelModel(
+        uri=uri,
+        text=text,
+        preprocessing_timestamp=preprocessing_timestamp,
+        batch_id=batch_id,
+        batch_metadata=batch_metadata,
+    )
 
 
 class TestGeneratePrompt:
@@ -30,7 +49,7 @@ class TestGeneratePrompt:
         
         Should properly format the post with enumeration and newlines.
         """
-        posts = [{"text": "Test post"}]
+        posts = [_make_post(text="Test post")]
         prompt = generate_prompt(posts)
         assert "1. Test post\n" in prompt
 
@@ -40,8 +59,8 @@ class TestGeneratePrompt:
         Should properly format multiple posts with enumeration and newlines.
         """
         posts = [
-            {"text": "First post"},
-            {"text": "Second post"},
+            _make_post(uri="uri_1", text="First post", batch_id=1),
+            _make_post(uri="uri_2", text="Second post", batch_id=2),
         ]
         prompt = generate_prompt(posts)
         assert "1. First post\n" in prompt
@@ -52,7 +71,7 @@ class TestGeneratePrompt:
         
         Should handle empty strings without error and strip whitespace.
         """
-        posts = [{"text": ""}]
+        posts = [_make_post(text="")]
         prompt = generate_prompt(posts)
         assert "1. \n" in prompt
 
@@ -61,7 +80,7 @@ class TestGeneratePrompt:
         
         Should properly strip whitespace from text.
         """
-        posts = [{"text": "  leading and trailing spaces  "}]
+        posts = [_make_post(text="  leading and trailing spaces  ")]
         prompt = generate_prompt(posts)
         assert "1. leading and trailing spaces\n" in prompt
 
@@ -70,9 +89,11 @@ class TestGeneratePrompt:
         
         Should properly handle newlines, quotes, and other special characters.
         """
-        posts = [{
-            "text": "Post with\nnewline and \"quotes\" and other $pecial ch@racters!"
-        }]
+        posts = [
+            _make_post(
+                text="Post with\nnewline and \"quotes\" and other $pecial ch@racters!"
+            )
+        ]
         prompt = generate_prompt(posts)
         assert "1. Post with\nnewline and \"quotes\" and other $pecial ch@racters!\n" in prompt
 
@@ -155,7 +176,9 @@ class TestProcessSociopoliticalBatch:
         Should properly handle various batch sizes including edge cases.
         """
         # Test with exactly DEFAULT_MINIBATCH_SIZE posts
-        posts = [{"text": f"post{i}"} for i in range(10)]  # DEFAULT_MINIBATCH_SIZE is 10
+        posts = [
+            _make_post(uri=f"uri_{i}", text=f"post{i}", batch_id=1) for i in range(10)
+        ]  # DEFAULT_MINIBATCH_SIZE is 10
         mock_labels = [
             LLMSociopoliticalLabelModel(
                 is_sociopolitical=True,
@@ -178,7 +201,9 @@ class TestProcessSociopoliticalBatch:
         Should properly split into mini-batches and combine results.
         """
         # Test with 2.5 times DEFAULT_MINIBATCH_SIZE
-        posts = [{"text": f"post{i}"} for i in range(25)]
+        posts = [
+            _make_post(uri=f"uri_{i}", text=f"post{i}", batch_id=1) for i in range(25)
+        ]
         mock_results = [
             LLMSociopoliticalLabelsModel(
                 labels=[
@@ -219,7 +244,7 @@ class TestProcessSociopoliticalBatch:
         
         Should handle single post batches efficiently.
         """
-        posts = [{"text": "single post"}]
+        posts = [_make_post(uri="single_uri", text="single post", batch_id=1)]
         mock_result = LLMSociopoliticalLabelsModel(
             labels=[
                 LLMSociopoliticalLabelModel(
@@ -245,11 +270,14 @@ class TestCreateLabels:
         
         Should properly create label models with success status.
         """
-        posts = [{
-            "uri": "test", 
-            "text": "test post",
-            "preprocessing_timestamp": "2023-01-01T00:00:00Z"
-        }]
+        posts = [
+            _make_post(
+                uri="test",
+                text="test post",
+                preprocessing_timestamp="2023-01-01T00:00:00Z",
+                batch_id=1,
+            )
+        ]
         responses = [{
             "is_sociopolitical": True,
             "political_ideology_label": "left"
@@ -272,11 +300,14 @@ class TestCreateLabels:
         
         Should properly create label models with failed status.
         """
-        posts = [{
-            "uri": "test1", 
-            "text": "test post",
-            "preprocessing_timestamp": "2023-01-01T00:00:00Z"
-        }]
+        posts = [
+            _make_post(
+                uri="test1",
+                text="test post",
+                preprocessing_timestamp="2023-01-01T00:00:00Z",
+                batch_id=1,
+            )
+        ]
         responses = [None]  # None represents failed response
         
         labels = create_labels(posts, responses)
@@ -290,16 +321,18 @@ class TestCreateLabels:
         since we can't guarantee which posts correspond to which responses.
         """
         posts = [
-            {
-                "uri": "test1",
-                "text": "post1",
-                "preprocessing_timestamp": "2023-01-01T00:00:00Z"
-            },
-            {
-                "uri": "test2", 
-                "text": "post2",
-                "preprocessing_timestamp": "2023-01-01T00:00:00Z"
-            }
+            _make_post(
+                uri="test1",
+                text="post1",
+                preprocessing_timestamp="2023-01-01T00:00:00Z",
+                batch_id=1,
+            ),
+            _make_post(
+                uri="test2",
+                text="post2",
+                preprocessing_timestamp="2023-01-01T00:00:00Z",
+                batch_id=1,
+            ),
         ]
         responses = [{
             "is_sociopolitical": True,
@@ -318,21 +351,24 @@ class TestCreateLabels:
         Should properly handle both successful and failed responses in same batch.
         """
         posts = [
-            {
-                "uri": "test1",
-                "text": "post1",
-                "preprocessing_timestamp": "2023-01-01T00:00:00Z"
-            },
-            {
-                "uri": "test2",
-                "text": "post2", 
-                "preprocessing_timestamp": "2023-01-01T00:00:00Z"
-            },
-            {
-                "uri": "test3",
-                "text": "post3",
-                "preprocessing_timestamp": "2023-01-01T00:00:00Z"
-            }
+            _make_post(
+                uri="test1",
+                text="post1",
+                preprocessing_timestamp="2023-01-01T00:00:00Z",
+                batch_id=1,
+            ),
+            _make_post(
+                uri="test2",
+                text="post2",
+                preprocessing_timestamp="2023-01-01T00:00:00Z",
+                batch_id=1,
+            ),
+            _make_post(
+                uri="test3",
+                text="post3",
+                preprocessing_timestamp="2023-01-01T00:00:00Z",
+                batch_id=1,
+            ),
         ]
         responses = [
             {
@@ -370,18 +406,18 @@ class TestBatchClassifyPosts:
         Should process all posts and return correct metadata.
         """
         posts = [
-            {
-                "uri": "test1",
-                "text": "post1",
-                "batch_id": 1,
-                "preprocessing_timestamp": "2024-01-01-00:00:00"
-            },
-            {
-                "uri": "test2",
-                "text": "post2",
-                "batch_id": 1,
-                "preprocessing_timestamp": "2024-01-01-00:00:00"
-            }
+            _make_post(
+                uri="test1",
+                text="post1",
+                batch_id=1,
+                preprocessing_timestamp="2024-01-01-00:00:00",
+            ),
+            _make_post(
+                uri="test2",
+                text="post2",
+                batch_id=1,
+                preprocessing_timestamp="2024-01-01-00:00:00",
+            ),
         ]
         
         mock_process_batch.return_value = [
@@ -410,18 +446,18 @@ class TestBatchClassifyPosts:
         Should properly handle failed classifications and return correct metadata.
         """
         posts = [
-            {
-                "uri": "test1",
-                "text": "post1",
-                "batch_id": 1,
-                "preprocessing_timestamp": "2024-01-01-00:00:00"
-            },
-            {
-                "uri": "test2",
-                "text": "post2",
-                "batch_id": 1,
-                "preprocessing_timestamp": "2024-01-01-00:00:00"
-            }
+            _make_post(
+                uri="test1",
+                text="post1",
+                batch_id=1,
+                preprocessing_timestamp="2024-01-01-00:00:00",
+            ),
+            _make_post(
+                uri="test2",
+                text="post2",
+                batch_id=1,
+                preprocessing_timestamp="2024-01-01-00:00:00",
+            ),
         ]
         
         mock_process_batch.return_value = [None, None]  # None represents failed classifications
@@ -448,12 +484,12 @@ class TestBatchClassifyPosts:
         """
         # Create 25 posts with batch size of 5
         posts = [
-            {
-                "uri": f"test{i}",
-                "text": f"post{i}",
-                "batch_id": i//5,
-                "preprocessing_timestamp": "2024-01-01-00:00:00"
-            }
+            _make_post(
+                uri=f"test{i}",
+                text=f"post{i}",
+                batch_id=i // 5,
+                preprocessing_timestamp="2024-01-01-00:00:00",
+            )
             for i in range(25)
         ]
         
@@ -492,7 +528,7 @@ class TestRunBatchClassification:
         
         Should properly call batch_classify_posts and return metadata.
         """
-        posts = [{"uri": "test", "text": "post"}]
+        posts = [_make_post(uri="test", text="post", batch_id=1)]
         expected_result = {
             "total_batches": 1,
             "total_posts_successfully_labeled": 1,
@@ -509,7 +545,7 @@ class TestRunBatchClassification:
 def sample_posts():
     """Creates a list of sample posts for testing."""
     return [
-        {"text": f"Test post {i}", "uri": f"test_uri_{i}", "preprocessing_timestamp": "2024-01-01-00:00:00"}
+        _make_post(uri=f"test_uri_{i}", text=f"Test post {i}", batch_id=i // 10)
         for i in range(20)
     ]
 
@@ -647,18 +683,14 @@ class TestProcessSociopoliticalBatchWithRetries:
     """Tests for process_sociopolitical_batch_with_retries() function."""
 
     def test_invalid_input_missing_text(self, sample_posts):
-        """Test handling of posts missing required 'text' field.
-        
-        Should raise KeyError when posts are missing the required 'text' field.
+        """Test that dict inputs are rejected.
+
+        The public interface expects PostToLabelModel. Passing dicts should fail fast.
         """
-        invalid_posts = [
-            {"uri": "test1"},  # Missing text field
-            {"uri": "test2", "text": "valid post"}  # Valid post
-        ]
-        
-        with pytest.raises(KeyError) as exc_info:
-            process_sociopolitical_batch_with_retries(invalid_posts)
-        assert "text" in str(exc_info.value)
+        invalid_posts = [{"uri": "test1"}, {"uri": "test2", "text": "valid post"}]
+
+        with pytest.raises(AttributeError):
+            process_sociopolitical_batch_with_retries(invalid_posts)  # type: ignore[arg-type]
 
     @patch('services.ml_inference.sociopolitical.model.process_sociopolitical_batch')
     @patch('time.sleep')
@@ -667,7 +699,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         
         Should respect custom retry parameters and follow exponential backoff pattern.
         """
-        posts = [{"text": "test", "uri": "test1"}]
+        posts = [_make_post(uri="test1", text="test", batch_id=1)]
         mock_process_batch.side_effect = [
             [None],  # First attempt fails
             [None],  # Second attempt fails
@@ -698,7 +730,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         
         Should attempt classification exactly once with no retries or sleep calls.
         """
-        posts = [{"text": "test", "uri": "test1"}]
+        posts = [_make_post(uri="test1", text="test", batch_id=1)]
         mock_process_batch.return_value = [None]  # First attempt fails
         
         results = process_sociopolitical_batch_with_retries(posts=posts, max_retries=0)
@@ -716,7 +748,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         
         Should handle negative max_retries same as zero retries - one attempt, no sleep.
         """
-        posts = [{"text": "test", "uri": "test1"}]
+        posts = [_make_post(uri="test1", text="test", batch_id=1)]
         mock_process_batch.return_value = [None]  # First attempt fails
         
         results = process_sociopolitical_batch_with_retries(posts=posts, max_retries=-1)
@@ -734,7 +766,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         
         Should use absolute value of initial_delay for sleep calculations.
         """
-        posts = [{"text": "test", "uri": "test1"}]
+        posts = [_make_post(uri="test1", text="test", batch_id=1)]
         mock_process_batch.side_effect = [
             [None],  # First attempt fails
             [{"result": "success"}]  # Second attempt succeeds
@@ -771,7 +803,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         Should maintain original post order in results regardless of when each post succeeds.
         """
         posts = [
-            {"text": f"test{i}", "uri": f"test{i}"} for i in range(3)
+            _make_post(uri=f"test{i}", text=f"test{i}", batch_id=1) for i in range(3)
         ]
         
         # First try: first post succeeds
@@ -797,7 +829,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         
         Should follow precise exponential backoff pattern with provided initial_delay.
         """
-        posts = [{"text": "test", "uri": "test1"}]
+        posts = [_make_post(uri="test1", text="test", batch_id=1)]
         mock_process_batch.side_effect = [
             [None],  # First attempt fails
             [{"result": "success"}],  # Second attempt succeeds
@@ -821,7 +853,7 @@ class TestProcessSociopoliticalBatchWithRetries:
     @patch('time.sleep')
     def test_retry_sleep_timing(self, mock_sleep, mock_process_batch):
         """Test that sleep is called before each retry attempt."""
-        posts = [{"text": "test", "uri": "test1"}]
+        posts = [_make_post(uri="test1", text="test", batch_id=1)]
         mock_process_batch.side_effect = [
             [None],  # First attempt fails
             [None],  # Second attempt fails
@@ -852,7 +884,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         """
         # Create posts with distinct text and URIs to track order
         posts = [
-            {"text": f"test{i}", "uri": f"uri{i}"} for i in range(5)
+            _make_post(uri=f"uri{i}", text=f"test{i}", batch_id=1) for i in range(5)
         ]
         
         # Mock responses where posts succeed at different retry attempts:
@@ -898,7 +930,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         """
         # Create posts with distinct text and URIs
         posts = [
-            {"text": f"test{i}", "uri": f"uri{i}"} for i in range(4)
+            _make_post(uri=f"uri{i}", text=f"test{i}", batch_id=1) for i in range(4)
         ]
         
         # Mock responses where:
@@ -940,7 +972,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         This test verifies that the function correctly passes through the role and model
         parameters to structured_batch_completion.
         """
-        posts = [{"text": "test post"}]
+        posts = [_make_post(uri="uri_1", text="test post", batch_id=1)]
         mock_label = LLMSociopoliticalLabelModel(
             is_sociopolitical=True,
             political_ideology_label="left"
@@ -973,7 +1005,7 @@ class TestProcessSociopoliticalBatchWithRetries:
         2. Negative values are properly handled
         3. Default values are correctly applied when not specified
         """
-        posts = [{"text": "test post"}]
+        posts = [_make_post(uri="uri_1", text="test post", batch_id=1)]
         mock_process_batch.side_effect = [
             [None],  # First attempt fails
             [{"result": "success"}]  # Second attempt succeeds

@@ -1,7 +1,7 @@
 """Batch classification + export adapter for intergroup.
 
 This module bridges:
-- queue/orchestration layer: `list[dict]` posts that include `batch_id` and `batch_metadata`
+- queue/orchestration layer: `list[PostToLabelModel]` posts that include `batch_id` and `batch_metadata`
 - classifier layer: `IntergroupClassifier` operating on `PostToLabelModel`
 
 It owns I/O (queue exports) and batching; the classifier stays pure.
@@ -31,33 +31,15 @@ from services.ml_inference.models import (
 
 logger = get_logger(__name__)
 
-
-# TODO: only needed here since the current interface for the intergroup classifier
-# takes a strongly-typed pydantic model, while previous interfaces took a dict.
-# this should really be refactored so every interface uses PostToLabelModel
-# directly instead of a dict. Should create a Github issue for this and make
-# it a fast-follow item.
-def _dict_to_post_model(post: dict) -> PostToLabelModel:
-    """Convert a queue payload dict to a PostToLabelModel."""
-    return PostToLabelModel(
-        uri=post["uri"],
-        text=post["text"],
-        preprocessing_timestamp=post["preprocessing_timestamp"],
-        batch_id=post["batch_id"],
-        batch_metadata=post["batch_metadata"],
-    )
-
-
 @track_performance
 def run_batch_classification(
-    posts: list[dict],
+    posts: list[PostToLabelModel],
     batch_size: Optional[int] = DEFAULT_BATCH_SIZE,
 ) -> BatchClassificationMetadataModel:
     """Run intergroup batch classification over queue-provided posts.
 
-    Expects `posts` to come from `Queue.load_dict_items_from_queue()`, which
-    attaches:
-    - `batch_id`: queue row id (used by `write_posts_to_cache` for deletion)
+    Expects `posts` to come from `get_posts_to_classify()`, which constructs
+    PostToLabelModel instances from `Queue.load_dict_items_from_queue()` payloads.
 
     Returns BatchClassificationMetadataModel with classification results metadata.
     """
@@ -68,7 +50,9 @@ def run_batch_classification(
             total_posts_failed_to_label=0,
         )
 
-    batches: list[list[dict]] = create_batches(batch_list=posts, batch_size=batch_size)
+    batches: list[list[PostToLabelModel]] = create_batches(
+        batch_list=posts, batch_size=batch_size
+    )
     total_batches = len(batches)
     total_successful = 0
     total_failed = 0
@@ -83,12 +67,9 @@ def run_batch_classification(
             logger=logger,
         )
 
-        uri_to_batch_id = {p["uri"]: p["batch_id"] for p in batch}
-        post_models: list[PostToLabelModel] = [_dict_to_post_model(p) for p in batch]
+        uri_to_batch_id = {p.uri: p.batch_id for p in batch}
 
-        label_models: list[IntergroupLabelModel] = classifier.classify_batch(
-            post_models
-        )
+        label_models: list[IntergroupLabelModel] = classifier.classify_batch(batch)
         successful_labels, failed_labels = (
             split_labels_into_successful_and_failed_labels(labels=label_models)
         )

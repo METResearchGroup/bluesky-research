@@ -19,12 +19,16 @@ from services.ml_inference.export_data import (
     return_failed_labels_to_input_queue,
     write_posts_to_cache,
 )
-from services.ml_inference.models import LabelWithBatchId, ValenceClassifierLabelModel
+from services.ml_inference.models import (
+    LabelWithBatchId,
+    PostToLabelModel,
+    ValenceClassifierLabelModel,
+)
 
 logger = get_logger(__file__)
 
 
-def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
+def create_labels(posts: list[PostToLabelModel], output_df: pd.DataFrame) -> list[dict]:
     """
     Create label dicts from posts and VADER output DataFrame.
 
@@ -39,14 +43,14 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
     labels = []
     label_timestamp = generate_current_datetime_str()
     for post in posts:
-        uri = post.get("uri")
+        uri = post.uri
         row = uri_to_row.get(uri)
         if row is not None:
             labels.append(
                 ValenceClassifierLabelModel(
                     uri=uri,
-                    text=post.get("text", ""),
-                    preprocessing_timestamp=post.get("preprocessing_timestamp", ""),
+                    text=post.text,
+                    preprocessing_timestamp=post.preprocessing_timestamp,
                     was_successfully_labeled=True,
                     label_timestamp=label_timestamp,
                     valence_label=row["valence_label"],
@@ -57,8 +61,8 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
             labels.append(
                 ValenceClassifierLabelModel(
                     uri=uri,
-                    text=post.get("text", ""),
-                    preprocessing_timestamp=post.get("preprocessing_timestamp", ""),
+                    text=post.text,
+                    preprocessing_timestamp=post.preprocessing_timestamp,
                     was_successfully_labeled=False,
                     label_timestamp=label_timestamp,
                     valence_label=None,
@@ -68,12 +72,14 @@ def create_labels(posts: list[dict], output_df: pd.DataFrame) -> list[dict]:
     return labels
 
 
-def batch_classify_posts(posts: list[dict], batch_size: int = 100) -> dict[str, Any]:
+def batch_classify_posts(
+    posts: list[PostToLabelModel], batch_size: int = 100
+) -> dict[str, Any]:
     """
     Batch classify posts using VADER sentiment analysis.
 
     Args:
-        posts (list[dict]): list of post dicts.
+        posts (list[PostToLabelModel]): Posts to classify.
         batch_size (int): Batch size for processing.
 
     Returns:
@@ -100,11 +106,11 @@ def batch_classify_posts(posts: list[dict], batch_size: int = 100) -> dict[str, 
     total_successful_labels = 0
     total_failed_labels = 0
     for batch in batches:
-        output_df = run_vader_on_posts(batch)
+        output_df = run_vader_on_posts([post.model_dump() for post in batch])
         labels = create_labels(batch, output_df)
 
         # Create URI mapping for robust batch_id attachment
-        uri_to_batch_id = {p["uri"]: p["batch_id"] for p in batch}
+        uri_to_batch_id = {p.uri: p.batch_id for p in batch}
 
         # Attach batch_id using URI mapping and create LabelWithBatchId instances
         labels_with_batch_id = attach_batch_id_to_label_dicts(
@@ -156,12 +162,12 @@ def batch_classify_posts(posts: list[dict], batch_size: int = 100) -> dict[str, 
 
 
 def run_batch_classification(
-    posts: list[dict], batch_size: int = 100
+    posts: list[PostToLabelModel], batch_size: int = 100
 ) -> dict[str, Any]:
     """
     High-level entrypoint for batch valence classification.
     Args:
-        posts (list[dict]): list of post dicts.
+        posts (list[PostToLabelModel]): Posts to classify.
         batch_size (int): Batch size for processing.
     Returns:
         dict[str, Any]: Output from batch_classify_posts.

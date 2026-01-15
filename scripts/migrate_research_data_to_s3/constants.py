@@ -1,4 +1,5 @@
 PREFIXES_TO_MIGRATE = [
+    "daily_superposters/cache",
     "feeds",
     "fetch_posts_used_in_feeds",
     "generated_feeds",
@@ -14,8 +15,8 @@ PREFIXES_TO_MIGRATE = [
     "ml_inference_valence_classifier/cache",
     "post_scores/active",
     "post_scores/cache",
-    "preprocessed_posts/active",
-    "preprocessed_posts/cache",
+    "preprocessed_posts/firehose/cache",
+    "preprocessed_posts/most_liked/cache",
     "study_user_activity/create/block/active",
     "study_user_activity/create/block/cache",
     "study_user_activity/create/follow/active",
