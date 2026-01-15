@@ -29,7 +29,7 @@ WHERE uri IN (
     )
 )
 
-/* Get the average constructiveness of posts used in feeds AND whose author is a superposter
+/* Get the average constructiveness of posts used in feeds AND whose author is NOT a superposter
 Result: 0.17033583496552065
 
 So, if we were to penalize posts by superposters, turns out superposter posts
@@ -44,7 +44,7 @@ WHERE uri IN (
         /* Post is used in feeds */
         SELECT uri FROM archive_fetch_posts_used_in_feeds
     ) AND author_did NOT IN (
-        /* Author is a superposter */
+        /* Author is NOT a superposter */
         SELECT author_did FROM superposter_author_dids
     )
 )
