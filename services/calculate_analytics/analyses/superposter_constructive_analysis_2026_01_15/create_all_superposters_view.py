@@ -20,16 +20,20 @@ def build_view_ddl(db_name: str, view_name: str) -> str:
 CREATE OR REPLACE VIEW {db_name}.{view_name} AS
 WITH parsed AS (
   SELECT
+    partition_date,
     COALESCE(
       TRY(CAST(json_parse(superposters) AS ARRAY(ROW(author_did VARCHAR, count BIGINT)))),
       CAST(ARRAY[] AS ARRAY(ROW(author_did VARCHAR, count BIGINT)))
     ) AS sp
   FROM {db_name}.{SOURCE_TABLE}
 )
-SELECT DISTINCT x.author_did
+SELECT DISTINCT
+  parsed.partition_date,
+  x.author_did
 FROM parsed
 CROSS JOIN UNNEST(sp) AS u(x)
 WHERE x.author_did IS NOT NULL
+  AND parsed.partition_date IS NOT NULL
 """.strip()
 
 
