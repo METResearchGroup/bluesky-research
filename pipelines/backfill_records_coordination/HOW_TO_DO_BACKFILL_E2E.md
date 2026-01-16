@@ -2,11 +2,52 @@
 
 ## Problem statement
 
-## Step 1: Add new data to the corresponding input queue
+## How to run the CLI tool
 
-## Step 2: Run the service on the data from the input queue
+In `pipelines/backfill_records_coordination/app.py`, the CLI tool...
 
-## Step 3: Take the data from the output queue and write to permanent storage
+It supports 3 modes:
+
+1. Adding posts to queue, to await backfill/
+2. Run the integration(s).
+3. Write the records from cache to permanent storage.
+
+### Mode 1 (`--add-to-queue`): Add posts to queue, to be pending backfill
+
+We can pick our source for posts that we want to enqueue for backfill.
+
+There are two sources we support here:
+
+1. `--record-type posts`: we enqueue all of our available posts as pending backfill (subtracting any posts that have been backfilled already for that integration).
+2. `--record-type posts_used_in_feeds`: we enqueue all of the posts that were used in feeds (subtracting any posts that have been backfilled already for that integration).
+
+For example, for the following command:
+
+```bash
+python app.py --record-type posts --integration ml_inference_perspective_api --add-to-queue
+```
+
+We add all posts to the input queue for the `ml_inference_perspective_api` integration, subtracting any posts that we've previously classified.
+
+### Mode 2: Running integrations
+
+For example, in the following command:
+
+```bash
+python app.py --record-type posts --integration ml_inference_perspective_api --run-integrations
+```
+
+We run the integration on whatever records are currently queued.
+
+You can also omit `--record-type` when you are only running integrations (i.e., not enqueueing).
+In that case, you must specify at least one `--integration`:
+
+```bash
+python app.py --integration ml_inference_perspective_api --run-integrations
+```
+
+
+### Mode 3: Writing cached records to permanent storage
 
 ## FAQs
 

@@ -29,6 +29,10 @@ payloads = {
         "description": "Run integrations only (process existing queued records)",
         "command": "python app.py --record-type posts --integration ml_inference_perspective_api --run-integrations",
     },
+    "perspective_api_run_integration_only_no_record_type": {
+        "description": "Run integrations only (process existing queued records). Works the same with or without the `--record-type` flag.",
+        "command": "python app.py --integration ml_inference_perspective_api --run-integrations",
+    },
     "perspective_api_trigger_write_cache_buffers_to_db": {
         "description": "Write cache buffers to database for Perspective API",
         "command": "python app.py --record-type posts --write-cache ml_inference_perspective_api",
