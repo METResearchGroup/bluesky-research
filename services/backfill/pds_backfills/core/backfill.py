@@ -9,10 +9,10 @@ from atproto import CAR
 
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
-from services.backfill.core.constants import (
+from services.backfill.pds_backfills.core.constants import (
     endpoint,
 )
-from services.backfill.core.models import UserBackfillMetadata
+from services.backfill.pds_backfills.core.models import UserBackfillMetadata
 
 logger = get_logger(__name__)
 

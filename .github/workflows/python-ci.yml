@@ -74,8 +74,8 @@ jobs:
           ml_tooling/perspective_api/tests \
           ml_tooling/ime/tests \
           ml_tooling/valence_classifier/tests \
-          services/backfill/core/tests \
-          services/backfill/storage/tests \
+          services/backfill/pds_backfills/core/tests \
+          services/backfill/pds_backfills/storage/tests \
           services/ml_inference/tests \
           services/ml_inference/perspective_api/tests \
           services/ml_inference/sociopolitical/tests \

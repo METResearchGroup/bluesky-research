@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch, MagicMock, call
 
-from services.backfill.core.backfill import (
+from services.backfill.pds_backfills.core.backfill import (
     get_plc_directory_doc, get_bsky_records_for_user
 )
 
@@ -80,7 +80,7 @@ class TestGetBskyRecordsForUser:
     @pytest.fixture
     def mock_plc_doc(self):
         """Mock get_plc_directory_doc function."""
-        with patch("services.backfill.core.backfill.get_plc_directory_doc") as mock:
+        with patch("services.backfill.pds_backfills.core.backfill.get_plc_directory_doc") as mock:
             mock.return_value = {
                 "service": [
                     {

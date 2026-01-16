@@ -5,7 +5,7 @@ import pandas as pd
 from unittest.mock import patch
 
 from lib.metadata.models import RunExecutionMetadata
-from services.backfill.storage.session_metadata import (
+from services.backfill.pds_backfills.storage.session_metadata import (
     load_latest_backfilled_users,
     write_user_session_backfill_metadata_to_db,
     write_session_backfill_job_metadata_to_db,
@@ -25,7 +25,7 @@ class TestLoadLatestBackfilledUsers:
     @pytest.fixture
     def mock_athena(self):
         """Fixture for mocking Athena."""
-        with patch("services.backfill.storage.session_metadata.athena") as mock:
+        with patch("services.backfill.pds_backfills.storage.session_metadata.athena") as mock:
             yield mock
     
     def test_load_latest_backfilled_users(self, mock_athena):
@@ -98,13 +98,13 @@ class TestWriteUserSessionBackfillMetadataToDB:
     @pytest.fixture
     def mock_batch_save(self):
         """Fixture for mocking batch_save_user_metadata."""
-        with patch("services.backfill.storage.session_metadata.batch_save_user_metadata") as mock:
+        with patch("services.backfill.pds_backfills.storage.session_metadata.batch_save_user_metadata") as mock:
             yield mock
     
     @pytest.fixture
     def mock_logger(self):
         """Fixture for mocking logger."""
-        with patch("services.backfill.storage.session_metadata.logger") as mock:
+        with patch("services.backfill.pds_backfills.storage.session_metadata.logger") as mock:
             yield mock
 
     def test_write_user_session_backfill_metadata_empty(self, mock_batch_save, mock_logger):
@@ -121,7 +121,7 @@ class TestWriteUserSessionBackfillMetadataToDB:
 
     def test_write_user_session_backfill_metadata(self, mock_batch_save, mock_logger):
         """Test with valid metadata list."""
-        from services.backfill.core.models import UserBackfillMetadata
+        from services.backfill.pds_backfills.core.models import UserBackfillMetadata
         
         # Create test metadata
         metadata_objects = [
@@ -153,13 +153,13 @@ class TestWriteSessionBackfillJobMetadataToDB:
     @pytest.fixture
     def mock_dynamodb(self):
         """Fixture for mocking DynamoDB."""
-        with patch("services.backfill.storage.session_metadata.dynamodb") as mock:
+        with patch("services.backfill.pds_backfills.storage.session_metadata.dynamodb") as mock:
             yield mock
     
     @pytest.fixture
     def mock_logger(self):
         """Fixture for mocking logger."""
-        with patch("services.backfill.storage.session_metadata.logger") as mock:
+        with patch("services.backfill.pds_backfills.storage.session_metadata.logger") as mock:
             yield mock
 
     def test_write_session_backfill_job_metadata(self, mock_dynamodb, mock_logger):
@@ -217,24 +217,24 @@ class TestWriteBackfillMetadataToDB:
     @pytest.fixture
     def mock_write_user_metadata(self):
         """Fixture for mocking write_user_session_backfill_metadata_to_db."""
-        with patch("services.backfill.storage.session_metadata.write_user_session_backfill_metadata_to_db") as mock:
+        with patch("services.backfill.pds_backfills.storage.session_metadata.write_user_session_backfill_metadata_to_db") as mock:
             yield mock
     
     @pytest.fixture
     def mock_write_session_metadata(self):
         """Fixture for mocking write_session_backfill_job_metadata_to_db."""
-        with patch("services.backfill.storage.session_metadata.write_session_backfill_job_metadata_to_db") as mock:
+        with patch("services.backfill.pds_backfills.storage.session_metadata.write_session_backfill_job_metadata_to_db") as mock:
             yield mock
     
     @pytest.fixture
     def mock_logger(self):
         """Fixture for mocking logger."""
-        with patch("services.backfill.storage.session_metadata.logger") as mock:
+        with patch("services.backfill.pds_backfills.storage.session_metadata.logger") as mock:
             yield mock
 
     def test_write_backfill_metadata(self, mock_write_user_metadata, mock_write_session_metadata, mock_logger):
         """Test successful write of all metadata."""
-        from services.backfill.core.models import UserBackfillMetadata
+        from services.backfill.pds_backfills.core.models import UserBackfillMetadata
         
         # Create test data
         session_metadata = RunExecutionMetadata(

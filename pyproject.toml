@@ -258,6 +258,8 @@ testpaths = [
     "ml_tooling/llm/tests",
     "ml_tooling/perspective_api/tests",
     "services/backfill/posts/tests",
+    "services/backfill/pds_backfills/core/tests",
+    "services/backfill/pds_backfills/storage/tests",
     "services/backfill/sync/tests",
     "services/ml_inference/tests",
     "services/ml_inference/ime/tests",
