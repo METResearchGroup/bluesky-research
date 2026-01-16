@@ -4,11 +4,11 @@ import pytest
 from unittest.mock import Mock, patch
 
 from lib.db.queue import Queue
-from services.backfill.storage.utils.queue_utils import (
+from services.backfill.pds_backfills.storage.utils.queue_utils import (
     write_record_type_to_cache,
     write_records_to_cache,
 )
-from services.backfill.core.constants import base_queue_name
+from services.backfill.pds_backfills.core.constants import base_queue_name
 
 
 class TestWriteRecordTypeToCache:
@@ -24,7 +24,7 @@ class TestWriteRecordTypeToCache:
     @pytest.fixture
     def mock_queue(self):
         """Fixture for mocking Queue class."""
-        with patch("services.backfill.storage.utils.queue_utils.Queue") as mock:
+        with patch("services.backfill.pds_backfills.storage.utils.queue_utils.Queue") as mock:
             queue_instance = Mock(spec=Queue)
             mock.return_value = queue_instance
             yield mock, queue_instance
@@ -32,7 +32,7 @@ class TestWriteRecordTypeToCache:
     @pytest.fixture
     def mock_logger(self):
         """Fixture for mocking logger."""
-        with patch("services.backfill.storage.utils.queue_utils.logger") as mock:
+        with patch("services.backfill.pds_backfills.storage.utils.queue_utils.logger") as mock:
             yield mock
     
     def test_write_record_type_to_cache_empty_records(self, mock_queue, mock_logger):
@@ -113,7 +113,7 @@ class TestWriteRecordsToCache:
     - Correct delegation to write_record_type_to_cache for each record type
     """
     
-    @patch("services.backfill.storage.utils.queue_utils.write_record_type_to_cache")
+    @patch("services.backfill.pds_backfills.storage.utils.queue_utils.write_record_type_to_cache")
     def test_write_records_to_cache_empty_map(self, mock_write_record_type):
         """Test handling of empty record map.
         
@@ -123,7 +123,7 @@ class TestWriteRecordsToCache:
         write_records_to_cache(type_to_record_maps={})
         mock_write_record_type.assert_not_called()
     
-    @patch("services.backfill.storage.utils.queue_utils.write_record_type_to_cache")
+    @patch("services.backfill.pds_backfills.storage.utils.queue_utils.write_record_type_to_cache")
     def test_write_records_to_cache_with_records(self, mock_write_record_type):
         """Test writing multiple record types to cache.
         
@@ -157,7 +157,7 @@ class TestWriteRecordsToCache:
             batch_size=batch_size
         )
 
-    @patch("services.backfill.storage.utils.queue_utils.write_record_type_to_cache")
+    @patch("services.backfill.pds_backfills.storage.utils.queue_utils.write_record_type_to_cache")
     def test_write_records_to_cache_default_batch_size(self, mock_write_record_type):
         """Test writing records with default batch size.
         

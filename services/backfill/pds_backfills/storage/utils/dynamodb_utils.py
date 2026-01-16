@@ -4,7 +4,7 @@ from typing import Optional
 
 from lib.aws.dynamodb import DynamoDB
 from lib.log.logger import get_logger
-from services.backfill.core.models import UserBackfillMetadata
+from services.backfill.pds_backfills.core.models import UserBackfillMetadata
 
 TABLE_NAME = "backfill_user_metadata"
 DID_INDEX = "did-index"

@@ -94,7 +94,7 @@ class TestValidateDids:
     - Empty strings are skipped
     - Logging occurs for invalid/duplicate DIDs
     """
-    @patch("services.backfill.core.validate.load_latest_backfilled_users")
+    @patch("services.backfill.pds_backfills.core.validate.load_latest_backfilled_users")
     def test_deduplication_and_format(self, mock_load):
         """Test deduplication and format validation."""
         mock_load.return_value = []
@@ -108,7 +108,7 @@ class TestValidateDids:
         valid = validate_dids(dids, exclude_previously_backfilled_users=False)
         assert valid == ["did:plc:abc123", "did:plc:def456"]
 
-    @patch("services.backfill.core.validate.load_latest_backfilled_users")
+    @patch("services.backfill.pds_backfills.core.validate.load_latest_backfilled_users")
     def test_exclude_previously_backfilled(self, mock_load):
         """Test exclusion of previously backfilled users."""
         mock_load.return_value = [{"did": "did:plc:abc123"}]
@@ -116,8 +116,8 @@ class TestValidateDids:
         valid = validate_dids(dids, exclude_previously_backfilled_users=True)
         assert valid == ["did:plc:def456"]
 
-    @patch("services.backfill.core.validate.logger")
-    @patch("services.backfill.core.validate.load_latest_backfilled_users")
+    @patch("services.backfill.pds_backfills.core.validate.logger")
+    @patch("services.backfill.pds_backfills.core.validate.load_latest_backfilled_users")
     def test_logging_for_invalid_and_duplicates(self, mock_load, mock_logger):
         """Test that logger is called for invalid and duplicate DIDs."""
         mock_load.return_value = []
