@@ -1,15 +1,28 @@
 """CLI app for triggering backfill of records and writing cache buffers."""
 
-import click
-from pipelines.backfill_records_coordination.handler import lambda_handler
-from pipelines.write_cache_buffers.handler import lambda_handler as write_cache_handler
 from datetime import datetime
+
+import click
+
 from lib.db.queue import Queue
 from lib.log.logger import get_logger
+from services.backfill.models import (
+    EnqueueServicePayload,
+    BackfillPeriod,
+    IntegrationRunnerConfigurationPayload,
+    IntegrationRunnerServicePayload,
+)
+from services.backfill.services.enqueue_service import EnqueueService
+from services.backfill.services.integration_runner_service import (
+    IntegrationRunnerService,
+)
+from services.backfill.services.cache_buffer_writer_service import (
+    CacheBufferWriterService,
+)
 
 logger = get_logger(__name__)
 
-INTEGRATION_MAP = {
+INTEGRATION_ABBREVIATION_TO_NAME_MAP = {
     "p": "ml_inference_perspective_api",
     "s": "ml_inference_sociopolitical",
     "i": "ml_inference_ime",
@@ -19,31 +32,8 @@ INTEGRATION_MAP = {
 
 
 DEFAULT_INTEGRATION_KWARGS = {
-    "ml_inference_perspective_api": {
-        "backfill_period": None,
-        "backfill_duration": None,
-        "run_classification": True,
-    },
-    "ml_inference_sociopolitical": {
-        "backfill_period": None,
-        "backfill_duration": None,
-        "run_classification": True,
-    },
-    "ml_inference_ime": {
-        "backfill_period": None,
-        "backfill_duration": None,
-        "run_classification": True,
-    },
-    "ml_inference_valence_classifier": {
-        "backfill_period": None,
-        "backfill_duration": None,
-        "run_classification": True,
-    },
-    "ml_inference_intergroup": {
-        "backfill_period": None,
-        "backfill_duration": None,
-        "run_classification": True,
-    },
+    "backfill_period": BackfillPeriod.DAYS.value,
+    "backfill_duration": None,
 }
 
 
@@ -113,12 +103,13 @@ def validate_date_format(ctx, param, value):
     help="Duration of backfill period",
 )
 @click.option(
-    "--run-classification/--no-run-classification",
-    default=True,
-    help="Whether to run classification on posts",
+    "--write-cache-buffer-to-storage",
+    is_flag=True,
+    default=False,
+    help="Write cache buffer to persistent storage. Requires --service-source-buffer to specify which service.",
 )
 @click.option(
-    "--write-cache",
+    "--service-source-buffer",
     type=click.Choice(
         [
             "all",
@@ -131,19 +122,19 @@ def validate_date_format(ctx, param, value):
         ]
     ),
     default=None,
-    help="Write cache buffer for specified service to database. Use 'all' to write all services.",
+    help="Service whose cache buffer to write to storage. Use 'all' to write all services. Only used with --write-cache-buffer-to-storage.",
 )
 @click.option(
     "--clear-queue",
     is_flag=True,
     default=False,
-    help="Clear the queue after writing cache buffer. Only used with --write-cache.",
+    help="Clear the queue after writing cache buffer. Only used with --write-cache-buffer-to-storage.",
 )
 @click.option(
     "--bypass-write",
     is_flag=True,
     default=False,
-    help="Skip writing to DB and only clear cache. Only valid with --write-cache and --clear-queue.",
+    help="Skip writing to DB and only clear cache. Only valid with --write-cache-buffer-to-storage and --clear-queue.",
 )
 @click.option(
     "--start-date",
@@ -178,45 +169,19 @@ def backfill_records(
     integrations: tuple[str, ...],
     backfill_period: str | None,
     backfill_duration: int | None,
-    run_classification: bool,
-    write_cache: str | None,
+    write_cache_buffer_to_storage: bool,
+    service_source_buffer: str | None,
     clear_queue: bool,
     bypass_write: bool,
     start_date: str | None,
     end_date: str | None,
     clear_input_queues: bool,
     clear_output_queues: bool,
+    _enqueue_service: EnqueueService | None = None,
+    _integration_runner_service: IntegrationRunnerService | None = None,
+    _cache_buffer_writer_service: CacheBufferWriterService | None = None,
 ):
-    """CLI app for triggering backfill of records and optionally writing cache buffers.
-
-    Examples:
-        # Backfill all posts for all integrations
-        $ python -m pipelines.backfill_records_coordination.app -r posts
-
-        # Only queue posts for Perspective API, don't run integration
-        $ python -m pipelines.backfill_records_coordination.app -r posts -i p --no-run-integrations
-
-        # Run existing queued posts for multiple integrations without adding new ones
-        $ python -m pipelines.backfill_records_coordination.app -i p -i s --run-integrations
-
-        # Backfill posts for last 2 days with classification
-        $ python -m pipelines.backfill_records_coordination.app -r posts -p days -d 2
-
-        # Write cache buffer for all services
-        $ python -m pipelines.backfill_records_coordination.app --write-cache all
-
-        # Write cache buffer for specific service
-        $ python -m pipelines.backfill_records_coordination.app --write-cache ml_inference_perspective_api
-
-        # Backfill posts within a date range
-        $ python -m pipelines.backfill_records_coordination.app -r posts --start-date 2024-01-01 --end-date 2024-01-31
-
-        # Clear input queues for specific integrations
-        $ python -m pipelines.backfill_records_coordination.app -i p -i s --clear-input-queues
-
-        # Clear output queues for specific integrations
-        $ python -m pipelines.backfill_records_coordination.app -i p -i s --clear-output-queues
-    """
+    """CLI app for triggering backfill of records and optionally writing cache buffers."""
     mapped_integration_names: list[str] = _resolve_integration_names(integrations)
 
     # first, we clear out the queues (if the user requested it).
@@ -235,67 +200,47 @@ def backfill_records(
         record_type=record_type,
         run_integrations=run_integrations,
         integrations=integrations,
-        write_cache=write_cache,
+        write_cache_buffer_to_storage=write_cache_buffer_to_storage,
+        service_source_buffer=service_source_buffer,
         clear_queue=clear_queue,
         bypass_write=bypass_write,
         start_date=start_date,
         end_date=end_date,
     )
 
-    # Construct payload matching the format expected by backfill_records
-    payload = {
-        "record_type": record_type,
-        "add_posts_to_queue": add_to_queue,
-        "run_integrations": run_integrations,
-        "integration_kwargs": {},
-        "start_date": start_date,
-        "end_date": end_date,
-    }
-
-    # Only proceed if adding to queue or running integrations
-    # TODO: will refactor into separate services for delegation.
-    if add_to_queue or run_integrations:
-        # Add integration kwargs based on CLI args or defaults
-        for integration_name in (
-            mapped_integration_names or DEFAULT_INTEGRATION_KWARGS.keys()
-        ):
-            if integration_name in DEFAULT_INTEGRATION_KWARGS:
-                integration_kwargs = DEFAULT_INTEGRATION_KWARGS[integration_name].copy()
-                integration_kwargs.update(
-                    {
-                        "backfill_period": backfill_period,
-                        "backfill_duration": backfill_duration,
-                        "run_classification": run_classification,
-                    }
-                )
-                payload["integration_kwargs"][integration_name] = integration_kwargs
-
-        if mapped_integration_names:
-            payload["integration"] = mapped_integration_names
-
-        # Call handler with constructed event
-        response = lambda_handler({"payload": payload}, None)
-        try:
-            click.echo(f"Backfill completed with status: {response['statusCode']}")
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            logger.error(f"Response: {response}")
-
-    # Only write cache if explicitly requested
-    if write_cache:
-        cache_response = write_cache_handler(
-            {
-                "payload": {
-                    "service": write_cache,
-                    "clear_queue": clear_queue,
-                    "bypass_write": bypass_write,
-                }
-            },
-            None,
+    # TODO: add defaults for start_date and end_date, and
+    # then make sure that they're used here.
+    if add_to_queue:
+        enqueue_svc = _enqueue_service or EnqueueService()
+        enqueue_service_payload = EnqueueServicePayload(
+            record_type=str(record_type),
+            integrations=mapped_integration_names,
+            start_date=str(start_date),
+            end_date=str(end_date),
         )
-        click.echo(
-            f"Cache buffer write completed with status: {cache_response['statusCode']}"
+        enqueue_svc.enqueue_records(payload=enqueue_service_payload)
+
+    if run_integrations:
+        integration_runner_svc = (
+            _integration_runner_service or IntegrationRunnerService()
         )
+        integration_runner_service_payload = _create_integration_runner_payload(
+            mapped_integration_names=mapped_integration_names,
+            backfill_period=backfill_period,
+            backfill_duration=backfill_duration,
+        )
+        integration_runner_svc.run_integrations(
+            payload=integration_runner_service_payload
+        )
+
+    if write_cache_buffer_to_storage:
+        cache_buffer_writer_svc = (
+            _cache_buffer_writer_service or CacheBufferWriterService()
+        )
+        if not bypass_write:
+            cache_buffer_writer_svc.write_cache(service=str(service_source_buffer))
+        if clear_queue:
+            cache_buffer_writer_svc.clear_queue(service=str(service_source_buffer))
 
 
 def manage_queue_clearing(
@@ -321,10 +266,48 @@ def manage_queue_clearing(
     )
 
 
+def _create_integration_runner_payload(
+    mapped_integration_names: list[str],
+    backfill_period: str | None,
+    backfill_duration: int | None,
+) -> IntegrationRunnerServicePayload:
+    """Creates an IntegrationRunnerServicePayload from integration names and backfill parameters.
+
+    Args:
+        mapped_integration_names: List of integration names to run
+        backfill_period: Backfill period (days or hours), or None to use default
+        backfill_duration: Backfill duration, or None to use default
+
+    Returns:
+        IntegrationRunnerServicePayload configured with the provided parameters
+    """
+    integration_backfill_period: str = (
+        DEFAULT_INTEGRATION_KWARGS["backfill_period"]
+        if backfill_period is None
+        else backfill_period
+    )
+    integration_backfill_duration: int | None = (
+        DEFAULT_INTEGRATION_KWARGS["backfill_duration"]
+        if backfill_duration is None
+        else backfill_duration
+    )
+    integration_configs: list[IntegrationRunnerConfigurationPayload] = [
+        IntegrationRunnerConfigurationPayload(
+            integration_name=integration_name,
+            backfill_period=BackfillPeriod(integration_backfill_period),
+            backfill_duration=integration_backfill_duration,
+        )
+        for integration_name in mapped_integration_names
+    ]
+    return IntegrationRunnerServicePayload(
+        integration_configs=integration_configs,
+    )
+
+
 def _resolve_single_integration(integration: str) -> str:
     """Resolves integration abbreviation to full name if needed."""
-    if integration in INTEGRATION_MAP:
-        return INTEGRATION_MAP[integration]
+    if integration in INTEGRATION_ABBREVIATION_TO_NAME_MAP:
+        return INTEGRATION_ABBREVIATION_TO_NAME_MAP[integration]
     return integration
 
 
@@ -391,7 +374,8 @@ def run_validation_checks(
     record_type: str | None,
     run_integrations: bool,
     integrations: tuple[str, ...],
-    write_cache: str | None,
+    write_cache_buffer_to_storage: bool,
+    service_source_buffer: str | None,
     clear_queue: bool,
     bypass_write: bool,
     start_date: str | None,
@@ -415,10 +399,16 @@ def run_validation_checks(
                 "Both --start-date and --end-date are required when record_type is 'posts_used_in_feeds'"
             )
 
-    # Validate bypass_write usage
-    if bypass_write and not (write_cache and clear_queue):
+    # Validate write_cache_buffer_to_storage usage
+    if write_cache_buffer_to_storage and not service_source_buffer:
         raise click.UsageError(
-            "--bypass-write requires --write-cache and --clear-queue"
+            "--service-source-buffer is required when --write-cache-buffer-to-storage is used"
+        )
+
+    # Validate bypass_write usage
+    if bypass_write and not (write_cache_buffer_to_storage and clear_queue):
+        raise click.UsageError(
+            "--bypass-write requires --write-cache-buffer-to-storage and --clear-queue"
         )
 
 

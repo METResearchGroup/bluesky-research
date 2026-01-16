@@ -70,7 +70,6 @@ def trigger_backfill_pipeline(integrations: list[str]) -> None:
             "perspective_api": {
                 "backfill_period": None,
                 "backfill_duration": None,
-                "run_classification": True,
             }
         },
     }

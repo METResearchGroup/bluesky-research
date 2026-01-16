@@ -35,7 +35,7 @@ payloads = {
     },
     "perspective_api_trigger_write_cache_buffers_to_db": {
         "description": "Write cache buffers to database for Perspective API",
-        "command": "python app.py --record-type posts --write-cache ml_inference_perspective_api",
+        "command": "python app.py --record-type posts --write-cache-buffer-to-storage --service-source-buffer ml_inference_perspective_api",
     },
     "sociopolitical_enqueue_only": {
         "description": "Enqueue records only, skip running integrations",
@@ -47,7 +47,7 @@ payloads = {
     },
     "sociopolitical_trigger_write_cache_buffers_to_db": {
         "description": "Write cache buffers to database for Sociopolitical",
-        "command": "python app.py --record-type posts --write-cache ml_inference_sociopolitical",
+        "command": "python app.py --record-type posts --write-cache-buffer-to-storage --service-source-buffer ml_inference_sociopolitical",
     },
     "ime_enqueue_only": {
         "description": "Enqueue records only, skip running integrations",
@@ -59,10 +59,10 @@ payloads = {
     },
     "ime_trigger_write_cache_buffers_to_db": {
         "description": "Write cache buffers to database for IME",
-        "command": "python app.py --record-type posts --write-cache ml_inference_ime",
+        "command": "python app.py --record-type posts --write-cache-buffer-to-storage --service-source-buffer ml_inference_ime",
     },
     "all_trigger_write_cache_buffers_to_db": {
         "description": "Write cache buffers to database for all services",
-        "command": "python app.py --record-type posts --write-cache all",
+        "command": "python app.py --record-type posts --write-cache-buffer-to-storage --service-source-buffer all",
     },
 }
