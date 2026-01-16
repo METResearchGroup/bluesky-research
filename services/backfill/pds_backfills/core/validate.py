@@ -5,12 +5,14 @@ from typing import Optional
 
 from lib.datetime_utils import convert_bsky_dt_to_pipeline_dt
 from lib.log.logger import get_logger
-from services.backfill.core.constants import (
+from services.backfill.pds_backfills.core.constants import (
     default_start_timestamp,
     default_end_timestamp,
     valid_generic_bluesky_types,
 )
-from services.backfill.storage.session_metadata import load_latest_backfilled_users
+from services.backfill.pds_backfills.storage.session_metadata import (
+    load_latest_backfilled_users,
+)
 
 logger = get_logger(__name__)
 

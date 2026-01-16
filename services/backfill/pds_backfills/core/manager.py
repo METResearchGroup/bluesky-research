@@ -8,12 +8,14 @@ from pprint import pprint
 import time
 from typing import Iterable
 
-from services.backfill.config.schema import BackfillConfigSchema
+from services.backfill.pds_backfills.config.schema import BackfillConfigSchema
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.telemetry.prometheus.server import start_metrics_server
-from services.backfill.core.worker import (
+from services.backfill.pds_backfills.storage.load_data import (
     get_previously_processed_dids,
+)
+from services.backfill.pds_backfills.core.worker import (
     PDSEndpointWorker,
 )
 

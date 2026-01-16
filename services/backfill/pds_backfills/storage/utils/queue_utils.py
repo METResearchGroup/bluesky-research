@@ -3,8 +3,11 @@ from typing import Optional
 
 from lib.log.logger import get_logger
 from lib.db.queue import Queue
-from services.backfill.core.constants import input_queue_name, base_queue_name
-from services.backfill.core.models import PlcResult
+from services.backfill.pds_backfills.core.constants import (
+    input_queue_name,
+    base_queue_name,
+)
+from services.backfill.pds_backfills.core.models import PlcResult
 
 logger = get_logger(__name__)
 

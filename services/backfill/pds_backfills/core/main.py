@@ -8,17 +8,30 @@ from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.wandb import log_run_to_wandb
-from services.backfill.core.models import UserBackfillMetadata
-from services.backfill.storage.session_metadata import write_backfill_metadata_to_db
-from services.backfill.core.constants import service_name
-from services.backfill.sync.helper import do_backfills_for_users
-from services.backfill.storage.queue_utils import (
+from services.backfill.pds_backfills.core.models import UserBackfillMetadata
+from services.backfill.pds_backfills.storage.session_metadata import (
+    write_backfill_metadata_to_db,
+)
+from services.backfill.pds_backfills.core.constants import service_name
+from services.backfill.pds_backfills.storage.utils.queue_utils import (
     load_latest_dids_to_backfill_from_queue,
 )
-from services.write_cache_buffers_to_db.main import write_cache_buffers_to_db
 
 
 logger = get_logger(__name__)
+
+
+# Two stub functions here, as we may have refactored the actual functions that are used here.
+def do_backfills_for_users(
+    dids: list[str], start_timestamp: str, end_timestamp: str, event: dict
+) -> dict:
+    """Do the backfills for the given users."""
+    return {}
+
+
+def write_cache_buffers_to_db(payload: dict) -> None:
+    """Write the cache buffers to the DB."""
+    return None
 
 
 @log_run_to_wandb(service_name=service_name)

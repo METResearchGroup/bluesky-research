@@ -16,7 +16,7 @@ from typing import Optional
 
 import pandas as pd
 
-from services.backfill.config.schema import BackfillConfigSchema
+from services.backfill.pds_backfills.config.schema import BackfillConfigSchema
 from lib.constants import timestamp_format
 from lib.datetime_utils import convert_bsky_dt_to_pipeline_dt
 from lib.db.manage_local_data import (
@@ -29,30 +29,32 @@ from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
 from lib.metadata.models import RunExecutionMetadata
 from lib.telemetry.prometheus.service import pds_backfill_metrics as pdm
-from services.backfill.core.atp_agent import AtpAgent
-from services.backfill.core.constants import (
+from services.backfill.pds_backfills.core.atp_agent import AtpAgent
+from services.backfill.pds_backfills.core.constants import (
     default_pds_endpoint,
     default_qps,
     default_write_batch_size,
     MANUAL_RATE_LIMIT,
     service_name,
 )
-from services.backfill.core.models import UserBackfillMetadata
-from services.backfill.core.transform import (
+from services.backfill.pds_backfills.core.models import UserBackfillMetadata
+from services.backfill.pds_backfills.core.transform import (
     postprocess_backfilled_record,
     transform_backfilled_record,
 )
-from services.backfill.core.validate import (
+from services.backfill.pds_backfills.core.validate import (
     identify_record_type,
     filter_only_valid_bsky_records,
     validate_time_range_record,
 )
-from services.backfill.storage.load_data import (
+from services.backfill.pds_backfills.storage.load_data import (
     get_previously_processed_dids,
 )
-from services.backfill.storage.utils.main import load_uris_to_filter
-from services.backfill.storage.utils.queue_utils import get_write_queues
-from services.backfill.storage.session_metadata import write_backfill_metadata_to_db
+from services.backfill.pds_backfills.storage.utils.main import load_uris_to_filter
+from services.backfill.pds_backfills.storage.utils.queue_utils import get_write_queues
+from services.backfill.pds_backfills.storage.session_metadata import (
+    write_backfill_metadata_to_db,
+)
 
 start_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
 
