@@ -41,6 +41,11 @@ root_local_data_directory = os.path.join(root_directory, root_data_dirname)
 root_local_backup_data_directory = os.path.join(root_directory, backup_data_dirname)
 
 default_lookback_days = 2
+# historically, we used 4 days for the feed lookback window during the study.
+# we only changed it to 2 days towards the end of the study.
+# to be inclusive of the entire study, we use 4 days for determining what
+# we used for the feed lookback window during the study.
+FEED_LOOKBACK_DAYS_DURING_STUDY = 4
 
 TEST_USER_HANDLES = [
     "testblueskyaccount.bsky.social",
