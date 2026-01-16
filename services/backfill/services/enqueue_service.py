@@ -81,7 +81,12 @@ class EnqueuePostsService:
     def _insert_posts_to_queue(
         self, integration_name: str, posts: list[PostToEnqueueModel]
     ) -> None:
-        pass
+        from lib.db.queue import get_input_queue_for_integration
+
+        input_queue = get_input_queue_for_integration(integration_name=integration_name)
+
+        posts_dicts: list[dict] = [post.model_dump() for post in posts]
+        input_queue.batch_add_items_to_queue(items=posts_dicts, metadata=None)
 
 
 class EnqueuePostsUsedInFeedsService:

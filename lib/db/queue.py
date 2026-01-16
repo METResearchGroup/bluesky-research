@@ -41,6 +41,8 @@ existing_sqlite_dbs = [
 
 DEFAULT_BATCH_CHUNK_SIZE = 1000
 DEFAULT_BATCH_WRITE_SIZE = 25
+INPUT_QUEUE_PREFIX = "input_"
+OUTPUT_QUEUE_PREFIX = "output_"
 
 _SQLITE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -755,3 +757,29 @@ class Queue:
         """Delete the queue."""
         os.remove(self.db_path)
         logger.info(f"Deleted queue {self.queue_name} at {self.db_path}")
+
+
+def get_input_queue_name(integration_name: str) -> str:
+    """Get the input queue name for a given integration name."""
+    return f"{INPUT_QUEUE_PREFIX}{integration_name}"
+
+
+def get_input_queue_for_integration(integration_name: str) -> Queue:
+    """Get the input queue for a given integration name."""
+    return Queue(
+        queue_name=get_input_queue_name(integration_name),
+        create_new_queue=True,
+    )
+
+
+def get_output_queue_name(integration_name: str) -> str:
+    """Get the output queue name for a given integration name."""
+    return f"{OUTPUT_QUEUE_PREFIX}{integration_name}"
+
+
+def get_output_queue_for_integration(integration_name: str) -> Queue:
+    """Get the output queue for a given integration name."""
+    return Queue(
+        queue_name=get_output_queue_name(integration_name),
+        create_new_queue=True,
+    )
