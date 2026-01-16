@@ -279,50 +279,6 @@ def backfill_records(
     if write_cache:
         cache_buffer_writer_svc.write_cache(payload=payload)
 
-    # Only proceed if adding to queue or running integrations
-    # TODO: will refactor into separate services for delegation.
-    # if add_to_queue or run_integrations:
-    #     # Add integration kwargs based on CLI args or defaults
-    #     for integration_name in (
-    #         mapped_integration_names or DEFAULT_INTEGRATION_KWARGS.keys()
-    #     ):
-    #         if integration_name in DEFAULT_INTEGRATION_KWARGS:
-    #             integration_kwargs = DEFAULT_INTEGRATION_KWARGS[integration_name].copy()
-    #             integration_kwargs.update(
-    #                 {
-    #                     "backfill_period": backfill_period,
-    #                     "backfill_duration": backfill_duration,
-    #                 }
-    #             )
-    #             payload["integration_kwargs"][integration_name] = integration_kwargs
-
-    #     if mapped_integration_names:
-    #         payload["integration"] = mapped_integration_names
-
-    #     # Call handler with constructed event
-    #     response = lambda_handler({"payload": payload}, None)
-    #     try:
-    #         click.echo(f"Backfill completed with status: {response['statusCode']}")
-    #     except Exception as e:
-    #         logger.error(f"Error: {e}")
-    #         logger.error(f"Response: {response}")
-
-    # Only write cache if explicitly requested
-    # if write_cache:
-    #     cache_response = write_cache_handler(
-    #         {
-    #             "payload": {
-    #                 "service": write_cache,
-    #                 "clear_queue": clear_queue,
-    #                 "bypass_write": bypass_write,
-    #             }
-    #         },
-    #         None,
-    #     )
-    #     click.echo(
-    #         f"Cache buffer write completed with status: {cache_response['statusCode']}"
-    #     )
-
 
 def manage_queue_clearing(
     integrations_to_clear: list[str],
