@@ -1,4 +1,4 @@
-from services.backfill.models import PostToEnqueueModel
+from services.backfill.models import PostScope, PostToEnqueueModel
 
 
 class BackfillDataLoaderService:
@@ -6,6 +6,7 @@ class BackfillDataLoaderService:
 
     def load_posts_to_enqueue(
         self,
+        post_scope: PostScope,
         integration_name: str,
         start_date: str | None = None,
         end_date: str | None = None,

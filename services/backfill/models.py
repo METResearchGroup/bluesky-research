@@ -8,6 +8,13 @@ class BackfillPeriod(Enum):
     HOURS = "hours"
 
 
+class PostScope(str, Enum):
+    """Scope for selecting posts to load."""
+
+    ALL_POSTS = "all_posts"  # all posts in the database
+    FEED_POSTS = "feed_posts"  # just posts used in feeds
+
+
 class EnqueueServicePayload(BaseModel):
     record_type: str
     integrations: list[str]
