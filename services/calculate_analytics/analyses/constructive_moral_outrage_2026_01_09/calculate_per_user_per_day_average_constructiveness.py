@@ -7,7 +7,7 @@ Input (in this directory):
     - bluesky_handle
     - condition
     - feed_generation_timestamp (format: %Y-%m-%d-%H:%M:%S)
-    - avg_prob_constructive (per-feed average over posts)
+    - prop_constructive_labeled (per-feed average over posts)
 
 Output (written in this directory):
 - per_user_per_day_average_constructiveness.csv
@@ -15,7 +15,7 @@ Output (written in this directory):
     - handle  (renamed from bluesky_handle)
     - condition
     - date    (partition date derived from feed_generation_timestamp)
-    - feed_average_constructiveness (mean of per-feed averages for that user+day)
+    - feed_proportion_constructive (mean of per-feed averages for that user+day)
 """
 
 from __future__ import annotations
@@ -28,15 +28,16 @@ from lib.datetime_utils import get_partition_dates
 from lib.helper import get_partition_date_from_timestamp
 
 BASE_DIR = os.path.dirname(__file__)
-INPUT_CSV = os.path.join(BASE_DIR, "per_feed_average_constructiveness.csv")
+INPUT_CSV = os.path.join(BASE_DIR, "per_feed_proportion_constructive_posts.csv")
 OUTPUT_CSV = os.path.join(
-    BASE_DIR, "constructiveness_only_daily_feed_content_aggregated_results_per_user.csv"
+    BASE_DIR,
+    "constructiveness_proportions_only_daily_feed_content_aggregated_results_per_user.csv",
 )
 REQUIRED_COLUMNS = [
     "bluesky_handle",
     "condition",
     "feed_generation_timestamp",
-    "avg_prob_constructive",
+    "prop_constructive_labeled",
     "date",
 ]
 
@@ -84,7 +85,7 @@ def aggregate_by_user_and_date(df: pd.DataFrame) -> pd.DataFrame:
         dropna=False,
     )
     aggregated: pd.DataFrame = grouped.agg(
-        feed_average_constructiveness=("avg_prob_constructive", "mean"),
+        feed_proportion_constructive=("prop_constructive_labeled", "mean"),
     )  # type: ignore
     return aggregated
 
