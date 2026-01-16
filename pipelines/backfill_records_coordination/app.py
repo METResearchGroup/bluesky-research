@@ -6,6 +6,7 @@ import click
 
 from lib.db.queue import Queue
 from lib.log.logger import get_logger
+from services.backfill.models import EnqueueServicePayload
 from services.backfill.services.enqueue_service import EnqueueService
 from services.backfill.services.integration_runner_service import (
     IntegrationRunnerService,
@@ -261,8 +262,16 @@ def backfill_records(
         "end_date": end_date,
     }
 
+    # TODO: add defaults for start_date and end_date, and
+    # then make sure that they're used here.
     if add_to_queue:
-        enqueue_service.enqueue_records(payload=payload)
+        enqueue_service_payload = EnqueueServicePayload(
+            record_type=str(record_type),
+            integrations=mapped_integration_names,
+            start_date=str(start_date),
+            end_date=str(end_date),
+        )
+        enqueue_service.enqueue_records(payload=enqueue_service_payload)
     if run_integrations:
         integration_runner_service.run_integrations(payload=payload)
     if write_cache:
