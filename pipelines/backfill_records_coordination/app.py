@@ -181,36 +181,7 @@ def backfill_records(
     _integration_runner_service: IntegrationRunnerService | None = None,
     _cache_buffer_writer_service: CacheBufferWriterService | None = None,
 ):
-    """CLI app for triggering backfill of records and optionally writing cache buffers.
-
-    Examples:
-        # Backfill all posts for all integrations
-        $ python -m pipelines.backfill_records_coordination.app -r posts
-
-        # Only queue posts for Perspective API, don't run integration
-        $ python -m pipelines.backfill_records_coordination.app -r posts -i p --no-run-integrations
-
-        # Run existing queued posts for multiple integrations without adding new ones
-        $ python -m pipelines.backfill_records_coordination.app -i p -i s --run-integrations
-
-        # Backfill posts for last 2 days with classification
-        $ python -m pipelines.backfill_records_coordination.app -r posts -p days -d 2
-
-        # Write cache buffer for all services
-        $ python -m pipelines.backfill_records_coordination.app --write-cache-buffer-to-storage --service-source-buffer all
-
-        # Write cache buffer for specific service
-        $ python -m pipelines.backfill_records_coordination.app --write-cache-buffer-to-storage --service-source-buffer ml_inference_perspective_api
-
-        # Backfill posts within a date range
-        $ python -m pipelines.backfill_records_coordination.app -r posts --start-date 2024-01-01 --end-date 2024-01-31
-
-        # Clear input queues for specific integrations
-        $ python -m pipelines.backfill_records_coordination.app -i p -i s --clear-input-queues
-
-        # Clear output queues for specific integrations
-        $ python -m pipelines.backfill_records_coordination.app -i p -i s --clear-output-queues
-    """
+    """CLI app for triggering backfill of records and optionally writing cache buffers."""
     mapped_integration_names: list[str] = _resolve_integration_names(integrations)
 
     # first, we clear out the queues (if the user requested it).
