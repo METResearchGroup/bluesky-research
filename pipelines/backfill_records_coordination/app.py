@@ -224,6 +224,9 @@ def backfill_records(
         # Clear output queues for specific integrations
         $ python -m pipelines.backfill_records_coordination.app -i p -i s --clear-output-queues
     """
+    # TODO: change name of 'integration' to 'integrations' since it can take
+    # multiple integrations...
+    integrations = integration
     # Handle queue clearing first if requested
     if clear_input_queues or clear_output_queues:
         # Determine which integrations to clear
@@ -270,7 +273,9 @@ def backfill_records(
 
     # Running integrations always requires explicit integrations (avoid accidental "run everything").
     if run_integrations and (not integration):
-        raise click.UsageError("--integration is required when --run-integrations is used")
+        raise click.UsageError(
+            "--integration is required when --run-integrations is used"
+        )
 
     # Validate that posts_used_in_feeds requires both start_date and end_date
     if record_type == "posts_used_in_feeds":
@@ -343,6 +348,95 @@ def backfill_records(
         click.echo(
             f"Cache buffer write completed with status: {cache_response['statusCode']}"
         )
+
+
+def manage_queue_clearing(
+    integrations: tuple[str, ...] | None,
+    clear_input_queues: bool,
+    clear_output_queues: bool,
+):
+    """Clears input/output queues for specified integrations.
+
+    Possible inputs:
+    - No -i/--integration passed → integration == () (empty tuple)
+    - One integration (e.g. -i p) → integration == ("p",) (1-tuple)
+    - Many integrations (e.g. -i p -i s) → integration == ("p", "s")
+
+    Returns: None. Clears queues inplace.
+    """
+    integrations_to_clear: list[str] = _determine_integrations_to_clear(integrations)
+
+    _validate_clear_queues(
+        clear_input_queues=clear_input_queues,
+        clear_output_queues=clear_output_queues,
+        integrations_to_clear=integrations_to_clear,
+    )
+
+    _clear_queues(
+        integrations_to_clear=integrations_to_clear,
+        clear_input_queues=clear_input_queues,
+        clear_output_queues=clear_output_queues,
+    )
+
+
+def _determine_integrations_to_clear(
+    integration: tuple[str, ...] | None,
+) -> list[str]:
+    if integration is None or len(integration) == 0:
+        return list(DEFAULT_INTEGRATION_KWARGS.keys())
+    return [resolve_integration(i) for i in integration]
+
+
+def _validate_clear_queues(
+    clear_input_queues: bool,
+    clear_output_queues: bool,
+    integrations_to_clear: list[str],
+):
+    queue_type = (
+        "input" if clear_input_queues else "output" if clear_output_queues else None
+    )
+    if queue_type is None:
+        raise ValueError(
+            "Either --clear-input-queues or --clear-output-queues must be True"
+        )
+    integrations_str = ", ".join(integrations_to_clear)
+    if not click.confirm(
+        f"Are you sure you want to clear all {queue_type} queues for these integrations: {integrations_str}?"
+    ):
+        raise click.UsageError("Operation cancelled.")
+
+
+def _clear_queues(
+    integrations_to_clear: list[str],
+    clear_input_queues: bool,
+    clear_output_queues: bool,
+):
+    for integration_name in integrations_to_clear:
+        if clear_input_queues:
+            _clear_input_queue(integration_name=integration_name)
+        if clear_output_queues:
+            _clear_output_queue(integration_name=integration_name)
+
+
+def _clear_input_queue(integration_name: str):
+    queue_name = f"input_{integration_name}"
+    deleted_count = _clear_single_queue(queue_name)
+    logger.info(f"Cleared {deleted_count} items from {queue_name}")
+
+
+def _clear_output_queue(integration_name: str):
+    logger.warning(f"Clearing output queue for {integration_name}...")
+    queue_name = f"output_{integration_name}"
+    deleted_count = _clear_single_queue(queue_name)
+    logger.info(f"Cleared {deleted_count} items from {queue_name}")
+
+
+def _clear_single_queue(queue_name: str) -> int:
+    logger.warning(f"Clearing {queue_name}...")
+    queue = Queue(queue_name=queue_name, create_new_queue=True)
+    deleted_count = queue.clear_queue()
+    logger.info(f"Cleared {deleted_count} items from {queue_name}")
+    return deleted_count
 
 
 if __name__ == "__main__":
