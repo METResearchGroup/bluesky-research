@@ -15,7 +15,9 @@ from services.backfill.services.enqueue_service import EnqueueService
 from services.backfill.services.integration_runner_service import (
     IntegrationRunnerService,
 )
-from services.backfill.services.cache_flusher_service import CacheFlusherService
+from services.backfill.services.cache_buffer_writer_service import (
+    CacheBufferWriterService,
+)
 
 logger = get_logger(__name__)
 
@@ -35,7 +37,7 @@ DEFAULT_INTEGRATION_KWARGS = {
 
 enqueue_service = EnqueueService()
 integration_runner_service = IntegrationRunnerService()
-cache_flusher_service = CacheFlusherService()
+cache_buffer_writer_service = CacheBufferWriterService()
 
 
 def validate_date_format(ctx, param, value):
@@ -272,7 +274,7 @@ def backfill_records(
             payloads=integration_runner_configuration_payloads
         )
     if write_cache:
-        cache_flusher_service.write_cache(payload=payload)
+        cache_buffer_writer_service.write_cache(payload=payload)
 
     # Only proceed if adding to queue or running integrations
     # TODO: will refactor into separate services for delegation.
