@@ -252,28 +252,10 @@ def backfill_records(
         )
         enqueue_svc.enqueue_records(payload=enqueue_service_payload)
     if run_integrations:
-        integration_backfill_period: str = (
-            DEFAULT_INTEGRATION_KWARGS["backfill_period"]
-            if backfill_period is None
-            else backfill_period
-        )
-        integration_backfill_duration: int | None = (
-            DEFAULT_INTEGRATION_KWARGS["backfill_duration"]
-            if backfill_duration is None
-            else backfill_duration
-        )
-        integration_configs: list[IntegrationRunnerConfigurationPayload] = [
-            IntegrationRunnerConfigurationPayload(
-                integration_name=integration_name,
-                backfill_period=BackfillPeriod(integration_backfill_period),
-                backfill_duration=integration_backfill_duration,
-            )
-            for integration_name in mapped_integration_names
-        ]
-        integration_runner_service_payload: IntegrationRunnerServicePayload = (
-            IntegrationRunnerServicePayload(
-                integration_configs=integration_configs,
-            )
+        integration_runner_service_payload = _create_integration_runner_payload(
+            mapped_integration_names=mapped_integration_names,
+            backfill_period=backfill_period,
+            backfill_duration=backfill_duration,
         )
         integration_runner_svc.run_integrations(
             payload=integration_runner_service_payload
@@ -311,6 +293,44 @@ def manage_queue_clearing(
         integrations_to_clear=integrations_to_clear,
         clear_input_queues=clear_input_queues,
         clear_output_queues=clear_output_queues,
+    )
+
+
+def _create_integration_runner_payload(
+    mapped_integration_names: list[str],
+    backfill_period: str | None,
+    backfill_duration: int | None,
+) -> IntegrationRunnerServicePayload:
+    """Creates an IntegrationRunnerServicePayload from integration names and backfill parameters.
+
+    Args:
+        mapped_integration_names: List of integration names to run
+        backfill_period: Backfill period (days or hours), or None to use default
+        backfill_duration: Backfill duration, or None to use default
+
+    Returns:
+        IntegrationRunnerServicePayload configured with the provided parameters
+    """
+    integration_backfill_period: str = (
+        DEFAULT_INTEGRATION_KWARGS["backfill_period"]
+        if backfill_period is None
+        else backfill_period
+    )
+    integration_backfill_duration: int | None = (
+        DEFAULT_INTEGRATION_KWARGS["backfill_duration"]
+        if backfill_duration is None
+        else backfill_duration
+    )
+    integration_configs: list[IntegrationRunnerConfigurationPayload] = [
+        IntegrationRunnerConfigurationPayload(
+            integration_name=integration_name,
+            backfill_period=BackfillPeriod(integration_backfill_period),
+            backfill_duration=integration_backfill_duration,
+        )
+        for integration_name in mapped_integration_names
+    ]
+    return IntegrationRunnerServicePayload(
+        integration_configs=integration_configs,
     )
 
 
