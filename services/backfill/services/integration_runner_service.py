@@ -1,5 +1,6 @@
 from lib.log.logger import get_logger
 from services.backfill.models import IntegrationRunnerConfigurationPayload
+from services.backfill.exceptions import IntegrationRunnerServiceError
 
 logger = get_logger(__name__)
 
@@ -13,13 +14,15 @@ class IntegrationRunnerService:
             )
             try:
                 self._run_single_integration(integration_config_payload)
-            # TODO: add custom exception handling here.
             except Exception as e:
                 logger.error(
                     f"Error running integration {i+1} of {len(payloads)}: {integration_config_payload.integration_name} - {e}"
                 )
-                raise e
-        logger.info("Integrations completed.")
+                raise IntegrationRunnerServiceError(
+                    f"Error running integration {i+1} of {len(payloads)}: {integration_config_payload.integration_name} - {e}"
+                )
+            logger.info("Integrations completed.")
+        logger.info("Integrations completed successfully.")
 
     def _run_single_integration(self, payload: IntegrationRunnerConfigurationPayload):
         pass
