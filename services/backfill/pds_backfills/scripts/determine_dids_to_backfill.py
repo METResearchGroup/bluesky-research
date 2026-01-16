@@ -21,8 +21,10 @@ from lib.log.logger import get_logger
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.db.queue import Queue
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
-from services.backfill.sync.constants import input_queue_name
-from services.backfill.sync.session_metadata import load_latest_backfilled_users
+from services.backfill.pds_backfills.core.constants import input_queue_name
+from services.backfill.pds_backfills.storage.session_metadata import (
+    load_latest_backfilled_users,
+)
 from transform.transform_raw_data import get_author_did_from_post_uri
 
 logger = get_logger(__name__)

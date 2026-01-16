@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from services.backfill.core.validate import (
+from services.backfill.pds_backfills.core.validate import (
     validate_is_valid_generic_bluesky_type,
     validate_time_range_record,
     filter_only_valid_bsky_records,

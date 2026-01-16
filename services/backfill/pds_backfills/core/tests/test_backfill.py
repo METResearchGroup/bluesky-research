@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch, MagicMock, call
 
-from services.backfill.core.backfill import (
+from services.backfill.pds_backfills.core.backfill import (
     get_plc_directory_doc, get_bsky_records_for_user
 )
 
