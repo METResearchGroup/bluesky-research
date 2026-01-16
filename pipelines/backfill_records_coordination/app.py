@@ -102,7 +102,13 @@ def validate_date_format(ctx, param, value):
     help="Duration of backfill period",
 )
 @click.option(
-    "--write-cache",
+    "--write-cache-buffer-to-storage",
+    is_flag=True,
+    default=False,
+    help="Write cache buffer to persistent storage. Requires --service-source-buffer to specify which service.",
+)
+@click.option(
+    "--service-source-buffer",
     type=click.Choice(
         [
             "all",
@@ -115,19 +121,19 @@ def validate_date_format(ctx, param, value):
         ]
     ),
     default=None,
-    help="Write cache buffer for specified service to database. Use 'all' to write all services.",
+    help="Service whose cache buffer to write to storage. Use 'all' to write all services. Only used with --write-cache-buffer-to-storage.",
 )
 @click.option(
     "--clear-queue",
     is_flag=True,
     default=False,
-    help="Clear the queue after writing cache buffer. Only used with --write-cache.",
+    help="Clear the queue after writing cache buffer. Only used with --write-cache-buffer-to-storage.",
 )
 @click.option(
     "--bypass-write",
     is_flag=True,
     default=False,
-    help="Skip writing to DB and only clear cache. Only valid with --write-cache and --clear-queue.",
+    help="Skip writing to DB and only clear cache. Only valid with --write-cache-buffer-to-storage and --clear-queue.",
 )
 @click.option(
     "--start-date",
@@ -162,7 +168,8 @@ def backfill_records(
     integrations: tuple[str, ...],
     backfill_period: str | None,
     backfill_duration: int | None,
-    write_cache: str | None,
+    write_cache_buffer_to_storage: bool,
+    service_source_buffer: str | None,
     clear_queue: bool,
     bypass_write: bool,
     start_date: str | None,
@@ -189,10 +196,10 @@ def backfill_records(
         $ python -m pipelines.backfill_records_coordination.app -r posts -p days -d 2
 
         # Write cache buffer for all services
-        $ python -m pipelines.backfill_records_coordination.app --write-cache all
+        $ python -m pipelines.backfill_records_coordination.app --write-cache-buffer-to-storage --service-source-buffer all
 
         # Write cache buffer for specific service
-        $ python -m pipelines.backfill_records_coordination.app --write-cache ml_inference_perspective_api
+        $ python -m pipelines.backfill_records_coordination.app --write-cache-buffer-to-storage --service-source-buffer ml_inference_perspective_api
 
         # Backfill posts within a date range
         $ python -m pipelines.backfill_records_coordination.app -r posts --start-date 2024-01-01 --end-date 2024-01-31
@@ -225,22 +232,13 @@ def backfill_records(
         record_type=record_type,
         run_integrations=run_integrations,
         integrations=integrations,
-        write_cache=write_cache,
+        write_cache_buffer_to_storage=write_cache_buffer_to_storage,
+        service_source_buffer=service_source_buffer,
         clear_queue=clear_queue,
         bypass_write=bypass_write,
         start_date=start_date,
         end_date=end_date,
     )
-
-    # Construct payload matching the format expected by backfill_records
-    payload = {
-        "record_type": record_type,
-        "add_posts_to_queue": add_to_queue,
-        "run_integrations": run_integrations,
-        "integration_kwargs": {},
-        "start_date": start_date,
-        "end_date": end_date,
-    }
 
     # TODO: add defaults for start_date and end_date, and
     # then make sure that they're used here.
@@ -276,8 +274,17 @@ def backfill_records(
         integration_runner_svc.run_integrations(
             payloads=integration_runner_configuration_payloads
         )
-    if write_cache:
-        cache_buffer_writer_svc.write_cache(payload=payload)
+    if write_cache_buffer_to_storage:
+        cache_buffer_payload = {
+            "service": service_source_buffer,
+            "clear_queue": clear_queue,
+            "bypass_write": bypass_write,
+        }
+        cache_buffer_writer_svc.write_cache(payload=cache_buffer_payload)
+
+        # TODO: trigger the clear output queue here, not within the cache
+        # buffer writer. Let's have the writer do ONLY writing, and let's make
+        # it clear to callers that we're clearing the output queues.
 
 
 def manage_queue_clearing(
@@ -373,7 +380,8 @@ def run_validation_checks(
     record_type: str | None,
     run_integrations: bool,
     integrations: tuple[str, ...],
-    write_cache: str | None,
+    write_cache_buffer_to_storage: bool,
+    service_source_buffer: str | None,
     clear_queue: bool,
     bypass_write: bool,
     start_date: str | None,
@@ -397,10 +405,16 @@ def run_validation_checks(
                 "Both --start-date and --end-date are required when record_type is 'posts_used_in_feeds'"
             )
 
-    # Validate bypass_write usage
-    if bypass_write and not (write_cache and clear_queue):
+    # Validate write_cache_buffer_to_storage usage
+    if write_cache_buffer_to_storage and not service_source_buffer:
         raise click.UsageError(
-            "--bypass-write requires --write-cache and --clear-queue"
+            "--service-source-buffer is required when --write-cache-buffer-to-storage is used"
+        )
+
+    # Validate bypass_write usage
+    if bypass_write and not (write_cache_buffer_to_storage and clear_queue):
+        raise click.UsageError(
+            "--bypass-write requires --write-cache-buffer-to-storage and --clear-queue"
         )
 
 

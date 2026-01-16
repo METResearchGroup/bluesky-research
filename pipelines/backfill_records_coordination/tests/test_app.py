@@ -222,124 +222,120 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
         mock_handler.assert_not_called()
 
-    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
-    @patch('pipelines.backfill_records_coordination.app.write_cache_handler')
-    def test_write_cache_all_services(self, mock_write_cache, mock_handler):
-        """Test writing cache for all services."""
-        mock_write_cache.return_value = {"statusCode": 200}
+    @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
+    def test_write_cache_buffer_to_storage_all_services(self, mock_service_cls):
+        """Test writing cache buffer for all services."""
+        mock_service = MagicMock()
+        mock_service_cls.return_value = mock_service
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache', 'all']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all']
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_write_cache.assert_called_once_with(
-            {"payload": {
+        mock_service.write_cache.assert_called_once_with(
+            payload={
                 "service": "all", 
                 "clear_queue": False,
                 "bypass_write": False
-            }},
-            None
+            }
         )
 
-    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
-    @patch('pipelines.backfill_records_coordination.app.write_cache_handler')
-    def test_write_cache_specific_service(self, mock_write_cache, mock_handler):
-        """Test writing cache for a specific service."""
-        mock_write_cache.return_value = {"statusCode": 200}
+    @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
+    def test_write_cache_buffer_to_storage_specific_service(self, mock_service_cls):
+        """Test writing cache buffer for a specific service."""
+        mock_service = MagicMock()
+        mock_service_cls.return_value = mock_service
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache', 'ml_inference_perspective_api']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api']
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_write_cache.assert_called_once_with(
-            {"payload": {
+        mock_service.write_cache.assert_called_once_with(
+            payload={
                 "service": "ml_inference_perspective_api", 
                 "clear_queue": False,
                 "bypass_write": False
-            }},
-            None
+            }
         )
 
-    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
-    @patch('pipelines.backfill_records_coordination.app.write_cache_handler')
-    def test_write_cache_with_clear_queue(self, mock_write_cache, mock_handler):
-        """Test writing cache with clear_queue flag."""
-        mock_handler.return_value = {"statusCode": 200}
-        mock_write_cache.return_value = {"statusCode": 200}
+    @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
+    def test_write_cache_buffer_to_storage_with_clear_queue(self, mock_service_cls):
+        """Test writing cache buffer with clear_queue flag."""
+        mock_service = MagicMock()
+        mock_service_cls.return_value = mock_service
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache', 'all', '--clear-queue']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all', '--clear-queue']
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_write_cache.assert_called_once_with(
-            {"payload": {
+        mock_service.write_cache.assert_called_once_with(
+            payload={
                 "service": "all", 
                 "clear_queue": True,
                 "bypass_write": False
-            }},
-            None
+            }
         )
         
-    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
-    @patch('pipelines.backfill_records_coordination.app.write_cache_handler')
-    def test_write_cache_with_bypass_write_requires_clear_queue(self, mock_write_cache, mock_handler):
+    @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
+    def test_write_cache_buffer_to_storage_with_bypass_write_requires_clear_queue(self, mock_service_cls):
         """Test that bypass_write can only be used with clear_queue."""
+        mock_service = MagicMock()
+        mock_service_cls.return_value = mock_service
+        
         # Test without clear_queue
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache', 'all', '--bypass-write']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all', '--bypass-write']
         )
         
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("--bypass-write requires --write-cache and --clear-queue", result.output)
-        mock_write_cache.assert_not_called()
+        self.assertIn("--bypass-write requires --write-cache-buffer-to-storage and --clear-queue", result.output)
+        mock_service.write_cache.assert_not_called()
 
-    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
-    @patch('pipelines.backfill_records_coordination.app.write_cache_handler')
-    def test_write_cache_with_bypass_write_and_clear_queue(self, mock_write_cache, mock_handler):
-        """Test writing cache with bypass_write and clear_queue flags."""
-        mock_write_cache.return_value = {"statusCode": 200}
+    @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
+    def test_write_cache_buffer_to_storage_with_bypass_write_and_clear_queue(self, mock_service_cls):
+        """Test writing cache buffer with bypass_write and clear_queue flags."""
+        mock_service = MagicMock()
+        mock_service_cls.return_value = mock_service
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache', 'all', '--clear-queue', '--bypass-write']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all', '--clear-queue', '--bypass-write']
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_write_cache.assert_called_once_with(
-            {"payload": {
+        mock_service.write_cache.assert_called_once_with(
+            payload={
                 "service": "all", 
                 "clear_queue": True,
                 "bypass_write": True
-            }},
-            None
+            }
         )
 
-    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
-    @patch('pipelines.backfill_records_coordination.app.write_cache_handler')
-    def test_write_cache_with_clear_queue_no_bypass(self, mock_write_cache, mock_handler):
-        """Test writing cache with clear_queue but no bypass_write."""
-        mock_write_cache.return_value = {"statusCode": 200}
+    @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
+    def test_write_cache_buffer_to_storage_with_clear_queue_no_bypass(self, mock_service_cls):
+        """Test writing cache buffer with clear_queue but no bypass_write."""
+        mock_service = MagicMock()
+        mock_service_cls.return_value = mock_service
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache', 'all', '--clear-queue']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all', '--clear-queue']
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_write_cache.assert_called_once_with(
-            {"payload": {
+        mock_service.write_cache.assert_called_once_with(
+            payload={
                 "service": "all", 
                 "clear_queue": True,
                 "bypass_write": False
-            }},
-            None
+            }
         )
 
     def test_invalid_record_type(self):
@@ -496,39 +492,42 @@ class TestBackfillCoordinationCliApp(TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("Both --start-date and --end-date are required", result.output)
 
-    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
-    @patch('pipelines.backfill_records_coordination.app.write_cache_handler')
-    def test_write_cache_only_no_backfill(self, mock_write_cache, mock_handler):
-        """Test that write_cache alone doesn't trigger backfill."""
-        mock_write_cache.return_value = {"statusCode": 200}
+    @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
+    def test_write_cache_buffer_to_storage_only_no_backfill(self, mock_service_cls):
+        """Test that write_cache_buffer_to_storage alone doesn't trigger backfill."""
+        mock_service = MagicMock()
+        mock_service_cls.return_value = mock_service
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache', 'all']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all']
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_handler.assert_not_called()
-        mock_write_cache.assert_called_once_with(
-            {"payload": {
+        mock_service.write_cache.assert_called_once_with(
+            payload={
                 "service": "all", 
                 "clear_queue": False,
                 "bypass_write": False
-            }},
-            None
+            }
         )
 
-    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
-    @patch('pipelines.backfill_records_coordination.app.write_cache_handler')
-    def test_write_cache_with_backfill(self, mock_write_cache, mock_handler):
-        """Test write_cache combined with backfill operations."""
-        mock_handler.return_value = {"statusCode": 200}
-        mock_write_cache.return_value = {"statusCode": 200}
+    @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
+    @patch('pipelines.backfill_records_coordination.app.EnqueueService')
+    @patch('pipelines.backfill_records_coordination.app.IntegrationRunnerService')
+    def test_write_cache_buffer_to_storage_with_backfill(self, mock_integration_runner_cls, mock_enqueue_cls, mock_cache_writer_cls):
+        """Test write_cache_buffer_to_storage combined with backfill operations."""
+        mock_cache_writer = MagicMock()
+        mock_cache_writer_cls.return_value = mock_cache_writer
+        mock_enqueue = MagicMock()
+        mock_enqueue_cls.return_value = mock_enqueue
+        mock_integration_runner = MagicMock()
+        mock_integration_runner_cls.return_value = mock_integration_runner
 
         result = self.runner.invoke(
             backfill_records,
             [
-                '--write-cache', 'all',
+                '--write-cache-buffer-to-storage', '--service-source-buffer', 'all',
                 '--record-type', 'posts',
                 '-i', 'p',
                 '--add-to-queue',
@@ -537,24 +536,27 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
 
         self.assertEqual(result.exit_code, 0)
-        # Verify both handlers were called
-        mock_handler.assert_called_once()
-        mock_write_cache.assert_called_once_with(
-            {"payload": {
+        # Verify services were called
+        mock_enqueue.enqueue_records.assert_called_once()
+        mock_integration_runner.run_integrations.assert_called_once()
+        mock_cache_writer.write_cache.assert_called_once_with(
+            payload={
                 "service": "all", 
                 "clear_queue": False,
                 "bypass_write": False
-            }},
-            None
+            }
         )
 
-    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
-    def test_no_operations_specified(self, mock_handler):
-        """Test that no operations (no backfill or write_cache) results in no handler calls."""
+    @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
+    def test_no_operations_specified(self, mock_service_cls):
+        """Test that no operations (no backfill or write_cache_buffer_to_storage) results in no service calls."""
+        mock_service = MagicMock()
+        mock_service_cls.return_value = mock_service
+        
         result = self.runner.invoke(backfill_records, [])
         
         self.assertEqual(result.exit_code, 0)
-        mock_handler.assert_not_called()
+        mock_service.write_cache.assert_not_called()
 
     @patch('pipelines.backfill_records_coordination.app.Queue')
     def test_clear_input_queues_with_confirmation(self, mock_queue_cls):
@@ -700,3 +702,31 @@ class TestBackfillCoordinationCliApp(TestCase):
         mock_queue.clear_queue.assert_called_once()
         # Verify other operations were also performed
         mock_handler.assert_called_once()
+
+    def test_write_cache_buffer_to_storage_requires_service_source_buffer(self):
+        """Test that --write-cache-buffer-to-storage requires --service-source-buffer."""
+        result = self.runner.invoke(
+            backfill_records,
+            ['--write-cache-buffer-to-storage']
+        )
+        
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn(
+            "--service-source-buffer is required when --write-cache-buffer-to-storage is used",
+            result.output
+        )
+
+    @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
+    def test_service_source_buffer_without_write_flag(self, mock_service_cls):
+        """Test that --service-source-buffer without --write-cache-buffer-to-storage is ignored."""
+        mock_service = MagicMock()
+        mock_service_cls.return_value = mock_service
+        
+        result = self.runner.invoke(
+            backfill_records,
+            ['--service-source-buffer', 'all']
+        )
+        
+        # Should succeed but not write cache (no error, just no action)
+        self.assertEqual(result.exit_code, 0)
+        mock_service.write_cache.assert_not_called()
