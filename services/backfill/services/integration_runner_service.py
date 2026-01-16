@@ -27,7 +27,7 @@ class IntegrationRunnerService:
                 )
                 raise IntegrationRunnerServiceError(
                     f"Error running integration {i+1} of {total_integrations}: {integration_config_payload.integration_name} - {e}"
-                )
+                ) from e
         logger.info(
             f"Integrations completed successfully: {','.join(integration_names)}"
         )

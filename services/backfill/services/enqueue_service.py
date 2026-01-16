@@ -20,7 +20,7 @@ class EnqueueService:
                 raise ValueError(f"Invalid record type: {payload.record_type}")
         except Exception as e:
             logger.error(f"Error enqueuing records: {e}")
-            raise EnqueueServiceError(f"Error enqueuing records: {e}")
+            raise EnqueueServiceError(f"Error enqueuing records: {e}") from e
         logger.info("Records enqueued successfully.")
 
     def _enqueue_posts(self, payload: EnqueueServicePayload):
