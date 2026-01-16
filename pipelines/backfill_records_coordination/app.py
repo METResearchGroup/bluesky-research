@@ -227,68 +227,24 @@ def backfill_records(
     # TODO: change name of 'integration' to 'integrations' since it can take
     # multiple integrations...
     integrations = integration
-    # Handle queue clearing first if requested
-    if clear_input_queues or clear_output_queues:
-        # Determine which integrations to clear
-        integrations_to_clear = (
-            [resolve_integration(i) for i in integration]
-            if integration
-            else DEFAULT_INTEGRATION_KWARGS.keys()
-        )
 
-        # Ask for confirmation
-        queue_type = "input" if clear_input_queues else "output"
-        integrations_str = ", ".join(integrations_to_clear)
-        if not click.confirm(
-            f"Are you sure you want to clear all {queue_type} queues for these integrations: {integrations_str}?"
-        ):
-            click.echo("Operation cancelled.")
-            return
+    manage_queue_clearing(
+        integrations=integrations,
+        clear_input_queues=clear_input_queues,
+        clear_output_queues=clear_output_queues,
+    )
 
-        # Clear the queues
-        for integration_name in integrations_to_clear:
-            if clear_input_queues:
-                logger.warning(f"Clearing input queue for {integration_name}...")
-                queue = Queue(
-                    queue_name=f"input_{integration_name}", create_new_queue=True
-                )
-                deleted_count = queue.clear_queue()
-                logger.info(
-                    f"Cleared {deleted_count} items from input queue for {integration_name}"
-                )
-
-            if clear_output_queues:
-                logger.warning(f"Clearing output queue for {integration_name}...")
-                queue = Queue(
-                    queue_name=f"output_{integration_name}", create_new_queue=True
-                )
-                deleted_count = queue.clear_queue()
-                logger.info(
-                    f"Cleared {deleted_count} items from output queue for {integration_name}"
-                )
-
-    # Validate that record_type is provided when add_to_queue is True
-    if add_to_queue and not record_type:
-        raise click.UsageError("--record-type is required when --add-to-queue is used")
-
-    # Running integrations always requires explicit integrations (avoid accidental "run everything").
-    if run_integrations and (not integration):
-        raise click.UsageError(
-            "--integration is required when --run-integrations is used"
-        )
-
-    # Validate that posts_used_in_feeds requires both start_date and end_date
-    if record_type == "posts_used_in_feeds":
-        if not (start_date and end_date):
-            raise click.UsageError(
-                "Both --start-date and --end-date are required when record_type is 'posts_used_in_feeds'"
-            )
-
-    # Validate bypass_write usage
-    if bypass_write and not (write_cache and clear_queue):
-        raise click.UsageError(
-            "--bypass-write requires --write-cache and --clear-queue"
-        )
+    run_validation_checks(
+        add_to_queue=add_to_queue,
+        record_type=record_type,
+        run_integrations=run_integrations,
+        integration=integration,
+        write_cache=write_cache,
+        clear_queue=clear_queue,
+        bypass_write=bypass_write,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     # Convert integrations from abbreviations if needed
     resolved_integrations = (
@@ -364,6 +320,10 @@ def manage_queue_clearing(
 
     Returns: None. Clears queues inplace.
     """
+    if not clear_input_queues and not clear_output_queues:
+        logger.info("Not clearing any queues.")
+        return
+
     integrations_to_clear: list[str] = _determine_integrations_to_clear(integrations)
 
     _validate_clear_queues(
@@ -437,6 +397,42 @@ def _clear_single_queue(queue_name: str) -> int:
     deleted_count = queue.clear_queue()
     logger.info(f"Cleared {deleted_count} items from {queue_name}")
     return deleted_count
+
+
+def run_validation_checks(
+    add_to_queue: bool,
+    record_type: str | None,
+    run_integrations: bool,
+    integration: tuple[str, ...],
+    write_cache: str | None,
+    clear_queue: bool,
+    bypass_write: bool,
+    start_date: str | None,
+    end_date: str | None,
+):
+    """Validates CLI arguments and raises click.UsageError if invalid."""
+    # Validate that record_type is provided when add_to_queue is True
+    if add_to_queue and not record_type:
+        raise click.UsageError("--record-type is required when --add-to-queue is used")
+
+    # Running integrations always requires explicit integrations (avoid accidental "run everything").
+    if run_integrations and (not integration):
+        raise click.UsageError(
+            "--integration is required when --run-integrations is used"
+        )
+
+    # Validate that posts_used_in_feeds requires both start_date and end_date
+    if record_type == "posts_used_in_feeds":
+        if not (start_date and end_date):
+            raise click.UsageError(
+                "Both --start-date and --end-date are required when record_type is 'posts_used_in_feeds'"
+            )
+
+    # Validate bypass_write usage
+    if bypass_write and not (write_cache and clear_queue):
+        raise click.UsageError(
+            "--bypass-write requires --write-cache and --clear-queue"
+        )
 
 
 if __name__ == "__main__":
