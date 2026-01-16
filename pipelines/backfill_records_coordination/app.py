@@ -392,11 +392,11 @@ def run_validation_checks(
             "--integrations is required when --run-integrations is used"
         )
 
-    # Validate that posts_used_in_feeds requires both start_date and end_date
-    if record_type == "posts_used_in_feeds":
+    # Validate that add_to_queue requires both start_date and end_date
+    if add_to_queue:
         if not (start_date and end_date):
             raise click.UsageError(
-                "Both --start-date and --end-date are required when record_type is 'posts_used_in_feeds'"
+                "Both --start-date and --end-date are required when --add-to-queue is used"
             )
 
     # Validate write_cache_buffer_to_storage usage
