@@ -22,7 +22,7 @@ from services.backfill.services.cache_buffer_writer_service import (
 
 logger = get_logger(__name__)
 
-INTEGRATION_MAP = {
+INTEGRATION_ABBREVIATION_TO_NAME_MAP = {
     "p": "ml_inference_perspective_api",
     "s": "ml_inference_sociopolitical",
     "i": "ml_inference_ime",
@@ -335,8 +335,8 @@ def _create_integration_runner_payload(
 
 def _resolve_single_integration(integration: str) -> str:
     """Resolves integration abbreviation to full name if needed."""
-    if integration in INTEGRATION_MAP:
-        return INTEGRATION_MAP[integration]
+    if integration in INTEGRATION_ABBREVIATION_TO_NAME_MAP:
+        return INTEGRATION_ABBREVIATION_TO_NAME_MAP[integration]
     return integration
 
 
