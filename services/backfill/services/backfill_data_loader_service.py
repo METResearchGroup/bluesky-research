@@ -3,9 +3,6 @@ from services.backfill.repositories.adapters import LocalStorageAdapter
 from services.backfill.repositories.repository import BackfillDataRepository
 
 DEFAULT_POST_ID_FIELD = "uri"
-DEFAULT_FEED_LOOKBACK_DAYS = (
-    4  # TODO: consolidate with rank_score_feeds to get the correct lookback window.
-)
 
 
 class BackfillDataLoaderService:

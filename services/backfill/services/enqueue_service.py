@@ -20,12 +20,15 @@ class EnqueueService:
         self.backfill_data_loader_service = BackfillDataLoaderService()
         self.queue_manager_service = QueueManagerService()
 
-    def enqueue_records(self, payload: EnqueueServicePayload):
+    def enqueue_records(self, payload: EnqueueServicePayload) -> None:
         try:
             self._validate_payload(payload=payload)
             post_scope = PostScope(payload.record_type)
-            for integration_name in payload.integrations:
-                logger.info(f"Enqueuing records for integration: {integration_name}")
+            total_integrations: int = len(payload.integrations)
+            for i, integration_name in enumerate(payload.integrations):
+                logger.info(
+                    f"[Progress: {i+1}/{total_integrations}] Enqueuing records for integration: {integration_name}"
+                )
                 self._enqueue_records_for_single_integration(
                     integration_name=integration_name,
                     post_scope=post_scope,
@@ -33,9 +36,11 @@ class EnqueueService:
                     end_date=payload.end_date,
                 )
                 logger.info(
-                    f"Completed enqueuing records for integration: {integration_name}"
+                    f"[Progress: {i+1}/{total_integrations}] Completed enqueuing records for integration: {integration_name}"
                 )
-            logger.info("Enqueuing records completed successfully.")
+            logger.info(
+                f"[Progress: {total_integrations}/{total_integrations}] Enqueuing records completed successfully."
+            )
         except Exception as e:
             logger.error(f"Error enqueuing records: {e}")
             raise EnqueueServiceError(f"Error enqueuing records: {e}") from e
@@ -48,29 +53,17 @@ class EnqueueService:
         end_date: str,
     ) -> None:
         """Enqueue records for a single integration."""
-        posts: list[PostToEnqueueModel] = self._load_posts_to_enqueue(
-            integration_name=integration_name,
-            post_scope=post_scope,
-            start_date=start_date,
-            end_date=end_date,
+        posts: list[PostToEnqueueModel] = (
+            self.backfill_data_loader_service.load_posts_to_enqueue(
+                integration_name=integration_name,
+                post_scope=post_scope,
+                start_date=start_date,
+                end_date=end_date,
+            )
         )
         self.queue_manager_service.insert_posts_to_queue(
             integration_name=integration_name,
             posts=posts,
-        )
-
-    def _load_posts_to_enqueue(
-        self,
-        integration_name: str,
-        post_scope: PostScope,
-        start_date: str,
-        end_date: str,
-    ) -> list[PostToEnqueueModel]:
-        return self.backfill_data_loader_service.load_posts_to_enqueue(
-            integration_name=integration_name,
-            post_scope=post_scope,
-            start_date=start_date,
-            end_date=end_date,
         )
 
     def _validate_payload(self, payload: EnqueueServicePayload) -> None:
