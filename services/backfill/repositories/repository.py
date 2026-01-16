@@ -42,6 +42,20 @@ class BackfillDataRepository:
         """
         return self.adapter.load_all_posts(start_date=start_date, end_date=end_date)
 
+    def load_feed_posts(
+        self, start_date: str, end_date: str
+    ) -> list[PostToEnqueueModel]:
+        """Load feed posts using the configured adapter.
+
+        Args:
+            start_date: Start date in YYYY-MM-DD format (inclusive)
+            end_date: End date in YYYY-MM-DD format (inclusive)
+
+        Returns:
+            list[PostToEnqueueModel]: List of posts.
+        """
+        return self.adapter.load_feed_posts(start_date=start_date, end_date=end_date)
+
     def get_previously_labeled_post_uris(
         self,
         service: str,

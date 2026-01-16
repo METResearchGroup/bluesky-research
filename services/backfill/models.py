@@ -38,3 +38,9 @@ class PostToEnqueueModel(BaseModel):
     uri: str
     text: str
     preprocessing_timestamp: str
+
+
+class PostUsedInFeedModel(BaseModel):
+    """A bare-bones model for a post used in a feed."""
+
+    uri: str

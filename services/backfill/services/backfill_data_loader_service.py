@@ -3,6 +3,9 @@ from services.backfill.repositories.adapters import LocalStorageAdapter
 from services.backfill.repositories.repository import BackfillDataRepository
 
 DEFAULT_POST_ID_FIELD = "uri"
+DEFAULT_FEED_LOOKBACK_DAYS = (
+    4  # TODO: consolidate with rank_score_feeds to get the correct lookback window.
+)
 
 
 class BackfillDataLoaderService:
@@ -49,7 +52,7 @@ class BackfillDataLoaderService:
         if post_scope == PostScope.ALL_POSTS:
             return self._load_all_posts(start_date=start_date, end_date=end_date)
         elif post_scope == PostScope.FEED_POSTS:
-            return self._load_feed_posts()
+            return self._load_feed_posts(start_date=start_date, end_date=end_date)
         else:
             raise ValueError(f"Invalid post scope: {post_scope}") from ValueError(
                 f"Invalid post scope: {post_scope}"
@@ -63,8 +66,15 @@ class BackfillDataLoaderService:
             end_date=end_date,
         )
 
-    def _load_feed_posts(self) -> list[PostToEnqueueModel]:
-        return []
+    def _load_feed_posts(
+        self,
+        start_date: str,
+        end_date: str,
+    ) -> list[PostToEnqueueModel]:
+        return self.data_repository.load_feed_posts(
+            start_date=start_date,
+            end_date=end_date,
+        )
 
     def _filter_posts(
         self,

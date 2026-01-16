@@ -24,6 +24,21 @@ class BackfillDataAdapter(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def load_feed_posts(
+        self, start_date: str, end_date: str
+    ) -> list[PostToEnqueueModel]:
+        """Load feed posts from the data source.
+
+        Args:
+            start_date: Start date in YYYY-MM-DD format (inclusive)
+            end_date: End date in YYYY-MM-DD format (inclusive)
+
+        Returns:
+            list[PostToEnqueueModel]: List of posts.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def get_previously_labeled_post_uris(
         self,
         service: str,
