@@ -254,12 +254,12 @@ def backfill_records(
         )
         enqueue_service.enqueue_records(payload=enqueue_service_payload)
     if run_integrations:
-        backfill_period: str = (
+        integration_backfill_period: str = (
             DEFAULT_INTEGRATION_KWARGS["backfill_period"]
             if backfill_period is None
             else backfill_period
         )
-        backfill_duration: int | None = (
+        integration_backfill_duration: int | None = (
             DEFAULT_INTEGRATION_KWARGS["backfill_duration"]
             if backfill_duration is None
             else backfill_duration
@@ -269,8 +269,8 @@ def backfill_records(
         ] = [
             IntegrationRunnerConfigurationPayload(
                 integration_name=integration_name,
-                backfill_period=BackfillPeriod(backfill_period),
-                backfill_duration=backfill_duration,
+                backfill_period=BackfillPeriod(integration_backfill_period),
+                backfill_duration=integration_backfill_duration,
             )
             for integration_name in mapped_integration_names
         ]
