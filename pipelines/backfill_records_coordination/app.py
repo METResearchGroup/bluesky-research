@@ -10,6 +10,7 @@ from services.backfill.models import (
     EnqueueServicePayload,
     BackfillPeriod,
     IntegrationRunnerConfigurationPayload,
+    IntegrationRunnerServicePayload,
 )
 from services.backfill.services.enqueue_service import EnqueueService
 from services.backfill.services.integration_runner_service import (
@@ -261,9 +262,7 @@ def backfill_records(
             if backfill_duration is None
             else backfill_duration
         )
-        integration_runner_configuration_payloads: list[
-            IntegrationRunnerConfigurationPayload
-        ] = [
+        integration_configs: list[IntegrationRunnerConfigurationPayload] = [
             IntegrationRunnerConfigurationPayload(
                 integration_name=integration_name,
                 backfill_period=BackfillPeriod(integration_backfill_period),
@@ -271,8 +270,13 @@ def backfill_records(
             )
             for integration_name in mapped_integration_names
         ]
+        integration_runner_service_payload: IntegrationRunnerServicePayload = (
+            IntegrationRunnerServicePayload(
+                integration_configs=integration_configs,
+            )
+        )
         integration_runner_svc.run_integrations(
-            payloads=integration_runner_configuration_payloads
+            payload=integration_runner_service_payload
         )
     if write_cache_buffer_to_storage:
         cache_buffer_payload = {
