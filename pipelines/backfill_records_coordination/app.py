@@ -104,11 +104,6 @@ def validate_date_format(ctx, param, value):
     help="Duration of backfill period",
 )
 @click.option(
-    "--run-classification/--no-run-classification",
-    default=True,
-    help="Whether to run classification on posts",
-)
-@click.option(
     "--write-cache",
     type=click.Choice(
         [
@@ -169,7 +164,6 @@ def backfill_records(
     integrations: tuple[str, ...],
     backfill_period: str | None,
     backfill_duration: int | None,
-    run_classification: bool,
     write_cache: str | None,
     clear_queue: bool,
     bypass_write: bool,
@@ -293,7 +287,6 @@ def backfill_records(
     #                 {
     #                     "backfill_period": backfill_period,
     #                     "backfill_duration": backfill_duration,
-    #                     "run_classification": run_classification,
     #                 }
     #             )
     #             payload["integration_kwargs"][integration_name] = integration_kwargs

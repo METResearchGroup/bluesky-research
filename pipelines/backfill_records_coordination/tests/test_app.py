@@ -57,13 +57,11 @@ class TestBackfillCoordinationCliApp(TestCase):
                     "integration_kwargs": {
                         "ml_inference_perspective_api": {
                             "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
+                            "backfill_duration": None
                         },
                         "ml_inference_sociopolitical": {
                             "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
+                            "backfill_duration": None
                         }
                     },
                     "start_date": None,
@@ -109,13 +107,11 @@ class TestBackfillCoordinationCliApp(TestCase):
                     "integration_kwargs": {
                         "ml_inference_perspective_api": {
                             "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
+                            "backfill_duration": None
                         },
                         "ml_inference_sociopolitical": {
                             "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
+                            "backfill_duration": None
                         }
                     },
                     "start_date": None,
@@ -153,8 +149,7 @@ class TestBackfillCoordinationCliApp(TestCase):
                     "integration_kwargs": {
                         "ml_inference_perspective_api": {
                             "backfill_period": "days",
-                            "backfill_duration": 2,
-                            "run_classification": True
+                            "backfill_duration": 2
                         }
                     },
                     "start_date": None,
@@ -164,42 +159,6 @@ class TestBackfillCoordinationCliApp(TestCase):
             None
         )
 
-    @patch('pipelines.backfill_records_coordination.app.lambda_handler')
-    def test_backfill_no_classification(self, mock_handler):
-        """Test backfill with classification disabled."""
-        mock_handler.return_value = {"statusCode": 200}
-        
-        result = self.runner.invoke(
-            backfill_records,
-            [
-                '--record-type', 'posts',
-                '-i', 'p',
-                '--add-to-queue',
-                '--run-integrations',
-                '--no-run-classification'
-            ]
-        )
-        
-        expected_args = {
-            "payload": {
-                "record_type": "posts",
-                "add_posts_to_queue": True,
-                "run_integrations": True,
-                "integration_kwargs": {
-                    "ml_inference_perspective_api": {
-                        "backfill_period": None,
-                        "backfill_duration": None,
-                        "run_classification": False
-                    }
-                },
-                "integration": ["ml_inference_perspective_api"],
-                "start_date": None,
-                "end_date": None
-            }
-        }
-        self.assertEqual(result.exit_code, 0)
-        mock_handler.assert_called_once_with(expected_args, None)
-        
     @patch('pipelines.backfill_records_coordination.app.lambda_handler')
     def test_queue_only_no_run(self, mock_handler):
         """Test adding to queue without running integrations."""
@@ -220,28 +179,23 @@ class TestBackfillCoordinationCliApp(TestCase):
                     "integration_kwargs": {
                         "ml_inference_perspective_api": {
                             "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
+                            "backfill_duration": None
                         },
                         "ml_inference_sociopolitical": {
                             "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
+                            "backfill_duration": None
                         },
                         "ml_inference_ime": {
                             "backfill_period": None,
                             "backfill_duration": None,
-                            "run_classification": True
                         },
                         "ml_inference_valence_classifier": {
                             "backfill_period": None,
                             "backfill_duration": None,
-                            "run_classification": True
                         },
                         "ml_inference_intergroup": {
                             "backfill_period": None,
                             "backfill_duration": None,
-                            "run_classification": True
                         }
                     },
                     "start_date": None,
@@ -435,8 +389,7 @@ class TestBackfillCoordinationCliApp(TestCase):
                     "integration_kwargs": {
                         "ml_inference_perspective_api": {
                             "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
+                            "backfill_duration": None
                         }
                     },
                     "integration": ["ml_inference_perspective_api"],
@@ -485,28 +438,23 @@ class TestBackfillCoordinationCliApp(TestCase):
                     "integration_kwargs": {
                         "ml_inference_perspective_api": {
                             "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
+                            "backfill_duration": None
                         },
                         "ml_inference_sociopolitical": {
                             "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
+                            "backfill_duration": None
                         },
                         "ml_inference_ime": {
                             "backfill_period": None,
                             "backfill_duration": None,
-                            "run_classification": True
                         },
                         "ml_inference_valence_classifier": {
                             "backfill_period": None,
                             "backfill_duration": None,
-                            "run_classification": True
                         },
                         "ml_inference_intergroup": {
                             "backfill_period": None,
                             "backfill_duration": None,
-                            "run_classification": True
                         }
                     },
                     "start_date": "2024-01-01",
