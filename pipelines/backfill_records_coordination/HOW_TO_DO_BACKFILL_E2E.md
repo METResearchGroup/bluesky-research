@@ -24,7 +24,7 @@ There are two sources we support here:
 For example, for the following command:
 
 ```bash
-python app.py --record-type posts --integration ml_inference_perspective_api --add-to-queue
+python app.py --record-type posts --integrations ml_inference_perspective_api --add-to-queue
 ```
 
 We add all posts to the input queue for the `ml_inference_perspective_api` integration, subtracting any posts that we've previously classified.
@@ -34,16 +34,16 @@ We add all posts to the input queue for the `ml_inference_perspective_api` integ
 For example, in the following command:
 
 ```bash
-python app.py --record-type posts --integration ml_inference_perspective_api --run-integrations
+python app.py --record-type posts --integrations ml_inference_perspective_api --run-integrations
 ```
 
 We run the integration on whatever records are currently queued.
 
 You can also omit `--record-type` when you are only running integrations (i.e., not enqueueing).
-In that case, you must specify at least one `--integration`:
+In that case, you must specify at least one `--integrations`:
 
 ```bash
-python app.py --integration ml_inference_perspective_api --run-integrations
+python app.py --integrations ml_inference_perspective_api --run-integrations
 ```
 
 

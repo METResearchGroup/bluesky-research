@@ -18,13 +18,6 @@ INTEGRATION_MAP = {
 }
 
 
-def resolve_integration(integration: str) -> str:
-    """Resolves integration abbreviation to full name if needed."""
-    if integration in INTEGRATION_MAP:
-        return INTEGRATION_MAP[integration]
-    return integration
-
-
 DEFAULT_INTEGRATION_KWARGS = {
     "ml_inference_perspective_api": {
         "backfill_period": None,
@@ -86,7 +79,7 @@ def validate_date_format(ctx, param, value):
     help="Run the integrations after queueing",
 )
 @click.option(
-    "--integration",
+    "--integrations",
     "-i",
     type=click.Choice(
         [
@@ -182,7 +175,7 @@ def backfill_records(
     record_type: str | None,
     add_to_queue: bool,
     run_integrations: bool,
-    integration: tuple[str, ...],
+    integrations: tuple[str, ...],
     backfill_period: str | None,
     backfill_duration: int | None,
     run_classification: bool,
@@ -224,70 +217,29 @@ def backfill_records(
         # Clear output queues for specific integrations
         $ python -m pipelines.backfill_records_coordination.app -i p -i s --clear-output-queues
     """
-    # Handle queue clearing first if requested
-    if clear_input_queues or clear_output_queues:
-        # Determine which integrations to clear
-        integrations_to_clear = (
-            [resolve_integration(i) for i in integration]
-            if integration
-            else DEFAULT_INTEGRATION_KWARGS.keys()
-        )
+    mapped_integration_names: list[str] = _resolve_integration_names(integrations)
 
-        # Ask for confirmation
-        queue_type = "input" if clear_input_queues else "output"
-        integrations_str = ", ".join(integrations_to_clear)
-        if not click.confirm(
-            f"Are you sure you want to clear all {queue_type} queues for these integrations: {integrations_str}?"
-        ):
-            click.echo("Operation cancelled.")
-            return
+    # first, we clear out the queues (if the user requested it).
+    # this allows us to start with a fresh slate.
+    # In our use case, we assume that if a user both (1) wants to clear an input/output
+    # queue and (2) specifies an integration name, that the user wants to clear out
+    # the queue(s) for that integration.
+    manage_queue_clearing(
+        integrations_to_clear=mapped_integration_names,
+        clear_input_queues=clear_input_queues,
+        clear_output_queues=clear_output_queues,
+    )
 
-        # Clear the queues
-        for integration_name in integrations_to_clear:
-            if clear_input_queues:
-                logger.warning(f"Clearing input queue for {integration_name}...")
-                queue = Queue(
-                    queue_name=f"input_{integration_name}", create_new_queue=True
-                )
-                deleted_count = queue.clear_queue()
-                logger.info(
-                    f"Cleared {deleted_count} items from input queue for {integration_name}"
-                )
-
-            if clear_output_queues:
-                logger.warning(f"Clearing output queue for {integration_name}...")
-                queue = Queue(
-                    queue_name=f"output_{integration_name}", create_new_queue=True
-                )
-                deleted_count = queue.clear_queue()
-                logger.info(
-                    f"Cleared {deleted_count} items from output queue for {integration_name}"
-                )
-
-    # Validate that record_type is provided when add_to_queue is True
-    if add_to_queue and not record_type:
-        raise click.UsageError("--record-type is required when --add-to-queue is used")
-
-    # Running integrations always requires explicit integrations (avoid accidental "run everything").
-    if run_integrations and (not integration):
-        raise click.UsageError("--integration is required when --run-integrations is used")
-
-    # Validate that posts_used_in_feeds requires both start_date and end_date
-    if record_type == "posts_used_in_feeds":
-        if not (start_date and end_date):
-            raise click.UsageError(
-                "Both --start-date and --end-date are required when record_type is 'posts_used_in_feeds'"
-            )
-
-    # Validate bypass_write usage
-    if bypass_write and not (write_cache and clear_queue):
-        raise click.UsageError(
-            "--bypass-write requires --write-cache and --clear-queue"
-        )
-
-    # Convert integrations from abbreviations if needed
-    resolved_integrations = (
-        [resolve_integration(i) for i in integration] if integration else None
+    run_validation_checks(
+        add_to_queue=add_to_queue,
+        record_type=record_type,
+        run_integrations=run_integrations,
+        integrations=integrations,
+        write_cache=write_cache,
+        clear_queue=clear_queue,
+        bypass_write=bypass_write,
+        start_date=start_date,
+        end_date=end_date,
     )
 
     # Construct payload matching the format expected by backfill_records
@@ -301,10 +253,11 @@ def backfill_records(
     }
 
     # Only proceed if adding to queue or running integrations
+    # TODO: will refactor into separate services for delegation.
     if add_to_queue or run_integrations:
         # Add integration kwargs based on CLI args or defaults
         for integration_name in (
-            resolved_integrations or DEFAULT_INTEGRATION_KWARGS.keys()
+            mapped_integration_names or DEFAULT_INTEGRATION_KWARGS.keys()
         ):
             if integration_name in DEFAULT_INTEGRATION_KWARGS:
                 integration_kwargs = DEFAULT_INTEGRATION_KWARGS[integration_name].copy()
@@ -317,8 +270,8 @@ def backfill_records(
                 )
                 payload["integration_kwargs"][integration_name] = integration_kwargs
 
-        if resolved_integrations:
-            payload["integration"] = resolved_integrations
+        if mapped_integration_names:
+            payload["integration"] = mapped_integration_names
 
         # Call handler with constructed event
         response = lambda_handler({"payload": payload}, None)
@@ -342,6 +295,130 @@ def backfill_records(
         )
         click.echo(
             f"Cache buffer write completed with status: {cache_response['statusCode']}"
+        )
+
+
+def manage_queue_clearing(
+    integrations_to_clear: list[str],
+    clear_input_queues: bool,
+    clear_output_queues: bool,
+):
+    """Clears input/output queues for specified integrations."""
+    if not clear_input_queues and not clear_output_queues:
+        logger.info("Not clearing any queues.")
+        return
+
+    _validate_clear_queues(
+        clear_input_queues=clear_input_queues,
+        clear_output_queues=clear_output_queues,
+        integrations_to_clear=integrations_to_clear,
+    )
+
+    _clear_queues(
+        integrations_to_clear=integrations_to_clear,
+        clear_input_queues=clear_input_queues,
+        clear_output_queues=clear_output_queues,
+    )
+
+
+def _resolve_single_integration(integration: str) -> str:
+    """Resolves integration abbreviation to full name if needed."""
+    if integration in INTEGRATION_MAP:
+        return INTEGRATION_MAP[integration]
+    return integration
+
+
+def _resolve_integration_names(integrations: tuple[str, ...] | None) -> list[str]:
+    if integrations is None or len(integrations) == 0:
+        return []
+    return [_resolve_single_integration(i) for i in integrations]
+
+
+def _validate_clear_queues(
+    clear_input_queues: bool,
+    clear_output_queues: bool,
+    integrations_to_clear: list[str],
+):
+    queue_type = (
+        "input" if clear_input_queues else "output" if clear_output_queues else None
+    )
+    if queue_type is None:
+        raise ValueError(
+            "Either --clear-input-queues or --clear-output-queues must be True"
+        )
+    integrations_str = ", ".join(integrations_to_clear)
+    if not click.confirm(
+        f"Are you sure you want to clear all {queue_type} queues for these integrations: {integrations_str}?"
+    ):
+        raise click.UsageError("Operation cancelled.")
+
+
+def _clear_queues(
+    integrations_to_clear: list[str],
+    clear_input_queues: bool,
+    clear_output_queues: bool,
+):
+    for integration_name in integrations_to_clear:
+        if clear_input_queues:
+            _clear_input_queue(integration_name=integration_name)
+        if clear_output_queues:
+            _clear_output_queue(integration_name=integration_name)
+
+
+def _clear_input_queue(integration_name: str):
+    queue_name = f"input_{integration_name}"
+    deleted_count = _clear_single_queue(queue_name)
+    logger.info(f"Cleared {deleted_count} items from {queue_name}")
+
+
+def _clear_output_queue(integration_name: str):
+    logger.warning(f"Clearing output queue for {integration_name}...")
+    queue_name = f"output_{integration_name}"
+    deleted_count = _clear_single_queue(queue_name)
+    logger.info(f"Cleared {deleted_count} items from {queue_name}")
+
+
+def _clear_single_queue(queue_name: str) -> int:
+    logger.warning(f"Clearing {queue_name}...")
+    queue = Queue(queue_name=queue_name, create_new_queue=True)
+    deleted_count = queue.clear_queue()
+    logger.info(f"Cleared {deleted_count} items from {queue_name}")
+    return deleted_count
+
+
+def run_validation_checks(
+    add_to_queue: bool,
+    record_type: str | None,
+    run_integrations: bool,
+    integrations: tuple[str, ...],
+    write_cache: str | None,
+    clear_queue: bool,
+    bypass_write: bool,
+    start_date: str | None,
+    end_date: str | None,
+):
+    """Validates CLI arguments and raises click.UsageError if invalid."""
+    # Validate that record_type is provided when add_to_queue is True
+    if add_to_queue and not record_type:
+        raise click.UsageError("--record-type is required when --add-to-queue is used")
+
+    # Running integrations always requires explicit integrations (avoid accidental "run everything").
+    if run_integrations and (not integrations):
+        raise click.UsageError(
+            "--integrations is required when --run-integrations is used"
+        )
+
+    # Validate that posts_used_in_feeds requires both start_date and end_date
+    if record_type == "posts_used_in_feeds":
+        if not (start_date and end_date):
+            raise click.UsageError(
+                "Both --start-date and --end-date are required when record_type is 'posts_used_in_feeds'"
+            )
+
+    # Validate bypass_write usage
+    if bypass_write and not (write_cache and clear_queue):
+        raise click.UsageError(
+            "--bypass-write requires --write-cache and --clear-queue"
         )
 
 
