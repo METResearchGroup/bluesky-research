@@ -6,7 +6,11 @@ import click
 
 from lib.db.queue import Queue
 from lib.log.logger import get_logger
-from services.backfill.models import EnqueueServicePayload
+from services.backfill.models import (
+    EnqueueServicePayload,
+    BackfillPeriod,
+    IntegrationRunnerConfigurationPayload,
+)
 from services.backfill.services.enqueue_service import EnqueueService
 from services.backfill.services.integration_runner_service import (
     IntegrationRunnerService,
@@ -25,31 +29,8 @@ INTEGRATION_MAP = {
 
 
 DEFAULT_INTEGRATION_KWARGS = {
-    "ml_inference_perspective_api": {
-        "backfill_period": None,
-        "backfill_duration": None,
-        "run_classification": True,
-    },
-    "ml_inference_sociopolitical": {
-        "backfill_period": None,
-        "backfill_duration": None,
-        "run_classification": True,
-    },
-    "ml_inference_ime": {
-        "backfill_period": None,
-        "backfill_duration": None,
-        "run_classification": True,
-    },
-    "ml_inference_valence_classifier": {
-        "backfill_period": None,
-        "backfill_duration": None,
-        "run_classification": True,
-    },
-    "ml_inference_intergroup": {
-        "backfill_period": None,
-        "backfill_duration": None,
-        "run_classification": True,
-    },
+    "backfill_period": BackfillPeriod.DAYS.value,
+    "backfill_duration": None,
 }
 
 enqueue_service = EnqueueService()
@@ -273,7 +254,29 @@ def backfill_records(
         )
         enqueue_service.enqueue_records(payload=enqueue_service_payload)
     if run_integrations:
-        integration_runner_service.run_integrations(payload=payload)
+        backfill_period: str = (
+            DEFAULT_INTEGRATION_KWARGS["backfill_period"]
+            if backfill_period is None
+            else backfill_period
+        )
+        backfill_duration: int | None = (
+            DEFAULT_INTEGRATION_KWARGS["backfill_duration"]
+            if backfill_duration is None
+            else backfill_duration
+        )
+        integration_runner_configuration_payloads: list[
+            IntegrationRunnerConfigurationPayload
+        ] = [
+            IntegrationRunnerConfigurationPayload(
+                integration_name=integration_name,
+                backfill_period=BackfillPeriod(backfill_period),
+                backfill_duration=backfill_duration,
+            )
+            for integration_name in mapped_integration_names
+        ]
+        integration_runner_service.run_integrations(
+            payloads=integration_runner_configuration_payloads
+        )
     if write_cache:
         cache_flusher_service.write_cache(payload=payload)
 

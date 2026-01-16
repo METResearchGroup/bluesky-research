@@ -22,7 +22,6 @@ class IntegrationRunnerConfigurationPayload(BaseModel):
     integration_name: str
     backfill_period: BackfillPeriod
     backfill_duration: int | None = Field(default=None)
-    run_classification: bool = True
 
 
 # TODO: I should just create a single payload that
