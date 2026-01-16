@@ -6,13 +6,14 @@ from services.backfill.exceptions import EnqueueServiceError
 from services.backfill.services.backfill_data_loader_service import (
     BackfillDataLoaderService,
 )
+from services.backfill.services.queue_manager_service import QueueManagerService
 
 logger = get_logger(__name__)
 
 
 class EnqueueService:
     def __init__(self):
-        self.enqueue_posts_service = EnqueuePostsService()
+        self.enqueue_posts_service = EnqueuePostService()
         self.enqueue_posts_used_in_feeds_service = EnqueuePostsUsedInFeedsService()
 
     def enqueue_records(self, payload: EnqueueServicePayload):
@@ -23,10 +24,10 @@ class EnqueueService:
                 self._enqueue_posts_used_in_feeds(payload)
             else:
                 raise ValueError(f"Invalid record type: {payload.record_type}")
+            logger.info("Enqueuing records completed successfully.")
         except Exception as e:
             logger.error(f"Error enqueuing records: {e}")
             raise EnqueueServiceError(f"Error enqueuing records: {e}") from e
-        logger.info("Records enqueued successfully.")
 
     def _enqueue_posts(self, payload: EnqueueServicePayload):
         self.enqueue_posts_service.enqueue_records(payload)
@@ -35,11 +36,12 @@ class EnqueueService:
         self.enqueue_posts_used_in_feeds_service.enqueue_records(payload)
 
 
-class EnqueuePostsService:
+class EnqueuePostService:
     """Service for enqueuing posts for a given integration."""
 
     def __init__(self):
         self.backfill_data_loader_service = BackfillDataLoaderService()
+        self.queue_manager_service = QueueManagerService()
 
     def enqueue_records(self, payload: EnqueueServicePayload):
         logger.info(
@@ -51,7 +53,10 @@ class EnqueuePostsService:
                 start_date=payload.start_date,
                 end_date=payload.end_date,
             )
-            self._insert_posts_to_queue(integration_name=integration_name, posts=posts)
+            self.queue_manager_service.insert_posts_to_queue(
+                integration_name=integration_name,
+                posts=posts,
+            )
         logger.info(
             f"Finished enqueuing posts for integrations: {payload.integrations}."
         )
@@ -77,16 +82,6 @@ class EnqueuePostsService:
         )
         logger.info(f"Loaded {len(posts)} posts to enqueue for {integration_name}.")
         return posts
-
-    def _insert_posts_to_queue(
-        self, integration_name: str, posts: list[PostToEnqueueModel]
-    ) -> None:
-        from lib.db.queue import get_input_queue_for_integration
-
-        input_queue = get_input_queue_for_integration(integration_name=integration_name)
-
-        posts_dicts: list[dict] = [post.model_dump() for post in posts]
-        input_queue.batch_add_items_to_queue(items=posts_dicts, metadata=None)
 
 
 class EnqueuePostsUsedInFeedsService:
