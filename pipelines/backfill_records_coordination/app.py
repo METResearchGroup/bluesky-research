@@ -1,11 +1,16 @@
 """CLI app for triggering backfill of records and writing cache buffers."""
 
-import click
-from pipelines.backfill_records_coordination.handler import lambda_handler
-from pipelines.write_cache_buffers.handler import lambda_handler as write_cache_handler
 from datetime import datetime
+
+import click
+
 from lib.db.queue import Queue
 from lib.log.logger import get_logger
+from services.backfill.services.enqueue_service import EnqueueService
+from services.backfill.services.integration_runner_service import (
+    IntegrationRunnerService,
+)
+from services.backfill.services.cache_flusher_service import CacheFlusherService
 
 logger = get_logger(__name__)
 
@@ -45,6 +50,10 @@ DEFAULT_INTEGRATION_KWARGS = {
         "run_classification": True,
     },
 }
+
+enqueue_service = EnqueueService()
+integration_runner_service = IntegrationRunnerService()
+cache_flusher_service = CacheFlusherService()
 
 
 def validate_date_format(ctx, param, value):
@@ -252,50 +261,57 @@ def backfill_records(
         "end_date": end_date,
     }
 
+    if add_to_queue:
+        enqueue_service.enqueue_records(payload=payload)
+    if run_integrations:
+        integration_runner_service.run_integrations(payload=payload)
+    if write_cache:
+        cache_flusher_service.write_cache(payload=payload)
+
     # Only proceed if adding to queue or running integrations
     # TODO: will refactor into separate services for delegation.
-    if add_to_queue or run_integrations:
-        # Add integration kwargs based on CLI args or defaults
-        for integration_name in (
-            mapped_integration_names or DEFAULT_INTEGRATION_KWARGS.keys()
-        ):
-            if integration_name in DEFAULT_INTEGRATION_KWARGS:
-                integration_kwargs = DEFAULT_INTEGRATION_KWARGS[integration_name].copy()
-                integration_kwargs.update(
-                    {
-                        "backfill_period": backfill_period,
-                        "backfill_duration": backfill_duration,
-                        "run_classification": run_classification,
-                    }
-                )
-                payload["integration_kwargs"][integration_name] = integration_kwargs
+    # if add_to_queue or run_integrations:
+    #     # Add integration kwargs based on CLI args or defaults
+    #     for integration_name in (
+    #         mapped_integration_names or DEFAULT_INTEGRATION_KWARGS.keys()
+    #     ):
+    #         if integration_name in DEFAULT_INTEGRATION_KWARGS:
+    #             integration_kwargs = DEFAULT_INTEGRATION_KWARGS[integration_name].copy()
+    #             integration_kwargs.update(
+    #                 {
+    #                     "backfill_period": backfill_period,
+    #                     "backfill_duration": backfill_duration,
+    #                     "run_classification": run_classification,
+    #                 }
+    #             )
+    #             payload["integration_kwargs"][integration_name] = integration_kwargs
 
-        if mapped_integration_names:
-            payload["integration"] = mapped_integration_names
+    #     if mapped_integration_names:
+    #         payload["integration"] = mapped_integration_names
 
-        # Call handler with constructed event
-        response = lambda_handler({"payload": payload}, None)
-        try:
-            click.echo(f"Backfill completed with status: {response['statusCode']}")
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            logger.error(f"Response: {response}")
+    #     # Call handler with constructed event
+    #     response = lambda_handler({"payload": payload}, None)
+    #     try:
+    #         click.echo(f"Backfill completed with status: {response['statusCode']}")
+    #     except Exception as e:
+    #         logger.error(f"Error: {e}")
+    #         logger.error(f"Response: {response}")
 
     # Only write cache if explicitly requested
-    if write_cache:
-        cache_response = write_cache_handler(
-            {
-                "payload": {
-                    "service": write_cache,
-                    "clear_queue": clear_queue,
-                    "bypass_write": bypass_write,
-                }
-            },
-            None,
-        )
-        click.echo(
-            f"Cache buffer write completed with status: {cache_response['statusCode']}"
-        )
+    # if write_cache:
+    #     cache_response = write_cache_handler(
+    #         {
+    #             "payload": {
+    #                 "service": write_cache,
+    #                 "clear_queue": clear_queue,
+    #                 "bypass_write": bypass_write,
+    #             }
+    #         },
+    #         None,
+    #     )
+    #     click.echo(
+    #         f"Cache buffer write completed with status: {cache_response['statusCode']}"
+    #     )
 
 
 def manage_queue_clearing(
