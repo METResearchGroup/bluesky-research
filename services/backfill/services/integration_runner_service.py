@@ -15,22 +15,25 @@ class IntegrationRunnerService:
         total_integrations = len(integration_names)
 
         logger.info(f"Running integrations: {','.join(integration_names)}")
-        for i, integration_config_payload in enumerate(integration_configs):
-            logger.info(
-                f"Running integration {i+1} of {total_integrations}: {integration_config_payload.integration_name}"
-            )
-            try:
-                self._run_single_integration(integration_config_payload)
-            except Exception as e:
-                logger.error(
-                    f"Error running integration {i+1} of {total_integrations}: {integration_config_payload.integration_name} - {e}"
+
+        try:
+            for i, integration_config_payload in enumerate(integration_configs):
+                logger.info(
+                    f"Running integration {i+1} of {total_integrations}: {integration_config_payload.integration_name}"
                 )
-                raise IntegrationRunnerServiceError(
-                    f"Error running integration {i+1} of {total_integrations}: {integration_config_payload.integration_name} - {e}"
-                ) from e
-        logger.info(
-            f"Integrations completed successfully: {','.join(integration_names)}"
-        )
+                self._run_single_integration(integration_config_payload)
+                logger.info(
+                    f"Integration {i+1} of {total_integrations}: {integration_config_payload.integration_name} completed successfully"
+                )
+            logger.info(
+                f"Integrations completed successfully: {','.join(integration_names)}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error running integrations: {e}")
+            raise IntegrationRunnerServiceError(
+                f"Error running integrations: {e}"
+            ) from e
 
     def _run_single_integration(self, payload: IntegrationRunnerConfigurationPayload):
         pass
