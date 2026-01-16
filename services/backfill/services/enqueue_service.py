@@ -24,11 +24,15 @@ class EnqueueService:
         try:
             post_scope = PostScope(payload.record_type)
             for integration_name in payload.integrations:
+                logger.info(f"Enqueuing records for integration: {integration_name}")
                 self._enqueue_records_for_single_integration(
                     integration_name=integration_name,
                     post_scope=post_scope,
                     start_date=payload.start_date,
                     end_date=payload.end_date,
+                )
+                logger.info(
+                    f"Completed enqueuing records for integration: {integration_name}"
                 )
             logger.info("Enqueuing records completed successfully.")
         except Exception as e:

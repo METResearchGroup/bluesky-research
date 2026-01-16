@@ -12,6 +12,7 @@ class BackfillDataLoaderService:
         end_date: str | None = None,
     ) -> list[PostToEnqueueModel]:
         posts: list[PostToEnqueueModel] = self._load_posts(
+            post_scope=post_scope,
             integration_name=integration_name,
             start_date=start_date,
             end_date=end_date,
@@ -21,10 +22,24 @@ class BackfillDataLoaderService:
 
     def _load_posts(
         self,
+        post_scope: PostScope,
         integration_name: str,
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> list[PostToEnqueueModel]:
+        if post_scope == PostScope.ALL_POSTS:
+            return self._load_all_posts()
+        elif post_scope == PostScope.FEED_POSTS:
+            return self._load_feed_posts()
+        else:
+            raise ValueError(f"Invalid post scope: {post_scope}") from ValueError(
+                f"Invalid post scope: {post_scope}"
+            )
+
+    def _load_all_posts(self) -> list[PostToEnqueueModel]:
+        return []
+
+    def _load_feed_posts(self) -> list[PostToEnqueueModel]:
         return []
 
     def _filter_posts(
