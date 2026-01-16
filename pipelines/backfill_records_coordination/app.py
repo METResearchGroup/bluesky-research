@@ -257,6 +257,7 @@ def backfill_records(
     }
 
     # Only proceed if adding to queue or running integrations
+    # TODO: will refactor into separate services for delegation.
     if add_to_queue or run_integrations:
         # Add integration kwargs based on CLI args or defaults
         for integration_name in (
