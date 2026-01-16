@@ -78,13 +78,10 @@ class EnqueueService:
         service-level validation AND to allow for this app to be run independent
         of the CLI app.
         """
-        if payload.record_type not in [
-            PostScope.ALL_POSTS.value,
-            PostScope.FEED_POSTS.value,
-        ]:
-            raise ValueError(
-                f"Invalid record type: {payload.record_type}"
-            ) from ValueError(f"Invalid record type: {payload.record_type}")
+        try:
+            _ = PostScope(payload.record_type)
+        except ValueError:
+            raise ValueError(f"Invalid record type: {payload.record_type}")
         if payload.integrations is None or len(payload.integrations) == 0:
             raise ValueError("Integrations list is empty") from ValueError(
                 "Integrations list is empty"
