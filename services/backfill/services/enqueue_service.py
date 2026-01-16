@@ -66,6 +66,9 @@ class EnqueueService:
                 end_date=end_date,
             )
         )
+        if len(posts) == 0:
+            logger.warning(f"No posts to enqueue for integration: {integration_name}")
+            return
         self.queue_manager_service.insert_posts_to_queue(
             integration_name=integration_name,
             posts=posts,
