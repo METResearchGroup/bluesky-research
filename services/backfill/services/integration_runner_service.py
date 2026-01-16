@@ -10,6 +10,7 @@ logger = get_logger(__name__)
 
 class IntegrationRunnerService:
     def run_integrations(self, payload: IntegrationRunnerServicePayload):
+        """Runs integrations for a list of integration configurations."""
         integration_configs = payload.integration_configs
         integration_names = [config.integration_name for config in integration_configs]
         total_integrations = len(integration_names)
@@ -36,4 +37,5 @@ class IntegrationRunnerService:
             ) from e
 
     def _run_single_integration(self, payload: IntegrationRunnerConfigurationPayload):
+        """Runs a single integration."""
         pass
