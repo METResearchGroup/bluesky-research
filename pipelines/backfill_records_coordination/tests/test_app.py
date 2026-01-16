@@ -263,7 +263,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn(
-            "--integration is required when --run-integrations is used",
+            "--integrations is required when --run-integrations is used",
             result.output,
         )
         mock_handler.assert_not_called()

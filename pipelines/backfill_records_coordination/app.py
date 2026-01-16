@@ -79,7 +79,7 @@ def validate_date_format(ctx, param, value):
     help="Run the integrations after queueing",
 )
 @click.option(
-    "--integration",
+    "--integrations",
     "-i",
     type=click.Choice(
         [
@@ -175,7 +175,7 @@ def backfill_records(
     record_type: str | None,
     add_to_queue: bool,
     run_integrations: bool,
-    integration: tuple[str, ...],
+    integrations: tuple[str, ...],
     backfill_period: str | None,
     backfill_duration: int | None,
     run_classification: bool,
@@ -217,10 +217,6 @@ def backfill_records(
         # Clear output queues for specific integrations
         $ python -m pipelines.backfill_records_coordination.app -i p -i s --clear-output-queues
     """
-    # TODO: change name of 'integration' to 'integrations' since it can take
-    # multiple integrations...
-    integrations = integration
-
     mapped_integration_names: list[str] = _resolve_integration_names(integrations)
 
     # first, we clear out the queues (if the user requested it).
@@ -238,7 +234,7 @@ def backfill_records(
         add_to_queue=add_to_queue,
         record_type=record_type,
         run_integrations=run_integrations,
-        integration=integration,
+        integrations=integrations,
         write_cache=write_cache,
         clear_queue=clear_queue,
         bypass_write=bypass_write,
@@ -394,7 +390,7 @@ def run_validation_checks(
     add_to_queue: bool,
     record_type: str | None,
     run_integrations: bool,
-    integration: tuple[str, ...],
+    integrations: tuple[str, ...],
     write_cache: str | None,
     clear_queue: bool,
     bypass_write: bool,
@@ -407,9 +403,9 @@ def run_validation_checks(
         raise click.UsageError("--record-type is required when --add-to-queue is used")
 
     # Running integrations always requires explicit integrations (avoid accidental "run everything").
-    if run_integrations and (not integration):
+    if run_integrations and (not integrations):
         raise click.UsageError(
-            "--integration is required when --run-integrations is used"
+            "--integrations is required when --run-integrations is used"
         )
 
     # Validate that posts_used_in_feeds requires both start_date and end_date
