@@ -1,8 +1,24 @@
 from services.backfill.models import PostScope, PostToEnqueueModel
+from services.backfill.repositories.adapters import LocalStorageAdapter
+from services.backfill.repositories.repository import BackfillDataRepository
+
+DEFAULT_POST_ID_FIELD = "uri"
 
 
 class BackfillDataLoaderService:
     """Service for loading data for backfilling."""
+
+    def __init__(self, data_repository: BackfillDataRepository | None = None):
+        """Initialize service with optional data repository.
+
+        Args:
+            data_repository: Repository for loading data. Defaults to BackfillDataRepository
+                with LocalStorageAdapter if not provided (for backward compatibility
+                with existing EnqueueService usage).
+        """
+        self.data_repository = data_repository or BackfillDataRepository(
+            adapter=LocalStorageAdapter()
+        )
 
     def load_posts_to_enqueue(
         self,
@@ -17,7 +33,12 @@ class BackfillDataLoaderService:
             start_date=start_date,
             end_date=end_date,
         )
-        filtered_posts: list[PostToEnqueueModel] = self._filter_posts(posts=posts)
+        filtered_posts: list[PostToEnqueueModel] = self._filter_posts(
+            posts=posts,
+            integration_name=integration_name,
+            start_date=start_date,
+            end_date=end_date,
+        )
         return filtered_posts
 
     def _load_posts(
@@ -43,7 +64,27 @@ class BackfillDataLoaderService:
         return []
 
     def _filter_posts(
-        self, posts: list[PostToEnqueueModel]
+        self,
+        posts: list[PostToEnqueueModel],
+        integration_name: str,
+        start_date: str,
+        end_date: str,
     ) -> list[PostToEnqueueModel]:
-        # TODO: e.g., filter out posts that have been classified by that integration.
-        return []
+        """Filter out posts that have already been classified by the integration.
+
+        Args:
+            posts: List of posts to filter
+            integration_name: Name of the integration (used to query classified posts)
+            start_date: Start date for querying classified posts
+            end_date: End date for querying classified posts
+
+        Returns:
+            List of posts that haven't been classified yet.
+        """
+        classified_post_uris = self.data_repository.get_previously_labeled_post_uris(
+            service=integration_name,
+            id_field=DEFAULT_POST_ID_FIELD,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        return [post for post in posts if post.uri not in classified_post_uris]
