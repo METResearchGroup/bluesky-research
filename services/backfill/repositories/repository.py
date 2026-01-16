@@ -1,6 +1,7 @@
 """Repository for backfill data loading operations using adapter pattern."""
 
 from lib.log.logger import get_logger
+from services.backfill.models import PostToEnqueueModel
 from services.backfill.repositories.base import BackfillDataAdapter
 
 logger = get_logger(__name__)
@@ -26,6 +27,20 @@ class BackfillDataRepository:
             raise ValueError("Adapter must be an instance of BackfillDataAdapter.")
         self.adapter = adapter
         self.logger = logger
+
+    def load_all_posts(
+        self, start_date: str, end_date: str
+    ) -> list[PostToEnqueueModel]:
+        """Load all posts using the configured adapter.
+
+        Args:
+            start_date: Start date in YYYY-MM-DD format (inclusive)
+            end_date: End date in YYYY-MM-DD format (inclusive)
+
+        Returns:
+            list[PostToEnqueueModel]: List of posts.
+        """
+        return self.adapter.load_all_posts(start_date=start_date, end_date=end_date)
 
     def get_previously_labeled_post_uris(
         self,

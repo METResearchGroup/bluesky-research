@@ -6,9 +6,13 @@ import pandas as pd
 
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
+from services.backfill.models import PostToEnqueueModel
 from services.backfill.repositories.base import BackfillDataAdapter
 
 logger = get_logger(__name__)
+
+LOCAL_TABLE_NAME = "preprocessed_posts"
+REQUIRED_COLUMNS = ["uri", "text", "preprocessing_timestamp"]
 
 
 class LocalStorageAdapter(BackfillDataAdapter):
@@ -16,6 +20,43 @@ class LocalStorageAdapter(BackfillDataAdapter):
 
     Loads data from local filesystem using load_data_from_local_storage.
     """
+
+    def load_all_posts(
+        self,
+        start_date: str,
+        end_date: str,
+    ) -> list[PostToEnqueueModel]:
+        """Load all posts from local storage.
+
+        Args:
+            start_date: Start date in YYYY-MM-DD format (inclusive)
+            end_date: End date in YYYY-MM-DD format (inclusive)
+
+        Returns:
+            list[PostToEnqueueModel]: List of posts.
+        """
+        table_columns = REQUIRED_COLUMNS.copy()
+        table_columns_str = ", ".join(table_columns)
+        filter = "WHERE text IS NOT NULL AND text != ''"
+        query = f"SELECT {table_columns_str} FROM {LOCAL_TABLE_NAME} {filter}".strip()
+        query_metadata = {
+            "tables": [{"name": LOCAL_TABLE_NAME, "columns": table_columns}]
+        }
+        # NOTE: no need to load active_df (which we do in other parts of the
+        # codebase) as our code is currently only used for backwards-looking
+        # backfills (e.g., there should be nothing in active/ for us to load
+        # anyways). But just a note in case it comes up in the future.
+        cached_df: pd.DataFrame = load_data_from_local_storage(
+            service=LOCAL_TABLE_NAME,
+            directory="cache",
+            export_format="duckdb",
+            duckdb_query=query,
+            query_metadata=query_metadata,
+            start_partition_date=start_date,
+            end_partition_date=end_date,
+        )
+        dumped_posts: list[dict] = cached_df.to_dict(orient="records")
+        return [PostToEnqueueModel(**post) for post in dumped_posts]
 
     def get_previously_labeled_post_uris(
         self,
@@ -95,6 +136,28 @@ class S3Adapter(BackfillDataAdapter):
     TODO: Implement S3 data loading in a future PR.
     This will mirror the LocalStorageAdapter interface but load data from S3.
     """
+
+    def load_all_posts(
+        self, start_date: str, end_date: str
+    ) -> list[PostToEnqueueModel]:
+        """Load all posts from S3.
+
+        Args:
+            start_date: Start date in YYYY-MM-DD format (inclusive)
+            end_date: End date in YYYY-MM-DD format (inclusive)
+
+        Returns:
+            list[PostToEnqueueModel]: List of posts.
+        """
+        logger.warning(
+            "S3Adapter.load_all_posts() is not yet implemented. "
+            "Will be implemented in a future PR."
+        )
+        raise NotImplementedError(
+            "S3 data loading is not yet implemented. "
+            "Use LocalStorageAdapter for now. "
+            "S3 support will be added in a future PR."
+        )
 
     def get_previously_labeled_post_uris(
         self,

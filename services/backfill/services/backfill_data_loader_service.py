@@ -29,7 +29,6 @@ class BackfillDataLoaderService:
     ) -> list[PostToEnqueueModel]:
         posts: list[PostToEnqueueModel] = self._load_posts(
             post_scope=post_scope,
-            integration_name=integration_name,
             start_date=start_date,
             end_date=end_date,
         )
@@ -44,12 +43,11 @@ class BackfillDataLoaderService:
     def _load_posts(
         self,
         post_scope: PostScope,
-        integration_name: str,
         start_date: str,
         end_date: str,
     ) -> list[PostToEnqueueModel]:
         if post_scope == PostScope.ALL_POSTS:
-            return self._load_all_posts()
+            return self._load_all_posts(start_date=start_date, end_date=end_date)
         elif post_scope == PostScope.FEED_POSTS:
             return self._load_feed_posts()
         else:
@@ -57,8 +55,13 @@ class BackfillDataLoaderService:
                 f"Invalid post scope: {post_scope}"
             )
 
-    def _load_all_posts(self) -> list[PostToEnqueueModel]:
-        return []
+    def _load_all_posts(
+        self, start_date: str, end_date: str
+    ) -> list[PostToEnqueueModel]:
+        return self.data_repository.load_all_posts(
+            start_date=start_date,
+            end_date=end_date,
+        )
 
     def _load_feed_posts(self) -> list[PostToEnqueueModel]:
         return []
@@ -81,6 +84,20 @@ class BackfillDataLoaderService:
         Returns:
             List of posts that haven't been classified yet.
         """
+        return self._remove_previously_classified_posts(
+            posts=posts,
+            integration_name=integration_name,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    def _remove_previously_classified_posts(
+        self,
+        posts: list[PostToEnqueueModel],
+        integration_name: str,
+        start_date: str,
+        end_date: str,
+    ) -> list[PostToEnqueueModel]:
         classified_post_uris = self.data_repository.get_previously_labeled_post_uris(
             service=integration_name,
             id_field=DEFAULT_POST_ID_FIELD,
