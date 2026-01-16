@@ -27,8 +27,15 @@ class EnqueueService:
         self.queue_manager_service = queue_manager_service or QueueManagerService()
 
     def enqueue_records(self, payload: EnqueueServicePayload) -> None:
+        """Enqueue records for all specified integrations.
+
+        Args:
+            payload: Configuration for enqueuing records. Already validated by Pydantic.
+
+        Raises:
+            EnqueueServiceError: If enqueuing fails for any reason.
+        """
         try:
-            self._validate_payload(payload=payload)
             post_scope = PostScope(payload.record_type)
             total_integrations: int = len(payload.integrations)
             for i, integration_name in enumerate(payload.integrations):
@@ -79,27 +86,3 @@ class EnqueueService:
             integration_name=integration_name,
             posts=posts,
         )
-
-    def _validate_payload(self, payload: EnqueueServicePayload) -> None:
-        """Runs validation checks on the payload.
-
-        We do validation independent of the CLI app in app.py to allow for
-        service-level validation AND to allow for this app to be run independent
-        of the CLI app.
-        """
-        try:
-            _ = PostScope(payload.record_type)
-        except ValueError:
-            raise ValueError(f"Invalid record type: {payload.record_type}")
-        if payload.integrations is None or len(payload.integrations) == 0:
-            raise ValueError("Integrations list is empty") from ValueError(
-                "Integrations list is empty"
-            )
-        if payload.start_date is None or payload.end_date is None:
-            raise ValueError("Start and end date are required") from ValueError(
-                "Start and end date are required"
-            )
-        if payload.start_date >= payload.end_date:
-            raise ValueError("Start date must be before end date") from ValueError(
-                "Start date must be before end date"
-            )
