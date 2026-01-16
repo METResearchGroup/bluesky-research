@@ -23,3 +23,11 @@ class IntegrationRunnerConfigurationPayload(BaseModel):
 
 class IntegrationRunnerServicePayload(BaseModel):
     integration_configs: list[IntegrationRunnerConfigurationPayload]
+
+
+class PostToEnqueueModel(BaseModel):
+    """A model for a post to be enqueued."""
+
+    uri: str
+    text: str
+    preprocessing_timestamp: str
