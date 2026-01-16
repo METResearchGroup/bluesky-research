@@ -18,13 +18,6 @@ INTEGRATION_MAP = {
 }
 
 
-def resolve_integration(integration: str) -> str:
-    """Resolves integration abbreviation to full name if needed."""
-    if integration in INTEGRATION_MAP:
-        return INTEGRATION_MAP[integration]
-    return integration
-
-
 DEFAULT_INTEGRATION_KWARGS = {
     "ml_inference_perspective_api": {
         "backfill_period": None,
@@ -228,8 +221,15 @@ def backfill_records(
     # multiple integrations...
     integrations = integration
 
+    mapped_integration_names: list[str] = _resolve_integration_names(integrations)
+
+    # first, we clear out the queues (if the user requested it).
+    # this allows us to start with a fresh slate.
+    # In our use case, we assume that if a user both (1) wants to clear an input/output
+    # queue and (2) specifies an integration name, that the user wants to clear out
+    # the queue(s) for that integration.
     manage_queue_clearing(
-        integrations=integrations,
+        integrations_to_clear=mapped_integration_names,
         clear_input_queues=clear_input_queues,
         clear_output_queues=clear_output_queues,
     )
@@ -246,11 +246,6 @@ def backfill_records(
         end_date=end_date,
     )
 
-    # Convert integrations from abbreviations if needed
-    resolved_integrations = (
-        [resolve_integration(i) for i in integration] if integration else None
-    )
-
     # Construct payload matching the format expected by backfill_records
     payload = {
         "record_type": record_type,
@@ -265,7 +260,7 @@ def backfill_records(
     if add_to_queue or run_integrations:
         # Add integration kwargs based on CLI args or defaults
         for integration_name in (
-            resolved_integrations or DEFAULT_INTEGRATION_KWARGS.keys()
+            mapped_integration_names or DEFAULT_INTEGRATION_KWARGS.keys()
         ):
             if integration_name in DEFAULT_INTEGRATION_KWARGS:
                 integration_kwargs = DEFAULT_INTEGRATION_KWARGS[integration_name].copy()
@@ -278,8 +273,8 @@ def backfill_records(
                 )
                 payload["integration_kwargs"][integration_name] = integration_kwargs
 
-        if resolved_integrations:
-            payload["integration"] = resolved_integrations
+        if mapped_integration_names:
+            payload["integration"] = mapped_integration_names
 
         # Call handler with constructed event
         response = lambda_handler({"payload": payload}, None)
@@ -307,24 +302,14 @@ def backfill_records(
 
 
 def manage_queue_clearing(
-    integrations: tuple[str, ...] | None,
+    integrations_to_clear: list[str],
     clear_input_queues: bool,
     clear_output_queues: bool,
 ):
-    """Clears input/output queues for specified integrations.
-
-    Possible inputs:
-    - No -i/--integration passed → integration == () (empty tuple)
-    - One integration (e.g. -i p) → integration == ("p",) (1-tuple)
-    - Many integrations (e.g. -i p -i s) → integration == ("p", "s")
-
-    Returns: None. Clears queues inplace.
-    """
+    """Clears input/output queues for specified integrations."""
     if not clear_input_queues and not clear_output_queues:
         logger.info("Not clearing any queues.")
         return
-
-    integrations_to_clear: list[str] = _determine_integrations_to_clear(integrations)
 
     _validate_clear_queues(
         clear_input_queues=clear_input_queues,
@@ -339,12 +324,17 @@ def manage_queue_clearing(
     )
 
 
-def _determine_integrations_to_clear(
-    integration: tuple[str, ...] | None,
-) -> list[str]:
-    if integration is None or len(integration) == 0:
-        return list(DEFAULT_INTEGRATION_KWARGS.keys())
-    return [resolve_integration(i) for i in integration]
+def _resolve_single_integration(integration: str) -> str:
+    """Resolves integration abbreviation to full name if needed."""
+    if integration in INTEGRATION_MAP:
+        return INTEGRATION_MAP[integration]
+    return integration
+
+
+def _resolve_integration_names(integrations: tuple[str, ...] | None) -> list[str]:
+    if integrations is None or len(integrations) == 0:
+        return []
+    return [_resolve_single_integration(i) for i in integrations]
 
 
 def _validate_clear_queues(
