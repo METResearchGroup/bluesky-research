@@ -52,7 +52,12 @@ class EnqueueService:
         start_date: str,
         end_date: str,
     ) -> None:
-        """Enqueue records for a single integration."""
+        """Enqueue records for a single integration.
+
+        NOTE: we're OK with loading all posts in memory for now. It's not caused
+        any issues with our implementation. If OOM becomes a problem, we will
+        consider using generators or chunking.
+        """
         posts: list[PostToEnqueueModel] = (
             self.backfill_data_loader_service.load_posts_to_enqueue(
                 integration_name=integration_name,
