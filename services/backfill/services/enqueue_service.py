@@ -16,9 +16,15 @@ logger = get_logger(__name__)
 
 
 class EnqueueService:
-    def __init__(self):
-        self.backfill_data_loader_service = BackfillDataLoaderService()
-        self.queue_manager_service = QueueManagerService()
+    def __init__(
+        self,
+        backfill_data_loader_service: BackfillDataLoaderService | None = None,
+        queue_manager_service: QueueManagerService | None = None,
+    ):
+        self.backfill_data_loader_service = (
+            backfill_data_loader_service or BackfillDataLoaderService()
+        )
+        self.queue_manager_service = queue_manager_service or QueueManagerService()
 
     def enqueue_records(self, payload: EnqueueServicePayload) -> None:
         try:
