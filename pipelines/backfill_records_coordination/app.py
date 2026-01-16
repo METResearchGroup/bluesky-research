@@ -35,10 +35,6 @@ DEFAULT_INTEGRATION_KWARGS = {
     "backfill_duration": None,
 }
 
-enqueue_service = EnqueueService()
-integration_runner_service = IntegrationRunnerService()
-cache_buffer_writer_service = CacheBufferWriterService()
-
 
 def validate_date_format(ctx, param, value):
     """Validates date string format (YYYY-MM-DD)."""
@@ -173,6 +169,9 @@ def backfill_records(
     end_date: str | None,
     clear_input_queues: bool,
     clear_output_queues: bool,
+    _enqueue_service: EnqueueService | None = None,
+    _integration_runner_service: IntegrationRunnerService | None = None,
+    _cache_buffer_writer_service: CacheBufferWriterService | None = None,
 ):
     """CLI app for triggering backfill of records and optionally writing cache buffers.
 
@@ -204,6 +203,10 @@ def backfill_records(
         # Clear output queues for specific integrations
         $ python -m pipelines.backfill_records_coordination.app -i p -i s --clear-output-queues
     """
+    enqueue_svc = _enqueue_service or EnqueueService()
+    integration_runner_svc = _integration_runner_service or IntegrationRunnerService()
+    cache_buffer_writer_svc = _cache_buffer_writer_service or CacheBufferWriterService()
+
     mapped_integration_names: list[str] = _resolve_integration_names(integrations)
 
     # first, we clear out the queues (if the user requested it).
@@ -248,7 +251,7 @@ def backfill_records(
             start_date=str(start_date),
             end_date=str(end_date),
         )
-        enqueue_service.enqueue_records(payload=enqueue_service_payload)
+        enqueue_svc.enqueue_records(payload=enqueue_service_payload)
     if run_integrations:
         integration_backfill_period: str = (
             DEFAULT_INTEGRATION_KWARGS["backfill_period"]
@@ -270,11 +273,11 @@ def backfill_records(
             )
             for integration_name in mapped_integration_names
         ]
-        integration_runner_service.run_integrations(
+        integration_runner_svc.run_integrations(
             payloads=integration_runner_configuration_payloads
         )
     if write_cache:
-        cache_buffer_writer_service.write_cache(payload=payload)
+        cache_buffer_writer_svc.write_cache(payload=payload)
 
     # Only proceed if adding to queue or running integrations
     # TODO: will refactor into separate services for delegation.
