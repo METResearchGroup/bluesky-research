@@ -32,6 +32,23 @@ def backfill_records(payload: dict):
         }
     """
     record_type = payload.get("record_type")
+    add_posts_to_queue = bool(payload.get("add_posts_to_queue"))
+    run_integrations = bool(payload.get("run_integrations"))
+
+    # Support running integrations without a record_type (run-only mode).
+    # In this mode, we don't enqueue anything; we simply trigger integrations to
+    # process whatever is already queued.
+    if record_type is None:
+        if add_posts_to_queue:
+            raise ValueError(
+                "record_type is required when add_posts_to_queue is True. "
+                "Specify --record-type when enqueueing."
+            )
+        if run_integrations:
+            backfill_posts(payload)
+            return
+        raise ValueError("Unsupported record type: None")
+
     if record_type == "posts":
         backfill_posts(payload)
     elif record_type == "posts_used_in_feeds":

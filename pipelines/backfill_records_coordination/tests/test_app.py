@@ -232,6 +232,16 @@ class TestBackfillCoordinationCliApp(TestCase):
                             "backfill_period": None,
                             "backfill_duration": None,
                             "run_classification": True
+                        },
+                        "ml_inference_valence_classifier": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        },
+                        "ml_inference_intergroup": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
                         }
                     },
                     "start_date": None,
@@ -243,7 +253,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         
     @patch('pipelines.backfill_records_coordination.app.lambda_handler')
     def test_run_only_no_queue(self, mock_handler):
-        """Test running integrations without adding to queue."""
+        """Test validation: run_integrations without record_type requires explicit integrations."""
         mock_handler.return_value = {"statusCode": 200}
         
         result = self.runner.invoke(
@@ -251,36 +261,12 @@ class TestBackfillCoordinationCliApp(TestCase):
             ['--run-integrations']
         )
         
-        self.assertEqual(result.exit_code, 0)
-        mock_handler.assert_called_once_with(
-            {
-                "payload": {
-                    "record_type": None,
-                    "add_posts_to_queue": False,
-                    "run_integrations": True,
-                    "integration_kwargs": {
-                        "ml_inference_perspective_api": {
-                            "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
-                        },
-                        "ml_inference_sociopolitical": {
-                            "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
-                        },
-                        "ml_inference_ime": {
-                            "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
-                        }
-                    },
-                    "start_date": None,
-                    "end_date": None
-                }
-            },
-            None
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn(
+            "--integration is required when --run-integrations is used",
+            result.output,
         )
+        mock_handler.assert_not_called()
 
     @patch('pipelines.backfill_records_coordination.app.lambda_handler')
     @patch('pipelines.backfill_records_coordination.app.write_cache_handler')
@@ -431,6 +417,7 @@ class TestBackfillCoordinationCliApp(TestCase):
             backfill_records,
             [
                 '--record-type', 'posts',
+                '-i', 'p',
                 '--start-date', '2024-01-01',
                 '--end-date', '2024-01-31',
                 '--add-to-queue',
@@ -450,18 +437,9 @@ class TestBackfillCoordinationCliApp(TestCase):
                             "backfill_period": None,
                             "backfill_duration": None,
                             "run_classification": True
-                        },
-                        "ml_inference_sociopolitical": {
-                            "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
-                        },
-                        "ml_inference_ime": {
-                            "backfill_period": None,
-                            "backfill_duration": None,
-                            "run_classification": True
                         }
                     },
+                    "integration": ["ml_inference_perspective_api"],
                     "start_date": "2024-01-01",
                     "end_date": "2024-01-31"
                 }
@@ -516,6 +494,16 @@ class TestBackfillCoordinationCliApp(TestCase):
                             "run_classification": True
                         },
                         "ml_inference_ime": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        },
+                        "ml_inference_valence_classifier": {
+                            "backfill_period": None,
+                            "backfill_duration": None,
+                            "run_classification": True
+                        },
+                        "ml_inference_intergroup": {
                             "backfill_period": None,
                             "backfill_duration": None,
                             "run_classification": True
@@ -594,6 +582,7 @@ class TestBackfillCoordinationCliApp(TestCase):
             [
                 '--write-cache', 'all',
                 '--record-type', 'posts',
+                '-i', 'p',
                 '--add-to-queue',
                 '--run-integrations'
             ]

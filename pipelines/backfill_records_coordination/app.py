@@ -268,6 +268,10 @@ def backfill_records(
     if add_to_queue and not record_type:
         raise click.UsageError("--record-type is required when --add-to-queue is used")
 
+    # Running integrations always requires explicit integrations (avoid accidental "run everything").
+    if run_integrations and (not integration):
+        raise click.UsageError("--integration is required when --run-integrations is used")
+
     # Validate that posts_used_in_feeds requires both start_date and end_date
     if record_type == "posts_used_in_feeds":
         if not (start_date and end_date):
