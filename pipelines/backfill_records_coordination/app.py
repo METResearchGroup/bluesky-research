@@ -211,10 +211,6 @@ def backfill_records(
         # Clear output queues for specific integrations
         $ python -m pipelines.backfill_records_coordination.app -i p -i s --clear-output-queues
     """
-    enqueue_svc = _enqueue_service or EnqueueService()
-    integration_runner_svc = _integration_runner_service or IntegrationRunnerService()
-    cache_buffer_writer_svc = _cache_buffer_writer_service or CacheBufferWriterService()
-
     mapped_integration_names: list[str] = _resolve_integration_names(integrations)
 
     # first, we clear out the queues (if the user requested it).
@@ -244,6 +240,7 @@ def backfill_records(
     # TODO: add defaults for start_date and end_date, and
     # then make sure that they're used here.
     if add_to_queue:
+        enqueue_svc = _enqueue_service or EnqueueService()
         enqueue_service_payload = EnqueueServicePayload(
             record_type=str(record_type),
             integrations=mapped_integration_names,
@@ -253,6 +250,9 @@ def backfill_records(
         enqueue_svc.enqueue_records(payload=enqueue_service_payload)
 
     if run_integrations:
+        integration_runner_svc = (
+            _integration_runner_service or IntegrationRunnerService()
+        )
         integration_runner_service_payload = _create_integration_runner_payload(
             mapped_integration_names=mapped_integration_names,
             backfill_period=backfill_period,
@@ -263,6 +263,9 @@ def backfill_records(
         )
 
     if write_cache_buffer_to_storage:
+        cache_buffer_writer_svc = (
+            _cache_buffer_writer_service or CacheBufferWriterService()
+        )
         if not bypass_write:
             cache_buffer_writer_svc.write_cache(service=str(service_source_buffer))
         if clear_queue:
