@@ -251,6 +251,7 @@ def backfill_records(
             end_date=str(end_date),
         )
         enqueue_svc.enqueue_records(payload=enqueue_service_payload)
+
     if run_integrations:
         integration_runner_service_payload = _create_integration_runner_payload(
             mapped_integration_names=mapped_integration_names,
@@ -260,17 +261,12 @@ def backfill_records(
         integration_runner_svc.run_integrations(
             payload=integration_runner_service_payload
         )
-    if write_cache_buffer_to_storage:
-        cache_buffer_payload = {
-            "service": service_source_buffer,
-            "clear_queue": clear_queue,
-            "bypass_write": bypass_write,
-        }
-        cache_buffer_writer_svc.write_cache(payload=cache_buffer_payload)
 
-        # TODO: trigger the clear output queue here, not within the cache
-        # buffer writer. Let's have the writer do ONLY writing, and let's make
-        # it clear to callers that we're clearing the output queues.
+    if write_cache_buffer_to_storage:
+        if not bypass_write:
+            cache_buffer_writer_svc.write_cache(service=str(service_source_buffer))
+        if clear_queue:
+            cache_buffer_writer_svc.clear_queue(service=str(service_source_buffer))
 
 
 def manage_queue_clearing(

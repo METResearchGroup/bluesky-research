@@ -28,9 +28,3 @@ class IntegrationRunnerConfigurationPayload(BaseModel):
 # couples the integration name with their configurations,
 class IntegrationRunnerServicePayload(BaseModel):
     integration_configs: list[IntegrationRunnerConfigurationPayload]
-
-
-class CacheBufferWriterServicePayload(BaseModel):
-    service: str
-    clear_queue: bool
-    bypass_write: bool
