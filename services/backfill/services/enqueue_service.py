@@ -22,6 +22,7 @@ class EnqueueService:
 
     def enqueue_records(self, payload: EnqueueServicePayload):
         try:
+            self._validate_payload(payload=payload)
             post_scope = PostScope(payload.record_type)
             for integration_name in payload.integrations:
                 logger.info(f"Enqueuing records for integration: {integration_name}")
@@ -43,8 +44,8 @@ class EnqueueService:
         self,
         integration_name: str,
         post_scope: PostScope,
-        start_date: str | None = None,
-        end_date: str | None = None,
+        start_date: str,
+        end_date: str,
     ) -> None:
         """Enqueue records for a single integration."""
         posts: list[PostToEnqueueModel] = self._load_posts_to_enqueue(
@@ -62,8 +63,8 @@ class EnqueueService:
         self,
         integration_name: str,
         post_scope: PostScope,
-        start_date: str | None = None,
-        end_date: str | None = None,
+        start_date: str,
+        end_date: str,
     ) -> list[PostToEnqueueModel]:
         return self.backfill_data_loader_service.load_posts_to_enqueue(
             integration_name=integration_name,
@@ -71,3 +72,30 @@ class EnqueueService:
             start_date=start_date,
             end_date=end_date,
         )
+
+    def _validate_payload(self, payload: EnqueueServicePayload) -> None:
+        """Runs validation checks on the payload.
+
+        We do validation independent of the CLI app in app.py to allow for
+        service-level validation AND to allow for this app to be run independent
+        of the CLI app.
+        """
+        if payload.record_type not in [
+            PostScope.ALL_POSTS.value,
+            PostScope.FEED_POSTS.value,
+        ]:
+            raise ValueError(
+                f"Invalid record type: {payload.record_type}"
+            ) from ValueError(f"Invalid record type: {payload.record_type}")
+        if payload.integrations is None or len(payload.integrations) == 0:
+            raise ValueError("Integrations list is empty") from ValueError(
+                "Integrations list is empty"
+            )
+        if payload.start_date is None or payload.end_date is None:
+            raise ValueError("Start and end date are required") from ValueError(
+                "Start and end date are required"
+            )
+        if payload.start_date >= payload.end_date:
+            raise ValueError("Start date must be before end date") from ValueError(
+                "Start date must be before end date"
+            )

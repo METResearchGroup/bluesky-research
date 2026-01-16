@@ -8,8 +8,8 @@ class BackfillDataLoaderService:
         self,
         post_scope: PostScope,
         integration_name: str,
-        start_date: str | None = None,
-        end_date: str | None = None,
+        start_date: str,
+        end_date: str,
     ) -> list[PostToEnqueueModel]:
         posts: list[PostToEnqueueModel] = self._load_posts(
             post_scope=post_scope,
@@ -24,8 +24,8 @@ class BackfillDataLoaderService:
         self,
         post_scope: PostScope,
         integration_name: str,
-        start_date: str | None = None,
-        end_date: str | None = None,
+        start_date: str,
+        end_date: str,
     ) -> list[PostToEnqueueModel]:
         if post_scope == PostScope.ALL_POSTS:
             return self._load_all_posts()
