@@ -758,9 +758,9 @@ class TestLocalStorageAdapter_write_records_to_storage:
         mock_df = pd.DataFrame(records)
 
         with patch(
-            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+            "lib.db.queue.get_output_queue_for_integration"
         ) as mock_get_queue, patch(
-            "services.backfill.repositories.adapters.export_data_to_local_storage"
+            "lib.db.manage_local_data.export_data_to_local_storage"
         ) as mock_export, patch(
             "services.backfill.repositories.adapters.pd.DataFrame"
         ) as mock_dataframe:
@@ -788,9 +788,9 @@ class TestLocalStorageAdapter_write_records_to_storage:
         mock_df = pd.DataFrame(sample_records)
 
         with patch(
-            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+            "lib.db.queue.get_output_queue_for_integration"
         ) as mock_get_queue, patch(
-            "services.backfill.repositories.adapters.export_data_to_local_storage"
+            "lib.db.manage_local_data.export_data_to_local_storage"
         ) as mock_export, patch(
             "services.backfill.repositories.adapters.pd.DataFrame"
         ) as mock_dataframe, patch(
@@ -818,7 +818,7 @@ class TestLocalStorageAdapter_write_records_to_storage:
         test_error = Exception("Get queue error")
 
         with patch(
-            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+            "lib.db.queue.get_output_queue_for_integration"
         ) as mock_get_queue:
             mock_get_queue.side_effect = test_error
 
@@ -841,7 +841,7 @@ class TestLocalStorageAdapter_write_records_to_storage:
         mock_queue.load_dict_items_from_queue.side_effect = test_error
 
         with patch(
-            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+            "lib.db.queue.get_output_queue_for_integration"
         ) as mock_get_queue:
             mock_get_queue.return_value = mock_queue
 
@@ -866,9 +866,9 @@ class TestLocalStorageAdapter_write_records_to_storage:
         test_error = Exception("Export error")
 
         with patch(
-            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+            "lib.db.queue.get_output_queue_for_integration"
         ) as mock_get_queue, patch(
-            "services.backfill.repositories.adapters.export_data_to_local_storage"
+            "lib.db.manage_local_data.export_data_to_local_storage"
         ) as mock_export, patch(
             "services.backfill.repositories.adapters.pd.DataFrame"
         ) as mock_dataframe:
