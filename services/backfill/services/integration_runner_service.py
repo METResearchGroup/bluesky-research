@@ -5,7 +5,7 @@ from services.backfill.models import (
 )
 from services.backfill.exceptions import IntegrationRunnerServiceError
 
-logger = get_logger(__name__)
+logger = get_logger(__file__)
 
 
 class IntegrationRunnerService:
