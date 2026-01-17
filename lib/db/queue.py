@@ -761,11 +761,15 @@ class Queue:
 
 def get_input_queue_name(integration_name: str) -> str:
     """Get the input queue name for a given integration name."""
+    if not _SQLITE_IDENTIFIER_RE.match(integration_name):
+        raise ValueError(f"Invalid integration name: {integration_name!r}")
     return f"{INPUT_QUEUE_PREFIX}{integration_name}"
 
 
 def get_input_queue_for_integration(integration_name: str) -> Queue:
     """Get the input queue for a given integration name."""
+    if not _SQLITE_IDENTIFIER_RE.match(integration_name):
+        raise ValueError(f"Invalid integration name: {integration_name!r}")
     return Queue(
         queue_name=get_input_queue_name(integration_name),
         create_new_queue=True,
@@ -774,11 +778,15 @@ def get_input_queue_for_integration(integration_name: str) -> Queue:
 
 def get_output_queue_name(integration_name: str) -> str:
     """Get the output queue name for a given integration name."""
+    if not _SQLITE_IDENTIFIER_RE.match(integration_name):
+        raise ValueError(f"Invalid integration name: {integration_name!r}")
     return f"{OUTPUT_QUEUE_PREFIX}{integration_name}"
 
 
 def get_output_queue_for_integration(integration_name: str) -> Queue:
     """Get the output queue for a given integration name."""
+    if not _SQLITE_IDENTIFIER_RE.match(integration_name):
+        raise ValueError(f"Invalid integration name: {integration_name!r}")
     return Queue(
         queue_name=get_output_queue_name(integration_name),
         create_new_queue=True,
