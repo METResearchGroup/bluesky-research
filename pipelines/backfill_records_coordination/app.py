@@ -4,7 +4,6 @@ from datetime import datetime
 
 import click
 
-from lib.db.queue import Queue
 from lib.log.logger import get_logger
 from services.backfill.models import (
     EnqueueServicePayload,
@@ -339,32 +338,18 @@ def _clear_queues(
     clear_input_queues: bool,
     clear_output_queues: bool,
 ):
+    from services.backfill.services.queue_manager_service import QueueManagerService
+
+    queue_manager_svc = QueueManagerService()
     for integration_name in integrations_to_clear:
         if clear_input_queues:
-            _clear_input_queue(integration_name=integration_name)
+            queue_manager_svc.delete_records_from_queue(
+                integration_name=integration_name, queue_type="input"
+            )
         if clear_output_queues:
-            _clear_output_queue(integration_name=integration_name)
-
-
-def _clear_input_queue(integration_name: str):
-    queue_name = f"input_{integration_name}"
-    deleted_count = _clear_single_queue(queue_name)
-    logger.info(f"Cleared {deleted_count} items from {queue_name}")
-
-
-def _clear_output_queue(integration_name: str):
-    logger.warning(f"Clearing output queue for {integration_name}...")
-    queue_name = f"output_{integration_name}"
-    deleted_count = _clear_single_queue(queue_name)
-    logger.info(f"Cleared {deleted_count} items from {queue_name}")
-
-
-def _clear_single_queue(queue_name: str) -> int:
-    logger.warning(f"Clearing {queue_name}...")
-    queue = Queue(queue_name=queue_name, create_new_queue=True)
-    deleted_count = queue.clear_queue()
-    logger.info(f"Cleared {deleted_count} items from {queue_name}")
-    return deleted_count
+            queue_manager_svc.delete_records_from_queue(
+                integration_name=integration_name, queue_type="output"
+            )
 
 
 def run_validation_checks(
