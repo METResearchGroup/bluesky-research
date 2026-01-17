@@ -160,9 +160,9 @@ class LocalStorageAdapter(BackfillDataAdapter):
         posts_used_in_feeds: list[PostUsedInFeedModel],
     ) -> list[PostToEnqueueModel]:
         """Get the candidate pool posts used in the feeds for a given date."""
-        uris_of_posts_used_in_feeds: set[str] = set(
-            [post.uri for post in posts_used_in_feeds]
-        )
+        uris_of_posts_used_in_feeds: set[str] = {
+            post.uri for post in posts_used_in_feeds
+        }
         candidate_pool_posts_used_in_feeds: list[PostToEnqueueModel] = [
             post
             for post in candidate_pool_posts
