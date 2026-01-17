@@ -4,7 +4,20 @@ import pytest
 from unittest.mock import Mock
 
 from services.backfill.models import PostToEnqueueModel
+from services.backfill.repositories.adapters import LocalStorageAdapter, S3Adapter
 from services.backfill.repositories.base import BackfillDataAdapter
+
+
+@pytest.fixture
+def local_storage_adapter():
+    """Create LocalStorageAdapter instance."""
+    return LocalStorageAdapter()
+
+
+@pytest.fixture
+def s3_adapter():
+    """Create S3Adapter instance."""
+    return S3Adapter()
 
 
 @pytest.fixture

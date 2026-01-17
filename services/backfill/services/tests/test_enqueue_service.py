@@ -53,16 +53,6 @@ class TestEnqueueService_enqueue_records:
     """Tests for EnqueueService.enqueue_records method."""
 
     @pytest.fixture
-    def mock_data_loader(self):
-        """Mock BackfillDataLoaderService."""
-        return Mock(spec=BackfillDataLoaderService)
-
-    @pytest.fixture
-    def mock_queue_manager(self):
-        """Mock QueueManagerService."""
-        return Mock(spec=QueueManagerService)
-
-    @pytest.fixture
     def service(self, mock_data_loader, mock_queue_manager):
         """Create EnqueueService with mocked services."""
         return EnqueueService(
@@ -79,17 +69,6 @@ class TestEnqueueService_enqueue_records:
             start_date="2024-01-01",
             end_date="2024-01-31",
         )
-
-    @pytest.fixture
-    def sample_posts(self):
-        """Sample posts for testing."""
-        return [
-            PostToEnqueueModel(
-                uri="test_uri_1",
-                text="test_text_1",
-                preprocessing_timestamp="2024-01-01T00:00:00",
-            ),
-        ]
 
     def test_enqueues_records_for_multiple_integrations(
         self, service, mock_data_loader, mock_queue_manager, sample_payload, sample_posts
@@ -198,33 +177,12 @@ class TestEnqueueService_enqueue_records_for_single_integration:
     """Tests for EnqueueService._enqueue_records_for_single_integration method."""
 
     @pytest.fixture
-    def mock_data_loader(self):
-        """Mock BackfillDataLoaderService."""
-        return Mock(spec=BackfillDataLoaderService)
-
-    @pytest.fixture
-    def mock_queue_manager(self):
-        """Mock QueueManagerService."""
-        return Mock(spec=QueueManagerService)
-
-    @pytest.fixture
     def service(self, mock_data_loader, mock_queue_manager):
         """Create EnqueueService with mocked services."""
         return EnqueueService(
             backfill_data_loader_service=mock_data_loader,
             queue_manager_service=mock_queue_manager,
         )
-
-    @pytest.fixture
-    def sample_posts(self):
-        """Sample posts for testing."""
-        return [
-            PostToEnqueueModel(
-                uri="test_uri_1",
-                text="test_text_1",
-                preprocessing_timestamp="2024-01-01T00:00:00",
-            ),
-        ]
 
     def test_enqueues_posts_for_single_integration(
         self, service, mock_data_loader, mock_queue_manager, sample_posts

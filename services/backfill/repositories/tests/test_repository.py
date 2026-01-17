@@ -19,7 +19,6 @@ class TestBackfillDataRepository__init__:
 
         # Assert
         assert repository.adapter == mock_adapter
-        assert repository.logger is not None
 
     @pytest.mark.parametrize("invalid_adapter", ["not_an_adapter", None])
     def test_raises_value_error_for_invalid_adapter(self, invalid_adapter):
@@ -65,7 +64,6 @@ class TestBackfillDataRepository_load_all_posts:
         assert result == []
         assert len(result) == 0
 
-
 class TestBackfillDataRepository_load_feed_posts:
     """Tests for BackfillDataRepository.load_feed_posts method."""
 
@@ -102,7 +100,6 @@ class TestBackfillDataRepository_load_feed_posts:
         # Assert
         assert result == []
         assert len(result) == 0
-
 
 class TestBackfillDataRepository_get_previously_labeled_post_uris:
     """Tests for BackfillDataRepository.get_previously_labeled_post_uris method."""

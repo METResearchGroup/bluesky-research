@@ -13,11 +13,6 @@ class TestLocalStorageAdapter_load_all_posts:
     """Tests for LocalStorageAdapter.load_all_posts method."""
 
     @pytest.fixture
-    def adapter(self):
-        """Create LocalStorageAdapter instance."""
-        return LocalStorageAdapter()
-
-    @pytest.fixture
     def sample_posts_data(self):
         """Sample posts data as DataFrame records."""
         return [
@@ -33,7 +28,7 @@ class TestLocalStorageAdapter_load_all_posts:
             },
         ]
 
-    def test_loads_posts_from_local_storage(self, adapter, sample_posts_data):
+    def test_loads_posts_from_local_storage(self, local_storage_adapter, sample_posts_data):
         """Test that posts are loaded from local storage and converted to models."""
         # Arrange
         start_date = "2024-01-01"
@@ -46,7 +41,7 @@ class TestLocalStorageAdapter_load_all_posts:
             mock_load_data.return_value = mock_df
 
             # Act
-            result = adapter.load_all_posts(start_date=start_date, end_date=end_date)
+            result = local_storage_adapter.load_all_posts(start_date=start_date, end_date=end_date)
 
             # Assert
             mock_load_data.assert_called_once()
@@ -61,7 +56,7 @@ class TestLocalStorageAdapter_load_all_posts:
             assert result[0].uri == "test_uri_1"
             assert result[1].uri == "test_uri_2"
 
-    def test_returns_empty_list_when_no_posts(self, adapter):
+    def test_returns_empty_list_when_no_posts(self, local_storage_adapter):
         """Test that empty list is returned when no posts are found."""
         # Arrange
         start_date = "2024-01-01"
@@ -74,13 +69,12 @@ class TestLocalStorageAdapter_load_all_posts:
             mock_load_data.return_value = mock_df
 
             # Act
-            result = adapter.load_all_posts(start_date=start_date, end_date=end_date)
+            result = local_storage_adapter.load_all_posts(start_date=start_date, end_date=end_date)
 
             # Assert
             assert result == []
-            assert len(result) == 0
 
-    def test_query_uses_correct_columns_and_filter(self, adapter):
+    def test_query_uses_correct_columns_and_filter(self, local_storage_adapter):
         """Test that the query uses correct columns and filter."""
         # Arrange
         start_date = "2024-01-01"
@@ -92,7 +86,7 @@ class TestLocalStorageAdapter_load_all_posts:
             mock_load_data.return_value = pd.DataFrame([])
 
             # Act
-            adapter.load_all_posts(start_date=start_date, end_date=end_date)
+            local_storage_adapter.load_all_posts(start_date=start_date, end_date=end_date)
 
             # Assert
             call_kwargs = mock_load_data.call_args.kwargs
@@ -108,12 +102,7 @@ class TestLocalStorageAdapter_load_all_posts:
 class TestLocalStorageAdapter_load_feed_posts:
     """Tests for LocalStorageAdapter.load_feed_posts method."""
 
-    @pytest.fixture
-    def adapter(self):
-        """Create LocalStorageAdapter instance."""
-        return LocalStorageAdapter()
-
-    def test_loads_feed_posts_with_date_partitioning(self, adapter):
+    def test_loads_feed_posts_with_date_partitioning(self, local_storage_adapter):
         """Test that feed posts are loaded with date partitioning."""
         # Arrange
         start_date = "2024-01-01"
@@ -123,7 +112,7 @@ class TestLocalStorageAdapter_load_feed_posts:
         with patch(
             "services.backfill.repositories.adapters.get_partition_dates"
         ) as mock_get_partition_dates, patch.object(
-            adapter, "_load_feed_posts_for_date"
+            local_storage_adapter, "_load_feed_posts_for_date"
         ) as mock_load_for_date:
             mock_get_partition_dates.return_value = partition_dates
             mock_load_for_date.return_value = [
@@ -135,7 +124,7 @@ class TestLocalStorageAdapter_load_feed_posts:
             ]
 
             # Act
-            result = adapter.load_feed_posts(start_date=start_date, end_date=end_date)
+            result = local_storage_adapter.load_feed_posts(start_date=start_date, end_date=end_date)
 
             # Assert
             mock_get_partition_dates.assert_called_once_with(
@@ -144,7 +133,7 @@ class TestLocalStorageAdapter_load_feed_posts:
             assert mock_load_for_date.call_count == 3
             assert len(result) == 3
 
-    def test_returns_empty_list_when_no_partition_dates(self, adapter):
+    def test_returns_empty_list_when_no_partition_dates(self, local_storage_adapter):
         """Test that empty list is returned when no partition dates."""
         # Arrange
         start_date = "2024-01-01"
@@ -156,22 +145,16 @@ class TestLocalStorageAdapter_load_feed_posts:
             mock_get_partition_dates.return_value = []
 
             # Act
-            result = adapter.load_feed_posts(start_date=start_date, end_date=end_date)
+            result = local_storage_adapter.load_feed_posts(start_date=start_date, end_date=end_date)
 
             # Assert
             assert result == []
-            assert len(result) == 0
 
 
 class TestLocalStorageAdapter_load_feed_posts_for_date:
     """Tests for LocalStorageAdapter._load_feed_posts_for_date method."""
 
-    @pytest.fixture
-    def adapter(self):
-        """Create LocalStorageAdapter instance."""
-        return LocalStorageAdapter()
-
-    def test_loads_feed_posts_for_single_date(self, adapter):
+    def test_loads_feed_posts_for_single_date(self, local_storage_adapter):
         """Test loading feed posts for a single partition date."""
         # Arrange
         partition_date = "2024-01-01"
@@ -194,13 +177,13 @@ class TestLocalStorageAdapter_load_feed_posts_for_date:
         lookback_end = "2024-01-01"
 
         with patch.object(
-            adapter, "_load_posts_used_in_feeds_for_date"
+            local_storage_adapter, "_load_posts_used_in_feeds_for_date"
         ) as mock_load_feeds, patch(
             "services.backfill.repositories.adapters.calculate_start_end_date_for_lookback"
         ) as mock_calc_lookback, patch.object(
-            adapter, "_load_candidate_pool_posts_for_date"
+            local_storage_adapter, "_load_candidate_pool_posts_for_date"
         ) as mock_load_candidates, patch.object(
-            adapter, "_get_candidate_pool_posts_used_in_feeds_for_date"
+            local_storage_adapter, "_get_candidate_pool_posts_used_in_feeds_for_date"
         ) as mock_get_filtered:
             mock_load_feeds.return_value = posts_used_in_feeds
             mock_calc_lookback.return_value = (lookback_start, lookback_end)
@@ -208,7 +191,7 @@ class TestLocalStorageAdapter_load_feed_posts_for_date:
             mock_get_filtered.return_value = candidate_pool_posts[:2]
 
             # Act
-            result = adapter._load_feed_posts_for_date(partition_date=partition_date)
+            result = local_storage_adapter._load_feed_posts_for_date(partition_date=partition_date)
 
             # Assert
             mock_load_feeds.assert_called_once_with(partition_date)
@@ -222,41 +205,35 @@ class TestLocalStorageAdapter_load_feed_posts_for_date:
             )
             assert len(result) == 2
 
-    def test_returns_empty_list_when_no_posts_used_in_feeds(self, adapter):
+    def test_returns_empty_list_when_no_posts_used_in_feeds(self, local_storage_adapter):
         """Test that empty list is returned when no posts used in feeds."""
         # Arrange
         partition_date = "2024-01-01"
 
         with patch.object(
-            adapter, "_load_posts_used_in_feeds_for_date"
+            local_storage_adapter, "_load_posts_used_in_feeds_for_date"
         ) as mock_load_feeds, patch(
             "services.backfill.repositories.adapters.calculate_start_end_date_for_lookback"
         ) as mock_calc_lookback, patch.object(
-            adapter, "_load_candidate_pool_posts_for_date"
+            local_storage_adapter, "_load_candidate_pool_posts_for_date"
         ), patch.object(
-            adapter, "_get_candidate_pool_posts_used_in_feeds_for_date"
+            local_storage_adapter, "_get_candidate_pool_posts_used_in_feeds_for_date"
         ) as mock_get_filtered:
             mock_load_feeds.return_value = []
             mock_calc_lookback.return_value = ("2023-12-25", "2024-01-01")
             mock_get_filtered.return_value = []
 
             # Act
-            result = adapter._load_feed_posts_for_date(partition_date=partition_date)
+            result = local_storage_adapter._load_feed_posts_for_date(partition_date=partition_date)
 
             # Assert
             assert result == []
-            assert len(result) == 0
 
 
 class TestLocalStorageAdapter_load_posts_used_in_feeds_for_date:
     """Tests for LocalStorageAdapter._load_posts_used_in_feeds_for_date method."""
 
-    @pytest.fixture
-    def adapter(self):
-        """Create LocalStorageAdapter instance."""
-        return LocalStorageAdapter()
-
-    def test_loads_posts_used_in_feeds_for_date(self, adapter):
+    def test_loads_posts_used_in_feeds_for_date(self, local_storage_adapter):
         """Test loading posts used in feeds for a specific date."""
         # Arrange
         partition_date = "2024-01-01"
@@ -268,7 +245,7 @@ class TestLocalStorageAdapter_load_posts_used_in_feeds_for_date:
             mock_load_data.return_value = mock_df
 
             # Act
-            result = adapter._load_posts_used_in_feeds_for_date(
+            result = local_storage_adapter._load_posts_used_in_feeds_for_date(
                 partition_date=partition_date
             )
 
@@ -283,7 +260,7 @@ class TestLocalStorageAdapter_load_posts_used_in_feeds_for_date:
             assert result[0].uri == "uri1"
             assert result[1].uri == "uri2"
 
-    def test_returns_empty_list_when_no_data(self, adapter):
+    def test_returns_empty_list_when_no_data(self, local_storage_adapter):
         """Test that empty list is returned when no data found."""
         # Arrange
         partition_date = "2024-01-01"
@@ -295,24 +272,18 @@ class TestLocalStorageAdapter_load_posts_used_in_feeds_for_date:
             mock_load_data.return_value = mock_df
 
             # Act
-            result = adapter._load_posts_used_in_feeds_for_date(
+            result = local_storage_adapter._load_posts_used_in_feeds_for_date(
                 partition_date=partition_date
             )
 
             # Assert
             assert result == []
-            assert len(result) == 0
 
 
 class TestLocalStorageAdapter_load_candidate_pool_posts_for_date:
     """Tests for LocalStorageAdapter._load_candidate_pool_posts_for_date method."""
 
-    @pytest.fixture
-    def adapter(self):
-        """Create LocalStorageAdapter instance."""
-        return LocalStorageAdapter()
-
-    def test_loads_candidate_pool_posts_for_date(self, adapter):
+    def test_loads_candidate_pool_posts_for_date(self, local_storage_adapter):
         """Test that candidate pool posts are loaded using load_all_posts."""
         # Arrange
         lookback_start = "2023-12-25"
@@ -323,11 +294,11 @@ class TestLocalStorageAdapter_load_candidate_pool_posts_for_date:
             ),
         ]
 
-        with patch.object(adapter, "load_all_posts") as mock_load_all:
+        with patch.object(local_storage_adapter, "load_all_posts") as mock_load_all:
             mock_load_all.return_value = expected_posts
 
             # Act
-            result = adapter._load_candidate_pool_posts_for_date(
+            result = local_storage_adapter._load_candidate_pool_posts_for_date(
                 lookback_start_date=lookback_start, lookback_end_date=lookback_end
             )
 
@@ -341,12 +312,7 @@ class TestLocalStorageAdapter_load_candidate_pool_posts_for_date:
 class TestLocalStorageAdapter_get_candidate_pool_posts_used_in_feeds_for_date:
     """Tests for LocalStorageAdapter._get_candidate_pool_posts_used_in_feeds_for_date method."""
 
-    @pytest.fixture
-    def adapter(self):
-        """Create LocalStorageAdapter instance."""
-        return LocalStorageAdapter()
-
-    def test_filters_posts_by_uris_in_feeds(self, adapter):
+    def test_filters_posts_by_uris_in_feeds(self, local_storage_adapter):
         """Test that posts are filtered to only those used in feeds."""
         # Arrange
         candidate_pool_posts = [
@@ -366,7 +332,7 @@ class TestLocalStorageAdapter_get_candidate_pool_posts_used_in_feeds_for_date:
         ]
 
         # Act
-        result = adapter._get_candidate_pool_posts_used_in_feeds_for_date(
+        result = local_storage_adapter._get_candidate_pool_posts_used_in_feeds_for_date(
             candidate_pool_posts=candidate_pool_posts,
             posts_used_in_feeds=posts_used_in_feeds,
         )
@@ -376,7 +342,7 @@ class TestLocalStorageAdapter_get_candidate_pool_posts_used_in_feeds_for_date:
         assert result[0].uri == "uri1"
         assert result[1].uri == "uri3"
 
-    def test_returns_empty_list_when_no_matching_posts(self, adapter):
+    def test_returns_empty_list_when_no_matching_posts(self, local_storage_adapter):
         """Test that empty list is returned when no posts match."""
         # Arrange
         candidate_pool_posts = [
@@ -387,41 +353,34 @@ class TestLocalStorageAdapter_get_candidate_pool_posts_used_in_feeds_for_date:
         posts_used_in_feeds = [PostUsedInFeedModel(uri="uri2")]
 
         # Act
-        result = adapter._get_candidate_pool_posts_used_in_feeds_for_date(
+        result = local_storage_adapter._get_candidate_pool_posts_used_in_feeds_for_date(
             candidate_pool_posts=candidate_pool_posts,
             posts_used_in_feeds=posts_used_in_feeds,
         )
 
         # Assert
         assert result == []
-        assert len(result) == 0
 
-    def test_returns_empty_list_when_empty_candidate_pool(self, adapter):
+    def test_returns_empty_list_when_empty_candidate_pool(self, local_storage_adapter):
         """Test that empty list is returned when candidate pool is empty."""
         # Arrange
         candidate_pool_posts = []
         posts_used_in_feeds = [PostUsedInFeedModel(uri="uri1")]
 
         # Act
-        result = adapter._get_candidate_pool_posts_used_in_feeds_for_date(
+        result = local_storage_adapter._get_candidate_pool_posts_used_in_feeds_for_date(
             candidate_pool_posts=candidate_pool_posts,
             posts_used_in_feeds=posts_used_in_feeds,
         )
 
         # Assert
         assert result == []
-        assert len(result) == 0
 
 
 class TestLocalStorageAdapter_get_previously_labeled_post_uris:
     """Tests for LocalStorageAdapter.get_previously_labeled_post_uris method."""
 
-    @pytest.fixture
-    def adapter(self):
-        """Create LocalStorageAdapter instance."""
-        return LocalStorageAdapter()
-
-    def test_loads_post_uris_from_cache_and_active(self, adapter):
+    def test_loads_post_uris_from_cache_and_active(self, local_storage_adapter):
         """Test that post URIs are loaded from both cache and active directories."""
         # Arrange
         service = "ml_inference_perspective_api"
@@ -437,7 +396,7 @@ class TestLocalStorageAdapter_get_previously_labeled_post_uris:
             mock_load_data.side_effect = [cache_df, active_df]
 
             # Act
-            result = adapter.get_previously_labeled_post_uris(
+            result = local_storage_adapter.get_previously_labeled_post_uris(
                 service=service,
                 id_field=id_field,
                 start_date=start_date,
@@ -453,7 +412,7 @@ class TestLocalStorageAdapter_get_previously_labeled_post_uris:
             assert result == {"uri1", "uri2", "uri3"}
             assert len(result) == 3
 
-    def test_deduplicates_uris_from_cache_and_active(self, adapter):
+    def test_deduplicates_uris_from_cache_and_active(self, local_storage_adapter):
         """Test that duplicate URIs are deduplicated when combining cache and active."""
         # Arrange
         service = "ml_inference_perspective_api"
@@ -469,7 +428,7 @@ class TestLocalStorageAdapter_get_previously_labeled_post_uris:
             mock_load_data.side_effect = [cache_df, active_df]
 
             # Act
-            result = adapter.get_previously_labeled_post_uris(
+            result = local_storage_adapter.get_previously_labeled_post_uris(
                 service=service,
                 id_field=id_field,
                 start_date=start_date,
@@ -480,7 +439,7 @@ class TestLocalStorageAdapter_get_previously_labeled_post_uris:
             assert result == {"uri1", "uri2"}
             assert len(result) == 2
 
-    def test_raises_backfill_data_adapter_error_on_exception(self, adapter):
+    def test_raises_backfill_data_adapter_error_on_exception(self, local_storage_adapter):
         """Test that BackfillDataAdapterError is raised when exception occurs."""
         # Arrange
         service = "ml_inference_perspective_api"
@@ -496,7 +455,7 @@ class TestLocalStorageAdapter_get_previously_labeled_post_uris:
 
             # Act & Assert
             with pytest.raises(BackfillDataAdapterError) as exc_info:
-                adapter.get_previously_labeled_post_uris(
+                local_storage_adapter.get_previously_labeled_post_uris(
                     service=service,
                     id_field=id_field,
                     start_date=start_date,
@@ -509,7 +468,7 @@ class TestLocalStorageAdapter_get_previously_labeled_post_uris:
             assert "Test error" in str(exc_info.value)
             mock_logger.warning.assert_called_once()
 
-    def test_returns_empty_set_when_no_data(self, adapter):
+    def test_returns_empty_set_when_no_data(self, local_storage_adapter):
         """Test that empty set is returned when no data found."""
         # Arrange
         service = "ml_inference_perspective_api"
@@ -525,7 +484,7 @@ class TestLocalStorageAdapter_get_previously_labeled_post_uris:
             mock_load_data.side_effect = [empty_df, empty_df]
 
             # Act
-            result = adapter.get_previously_labeled_post_uris(
+            result = local_storage_adapter.get_previously_labeled_post_uris(
                 service=service,
                 id_field=id_field,
                 start_date=start_date,
@@ -534,18 +493,12 @@ class TestLocalStorageAdapter_get_previously_labeled_post_uris:
 
             # Assert
             assert result == set()
-            assert len(result) == 0
 
 
 class TestS3Adapter_load_all_posts:
     """Tests for S3Adapter.load_all_posts method."""
 
-    @pytest.fixture
-    def adapter(self):
-        """Create S3Adapter instance."""
-        return S3Adapter()
-
-    def test_raises_not_implemented_error(self, adapter):
+    def test_raises_not_implemented_error(self, s3_adapter):
         """Test that load_all_posts raises NotImplementedError."""
         # Arrange
         start_date = "2024-01-01"
@@ -554,7 +507,7 @@ class TestS3Adapter_load_all_posts:
         with patch("services.backfill.repositories.adapters.logger") as mock_logger:
             # Act & Assert
             with pytest.raises(NotImplementedError) as exc_info:
-                adapter.load_all_posts(start_date=start_date, end_date=end_date)
+                s3_adapter.load_all_posts(start_date=start_date, end_date=end_date)
 
             # Assert
             assert "S3 data loading is not yet implemented" in str(exc_info.value)
@@ -564,12 +517,7 @@ class TestS3Adapter_load_all_posts:
 class TestS3Adapter_load_feed_posts:
     """Tests for S3Adapter.load_feed_posts method."""
 
-    @pytest.fixture
-    def adapter(self):
-        """Create S3Adapter instance."""
-        return S3Adapter()
-
-    def test_raises_not_implemented_error(self, adapter):
+    def test_raises_not_implemented_error(self, s3_adapter):
         """Test that load_feed_posts raises NotImplementedError."""
         # Arrange
         start_date = "2024-01-01"
@@ -578,7 +526,7 @@ class TestS3Adapter_load_feed_posts:
         with patch("services.backfill.repositories.adapters.logger") as mock_logger:
             # Act & Assert
             with pytest.raises(NotImplementedError) as exc_info:
-                adapter.load_feed_posts(start_date=start_date, end_date=end_date)
+                s3_adapter.load_feed_posts(start_date=start_date, end_date=end_date)
 
             # Assert
             assert "S3 data loading is not yet implemented" in str(exc_info.value)
@@ -588,12 +536,7 @@ class TestS3Adapter_load_feed_posts:
 class TestS3Adapter_get_previously_labeled_post_uris:
     """Tests for S3Adapter.get_previously_labeled_post_uris method."""
 
-    @pytest.fixture
-    def adapter(self):
-        """Create S3Adapter instance."""
-        return S3Adapter()
-
-    def test_raises_not_implemented_error(self, adapter):
+    def test_raises_not_implemented_error(self, s3_adapter):
         """Test that get_previously_labeled_post_uris raises NotImplementedError."""
         # Arrange
         service = "ml_inference_perspective_api"
@@ -604,7 +547,7 @@ class TestS3Adapter_get_previously_labeled_post_uris:
         with patch("services.backfill.repositories.adapters.logger") as mock_logger:
             # Act & Assert
             with pytest.raises(NotImplementedError) as exc_info:
-                adapter.get_previously_labeled_post_uris(
+                s3_adapter.get_previously_labeled_post_uris(
                     service=service,
                     id_field=id_field,
                     start_date=start_date,

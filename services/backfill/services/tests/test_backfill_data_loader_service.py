@@ -310,7 +310,6 @@ class TestBackfillDataLoaderService_remove_previously_classified_posts:
     @pytest.fixture
     def sample_posts_for_filtering(self):
         """Sample posts for filtering tests."""
-        from services.backfill.models import PostToEnqueueModel
         return [
             PostToEnqueueModel(
                 uri="uri1",
