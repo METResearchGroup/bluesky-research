@@ -1,7 +1,7 @@
 """Tests for queue_manager_service.py."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from services.backfill.models import PostToEnqueueModel
 from services.backfill.services.queue_manager_service import QueueManagerService
