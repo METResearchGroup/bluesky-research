@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from services.backfill.models import PostScope, PostToEnqueueModel
 from services.backfill.repositories.adapters import LocalStorageAdapter
 from services.backfill.repositories.repository import BackfillDataRepository
@@ -19,6 +21,14 @@ class BackfillDataLoaderService:
         self.data_repository = data_repository or BackfillDataRepository(
             adapter=LocalStorageAdapter()
         )
+        # Strategy mapping: PostScope -> loading method
+        # Methods have signature: (start_date: str, end_date: str) -> list[PostToEnqueueModel]
+        self._post_scope_loaders: dict[
+            PostScope, Callable[..., list[PostToEnqueueModel]]
+        ] = {
+            PostScope.ALL_POSTS: self._load_all_posts,
+            PostScope.FEED_POSTS: self._load_feed_posts,
+        }
 
     def load_posts_to_enqueue(
         self,
@@ -46,14 +56,26 @@ class BackfillDataLoaderService:
         start_date: str,
         end_date: str,
     ) -> list[PostToEnqueueModel]:
-        if post_scope == PostScope.ALL_POSTS:
-            return self._load_all_posts(start_date=start_date, end_date=end_date)
-        elif post_scope == PostScope.FEED_POSTS:
-            return self._load_feed_posts(start_date=start_date, end_date=end_date)
-        else:
-            raise ValueError(f"Invalid post scope: {post_scope}") from ValueError(
-                f"Invalid post scope: {post_scope}"
+        """Load posts based on post scope using strategy pattern.
+
+        Args:
+            post_scope: Scope for selecting posts (all_posts or feed_posts)
+            start_date: Start date in YYYY-MM-DD format (inclusive)
+            end_date: End date in YYYY-MM-DD format (inclusive)
+
+        Returns:
+            list[PostToEnqueueModel]: List of posts matching the scope
+
+        Raises:
+            ValueError: If post_scope is not supported
+        """
+        loader = self._post_scope_loaders.get(post_scope)
+        if loader is None:
+            raise ValueError(
+                f"Invalid post scope: {post_scope}. "
+                f"Supported scopes: {list(self._post_scope_loaders.keys())}"
             )
+        return loader(start_date=start_date, end_date=end_date)
 
     def _load_all_posts(
         self, start_date: str, end_date: str
