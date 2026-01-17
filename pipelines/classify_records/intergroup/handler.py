@@ -3,7 +3,7 @@ import traceback
 
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
-from lib.pipeline_invocation.constants import dynamodb_table_name
+from lib.constants import INTEGRATION_RUN_METADATA_TABLE_NAME
 from services.ml_inference.intergroup.intergroup import classify_latest_posts
 from services.ml_inference.models import ClassificationSessionModel
 
@@ -35,7 +35,7 @@ def lambda_handler(event, context) -> dict:
             "timestamp": session_metadata["inference_timestamp"],
             "status_code": 200,
             "body": "Classification of latest posts completed successfully",
-            "metadata_table_name": dynamodb_table_name,
+            "metadata_table_name": INTEGRATION_RUN_METADATA_TABLE_NAME,
             "metadata": json.dumps(session_metadata),
         }
         return session_status_metadata
@@ -49,6 +49,6 @@ def lambda_handler(event, context) -> dict:
             "body": json.dumps(
                 f"Error in intergroup classification of latest posts: {str(e)}"
             ),
-            "metadata_table_name": dynamodb_table_name,
+            "metadata_table_name": INTEGRATION_RUN_METADATA_TABLE_NAME,
             "metadata": json.dumps(traceback.format_exc()),
         }

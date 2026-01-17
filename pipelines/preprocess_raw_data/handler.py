@@ -1,7 +1,7 @@
 import json
 import traceback
 
-from lib.pipeline_invocation.constants import dynamodb_table_name
+from lib.constants import INTEGRATION_RUN_METADATA_TABLE_NAME
 from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import Logger
 from services.preprocess_raw_data.helper import preprocess_latest_raw_data
@@ -32,7 +32,7 @@ def lambda_handler(event: dict, context: dict):
             "timestamp": session_metadata["preprocessing_timestamp"],
             "status_code": 200,
             "body": json.dumps("Preprocessing completed successfully"),
-            "metadata_table_name": dynamodb_table_name,
+            "metadata_table_name": INTEGRATION_RUN_METADATA_TABLE_NAME,
             "metadata": json.dumps(session_metadata),
         }
         return session_status_metadata
@@ -52,7 +52,7 @@ def lambda_handler(event: dict, context: dict):
             "timestamp": generate_current_datetime_str(),
             "status_code": 500,
             "body": json.dumps(f"Error in preprocessing pipeline: {str(e)}"),
-            "metadata_table_name": dynamodb_table_name,
+            "metadata_table_name": INTEGRATION_RUN_METADATA_TABLE_NAME,
             "metadata": json.dumps(traceback.format_exc()),
         }
         return session_metadata
