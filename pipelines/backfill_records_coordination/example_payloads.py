@@ -61,8 +61,4 @@ payloads = {
         "description": "Write cache buffers to database for IME",
         "command": "python app.py --record-type posts --write-cache-buffer-to-storage --service-source-buffer ml_inference_ime",
     },
-    "all_trigger_write_cache_buffers_to_db": {
-        "description": "Write cache buffers to database for all services",
-        "command": "python app.py --record-type posts --write-cache-buffer-to-storage --service-source-buffer all",
-    },
 }

@@ -111,7 +111,6 @@ def validate_date_format(ctx, param, value):
     "--service-source-buffer",
     type=click.Choice(
         [
-            "all",
             "ml_inference_perspective_api",
             "ml_inference_sociopolitical",
             "ml_inference_ime",
@@ -121,7 +120,7 @@ def validate_date_format(ctx, param, value):
         ]
     ),
     default=None,
-    help="Service whose cache buffer to write to storage. Use 'all' to write all services. Only used with --write-cache-buffer-to-storage.",
+    help="Service whose cache buffer to write to storage. Only used with --write-cache-buffer-to-storage.",
 )
 @click.option(
     "--clear-queue",

@@ -168,18 +168,18 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
-    def test_write_cache_buffer_to_storage_all_services(self, mock_service_cls):
-        """Test writing cache buffer for all services."""
+    def test_write_cache_buffer_to_storage_specific_service(self, mock_service_cls):
+        """Test writing cache buffer for a specific service."""
         mock_service = MagicMock()
         mock_service_cls.return_value = mock_service
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api']
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_service.write_cache.assert_called_once_with(service='all')
+        mock_service.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
         mock_service.clear_cache.assert_not_called()
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
@@ -205,12 +205,12 @@ class TestBackfillCoordinationCliApp(TestCase):
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all', '--clear-queue']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api', '--clear-queue']
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_service.write_cache.assert_called_once_with(service='all')
-        mock_service.clear_cache.assert_called_once_with(service='all')
+        mock_service.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
+        mock_service.clear_cache.assert_called_once_with(service='ml_inference_perspective_api')
         
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     def test_write_cache_buffer_to_storage_with_bypass_write_requires_clear_queue(self, mock_service_cls):
@@ -221,7 +221,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         # Test without clear_queue
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all', '--bypass-write']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api', '--bypass-write']
         )
         
         self.assertNotEqual(result.exit_code, 0)
@@ -237,14 +237,14 @@ class TestBackfillCoordinationCliApp(TestCase):
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all', '--clear-queue', '--bypass-write']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api', '--clear-queue', '--bypass-write']
         )
 
         self.assertEqual(result.exit_code, 0)
         # When bypass_write is True, write_cache should NOT be called
         mock_service.write_cache.assert_not_called()
         # Only clear_cache should be called
-        mock_service.clear_cache.assert_called_once_with(service='all')
+        mock_service.clear_cache.assert_called_once_with(service='ml_inference_perspective_api')
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     def test_write_cache_buffer_to_storage_with_clear_queue_no_bypass(self, mock_service_cls):
@@ -254,12 +254,12 @@ class TestBackfillCoordinationCliApp(TestCase):
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all', '--clear-queue']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api', '--clear-queue']
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_service.write_cache.assert_called_once_with(service='all')
-        mock_service.clear_cache.assert_called_once_with(service='all')
+        mock_service.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
+        mock_service.clear_cache.assert_called_once_with(service='ml_inference_perspective_api')
 
     def test_invalid_record_type(self):
         """Test error handling for invalid record type."""
@@ -412,11 +412,11 @@ class TestBackfillCoordinationCliApp(TestCase):
         with patch('pipelines.backfill_records_coordination.app.IntegrationRunnerService') as mock_runner:
             result = self.runner.invoke(
                 backfill_records,
-                ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all']
+                ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api']
             )
 
             self.assertEqual(result.exit_code, 0)
-            mock_service.write_cache.assert_called_once_with(service='all')
+            mock_service.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
             mock_runner.assert_not_called()
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
@@ -434,7 +434,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         result = self.runner.invoke(
             backfill_records,
             [
-                '--write-cache-buffer-to-storage', '--service-source-buffer', 'all',
+                '--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api',
                 '--record-type', 'posts',
                 '-i', 'p',
                 '--add-to-queue',
@@ -448,7 +448,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         # Verify services were called
         mock_enqueue.enqueue_records.assert_called_once()
         mock_integration_runner.run_integrations.assert_called_once()
-        mock_cache_writer.write_cache.assert_called_once_with(service='all')
+        mock_cache_writer.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     @patch('pipelines.backfill_records_coordination.app.EnqueueService')
@@ -644,7 +644,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         
         result = self.runner.invoke(
             backfill_records,
-            ['--service-source-buffer', 'all']
+            ['--service-source-buffer', 'ml_inference_perspective_api']
         )
         
         # Should succeed but not write cache (no error, just no action)
