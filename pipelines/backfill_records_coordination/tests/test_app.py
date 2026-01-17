@@ -179,7 +179,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_service.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
+        mock_service.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
         mock_service.clear_cache.assert_not_called()
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
@@ -194,7 +194,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_service.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
+        mock_service.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
         mock_service.clear_cache.assert_not_called()
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
@@ -209,8 +209,8 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_service.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
-        mock_service.clear_cache.assert_called_once_with(service='ml_inference_perspective_api')
+        mock_service.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
+        mock_service.clear_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
         
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     def test_write_cache_buffer_to_storage_with_bypass_write_requires_clear_queue(self, mock_service_cls):
@@ -244,7 +244,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         # When bypass_write is True, write_cache should NOT be called
         mock_service.write_cache.assert_not_called()
         # Only clear_cache should be called
-        mock_service.clear_cache.assert_called_once_with(service='ml_inference_perspective_api')
+        mock_service.clear_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     def test_write_cache_buffer_to_storage_with_clear_queue_no_bypass(self, mock_service_cls):
@@ -258,8 +258,8 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_service.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
-        mock_service.clear_cache.assert_called_once_with(service='ml_inference_perspective_api')
+        mock_service.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
+        mock_service.clear_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
 
     def test_invalid_record_type(self):
         """Test error handling for invalid record type."""
@@ -416,7 +416,7 @@ class TestBackfillCoordinationCliApp(TestCase):
             )
 
             self.assertEqual(result.exit_code, 0)
-            mock_service.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
+            mock_service.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
             mock_runner.assert_not_called()
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
@@ -448,7 +448,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         # Verify services were called
         mock_enqueue.enqueue_records.assert_called_once()
         mock_integration_runner.run_integrations.assert_called_once()
-        mock_cache_writer.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
+        mock_cache_writer.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     @patch('pipelines.backfill_records_coordination.app.EnqueueService')
@@ -710,5 +710,5 @@ class TestBackfillCoordinationCliApp(TestCase):
         self.assertEqual(result.exit_code, 0)
         mock_enqueue.enqueue_records.assert_called_once()
         mock_integration_runner.run_integrations.assert_called_once()
-        mock_cache_writer.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
-        mock_cache_writer.clear_cache.assert_called_once_with(service='ml_inference_perspective_api')
+        mock_cache_writer.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
+        mock_cache_writer.clear_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')

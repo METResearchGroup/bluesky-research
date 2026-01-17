@@ -39,52 +39,70 @@ class CacheBufferWriterService:
         )
         self.queue_manager_service = queue_manager_service or QueueManagerService()
 
-    def write_cache(self, service: str) -> None:
+    def write_cache(self, integration_name: str) -> None:
+        """Writes the cache buffer to permanent storage for the given integration.
+
+        Loads all records from the output queue for the specified integration
+        and writes them to permanent storage via the data repository.
+
+        Args:
+            integration_name: The name of the integration to write the cache for.
+
+        Raises:
+            CacheBufferWriterServiceError: If loading records from the queue or
+                writing to storage fails.
+        """
         try:
             records: list[dict] = self.queue_manager_service.load_records_from_queue(
-                integration_name=service
+                integration_name=integration_name
             )
             self.data_repository.write_records_to_storage(
-                integration_name=service, records=records
+                integration_name=integration_name, records=records
             )
             logger.info(
-                f"Successfully wrote {len(records)} records to storage for service {service}"
+                f"Successfully wrote {len(records)} records to storage for integration {integration_name}"
             )
         except Exception as e:
-            logger.error(f"Error writing cache for service {service}: {e}")
+            logger.error(f"Error writing cache for integration {integration_name}: {e}")
             raise CacheBufferWriterServiceError(
-                f"Error writing cache for service {service}: {e}"
+                f"Error writing cache for integration {integration_name}: {e}"
             ) from e
 
-    def clear_cache(self, service: str) -> None:
-        """Clears the cache for the given service by loading IDs and deleting them.
+    def clear_cache(self, integration_name: str) -> None:
+        """Clears the cache for the given integration by loading IDs and deleting them.
 
         This is an efficient implementation that only loads queue item IDs
         (not the full payload data) before deleting them.
 
         Args:
-            service: The name of the service/integration to clear the cache for.
+            integration_name: The name of the integration to clear the cache for.
         """
         try:
-            logger.info(f"Loading queue item IDs for service {service}...")
+            logger.info(f"Loading queue item IDs for integration {integration_name}...")
             ids: list[int] = self.queue_manager_service.load_queue_item_ids(
-                integration_name=service, queue_type="output"
+                integration_name=integration_name, queue_type="output"
             )
             if len(ids) == 0:
-                logger.info(f"No queue items to delete for service {service}")
+                logger.info(
+                    f"No queue items to delete for integration {integration_name}"
+                )
                 return
 
-            logger.info(f"Deleting {len(ids)} queue item IDs for service {service}...")
+            logger.info(
+                f"Deleting {len(ids)} queue item IDs for integration {integration_name}..."
+            )
             self.queue_manager_service.delete_records_from_queue(
-                integration_name=service,
+                integration_name=integration_name,
                 queue_type="output",
                 queue_ids_to_delete=ids,
             )
             logger.info(
-                f"Successfully deleted {len(ids)} queue items for service {service}"
+                f"Successfully deleted {len(ids)} queue items for integration {integration_name}"
             )
         except Exception as e:
-            logger.error(f"Error clearing cache for service {service}: {e}")
+            logger.error(
+                f"Error clearing cache for integration {integration_name}: {e}"
+            )
             raise CacheBufferWriterServiceError(
-                f"Error clearing cache for service {service}: {e}"
+                f"Error clearing cache for integration {integration_name}: {e}"
             ) from e

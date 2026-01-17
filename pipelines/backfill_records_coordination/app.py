@@ -234,9 +234,13 @@ def backfill_records(
             _cache_buffer_writer_service or CacheBufferWriterService()
         )
         if not bypass_write:
-            cache_buffer_writer_svc.write_cache(service=str(service_source_buffer))
+            cache_buffer_writer_svc.write_cache(
+                integration_name=str(service_source_buffer)
+            )
         if clear_queue:
-            cache_buffer_writer_svc.clear_cache(service=str(service_source_buffer))
+            cache_buffer_writer_svc.clear_cache(
+                integration_name=str(service_source_buffer)
+            )
 
 
 def manage_queue_clearing(

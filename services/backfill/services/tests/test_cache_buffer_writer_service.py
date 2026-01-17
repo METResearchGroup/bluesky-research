@@ -29,7 +29,7 @@ class TestCacheBufferWriterService_write_cache:
         mock_queue_manager.load_records_from_queue.return_value = records
 
         # Act
-        service.write_cache(service=integration_name)
+        service.write_cache(integration_name=integration_name)
 
         # Assert
         mock_queue_manager.load_records_from_queue.assert_called_once_with(
@@ -48,7 +48,7 @@ class TestCacheBufferWriterService_write_cache:
 
         # Act & Assert
         with pytest.raises(CacheBufferWriterServiceError) as exc_info:
-            service.write_cache(service=integration_name)
+            service.write_cache(integration_name=integration_name)
 
         # Assert
         assert "Error writing cache for service" in str(exc_info.value)
@@ -68,7 +68,7 @@ class TestCacheBufferWriterService_write_cache:
 
         # Act & Assert
         with pytest.raises(CacheBufferWriterServiceError) as exc_info:
-            service.write_cache(service=integration_name)
+            service.write_cache(integration_name=integration_name)
 
         # Assert
         assert "Error writing cache for service" in str(exc_info.value)
@@ -99,7 +99,7 @@ class TestCacheBufferWriterService_clear_cache:
         mock_queue_manager.load_queue_item_ids.return_value = sample_queue_ids
 
         # Act
-        service.clear_cache(service=integration_name)
+        service.clear_cache(integration_name=integration_name)
 
         # Assert
         mock_queue_manager.load_queue_item_ids.assert_called_once_with(
@@ -118,7 +118,7 @@ class TestCacheBufferWriterService_clear_cache:
         mock_queue_manager.load_queue_item_ids.return_value = []
 
         # Act
-        service.clear_cache(service=integration_name)
+        service.clear_cache(integration_name=integration_name)
 
         # Assert
         mock_queue_manager.load_queue_item_ids.assert_called_once_with(
@@ -135,7 +135,7 @@ class TestCacheBufferWriterService_clear_cache:
 
         # Act & Assert
         with pytest.raises(CacheBufferWriterServiceError) as exc_info:
-            service.clear_cache(service=integration_name)
+            service.clear_cache(integration_name=integration_name)
 
         # Assert
         assert "Error clearing cache for service" in str(exc_info.value)
@@ -156,7 +156,7 @@ class TestCacheBufferWriterService_clear_cache:
 
         # Act & Assert
         with pytest.raises(CacheBufferWriterServiceError) as exc_info:
-            service.clear_cache(service=integration_name)
+            service.clear_cache(integration_name=integration_name)
 
         # Assert
         assert "Error clearing cache for service" in str(exc_info.value)
