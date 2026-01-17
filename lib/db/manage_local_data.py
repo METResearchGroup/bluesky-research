@@ -854,12 +854,12 @@ def list_filenames(
     service: str,
     directories: list[Literal["cache", "active"]] = ["active"],
     validate_pq_files: bool = False,
-    partition_date: Optional[str] = None,
-    start_partition_date: Optional[str] = None,
-    end_partition_date: Optional[str] = None,
-    override_local_prefix: Optional[str] = None,
-    source_types: Optional[list[Literal["firehose", "most_liked"]]] = None,
-    custom_args: Optional[dict] = None,
+    partition_date: str | None = None,
+    start_partition_date: str | None = None,
+    end_partition_date: str | None = None,
+    override_local_prefix: str | None = None,
+    source_types: list[Literal["firehose", "most_liked"]] | None = None,
+    custom_args: dict | None = None,
 ) -> list[str]:
     """List files in local storage for a given service."""
 
