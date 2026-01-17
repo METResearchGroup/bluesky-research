@@ -11,8 +11,8 @@ class BackfillPeriod(Enum):
 class PostScope(str, Enum):
     """Scope for selecting posts to load."""
 
-    ALL_POSTS = "all_posts"  # all posts in the database
-    FEED_POSTS = "feed_posts"  # just posts used in feeds
+    ALL_POSTS = "posts"  # all posts in the database
+    FEED_POSTS = "posts_used_in_feeds"  # just posts used in feeds
 
 
 class EnqueueServicePayload(BaseModel):
