@@ -115,12 +115,28 @@ class TestLocalStorageAdapter_load_feed_posts:
             local_storage_adapter, "_load_feed_posts_for_date"
         ) as mock_load_for_date:
             mock_get_partition_dates.return_value = partition_dates
-            mock_load_for_date.return_value = [
-                PostToEnqueueModel(
-                    uri="test_uri",
-                    text="test_text",
-                    preprocessing_timestamp="2024-01-01T00:00:00",
-                )
+            mock_load_for_date.side_effect = [
+                [
+                    PostToEnqueueModel(
+                        uri="uri_1",
+                        text="test_text",
+                        preprocessing_timestamp="2024-01-01T00:00:00",
+                    )
+                ],
+                [
+                    PostToEnqueueModel(
+                        uri="uri_2",
+                        text="test_text",
+                        preprocessing_timestamp="2024-01-02T00:00:00",
+                    )
+                ],
+                [
+                    PostToEnqueueModel(
+                        uri="uri_3",
+                        text="test_text",
+                        preprocessing_timestamp="2024-01-03T00:00:00",
+                    )
+                ],
             ]
 
             # Act
@@ -132,6 +148,9 @@ class TestLocalStorageAdapter_load_feed_posts:
             )
             assert mock_load_for_date.call_count == 3
             assert len(result) == 3
+            assert result[0].uri == "uri_1"
+            assert result[1].uri == "uri_2"
+            assert result[2].uri == "uri_3"
 
     def test_returns_empty_list_when_no_partition_dates(self, local_storage_adapter):
         """Test that empty list is returned when no partition dates."""
@@ -576,7 +595,6 @@ class TestLocalStorageAdapter_deduplicate_feed_posts:
                 uri="uri2", text="text3", preprocessing_timestamp="2024-01-03T00:00:00"
             ),
         ]
-        expected = [posts[0], posts[2]]
 
         # Act
         result = local_storage_adapter._deduplicate_feed_posts(posts=posts)

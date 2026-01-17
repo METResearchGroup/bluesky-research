@@ -13,7 +13,7 @@ from services.backfill.exceptions import BackfillDataAdapterError
 from services.backfill.models import PostToEnqueueModel, PostUsedInFeedModel
 from services.backfill.repositories.base import BackfillDataAdapter
 
-logger = get_logger(__name__)
+logger = get_logger(__file__)
 
 LOCAL_TABLE_NAME = "preprocessed_posts"
 REQUIRED_COLUMNS = ["uri", "text", "preprocessing_timestamp"]
