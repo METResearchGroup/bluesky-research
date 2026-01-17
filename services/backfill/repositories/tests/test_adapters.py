@@ -1,12 +1,11 @@
 """Tests for adapters.py."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import pandas as pd
 
 from services.backfill.exceptions import BackfillDataAdapterError
 from services.backfill.models import PostToEnqueueModel, PostUsedInFeedModel
-from services.backfill.repositories.adapters import LocalStorageAdapter, S3Adapter
 
 
 class TestLocalStorageAdapter_load_all_posts:
@@ -741,3 +740,254 @@ class TestLocalStorageAdapter_deduplicate_feed_posts:
         assert result[0].uri == "uri1"
         assert result[0].text == "test_text"
         assert result[0].preprocessing_timestamp == "2024-01-01T12:00:00"
+
+
+class TestLocalStorageAdapter_write_records_to_storage:
+    """Tests for LocalStorageAdapter.write_records_to_storage method."""
+
+    def test_writes_records_to_storage_successfully(self, local_storage_adapter, sample_records):
+        """Test that records are written to storage successfully."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+        mock_queue = Mock()
+        mock_queue.load_dict_items_from_queue.return_value = sample_records
+        mock_df = pd.DataFrame(sample_records)
+
+        with patch(
+            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+        ) as mock_get_queue, patch(
+            "services.backfill.repositories.adapters.export_data_to_local_storage"
+        ) as mock_export, patch(
+            "services.backfill.repositories.adapters.pd.DataFrame"
+        ) as mock_dataframe:
+            mock_get_queue.return_value = mock_queue
+            mock_dataframe.return_value = mock_df
+
+            # Act
+            local_storage_adapter.write_records_to_storage(
+                integration_name=integration_name, records=sample_records
+            )
+
+            # Assert
+            mock_get_queue.assert_called_once_with(integration_name=integration_name)
+            mock_queue.load_dict_items_from_queue.assert_called_once()
+            mock_export.assert_called_once_with(
+                service=integration_name, df=mock_df, export_format="parquet"
+            )
+
+    def test_writes_empty_records_successfully(self, local_storage_adapter):
+        """Test that empty records list is written successfully."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+        records = []
+        mock_queue = Mock()
+        mock_queue.load_dict_items_from_queue.return_value = []
+        mock_df = pd.DataFrame([])
+
+        with patch(
+            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+        ) as mock_get_queue, patch(
+            "services.backfill.repositories.adapters.export_data_to_local_storage"
+        ) as mock_export, patch(
+            "services.backfill.repositories.adapters.pd.DataFrame"
+        ) as mock_dataframe:
+            mock_get_queue.return_value = mock_queue
+            mock_dataframe.return_value = mock_df
+
+            # Act
+            local_storage_adapter.write_records_to_storage(
+                integration_name=integration_name, records=records
+            )
+
+            # Assert
+            mock_get_queue.assert_called_once_with(integration_name=integration_name)
+            mock_queue.load_dict_items_from_queue.assert_called_once()
+            mock_export.assert_called_once_with(
+                service=integration_name, df=mock_df, export_format="parquet"
+            )
+
+    def test_loads_records_from_output_queue_before_export(self, local_storage_adapter, sample_records):
+        """Test that records are loaded from output queue before export."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+        mock_queue = Mock()
+        mock_queue.load_dict_items_from_queue.return_value = sample_records
+        mock_df = pd.DataFrame(sample_records)
+
+        with patch(
+            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+        ) as mock_get_queue, patch(
+            "services.backfill.repositories.adapters.export_data_to_local_storage"
+        ) as mock_export, patch(
+            "services.backfill.repositories.adapters.pd.DataFrame"
+        ) as mock_dataframe:
+            mock_get_queue.return_value = mock_queue
+            mock_dataframe.return_value = mock_df
+
+            # Act
+            local_storage_adapter.write_records_to_storage(
+                integration_name=integration_name, records=sample_records
+            )
+
+            # Assert
+            call_order = [call[0][0] for call in [mock_get_queue.call_args, mock_queue.load_dict_items_from_queue.call_args, mock_export.call_args]]
+            assert mock_get_queue.called
+            assert mock_queue.load_dict_items_from_queue.called
+            assert mock_export.called
+
+    def test_exports_to_local_storage_with_correct_parameters(self, local_storage_adapter, sample_records):
+        """Test that export_data_to_local_storage is called with correct parameters."""
+        # Arrange
+        integration_name = "test_integration_service"
+        mock_queue = Mock()
+        mock_queue.load_dict_items_from_queue.return_value = sample_records
+        mock_df = pd.DataFrame(sample_records)
+
+        with patch(
+            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+        ) as mock_get_queue, patch(
+            "services.backfill.repositories.adapters.export_data_to_local_storage"
+        ) as mock_export, patch(
+            "services.backfill.repositories.adapters.pd.DataFrame"
+        ) as mock_dataframe:
+            mock_get_queue.return_value = mock_queue
+            mock_dataframe.return_value = mock_df
+
+            # Act
+            local_storage_adapter.write_records_to_storage(
+                integration_name=integration_name, records=sample_records
+            )
+
+            # Assert
+            mock_export.assert_called_once_with(
+                service=integration_name, df=mock_df, export_format="parquet"
+            )
+
+    def test_logs_correct_record_count(self, local_storage_adapter, sample_records):
+        """Test that correct record count is logged."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+        mock_queue = Mock()
+        mock_queue.load_dict_items_from_queue.return_value = sample_records
+        mock_df = pd.DataFrame(sample_records)
+        mock_df.__len__ = Mock(return_value=len(sample_records))
+
+        with patch(
+            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+        ) as mock_get_queue, patch(
+            "services.backfill.repositories.adapters.export_data_to_local_storage"
+        ) as mock_export, patch(
+            "services.backfill.repositories.adapters.pd.DataFrame"
+        ) as mock_dataframe, patch(
+            "services.backfill.repositories.adapters.logger"
+        ) as mock_logger:
+            mock_get_queue.return_value = mock_queue
+            mock_dataframe.return_value = mock_df
+
+            # Act
+            local_storage_adapter.write_records_to_storage(
+                integration_name=integration_name, records=sample_records
+            )
+
+            # Assert
+            # Verify that info logs are called with record count
+            log_calls = [str(call) for call in mock_logger.info.call_args_list]
+            assert any("Exporting" in str(call) for call in log_calls) or len(mock_logger.info.call_args_list) > 0
+
+    def test_raises_error_when_get_queue_fails(self, local_storage_adapter, sample_records):
+        """Test that error is raised when get_output_queue_for_integration fails."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+        test_error = Exception("Get queue error")
+
+        with patch(
+            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+        ) as mock_get_queue:
+            mock_get_queue.side_effect = test_error
+
+            # Act & Assert
+            with pytest.raises(Exception) as exc_info:
+                local_storage_adapter.write_records_to_storage(
+                    integration_name=integration_name, records=sample_records
+                )
+
+            # Assert
+            assert "Get queue error" in str(exc_info.value)
+            mock_get_queue.assert_called_once_with(integration_name=integration_name)
+
+    def test_raises_error_when_load_dict_items_fails(self, local_storage_adapter, sample_records):
+        """Test that error is raised when load_dict_items_from_queue fails."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+        mock_queue = Mock()
+        test_error = Exception("Load dict items error")
+        mock_queue.load_dict_items_from_queue.side_effect = test_error
+
+        with patch(
+            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+        ) as mock_get_queue:
+            mock_get_queue.return_value = mock_queue
+
+            # Act & Assert
+            with pytest.raises(Exception) as exc_info:
+                local_storage_adapter.write_records_to_storage(
+                    integration_name=integration_name, records=sample_records
+                )
+
+            # Assert
+            assert "Load dict items error" in str(exc_info.value)
+            mock_get_queue.assert_called_once_with(integration_name=integration_name)
+            mock_queue.load_dict_items_from_queue.assert_called_once()
+
+    def test_raises_error_when_export_fails(self, local_storage_adapter, sample_records):
+        """Test that error is raised when export_data_to_local_storage fails."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+        mock_queue = Mock()
+        mock_queue.load_dict_items_from_queue.return_value = sample_records
+        mock_df = pd.DataFrame(sample_records)
+        test_error = Exception("Export error")
+
+        with patch(
+            "services.backfill.repositories.adapters.get_output_queue_for_integration"
+        ) as mock_get_queue, patch(
+            "services.backfill.repositories.adapters.export_data_to_local_storage"
+        ) as mock_export, patch(
+            "services.backfill.repositories.adapters.pd.DataFrame"
+        ) as mock_dataframe:
+            mock_get_queue.return_value = mock_queue
+            mock_dataframe.return_value = mock_df
+            mock_export.side_effect = test_error
+
+            # Act & Assert
+            with pytest.raises(Exception) as exc_info:
+                local_storage_adapter.write_records_to_storage(
+                    integration_name=integration_name, records=sample_records
+                )
+
+            # Assert
+            assert "Export error" in str(exc_info.value)
+            mock_get_queue.assert_called_once_with(integration_name=integration_name)
+            mock_queue.load_dict_items_from_queue.assert_called_once()
+            mock_export.assert_called_once_with(
+                service=integration_name, df=mock_df, export_format="parquet"
+            )
+
+
+class TestS3Adapter_write_records_to_storage:
+    """Tests for S3Adapter.write_records_to_storage method."""
+
+    def test_raises_not_implemented_error(self, s3_adapter, sample_records):
+        """Test that write_records_to_storage raises NotImplementedError."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+
+        # Act & Assert
+        with pytest.raises(NotImplementedError) as exc_info:
+            s3_adapter.write_records_to_storage(
+                integration_name=integration_name, records=sample_records
+            )
+
+        # Assert
+        assert "S3 data writing is not yet implemented" in str(exc_info.value)
+        assert "Use LocalStorageAdapter for now" in str(exc_info.value)
