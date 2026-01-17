@@ -3,15 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from services.backfill.models import (
-    BackfillPeriod,
-    EnqueueServicePayload,
-    IntegrationRunnerConfigurationPayload,
-    IntegrationRunnerServicePayload,
-    PostScope,
-    PostToEnqueueModel,
-    PostUsedInFeedModel,
-)
+from services.backfill.models import EnqueueServicePayload
 
 
 class TestEnqueueServicePayload_validate_record_type:
