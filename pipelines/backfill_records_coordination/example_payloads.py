@@ -23,7 +23,7 @@ payloads = {
     },
     "perspective_api_enqueue_only": {
         "description": "Enqueue records only, skip running integrations",
-        "command": "python app.py --record-type posts --integrations ml_inference_perspective_api --add-to-queue",
+        "command": "python app.py --record-type posts --integrations ml_inference_perspective_api --add-to-queue --start-date 2024-01-01 --end-date 2024-01-31",
     },
     "perspective_api_run_integration_only": {
         "description": "Run integrations only (process existing queued records)",
@@ -39,7 +39,7 @@ payloads = {
     },
     "sociopolitical_enqueue_only": {
         "description": "Enqueue records only, skip running integrations",
-        "command": "python app.py --record-type posts --integrations ml_inference_sociopolitical --add-to-queue",
+        "command": "python app.py --record-type posts --integrations ml_inference_sociopolitical --add-to-queue --start-date 2024-01-01 --end-date 2024-01-31",
     },
     "sociopolitical_run_integration_only": {
         "description": "Run integrations only (process existing queued records)",
@@ -51,7 +51,7 @@ payloads = {
     },
     "ime_enqueue_only": {
         "description": "Enqueue records only, skip running integrations",
-        "command": "python app.py --record-type posts --integrations ml_inference_ime --add-to-queue",
+        "command": "python app.py --record-type posts --integrations ml_inference_ime --add-to-queue --start-date 2024-01-01 --end-date 2024-01-31",
     },
     "ime_run_integration_only": {
         "description": "Run integrations only (process existing queued records)",

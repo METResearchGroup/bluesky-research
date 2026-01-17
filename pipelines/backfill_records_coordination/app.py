@@ -208,8 +208,6 @@ def backfill_records(
         end_date=end_date,
     )
 
-    # TODO: add defaults for start_date and end_date, and
-    # then make sure that they're used here.
     if add_to_queue:
         enqueue_svc = _enqueue_service or EnqueueService()
         enqueue_service_payload = EnqueueServicePayload(
@@ -392,11 +390,15 @@ def run_validation_checks(
             "--integrations is required when --run-integrations is used"
         )
 
-    # Validate that posts_used_in_feeds requires both start_date and end_date
-    if record_type == "posts_used_in_feeds":
+    # Validate that add_to_queue requires both start_date and end_date
+    if add_to_queue:
+        if not integrations:
+            raise click.UsageError(
+                "At least one --integrations value is required when --add-to-queue is used"
+            )
         if not (start_date and end_date):
             raise click.UsageError(
-                "Both --start-date and --end-date are required when record_type is 'posts_used_in_feeds'"
+                "Both --start-date and --end-date are required when --add-to-queue is used"
             )
 
     # Validate write_cache_buffer_to_storage usage

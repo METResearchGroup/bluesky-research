@@ -83,7 +83,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         
         result = self.runner.invoke(
             backfill_records,
-            ['--record-type', 'posts', '-i', 'p', '-i', 's', '--add-to-queue', '--run-integrations']
+            ['--record-type', 'posts', '-i', 'p', '-i', 's', '--add-to-queue', '--run-integrations', '--start-date', '2024-01-01', '--end-date', '2024-01-31']
         )
         
         self.assertEqual(result.exit_code, 0)
@@ -119,7 +119,9 @@ class TestBackfillCoordinationCliApp(TestCase):
                 '--backfill-period', 'days',
                 '--backfill-duration', '2',
                 '--add-to-queue',
-                '--run-integrations'
+                '--run-integrations',
+                '--start-date', '2024-01-01',
+                '--end-date', '2024-01-31'
             ]
         )
         
@@ -145,7 +147,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         with patch('pipelines.backfill_records_coordination.app.IntegrationRunnerService') as mock_runner:
             result = self.runner.invoke(
                 backfill_records,
-                ['--record-type', 'posts', '--add-to-queue']
+                ['--record-type', 'posts', '--add-to-queue', '--start-date', '2024-01-01', '--end-date', '2024-01-31']
             )
             
             self.assertEqual(result.exit_code, 0)
@@ -348,37 +350,54 @@ class TestBackfillCoordinationCliApp(TestCase):
         self.assertEqual(enqueue_payload.start_date, '2024-01-01')
         self.assertEqual(enqueue_payload.end_date, '2024-01-31')
 
-    def test_posts_used_in_feeds_missing_dates(self):
-        """Test error when posts_used_in_feeds is missing required dates."""
+    def test_add_to_queue_requires_dates(self):
+        """Test that add_to_queue requires both start_date and end_date."""
         # Test missing both dates
         result = self.runner.invoke(
             backfill_records,
-            ['--record-type', 'posts_used_in_feeds']
+            ['--record-type', 'posts', '--add-to-queue']
         )
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Both --start-date and --end-date are required", result.output)
+        self.assertIn("Both --start-date and --end-date are required when --add-to-queue is used", result.output)
 
         # Test missing end date
         result = self.runner.invoke(
             backfill_records,
             [
-                '--record-type', 'posts_used_in_feeds',
+                '--record-type', 'posts',
+                '--add-to-queue',
                 '--start-date', '2024-01-01'
             ]
         )
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Both --start-date and --end-date are required", result.output)
+        self.assertIn("Both --start-date and --end-date are required when --add-to-queue is used", result.output)
 
         # Test missing start date
         result = self.runner.invoke(
             backfill_records,
             [
-                '--record-type', 'posts_used_in_feeds',
+                '--record-type', 'posts',
+                '--add-to-queue',
                 '--end-date', '2024-01-31'
             ]
         )
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Both --start-date and --end-date are required", result.output)
+        self.assertIn("Both --start-date and --end-date are required when --add-to-queue is used", result.output)
+
+    def test_posts_used_in_feeds_missing_dates(self):
+        """Test error when posts_used_in_feeds is missing required dates.
+        
+        Note: This test is now redundant with test_add_to_queue_requires_dates,
+        but kept for backward compatibility. The requirement is now enforced
+        for all add_to_queue operations, not just posts_used_in_feeds.
+        """
+        # Test missing both dates
+        result = self.runner.invoke(
+            backfill_records,
+            ['--record-type', 'posts_used_in_feeds', '--add-to-queue']
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Both --start-date and --end-date are required when --add-to-queue is used", result.output)
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     def test_write_cache_buffer_to_storage_only_no_backfill(self, mock_service_cls):
@@ -416,7 +435,9 @@ class TestBackfillCoordinationCliApp(TestCase):
                 '--record-type', 'posts',
                 '-i', 'p',
                 '--add-to-queue',
-                '--run-integrations'
+                '--run-integrations',
+                '--start-date', '2024-01-01',
+                '--end-date', '2024-01-31'
             ]
         )
 
@@ -581,7 +602,9 @@ class TestBackfillCoordinationCliApp(TestCase):
                 '-i', 'p',
                 '--record-type', 'posts',
                 '--add-to-queue',
-                '--run-integrations'
+                '--run-integrations',
+                '--start-date', '2024-01-01',
+                '--end-date', '2024-01-31'
             ],
             input='y\n'
         )
@@ -676,6 +699,8 @@ class TestBackfillCoordinationCliApp(TestCase):
                 '--write-cache-buffer-to-storage',
                 '--service-source-buffer', 'ml_inference_perspective_api',
                 '--clear-queue',
+                '--start-date', '2024-01-01',
+                '--end-date', '2024-01-31',
             ]
         )
 
