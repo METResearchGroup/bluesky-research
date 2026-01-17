@@ -392,6 +392,10 @@ def run_validation_checks(
 
     # Validate that add_to_queue requires both start_date and end_date
     if add_to_queue:
+        if not integrations:
+            raise click.UsageError(
+                "At least one --integrations value is required when --add-to-queue is used"
+            )
         if not (start_date and end_date):
             raise click.UsageError(
                 "Both --start-date and --end-date are required when --add-to-queue is used"
