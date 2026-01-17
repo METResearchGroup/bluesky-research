@@ -24,6 +24,8 @@ SERVICES_TO_WRITE = [
 ]
 
 
+# NOTE: Keeping this here for backwards compatibility.
+# Most of the usage has been moved to `services/backfill/cache_buffer_writer_service.py`
 def write_backfill_sync_queues_to_db(clear_queue: bool = True):
     """Writes the backfill sync queues to the database.
 
