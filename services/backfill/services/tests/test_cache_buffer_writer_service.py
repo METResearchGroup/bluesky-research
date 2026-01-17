@@ -51,7 +51,7 @@ class TestCacheBufferWriterService_write_cache:
             service.write_cache(integration_name=integration_name)
 
         # Assert
-        assert "Error writing cache for service" in str(exc_info.value)
+        assert "Error writing cache for integration" in str(exc_info.value)
         assert integration_name in str(exc_info.value)
         assert "Queue load error" in str(exc_info.value)
         mock_queue_manager.load_records_from_queue.assert_called_once_with(
@@ -71,7 +71,7 @@ class TestCacheBufferWriterService_write_cache:
             service.write_cache(integration_name=integration_name)
 
         # Assert
-        assert "Error writing cache for service" in str(exc_info.value)
+        assert "Error writing cache for integration" in str(exc_info.value)
         assert integration_name in str(exc_info.value)
         assert "Repository write error" in str(exc_info.value)
         mock_queue_manager.load_records_from_queue.assert_called_once_with(
@@ -138,7 +138,7 @@ class TestCacheBufferWriterService_clear_cache:
             service.clear_cache(integration_name=integration_name)
 
         # Assert
-        assert "Error clearing cache for service" in str(exc_info.value)
+        assert "Error clearing cache for integration" in str(exc_info.value)
         assert integration_name in str(exc_info.value)
         assert "Load IDs error" in str(exc_info.value)
         mock_queue_manager.load_queue_item_ids.assert_called_once_with(
@@ -159,7 +159,7 @@ class TestCacheBufferWriterService_clear_cache:
             service.clear_cache(integration_name=integration_name)
 
         # Assert
-        assert "Error clearing cache for service" in str(exc_info.value)
+        assert "Error clearing cache for integration" in str(exc_info.value)
         assert integration_name in str(exc_info.value)
         assert "Delete records error" in str(exc_info.value)
         mock_queue_manager.load_queue_item_ids.assert_called_once_with(
