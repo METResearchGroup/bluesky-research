@@ -1,8 +1,6 @@
 """Generic helpers for loading local data."""
 
 from datetime import timedelta
-import gzip
-import json
 import os
 from typing import Literal, Optional
 
@@ -15,7 +13,6 @@ from lib.constants import (
     timestamp_format as DEFAULT_TIMESTAMP_FORMAT,
     default_lookback_days,
 )
-from lib.path_utils import create_directory_if_not_exists
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.db.sql.duckdb_wrapper import DuckDB
 from lib.datetime_utils import generate_current_datetime_str
@@ -54,84 +51,6 @@ services_list = [
 # date of 2016-01-01 so that we can at least process the data and then we
 # can keep these in one place.
 DEFAULT_ERROR_PARTITION_DATE = "2016-01-01"
-
-
-def load_jsonl_data(filepath: str) -> list[dict]:
-    """Load JSONL data from a file, supporting gzipped files."""
-    if filepath.endswith(".gz"):
-        with gzip.open(filepath, "rt", encoding="utf-8") as f:
-            data = [json.loads(line) for line in f]
-    else:
-        with open(filepath, "r", encoding="utf-8") as f:
-            data = [json.loads(line) for line in f]
-    return data
-
-
-def _load_json_data_from_directory(directory: str) -> list[dict]:
-    """Load JSON data from a directory."""
-    data: list[dict] = []
-    for file in os.listdir(directory):
-        if file.endswith(".json"):
-            with open(os.path.join(directory, file), "r", encoding="utf-8") as f:
-                data.extend(json.load(f))
-    return data
-
-
-def _write_json_records_to_local_store(
-    records: list[dict],
-    export_filepath: str,
-    compressed: bool,
-) -> None:
-    """Takes a list of JSON records and writes them to a local store."""
-    if compressed:
-        if not export_filepath.endswith(".gz"):
-            export_filepath += ".gz"
-        with gzip.open(export_filepath, "wt") as f:
-            for record in records:
-                f.write(json.dumps(record) + "\n")
-    else:
-        with open(export_filepath, "w") as f:
-            for record in records:
-                f.write(json.dumps(record) + "\n")
-
-
-def _write_json_dumped_records_to_local_store(
-    source_directory: str,
-    export_filepath: str,
-    compressed: bool,
-) -> None:
-    """Takes a directory of JSON files and writes them to a local store."""
-    res: list[dict] = _load_json_data_from_directory(source_directory)
-    _write_json_records_to_local_store(res, export_filepath, compressed)
-
-
-def write_jsons_to_local_store(
-    export_filepath: str,
-    source_directory: str | None = None,
-    records: list[dict] | None = None,
-    compressed: bool = True,
-):
-    """Writes local JSONs to local store. Writes as a .jsonl file.
-
-    Loads in JSONs from a given directory and writes them to the local storage
-    using the export filepath.
-    """
-    create_directory_if_not_exists(export_filepath)
-
-    if records is not None and len(records) > 0:
-        _write_json_records_to_local_store(
-            records=records,
-            export_filepath=export_filepath,
-            compressed=compressed,
-        )
-    elif source_directory is not None and os.path.exists(source_directory):
-        _write_json_dumped_records_to_local_store(
-            source_directory=source_directory,
-            export_filepath=export_filepath,
-            compressed=compressed,
-        )
-    else:
-        raise ValueError("No source data provided.")
 
 
 def data_is_older_than_lookback(
