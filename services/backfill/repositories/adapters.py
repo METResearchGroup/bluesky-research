@@ -43,8 +43,8 @@ class LocalStorageAdapter(BackfillDataAdapter):
         """
         table_columns = REQUIRED_COLUMNS.copy()
         table_columns_str = ", ".join(table_columns)
-        filter = "WHERE text IS NOT NULL AND text != ''"
-        query = f"SELECT {table_columns_str} FROM {LOCAL_TABLE_NAME} {filter}".strip()
+        filter_clause = "WHERE text IS NOT NULL AND text != ''"
+        query = f"SELECT {table_columns_str} FROM {LOCAL_TABLE_NAME} {filter_clause}".strip()
         query_metadata = {
             "tables": [{"name": LOCAL_TABLE_NAME, "columns": table_columns}]
         }
