@@ -172,10 +172,35 @@ def _fetch_files_after_current_hour(hour_dir_path: str) -> list[str]:
     return _fetch_files_in_directory(hour_dir_path)
 
 
-def _fetch_files_after_current_minute(minute_dir_path: str) -> list[str]:
+def _fetch_files_after_timestamp_minute(minute_dir_path: str) -> list[str]:
     """Fetch files after the current minute."""
     return _fetch_files_in_directory(minute_dir_path)
 
+# TODO: update ALL of these to remove references to "current", as what
+# we really want is a "timestamp of interest" or something like that.
+def _fetch_all_files_after_timestamp_minute(
+    hour_dir_path: str, timestamp_minute: str,
+) -> list[str]:
+    """For all the minute-by-minute files in the hour of interest, fetch all
+    files after the current minute.
+    
+    At this level, if we have the same year + month + day + hour, then
+    we crawl all the files that are more recent than the current minute.
+    """
+    files_list: list[str] = []
+    minute_level_paths = os.listdir(hour_dir_path)
+    for minute_dir in minute_level_paths:
+        if minute_dir > timestamp_minute:
+            future_minute_files: list[str] = (
+                _fetch_files_after_timestamp_minute(
+                    minute_dir_path=os.path.join(
+                        hour_dir_path, minute_dir,
+                    )
+                )
+            )
+            files_list.extend(future_minute_files)
+
+    return files_list
 
 def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> list[str]:
     """Find files after a given timestamp."""
@@ -247,24 +272,16 @@ def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> li
                                         full_current_hour_dir = os.path.join(
                                             full_current_day_dir, hour_dir
                                         )
-                                        # if same hour, check minutes
-                                        minutes = os.listdir(full_current_hour_dir)
-                                        for minute_dir in minutes:
-                                            # if same year + same month +
-                                            # same day + same hour + more
-                                            # recent minute, crawl all files.
-                                            if minute_dir > minute:
-                                                future_minute_files: list[str] = (
-                                                    _fetch_files_after_current_minute(
-                                                        minute_dir_path=os.path.join(
-                                                            full_current_hour_dir,
-                                                            minute_dir,
-                                                        )
-                                                    )
-                                                )
-                                                files_list.extend(future_minute_files)
-                                                continue
-
+                                        future_minute_files: list[str] = (
+                                            _fetch_all_files_after_timestamp_minute(
+                                                hour_dir_path=full_current_hour_dir,
+                                                timestamp_minute=minute,
+                                            )
+                                        )
+                                        files_list.extend(future_minute_files)
+                                        continue
+                                    else:
+                                        continue
     return files_list
 
 
