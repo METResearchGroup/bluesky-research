@@ -578,6 +578,29 @@ class Queue:
 
             return items
 
+    def load_item_ids_from_queue(self, limit: int | None = None) -> list[int]:
+        """Load queue item IDs from the queue.
+
+        When "limit" is provided, it will return the first "limit" number of IDs.
+
+        Returns:
+            list[int]: List of queue item IDs
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            query = "SELECT id FROM queue"
+            params = []
+
+            if limit is not None:
+                query += " LIMIT ?"
+                params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+
+            ids = [row[0] for row in rows]
+            return ids
+
     def load_dict_items_metadata_from_queue(self) -> list[dict]:
         """Load the metadata from the queue."""
         with sqlite3.connect(self.db_path) as conn:
