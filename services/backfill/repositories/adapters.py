@@ -9,6 +9,7 @@ from lib.datetime_utils import (
 )
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
+from services.backfill.exceptions import BackfillDataAdapterError
 from services.backfill.models import PostToEnqueueModel, PostUsedInFeedModel
 from services.backfill.repositories.base import BackfillDataAdapter
 
@@ -238,7 +239,9 @@ class LocalStorageAdapter(BackfillDataAdapter):
                 f"Failed to load {service} post URIs from local storage: {e}. "
                 "Returning empty set."
             )
-            return set()
+            raise BackfillDataAdapterError(
+                f"Failed to load {service} post URIs from local storage: {e}"
+            ) from e
 
 
 class S3Adapter(BackfillDataAdapter):

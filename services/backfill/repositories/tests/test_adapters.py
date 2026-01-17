@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 import pandas as pd
 
+from services.backfill.exceptions import BackfillDataAdapterError
 from services.backfill.models import PostToEnqueueModel, PostUsedInFeedModel
 from services.backfill.repositories.adapters import LocalStorageAdapter, S3Adapter
 
@@ -479,30 +480,33 @@ class TestLocalStorageAdapter_get_previously_labeled_post_uris:
             assert result == {"uri1", "uri2"}
             assert len(result) == 2
 
-    def test_returns_empty_set_on_exception(self, adapter):
-        """Test that empty set is returned when exception occurs."""
+    def test_raises_backfill_data_adapter_error_on_exception(self, adapter):
+        """Test that BackfillDataAdapterError is raised when exception occurs."""
         # Arrange
         service = "ml_inference_perspective_api"
         id_field = "uri"
         start_date = "2024-01-01"
         end_date = "2024-01-31"
+        test_error = Exception("Test error")
 
         with patch(
             "services.backfill.repositories.adapters.load_data_from_local_storage"
         ) as mock_load_data, patch("services.backfill.repositories.adapters.logger") as mock_logger:
-            mock_load_data.side_effect = Exception("Test error")
+            mock_load_data.side_effect = test_error
 
-            # Act
-            result = adapter.get_previously_labeled_post_uris(
-                service=service,
-                id_field=id_field,
-                start_date=start_date,
-                end_date=end_date,
-            )
+            # Act & Assert
+            with pytest.raises(BackfillDataAdapterError) as exc_info:
+                adapter.get_previously_labeled_post_uris(
+                    service=service,
+                    id_field=id_field,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
 
             # Assert
-            assert result == set()
-            assert len(result) == 0
+            assert "Failed to load" in str(exc_info.value)
+            assert service in str(exc_info.value)
+            assert "Test error" in str(exc_info.value)
             mock_logger.warning.assert_called_once()
 
     def test_returns_empty_set_when_no_data(self, adapter):
@@ -512,7 +516,8 @@ class TestLocalStorageAdapter_get_previously_labeled_post_uris:
         id_field = "uri"
         start_date = "2024-01-01"
         end_date = "2024-01-31"
-        empty_df = pd.DataFrame([])
+        # Create empty DataFrames with the correct column structure
+        empty_df = pd.DataFrame(columns=[id_field])
 
         with patch(
             "services.backfill.repositories.adapters.load_data_from_local_storage"
