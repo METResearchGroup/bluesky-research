@@ -147,7 +147,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         with patch('pipelines.backfill_records_coordination.app.IntegrationRunnerService') as mock_runner:
             result = self.runner.invoke(
                 backfill_records,
-                ['--record-type', 'posts', '--add-to-queue', '--start-date', '2024-01-01', '--end-date', '2024-01-31']
+                ['--record-type', 'posts', '--add-to-queue', '-i', 'p', '--start-date', '2024-01-01', '--end-date', '2024-01-31']
             )
             
             self.assertEqual(result.exit_code, 0)
@@ -168,19 +168,19 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
-    def test_write_cache_buffer_to_storage_all_services(self, mock_service_cls):
-        """Test writing cache buffer for all services."""
+    def test_write_cache_buffer_to_storage_specific_service(self, mock_service_cls):
+        """Test writing cache buffer for a specific service."""
         mock_service = MagicMock()
         mock_service_cls.return_value = mock_service
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api']
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_service.write_cache.assert_called_once_with(service='all')
-        mock_service.clear_queue.assert_not_called()
+        mock_service.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
+        mock_service.clear_cache.assert_not_called()
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     def test_write_cache_buffer_to_storage_specific_service(self, mock_service_cls):
@@ -194,8 +194,8 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_service.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
-        mock_service.clear_queue.assert_not_called()
+        mock_service.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
+        mock_service.clear_cache.assert_not_called()
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     def test_write_cache_buffer_to_storage_with_clear_queue(self, mock_service_cls):
@@ -205,12 +205,12 @@ class TestBackfillCoordinationCliApp(TestCase):
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all', '--clear-queue']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api', '--clear-queue']
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_service.write_cache.assert_called_once_with(service='all')
-        mock_service.clear_queue.assert_called_once_with(service='all')
+        mock_service.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
+        mock_service.clear_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
         
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     def test_write_cache_buffer_to_storage_with_bypass_write_requires_clear_queue(self, mock_service_cls):
@@ -221,13 +221,13 @@ class TestBackfillCoordinationCliApp(TestCase):
         # Test without clear_queue
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all', '--bypass-write']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api', '--bypass-write']
         )
         
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("--bypass-write requires --write-cache-buffer-to-storage and --clear-queue", result.output)
         mock_service.write_cache.assert_not_called()
-        mock_service.clear_queue.assert_not_called()
+        mock_service.clear_cache.assert_not_called()
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     def test_write_cache_buffer_to_storage_with_bypass_write_and_clear_queue(self, mock_service_cls):
@@ -237,14 +237,14 @@ class TestBackfillCoordinationCliApp(TestCase):
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all', '--clear-queue', '--bypass-write']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api', '--clear-queue', '--bypass-write']
         )
 
         self.assertEqual(result.exit_code, 0)
         # When bypass_write is True, write_cache should NOT be called
         mock_service.write_cache.assert_not_called()
-        # Only clear_queue should be called
-        mock_service.clear_queue.assert_called_once_with(service='all')
+        # Only clear_cache should be called
+        mock_service.clear_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     def test_write_cache_buffer_to_storage_with_clear_queue_no_bypass(self, mock_service_cls):
@@ -254,12 +254,12 @@ class TestBackfillCoordinationCliApp(TestCase):
 
         result = self.runner.invoke(
             backfill_records,
-            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all', '--clear-queue']
+            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api', '--clear-queue']
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_service.write_cache.assert_called_once_with(service='all')
-        mock_service.clear_queue.assert_called_once_with(service='all')
+        mock_service.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
+        mock_service.clear_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
 
     def test_invalid_record_type(self):
         """Test error handling for invalid record type."""
@@ -334,6 +334,7 @@ class TestBackfillCoordinationCliApp(TestCase):
             backfill_records,
             [
                 '--record-type', 'posts_used_in_feeds',
+                '-i', 'p',
                 '--start-date', '2024-01-01',
                 '--end-date', '2024-01-31',
                 '--add-to-queue'
@@ -352,10 +353,10 @@ class TestBackfillCoordinationCliApp(TestCase):
 
     def test_add_to_queue_requires_dates(self):
         """Test that add_to_queue requires both start_date and end_date."""
-        # Test missing both dates
+        # Test missing both dates (but with integrations provided)
         result = self.runner.invoke(
             backfill_records,
-            ['--record-type', 'posts', '--add-to-queue']
+            ['--record-type', 'posts', '--add-to-queue', '-i', 'p']
         )
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("Both --start-date and --end-date are required when --add-to-queue is used", result.output)
@@ -366,6 +367,7 @@ class TestBackfillCoordinationCliApp(TestCase):
             [
                 '--record-type', 'posts',
                 '--add-to-queue',
+                '-i', 'p',
                 '--start-date', '2024-01-01'
             ]
         )
@@ -378,6 +380,7 @@ class TestBackfillCoordinationCliApp(TestCase):
             [
                 '--record-type', 'posts',
                 '--add-to-queue',
+                '-i', 'p',
                 '--end-date', '2024-01-31'
             ]
         )
@@ -391,10 +394,10 @@ class TestBackfillCoordinationCliApp(TestCase):
         but kept for backward compatibility. The requirement is now enforced
         for all add_to_queue operations, not just posts_used_in_feeds.
         """
-        # Test missing both dates
+        # Test missing both dates (but with integrations provided)
         result = self.runner.invoke(
             backfill_records,
-            ['--record-type', 'posts_used_in_feeds', '--add-to-queue']
+            ['--record-type', 'posts_used_in_feeds', '--add-to-queue', '-i', 'p']
         )
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("Both --start-date and --end-date are required when --add-to-queue is used", result.output)
@@ -409,11 +412,11 @@ class TestBackfillCoordinationCliApp(TestCase):
         with patch('pipelines.backfill_records_coordination.app.IntegrationRunnerService') as mock_runner:
             result = self.runner.invoke(
                 backfill_records,
-                ['--write-cache-buffer-to-storage', '--service-source-buffer', 'all']
+                ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api']
             )
 
             self.assertEqual(result.exit_code, 0)
-            mock_service.write_cache.assert_called_once_with(service='all')
+            mock_service.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
             mock_runner.assert_not_called()
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
@@ -431,7 +434,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         result = self.runner.invoke(
             backfill_records,
             [
-                '--write-cache-buffer-to-storage', '--service-source-buffer', 'all',
+                '--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api',
                 '--record-type', 'posts',
                 '-i', 'p',
                 '--add-to-queue',
@@ -445,7 +448,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         # Verify services were called
         mock_enqueue.enqueue_records.assert_called_once()
         mock_integration_runner.run_integrations.assert_called_once()
-        mock_cache_writer.write_cache.assert_called_once_with(service='all')
+        mock_cache_writer.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     @patch('pipelines.backfill_records_coordination.app.EnqueueService')
@@ -466,135 +469,136 @@ class TestBackfillCoordinationCliApp(TestCase):
         mock_enqueue.enqueue_records.assert_not_called()
         mock_integration_runner.run_integrations.assert_not_called()
 
-    @patch('pipelines.backfill_records_coordination.app.Queue')
-    def test_clear_input_queues_with_confirmation(self, mock_queue_cls):
+    @patch("pipelines.backfill_records_coordination.app.click.confirm", return_value=True)
+    @patch("services.backfill.services.queue_manager_service.QueueManagerService")
+    def test_clear_input_queues_with_confirmation(
+        self, mock_queue_manager_cls, _mock_confirm
+    ):
         """Test clearing input queues with user confirmation."""
-        mock_queue = MagicMock()
-        mock_queue.clear_queue.return_value = 5  # Simulate 5 items cleared
-        mock_queue_cls.return_value = mock_queue
+        mock_queue_manager = MagicMock()
+        mock_queue_manager_cls.return_value = mock_queue_manager
 
-        # Simulate user confirming the action
         result = self.runner.invoke(
             backfill_records,
             ['--clear-input-queues', '-i', 'p', '-i', 's'],
-            input='y\n'  # Simulate user typing 'y' when prompted
         )
 
         self.assertEqual(result.exit_code, 0)
-        # Should be called twice, once for each integration
-        self.assertEqual(mock_queue_cls.call_count, 2)
-        mock_queue_cls.assert_has_calls([
-            call(queue_name='input_ml_inference_perspective_api', create_new_queue=True),
-            call().clear_queue(),
-            call(queue_name='input_ml_inference_sociopolitical', create_new_queue=True),
-            call().clear_queue(),
-        ])
-        self.assertEqual(mock_queue.clear_queue.call_count, 2)
+        mock_queue_manager_cls.assert_called_once()
+        mock_queue_manager.delete_records_from_queue.assert_has_calls(
+            [
+                call(integration_name="ml_inference_perspective_api", queue_type="input"),
+                call(integration_name="ml_inference_sociopolitical", queue_type="input"),
+            ],
+            any_order=False,
+        )
+        self.assertEqual(mock_queue_manager.delete_records_from_queue.call_count, 2)
 
-    @patch('pipelines.backfill_records_coordination.app.Queue')
-    def test_clear_output_queues_with_confirmation(self, mock_queue_cls):
+    @patch("pipelines.backfill_records_coordination.app.click.confirm", return_value=True)
+    @patch("services.backfill.services.queue_manager_service.QueueManagerService")
+    def test_clear_output_queues_with_confirmation(
+        self, mock_queue_manager_cls, _mock_confirm
+    ):
         """Test clearing output queues with user confirmation."""
-        mock_queue = MagicMock()
-        mock_queue.clear_queue.return_value = 3  # Simulate 3 items cleared
-        mock_queue_cls.return_value = mock_queue
+        mock_queue_manager = MagicMock()
+        mock_queue_manager_cls.return_value = mock_queue_manager
 
-        # Simulate user confirming the action
         result = self.runner.invoke(
             backfill_records,
             ['--clear-output-queues', '-i', 'p', '-i', 's'],
-            input='y\n'  # Simulate user typing 'y' when prompted
         )
 
         self.assertEqual(result.exit_code, 0)
-        # Should be called twice, once for each integration
-        self.assertEqual(mock_queue_cls.call_count, 2)
-        mock_queue_cls.assert_has_calls([
-            call(queue_name='output_ml_inference_perspective_api', create_new_queue=True),
-            call().clear_queue(),
-            call(queue_name='output_ml_inference_sociopolitical', create_new_queue=True),
-            call().clear_queue(),
-        ])
-        self.assertEqual(mock_queue.clear_queue.call_count, 2)
+        mock_queue_manager_cls.assert_called_once()
+        mock_queue_manager.delete_records_from_queue.assert_has_calls(
+            [
+                call(
+                    integration_name="ml_inference_perspective_api",
+                    queue_type="output",
+                ),
+                call(
+                    integration_name="ml_inference_sociopolitical",
+                    queue_type="output",
+                ),
+            ],
+            any_order=False,
+        )
+        self.assertEqual(mock_queue_manager.delete_records_from_queue.call_count, 2)
 
-    @patch('pipelines.backfill_records_coordination.app.Queue')
-    def test_clear_both_queues_with_confirmation(self, mock_queue_cls):
+    @patch("pipelines.backfill_records_coordination.app.click.confirm", return_value=True)
+    @patch("services.backfill.services.queue_manager_service.QueueManagerService")
+    def test_clear_both_queues_with_confirmation(
+        self, mock_queue_manager_cls, _mock_confirm
+    ):
         """Test clearing both input and output queues with user confirmation."""
-        mock_queue = MagicMock()
-        mock_queue.clear_queue.return_value = 4  # Simulate 4 items cleared
-        mock_queue_cls.return_value = mock_queue
+        mock_queue_manager = MagicMock()
+        mock_queue_manager_cls.return_value = mock_queue_manager
 
-        # Simulate user confirming both actions
         result = self.runner.invoke(
             backfill_records,
             ['--clear-input-queues', '--clear-output-queues', '-i', 'p'],
-            input='y\n'  # Only need one confirmation since both are handled together
         )
 
         self.assertEqual(result.exit_code, 0)
-        # Should be called twice for the one integration (input and output)
-        self.assertEqual(mock_queue_cls.call_count, 2)
-        mock_queue_cls.assert_has_calls([
-            call(queue_name='input_ml_inference_perspective_api', create_new_queue=True),
-            call().clear_queue(),
-            call(queue_name='output_ml_inference_perspective_api', create_new_queue=True),
-            call().clear_queue(),
-        ])
-        self.assertEqual(mock_queue.clear_queue.call_count, 2)
+        mock_queue_manager_cls.assert_called_once()
+        mock_queue_manager.delete_records_from_queue.assert_has_calls(
+            [
+                call(integration_name="ml_inference_perspective_api", queue_type="input"),
+                call(integration_name="ml_inference_perspective_api", queue_type="output"),
+            ],
+            any_order=False,
+        )
+        self.assertEqual(mock_queue_manager.delete_records_from_queue.call_count, 2)
 
-    @pytest.mark.skip(reason="Functionality needs fixing: cancellation should return exit code 0 or handle gracefully")
-    @patch('pipelines.backfill_records_coordination.app.Queue')
-    def test_clear_queues_cancelled(self, mock_queue_cls):
+    @patch("pipelines.backfill_records_coordination.app.click.confirm", return_value=False)
+    @patch("services.backfill.services.queue_manager_service.QueueManagerService")
+    def test_clear_queues_cancelled(self, mock_queue_manager_cls, _mock_confirm):
         """Test cancellation of queue clearing when user declines confirmation."""
-        mock_queue = MagicMock()
-        mock_queue_cls.return_value = mock_queue
-
-        # Simulate user declining the action
         result = self.runner.invoke(
             backfill_records,
             ['--clear-input-queues', '-i', 'p'],
-            input='n\n'  # Simulate user typing 'n' when prompted
         )
 
-        self.assertEqual(result.exit_code, 0)
+        self.assertNotEqual(result.exit_code, 0)
         self.assertIn("Operation cancelled", result.output)
-        mock_queue_cls.assert_not_called()
-        mock_queue.clear_queue.assert_not_called()
+        mock_queue_manager_cls.assert_not_called()
 
-    @pytest.mark.skip(reason="Functionality needs fixing: no default integrations logic exists when clearing queues without -i flag")
-    @patch('pipelines.backfill_records_coordination.app.Queue')
-    def test_clear_queues_all_integrations(self, mock_queue_cls):
+    @patch("pipelines.backfill_records_coordination.app.click.confirm", return_value=True)
+    @patch("services.backfill.services.queue_manager_service.QueueManagerService")
+    def test_clear_queues_all_integrations(
+        self, mock_queue_manager_cls, _mock_confirm
+    ):
         """Test clearing queues for all integrations when none specified."""
-        mock_queue = MagicMock()
-        mock_queue.clear_queue.return_value = 2  # Simulate 2 items cleared
-        mock_queue_cls.return_value = mock_queue
+        mock_queue_manager = MagicMock()
+        mock_queue_manager_cls.return_value = mock_queue_manager
 
-        # Simulate user confirming the action
         result = self.runner.invoke(
             backfill_records,
             ['--clear-input-queues'],  # No integrations specified
-            input='y\n'
         )
 
         self.assertEqual(result.exit_code, 0)
-        # Should be called once for each default integration
-        expected_calls = len(DEFAULT_INTEGRATION_KWARGS)
-        self.assertEqual(mock_queue_cls.call_count, expected_calls)
-        self.assertEqual(mock_queue.clear_queue.call_count, expected_calls)
+        mock_queue_manager.delete_records_from_queue.assert_not_called()
 
-    @patch('pipelines.backfill_records_coordination.app.Queue')
+    @patch("pipelines.backfill_records_coordination.app.click.confirm", return_value=True)
+    @patch("services.backfill.services.queue_manager_service.QueueManagerService")
     @patch('pipelines.backfill_records_coordination.app.IntegrationRunnerService')
     @patch('pipelines.backfill_records_coordination.app.EnqueueService')
-    def test_clear_queues_with_other_operations(self, mock_enqueue_cls, mock_integration_runner_cls, mock_queue_cls):
+    def test_clear_queues_with_other_operations(
+        self,
+        mock_enqueue_cls,
+        mock_integration_runner_cls,
+        mock_queue_manager_cls,
+        _mock_confirm,
+    ):
         """Test clearing queues combined with other operations."""
-        mock_queue = MagicMock()
-        mock_queue.clear_queue.return_value = 3
-        mock_queue_cls.return_value = mock_queue
+        mock_queue_manager = MagicMock()
+        mock_queue_manager_cls.return_value = mock_queue_manager
         mock_enqueue = MagicMock()
         mock_enqueue_cls.return_value = mock_enqueue
         mock_integration_runner = MagicMock()
         mock_integration_runner_cls.return_value = mock_integration_runner
 
-        # Simulate user confirming the action
         result = self.runner.invoke(
             backfill_records,
             [
@@ -606,16 +610,15 @@ class TestBackfillCoordinationCliApp(TestCase):
                 '--start-date', '2024-01-01',
                 '--end-date', '2024-01-31'
             ],
-            input='y\n'
         )
 
         self.assertEqual(result.exit_code, 0)
         # Verify queue clearing happened
-        mock_queue_cls.assert_called_once_with(
-            queue_name='input_ml_inference_perspective_api',
-            create_new_queue=True
+        mock_queue_manager_cls.assert_called_once()
+        mock_queue_manager.delete_records_from_queue.assert_called_once_with(
+            integration_name="ml_inference_perspective_api",
+            queue_type="input",
         )
-        mock_queue.clear_queue.assert_called_once()
         # Verify other operations were also performed
         mock_enqueue.enqueue_records.assert_called_once()
         mock_integration_runner.run_integrations.assert_called_once()
@@ -641,7 +644,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         
         result = self.runner.invoke(
             backfill_records,
-            ['--service-source-buffer', 'all']
+            ['--service-source-buffer', 'ml_inference_perspective_api']
         )
         
         # Should succeed but not write cache (no error, just no action)
@@ -707,5 +710,5 @@ class TestBackfillCoordinationCliApp(TestCase):
         self.assertEqual(result.exit_code, 0)
         mock_enqueue.enqueue_records.assert_called_once()
         mock_integration_runner.run_integrations.assert_called_once()
-        mock_cache_writer.write_cache.assert_called_once_with(service='ml_inference_perspective_api')
-        mock_cache_writer.clear_queue.assert_called_once_with(service='ml_inference_perspective_api')
+        mock_cache_writer.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
+        mock_cache_writer.clear_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')

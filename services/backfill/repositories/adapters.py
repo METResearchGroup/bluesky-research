@@ -260,6 +260,30 @@ class LocalStorageAdapter(BackfillDataAdapter):
                 f"Failed to load {service} post URIs from local storage: {e}"
             ) from e
 
+    def write_records_to_storage(self, integration_name: str, records: list[dict]):
+        """Write records to storage using the local storage adapter.
+
+        Args:
+            integration_name: Name of the integration (e.g., "ml_inference_perspective_api")
+            records: List of records to write.
+        """
+        from lib.db.manage_local_data import export_data_to_local_storage
+
+        df = pd.DataFrame(records)
+        total_records: int = len(df)
+
+        logger.info(
+            f"Exporting {total_records} records to local storage for integration {integration_name}..."
+        )
+        export_data_to_local_storage(
+            service=integration_name,
+            df=df,
+            export_format="parquet",
+        )
+        logger.info(
+            f"Finished exporting {total_records} records to local storage for integration {integration_name}..."
+        )
+
 
 class S3Adapter(BackfillDataAdapter):
     """S3 adapter implementation.
@@ -336,6 +360,19 @@ class S3Adapter(BackfillDataAdapter):
         )
         raise NotImplementedError(
             "S3 data loading is not yet implemented. "
+            "Use LocalStorageAdapter for now. "
+            "S3 support will be added in a future PR."
+        )
+
+    def write_records_to_storage(self, integration_name: str, records: list[dict]):
+        """Write records to storage using the S3 adapter.
+
+        Args:
+            integration_name: Name of the integration (e.g., "ml_inference_perspective_api")
+            records: List of records to write.
+        """
+        raise NotImplementedError(
+            "S3 data writing is not yet implemented. "
             "Use LocalStorageAdapter for now. "
             "S3 support will be added in a future PR."
         )

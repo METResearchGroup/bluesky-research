@@ -1337,3 +1337,102 @@ class TestRunQuery:
         assert any("世界" in p["unicode"] for p in payloads)
         assert any("🌟" in p["unicode"] for p in payloads)
         assert any("über" in p["unicode"] for p in payloads)
+
+
+class TestQueue_load_item_ids_from_queue:
+    """Tests for Queue.load_item_ids_from_queue method."""
+
+    def test_loads_item_ids_successfully(self, queue: Queue) -> None:
+        """Test loading queue item IDs successfully.
+        
+        Verifies:
+        - Item IDs are returned correctly
+        - All IDs are integers
+        - IDs match the items in the queue
+        """
+        # Add test items
+        test_items = [{"key": f"value_{i}"} for i in range(5)]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # Load IDs
+        ids = queue.load_item_ids_from_queue()
+        
+        # Assert
+        assert len(ids) == 5
+        assert all(isinstance(id_val, int) for id_val in ids)
+        assert all(id_val > 0 for id_val in ids)
+        assert ids == sorted(ids)  # IDs should be in order
+
+    def test_loads_empty_ids_when_queue_is_empty(self, queue: Queue) -> None:
+        """Test loading IDs from empty queue.
+        
+        Verifies:
+        - Empty list is returned when queue is empty
+        - No errors are raised
+        """
+        # Load IDs from empty queue
+        ids = queue.load_item_ids_from_queue()
+        
+        # Assert
+        assert ids == []
+
+    def test_loads_ids_with_limit(self, queue: Queue) -> None:
+        """Test loading IDs with limit.
+        
+        Verifies:
+        - Correct number of IDs returned when limit specified
+        - Limit is respected
+        """
+        # Add test items
+        test_items = [{"key": f"value_{i}"} for i in range(10)]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # Load IDs with limit
+        ids = queue.load_item_ids_from_queue(limit=5)
+        
+        # Assert
+        assert len(ids) == 5
+        assert all(isinstance(id_val, int) for id_val in ids)
+
+    def test_loads_all_ids_when_limit_is_none(self, queue: Queue) -> None:
+        """Test loading all IDs when limit is None.
+        
+        Verifies:
+        - All IDs are returned when limit is None
+        - Behavior matches calling without limit
+        """
+        # Add test items
+        test_items = [{"key": f"value_{i}"} for i in range(7)]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # Load IDs with None limit and without limit - both should return same
+        ids_with_none = queue.load_item_ids_from_queue(limit=None)
+        ids_without_limit = queue.load_item_ids_from_queue()
+        
+        # Assert
+        assert len(ids_with_none) == 7
+        assert ids_with_none == ids_without_limit
+
+    def test_handles_multiple_ids_correctly(self, queue: Queue) -> None:
+        """Test handling of multiple IDs.
+        
+        Verifies:
+        - Multiple IDs are returned correctly
+        - IDs are unique
+        - IDs correspond to actual queue items
+        """
+        # Add test items
+        test_items = [{"key": f"value_{i}"} for i in range(15)]
+        queue.batch_add_items_to_queue(test_items, batch_size=1)
+        
+        # Load all IDs
+        ids = queue.load_item_ids_from_queue()
+        
+        # Assert
+        assert len(ids) == 15
+        assert len(ids) == len(set(ids))  # All IDs should be unique
+        
+        # Verify IDs correspond to actual items
+        items = queue.load_items_from_queue()
+        item_ids = [item.id for item in items]
+        assert set(ids) == set(item_ids)

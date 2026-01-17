@@ -53,3 +53,18 @@ def sample_date_range():
         "start_date": "2024-01-01",
         "end_date": "2024-01-31",
     }
+
+
+@pytest.fixture
+def sample_records():
+    """Sample records for testing."""
+    return [
+        {"id": 1, "data": "record1"},
+        {"id": 2, "data": "record2"},
+    ]
+
+
+@pytest.fixture
+def sample_queue_ids():
+    """Sample queue IDs for testing."""
+    return [1, 2, 3, 4, 5]

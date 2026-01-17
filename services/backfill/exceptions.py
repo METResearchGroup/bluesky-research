@@ -20,3 +20,9 @@ class QueueManagerServiceError(Exception):
     """Raised when a queue manager service fails."""
 
     pass
+
+
+class CacheBufferWriterServiceError(Exception):
+    """Raised when a cache buffer writer service fails."""
+
+    pass

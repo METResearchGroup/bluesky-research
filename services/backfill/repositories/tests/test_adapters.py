@@ -1,12 +1,11 @@
 """Tests for adapters.py."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import pandas as pd
 
 from services.backfill.exceptions import BackfillDataAdapterError
 from services.backfill.models import PostToEnqueueModel, PostUsedInFeedModel
-from services.backfill.repositories.adapters import LocalStorageAdapter, S3Adapter
 
 
 class TestLocalStorageAdapter_load_all_posts:
@@ -741,3 +740,121 @@ class TestLocalStorageAdapter_deduplicate_feed_posts:
         assert result[0].uri == "uri1"
         assert result[0].text == "test_text"
         assert result[0].preprocessing_timestamp == "2024-01-01T12:00:00"
+
+
+class TestLocalStorageAdapter_write_records_to_storage:
+    """Tests for LocalStorageAdapter.write_records_to_storage method."""
+
+    @pytest.mark.parametrize("records", [
+        pytest.param([{"id": 1, "data": "record1"}, {"id": 2, "data": "record2"}], id="with_records"),
+        pytest.param([], id="empty_records"),
+    ])
+    def test_writes_records_to_storage_successfully(self, local_storage_adapter, records):
+        """Test that records are written to storage successfully."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+
+        with patch(
+            "lib.db.manage_local_data.export_data_to_local_storage"
+        ) as mock_export:
+            # Act
+            local_storage_adapter.write_records_to_storage(
+                integration_name=integration_name, records=records
+            )
+
+            # Assert
+            mock_export.assert_called_once()
+            call_kwargs = mock_export.call_args.kwargs
+            assert call_kwargs["service"] == integration_name
+            assert call_kwargs["export_format"] == "parquet"
+            assert isinstance(call_kwargs["df"], pd.DataFrame)
+            assert len(call_kwargs["df"]) == len(records)
+
+    def test_logs_correct_record_count(self, local_storage_adapter, sample_records):
+        """Test that correct record count is logged."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+
+        with patch(
+            "lib.db.manage_local_data.export_data_to_local_storage"
+        ) as mock_export, patch(
+            "services.backfill.repositories.adapters.logger"
+        ) as mock_logger:
+            # Act
+            local_storage_adapter.write_records_to_storage(
+                integration_name=integration_name, records=sample_records
+            )
+
+            # Assert
+            # Verify that info logs are called with record count
+            assert mock_logger.info.call_count >= 2  # At least "Exporting" and "Finished exporting"
+            log_call_args = [str(call) for call in mock_logger.info.call_args_list]
+            assert any("Exporting" in call_args for call_args in log_call_args)
+            assert any(str(len(sample_records)) in call_args for call_args in log_call_args)
+            assert any("Finished exporting" in call_args for call_args in log_call_args)
+
+    def test_raises_error_when_export_fails(self, local_storage_adapter, sample_records):
+        """Test that error is raised when export_data_to_local_storage fails."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+        test_error = Exception("Export error")
+
+        with patch(
+            "lib.db.manage_local_data.export_data_to_local_storage"
+        ) as mock_export:
+            mock_export.side_effect = test_error
+
+            # Act & Assert
+            with pytest.raises(Exception) as exc_info:
+                local_storage_adapter.write_records_to_storage(
+                    integration_name=integration_name, records=sample_records
+                )
+
+            # Assert
+            assert "Export error" in str(exc_info.value)
+            mock_export.assert_called_once()
+            call_kwargs = mock_export.call_args.kwargs
+            assert call_kwargs["service"] == integration_name
+            assert call_kwargs["export_format"] == "parquet"
+
+    def test_creates_dataframe_from_records(self, local_storage_adapter, sample_records):
+        """Test that DataFrame is created correctly from records."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+
+        with patch(
+            "lib.db.manage_local_data.export_data_to_local_storage"
+        ) as mock_export:
+            # Act
+            local_storage_adapter.write_records_to_storage(
+                integration_name=integration_name, records=sample_records
+            )
+
+            # Assert
+            mock_export.assert_called_once()
+            call_kwargs = mock_export.call_args.kwargs
+            df = call_kwargs["df"]
+            assert isinstance(df, pd.DataFrame)
+            assert len(df) == len(sample_records)
+            assert list(df.columns) == list(sample_records[0].keys())
+            assert df.iloc[0]["id"] == sample_records[0]["id"]
+            assert df.iloc[0]["data"] == sample_records[0]["data"]
+
+
+class TestS3Adapter_write_records_to_storage:
+    """Tests for S3Adapter.write_records_to_storage method."""
+
+    def test_raises_not_implemented_error(self, s3_adapter, sample_records):
+        """Test that write_records_to_storage raises NotImplementedError."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+
+        # Act & Assert
+        with pytest.raises(NotImplementedError) as exc_info:
+            s3_adapter.write_records_to_storage(
+                integration_name=integration_name, records=sample_records
+            )
+
+        # Assert
+        assert "S3 data writing is not yet implemented" in str(exc_info.value)
+        assert "Use LocalStorageAdapter for now" in str(exc_info.value)
