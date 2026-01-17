@@ -753,52 +753,33 @@ class TestLocalStorageAdapter_write_records_to_storage:
         """Test that records are written to storage successfully."""
         # Arrange
         integration_name = "ml_inference_perspective_api"
-        mock_queue = Mock()
-        mock_queue.load_dict_items_from_queue.return_value = records
-        mock_df = pd.DataFrame(records)
 
         with patch(
-            "lib.db.queue.get_output_queue_for_integration"
-        ) as mock_get_queue, patch(
             "lib.db.manage_local_data.export_data_to_local_storage"
-        ) as mock_export, patch(
-            "services.backfill.repositories.adapters.pd.DataFrame"
-        ) as mock_dataframe:
-            mock_get_queue.return_value = mock_queue
-            mock_dataframe.return_value = mock_df
-
+        ) as mock_export:
             # Act
             local_storage_adapter.write_records_to_storage(
                 integration_name=integration_name, records=records
             )
 
             # Assert
-            mock_get_queue.assert_called_once_with(integration_name=integration_name)
-            mock_queue.load_dict_items_from_queue.assert_called_once()
-            mock_export.assert_called_once_with(
-                service=integration_name, df=mock_df, export_format="parquet"
-            )
+            mock_export.assert_called_once()
+            call_kwargs = mock_export.call_args.kwargs
+            assert call_kwargs["service"] == integration_name
+            assert call_kwargs["export_format"] == "parquet"
+            assert isinstance(call_kwargs["df"], pd.DataFrame)
+            assert len(call_kwargs["df"]) == len(records)
 
     def test_logs_correct_record_count(self, local_storage_adapter, sample_records):
         """Test that correct record count is logged."""
         # Arrange
         integration_name = "ml_inference_perspective_api"
-        mock_queue = Mock()
-        mock_queue.load_dict_items_from_queue.return_value = sample_records
-        mock_df = pd.DataFrame(sample_records)
 
         with patch(
-            "lib.db.queue.get_output_queue_for_integration"
-        ) as mock_get_queue, patch(
             "lib.db.manage_local_data.export_data_to_local_storage"
         ) as mock_export, patch(
-            "services.backfill.repositories.adapters.pd.DataFrame"
-        ) as mock_dataframe, patch(
             "services.backfill.repositories.adapters.logger"
         ) as mock_logger:
-            mock_get_queue.return_value = mock_queue
-            mock_dataframe.return_value = mock_df
-
             # Act
             local_storage_adapter.write_records_to_storage(
                 integration_name=integration_name, records=sample_records
@@ -806,74 +787,21 @@ class TestLocalStorageAdapter_write_records_to_storage:
 
             # Assert
             # Verify that info logs are called with record count
-            assert mock_logger.info.call_count >= 1
+            assert mock_logger.info.call_count >= 2  # At least "Exporting" and "Finished exporting"
             log_call_args = [str(call) for call in mock_logger.info.call_args_list]
             assert any("Exporting" in call_args for call_args in log_call_args)
             assert any(str(len(sample_records)) in call_args for call_args in log_call_args)
-
-    def test_raises_error_when_get_queue_fails(self, local_storage_adapter, sample_records):
-        """Test that error is raised when get_output_queue_for_integration fails."""
-        # Arrange
-        integration_name = "ml_inference_perspective_api"
-        test_error = Exception("Get queue error")
-
-        with patch(
-            "lib.db.queue.get_output_queue_for_integration"
-        ) as mock_get_queue:
-            mock_get_queue.side_effect = test_error
-
-            # Act & Assert
-            with pytest.raises(Exception) as exc_info:
-                local_storage_adapter.write_records_to_storage(
-                    integration_name=integration_name, records=sample_records
-                )
-
-            # Assert
-            assert "Get queue error" in str(exc_info.value)
-            mock_get_queue.assert_called_once_with(integration_name=integration_name)
-
-    def test_raises_error_when_load_dict_items_fails(self, local_storage_adapter, sample_records):
-        """Test that error is raised when load_dict_items_from_queue fails."""
-        # Arrange
-        integration_name = "ml_inference_perspective_api"
-        mock_queue = Mock()
-        test_error = Exception("Load dict items error")
-        mock_queue.load_dict_items_from_queue.side_effect = test_error
-
-        with patch(
-            "lib.db.queue.get_output_queue_for_integration"
-        ) as mock_get_queue:
-            mock_get_queue.return_value = mock_queue
-
-            # Act & Assert
-            with pytest.raises(Exception) as exc_info:
-                local_storage_adapter.write_records_to_storage(
-                    integration_name=integration_name, records=sample_records
-                )
-
-            # Assert
-            assert "Load dict items error" in str(exc_info.value)
-            mock_get_queue.assert_called_once_with(integration_name=integration_name)
-            mock_queue.load_dict_items_from_queue.assert_called_once()
+            assert any("Finished exporting" in call_args for call_args in log_call_args)
 
     def test_raises_error_when_export_fails(self, local_storage_adapter, sample_records):
         """Test that error is raised when export_data_to_local_storage fails."""
         # Arrange
         integration_name = "ml_inference_perspective_api"
-        mock_queue = Mock()
-        mock_queue.load_dict_items_from_queue.return_value = sample_records
-        mock_df = pd.DataFrame(sample_records)
         test_error = Exception("Export error")
 
         with patch(
-            "lib.db.queue.get_output_queue_for_integration"
-        ) as mock_get_queue, patch(
             "lib.db.manage_local_data.export_data_to_local_storage"
-        ) as mock_export, patch(
-            "services.backfill.repositories.adapters.pd.DataFrame"
-        ) as mock_dataframe:
-            mock_get_queue.return_value = mock_queue
-            mock_dataframe.return_value = mock_df
+        ) as mock_export:
             mock_export.side_effect = test_error
 
             # Act & Assert
@@ -884,11 +812,33 @@ class TestLocalStorageAdapter_write_records_to_storage:
 
             # Assert
             assert "Export error" in str(exc_info.value)
-            mock_get_queue.assert_called_once_with(integration_name=integration_name)
-            mock_queue.load_dict_items_from_queue.assert_called_once()
-            mock_export.assert_called_once_with(
-                service=integration_name, df=mock_df, export_format="parquet"
+            mock_export.assert_called_once()
+            call_kwargs = mock_export.call_args.kwargs
+            assert call_kwargs["service"] == integration_name
+            assert call_kwargs["export_format"] == "parquet"
+
+    def test_creates_dataframe_from_records(self, local_storage_adapter, sample_records):
+        """Test that DataFrame is created correctly from records."""
+        # Arrange
+        integration_name = "ml_inference_perspective_api"
+
+        with patch(
+            "lib.db.manage_local_data.export_data_to_local_storage"
+        ) as mock_export:
+            # Act
+            local_storage_adapter.write_records_to_storage(
+                integration_name=integration_name, records=sample_records
             )
+
+            # Assert
+            mock_export.assert_called_once()
+            call_kwargs = mock_export.call_args.kwargs
+            df = call_kwargs["df"]
+            assert isinstance(df, pd.DataFrame)
+            assert len(df) == len(sample_records)
+            assert list(df.columns) == list(sample_records[0].keys())
+            assert df.iloc[0]["id"] == sample_records[0]["id"]
+            assert df.iloc[0]["data"] == sample_records[0]["data"]
 
 
 class TestS3Adapter_write_records_to_storage:

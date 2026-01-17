@@ -271,13 +271,8 @@ class LocalStorageAdapter(BackfillDataAdapter):
             records: List of records to write.
         """
         from lib.db.manage_local_data import export_data_to_local_storage
-        from lib.db.queue import Queue, get_output_queue_for_integration
 
-        queue: Queue = get_output_queue_for_integration(
-            integration_name=integration_name
-        )
-        latest_payloads: list[dict] = queue.load_dict_items_from_queue()
-        df = pd.DataFrame(latest_payloads)
+        df = pd.DataFrame(records)
         total_records: int = len(df)
 
         logger.info(
