@@ -14,3 +14,9 @@ class BackfillDataAdapterError(Exception):
     """Raised when a backfill data adapter fails."""
 
     pass
+
+
+class QueueManagerServiceError(Exception):
+    """Raised when a queue manager service fails."""
+
+    pass
