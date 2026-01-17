@@ -53,3 +53,5 @@ STUDY_CONDITIONS = [
     "engagement",
     "reverse_chronological",
 ]
+
+INTEGRATION_RUN_METADATA_TABLE_NAME = "integration_run_metadata"
