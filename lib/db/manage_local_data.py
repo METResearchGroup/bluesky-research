@@ -15,7 +15,7 @@ from lib.constants import (
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.db.sql.duckdb_wrapper import DuckDB
-from lib.datetime_utils import generate_current_datetime_str
+from lib.datetime_utils import generate_current_datetime_str, truncate_timestamp_string
 from lib.log.logger import get_logger
 
 
@@ -53,6 +53,9 @@ services_list = [
 DEFAULT_ERROR_PARTITION_DATE = "2016-01-01"
 
 
+# TODO: come back to this, as the name + signature doesn't match the docstring
+# (docstring implies arbitrary start_timestamp, but the function doesn't
+# take one).
 def data_is_older_than_lookback(
     end_timestamp: str, lookback_days: int = default_lookback_days
 ) -> bool:
@@ -74,14 +77,6 @@ def data_is_older_than_lookback(
         "%Y-%m-%d"
     )
     return end_timestamp < lookback_date
-
-
-def truncate_string(s: str) -> str:
-    """Truncates the string after the first '.' or '+' or 'Z' (whichever comes first)."""
-    for delimiter in [".", "+", "Z"]:
-        if delimiter in s:
-            return s.split(delimiter)[0]
-    return s
 
 
 def convert_timestamp(x, timestamp_format):
@@ -136,7 +131,7 @@ def partition_data_by_date(
         timestamp_format = DEFAULT_TIMESTAMP_FORMAT
 
     # clean timestamp field if relevant.
-    df[timestamp_field] = df[timestamp_field].apply(truncate_string)
+    df[timestamp_field] = df[timestamp_field].apply(truncate_timestamp_string)
 
     try:
         # convert to datetime
@@ -366,7 +361,7 @@ def export_data_to_local_storage(
 
             # Ensure `partition_date` exists and matches the schema contract (string).
             # Derive partition_date from timestamp_field when missing:
-            # 1. Extract timestamp field (apply truncate_string if it's a string timestamp)
+            # 1. Extract timestamp field (apply truncate_timestamp_string if it's a string timestamp)
             # 2. Fallback to DEFAULT_ERROR_PARTITION_DATE if timestamp_field is missing
             # 3. Parse to datetime (with format if provided, otherwise auto-detect)
             # 4. Coerce invalid values to NaT, then fill with DEFAULT_ERROR_PARTITION_DATE
@@ -383,7 +378,9 @@ def export_data_to_local_storage(
                         [DEFAULT_ERROR_PARTITION_DATE] * len(chunk_df)
                     )
                 else:
-                    ts_series = chunk_df[timestamp_field].apply(truncate_string)
+                    ts_series = chunk_df[timestamp_field].apply(
+                        truncate_timestamp_string
+                    )
                 if timestamp_format:
                     ts_dt = pd.to_datetime(
                         ts_series, format=timestamp_format, errors="coerce"
