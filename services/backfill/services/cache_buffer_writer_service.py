@@ -1,3 +1,9 @@
+from services.backfill.services.queue_manager_service import QueueManagerService
+from lib.log.logger import get_logger
+
+logger = get_logger(__file__)
+
+
 class CacheBufferWriterService:
     """Manages writing cache buffers to the databases.
 
@@ -12,14 +18,48 @@ class CacheBufferWriterService:
     is run as a single-threaded application, this is OK.
     """
 
-    def __init__(self):
+    def __init__(self, queue_manager_service: QueueManagerService | None = None):
+        """Initialize the cache buffer writer service.
+
+        Args:
+            queue_manager_service: Optional QueueManagerService instance for dependency injection.
+                                  If not provided, creates a new instance.
+        """
+        self.queue_manager_service = queue_manager_service or QueueManagerService()
+
+    def write_cache(self, service: str):
         # TODO: delegate to a queue service AND to the repo.
         # TODO: update BackfillDataRepository and the adapters
         # to do the writing component.
         pass
 
-    def write_cache(self, service: str):
-        pass
-
     def clear_cache(self, service: str):
-        pass
+        """Clears the cache for the given service by loading IDs and deleting them.
+
+        This is an efficient implementation that only loads queue item IDs
+        (not the full payload data) before deleting them.
+
+        Args:
+            service: The name of the service/integration to clear the cache for.
+        """
+        try:
+            logger.info(f"Loading queue item IDs for service {service}...")
+            ids: list[int] = self.queue_manager_service.load_queue_item_ids(
+                integration_name=service, queue_type="output"
+            )
+            if len(ids) == 0:
+                logger.info(f"No queue items to delete for service {service}")
+                return
+
+            logger.info(f"Deleting {len(ids)} queue item IDs for service {service}...")
+            self.queue_manager_service.delete_records_from_queue(
+                integration_name=service,
+                queue_type="output",
+                queue_ids_to_delete=ids,
+            )
+            logger.info(
+                f"Successfully deleted {len(ids)} queue items for service {service}"
+            )
+        except Exception as e:
+            logger.error(f"Error clearing cache for service {service}: {e}")
+            raise
