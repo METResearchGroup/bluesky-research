@@ -301,11 +301,20 @@ def _fetch_all_files_after_timestamp_minute(
 
 
 def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> list[str]:
-    """Find files after a given timestamp."""
+    """Find files after a given timestamp.
+    
+    We crawl the directory structure in a breadth-first manner, starting at the
+    top-level "year" directory and working our way down to the "minute" directory.
+    For each level, we crawl all the files that are more recent than the timestamp
+    at that level.
+
+    This assumes a year/month/day/hour/minute directory structure, which is what we
+    currently use for our setups.
+    """
     target_year, target_month, target_day, target_hour, target_minute = (
         target_timestamp_path.split("/")
     )
-    files_list = []
+    files_list: list[str] = []
 
     # grab files from future years
     future_year_files: list[str] = _fetch_all_files_after_timestamp_year(
