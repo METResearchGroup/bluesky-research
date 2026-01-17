@@ -270,7 +270,27 @@ class LocalStorageAdapter(BackfillDataAdapter):
             integration_name: Name of the integration (e.g., "ml_inference_perspective_api")
             records: List of records to write.
         """
-        pass
+        from lib.db.manage_local_data import export_data_to_local_storage
+        from lib.db.queue import Queue, get_output_queue_for_integration
+
+        queue: Queue = get_output_queue_for_integration(
+            integration_name=integration_name
+        )
+        latest_payloads: list[dict] = queue.load_dict_items_from_queue()
+        df = pd.DataFrame(latest_payloads)
+        total_records: int = len(df)
+
+        logger.info(
+            f"Exporting {total_records} records to local storage for integration {integration_name}..."
+        )
+        export_data_to_local_storage(
+            service=integration_name,
+            df=df,
+            export_format="parquet",
+        )
+        logger.info(
+            f"Finished exporting {total_records} records to local storage for integration {integration_name}..."
+        )
 
 
 class S3Adapter(BackfillDataAdapter):
