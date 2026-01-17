@@ -1,7 +1,7 @@
 """Tests for backfill_data_loader_service.py."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from services.backfill.models import PostScope, PostToEnqueueModel
 from services.backfill.repositories.adapters import LocalStorageAdapter
@@ -40,30 +40,9 @@ class TestBackfillDataLoaderService_load_posts_to_enqueue:
     """Tests for BackfillDataLoaderService.load_posts_to_enqueue method."""
 
     @pytest.fixture
-    def mock_repository(self):
-        """Mock BackfillDataRepository."""
-        return Mock(spec=BackfillDataRepository)
-
-    @pytest.fixture
     def service(self, mock_repository):
         """Create BackfillDataLoaderService with mocked repository."""
         return BackfillDataLoaderService(data_repository=mock_repository)
-
-    @pytest.fixture
-    def sample_posts(self):
-        """Sample posts for testing."""
-        return [
-            PostToEnqueueModel(
-                uri="test_uri_1",
-                text="test_text_1",
-                preprocessing_timestamp="2024-01-01T00:00:00",
-            ),
-            PostToEnqueueModel(
-                uri="test_uri_2",
-                text="test_text_2",
-                preprocessing_timestamp="2024-01-02T00:00:00",
-            ),
-        ]
 
     def test_loads_and_filters_posts_for_all_posts_scope(
         self, service, mock_repository, sample_posts
@@ -170,37 +149,24 @@ class TestBackfillDataLoaderService_load_posts:
     """Tests for BackfillDataLoaderService._load_posts method."""
 
     @pytest.fixture
-    def mock_repository(self):
-        """Mock BackfillDataRepository."""
-        return Mock(spec=BackfillDataRepository)
-
-    @pytest.fixture
     def service(self, mock_repository):
         """Create BackfillDataLoaderService with mocked repository."""
         return BackfillDataLoaderService(data_repository=mock_repository)
 
-    @pytest.fixture
-    def sample_posts(self):
-        """Sample posts for testing."""
-        return [
-            PostToEnqueueModel(
-                uri="test_uri_1",
-                text="test_text_1",
-                preprocessing_timestamp="2024-01-01T00:00:00",
-            ),
-        ]
-
-    def test_routes_to_load_all_posts_for_all_posts_scope(
-        self, service, mock_repository, sample_posts
+    @pytest.mark.parametrize("post_scope,expected_method", [
+        (PostScope.ALL_POSTS, "_load_all_posts"),
+        (PostScope.FEED_POSTS, "_load_feed_posts"),
+    ])
+    def test_routes_to_correct_loader(
+        self, service, mock_repository, sample_posts, post_scope, expected_method
     ):
-        """Test that ALL_POSTS scope routes to _load_all_posts."""
+        """Test that _load_posts routes to correct loader based on post scope."""
         # Arrange
-        post_scope = PostScope.ALL_POSTS
         start_date = "2024-01-01"
         end_date = "2024-01-31"
 
-        with patch.object(service, "_load_all_posts") as mock_load_all:
-            mock_load_all.return_value = sample_posts
+        with patch.object(service, expected_method) as mock_method:
+            mock_method.return_value = sample_posts[:1]  # Use single post for consistency
 
             # Act
             result = service._load_posts(
@@ -210,35 +176,10 @@ class TestBackfillDataLoaderService_load_posts:
             )
 
             # Assert
-            mock_load_all.assert_called_once_with(
+            mock_method.assert_called_once_with(
                 start_date=start_date, end_date=end_date
             )
-            assert result == sample_posts
-
-    def test_routes_to_load_feed_posts_for_feed_posts_scope(
-        self, service, mock_repository, sample_posts
-    ):
-        """Test that FEED_POSTS scope routes to _load_feed_posts."""
-        # Arrange
-        post_scope = PostScope.FEED_POSTS
-        start_date = "2024-01-01"
-        end_date = "2024-01-31"
-
-        with patch.object(service, "_load_feed_posts") as mock_load_feed:
-            mock_load_feed.return_value = sample_posts
-
-            # Act
-            result = service._load_posts(
-                post_scope=post_scope,
-                start_date=start_date,
-                end_date=end_date,
-            )
-
-            # Assert
-            mock_load_feed.assert_called_once_with(
-                start_date=start_date, end_date=end_date
-            )
-            assert result == sample_posts
+            assert result == sample_posts[:1]
 
     def test_raises_value_error_for_invalid_scope(self, service, mock_repository):
         """Test that invalid post scope raises ValueError."""
@@ -260,25 +201,9 @@ class TestBackfillDataLoaderService_load_all_posts:
     """Tests for BackfillDataLoaderService._load_all_posts method."""
 
     @pytest.fixture
-    def mock_repository(self):
-        """Mock BackfillDataRepository."""
-        return Mock(spec=BackfillDataRepository)
-
-    @pytest.fixture
     def service(self, mock_repository):
         """Create BackfillDataLoaderService with mocked repository."""
         return BackfillDataLoaderService(data_repository=mock_repository)
-
-    @pytest.fixture
-    def sample_posts(self):
-        """Sample posts for testing."""
-        return [
-            PostToEnqueueModel(
-                uri="test_uri_1",
-                text="test_text_1",
-                preprocessing_timestamp="2024-01-01T00:00:00",
-            ),
-        ]
 
     def test_delegates_to_repository_load_all_posts(
         self, service, mock_repository, sample_posts
@@ -303,25 +228,9 @@ class TestBackfillDataLoaderService_load_feed_posts:
     """Tests for BackfillDataLoaderService._load_feed_posts method."""
 
     @pytest.fixture
-    def mock_repository(self):
-        """Mock BackfillDataRepository."""
-        return Mock(spec=BackfillDataRepository)
-
-    @pytest.fixture
     def service(self, mock_repository):
         """Create BackfillDataLoaderService with mocked repository."""
         return BackfillDataLoaderService(data_repository=mock_repository)
-
-    @pytest.fixture
-    def sample_posts(self):
-        """Sample posts for testing."""
-        return [
-            PostToEnqueueModel(
-                uri="test_uri_1",
-                text="test_text_1",
-                preprocessing_timestamp="2024-01-01T00:00:00",
-            ),
-        ]
 
     def test_delegates_to_repository_load_feed_posts(
         self, service, mock_repository, sample_posts
@@ -344,11 +253,6 @@ class TestBackfillDataLoaderService_load_feed_posts:
 
 class TestBackfillDataLoaderService_filter_posts:
     """Tests for BackfillDataLoaderService._filter_posts method."""
-
-    @pytest.fixture
-    def mock_repository(self):
-        """Mock BackfillDataRepository."""
-        return Mock(spec=BackfillDataRepository)
 
     @pytest.fixture
     def service(self, mock_repository):
@@ -399,18 +303,14 @@ class TestBackfillDataLoaderService_remove_previously_classified_posts:
     """Tests for BackfillDataLoaderService._remove_previously_classified_posts method."""
 
     @pytest.fixture
-    def mock_repository(self):
-        """Mock BackfillDataRepository."""
-        return Mock(spec=BackfillDataRepository)
-
-    @pytest.fixture
     def service(self, mock_repository):
         """Create BackfillDataLoaderService with mocked repository."""
         return BackfillDataLoaderService(data_repository=mock_repository)
 
     @pytest.fixture
-    def sample_posts(self):
-        """Sample posts for testing."""
+    def sample_posts_for_filtering(self):
+        """Sample posts for filtering tests."""
+        from services.backfill.models import PostToEnqueueModel
         return [
             PostToEnqueueModel(
                 uri="uri1",
@@ -430,7 +330,7 @@ class TestBackfillDataLoaderService_remove_previously_classified_posts:
         ]
 
     def test_filters_out_previously_classified_posts(
-        self, service, mock_repository, sample_posts
+        self, service, mock_repository, sample_posts_for_filtering
     ):
         """Test that posts with URIs in classified set are filtered out."""
         # Arrange
@@ -438,13 +338,13 @@ class TestBackfillDataLoaderService_remove_previously_classified_posts:
         start_date = "2024-01-01"
         end_date = "2024-01-31"
         classified_uris = {"uri1", "uri3"}
-        expected_posts = [sample_posts[1]]  # Only uri2 remains
+        expected_posts = [sample_posts_for_filtering[1]]  # Only uri2 remains
 
         mock_repository.get_previously_labeled_post_uris.return_value = classified_uris
 
         # Act
         result = service._remove_previously_classified_posts(
-            posts=sample_posts,
+            posts=sample_posts_for_filtering,
             integration_name=integration_name,
             start_date=start_date,
             end_date=end_date,
@@ -461,7 +361,7 @@ class TestBackfillDataLoaderService_remove_previously_classified_posts:
         assert result[0].uri == "uri2"
 
     def test_returns_all_posts_when_none_classified(
-        self, service, mock_repository, sample_posts
+        self, service, mock_repository, sample_posts_for_filtering
     ):
         """Test that all posts are returned when none are classified."""
         # Arrange
@@ -474,18 +374,18 @@ class TestBackfillDataLoaderService_remove_previously_classified_posts:
 
         # Act
         result = service._remove_previously_classified_posts(
-            posts=sample_posts,
+            posts=sample_posts_for_filtering,
             integration_name=integration_name,
             start_date=start_date,
             end_date=end_date,
         )
 
         # Assert
-        assert result == sample_posts
+        assert result == sample_posts_for_filtering
         assert len(result) == 3
 
     def test_returns_empty_list_when_all_posts_classified(
-        self, service, mock_repository, sample_posts
+        self, service, mock_repository, sample_posts_for_filtering
     ):
         """Test that empty list is returned when all posts are classified."""
         # Arrange
@@ -498,7 +398,7 @@ class TestBackfillDataLoaderService_remove_previously_classified_posts:
 
         # Act
         result = service._remove_previously_classified_posts(
-            posts=sample_posts,
+            posts=sample_posts_for_filtering,
             integration_name=integration_name,
             start_date=start_date,
             end_date=end_date,
