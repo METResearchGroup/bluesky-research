@@ -39,7 +39,7 @@ class CacheBufferWriterService:
         )
         self.queue_manager_service = queue_manager_service or QueueManagerService()
 
-    def write_cache(self, service: str):
+    def write_cache(self, service: str) -> None:
         try:
             records: list[dict] = self.queue_manager_service.load_records_from_queue(
                 integration_name=service
@@ -56,7 +56,7 @@ class CacheBufferWriterService:
                 f"Error writing cache for service {service}: {e}"
             ) from e
 
-    def clear_cache(self, service: str):
+    def clear_cache(self, service: str) -> None:
         """Clears the cache for the given service by loading IDs and deleting them.
 
         This is an efficient implementation that only loads queue item IDs
