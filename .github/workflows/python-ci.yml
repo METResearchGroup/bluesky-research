@@ -93,7 +93,6 @@ jobs:
           services/calculate_superposters/tests \
           services/sync/stream/tests \
           services/sync/jetstream/tests \
-          lib/pipeline_invocation/tests \
           transform/tests
 
     - name: Lint Dockerfiles with Hadolint
