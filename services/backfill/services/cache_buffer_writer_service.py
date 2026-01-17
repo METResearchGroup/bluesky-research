@@ -39,10 +39,19 @@ class CacheBufferWriterService:
         self.queue_manager_service = queue_manager_service or QueueManagerService()
 
     def write_cache(self, service: str):
-        # TODO: delegate to a queue service AND to the repo.
-        # TODO: update BackfillDataRepository and the adapters
-        # to do the writing component.
-        pass
+        try:
+            records: list[dict] = self.queue_manager_service.load_records_from_queue(
+                integration_name=service
+            )
+            self.data_repository.write_records_to_storage(
+                service=service, records=records
+            )
+            logger.info(
+                f"Successfully wrote {len(records)} records to storage for service {service}"
+            )
+        except Exception as e:
+            logger.error(f"Error writing cache for service {service}: {e}")
+            raise
 
     def clear_cache(self, service: str):
         """Clears the cache for the given service by loading IDs and deleting them.

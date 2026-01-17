@@ -260,6 +260,15 @@ class LocalStorageAdapter(BackfillDataAdapter):
                 f"Failed to load {service} post URIs from local storage: {e}"
             ) from e
 
+    def write_records_to_storage(self, service, records: list[dict]):
+        """Write records to storage using the local storage adapter.
+
+        Args:
+            service: Name of the service (e.g., "ml_inference_perspective_api")
+            records: List of records to write.
+        """
+        pass
+
 
 class S3Adapter(BackfillDataAdapter):
     """S3 adapter implementation.
@@ -336,6 +345,19 @@ class S3Adapter(BackfillDataAdapter):
         )
         raise NotImplementedError(
             "S3 data loading is not yet implemented. "
+            "Use LocalStorageAdapter for now. "
+            "S3 support will be added in a future PR."
+        )
+
+    def write_records_to_storage(self, service, records: list[dict]):
+        """Write records to storage using the S3 adapter.
+
+        Args:
+            service: Name of the service (e.g., "ml_inference_perspective_api")
+            records: List of records to write.
+        """
+        raise NotImplementedError(
+            "S3 data writing is not yet implemented. "
             "Use LocalStorageAdapter for now. "
             "S3 support will be added in a future PR."
         )
