@@ -55,9 +55,9 @@ class IntegrationRunnerService:
                 f"Invalid integration name: {integration_name}"
             )
 
-    def _get_or_load_integration_strategy(self, integration_name: str) -> Callable:
-        """Gets the integration strategy for the given integration name.
-        If the strategy is not found, it loads it from the integration strategies dictionary.
+    def _get_or_load_integration_entrypoint(self, integration_name: str) -> Callable:
+        """Gets the integration entrypoint for the given integration name.
+        If the entrypoint is not found, it loads it from the integration strategies dictionary.
         """
         if integration_name not in self.integration_strategies:
             self.integration_strategies[integration_name] = (
@@ -94,4 +94,27 @@ class IntegrationRunnerService:
 
     def _run_single_integration(self, payload: IntegrationRunnerConfigurationPayload):
         """Runs a single integration."""
-        pass
+        try:
+            dispatch_payload = self._create_integration_dispatch_payload(payload)
+            integration_fn = self._get_or_load_integration_entrypoint(
+                payload.integration_name
+            )
+            integration_fn(**dispatch_payload)
+        except Exception as e:
+            logger.error(f"Error running integration: {e}")
+            raise IntegrationRunnerServiceError(
+                f"Error running integration: {e}"
+            ) from e
+
+    def _create_integration_dispatch_payload(
+        self, payload: IntegrationRunnerConfigurationPayload
+    ) -> dict:
+        """Creates a dispatch payload matching the signature of the classification
+        functions."""
+        return {
+            "backfill_period": payload.backfill_period.value,
+            "backfill_duration": payload.backfill_duration,
+            "run_classification": True,  # TODO: need to deprecate run_classification. Here for backwards compatibility.
+            "previous_run_metadata": None,  # TODO: need to deprecate previous_run_metadata. Here for backwards compatibility.
+            "event": None,  # TODO: need to deprecate event. Here for backwards compatibility.
+        }
