@@ -1,3 +1,4 @@
+from services.backfill.exceptions import CacheBufferWriterServiceError
 from services.backfill.repositories.adapters import LocalStorageAdapter
 from services.backfill.repositories.repository import BackfillDataRepository
 from services.backfill.services.queue_manager_service import QueueManagerService
@@ -51,7 +52,9 @@ class CacheBufferWriterService:
             )
         except Exception as e:
             logger.error(f"Error writing cache for service {service}: {e}")
-            raise
+            raise CacheBufferWriterServiceError(
+                f"Error writing cache for service {service}: {e}"
+            ) from e
 
     def clear_cache(self, service: str):
         """Clears the cache for the given service by loading IDs and deleting them.
@@ -82,4 +85,6 @@ class CacheBufferWriterService:
             )
         except Exception as e:
             logger.error(f"Error clearing cache for service {service}: {e}")
-            raise
+            raise CacheBufferWriterServiceError(
+                f"Error clearing cache for service {service}: {e}"
+            ) from e
