@@ -18,11 +18,15 @@ class TestCacheBufferWriterService_write_cache:
             data_repository=mock_repository, queue_manager_service=mock_queue_manager
         )
 
-    def test_writes_cache_successfully(self, service, mock_repository, mock_queue_manager, sample_records):
-        """Test that cache is written successfully with valid records."""
+    @pytest.mark.parametrize("records", [
+        pytest.param([{"id": 1, "data": "record1"}, {"id": 2, "data": "record2"}], id="with_records"),
+        pytest.param([], id="empty_records"),
+    ])
+    def test_writes_cache_successfully(self, service, mock_repository, mock_queue_manager, records):
+        """Test that cache is written successfully with records."""
         # Arrange
         integration_name = "ml_inference_perspective_api"
-        mock_queue_manager.load_records_from_queue.return_value = sample_records
+        mock_queue_manager.load_records_from_queue.return_value = records
 
         # Act
         service.write_cache(service=integration_name)
@@ -32,24 +36,7 @@ class TestCacheBufferWriterService_write_cache:
             integration_name=integration_name
         )
         mock_repository.write_records_to_storage.assert_called_once_with(
-            integration_name=integration_name, records=sample_records
-        )
-
-    def test_writes_empty_cache_successfully(self, service, mock_repository, mock_queue_manager):
-        """Test that empty cache is written successfully."""
-        # Arrange
-        integration_name = "ml_inference_perspective_api"
-        mock_queue_manager.load_records_from_queue.return_value = []
-
-        # Act
-        service.write_cache(service=integration_name)
-
-        # Assert
-        mock_queue_manager.load_records_from_queue.assert_called_once_with(
-            integration_name=integration_name
-        )
-        mock_repository.write_records_to_storage.assert_called_once_with(
-            integration_name=integration_name, records=[]
+            integration_name=integration_name, records=records
         )
 
     def test_raises_error_when_queue_manager_load_fails(self, service, mock_queue_manager):
@@ -87,23 +74,6 @@ class TestCacheBufferWriterService_write_cache:
         assert "Error writing cache for service" in str(exc_info.value)
         assert integration_name in str(exc_info.value)
         assert "Repository write error" in str(exc_info.value)
-        mock_queue_manager.load_records_from_queue.assert_called_once_with(
-            integration_name=integration_name
-        )
-        mock_repository.write_records_to_storage.assert_called_once_with(
-            integration_name=integration_name, records=sample_records
-        )
-
-    def test_passes_correct_integration_name_to_dependencies(self, service, mock_repository, mock_queue_manager, sample_records):
-        """Test that correct integration name is passed to all dependencies."""
-        # Arrange
-        integration_name = "test_integration_service"
-        mock_queue_manager.load_records_from_queue.return_value = sample_records
-
-        # Act
-        service.write_cache(service=integration_name)
-
-        # Assert
         mock_queue_manager.load_records_from_queue.assert_called_once_with(
             integration_name=integration_name
         )
@@ -192,44 +162,6 @@ class TestCacheBufferWriterService_clear_cache:
         assert "Error clearing cache for service" in str(exc_info.value)
         assert integration_name in str(exc_info.value)
         assert "Delete records error" in str(exc_info.value)
-        mock_queue_manager.load_queue_item_ids.assert_called_once_with(
-            integration_name=integration_name, queue_type="output"
-        )
-        mock_queue_manager.delete_records_from_queue.assert_called_once_with(
-            integration_name=integration_name,
-            queue_type="output",
-            queue_ids_to_delete=sample_queue_ids,
-        )
-
-    def test_passes_correct_parameters_to_dependencies(self, service, mock_queue_manager, sample_queue_ids):
-        """Test that correct parameters are passed to all dependencies."""
-        # Arrange
-        integration_name = "test_integration_service"
-        mock_queue_manager.load_queue_item_ids.return_value = sample_queue_ids
-
-        # Act
-        service.clear_cache(service=integration_name)
-
-        # Assert
-        mock_queue_manager.load_queue_item_ids.assert_called_once_with(
-            integration_name=integration_name, queue_type="output"
-        )
-        mock_queue_manager.delete_records_from_queue.assert_called_once_with(
-            integration_name=integration_name,
-            queue_type="output",
-            queue_ids_to_delete=sample_queue_ids,
-        )
-
-    def test_uses_output_queue_type_for_clear_cache(self, service, mock_queue_manager, sample_queue_ids):
-        """Test that clear_cache always uses 'output' queue type."""
-        # Arrange
-        integration_name = "ml_inference_perspective_api"
-        mock_queue_manager.load_queue_item_ids.return_value = sample_queue_ids
-
-        # Act
-        service.clear_cache(service=integration_name)
-
-        # Assert
         mock_queue_manager.load_queue_item_ids.assert_called_once_with(
             integration_name=integration_name, queue_type="output"
         )

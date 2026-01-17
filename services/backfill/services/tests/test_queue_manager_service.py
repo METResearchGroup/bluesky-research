@@ -106,12 +106,16 @@ class TestQueueManagerService_load_records_from_queue:
         """Create QueueManagerService instance."""
         return QueueManagerService()
 
-    def test_loads_records_from_output_queue_successfully(self, service, sample_records):
+    @pytest.mark.parametrize("records", [
+        pytest.param([{"id": 1, "data": "record1"}, {"id": 2, "data": "record2"}], id="with_records"),
+        pytest.param([], id="empty_records"),
+    ])
+    def test_loads_records_from_output_queue_successfully(self, service, records):
         """Test that records are loaded from output queue successfully."""
         # Arrange
         integration_name = "ml_inference_perspective_api"
         mock_queue = Mock()
-        mock_queue.load_dict_items_from_queue.return_value = sample_records
+        mock_queue.load_dict_items_from_queue.return_value = records
 
         with patch(
             "services.backfill.services.queue_manager_service.get_output_queue_for_integration"
@@ -124,28 +128,7 @@ class TestQueueManagerService_load_records_from_queue:
             # Assert
             mock_get_queue.assert_called_once_with(integration_name=integration_name)
             mock_queue.load_dict_items_from_queue.assert_called_once()
-            assert result == sample_records
-
-    def test_loads_empty_records_successfully(self, service):
-        """Test that empty records list is returned when queue is empty."""
-        # Arrange
-        integration_name = "ml_inference_perspective_api"
-        mock_queue = Mock()
-        mock_queue.load_dict_items_from_queue.return_value = []
-
-        with patch(
-            "services.backfill.services.queue_manager_service.get_output_queue_for_integration"
-        ) as mock_get_queue:
-            mock_get_queue.return_value = mock_queue
-
-            # Act
-            result = service.load_records_from_queue(integration_name=integration_name)
-
-            # Assert
-            mock_get_queue.assert_called_once_with(integration_name=integration_name)
-            mock_queue.load_dict_items_from_queue.assert_called_once()
-            assert result == []
-            assert len(result) == 0
+            assert result == records
 
     def test_raises_error_when_get_queue_fails(self, service):
         """Test that QueueManagerServiceError is raised when get_queue fails."""
@@ -191,24 +174,6 @@ class TestQueueManagerService_load_records_from_queue:
             mock_get_queue.assert_called_once_with(integration_name=integration_name)
             mock_queue.load_dict_items_from_queue.assert_called_once()
 
-    def test_passes_correct_integration_name_to_get_queue(self, service, sample_records):
-        """Test that correct integration name is passed to get_output_queue_for_integration."""
-        # Arrange
-        integration_name = "test_integration_service"
-        mock_queue = Mock()
-        mock_queue.load_dict_items_from_queue.return_value = sample_records
-
-        with patch(
-            "services.backfill.services.queue_manager_service.get_output_queue_for_integration"
-        ) as mock_get_queue:
-            mock_get_queue.return_value = mock_queue
-
-            # Act
-            service.load_records_from_queue(integration_name=integration_name)
-
-            # Assert
-            mock_get_queue.assert_called_once_with(integration_name=integration_name)
-
 
 class TestQueueManagerService_load_queue_item_ids:
     """Tests for QueueManagerService.load_queue_item_ids method."""
@@ -218,62 +183,23 @@ class TestQueueManagerService_load_queue_item_ids:
         """Create QueueManagerService instance."""
         return QueueManagerService()
 
-    def test_loads_ids_from_input_queue_successfully(self, service, sample_queue_ids):
-        """Test that IDs are loaded from input queue successfully."""
+    @pytest.mark.parametrize("queue_type,get_queue_func", [
+        pytest.param("input", "get_input_queue_for_integration", id="input_queue"),
+        pytest.param("output", "get_output_queue_for_integration", id="output_queue"),
+    ])
+    @pytest.mark.parametrize("ids", [
+        pytest.param([1, 2, 3, 4, 5], id="with_ids"),
+        pytest.param([], id="empty_ids"),
+    ])
+    def test_loads_ids_from_queue_successfully(self, service, queue_type, get_queue_func, ids):
+        """Test that IDs are loaded from queue successfully."""
         # Arrange
         integration_name = "ml_inference_perspective_api"
-        queue_type = "input"
         mock_queue = Mock()
-        mock_queue.load_item_ids_from_queue.return_value = sample_queue_ids
+        mock_queue.load_item_ids_from_queue.return_value = ids
 
         with patch(
-            "services.backfill.services.queue_manager_service.get_input_queue_for_integration"
-        ) as mock_get_input_queue:
-            mock_get_input_queue.return_value = mock_queue
-
-            # Act
-            result = service.load_queue_item_ids(
-                integration_name=integration_name, queue_type=queue_type
-            )
-
-            # Assert
-            mock_get_input_queue.assert_called_once_with(integration_name=integration_name)
-            mock_queue.load_item_ids_from_queue.assert_called_once()
-            assert result == sample_queue_ids
-
-    def test_loads_ids_from_output_queue_successfully(self, service, sample_queue_ids):
-        """Test that IDs are loaded from output queue successfully."""
-        # Arrange
-        integration_name = "ml_inference_perspective_api"
-        queue_type = "output"
-        mock_queue = Mock()
-        mock_queue.load_item_ids_from_queue.return_value = sample_queue_ids
-
-        with patch(
-            "services.backfill.services.queue_manager_service.get_output_queue_for_integration"
-        ) as mock_get_output_queue:
-            mock_get_output_queue.return_value = mock_queue
-
-            # Act
-            result = service.load_queue_item_ids(
-                integration_name=integration_name, queue_type=queue_type
-            )
-
-            # Assert
-            mock_get_output_queue.assert_called_once_with(integration_name=integration_name)
-            mock_queue.load_item_ids_from_queue.assert_called_once()
-            assert result == sample_queue_ids
-
-    def test_loads_empty_ids_successfully(self, service):
-        """Test that empty IDs list is returned when queue is empty."""
-        # Arrange
-        integration_name = "ml_inference_perspective_api"
-        queue_type = "output"
-        mock_queue = Mock()
-        mock_queue.load_item_ids_from_queue.return_value = []
-
-        with patch(
-            "services.backfill.services.queue_manager_service.get_output_queue_for_integration"
+            f"services.backfill.services.queue_manager_service.{get_queue_func}"
         ) as mock_get_queue:
             mock_get_queue.return_value = mock_queue
 
@@ -285,8 +211,7 @@ class TestQueueManagerService_load_queue_item_ids:
             # Assert
             mock_get_queue.assert_called_once_with(integration_name=integration_name)
             mock_queue.load_item_ids_from_queue.assert_called_once()
-            assert result == []
-            assert len(result) == 0
+            assert result == ids
 
     def test_raises_error_for_invalid_queue_type(self, service):
         """Test that QueueManagerServiceError is raised for invalid queue type."""
@@ -386,18 +311,21 @@ class TestQueueManagerService_delete_records_from_queue:
         """Create QueueManagerService instance."""
         return QueueManagerService()
 
-    def test_deletes_records_with_ids_from_input_queue(self, service, sample_queue_ids):
-        """Test that records are deleted with IDs from input queue successfully."""
+    @pytest.mark.parametrize("queue_type,get_queue_func", [
+        pytest.param("input", "get_input_queue_for_integration", id="input_queue"),
+        pytest.param("output", "get_output_queue_for_integration", id="output_queue"),
+    ])
+    def test_deletes_records_with_ids_from_queue(self, service, sample_queue_ids, queue_type, get_queue_func):
+        """Test that records are deleted with IDs from queue successfully."""
         # Arrange
         integration_name = "ml_inference_perspective_api"
-        queue_type = "input"
         mock_queue = Mock()
         mock_queue.batch_delete_items_by_ids.return_value = len(sample_queue_ids)
 
         with patch(
-            "services.backfill.services.queue_manager_service.get_input_queue_for_integration"
-        ) as mock_get_input_queue:
-            mock_get_input_queue.return_value = mock_queue
+            f"services.backfill.services.queue_manager_service.{get_queue_func}"
+        ) as mock_get_queue:
+            mock_get_queue.return_value = mock_queue
 
             # Act
             service.delete_records_from_queue(
@@ -407,49 +335,26 @@ class TestQueueManagerService_delete_records_from_queue:
             )
 
             # Assert
-            mock_get_input_queue.assert_called_once_with(integration_name=integration_name)
+            mock_get_queue.assert_called_once_with(integration_name=integration_name)
             mock_queue.batch_delete_items_by_ids.assert_called_once_with(
                 ids=sample_queue_ids
             )
 
-    def test_deletes_records_with_ids_from_output_queue(self, service, sample_queue_ids):
-        """Test that records are deleted with IDs from output queue successfully."""
+    @pytest.mark.parametrize("queue_type,get_queue_func", [
+        pytest.param("input", "get_input_queue_for_integration", id="input_queue"),
+        pytest.param("output", "get_output_queue_for_integration", id="output_queue"),
+    ])
+    def test_deletes_all_records_when_ids_is_none(self, service, queue_type, get_queue_func):
+        """Test that all records are deleted when ids is None."""
         # Arrange
         integration_name = "ml_inference_perspective_api"
-        queue_type = "output"
-        mock_queue = Mock()
-        mock_queue.batch_delete_items_by_ids.return_value = len(sample_queue_ids)
-
-        with patch(
-            "services.backfill.services.queue_manager_service.get_output_queue_for_integration"
-        ) as mock_get_output_queue:
-            mock_get_output_queue.return_value = mock_queue
-
-            # Act
-            service.delete_records_from_queue(
-                integration_name=integration_name,
-                queue_type=queue_type,
-                queue_ids_to_delete=sample_queue_ids,
-            )
-
-            # Assert
-            mock_get_output_queue.assert_called_once_with(integration_name=integration_name)
-            mock_queue.batch_delete_items_by_ids.assert_called_once_with(
-                ids=sample_queue_ids
-            )
-
-    def test_deletes_all_records_when_ids_is_none_input_queue(self, service):
-        """Test that all records are deleted when ids is None for input queue."""
-        # Arrange
-        integration_name = "ml_inference_perspective_api"
-        queue_type = "input"
         mock_queue = Mock()
         mock_queue.clear_queue.return_value = 10
 
         with patch(
-            "services.backfill.services.queue_manager_service.get_input_queue_for_integration"
-        ) as mock_get_input_queue:
-            mock_get_input_queue.return_value = mock_queue
+            f"services.backfill.services.queue_manager_service.{get_queue_func}"
+        ) as mock_get_queue:
+            mock_get_queue.return_value = mock_queue
 
             # Act
             service.delete_records_from_queue(
@@ -459,32 +364,7 @@ class TestQueueManagerService_delete_records_from_queue:
             )
 
             # Assert
-            mock_get_input_queue.assert_called_once_with(integration_name=integration_name)
-            mock_queue.clear_queue.assert_called_once()
-            mock_queue.batch_delete_items_by_ids.assert_not_called()
-
-    def test_deletes_all_records_when_ids_is_none_output_queue(self, service):
-        """Test that all records are deleted when ids is None for output queue."""
-        # Arrange
-        integration_name = "ml_inference_perspective_api"
-        queue_type = "output"
-        mock_queue = Mock()
-        mock_queue.clear_queue.return_value = 10
-
-        with patch(
-            "services.backfill.services.queue_manager_service.get_output_queue_for_integration"
-        ) as mock_get_output_queue:
-            mock_get_output_queue.return_value = mock_queue
-
-            # Act
-            service.delete_records_from_queue(
-                integration_name=integration_name,
-                queue_type=queue_type,
-                queue_ids_to_delete=None,
-            )
-
-            # Assert
-            mock_get_output_queue.assert_called_once_with(integration_name=integration_name)
+            mock_get_queue.assert_called_once_with(integration_name=integration_name)
             mock_queue.clear_queue.assert_called_once()
             mock_queue.batch_delete_items_by_ids.assert_not_called()
 

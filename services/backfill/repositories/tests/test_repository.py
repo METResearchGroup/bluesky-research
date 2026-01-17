@@ -150,7 +150,11 @@ class TestBackfillDataRepository_get_previously_labeled_post_uris:
 class TestBackfillDataRepository_write_records_to_storage:
     """Tests for BackfillDataRepository.write_records_to_storage method."""
 
-    def test_writes_records_to_storage_successfully(self, repository, mock_adapter, sample_records):
+    @pytest.mark.parametrize("records", [
+        pytest.param([{"id": 1, "data": "record1"}, {"id": 2, "data": "record2"}], id="with_records"),
+        pytest.param([], id="empty_records"),
+    ])
+    def test_writes_records_to_storage_successfully(self, repository, mock_adapter, records):
         """Test that records are written to storage successfully."""
         # Arrange
         integration_name = "ml_inference_perspective_api"
@@ -158,46 +162,12 @@ class TestBackfillDataRepository_write_records_to_storage:
 
         # Act
         repository.write_records_to_storage(
-            integration_name=integration_name, records=sample_records
-        )
-
-        # Assert
-        mock_adapter.write_records_to_storage.assert_called_once_with(
-            integration_name=integration_name, records=sample_records
-        )
-
-    def test_writes_empty_records_successfully(self, repository, mock_adapter):
-        """Test that empty records list is written successfully."""
-        # Arrange
-        integration_name = "ml_inference_perspective_api"
-        records = []
-        mock_adapter.write_records_to_storage.return_value = None
-
-        # Act
-        repository.write_records_to_storage(
             integration_name=integration_name, records=records
         )
 
         # Assert
         mock_adapter.write_records_to_storage.assert_called_once_with(
             integration_name=integration_name, records=records
-        )
-        assert records == []
-
-    def test_delegates_to_adapter_with_correct_parameters(self, repository, mock_adapter, sample_records):
-        """Test that write_records_to_storage delegates to adapter with correct parameters."""
-        # Arrange
-        integration_name = "test_integration_service"
-        mock_adapter.write_records_to_storage.return_value = None
-
-        # Act
-        repository.write_records_to_storage(
-            integration_name=integration_name, records=sample_records
-        )
-
-        # Assert
-        mock_adapter.write_records_to_storage.assert_called_once_with(
-            integration_name=integration_name, records=sample_records
         )
 
     def test_raises_error_when_adapter_write_fails(self, repository, mock_adapter, sample_records):
