@@ -208,8 +208,6 @@ def backfill_records(
         end_date=end_date,
     )
 
-    # TODO: add defaults for start_date and end_date, and
-    # then make sure that they're used here.
     if add_to_queue:
         enqueue_svc = _enqueue_service or EnqueueService()
         enqueue_service_payload = EnqueueServicePayload(
