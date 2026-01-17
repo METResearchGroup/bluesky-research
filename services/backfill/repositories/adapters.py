@@ -1,7 +1,5 @@
 """Concrete backfill data adapter implementations."""
 
-from typing import Optional
-
 import pandas as pd
 
 from lib.constants import FEED_LOOKBACK_DAYS_DURING_STUDY, study_start_date
@@ -294,9 +292,9 @@ class S3Adapter(BackfillDataAdapter):
     def get_previously_labeled_post_uris(
         self,
         service: str,
-        id_field: str = "uri",
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
+        id_field: str,
+        start_date: str,
+        end_date: str,
     ) -> set[str]:
         """Load post URIs for a service from S3.
 
