@@ -588,7 +588,7 @@ class Queue:
         """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            query = "SELECT id FROM queue"
+            query = "SELECT id FROM queue ORDER BY id ASC"
             params = []
 
             if limit is not None:
