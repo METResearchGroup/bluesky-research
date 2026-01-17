@@ -260,9 +260,6 @@ class LocalStorageAdapter(BackfillDataAdapter):
                 f"Failed to load {service} post URIs from local storage: {e}"
             ) from e
 
-    # NOTE: this is coupled strongly to the output queue, as we generally
-    # only want to write records from the output queue. This is OK for now,
-    # but should be noted.
     def write_records_to_storage(self, integration_name: str, records: list[dict]):
         """Write records to storage using the local storage adapter.
 
