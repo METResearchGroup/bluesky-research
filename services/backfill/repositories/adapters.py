@@ -79,7 +79,10 @@ class LocalStorageAdapter(BackfillDataAdapter):
         )
         for partition_date in partition_dates:
             results.extend(self._load_feed_posts_for_date(partition_date))
-        return results
+        deduplicated_results: list[PostToEnqueueModel] = self._deduplicate_feed_posts(
+            posts=results
+        )
+        return deduplicated_results
 
     def _load_feed_posts_for_date(
         self, partition_date: str
@@ -169,6 +172,20 @@ class LocalStorageAdapter(BackfillDataAdapter):
             if post.uri in uris_of_posts_used_in_feeds
         ]
         return candidate_pool_posts_used_in_feeds
+
+    def _deduplicate_feed_posts(
+        self, posts: list[PostToEnqueueModel]
+    ) -> list[PostToEnqueueModel]:
+        """Deduplicate feed posts. A post can be used in feeds across multiple
+        dates, so we just want to grab one version of the post.
+        """
+        unique_uris: set[str] = set()
+        filtered_results: list[PostToEnqueueModel] = []
+        for post in posts:
+            if post.uri not in unique_uris:
+                unique_uris.add(post.uri)
+                filtered_results.append(post)
+        return filtered_results
 
     def get_previously_labeled_post_uris(
         self,

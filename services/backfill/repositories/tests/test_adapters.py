@@ -557,3 +557,169 @@ class TestS3Adapter_get_previously_labeled_post_uris:
             # Assert
             assert "S3 data loading is not yet implemented" in str(exc_info.value)
             mock_logger.warning.assert_called_once()
+
+
+class TestLocalStorageAdapter_deduplicate_feed_posts:
+    """Tests for LocalStorageAdapter._deduplicate_feed_posts method."""
+
+    def test_deduplicates_posts_with_same_uri(self, local_storage_adapter):
+        """Test that duplicate posts with the same URI are deduplicated, keeping only the first occurrence."""
+        # Arrange
+        posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="text1", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri1", text="text2", preprocessing_timestamp="2024-01-02T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri2", text="text3", preprocessing_timestamp="2024-01-03T00:00:00"
+            ),
+        ]
+        expected = [posts[0], posts[2]]
+
+        # Act
+        result = local_storage_adapter._deduplicate_feed_posts(posts=posts)
+
+        # Assert
+        assert len(result) == 2
+        assert result[0].uri == "uri1"
+        assert result[0].text == "text1"
+        assert result[0].preprocessing_timestamp == "2024-01-01T00:00:00"
+        assert result[1].uri == "uri2"
+        assert result[1].text == "text3"
+
+    def test_returns_all_posts_when_no_duplicates(self, local_storage_adapter):
+        """Test that all posts are returned when there are no duplicate URIs."""
+        # Arrange
+        posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="text1", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri2", text="text2", preprocessing_timestamp="2024-01-02T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri3", text="text3", preprocessing_timestamp="2024-01-03T00:00:00"
+            ),
+        ]
+
+        # Act
+        result = local_storage_adapter._deduplicate_feed_posts(posts=posts)
+
+        # Assert
+        assert len(result) == 3
+        assert result[0].uri == "uri1"
+        assert result[1].uri == "uri2"
+        assert result[2].uri == "uri3"
+
+    def test_returns_empty_list_when_no_posts(self, local_storage_adapter):
+        """Test that empty list is returned when input is empty."""
+        # Arrange
+        posts = []
+
+        # Act
+        result = local_storage_adapter._deduplicate_feed_posts(posts=posts)
+
+        # Assert
+        assert result == []
+
+    def test_keeps_first_occurrence_when_multiple_duplicates(self, local_storage_adapter):
+        """Test that the first occurrence is kept when there are multiple duplicates of the same URI."""
+        # Arrange
+        posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="first", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri1", text="second", preprocessing_timestamp="2024-01-02T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri1", text="third", preprocessing_timestamp="2024-01-03T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri2", text="other", preprocessing_timestamp="2024-01-04T00:00:00"
+            ),
+        ]
+
+        # Act
+        result = local_storage_adapter._deduplicate_feed_posts(posts=posts)
+
+        # Assert
+        assert len(result) == 2
+        assert result[0].uri == "uri1"
+        assert result[0].text == "first"
+        assert result[1].uri == "uri2"
+
+    def test_deduplicates_posts_across_multiple_unique_uris(self, local_storage_adapter):
+        """Test that deduplication works correctly with multiple URIs that each have duplicates."""
+        # Arrange
+        posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="text1", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri2", text="text2", preprocessing_timestamp="2024-01-02T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri1", text="text3", preprocessing_timestamp="2024-01-03T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri3", text="text4", preprocessing_timestamp="2024-01-04T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri2", text="text5", preprocessing_timestamp="2024-01-05T00:00:00"
+            ),
+        ]
+
+        # Act
+        result = local_storage_adapter._deduplicate_feed_posts(posts=posts)
+
+        # Assert
+        assert len(result) == 3
+        assert result[0].uri == "uri1"
+        assert result[0].text == "text1"
+        assert result[1].uri == "uri2"
+        assert result[1].text == "text2"
+        assert result[2].uri == "uri3"
+        assert result[2].text == "text4"
+
+    def test_returns_single_post_when_only_one_post(self, local_storage_adapter):
+        """Test that single post is returned when input contains only one post."""
+        # Arrange
+        posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="text1", preprocessing_timestamp="2024-01-01T00:00:00"
+            )
+        ]
+
+        # Act
+        result = local_storage_adapter._deduplicate_feed_posts(posts=posts)
+
+        # Assert
+        assert len(result) == 1
+        assert result[0].uri == "uri1"
+        assert result[0].text == "text1"
+        assert result[0].preprocessing_timestamp == "2024-01-01T00:00:00"
+
+    def test_preserves_post_model_structure(self, local_storage_adapter):
+        """Test that returned posts are valid PostToEnqueueModel instances with all fields preserved."""
+        # Arrange
+        posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="test_text", preprocessing_timestamp="2024-01-01T12:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri1", text="duplicate_text", preprocessing_timestamp="2024-01-02T12:00:00"
+            ),
+        ]
+
+        # Act
+        result = local_storage_adapter._deduplicate_feed_posts(posts=posts)
+
+        # Assert
+        assert len(result) == 1
+        assert isinstance(result[0], PostToEnqueueModel)
+        assert result[0].uri == "uri1"
+        assert result[0].text == "test_text"
+        assert result[0].preprocessing_timestamp == "2024-01-01T12:00:00"
