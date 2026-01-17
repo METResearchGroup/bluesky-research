@@ -302,7 +302,7 @@ def _fetch_all_files_after_timestamp_minute(
 
 def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> list[str]:
     """Find files after a given timestamp.
-    
+
     We crawl the directory structure in a breadth-first manner, starting at the
     top-level "year" directory and working our way down to the "minute" directory.
     For each level, we crawl all the files that are more recent than the timestamp
@@ -325,30 +325,21 @@ def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> li
     # grab files from the same year
     # but more recent than the timestamp month.
     future_month_files: list[str] = _fetch_all_files_after_timestamp_month(
-        year_dir_path=os.path.join(
-            target_year,
-        ),
+        year_dir_path=target_year,
         timestamp_month=target_month,
     )
 
     # grab files from the same year + month
     # but more recent than the timestamp day
     future_day_files: list[str] = _fetch_all_files_after_timestamp_day(
-        month_dir_path=os.path.join(
-            target_year,
-            target_month,
-        ),
+        month_dir_path=os.path.join(target_year, target_month),
         timestamp_day=target_day,
     )
 
     # grab files from the same year + month + day,
     # but more recent than the timestamp hour.
     future_hour_files: list[str] = _fetch_all_files_after_timestamp_hour(
-        day_dir_path=os.path.join(
-            target_year,
-            target_month,
-            target_day,
-        ),
+        day_dir_path=os.path.join(target_year, target_month, target_day),
         timestamp_hour=target_hour,
     )
 
