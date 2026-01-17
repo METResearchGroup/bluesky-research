@@ -1,10 +1,7 @@
 """Repository for backfill data loading operations using adapter pattern."""
 
-from lib.log.logger import get_logger
 from services.backfill.models import PostToEnqueueModel
 from services.backfill.repositories.base import BackfillDataAdapter
-
-logger = get_logger(__name__)
 
 
 class BackfillDataRepository:
@@ -26,7 +23,6 @@ class BackfillDataRepository:
         if not isinstance(adapter, BackfillDataAdapter):
             raise ValueError("Adapter must be an instance of BackfillDataAdapter.")
         self.adapter = adapter
-        self.logger = logger
 
     def load_all_posts(
         self, start_date: str, end_date: str
