@@ -1,3 +1,5 @@
+from services.backfill.repositories.adapters import LocalStorageAdapter
+from services.backfill.repositories.repository import BackfillDataRepository
 from services.backfill.services.queue_manager_service import QueueManagerService
 from lib.log.logger import get_logger
 
@@ -18,13 +20,22 @@ class CacheBufferWriterService:
     is run as a single-threaded application, this is OK.
     """
 
-    def __init__(self, queue_manager_service: QueueManagerService | None = None):
+    def __init__(
+        self,
+        data_repository: BackfillDataRepository | None = None,
+        queue_manager_service: QueueManagerService | None = None,
+    ):
         """Initialize the cache buffer writer service.
 
         Args:
+            data_repository: Optional BackfillDataRepository instance for dependency injection.
+                              If not provided, creates a new instance using LocalStorageAdapter.
             queue_manager_service: Optional QueueManagerService instance for dependency injection.
                                   If not provided, creates a new instance.
         """
+        self.data_repository = data_repository or BackfillDataRepository(
+            adapter=LocalStorageAdapter()
+        )
         self.queue_manager_service = queue_manager_service or QueueManagerService()
 
     def write_cache(self, service: str):
