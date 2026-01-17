@@ -134,6 +134,49 @@ def write_jsons_to_local_store(
         raise ValueError("No source data provided.")
 
 
+def _fetch_files_in_directory(directory_path: str) -> list[str]:
+    """Fetch files in a directory."""
+    files_list: list[str] = []
+    for root, _, files in os.walk(directory_path):
+        for file in files:
+            files_list.append(os.path.join(root, file))
+    return files_list
+
+
+# NOTE: _fetch_files_after_* are just very thin layers over the
+# _fetch_files_in_directory function. However, this is intentional
+# as when they're used in find_files_after_timestamp, it makes it much
+# easier to read and know what's the reason why we're fetching those files.
+def _fetch_files_after_current_year(year_dir_path: str) -> list[str]:
+    """Fetch files after the current year.
+
+    Our current setup assumes a year/month/day/hour/minute directory structure,
+    so we can check at the top-level "year" directory and if the year is greater
+    than the current year, we can return all files in that year.
+    """
+    return _fetch_files_in_directory(year_dir_path)
+
+
+def _fetch_files_after_current_month(month_dir_path: str) -> list[str]:
+    """Fetch files after the current month."""
+    return _fetch_files_in_directory(month_dir_path)
+
+
+def _fetch_files_after_current_day(day_dir_path: str) -> list[str]:
+    """Fetch files after the current day."""
+    return _fetch_files_in_directory(day_dir_path)
+
+
+def _fetch_files_after_current_hour(hour_dir_path: str) -> list[str]:
+    """Fetch files after the current hour."""
+    return _fetch_files_in_directory(hour_dir_path)
+
+
+def _fetch_files_after_current_minute(minute_dir_path: str) -> list[str]:
+    """Fetch files after the current minute."""
+    return _fetch_files_in_directory(minute_dir_path)
+
+
 def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> list[str]:
     """Find files after a given timestamp."""
     year, month, day, hour, minute = target_timestamp_path.split("/")
@@ -141,100 +184,86 @@ def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> li
     for year_dir in os.listdir(base_path):
         if year_dir >= year:
             if year_dir > year:
-                # crawl all files, even in subdirectories, and add to list
-                # of files
-                year_dir_path = os.path.join(base_path, year_dir)
-                for root, _, files in os.walk(year_dir_path):
-                    for file in files:
-                        files_list.append(os.path.join(root, file))
+                future_year_files: list[str] = _fetch_files_after_current_year(
+                    year_dir_path=os.path.join(base_path, year_dir)
+                )
+                files_list.extend(future_year_files)
                 continue
             else:
                 # case where year_dir == year
-                months = os.listdir(os.path.join(base_path, year_dir))
+                full_current_year_dir = os.path.join(base_path, year_dir)
+                months = os.listdir(full_current_year_dir)
                 for month_dir in months:
                     # if same year + more recent month, crawl all files.
                     if month_dir > month:
-                        # crawl all files, even in subdirectories, and add
-                        # to list of files
-                        month_dir_path = os.path.join(base_path, year_dir, month_dir)  # noqa
-                        for root, _, files in os.walk(month_dir_path):
-                            for file in files:
-                                files_list.append(os.path.join(root, file))
+                        future_month_files: list[str] = (
+                            _fetch_files_after_current_month(
+                                month_dir_path=os.path.join(
+                                    full_current_year_dir, month_dir
+                                )
+                            )
+                        )
+                        files_list.extend(future_month_files)
+                        continue
                     elif month_dir == month:
                         # if same month, check days
-                        days = os.listdir(os.path.join(base_path, year_dir, month_dir))
+                        full_current_month_dir = os.path.join(
+                            full_current_year_dir, month_dir
+                        )
+                        days = os.listdir(full_current_month_dir)
                         for day_dir in days:
                             # if same year + same month + more recent day,
                             # crawl all files.
                             if day_dir > day:
-                                # crawl all files, even in subdirectories, and
-                                # add to list of files
-                                day_dir_path = os.path.join(
-                                    base_path, year_dir, month_dir, day_dir
+                                future_day_files: list[str] = (
+                                    _fetch_files_after_current_day(
+                                        day_dir_path=os.path.join(
+                                            full_current_month_dir, day_dir
+                                        )
+                                    )
                                 )
-                                for root, _, files in os.walk(day_dir_path):
-                                    for file in files:
-                                        files_list.append(os.path.join(root, file))  # noqa
+                                files_list.extend(future_day_files)
+                                continue
                             elif day_dir == day:
-                                # if same day, check hours
-                                hours = os.listdir(
-                                    os.path.join(
-                                        base_path, year_dir, month_dir, day_dir
-                                    )  # noqa
+                                full_current_day_dir = os.path.join(
+                                    full_current_month_dir, day_dir
                                 )
+                                # if same day, check hours
+                                hours = os.listdir(full_current_day_dir)
                                 for hour_dir in hours:
                                     # if same year + same month + same day +
                                     # more recent hour, crawl all files.
                                     if hour_dir > hour:
-                                        # crawl all files, even in
-                                        # subdirectories, and add to list
-                                        # of files
-                                        hour_dir_path = os.path.join(
-                                            base_path,
-                                            year_dir,
-                                            month_dir,
-                                            day_dir,
-                                            hour_dir,  # noqa
-                                        )
-                                        for root, _, files in os.walk(hour_dir_path):  # noqa
-                                            for file in files:
-                                                files_list.append(
-                                                    os.path.join(root, file)
-                                                )  # noqa
-                                    elif hour_dir == hour:
-                                        # if same hour, check minutes
-                                        minutes = os.listdir(
-                                            os.path.join(
-                                                base_path,
-                                                year_dir,
-                                                month_dir,
-                                                day_dir,
-                                                hour_dir,  # noqa
+                                        future_hour_files: list[str] = (
+                                            _fetch_files_after_current_hour(
+                                                hour_dir_path=os.path.join(
+                                                    full_current_day_dir, hour_dir
+                                                )
                                             )
                                         )
+                                        files_list.extend(future_hour_files)
+                                        continue
+                                    elif hour_dir == hour:
+                                        full_current_hour_dir = os.path.join(
+                                            full_current_day_dir, hour_dir
+                                        )
+                                        # if same hour, check minutes
+                                        minutes = os.listdir(full_current_hour_dir)
                                         for minute_dir in minutes:
                                             # if same year + same month +
                                             # same day + same hour + more
                                             # recent minute, crawl all files.
                                             if minute_dir > minute:
-                                                # crawl all files, even in
-                                                # subdirectories, and add to
-                                                # list of files
-                                                minute_dir_path = os.path.join(
-                                                    base_path,
-                                                    year_dir,
-                                                    month_dir,
-                                                    day_dir,
-                                                    hour_dir,
-                                                    minute_dir,  # noqa
+                                                future_minute_files: list[str] = (
+                                                    _fetch_files_after_current_minute(
+                                                        minute_dir_path=os.path.join(
+                                                            full_current_hour_dir,
+                                                            minute_dir,
+                                                        )
+                                                    )
                                                 )
-                                                for root, _, files in os.walk(
-                                                    minute_dir_path
-                                                ):  # noqa
-                                                    for file in files:
-                                                        files_list.append(
-                                                            os.path.join(root, file)
-                                                        )  # noqa
+                                                files_list.extend(future_minute_files)
+                                                continue
 
     return files_list
 
