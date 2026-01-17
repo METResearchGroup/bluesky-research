@@ -12,7 +12,7 @@ from services.backfill.services.backfill_data_loader_service import (
 )
 from services.backfill.services.queue_manager_service import QueueManagerService
 
-logger = get_logger(__name__)
+logger = get_logger(__file__)
 
 
 class EnqueueService:
