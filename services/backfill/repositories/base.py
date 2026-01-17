@@ -63,11 +63,11 @@ class BackfillDataAdapter(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def write_records_to_storage(self, service, records: list[dict]):
+    def write_records_to_storage(self, integration_name: str, records: list[dict]):
         """Write records to storage using the configured adapter.
 
         Args:
-            service: Name of the service (e.g., "ml_inference_perspective_api")
+            integration_name: Name of the integration (e.g., "ml_inference_perspective_api")
             records: List of records to write.
         """
         raise NotImplementedError

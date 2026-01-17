@@ -77,11 +77,13 @@ class BackfillDataRepository:
             end_date=end_date,
         )
 
-    def write_records_to_storage(self, service: str, records: list[dict]):
+    def write_records_to_storage(self, integration_name: str, records: list[dict]):
         """Write records to storage using the configured adapter.
 
         Args:
-            service: Name of the service (e.g., "ml_inference_perspective_api")
+            integration_name: Name of the integration (e.g., "ml_inference_perspective_api")
             records: List of records to write.
         """
-        return self.adapter.write_records_to_storage(service=service, records=records)
+        return self.adapter.write_records_to_storage(
+            integration_name=integration_name, records=records
+        )

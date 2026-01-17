@@ -45,7 +45,7 @@ class CacheBufferWriterService:
                 integration_name=service
             )
             self.data_repository.write_records_to_storage(
-                service=service, records=records
+                integration_name=service, records=records
             )
             logger.info(
                 f"Successfully wrote {len(records)} records to storage for service {service}"
