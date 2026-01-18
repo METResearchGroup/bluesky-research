@@ -86,7 +86,6 @@ def get_feeds_per_user(valid_study_users_dids: set[str]) -> pd.DataFrame:
     generated_feeds_df: pd.DataFrame = load_data_from_local_storage(
         service="generated_feeds",
         directory="cache",
-        export_format="duckdb",
         duckdb_query=query,
         query_metadata=query_metadata,
         start_partition_date=STUDY_START_DATE,

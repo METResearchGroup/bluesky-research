@@ -55,7 +55,6 @@ class LocalStorageAdapter(BackfillDataAdapter):
         cached_df: pd.DataFrame = load_data_from_local_storage(
             service=LOCAL_TABLE_NAME,
             directory="cache",
-            export_format="duckdb",
             duckdb_query=query,
             query_metadata=query_metadata,
             start_partition_date=start_date,
@@ -131,7 +130,6 @@ class LocalStorageAdapter(BackfillDataAdapter):
         cached_df: pd.DataFrame = load_data_from_local_storage(
             service=POSTS_USED_IN_FEEDS_TABLE_NAME,
             directory="cache",
-            export_format="duckdb",
             duckdb_query=query,
             query_metadata=query_metadata,
             partition_date=partition_date,
@@ -222,7 +220,6 @@ class LocalStorageAdapter(BackfillDataAdapter):
             cached_df: pd.DataFrame = load_data_from_local_storage(
                 service=service,
                 directory="cache",
-                export_format="duckdb",
                 duckdb_query=query,
                 query_metadata=query_metadata,
                 start_partition_date=start_date,
@@ -234,7 +231,6 @@ class LocalStorageAdapter(BackfillDataAdapter):
             active_df: pd.DataFrame = load_data_from_local_storage(
                 service=service,
                 directory="active",
-                export_format="duckdb",
                 duckdb_query=query,
                 query_metadata=query_metadata,
                 start_partition_date=start_date,

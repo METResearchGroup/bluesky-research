@@ -792,7 +792,7 @@ def get_service_pa_schema(
 def load_data_from_local_storage(
     service: str,
     directory: Literal["cache", "active"] = "active",
-    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
+    source_file_format: Literal["jsonl", "parquet"] = "parquet",
     partition_date: str | None = None,
     start_partition_date: str | None = None,
     end_partition_date: str | None = None,
@@ -810,11 +810,11 @@ def load_data_from_local_storage(
     Args:
         service: Name of the service to load data from
         directory: Which directory to load from ("cache" or "active")
-        export_format: Format of the data files ("jsonl", "parquet", or "duckdb")
+        source_file_format: Format of the source data files ("jsonl" or "parquet")
         partition_date: Specific partition date to load
         start_partition_date: Start of partition date range to load
         end_partition_date: End of partition date range to load
-        duckdb_query: SQL query for DuckDB format
+        duckdb_query: SQL query for DuckDB format. If provided, DuckDB mode is used.
         query_metadata: Metadata for DuckDB query
         latest_timestamp: Only load data after this timestamp
         use_all_data: Whether to load from both cache and active directories
@@ -840,9 +840,24 @@ def load_data_from_local_storage(
         source_types=source_types,
         custom_args=custom_args,
     )
-    if export_format == "jsonl":
+    duckdb_query_cols: list[str] = []
+    if duckdb_query is not None:
+        if not query_metadata:
+            raise ValueError("Must provide query_metadata when using duckdb_query.")
+
+        duckdb_query_cols = []
+        for table in query_metadata["tables"]:
+            duckdb_query_cols.extend(table["columns"])
+
+        df: pd.DataFrame = duckDB.run_query_as_df(
+            query=duckdb_query,
+            mode="parquet",
+            filepaths=filepaths,
+            query_metadata=query_metadata,
+        )
+    elif source_file_format == "jsonl":
         df = pd.read_json(filepaths, orient="records", lines=True)
-    elif export_format == "parquet":
+    elif source_file_format == "parquet":
         if latest_timestamp:
             # filter at least on the date field.
             # We can't partition data on the timestamp since that's too fine-grained, but we can at least partition on date.
@@ -889,22 +904,6 @@ def load_data_from_local_storage(
                         logger.warning(
                             f"Failed to convert column {col} to type {dtype}: {e}"
                         )
-    elif export_format == "duckdb":
-        if not duckdb_query or not query_metadata:
-            raise ValueError(
-                "Must provide a DuckDB query and query metadata when exporting to DuckDB."
-            )
-
-        duckdb_query_cols = []
-        for table in query_metadata["tables"]:
-            duckdb_query_cols.extend(table["columns"])
-
-        df: pd.DataFrame = duckDB.run_query_as_df(
-            query=duckdb_query,
-            mode="parquet",
-            filepaths=filepaths,
-            query_metadata=query_metadata,
-        )
 
     if latest_timestamp:
         logger.info(f"Fetching data after timestamp={latest_timestamp}")
@@ -915,7 +914,7 @@ def load_data_from_local_storage(
     cols_to_drop = ["row_num", "partition_date", "startTimestamp"]
     for col in cols_to_drop:
         # don't drop the column if we explicitly query for it.
-        if export_format == "duckdb":
+        if duckdb_query is not None:
             if col in df.columns and col not in duckdb_query_cols:
                 df = df.drop(columns=[col])
         else:

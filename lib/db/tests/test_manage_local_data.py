@@ -611,7 +611,7 @@ class TestLoadDataFromLocalStorage:
         {
             "service": "test_service", 
             "directory": "active",
-            "export_format": "parquet",
+            "source_file_format": "parquet",
             "mock_df": pd.DataFrame({
                 "col1": [1, 2],
                 "col2": ["a", "b"],
@@ -630,7 +630,7 @@ class TestLoadDataFromLocalStorage:
         result = load_data_from_local_storage(
             service=test_params["service"],
             directory=test_params["directory"],
-            export_format=test_params["export_format"]
+            source_file_format=test_params["source_file_format"]
         )
         
         assert isinstance(result, pd.DataFrame)
@@ -666,46 +666,39 @@ class TestLoadDataFromLocalStorage:
             custom_args=None
         )
 
-    @pytest.mark.parametrize("export_format,mock_data", [
+    @pytest.mark.parametrize("source_file_format,mock_data", [
         ("parquet", pd.DataFrame({"col1": [1,2]}).astype({"col1": "Int64"})),
-        ("jsonl", pd.DataFrame({"col1": [1,2]}).astype({"col1": "Int64"})),
-        ("duckdb", pd.DataFrame({"col1": [1,2]}).astype({"col1": "Int64"}))
+        ("jsonl", pd.DataFrame({"col1": [1,2]}).astype({"col1": "Int64"}))
     ])
-    def test_export_formats(self, export_format, mock_data, mocker, mock_service_metadata, mock_duckdb_import):
-        """Test different export formats."""
+    def test_source_file_formats(self, source_file_format, mock_data, mocker, mock_service_metadata):
+        """Test different source file formats."""
         mock_read_parquet = mocker.patch("pandas.read_parquet")
         mock_read_json = mocker.patch("pandas.read_json")
         mock_list_filenames = mocker.patch("lib.db.manage_local_data.list_filenames")
         
         mock_list_filenames.return_value = ["file1"]
-        if export_format == "parquet":
+        if source_file_format == "parquet":
             mock_read_parquet.return_value = mock_data
-        elif export_format == "jsonl":
+        elif source_file_format == "jsonl":
             mock_read_json.return_value = mock_data
-        else:
-            mock_duckdb_import.run_query_as_df.return_value = mock_data
             
         result = load_data_from_local_storage(
             service="test_service",
-            export_format=export_format,
-            duckdb_query="SELECT * FROM test" if export_format == "duckdb" else None,
-            query_metadata={"tables": [{"name": "test", "columns": ["col1"]}]} if export_format == "duckdb" else None
+            source_file_format=source_file_format,
         )
         
         assert isinstance(result, pd.DataFrame)
-        if export_format == "duckdb":
-            mock_duckdb_import.run_query_as_df.assert_called_once()
 
     def test_duckdb_query(self, mocker, mock_service_metadata, mock_duckdb_import):
         """Test DuckDB query execution."""
         mock_list_filenames = mocker.patch("lib.db.manage_local_data.list_filenames")
+        mock_duckdb_import.run_query_as_df.return_value = pd.DataFrame({"col1": [1,2]})
         
         test_query = "SELECT * FROM test"
         test_metadata = {"tables": [{"name": "test", "columns": ["col1"]}]}
         
         load_data_from_local_storage(
             service="test_service",
-            export_format="duckdb",
             duckdb_query=test_query,
             query_metadata=test_metadata
         )
