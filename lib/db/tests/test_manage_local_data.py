@@ -338,7 +338,7 @@ class TestListFilenames:
 
         result = list_filenames(
             service="posts",
-            directories=["active", "cache"],
+            storage_tiers=["active", "cache"],
             partition_date="2024-03-02"
         )
 
@@ -424,7 +424,7 @@ class TestListFilenames:
 
         result = list_filenames(
             service="posts",
-            directories=["active", "cache"],
+            storage_tiers=["active", "cache"],
             start_partition_date="2024-03-01",
             end_partition_date="2024-03-03"
         )
@@ -508,7 +508,7 @@ class TestLoadDataFromLocalStorage:
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            directories=[directory],
+            storage_tiers=[directory],
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=None,
@@ -615,7 +615,7 @@ class TestLoadDataFromLocalStorage:
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            directories=["active"],
+            storage_tiers=["active"],
             validate_pq_files=False,
             partition_date=test_params["partition_date"],
             start_partition_date=None,
@@ -646,7 +646,7 @@ class TestLoadDataFromLocalStorage:
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            directories=["active"],
+            storage_tiers=["active"],
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=test_params["start_date"],
@@ -668,7 +668,7 @@ class TestLoadDataFromLocalStorage:
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            directories=["cache", "active"],
+            storage_tiers=["cache", "active"],
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=None,
@@ -690,7 +690,7 @@ class TestLoadDataFromLocalStorage:
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            directories=["active"],
+            storage_tiers=["active"],
             validate_pq_files=True,
             partition_date=None,
             start_partition_date=None,
@@ -833,7 +833,7 @@ class TestLoadDataFromLocalStorage:
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            directories=["active"],
+            storage_tiers=["active"],
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=None,

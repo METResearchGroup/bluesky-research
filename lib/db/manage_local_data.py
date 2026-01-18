@@ -826,17 +826,17 @@ def load_data_from_local_storage(
     if storage_tiers is None:
         storage_tiers = ["active"]
 
-        filepaths = list_filenames(
-            service=service,
-            storage_tiers=storage_tiers,
-            validate_pq_files=validate_pq_files,
-            partition_date=partition_date,
-            start_partition_date=start_partition_date,
-            end_partition_date=end_partition_date,
-            override_local_prefix=override_local_prefix,
-            source_types=source_types,
-            custom_args=custom_args,
-        )
+    filepaths = list_filenames(
+        service=service,
+        storage_tiers=storage_tiers,
+        validate_pq_files=validate_pq_files,
+        partition_date=partition_date,
+        start_partition_date=start_partition_date,
+        end_partition_date=end_partition_date,
+        override_local_prefix=override_local_prefix,
+        source_types=source_types,
+        custom_args=custom_args,
+    )
     duckdb_query_cols: list[str] = []
     if duckdb_query is not None:
         if source_file_format != "parquet":
