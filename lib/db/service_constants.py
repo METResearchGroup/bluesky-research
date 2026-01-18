@@ -814,12 +814,4 @@ MAP_SERVICE_TO_METADATA = {
             "feed_generation_timestamp": "string",
         },
     },
-    # due to technical debt, we have other canonical representations of service
-    # names, which we include below so that all service-related constants are
-    # in one place.
-    "sync_firehose": {},
-    "generate_vector_embeddings": {},
-    "calculate_superposters": {},
-    "consolidate_enrichment_integrations": {},
-    "rank_score_feeds": {},
 }

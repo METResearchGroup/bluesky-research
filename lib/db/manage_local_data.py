@@ -1,6 +1,8 @@
 """Generic helpers for loading local data."""
 
 from datetime import timedelta
+import gzip
+import json
 import os
 from typing import Literal, Optional
 
@@ -15,9 +17,9 @@ from lib.constants import (
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.db.sql.duckdb_wrapper import DuckDB
-from lib.datetime_utils import generate_current_datetime_str, truncate_timestamp_string
+from lib.datetime_utils import generate_current_datetime_str
 from lib.log.logger import get_logger
-from lib.path_utils import crawl_local_prefix, filter_filepaths_by_date_range
+
 
 logger = get_logger(__name__)
 duckDB = DuckDB()
@@ -27,6 +29,25 @@ pd.set_option("display.max_columns", None)
 pd.set_option("display.width", None)
 pd.set_option("display.max_colwidth", None)
 
+services_list = [
+    "sync_firehose",
+    "sync_most_liked_posts",
+    "preprocessed_posts",
+    "generate_vector_embeddings",
+    "calculate_superposters",
+    "daily_superposters",
+    "ml_inference_perspective_api",
+    "ml_inference_sociopolitical",
+    "ml_inference_ime",
+    "ml_inference_valence_classifier",
+    "in_network_user_activity",
+    "scraped_user_social_network",
+    "consolidate_enrichment_integrations",
+    "rank_score_feeds",
+    "post_scores",
+    "raw_sync",
+]
+
 # there are some really weird records that come along and have "created_at"
 # dates that are completely implausible. We'll set these to a default partition
 # date of 2016-01-01 so that we can at least process the data and then we
@@ -34,9 +55,164 @@ pd.set_option("display.max_colwidth", None)
 DEFAULT_ERROR_PARTITION_DATE = "2016-01-01"
 
 
-# TODO: come back to this, as the name + signature doesn't match the docstring
-# (docstring implies arbitrary start_timestamp, but the function doesn't
-# take one).
+def load_jsonl_data(filepath: str) -> list[dict]:
+    """Load JSONL data from a file, supporting gzipped files."""
+    if filepath.endswith(".gz"):
+        with gzip.open(filepath, "rt", encoding="utf-8") as f:
+            data = [json.loads(line) for line in f]
+    else:
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = [json.loads(line) for line in f]
+    return data
+
+
+def write_jsons_to_local_store(
+    source_directory: Optional[str] = None,
+    records: Optional[list[dict]] = None,
+    export_filepath: str = None,
+    compressed: bool = True,
+):
+    """Writes local JSONs to local store. Writes as a .jsonl file.
+
+    Loads in JSONs from a given directory and writes them to the local storage
+    using the export filepath.
+    """
+    dirpath = os.path.dirname(export_filepath)
+    if not os.path.exists(dirpath):
+        os.makedirs(dirpath)
+
+    res: list[dict] = []
+
+    if not source_directory and records:
+        res = records
+    elif source_directory:
+        for file in os.listdir(source_directory):
+            if file.endswith(".json"):
+                with open(os.path.join(source_directory, file), "r") as f:
+                    res.append(json.load(f))
+    elif not source_directory and not records:
+        raise ValueError("No source data provided.")
+
+    intermediate_filepath = export_filepath
+    if compressed:
+        intermediate_filepath += ".gz"
+
+    # Write the JSON lines to a file
+    if not compressed:
+        with open(export_filepath, "w") as f:
+            for item in res:
+                f.write(json.dumps(item) + "\n")
+    else:
+        with gzip.open(intermediate_filepath, "wt") as f:
+            for item in res:
+                f.write(json.dumps(item) + "\n")
+
+
+def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> list[str]:
+    """Find files after a given timestamp."""
+    year, month, day, hour, minute = target_timestamp_path.split("/")
+    files_list = []
+    for year_dir in os.listdir(base_path):
+        if year_dir >= year:
+            if year_dir > year:
+                # crawl all files, even in subdirectories, and add to list
+                # of files
+                year_dir_path = os.path.join(base_path, year_dir)
+                for root, _, files in os.walk(year_dir_path):
+                    for file in files:
+                        files_list.append(os.path.join(root, file))
+                continue
+            else:
+                # case where year_dir == year
+                months = os.listdir(os.path.join(base_path, year_dir))
+                for month_dir in months:
+                    # if same year + more recent month, crawl all files.
+                    if month_dir > month:
+                        # crawl all files, even in subdirectories, and add
+                        # to list of files
+                        month_dir_path = os.path.join(base_path, year_dir, month_dir)  # noqa
+                        for root, _, files in os.walk(month_dir_path):
+                            for file in files:
+                                files_list.append(os.path.join(root, file))
+                    elif month_dir == month:
+                        # if same month, check days
+                        days = os.listdir(os.path.join(base_path, year_dir, month_dir))
+                        for day_dir in days:
+                            # if same year + same month + more recent day,
+                            # crawl all files.
+                            if day_dir > day:
+                                # crawl all files, even in subdirectories, and
+                                # add to list of files
+                                day_dir_path = os.path.join(
+                                    base_path, year_dir, month_dir, day_dir
+                                )
+                                for root, _, files in os.walk(day_dir_path):
+                                    for file in files:
+                                        files_list.append(os.path.join(root, file))  # noqa
+                            elif day_dir == day:
+                                # if same day, check hours
+                                hours = os.listdir(
+                                    os.path.join(
+                                        base_path, year_dir, month_dir, day_dir
+                                    )  # noqa
+                                )
+                                for hour_dir in hours:
+                                    # if same year + same month + same day +
+                                    # more recent hour, crawl all files.
+                                    if hour_dir > hour:
+                                        # crawl all files, even in
+                                        # subdirectories, and add to list
+                                        # of files
+                                        hour_dir_path = os.path.join(
+                                            base_path,
+                                            year_dir,
+                                            month_dir,
+                                            day_dir,
+                                            hour_dir,  # noqa
+                                        )
+                                        for root, _, files in os.walk(hour_dir_path):  # noqa
+                                            for file in files:
+                                                files_list.append(
+                                                    os.path.join(root, file)
+                                                )  # noqa
+                                    elif hour_dir == hour:
+                                        # if same hour, check minutes
+                                        minutes = os.listdir(
+                                            os.path.join(
+                                                base_path,
+                                                year_dir,
+                                                month_dir,
+                                                day_dir,
+                                                hour_dir,  # noqa
+                                            )
+                                        )
+                                        for minute_dir in minutes:
+                                            # if same year + same month +
+                                            # same day + same hour + more
+                                            # recent minute, crawl all files.
+                                            if minute_dir > minute:
+                                                # crawl all files, even in
+                                                # subdirectories, and add to
+                                                # list of files
+                                                minute_dir_path = os.path.join(
+                                                    base_path,
+                                                    year_dir,
+                                                    month_dir,
+                                                    day_dir,
+                                                    hour_dir,
+                                                    minute_dir,  # noqa
+                                                )
+                                                for root, _, files in os.walk(
+                                                    minute_dir_path
+                                                ):  # noqa
+                                                    for file in files:
+                                                        files_list.append(
+                                                            os.path.join(root, file)
+                                                        )  # noqa
+
+    return files_list
+
+
 def data_is_older_than_lookback(
     end_timestamp: str, lookback_days: int = default_lookback_days
 ) -> bool:
@@ -60,8 +236,14 @@ def data_is_older_than_lookback(
     return end_timestamp < lookback_date
 
 
-# NOTE: come back to this after refactoring `partition_data_by_date`, so
-# we can see how it's supposed to be used.
+def truncate_string(s: str) -> str:
+    """Truncates the string after the first '.' or '+' or 'Z' (whichever comes first)."""
+    for delimiter in [".", "+", "Z"]:
+        if delimiter in s:
+            return s.split(delimiter)[0]
+    return s
+
+
 def convert_timestamp(x, timestamp_format):
     """Attempts to convert a timestamp to a datetime.
 
@@ -114,7 +296,7 @@ def partition_data_by_date(
         timestamp_format = DEFAULT_TIMESTAMP_FORMAT
 
     # clean timestamp field if relevant.
-    df[timestamp_field] = df[timestamp_field].apply(truncate_timestamp_string)
+    df[timestamp_field] = df[timestamp_field].apply(truncate_string)
 
     try:
         # convert to datetime
@@ -344,7 +526,7 @@ def export_data_to_local_storage(
 
             # Ensure `partition_date` exists and matches the schema contract (string).
             # Derive partition_date from timestamp_field when missing:
-            # 1. Extract timestamp field (apply truncate_timestamp_string if it's a string timestamp)
+            # 1. Extract timestamp field (apply truncate_string if it's a string timestamp)
             # 2. Fallback to DEFAULT_ERROR_PARTITION_DATE if timestamp_field is missing
             # 3. Parse to datetime (with format if provided, otherwise auto-detect)
             # 4. Coerce invalid values to NaT, then fill with DEFAULT_ERROR_PARTITION_DATE
@@ -361,9 +543,7 @@ def export_data_to_local_storage(
                         [DEFAULT_ERROR_PARTITION_DATE] * len(chunk_df)
                     )
                 else:
-                    ts_series = chunk_df[timestamp_field].apply(
-                        truncate_timestamp_string
-                    )
+                    ts_series = chunk_df[timestamp_field].apply(truncate_string)
                 if timestamp_format:
                     ts_dt = pd.to_datetime(
                         ts_series, format=timestamp_format, errors="coerce"
@@ -496,6 +676,37 @@ def get_local_prefixes_for_service(service: str) -> list[str]:
     return local_prefixes
 
 
+def _crawl_local_prefix(
+    local_prefix: str,
+    directories: list[Literal["cache", "active"]] = ["active"],
+    validate_pq_files: bool = False,
+) -> list[str]:
+    """Crawls the local prefix and returns all filepaths.
+
+    For the current format, the prefix would be <service>/<directory = cache / active>
+    For the deprecated format, the prefix would be <service>/<source_type = firehose / most_liked>/<directory = cache / active>
+    """
+    loaded_filepaths: list[str] = []
+    seen_files = set()  # Track unique files
+
+    for directory in directories:
+        fp = os.path.join(local_prefix, directory)
+        if validate_pq_files:
+            validated_filepaths: list[str] = validated_pq_files_within_directory(fp)
+            for filepath in validated_filepaths:
+                if filepath not in seen_files:
+                    loaded_filepaths.append(filepath)
+                    seen_files.add(filepath)
+        else:
+            for root, _, files in os.walk(fp):
+                for file in files:
+                    full_path = os.path.join(root, file)
+                    if full_path not in seen_files:
+                        loaded_filepaths.append(full_path)
+                        seen_files.add(full_path)
+    return loaded_filepaths
+
+
 def _get_all_filenames(
     service: str,
     directories: list[Literal["cache", "active"]] = ["active"],
@@ -518,7 +729,7 @@ def _get_all_filenames(
         service=service, record_type=record_type
     )
 
-    return crawl_local_prefix(
+    return _crawl_local_prefix(
         local_prefix=root_local_prefix,
         directories=directories,
         validate_pq_files=validate_pq_files,
@@ -578,7 +789,7 @@ def _get_all_filenames_deprecated_format(
 
     for local_prefix in local_prefixes:
         loaded_filepaths.extend(
-            crawl_local_prefix(
+            _crawl_local_prefix(
                 local_prefix=local_prefix,
                 directories=directories,
                 validate_pq_files=validate_pq_files,
@@ -588,16 +799,67 @@ def _get_all_filenames_deprecated_format(
     return loaded_filepaths
 
 
+def _validate_filepaths(
+    service: str,
+    filepaths: list[str],
+    partition_date: Optional[str] = None,
+    start_partition_date: Optional[str] = None,
+    end_partition_date: Optional[str] = None,
+) -> list[str]:
+    """Validate filepaths."""
+    filtered_filepaths: list[str] = []
+
+    if not start_partition_date and not end_partition_date and not partition_date:
+        logger.info("No date filters provided, returning all filepaths.")
+        return filepaths
+
+    if (start_partition_date and not end_partition_date) or (
+        end_partition_date and not start_partition_date
+    ):
+        raise ValueError(
+            "Both start_partition_date and end_partition_date must be provided together."
+        )
+
+    # use specific partition date only if the start/end dates aren't provided
+    # (they shouldn't be ever jointly provided anyways, since start/end date
+    # ranges should only be during backfill operations).
+    if partition_date and (start_partition_date or end_partition_date):
+        raise ValueError(
+            "Cannot use partition_date and start_partition_date or end_partition_date together."
+        )
+
+    # partition date is given or start/end dates are provided.
+    if partition_date or (start_partition_date and end_partition_date):
+        print(
+            f"Filtering {len(filepaths)} files in service={service}, "
+            f"for {'partition_date=' + partition_date if partition_date else f'date range {start_partition_date} to {end_partition_date}'}"
+        )
+        for fp in filepaths:
+            path_parts = fp.split("/")
+            partition_parts = [p for p in path_parts if "partition_date=" in p]
+            if not partition_parts:
+                continue
+
+            file_partition_date = partition_parts[0].split("=")[1]
+
+            if partition_date:
+                if file_partition_date == partition_date:
+                    filtered_filepaths.append(fp)
+            elif start_partition_date <= file_partition_date <= end_partition_date:
+                filtered_filepaths.append(fp)
+    return filtered_filepaths
+
+
 def list_filenames(
     service: str,
     directories: list[Literal["cache", "active"]] = ["active"],
     validate_pq_files: bool = False,
-    partition_date: str | None = None,
-    start_partition_date: str | None = None,
-    end_partition_date: str | None = None,
-    override_local_prefix: str | None = None,
-    source_types: list[Literal["firehose", "most_liked"]] | None = None,
-    custom_args: dict | None = None,
+    partition_date: Optional[str] = None,
+    start_partition_date: Optional[str] = None,
+    end_partition_date: Optional[str] = None,
+    override_local_prefix: Optional[str] = None,
+    source_types: Optional[list[Literal["firehose", "most_liked"]]] = None,
+    custom_args: Optional[dict] = None,
 ) -> list[str]:
     """List files in local storage for a given service."""
 
@@ -650,7 +912,8 @@ def list_filenames(
             )
         )
 
-    loaded_filepaths = filter_filepaths_by_date_range(
+    loaded_filepaths = _validate_filepaths(
+        service=service,
         filepaths=loaded_filepaths,
         partition_date=partition_date,
         start_partition_date=start_partition_date,
@@ -663,6 +926,39 @@ def list_filenames(
         ]
 
     return loaded_filepaths
+
+
+def validate_pq_file(filepath: str) -> bool:
+    """Validate a parquet file."""
+    try:
+        pq.ParquetFile(filepath)
+        return True
+    except Exception as e:
+        logger.error(f"Error validating {filepath}: {e}")
+        return False
+
+
+def validated_pq_files_within_directory(directory: str) -> list[str]:
+    """Validate all Parquet files in a given directory."""
+    filepaths = []
+    invalidated_filepaths = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith(".parquet"):
+                fp = os.path.join(root, file)
+                if validate_pq_file(fp):
+                    filepaths.append(fp)
+                else:
+                    invalidated_filepaths.append(fp)
+
+    total_invalidated_filepaths = len(invalidated_filepaths)
+    if filepaths:
+        logger.info(f"Found {len(filepaths)} valid Parquet files in {directory}.")
+    if total_invalidated_filepaths > 0:
+        logger.error(
+            f"Found {total_invalidated_filepaths} invalid Parquet files in {directory}."
+        )
+    return filepaths
 
 
 def delete_files(filepaths: list[str]) -> None:
@@ -792,29 +1088,29 @@ def get_service_pa_schema(
 def load_data_from_local_storage(
     service: str,
     directory: Literal["cache", "active"] = "active",
-    source_file_format: Literal["jsonl", "parquet"] = "parquet",
-    partition_date: str | None = None,
-    start_partition_date: str | None = None,
-    end_partition_date: str | None = None,
-    duckdb_query: str | None = None,
-    query_metadata: dict | None = None,
-    latest_timestamp: str | None = None,
+    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
+    partition_date: Optional[str] = None,
+    start_partition_date: Optional[str] = None,
+    end_partition_date: Optional[str] = None,
+    duckdb_query: Optional[str] = None,
+    query_metadata: Optional[dict] = None,
+    latest_timestamp: Optional[str] = None,
     use_all_data: bool = False,
     validate_pq_files: bool = False,
-    override_local_prefix: str | None = None,
-    source_types: list[Literal["firehose", "most_liked"]] | None = None,
-    custom_args: dict | None = None,
+    override_local_prefix: Optional[str] = None,
+    source_types: Optional[list[Literal["firehose", "most_liked"]]] = None,
+    custom_args: Optional[dict] = None,
 ) -> pd.DataFrame:
     """Load data from local storage.
 
     Args:
         service: Name of the service to load data from
         directory: Which directory to load from ("cache" or "active")
-        source_file_format: Format of the source data files ("jsonl" or "parquet")
+        export_format: Format of the data files ("jsonl", "parquet", or "duckdb")
         partition_date: Specific partition date to load
         start_partition_date: Start of partition date range to load
         end_partition_date: End of partition date range to load
-        duckdb_query: SQL query for DuckDB format. If provided, DuckDB mode is used.
+        duckdb_query: SQL query for DuckDB format
         query_metadata: Metadata for DuckDB query
         latest_timestamp: Only load data after this timestamp
         use_all_data: Whether to load from both cache and active directories
@@ -840,28 +1136,9 @@ def load_data_from_local_storage(
         source_types=source_types,
         custom_args=custom_args,
     )
-    duckdb_query_cols: list[str] = []
-    if duckdb_query is not None:
-        if source_file_format != "parquet":
-            raise ValueError(
-                f"duckdb_query requires source_file_format='parquet', but got source_file_format='{source_file_format}'."
-            )
-        if not query_metadata:
-            raise ValueError("Must provide query_metadata when using duckdb_query.")
-
-        duckdb_query_cols = []
-        for table in query_metadata["tables"]:
-            duckdb_query_cols.extend(table["columns"])
-
-        df: pd.DataFrame = duckDB.run_query_as_df(
-            query=duckdb_query,
-            mode="parquet",
-            filepaths=filepaths,
-            query_metadata=query_metadata,
-        )
-    elif source_file_format == "jsonl":
+    if export_format == "jsonl":
         df = pd.read_json(filepaths, orient="records", lines=True)
-    elif source_file_format == "parquet":
+    elif export_format == "parquet":
         if latest_timestamp:
             # filter at least on the date field.
             # We can't partition data on the timestamp since that's too fine-grained, but we can at least partition on date.
@@ -908,6 +1185,22 @@ def load_data_from_local_storage(
                         logger.warning(
                             f"Failed to convert column {col} to type {dtype}: {e}"
                         )
+    elif export_format == "duckdb":
+        if not duckdb_query or not query_metadata:
+            raise ValueError(
+                "Must provide a DuckDB query and query metadata when exporting to DuckDB."
+            )
+
+        duckdb_query_cols = []
+        for table in query_metadata["tables"]:
+            duckdb_query_cols.extend(table["columns"])
+
+        df: pd.DataFrame = duckDB.run_query_as_df(
+            query=duckdb_query,
+            mode="parquet",
+            filepaths=filepaths,
+            query_metadata=query_metadata,
+        )
 
     if latest_timestamp:
         logger.info(f"Fetching data after timestamp={latest_timestamp}")
@@ -918,7 +1211,7 @@ def load_data_from_local_storage(
     cols_to_drop = ["row_num", "partition_date", "startTimestamp"]
     for col in cols_to_drop:
         # don't drop the column if we explicitly query for it.
-        if duckdb_query is not None:
+        if export_format == "duckdb":
             if col in df.columns and col not in duckdb_query_cols:
                 df = df.drop(columns=[col])
         else:
@@ -927,13 +1220,17 @@ def load_data_from_local_storage(
     return df
 
 
+def _validate_service(service: str) -> bool:
+    return service in services_list
+
+
 def load_latest_data(
     service: str,
     latest_timestamp: Optional[str] = None,
     max_per_source: Optional[int] = None,
 ) -> pd.DataFrame:
     """Loads the latest preprocessed posts."""
-    if service not in MAP_SERVICE_TO_METADATA.keys():
+    if not _validate_service(service=service):
         raise ValueError(f"Invalid service: {service}")
     # most services just need the latest preprocessed raw data.
     df = load_data_from_local_storage(

@@ -15,7 +15,7 @@ def load_preprocessed_posts(
     lookback_end_date: str,
     duckdb_query: Optional[str] = None,
     query_metadata: Optional[dict] = None,
-    source_file_format: Literal["jsonl", "parquet"] = "parquet",
+    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
 ) -> pd.DataFrame:
     """Load preprocessed posts data from local storage.
 
@@ -24,7 +24,7 @@ def load_preprocessed_posts(
         lookback_end_date: End date for lookback period
         duckdb_query: Optional SQL query for DuckDB format
         query_metadata: Optional metadata for DuckDB query
-        source_file_format: Format of the source data files
+        export_format: Format of the data files
 
     Returns:
         DataFrame containing preprocessed posts data
@@ -36,7 +36,7 @@ def load_preprocessed_posts(
         end_partition_date=lookback_end_date,
         duckdb_query=duckdb_query,
         query_metadata=query_metadata,
-        source_file_format=source_file_format,
+        export_format=export_format,
     )
     logger.info(
         f"Loaded {len(df)} preprocessed posts for lookback period {lookback_start_date} to {lookback_end_date}"
@@ -49,7 +49,7 @@ def load_preprocessed_posts_by_uris(
     partition_date: str,
     duckdb_query: Optional[str] = None,
     query_metadata: Optional[dict] = None,
-    source_file_format: Literal["jsonl", "parquet"] = "parquet",
+    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
 ) -> pd.DataFrame:
     """Load preprocessed posts data filtered by specific URIs and partition date.
 
@@ -58,7 +58,7 @@ def load_preprocessed_posts_by_uris(
         partition_date: The partition date to load posts for
         duckdb_query: Optional SQL query for DuckDB format
         query_metadata: Optional metadata for DuckDB query
-        source_file_format: Format of the source data files
+        export_format: Format of the data files
 
     Returns:
         DataFrame containing preprocessed posts data filtered by URIs
@@ -69,7 +69,7 @@ def load_preprocessed_posts_by_uris(
         partition_date=partition_date,
         duckdb_query=duckdb_query,
         query_metadata=query_metadata,
-        source_file_format=source_file_format,
+        export_format=export_format,
     )
 
     # Filter to only include posts with the specified URIs

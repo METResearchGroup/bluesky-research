@@ -419,6 +419,7 @@ class TestGetFeedsPerUser:
         call_args = mock_load_data.call_args[1]
         assert call_args["service"] == "generated_feeds"
         assert call_args["directory"] == "cache"
+        assert call_args["export_format"] == "duckdb"
         assert "duckdb_query" in call_args
         assert "query_metadata" in call_args
         assert "start_partition_date" in call_args

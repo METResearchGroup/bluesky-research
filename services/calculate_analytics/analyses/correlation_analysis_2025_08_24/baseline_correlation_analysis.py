@@ -66,6 +66,7 @@ def main():
                 {"name": "ml_inference_perspective_api", "columns": table_columns}
             ]
         },
+        export_format="duckdb",
     )
 
     # Generate summary and write results
