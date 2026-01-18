@@ -13,10 +13,8 @@ import pandas as pd
 from lib.log.logger import get_logger
 
 from lib.constants import root_local_data_directory
-from lib.db.manage_local_data import (
-    write_jsons_to_local_store,
-    export_data_to_local_storage,
-)
+from lib.db.manage_local_data import export_data_to_local_storage
+from lib.json_file_utils import write_jsons_to_local_store
 
 logger = get_logger(__file__)
 
