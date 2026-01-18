@@ -842,6 +842,10 @@ def load_data_from_local_storage(
     )
     duckdb_query_cols: list[str] = []
     if duckdb_query is not None:
+        if source_file_format != "parquet":
+            raise ValueError(
+                f"duckdb_query requires source_file_format='parquet', but got source_file_format='{source_file_format}'."
+            )
         if not query_metadata:
             raise ValueError("Must provide query_metadata when using duckdb_query.")
 
