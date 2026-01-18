@@ -17,7 +17,7 @@ from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.db.sql.duckdb_wrapper import DuckDB
 from lib.datetime_utils import generate_current_datetime_str, truncate_timestamp_string
 from lib.log.logger import get_logger
-
+from lib.path_utils import crawl_local_prefix
 
 logger = get_logger(__name__)
 duckDB = DuckDB()
@@ -79,6 +79,8 @@ def data_is_older_than_lookback(
     return end_timestamp < lookback_date
 
 
+# NOTE: come back to this after refactoring `partition_data_by_date`, so
+# we can see how it's supposed to be used.
 def convert_timestamp(x, timestamp_format):
     """Attempts to convert a timestamp to a datetime.
 
@@ -513,37 +515,6 @@ def get_local_prefixes_for_service(service: str) -> list[str]:
     return local_prefixes
 
 
-def _crawl_local_prefix(
-    local_prefix: str,
-    directories: list[Literal["cache", "active"]] = ["active"],
-    validate_pq_files: bool = False,
-) -> list[str]:
-    """Crawls the local prefix and returns all filepaths.
-
-    For the current format, the prefix would be <service>/<directory = cache / active>
-    For the deprecated format, the prefix would be <service>/<source_type = firehose / most_liked>/<directory = cache / active>
-    """
-    loaded_filepaths: list[str] = []
-    seen_files = set()  # Track unique files
-
-    for directory in directories:
-        fp = os.path.join(local_prefix, directory)
-        if validate_pq_files:
-            validated_filepaths: list[str] = validated_pq_files_within_directory(fp)
-            for filepath in validated_filepaths:
-                if filepath not in seen_files:
-                    loaded_filepaths.append(filepath)
-                    seen_files.add(filepath)
-        else:
-            for root, _, files in os.walk(fp):
-                for file in files:
-                    full_path = os.path.join(root, file)
-                    if full_path not in seen_files:
-                        loaded_filepaths.append(full_path)
-                        seen_files.add(full_path)
-    return loaded_filepaths
-
-
 def _get_all_filenames(
     service: str,
     directories: list[Literal["cache", "active"]] = ["active"],
@@ -566,7 +537,7 @@ def _get_all_filenames(
         service=service, record_type=record_type
     )
 
-    return _crawl_local_prefix(
+    return crawl_local_prefix(
         local_prefix=root_local_prefix,
         directories=directories,
         validate_pq_files=validate_pq_files,
@@ -626,7 +597,7 @@ def _get_all_filenames_deprecated_format(
 
     for local_prefix in local_prefixes:
         loaded_filepaths.extend(
-            _crawl_local_prefix(
+            crawl_local_prefix(
                 local_prefix=local_prefix,
                 directories=directories,
                 validate_pq_files=validate_pq_files,
@@ -763,39 +734,6 @@ def list_filenames(
         ]
 
     return loaded_filepaths
-
-
-def validate_pq_file(filepath: str) -> bool:
-    """Validate a parquet file."""
-    try:
-        pq.ParquetFile(filepath)
-        return True
-    except Exception as e:
-        logger.error(f"Error validating {filepath}: {e}")
-        return False
-
-
-def validated_pq_files_within_directory(directory: str) -> list[str]:
-    """Validate all Parquet files in a given directory."""
-    filepaths = []
-    invalidated_filepaths = []
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith(".parquet"):
-                fp = os.path.join(root, file)
-                if validate_pq_file(fp):
-                    filepaths.append(fp)
-                else:
-                    invalidated_filepaths.append(fp)
-
-    total_invalidated_filepaths = len(invalidated_filepaths)
-    if filepaths:
-        logger.info(f"Found {len(filepaths)} valid Parquet files in {directory}.")
-    if total_invalidated_filepaths > 0:
-        logger.error(
-            f"Found {total_invalidated_filepaths} invalid Parquet files in {directory}."
-        )
-    return filepaths
 
 
 def delete_files(filepaths: list[str]) -> None:
