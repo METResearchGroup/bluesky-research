@@ -47,8 +47,7 @@ class TestLocalStorageAdapter_load_all_posts:
             call_kwargs = mock_load_data.call_args.kwargs
             assert call_kwargs["service"] == "preprocessed_posts"
             assert call_kwargs["directory"] == "cache"
-            assert "duckdb_query" in call_kwargs
-            assert "query_metadata" in call_kwargs
+            assert call_kwargs["export_format"] == "duckdb"
             assert call_kwargs["start_partition_date"] == start_date
             assert call_kwargs["end_partition_date"] == end_date
             assert len(result) == 2

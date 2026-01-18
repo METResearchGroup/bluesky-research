@@ -52,7 +52,7 @@ def aggregate_author_toxicity_across_days(partition_dates: list[str]) -> pd.Data
             daily_data = load_data_from_local_storage(
                 service="author_to_average_toxicity_outrage",
                 directory="cache",
-                source_file_format="parquet",
+                export_format="parquet",
                 partition_date=partition_date,
             )
 

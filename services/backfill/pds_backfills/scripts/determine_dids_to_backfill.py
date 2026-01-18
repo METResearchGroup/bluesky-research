@@ -49,6 +49,7 @@ def get_records(
     active_df = load_data_from_local_storage(
         service="raw_sync",
         directory="active",
+        export_format="duckdb",
         duckdb_query=query,
         query_metadata={"tables": [{"name": "raw_sync", "columns": columns}]},
         custom_args=custom_args,
@@ -58,6 +59,7 @@ def get_records(
     cache_df = load_data_from_local_storage(
         service="raw_sync",
         directory="cache",
+        export_format="duckdb",
         duckdb_query=query,
         query_metadata={"tables": [{"name": "raw_sync", "columns": columns}]},
         custom_args=custom_args,

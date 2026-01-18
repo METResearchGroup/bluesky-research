@@ -7,17 +7,8 @@ from lib.load_env_vars import EnvVarsContainer
 
 
 @pytest.fixture(autouse=True)
-def _reset_env_vars_container(monkeypatch):
-    """Ensure EnvVarsContainer doesn't leak state across tests.
-    
-    This fixture:
-    1. Mocks load_dotenv to prevent .env file from being loaded (tests should use monkeypatch for env vars)
-    2. Resets the singleton instance to prevent state leakage between tests
-    """
-    # Mock load_dotenv to prevent .env file from interfering with tests
-    # Tests should use monkeypatch.setenv/delenv to control environment variables
-    monkeypatch.setattr("lib.load_env_vars.load_dotenv", lambda *args, **kwargs: None)
-    
+def _reset_env_vars_container():
+    """Ensure EnvVarsContainer doesn't leak state across tests."""
     EnvVarsContainer._instance = None
     yield
     EnvVarsContainer._instance = None
