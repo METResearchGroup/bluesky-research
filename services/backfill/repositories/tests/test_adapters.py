@@ -46,7 +46,7 @@ class TestLocalStorageAdapter_load_all_posts:
             mock_load_data.assert_called_once()
             call_kwargs = mock_load_data.call_args.kwargs
             assert call_kwargs["service"] == "preprocessed_posts"
-            assert call_kwargs["directory"] == "cache"
+            assert call_kwargs["storage_tiers"] == ["cache"]
             assert "duckdb_query" in call_kwargs
             assert "query_metadata" in call_kwargs
             assert call_kwargs["start_partition_date"] == start_date
@@ -272,7 +272,7 @@ class TestLocalStorageAdapter_load_posts_used_in_feeds_for_date:
             mock_load_data.assert_called_once()
             call_kwargs = mock_load_data.call_args.kwargs
             assert call_kwargs["service"] == "fetch_posts_used_in_feeds"
-            assert call_kwargs["directory"] == "cache"
+            assert call_kwargs["storage_tiers"] == ["cache"]
             assert call_kwargs["partition_date"] == partition_date
             assert len(result) == 2
             assert all(isinstance(post, PostUsedInFeedModel) for post in result)
@@ -425,9 +425,9 @@ class TestLocalStorageAdapter_get_previously_labeled_post_uris:
             # Assert
             assert mock_load_data.call_count == 2
             # First call for cache
-            assert mock_load_data.call_args_list[0].kwargs["directory"] == "cache"
+            assert mock_load_data.call_args_list[0].kwargs["storage_tiers"] == ["cache"]
             # Second call for active
-            assert mock_load_data.call_args_list[1].kwargs["directory"] == "active"
+            assert mock_load_data.call_args_list[1].kwargs["storage_tiers"] == ["active"]
             assert result == {"uri1", "uri2", "uri3"}
             assert len(result) == 3
 

@@ -48,7 +48,7 @@ def get_records(
     custom_args = {"record_type": record_type}
     active_df = load_data_from_local_storage(
         service="raw_sync",
-        directory="active",
+        storage_tiers=["active"],
         duckdb_query=query,
         query_metadata={"tables": [{"name": "raw_sync", "columns": columns}]},
         custom_args=custom_args,
@@ -57,7 +57,7 @@ def get_records(
     )
     cache_df = load_data_from_local_storage(
         service="raw_sync",
-        directory="cache",
+        storage_tiers=["cache"],
         duckdb_query=query,
         query_metadata={"tables": [{"name": "raw_sync", "columns": columns}]},
         custom_args=custom_args,

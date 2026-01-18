@@ -49,14 +49,14 @@ def load_raw_sync_records(record_type: str) -> pd.DataFrame:
     service = "raw_sync"
     active_df = load_data_from_local_storage(
         service=service,
-        directory="active",
+        storage_tiers=["active"],
         custom_args=custom_args,
         start_partition_date=sync_start_date,
         end_partition_date=sync_end_date,
     )
     cached_df = load_data_from_local_storage(
         service=service,
-        directory="cache",
+        storage_tiers=["cache"],
         custom_args=custom_args,
         start_partition_date=sync_start_date,
         end_partition_date=sync_end_date,
@@ -78,13 +78,13 @@ def load_preprocessed_posts():
     service = "preprocess_raw_data"
     active_df = load_data_from_local_storage(
         service=service,
-        directory="active",
+        storage_tiers=["active"],
         start_partition_date=preprocessing_start_date,
         end_partition_date=preprocessing_end_date,
     )
     cached_df = load_data_from_local_storage(
         service=service,
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=preprocessing_start_date,
         end_partition_date=preprocessing_end_date,
     )
@@ -96,13 +96,13 @@ def load_preprocessed_posts():
 def load_integration(service: str) -> pd.DataFrame:
     active_df = load_data_from_local_storage(
         service=service,
-        directory="active",
+        storage_tiers=["active"],
         start_partition_date=preprocessing_start_date,
         end_partition_date=preprocessing_end_date,
     )
     cached_df = load_data_from_local_storage(
         service=service,
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=preprocessing_start_date,
         end_partition_date=preprocessing_end_date,
     )
@@ -200,13 +200,13 @@ def main():
     # delete old records.
     delete_records_for_service(
         service="preprocess_raw_data",
-        directory="active",
+        storage_tiers=["active"],
         start_partition_date=preprocessing_start_date,
         end_partition_date=preprocessing_end_date,
     )
     delete_records_for_service(
         service="preprocess_raw_data",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=preprocessing_start_date,
         end_partition_date=preprocessing_end_date,
     )
@@ -219,13 +219,13 @@ def main():
             continue
         delete_records_for_service(
             service=integration,
-            directory="active",
+            storage_tiers=["active"],
             start_partition_date=preprocessing_start_date,
             end_partition_date=preprocessing_end_date,
         )
         delete_records_for_service(
             service=integration,
-            directory="cache",
+            storage_tiers=["cache"],
             start_partition_date=preprocessing_start_date,
             end_partition_date=preprocessing_end_date,
         )

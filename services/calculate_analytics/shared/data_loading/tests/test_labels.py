@@ -70,7 +70,7 @@ class TestGetPerspectiveApiLabels:
         # Verify the dependency was called correctly
         mock_load.assert_called_once_with(
             service=expected_service,
-            directory=expected_directory,
+            storage_tiers=[expected_directory],
             start_partition_date=lookback_start_date,
             end_partition_date=lookback_end_date,
             duckdb_query=None,
@@ -109,7 +109,7 @@ class TestGetPerspectiveApiLabels:
         # Assert
         mock_load.assert_called_once_with(
             service="ml_inference_perspective_api",
-            directory="cache",
+            storage_tiers=["cache"],
             start_partition_date=lookback_start_date,
             end_partition_date=lookback_end_date,
             duckdb_query=duckdb_query,
@@ -318,7 +318,7 @@ class TestGetLabelsForPartitionDate:
         # Verify the dependency was called correctly
         mock_load.assert_called_once_with(
             service=expected_service,
-            directory="cache",
+            storage_tiers=["cache"],
             partition_date=partition_date
         )
 

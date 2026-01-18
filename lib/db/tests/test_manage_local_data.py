@@ -481,7 +481,7 @@ class TestLoadDataFromLocalStorage:
         
         result = load_data_from_local_storage(
             service=test_params["service"],
-            directory=test_params["directory"],
+            storage_tiers=[test_params["directory"]],
             source_file_format=test_params["source_file_format"]
         )
         
@@ -503,7 +503,7 @@ class TestLoadDataFromLocalStorage:
         
         load_data_from_local_storage(
             service="test_service",
-            directory=directory
+            storage_tiers=[directory]
         )
         
         mock_list_filenames.assert_called_with(
@@ -656,14 +656,14 @@ class TestLoadDataFromLocalStorage:
             custom_args=None
         )
 
-    def test_use_all_data(self, mocker, mock_service_metadata):
-        """Test use_all_data flag."""
+    def test_storage_tiers_all(self, mocker, mock_service_metadata):
+        """Test storage_tiers with both cache and active."""
         mock_list_filenames = mocker.patch("lib.db.manage_local_data.list_filenames")
         mock_read_parquet = mocker.patch("pandas.read_parquet")
         
         load_data_from_local_storage(
             service="test_service",
-            use_all_data=True
+            storage_tiers=["cache", "active"]
         )
         
         mock_list_filenames.assert_called_with(
