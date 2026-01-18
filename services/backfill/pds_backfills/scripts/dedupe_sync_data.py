@@ -8,7 +8,7 @@ def get_total_duplicates_for_date(record_type: str, date: str) -> int:
     """Gets the total number of duplicates for a given record type and date."""
     df = load_data_from_local_storage(
         service="raw_sync",
-        directory="cache",
+        storage_tiers=["cache"],
         partition_date=date,
         custom_args={
             "record_type": record_type,

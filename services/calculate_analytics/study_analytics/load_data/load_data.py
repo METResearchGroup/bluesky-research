@@ -259,7 +259,7 @@ def load_preprocessed_posts_by_source(
     """
     df: pd.DataFrame = load_data_from_local_storage(
         service="preprocessed_posts",
-        directory="cache",
+        storage_tiers=["cache"],
         duckdb_query=query,
         query_metadata={
             "tables": [{"name": "preprocessed_posts", "columns": table_columns}]

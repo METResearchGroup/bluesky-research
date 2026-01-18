@@ -34,7 +34,7 @@ def count_records_for_dates(
         try:
             df = load_data_from_local_storage(
                 service=integration,
-                directory="cache",
+                storage_tiers=["cache"],
                 partition_date=date,
             )
             counts[date] = len(df) if df is not None else 0

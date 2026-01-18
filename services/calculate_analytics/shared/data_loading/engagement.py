@@ -59,7 +59,7 @@ def get_content_engaged_with(
     custom_args = {"record_type": record_type}
     df: pd.DataFrame = load_data_from_local_storage(
         service="raw_sync",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=STUDY_START_DATE,
         end_partition_date=STUDY_END_DATE,
         custom_args=custom_args,

@@ -32,7 +32,7 @@ def get_perspective_api_labels(
 ):
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_perspective_api",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
         duckdb_query=duckdb_query,
@@ -103,7 +103,7 @@ def get_sociopolitical_labels_for_posts(
     """
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_sociopolitical",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
         duckdb_query=duckdb_query,
@@ -144,7 +144,7 @@ def load_sociopolitical_labels_by_uris(
     """
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_sociopolitical",
-        directory="cache",
+        storage_tiers=["cache"],
         partition_date=partition_date,
         duckdb_query=duckdb_query,
         query_metadata=query_metadata,
@@ -185,7 +185,7 @@ def get_labels_for_partition_date(
 
     df = load_data_from_local_storage(
         service=f"ml_inference_{integration}",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
     )

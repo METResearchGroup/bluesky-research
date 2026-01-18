@@ -49,7 +49,7 @@ def load_feeds_from_local_storage(partition_date: str) -> pd.DataFrame:
     logger.info(f"Loading feeds for partition date {partition_date}...")
     df = load_data_from_local_storage(
         service="generated_feeds",
-        directory="cache",
+        storage_tiers=["cache"],
         partition_date=partition_date,
     )
     logger.info(f"Loaded {len(df)} feeds for partition date {partition_date}.")

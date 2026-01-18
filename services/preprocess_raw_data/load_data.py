@@ -76,10 +76,12 @@ def load_latest_firehose_posts(
     in_network_user_posts_df: pd.DataFrame = load_data_from_local_storage(
         service="in_network_user_activity",
         latest_timestamp=timestamp,
-        directory="active",
+        storage_tiers=["active"],
     )
     study_user_posts_df: pd.DataFrame = load_data_from_local_storage(
-        service="study_user_activity", latest_timestamp=timestamp, directory="active"
+        service="study_user_activity",
+        latest_timestamp=timestamp,
+        storage_tiers=["active"],
     )
     df = pd.concat([in_network_user_posts_df, study_user_posts_df], ignore_index=True)
     if limit:
@@ -94,7 +96,9 @@ def load_latest_most_liked_posts(
     timestamp: str, limit: Optional[int] = None
 ) -> pd.DataFrame:  # noqa
     df: pd.DataFrame = load_data_from_local_storage(
-        service="sync_most_liked_posts", latest_timestamp=timestamp, directory="active"
+        service="sync_most_liked_posts",
+        latest_timestamp=timestamp,
+        storage_tiers=["active"],
     )
     if limit:
         df = df.head(limit)
