@@ -615,10 +615,10 @@ class TestTruncateTimestampString:
         assert result == expected
 
     def test_truncates_at_first_delimiter_plus_before_period(self):
-        """Test truncating when plus comes before period - uses period since it's checked first."""
+        """Test truncating when plus comes before period - uses plus since it appears first in the string."""
         # Arrange
         timestamp = "2024-01-15T13:45:30+00:00.123"
-        expected = "2024-01-15T13:45:30+00:00"
+        expected = "2024-01-15T13:45:30"
 
         # Act
         result = truncate_timestamp_string(timestamp)
@@ -627,10 +627,10 @@ class TestTruncateTimestampString:
         assert result == expected
 
     def test_truncates_at_first_delimiter_z_before_others(self):
-        """Test truncating when Z comes before period or plus - uses period since it's checked first."""
+        """Test truncating when Z comes before period or plus - uses Z since it appears first in the string."""
         # Arrange
         timestamp = "2024-01-15T13:45:30Z.123+00:00"
-        expected = "2024-01-15T13:45:30Z"
+        expected = "2024-01-15T13:45:30"
 
         # Act
         result = truncate_timestamp_string(timestamp)

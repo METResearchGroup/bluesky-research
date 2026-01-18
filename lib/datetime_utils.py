@@ -258,7 +258,8 @@ def truncate_timestamp_string(s: str) -> str:
 
     These all end up being truncated to "2024-01-15T13:45:30".
     """
-    for delimiter in TIMESTAMP_TRUNCATION_DELIMITERS:
-        if delimiter in s:
-            return s.split(delimiter)[0]
+    indices = [s.find(delimiter) for delimiter in TIMESTAMP_TRUNCATION_DELIMITERS]
+    min_index = min((idx for idx in indices if idx >= 0), default=-1)
+    if min_index >= 0:
+        return s[:min_index]
     return s
