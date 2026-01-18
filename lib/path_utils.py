@@ -62,3 +62,112 @@ def crawl_local_prefix(
             loaded_filepaths.extend(new_filepaths)
             seen_filepaths.update(new_seen_filepaths)
     return loaded_filepaths
+
+
+def filter_filepaths_by_date_range(
+    filepaths: list[str],
+    partition_date: str | None = None,
+    start_partition_date: str | None = None,
+    end_partition_date: str | None = None,
+) -> list[str]:
+    """Filter filepaths by date range.
+
+    Can either
+    """
+    _validate_input_dates_for_filepath_filtering(
+        partition_date=partition_date,
+        start_partition_date=start_partition_date,
+        end_partition_date=end_partition_date,
+    )
+    if partition_date:
+        return _filter_filepaths_by_partition_date(
+            filepaths=filepaths,
+            partition_date=partition_date,
+        )
+    if start_partition_date and end_partition_date:
+        return _filter_filepaths_by_date_range(
+            filepaths=filepaths,
+            start_partition_date=start_partition_date,
+            end_partition_date=end_partition_date,
+        )
+    return []
+
+
+def _validate_input_dates_for_filepath_filtering(
+    partition_date: str | None = None,
+    start_partition_date: str | None = None,
+    end_partition_date: str | None = None,
+):
+    """Validates invalid input dates for filepath filtering.
+
+    There are three possible invalid input cases:
+    - No dates provided
+    - One of start_partition_date or end_partition_date is provided, but not both
+    - Partition date and one/both of start/end partition dates are provided
+    """
+    if (
+        # no dates provided
+        not partition_date and not start_partition_date and not end_partition_date
+    ):
+        raise ValueError(
+            "At least one of partition_date, start_partition_date, or end_partition_date must be provided."
+        )
+    if (
+        # one of start_partition_date or end_partition_date is provided, but not both
+        (start_partition_date and not end_partition_date)
+        or (end_partition_date and not start_partition_date)
+    ):
+        raise ValueError(
+            "Both start_partition_date and end_partition_date must be provided together."
+        )
+    if (
+        # partition date and one/both of start/end partition dates are provided
+        partition_date and (start_partition_date or end_partition_date)
+    ):
+        raise ValueError(
+            "Cannot use partition_date and start_partition_date or end_partition_date together."
+        )
+
+
+def _filter_filepaths_by_partition_date(
+    filepaths: list[str],
+    partition_date: str,
+) -> list[str]:
+    """Filter filepaths by partition date."""
+    filtered_filepaths: list[str] = []
+    for filepath in filepaths:
+        partition_date = _get_partition_date_from_filepath(filepath)
+        if partition_date == partition_date:
+            filtered_filepaths.append(filepath)
+    return filtered_filepaths
+
+
+def _filter_filepaths_by_date_range(
+    filepaths: list[str],
+    start_partition_date: str,
+    end_partition_date: str,
+) -> list[str]:
+    """Filter filepaths by date range."""
+    filtered_filepaths: list[str] = []
+    for filepath in filepaths:
+        partition_date = _get_partition_date_from_filepath(filepath)
+        if start_partition_date <= partition_date <= end_partition_date:
+            filtered_filepaths.append(filepath)
+    return filtered_filepaths
+
+
+def _get_partition_date_from_filepath(filepath: str) -> str:
+    """Get the partition date from a filepath.
+
+    Filepath example:
+    - /projects/p32375/bluesky_research_data/ml_inference_perspective_api/
+    cache/partition_date=2024-09-29/bbab32f2d9764d52a3d89a7aee014192-0.parquet
+
+    Here, the partition date is "2024-09-29".
+    """
+    path_parts = filepath.split("/")
+    partition_parts = [p for p in path_parts if "partition_date=" in p]
+    if len(partition_parts) == 0:
+        return ""
+    # "partition_date=YYYY-MM-DD" -> "YYYY-MM-DD"
+    return partition_parts[0].split("=")[1]

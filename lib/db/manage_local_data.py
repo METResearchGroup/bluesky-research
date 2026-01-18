@@ -17,7 +17,7 @@ from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.db.sql.duckdb_wrapper import DuckDB
 from lib.datetime_utils import generate_current_datetime_str, truncate_timestamp_string
 from lib.log.logger import get_logger
-from lib.path_utils import crawl_local_prefix
+from lib.path_utils import crawl_local_prefix, filter_filepaths_by_date_range
 
 logger = get_logger(__name__)
 duckDB = DuckDB()
@@ -607,57 +607,6 @@ def _get_all_filenames_deprecated_format(
     return loaded_filepaths
 
 
-def _validate_filepaths(
-    service: str,
-    filepaths: list[str],
-    partition_date: Optional[str] = None,
-    start_partition_date: Optional[str] = None,
-    end_partition_date: Optional[str] = None,
-) -> list[str]:
-    """Validate filepaths."""
-    filtered_filepaths: list[str] = []
-
-    if not start_partition_date and not end_partition_date and not partition_date:
-        logger.info("No date filters provided, returning all filepaths.")
-        return filepaths
-
-    if (start_partition_date and not end_partition_date) or (
-        end_partition_date and not start_partition_date
-    ):
-        raise ValueError(
-            "Both start_partition_date and end_partition_date must be provided together."
-        )
-
-    # use specific partition date only if the start/end dates aren't provided
-    # (they shouldn't be ever jointly provided anyways, since start/end date
-    # ranges should only be during backfill operations).
-    if partition_date and (start_partition_date or end_partition_date):
-        raise ValueError(
-            "Cannot use partition_date and start_partition_date or end_partition_date together."
-        )
-
-    # partition date is given or start/end dates are provided.
-    if partition_date or (start_partition_date and end_partition_date):
-        print(
-            f"Filtering {len(filepaths)} files in service={service}, "
-            f"for {'partition_date=' + partition_date if partition_date else f'date range {start_partition_date} to {end_partition_date}'}"
-        )
-        for fp in filepaths:
-            path_parts = fp.split("/")
-            partition_parts = [p for p in path_parts if "partition_date=" in p]
-            if not partition_parts:
-                continue
-
-            file_partition_date = partition_parts[0].split("=")[1]
-
-            if partition_date:
-                if file_partition_date == partition_date:
-                    filtered_filepaths.append(fp)
-            elif start_partition_date <= file_partition_date <= end_partition_date:
-                filtered_filepaths.append(fp)
-    return filtered_filepaths
-
-
 def list_filenames(
     service: str,
     directories: list[Literal["cache", "active"]] = ["active"],
@@ -720,8 +669,7 @@ def list_filenames(
             )
         )
 
-    loaded_filepaths = _validate_filepaths(
-        service=service,
+    loaded_filepaths = filter_filepaths_by_date_range(
         filepaths=loaded_filepaths,
         partition_date=partition_date,
         start_partition_date=start_partition_date,
@@ -993,11 +941,6 @@ def load_data_from_local_storage(
             if col in df.columns:
                 df = df.drop(columns=[col])
     return df
-
-
-def _validate_service(service: str) -> bool:
-    return service in services_list
-
 
 def load_latest_data(
     service: str,
