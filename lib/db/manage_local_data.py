@@ -33,6 +33,12 @@ pd.set_option("display.max_colwidth", None)
 # can keep these in one place.
 DEFAULT_ERROR_PARTITION_DATE = "2016-01-01"
 
+EXTRA_COLUMNS_ADDED_DURING_COMPACTION = [
+    "row_num",
+    "partition_date",
+    "startTimestamp",
+]
+
 
 # TODO: come back to this, as the name + signature doesn't match the docstring
 # (docstring implies arbitrary start_timestamp, but the function doesn't
@@ -789,6 +795,68 @@ def get_service_pa_schema(
     return pa_schema
 
 
+def _load_data_from_local_storage_parquet():
+    pass
+
+
+def _load_data_from_local_storage_jsonl():
+    pass
+
+
+def _validate_use_duckdb(
+    source_file_format: Literal["jsonl", "parquet"],
+    query_metadata: dict | None,
+) -> bool:
+    """Validates conditions for using DuckDB."""
+    if source_file_format != "parquet":
+        raise ValueError(
+            f"duckdb_query requires source_file_format='parquet', but got source_file_format='{source_file_format}'."
+        )
+    if query_metadata is None:
+        raise ValueError("Must provide query_metadata when using duckdb_query.")
+    return True
+
+
+def _conditionally_drop_extra_columns(
+    df: pd.DataFrame,
+    columns_to_always_include: list[str] | None = None,
+) -> pd.DataFrame:
+    """Conditionally drops columns from a DataFrame.
+
+    Drops extra columns that are added in during compaction steps.
+    (these will be added back in during compaction anyways)
+
+    Provides an arg, columns_to_always_include, to always include columns
+    that are wanted by downstream callers.
+    """
+    columns_to_always_include = columns_to_always_include or []
+    for col in df.columns:
+        if col not in columns_to_always_include:
+            df = df.drop(columns=[col])
+    return df
+
+
+def _load_data_from_local_storage_duckdb(
+    duckdb_query: str,
+    query_metadata: dict,
+    filepaths: list[str],
+) -> pd.DataFrame:
+    duckdb_query_cols: list[str] = []
+    for table in query_metadata["tables"]:
+        duckdb_query_cols.extend(table["columns"])
+    df: pd.DataFrame = duckDB.run_query_as_df(
+        query=duckdb_query,
+        mode="parquet",
+        filepaths=filepaths,
+        query_metadata=query_metadata,
+    )
+    df = _conditionally_drop_extra_columns(
+        df=df,
+        columns_to_always_include=duckdb_query_cols,
+    )
+    return df
+
+
 def load_data_from_local_storage(
     service: str,
     storage_tiers: list[Literal["cache", "active"]] | None = None,
@@ -826,7 +894,7 @@ def load_data_from_local_storage(
     if storage_tiers is None:
         storage_tiers = ["active"]
 
-    filepaths = list_filenames(
+    filepaths: list[str] = list_filenames(
         service=service,
         storage_tiers=storage_tiers,
         validate_pq_files=validate_pq_files,
@@ -837,25 +905,21 @@ def load_data_from_local_storage(
         source_types=source_types,
         custom_args=custom_args,
     )
-    duckdb_query_cols: list[str] = []
+
+    # TODO: eventually use a strategy pattern to handle jsonl/parquet/duckdb
+    # handoffs.
     if duckdb_query is not None:
-        if source_file_format != "parquet":
-            raise ValueError(
-                f"duckdb_query requires source_file_format='parquet', but got source_file_format='{source_file_format}'."
-            )
-        if not query_metadata:
-            raise ValueError("Must provide query_metadata when using duckdb_query.")
-
-        duckdb_query_cols = []
-        for table in query_metadata["tables"]:
-            duckdb_query_cols.extend(table["columns"])
-
-        df: pd.DataFrame = duckDB.run_query_as_df(
-            query=duckdb_query,
-            mode="parquet",
-            filepaths=filepaths,
+        _validate_use_duckdb(
+            source_file_format=source_file_format,
             query_metadata=query_metadata,
         )
+
+        df: pd.DataFrame = _load_data_from_local_storage_duckdb(
+            duckdb_query=duckdb_query,
+            query_metadata=query_metadata,  # type: ignore
+            filepaths=filepaths,
+        )
+
     elif source_file_format == "jsonl":
         df = pd.read_json(filepaths, orient="records", lines=True)
     elif source_file_format == "parquet":
