@@ -27,25 +27,6 @@ pd.set_option("display.max_columns", None)
 pd.set_option("display.width", None)
 pd.set_option("display.max_colwidth", None)
 
-services_list = [
-    "sync_firehose",
-    "sync_most_liked_posts",
-    "preprocessed_posts",
-    "generate_vector_embeddings",
-    "calculate_superposters",
-    "daily_superposters",
-    "ml_inference_perspective_api",
-    "ml_inference_sociopolitical",
-    "ml_inference_ime",
-    "ml_inference_valence_classifier",
-    "in_network_user_activity",
-    "scraped_user_social_network",
-    "consolidate_enrichment_integrations",
-    "rank_score_feeds",
-    "post_scores",
-    "raw_sync",
-]
-
 # there are some really weird records that come along and have "created_at"
 # dates that are completely implausible. We'll set these to a default partition
 # date of 2016-01-01 so that we can at least process the data and then we
@@ -942,13 +923,14 @@ def load_data_from_local_storage(
                 df = df.drop(columns=[col])
     return df
 
+
 def load_latest_data(
     service: str,
     latest_timestamp: Optional[str] = None,
     max_per_source: Optional[int] = None,
 ) -> pd.DataFrame:
     """Loads the latest preprocessed posts."""
-    if not _validate_service(service=service):
+    if service not in MAP_SERVICE_TO_METADATA.keys():
         raise ValueError(f"Invalid service: {service}")
     # most services just need the latest preprocessed raw data.
     df = load_data_from_local_storage(

@@ -41,7 +41,3 @@ def validated_pq_files_within_directory(directory: str) -> list[str]:
             f"Found {total_invalidated_filepaths} invalid Parquet files in {directory}."
         )
     return filepaths
-
-
-def _validate_service(service: str) -> bool:
-    return service in services_list
