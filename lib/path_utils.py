@@ -72,7 +72,8 @@ def filter_filepaths_by_date_range(
 ) -> list[str]:
     """Filter filepaths by date range.
 
-    Can either
+    Can filter by either a single partition_date or a date range 
+    (start_partition_date to end_partition_date).
     """
     _validate_input_dates_for_filepath_filtering(
         partition_date=partition_date,
