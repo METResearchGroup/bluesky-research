@@ -1,18 +1,12 @@
 """Tests for lib/db/manage_local_data.py"""
-import os
-from tempfile import TemporaryDirectory
-
 import pandas as pd
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
+from unittest.mock import Mock, patch
 
 from lib.aws.s3 import S3
 from lib.db.manage_local_data import (
-    find_files_after_timestamp,
     _get_all_filenames,
     _get_all_filenames_deprecated_format,
-    _validate_filepaths,
     list_filenames,
     load_data_from_local_storage,
     export_data_to_local_storage,
@@ -44,40 +38,6 @@ def test_create_partition_key_based_on_timestamp(timestamp_str, expected):
         assert (
             s3.create_partition_key_based_on_timestamp(timestamp_str) == expected
         )
-
-
-# Setup for find_files_after_timestamp tests
-
-
-@pytest.fixture
-def setup_directory_structure():
-    """Create a temporary directory with test files."""
-    with TemporaryDirectory() as tmpdir:
-        # Create sample directory structures and test files
-        timestamps = [
-            ("2024", "01", "01", "01", "01"),  # shouldn't be included
-            ("2024", "07", "01", "01", "01"),  # shouldn't be included
-            ("2024", "07", "05", "20", "59"),
-            ("2024", "07", "05", "21", "01"),
-            ("2024", "07", "06", "01", "01"),
-            ("2024", "08", "01", "01", "01"),
-        ]
-        for year, month, day, hour, minute in timestamps:
-            dir_path = os.path.join(tmpdir, f"year={year}/month={month}/day={day}/hour={hour}/minute={minute}")
-            os.makedirs(dir_path, exist_ok=True)
-            test_file_path = os.path.join(dir_path, "test_file.txt")
-            with open(test_file_path, "w") as f:
-                f.write(f"This is a test file for {year}/{month}/{day} {hour}:{minute}.")
-        yield tmpdir
-
-
-def test_find_files_after_timestamp(setup_directory_structure):
-    """Test find_files_after_timestamp"""
-    base_path = setup_directory_structure
-    # A minute before the test file's timestamp
-    target_timestamp = "year=2024/month=07/day=05/hour=20/minute=58"
-    files_found = find_files_after_timestamp(base_path, target_timestamp)
-    assert len(files_found) == 4
 
 
 @pytest.fixture
@@ -138,7 +98,7 @@ class TestGetAllFilenames:
         mocker.patch("os.walk", return_value=[("/data/test_service/active", [], test_files)])
         
         # Mock validated_pq_files_within_directory to return empty list (no valid files)
-        mock_validate = mocker.patch("lib.db.manage_local_data.validated_pq_files_within_directory")
+        mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = []
 
         result = _get_all_filenames("test_service", validate_pq_files=True)
@@ -163,7 +123,7 @@ class TestGetAllFilenames:
         mocker.patch("os.walk", return_value=[("/data/test_service/active", [], all_files)])
         
         # Mock validation to return only valid files
-        mock_validate = mocker.patch("lib.db.manage_local_data.validated_pq_files_within_directory")
+        mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = valid_files
 
         result = _get_all_filenames("test_service", validate_pq_files=True)
@@ -237,7 +197,7 @@ class TestGetAllFilenamesDeprecatedFormat:
         mocker.patch("os.walk", return_value=[("/data/ml_inference_perspective_api/firehose/active", [], test_files)])
         
         # Mock validated_pq_files_within_directory to return empty list (no valid files)
-        mock_validate = mocker.patch("lib.db.manage_local_data.validated_pq_files_within_directory")
+        mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = []
 
         result = _get_all_filenames_deprecated_format("ml_inference_perspective_api", validate_pq_files=True)
@@ -262,7 +222,7 @@ class TestGetAllFilenamesDeprecatedFormat:
         mocker.patch("os.walk", return_value=[("/data/ml_inference_perspective_api/source_type/active", [], all_files)])
         
         # Mock validation to return only valid files
-        mock_validate = mocker.patch("lib.db.manage_local_data.validated_pq_files_within_directory")
+        mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = valid_files
 
         result = _get_all_filenames_deprecated_format("ml_inference_perspective_api", validate_pq_files=True)
@@ -287,147 +247,6 @@ class TestGetAllFilenamesDeprecatedFormat:
         
         result = _get_all_filenames_deprecated_format("ml_inference_perspective_api")
         assert result == []
-
-
-class TestValidateFilepaths:
-    """Test suite for _validate_filepaths function."""
-
-    def test_no_filepaths(self):
-        """Test validation of empty filepaths list.
-        
-        Expected behavior:
-        - Should return empty list when no filepaths are provided
-        - Should not raise any errors
-        """
-        result = _validate_filepaths("test_service", [])
-        assert result == []
-
-    def test_both_partition_and_range_dates(self):
-        """Test validation when both partition_date and date range are provided.
-        
-        Expected behavior:
-        - Should raise ValueError with message about not using both together
-        - Should fail before attempting to validate any files
-        """
-        with pytest.raises(ValueError, match="Cannot use partition_date and start_partition_date or end_partition_date together."):
-            _validate_filepaths(
-                "test_service",
-                ["test.parquet"],
-                partition_date="2024-03-01",
-                start_partition_date="2024-03-01",
-                end_partition_date="2024-03-02"
-            )
-
-    def test_partition_date_no_matches(self):
-        """Test validation when partition_date matches no files.
-        
-        Expected behavior:
-        - Should return empty list when no files match the partition date
-        - Should not include files from other partition dates
-        - Should not raise any errors
-        """
-        test_files = [
-            "/data/test_service/active/partition_date=2024-03-01/file1.parquet",
-            "/data/test_service/active/partition_date=2024-03-02/file2.parquet"
-        ]
-        result = _validate_filepaths(
-            "test_service",
-            test_files,
-            partition_date="2024-03-03"
-        )
-        assert result == []
-
-    def test_partition_date_with_matches(self):
-        """Test validation when partition_date matches files.
-        
-        Expected behavior:
-        - Should return only files matching the exact partition date
-        - Should maintain file paths in their original format
-        - Should not include files from other partition dates
-        """
-        test_files = [
-            "/data/test_service/active/partition_date=2024-03-01/file1.parquet",
-            "/data/test_service/active/partition_date=2024-03-02/file2.parquet"
-        ]
-        result = _validate_filepaths(
-            "test_service",
-            test_files,
-            partition_date="2024-03-01"
-        )
-        assert result == ["/data/test_service/active/partition_date=2024-03-01/file1.parquet"]
-
-    def test_date_range_no_matches(self):
-        """Test validation when date range matches no files.
-        
-        Expected behavior:
-        - Should return empty list when no files fall within date range
-        - Should not include files outside the date range
-        - Should not raise any errors
-        """
-        test_files = [
-            "/data/test_service/active/partition_date=2024-03-01/file1.parquet",
-            "/data/test_service/active/partition_date=2024-03-02/file2.parquet"
-        ]
-        result = _validate_filepaths(
-            "test_service",
-            test_files,
-            start_partition_date="2024-03-03",
-            end_partition_date="2024-03-04"
-        )
-        assert result == []
-
-    def test_date_range_with_matches(self):
-        """Test validation when date range matches files.
-        
-        Expected behavior:
-        - Should return all files with partition dates within range (inclusive)
-        - Should maintain file paths in their original format
-        - Should not include files outside the date range
-        - Should handle multiple matching files correctly
-        """
-        test_files = [
-            "/data/test_service/active/partition_date=2024-03-01/file1.parquet",
-            "/data/test_service/active/partition_date=2024-03-02/file2.parquet",
-            "/data/test_service/active/partition_date=2024-03-03/file3.parquet"
-        ]
-        result = _validate_filepaths(
-            "test_service",
-            test_files,
-            start_partition_date="2024-03-01",
-            end_partition_date="2024-03-02"
-        )
-        assert set(result) == {
-            "/data/test_service/active/partition_date=2024-03-01/file1.parquet",
-            "/data/test_service/active/partition_date=2024-03-02/file2.parquet"
-        }
-
-    def test_only_start_date(self):
-        """Test validation when only start_partition_date is provided.
-        
-        Expected behavior:
-        - Should raise ValueError with message about requiring both dates
-        - Should fail before attempting to validate any files
-        """
-        with pytest.raises(ValueError, match="Both start_partition_date and end_partition_date must be provided together."):
-            _validate_filepaths(
-                "test_service",
-                ["test.parquet"],
-                start_partition_date="2024-03-01"
-            )
-
-    def test_only_end_date(self):
-        """Test validation when only end_partition_date is provided.
-        
-        Expected behavior:
-        - Should raise ValueError with message about requiring both dates
-        - Should fail before attempting to validate any files
-        """
-        with pytest.raises(ValueError, match="Both start_partition_date and end_partition_date must be provided together."):
-            _validate_filepaths(
-                "test_service",
-                ["test.parquet"],
-                end_partition_date="2024-03-02"
-            )
 
 
 class TestListFilenames:
@@ -644,7 +463,7 @@ class TestLoadDataFromLocalStorage:
         {
             "service": "test_service", 
             "directory": "active",
-            "export_format": "parquet",
+            "source_file_format": "parquet",
             "mock_df": pd.DataFrame({
                 "col1": [1, 2],
                 "col2": ["a", "b"],
@@ -663,7 +482,7 @@ class TestLoadDataFromLocalStorage:
         result = load_data_from_local_storage(
             service=test_params["service"],
             directory=test_params["directory"],
-            export_format=test_params["export_format"]
+            source_file_format=test_params["source_file_format"]
         )
         
         assert isinstance(result, pd.DataFrame)
@@ -699,46 +518,39 @@ class TestLoadDataFromLocalStorage:
             custom_args=None
         )
 
-    @pytest.mark.parametrize("export_format,mock_data", [
+    @pytest.mark.parametrize("source_file_format,mock_data", [
         ("parquet", pd.DataFrame({"col1": [1,2]}).astype({"col1": "Int64"})),
-        ("jsonl", pd.DataFrame({"col1": [1,2]}).astype({"col1": "Int64"})),
-        ("duckdb", pd.DataFrame({"col1": [1,2]}).astype({"col1": "Int64"}))
+        ("jsonl", pd.DataFrame({"col1": [1,2]}).astype({"col1": "Int64"}))
     ])
-    def test_export_formats(self, export_format, mock_data, mocker, mock_service_metadata, mock_duckdb_import):
-        """Test different export formats."""
+    def test_source_file_formats(self, source_file_format, mock_data, mocker, mock_service_metadata):
+        """Test different source file formats."""
         mock_read_parquet = mocker.patch("pandas.read_parquet")
         mock_read_json = mocker.patch("pandas.read_json")
         mock_list_filenames = mocker.patch("lib.db.manage_local_data.list_filenames")
         
         mock_list_filenames.return_value = ["file1"]
-        if export_format == "parquet":
+        if source_file_format == "parquet":
             mock_read_parquet.return_value = mock_data
-        elif export_format == "jsonl":
+        elif source_file_format == "jsonl":
             mock_read_json.return_value = mock_data
-        else:
-            mock_duckdb_import.run_query_as_df.return_value = mock_data
             
         result = load_data_from_local_storage(
             service="test_service",
-            export_format=export_format,
-            duckdb_query="SELECT * FROM test" if export_format == "duckdb" else None,
-            query_metadata={"tables": [{"name": "test", "columns": ["col1"]}]} if export_format == "duckdb" else None
+            source_file_format=source_file_format,
         )
         
         assert isinstance(result, pd.DataFrame)
-        if export_format == "duckdb":
-            mock_duckdb_import.run_query_as_df.assert_called_once()
 
     def test_duckdb_query(self, mocker, mock_service_metadata, mock_duckdb_import):
         """Test DuckDB query execution."""
         mock_list_filenames = mocker.patch("lib.db.manage_local_data.list_filenames")
+        mock_duckdb_import.run_query_as_df.return_value = pd.DataFrame({"col1": [1,2]})
         
         test_query = "SELECT * FROM test"
         test_metadata = {"tables": [{"name": "test", "columns": ["col1"]}]}
         
         load_data_from_local_storage(
             service="test_service",
-            export_format="duckdb",
             duckdb_query=test_query,
             query_metadata=test_metadata
         )
@@ -893,19 +705,19 @@ class TestLoadDataFromLocalStorage:
         
         Tests that load_data_from_local_storage correctly:
         1. Calls both _get_all_filenames_deprecated_format and _get_all_filenames for preprocessed_posts
-        2. Validates the combined filepaths using _validate_filepaths
+        2. Filters the combined filepaths using filter_filepaths_by_date_range
         3. Filters out files not matching the validation criteria
         
         Expected behavior:
         - Should call both filename functions for preprocessed_posts
-        - Should validate combined filepaths with _validate_filepaths
+        - Should filter combined filepaths with filter_filepaths_by_date_range
         - Should only return files matching validation criteria
         - Should handle both deprecated and current format paths
         """
         # Mock the filename retrieval functions
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
         mock_get_current = mocker.patch("lib.db.manage_local_data._get_all_filenames")
-        mock_validate = mocker.patch("lib.db.manage_local_data._validate_filepaths")
+        mock_filter = mocker.patch("lib.db.manage_local_data.filter_filepaths_by_date_range")
         mock_read_parquet = mocker.patch("pandas.read_parquet")
 
         # Set up test files in both formats
@@ -925,13 +737,14 @@ class TestLoadDataFromLocalStorage:
         mock_get_deprecated.return_value = deprecated_files
         mock_get_current.return_value = current_files
         
-        # Mock validation to filter some files
-        validated_files = [
+        # Mock filtering to filter some files
+        filtered_files = [
             "/data/preprocessed_posts/firehose/active/partition_date=2024-03-01/file1.parquet",
             "/data/preprocessed_posts/active/partition_date=2024-03-01/file4.parquet",
             "/data/preprocessed_posts/active/partition_date=2024-03-02/file5.parquet"
         ]
-        mock_validate.return_value = validated_files
+        mock_filter.return_value = filtered_files
+        mock_read_parquet.return_value = pd.DataFrame({"col1": [1, 2, 3]})
         
         # Call function with validation criteria
         result = load_data_from_local_storage(
@@ -943,8 +756,7 @@ class TestLoadDataFromLocalStorage:
         # Verify correct functions were called
         mock_get_deprecated.assert_called_once()
         mock_get_current.assert_called_once()
-        mock_validate.assert_called_once_with(
-            service="preprocessed_posts",
+        mock_filter.assert_called_once_with(
             filepaths=deprecated_files + current_files,
             partition_date=None,
             start_partition_date="2024-03-01", 
@@ -956,19 +768,19 @@ class TestLoadDataFromLocalStorage:
         
         Tests that load_data_from_local_storage correctly:
         1. Only calls _get_all_filenames for standard services
-        2. Validates filepaths using _validate_filepaths
+        2. Filters filepaths using filter_filepaths_by_date_range
         3. Filters out files not matching validation criteria
         
         Expected behavior:
         - Should only call _get_all_filenames (not deprecated format)
-        - Should validate filepaths with _validate_filepaths
+        - Should filter filepaths with filter_filepaths_by_date_range
         - Should only return files matching validation criteria
         - Should handle standard format paths
         """
         # Mock the filename retrieval functions
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
         mock_get_current = mocker.patch("lib.db.manage_local_data._get_all_filenames")
-        mock_validate = mocker.patch("lib.db.manage_local_data._validate_filepaths")
+        mock_filter = mocker.patch("lib.db.manage_local_data.filter_filepaths_by_date_range")
         mock_read_parquet = mocker.patch("pandas.read_parquet")
 
         # Set up test files
@@ -981,12 +793,13 @@ class TestLoadDataFromLocalStorage:
         # Mock return values
         mock_get_current.return_value = test_files
         
-        # Mock validation to filter some files
-        validated_files = [
+        # Mock filtering to filter some files
+        filtered_files = [
             "/data/fetch_posts_used_in_feeds/active/partition_date=2024-03-01/file1.parquet",
             "/data/fetch_posts_used_in_feeds/active/partition_date=2024-03-02/file2.parquet"
         ]
-        mock_validate.return_value = validated_files
+        mock_filter.return_value = filtered_files
+        mock_read_parquet.return_value = pd.DataFrame({"col1": [1, 2]})
 
         # Call function with validation criteria
         result = load_data_from_local_storage(
@@ -998,8 +811,7 @@ class TestLoadDataFromLocalStorage:
         # Verify correct functions were called
         mock_get_deprecated.assert_not_called()
         mock_get_current.assert_called_once()
-        mock_validate.assert_called_once_with(
-            service="fetch_posts_used_in_feeds",
+        mock_filter.assert_called_once_with(
             filepaths=test_files,
             partition_date=None,
             start_partition_date="2024-03-01",
