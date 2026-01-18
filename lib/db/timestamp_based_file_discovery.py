@@ -178,9 +178,16 @@ def find_files_after_timestamp(base_path: str, target_timestamp_path: str) -> li
     This assumes a year/month/day/hour/minute directory structure, which is what we
     currently use for our setups.
     """
-    target_year, target_month, target_day, target_hour, target_minute = (
-        target_timestamp_path.split("/")
-    )
+    if not target_timestamp_path or not isinstance(target_timestamp_path, str):
+        raise ValueError(
+            f"target_timestamp_path must be a non-empty string, got: {target_timestamp_path!r}"
+        )
+    timestamp_parts = target_timestamp_path.split("/")
+    if len(timestamp_parts) != 5:
+        raise ValueError(
+            f"target_timestamp_path must be 'year/month/day/hour/minute', got: {target_timestamp_path!r}"
+        )
+    target_year, target_month, target_day, target_hour, target_minute = timestamp_parts
     files_list: list[str] = []
 
     # grab files from future years
