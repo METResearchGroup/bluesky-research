@@ -32,7 +32,7 @@ def get_feeds_for_partition_date(partition_date: str) -> pd.DataFrame:
     """
     feeds_df: pd.DataFrame = load_data_from_local_storage(
         service="generated_feeds",
-        directory="cache",
+        storage_tiers=["cache"],
         partition_date=partition_date,
     )
     logger.info(f"Loaded {len(feeds_df)} feeds for partition date {partition_date}")
@@ -85,8 +85,7 @@ def get_feeds_per_user(valid_study_users_dids: set[str]) -> pd.DataFrame:
     }
     generated_feeds_df: pd.DataFrame = load_data_from_local_storage(
         service="generated_feeds",
-        directory="cache",
-        export_format="duckdb",
+        storage_tiers=["cache"],
         duckdb_query=query,
         query_metadata=query_metadata,
         start_partition_date=STUDY_START_DATE,

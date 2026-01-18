@@ -55,7 +55,7 @@ def main():
             continue
         consolidated_enriched_posts_df = load_data_from_local_storage(
             service="consolidated_enriched_post_records",
-            directory="cache",
+            storage_tiers=["cache"],
             partition_date=current_partition_date,
         )
         print(

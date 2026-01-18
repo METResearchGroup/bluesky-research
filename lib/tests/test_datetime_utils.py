@@ -19,6 +19,7 @@ from lib.datetime_utils import (
     normalize_timestamp,
     TimestampFormat,
     try_default_ts_truncation,
+    truncate_timestamp_string,
 )
 
 
@@ -560,3 +561,223 @@ class TestConvertBskyDtToPipelineDt:
         # Act & Assert
         with pytest.raises(ValueError, match="Invalid Bluesky datetime string"):
             convert_bsky_dt_to_pipeline_dt(malformed_dt)
+
+
+class TestTruncateTimestampString:
+    """Tests for truncate_timestamp_string function."""
+
+    def test_truncates_after_period(self):
+        """Test truncating timestamp with microseconds (period delimiter)."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30.123456"
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_truncates_after_plus(self):
+        """Test truncating timestamp with timezone offset (plus delimiter)."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30+00:00"
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_truncates_after_z(self):
+        """Test truncating timestamp with Z suffix (Z delimiter)."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30Z"
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_truncates_at_first_delimiter_period_before_plus(self):
+        """Test truncating at first delimiter when period comes before plus."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30.123456+00:00"
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_truncates_at_first_delimiter_plus_before_period(self):
+        """Test truncating when plus comes before period - uses plus since it appears first in the string."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30+00:00.123"
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_truncates_at_first_delimiter_z_before_others(self):
+        """Test truncating when Z comes before period or plus - uses Z since it appears first in the string."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30Z.123+00:00"
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_returns_unchanged_when_no_delimiters(self):
+        """Test returning unchanged string when no delimiters are present."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30"
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_empty_string(self):
+        """Test truncating empty string."""
+        # Arrange
+        timestamp = ""
+        expected = ""
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_only_delimiter_period(self):
+        """Test string containing only period delimiter."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30."
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_only_delimiter_plus(self):
+        """Test string containing only plus delimiter."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30+"
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_only_delimiter_z(self):
+        """Test string containing only Z delimiter."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30Z"
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_multiple_periods_takes_first(self):
+        """Test truncating at first period when multiple periods are present."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30.123.456"
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_timestamp_with_milliseconds(self):
+        """Test truncating timestamp with milliseconds precision."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30.123"
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_timestamp_with_timezone_offset_negative(self):
+        """Test truncating timestamp with negative timezone offset - no delimiter found."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30-05:00"
+        expected = "2024-01-15T13:45:30-05:00"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_string_with_period_not_at_end(self):
+        """Test truncating string with period not at expected position."""
+        # Arrange
+        timestamp = "2024.01.15T13:45:30"
+        expected = "2024"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_string_with_plus_not_at_end(self):
+        """Test truncating string with plus not at expected position."""
+        # Arrange
+        timestamp = "2024+01-15T13:45:30"
+        expected = "2024"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_string_with_z_not_at_end(self):
+        """Test truncating string with Z not at expected position."""
+        # Arrange
+        timestamp = "2024Z01-15T13:45:30"
+        expected = "2024"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected
+
+    def test_all_delimiters_present_takes_first(self):
+        """Test truncating when all delimiters are present, takes first occurrence."""
+        # Arrange
+        timestamp = "2024-01-15T13:45:30.123Z+00:00"
+        expected = "2024-01-15T13:45:30"
+
+        # Act
+        result = truncate_timestamp_string(timestamp)
+
+        # Assert
+        assert result == expected

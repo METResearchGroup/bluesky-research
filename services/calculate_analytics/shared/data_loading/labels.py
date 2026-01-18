@@ -28,16 +28,16 @@ def get_perspective_api_labels(
     lookback_end_date: str,
     duckdb_query: Optional[str] = None,
     query_metadata: Optional[dict] = None,
-    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
+    source_file_format: Literal["jsonl", "parquet"] = "parquet",
 ):
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_perspective_api",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
         duckdb_query=duckdb_query,
         query_metadata=query_metadata,
-        export_format=export_format,
+        source_file_format=source_file_format,
     )
     logger.info(
         f"Loaded {len(df)} Perspective API labels for lookback period {lookback_start_date} to {lookback_end_date}"
@@ -51,7 +51,7 @@ def get_perspective_api_labels_for_posts(
     lookback_end_date: str,
     duckdb_query: Optional[str] = None,
     query_metadata: Optional[dict] = None,
-    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
+    source_file_format: Literal["jsonl", "parquet"] = "parquet",
 ) -> pd.DataFrame:
     """Get the Perspective API labels for a list of posts.
 
@@ -69,7 +69,7 @@ def get_perspective_api_labels_for_posts(
         lookback_end_date=lookback_end_date,
         duckdb_query=duckdb_query,
         query_metadata=query_metadata,
-        export_format=export_format,
+        source_file_format=source_file_format,
     )
 
     # Filter to only include labels for the given posts
@@ -86,7 +86,7 @@ def get_sociopolitical_labels_for_posts(
     lookback_end_date: str,
     duckdb_query: Optional[str] = None,
     query_metadata: Optional[dict] = None,
-    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
+    source_file_format: Literal["jsonl", "parquet"] = "parquet",
 ) -> pd.DataFrame:
     """Get the sociopolitical labels for a list of posts.
 
@@ -103,12 +103,12 @@ def get_sociopolitical_labels_for_posts(
     """
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_sociopolitical",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
         duckdb_query=duckdb_query,
         query_metadata=query_metadata,
-        export_format=export_format,
+        source_file_format=source_file_format,
     )
 
     logger.info(
@@ -128,7 +128,7 @@ def load_sociopolitical_labels_by_uris(
     partition_date: str,
     duckdb_query: Optional[str] = None,
     query_metadata: Optional[dict] = None,
-    export_format: Literal["jsonl", "parquet", "duckdb"] = "parquet",
+    source_file_format: Literal["jsonl", "parquet"] = "parquet",
 ) -> pd.DataFrame:
     """Load sociopolitical labels data filtered by specific URIs and partition date.
 
@@ -144,11 +144,11 @@ def load_sociopolitical_labels_by_uris(
     """
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_sociopolitical",
-        directory="cache",
+        storage_tiers=["cache"],
         partition_date=partition_date,
         duckdb_query=duckdb_query,
         query_metadata=query_metadata,
-        export_format=export_format,
+        source_file_format=source_file_format,
     )
 
     # Filter to only include labels with the specified URIs
@@ -185,7 +185,7 @@ def get_labels_for_partition_date(
 
     df = load_data_from_local_storage(
         service=f"ml_inference_{integration}",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
     )

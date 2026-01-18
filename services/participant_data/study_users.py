@@ -106,8 +106,7 @@ class StudyUserManager:
         if is_local:
             social_network_df = load_data_from_local_storage(
                 service="scraped_user_social_network",
-                directory="active",
-                use_all_data=True,
+                storage_tiers=["cache", "active"],
             )
             user_dids = set()
             for _, row in social_network_df.iterrows():

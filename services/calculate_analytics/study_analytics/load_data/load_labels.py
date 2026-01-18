@@ -15,7 +15,7 @@ def get_perspective_api_labels_for_posts(
     """Get the Perspective API labels for a list of posts."""
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_perspective_api",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
     )
@@ -38,7 +38,7 @@ def get_sociopolitical_labels_for_posts(
     """Get the sociopolitical labels for a list of posts."""
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_sociopolitical",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
     )
@@ -61,7 +61,7 @@ def get_ime_labels_for_posts(
     """Get the IME labels for a list of posts."""
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_ime",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
     )
@@ -80,7 +80,7 @@ def get_valence_labels_for_posts(
     """Get the valence labels for a list of posts."""
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_valence_classifier",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=lookback_start_date,
         end_partition_date=lookback_end_date,
     )

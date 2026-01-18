@@ -18,6 +18,9 @@ from lib.constants import (
 )
 
 
+TIMESTAMP_TRUNCATION_DELIMITERS = [".", "+", "Z"]
+
+
 class TimestampFormat(Enum):
     """Enum for timestamp format options."""
 
@@ -243,3 +246,20 @@ def create_date_to_week_mapping(
             continue
 
     return date_to_week
+
+
+def truncate_timestamp_string(s: str) -> str:
+    """Truncates the string after the first '.' or '+' or 'Z' (whichever comes first).
+
+    Example timestamps that this works on:
+    - 2024-01-15T13:45:30.123456 (microseconds precision)
+    - 2024-01-15T13:45:30+00:00 (milliseconds precision)
+    - 2024-01-15T13:45:30Z (no precision)
+
+    These all end up being truncated to "2024-01-15T13:45:30".
+    """
+    indices = [s.find(delimiter) for delimiter in TIMESTAMP_TRUNCATION_DELIMITERS]
+    min_index = min((idx for idx in indices if idx >= 0), default=-1)
+    if min_index >= 0:
+        return s[:min_index]
+    return s

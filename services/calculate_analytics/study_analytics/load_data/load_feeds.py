@@ -13,7 +13,7 @@ def get_feeds_for_partition_date(partition_date: str) -> pd.DataFrame:
     """Get the feeds generated for a particular partition date."""
     feeds_df: pd.DataFrame = load_data_from_local_storage(
         service="generated_feeds",
-        directory="cache",
+        storage_tiers=["cache"],
         partition_date=partition_date,
     )
     logger.info(f"Loaded {len(feeds_df)} feeds for partition date {partition_date}")

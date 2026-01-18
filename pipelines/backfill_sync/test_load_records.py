@@ -21,12 +21,12 @@ if __name__ == "__main__":
         print(f"Loading {record_type} data...")
         active_df = load_data_from_local_storage(
             service=service,
-            directory="active",
+            storage_tiers=["active"],
             custom_args=custom_args,
         )
         cache_df = load_data_from_local_storage(
             service=service,
-            directory="cache",
+            storage_tiers=["cache"],
             custom_args=custom_args,
         )
         df = pd.concat([active_df, cache_df])

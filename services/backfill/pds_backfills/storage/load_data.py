@@ -31,12 +31,12 @@ def load_previously_liked_post_uris() -> set[str]:
     """Load the URIs of posts that have been liked by study users."""
     active_df = load_data_from_local_storage(
         service="raw_sync",
-        directory="active",
+        storage_tiers=["active"],
         custom_args={"record_type": "like"},
     )
     cache_df = load_data_from_local_storage(
         service="raw_sync",
-        directory="cache",
+        storage_tiers=["cache"],
         custom_args={"record_type": "like"},
     )
     df = pd.concat([active_df, cache_df])

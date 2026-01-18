@@ -101,7 +101,7 @@ def get_content_engaged_with(
     custom_args = {"record_type": record_type}
     df: pd.DataFrame = load_data_from_local_storage(
         service="raw_sync",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date="2024-09-30",
         end_partition_date="2024-12-01",
         custom_args=custom_args,
@@ -262,7 +262,7 @@ def get_labels_for_partition_date(
 ) -> pd.DataFrame:
     df = load_data_from_local_storage(
         service=f"ml_inference_{integration}",
-        directory="cache",
+        storage_tiers=["cache"],
         partition_date=partition_date,
     )
     df = df.drop_duplicates(subset=["uri"])

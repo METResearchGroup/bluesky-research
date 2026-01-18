@@ -17,7 +17,7 @@ def load_posts_from_db(partition_date: str) -> pd.DataFrame:
     for a given date."""
     posts_df = load_data_from_local_storage(
         service="raw_sync",
-        directory="cache",
+        storage_tiers=["cache"],
         partition_date=partition_date,
         custom_args={"record_type": "post"},
     )
@@ -31,7 +31,7 @@ def load_replies_from_db(partition_date: str) -> pd.DataFrame:
     for a given date."""
     replies_df = load_data_from_local_storage(
         service="raw_sync",
-        directory="cache",
+        storage_tiers=["cache"],
         partition_date=partition_date,
         custom_args={"record_type": "reply"},
     )

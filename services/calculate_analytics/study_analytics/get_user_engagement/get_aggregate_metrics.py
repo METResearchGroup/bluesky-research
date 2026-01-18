@@ -42,7 +42,7 @@ def get_num_records_per_user_per_day(record_type: str) -> dict:
     custom_args = {"record_type": record_type}
     df = load_data_from_local_storage(
         service="raw_sync",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date="2024-09-30",
         end_partition_date="2024-12-01",
         custom_args=custom_args,

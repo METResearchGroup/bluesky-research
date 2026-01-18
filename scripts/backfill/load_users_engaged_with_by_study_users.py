@@ -29,12 +29,12 @@ def get_details_of_posts_liked_by_study_users() -> tuple[set[str], set[str]]:
     logger.info("Loading likes data...")
     active_df = load_data_from_local_storage(
         service=service,
-        directory="active",
+        storage_tiers=["active"],
         custom_args=custom_args,
     )
     cache_df = load_data_from_local_storage(
         service=service,
-        directory="cache",
+        storage_tiers=["cache"],
         custom_args=custom_args,
     )
     df = pd.concat([active_df, cache_df])
@@ -72,12 +72,12 @@ def get_details_of_posts_reposted_by_study_users() -> tuple[set[str], set[str]]:
     logger.info("Loading reposts data...")
     active_df = load_data_from_local_storage(
         service=service,
-        directory="active",
+        storage_tiers=["active"],
         custom_args=custom_args,
     )
     cache_df = load_data_from_local_storage(
         service=service,
-        directory="cache",
+        storage_tiers=["cache"],
         custom_args=custom_args,
     )
     df = pd.concat([active_df, cache_df])
@@ -118,12 +118,12 @@ def get_details_of_posts_replied_to_by_study_users() -> tuple[set[str], set[str]
     logger.info("Loading replies data...")
     active_df = load_data_from_local_storage(
         service=service,
-        directory="active",
+        storage_tiers=["active"],
         custom_args=custom_args,
     )
     cache_df = load_data_from_local_storage(
         service=service,
-        directory="cache",
+        storage_tiers=["cache"],
         custom_args=custom_args,
     )
     df = pd.concat([active_df, cache_df])

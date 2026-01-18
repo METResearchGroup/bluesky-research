@@ -86,7 +86,7 @@ class ScoresRepository:
         try:
             cached_post_scores_df: pd.DataFrame = load_data_from_local_storage(
                 service="post_scores",
-                directory="active",
+                storage_tiers=["active"],
                 latest_timestamp=lookback_timestamp,
             )
             cached_post_scores_df = (

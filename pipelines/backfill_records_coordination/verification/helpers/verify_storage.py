@@ -52,7 +52,7 @@ def get_total_current_db_records_by_partition_date(
     for partition_date in partition_dates:
         df: pd.DataFrame = load_data_from_local_storage(
             service=integration,
-            directory="cache",
+            storage_tiers=["cache"],
             partition_date=partition_date,
         )
         partition_date_to_count_map[partition_date] = len(df)

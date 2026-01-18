@@ -14,7 +14,7 @@ def get_data_from_keyword(query: str, **kwargs) -> Dict[str, Any]:
         return {"posts": [], "total_count": 0, "source": "keyword"}
     df = load_data_from_local_storage(
         service="preprocessed_posts",
-        directory="cache",
+        storage_tiers=["cache"],
         export_format="parquet",
         start_partition_date="2024-11-10",
         end_partition_date="2024-11-21",
@@ -36,7 +36,7 @@ def get_data_from_query_engine(query: str, **kwargs) -> Dict[str, Any]:
         return {"posts": [], "total_count": 0, "source": "query_engine"}
     df = load_data_from_local_storage(
         service="preprocessed_posts",
-        directory="cache",
+        storage_tiers=["cache"],
         export_format="parquet",
         start_partition_date="2024-11-10",
         end_partition_date="2024-11-21",
@@ -58,7 +58,7 @@ def get_data_from_rag(query: str, **kwargs) -> Dict[str, Any]:
         return {"posts": [], "total_count": 0, "source": "rag"}
     df = load_data_from_local_storage(
         service="preprocessed_posts",
-        directory="cache",
+        storage_tiers=["cache"],
         export_format="parquet",
         start_partition_date="2024-11-10",
         end_partition_date="2024-11-21",

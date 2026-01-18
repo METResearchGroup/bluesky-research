@@ -67,11 +67,10 @@ def get_author_to_average_toxicity_outrage(partition_date: str) -> pd.DataFrame:
     }
     perspective_api_labels_df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_perspective_api",
-        directory="cache",
+        storage_tiers=["cache"],
         partition_date=partition_date,
         duckdb_query=perspective_api_query,
         query_metadata=perspective_api_query_metadata,
-        export_format="duckdb",
     )
     # drop the text column.
     perspective_api_labels_df.drop(columns=["text"], inplace=True)
@@ -105,11 +104,10 @@ def get_author_to_average_toxicity_outrage(partition_date: str) -> pd.DataFrame:
 
     preprocessed_posts_df: pd.DataFrame = load_data_from_local_storage(
         service="preprocessed_posts",
-        directory="cache",
+        storage_tiers=["cache"],
         partition_date=partition_date,
         duckdb_query=preprocessed_posts_query,
         query_metadata=preprocessed_posts_query_metadata,
-        export_format="duckdb",
     )
     # drop the text column and filter URIs.
     preprocessed_posts_df.drop(columns=["text"], inplace=True)

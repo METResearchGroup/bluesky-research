@@ -79,7 +79,7 @@ class TestGetFeedsForPartitionDate:
         # Assert
         mock_load_data.assert_called_once_with(
             service="generated_feeds",
-            directory="cache",
+            storage_tiers=["cache"],
             partition_date=partition_date
         )
 
@@ -418,8 +418,7 @@ class TestGetFeedsPerUser:
         mock_load_data.assert_called_once()
         call_args = mock_load_data.call_args[1]
         assert call_args["service"] == "generated_feeds"
-        assert call_args["directory"] == "cache"
-        assert call_args["export_format"] == "duckdb"
+        assert call_args["storage_tiers"] == ["cache"]
         assert "duckdb_query" in call_args
         assert "query_metadata" in call_args
         assert "start_partition_date" in call_args

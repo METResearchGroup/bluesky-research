@@ -136,7 +136,6 @@ def main():
                 {"name": "ml_inference_perspective_api", "columns": table_columns}
             ]
         },
-        export_format="duckdb",
     )
     if df.empty:
         logger.error("No Perspective API labels found for posts used in feeds")
