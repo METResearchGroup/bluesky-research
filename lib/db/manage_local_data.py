@@ -19,7 +19,6 @@ from lib.db.sql.duckdb_wrapper import DuckDB
 from lib.datetime_utils import generate_current_datetime_str, truncate_timestamp_string
 from lib.log.logger import get_logger
 from lib.path_utils import (
-    create_directory_if_not_exists,
     crawl_local_prefix,
     filter_filepaths_by_date_range,
 )
@@ -614,7 +613,7 @@ def export_data_to_local_storage(
 
         # /{root path}/{service-specific path}/{cache / active}/{filename}
         export_folder_path: str = os.path.join(local_prefix, storage_tier)
-        create_directory_if_not_exists(export_folder_path)
+        os.makedirs(export_folder_path, exist_ok=True)
 
         if export_format == "jsonl":
             full_export_filepath: str = os.path.join(export_folder_path, filename)
