@@ -10,6 +10,11 @@ from lib.db.manage_local_data import (
     list_filenames,
     load_data_from_local_storage,
     export_data_to_local_storage,
+    _coerce_pyarrow_types_to_pandas_types,
+    _filter_loaded_data_by_latest_timestamp,
+    _conditionally_drop_extra_columns,
+    _load_data_from_local_storage_jsonl,
+    _load_data_from_local_storage_duckdb,
 )
 
 MOCK_SERVICE_METADATA = {
@@ -585,8 +590,12 @@ class TestLoadDataFromLocalStorage:
             latest_timestamp=test_params["latest_timestamp"]
         )
         
+        # Verify timestamp filtering works correctly
         assert all(pd.to_datetime(result["col1"]) >= pd.to_datetime(test_params["latest_timestamp"]))
-        pd.testing.assert_frame_equal(result, test_params["mock_data"])
+        # Result should contain all columns from mock_df (including partition_date)
+        expected = mock_df.copy()
+        expected = expected[expected["col1"] >= test_params["latest_timestamp"]]
+        pd.testing.assert_frame_equal(result, expected)
 
     @pytest.mark.parametrize("test_params", [
         {
@@ -611,7 +620,8 @@ class TestLoadDataFromLocalStorage:
             partition_date=test_params["partition_date"]
         )
         
-        pd.testing.assert_frame_equal(result, test_params["mock_data"])
+        # Result should contain all columns from mock_df (including partition_date)
+        pd.testing.assert_frame_equal(result, mock_df)
         
         mock_list_filenames.assert_called_with(
             service="test_service",
@@ -1281,3 +1291,736 @@ class TestExportDataToLocalStorage:
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
         assert any("No PyArrow schema available" in call for call in warning_calls)
         assert any("schema drift" in call for call in warning_calls)
+
+
+class TestCoercePyarrowTypesToPandasTypes:
+    """Tests for _coerce_pyarrow_types_to_pandas_types function."""
+
+    def test_converts_int64_to_int64(self):
+        """Test that int64 columns are converted to Int64 (nullable integer)."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"]
+        })
+        df["col1"] = df["col1"].astype("int64")  # Non-nullable int
+        dtypes_map = {"col1": "Int64"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "Int64"
+        expected = pd.Series([1, 2, 3], dtype="Int64", name="col1")
+        pd.testing.assert_series_equal(result["col1"], expected)
+
+    def test_converts_float64_to_float64(self):
+        """Test that float64 columns are converted to Float64 (nullable float)."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1.1, 2.2, 3.3],
+            "col2": ["a", "b", "c"]
+        })
+        df["col1"] = df["col1"].astype("float64")  # Non-nullable float
+        dtypes_map = {"col1": "Float64"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "Float64"
+        expected = pd.Series([1.1, 2.2, 3.3], dtype="Float64", name="col1")
+        pd.testing.assert_series_equal(result["col1"], expected)
+
+    def test_converts_object_to_string(self):
+        """Test that object dtype columns are converted to string dtype."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": ["a", "b", "c"],
+            "col2": [1, 2, 3]
+        })
+        df["col1"] = df["col1"].astype("object")  # Object dtype
+        dtypes_map = {"col1": "string"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "string"
+        expected = pd.Series(["a", "b", "c"], dtype="string", name="col1")
+        pd.testing.assert_series_equal(result["col1"], expected)
+
+    def test_converts_to_bool(self):
+        """Test that columns are converted to boolean (nullable) dtype."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [True, False, True],
+            "col2": ["a", "b", "c"]
+        })
+        dtypes_map = {"col1": "bool"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "boolean"
+        expected = pd.Series([True, False, True], dtype="boolean", name="col1")
+        pd.testing.assert_series_equal(result["col1"], expected)
+
+    def test_converts_to_object(self):
+        """Test that columns are converted to object dtype."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"]
+        })
+        dtypes_map = {"col1": "object"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "object"
+        expected = pd.Series([1, 2, 3], dtype="object", name="col1")
+        pd.testing.assert_series_equal(result["col1"], expected)
+
+    def test_handles_missing_columns_gracefully(self):
+        """Test that missing columns in dtypes_map are ignored."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"]
+        })
+        dtypes_map = {"col1": "Int64", "missing_col": "string"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "col2" in result.columns
+        assert "missing_col" not in result.columns
+        assert result["col1"].dtype == "Int64"
+
+    def test_handles_multiple_columns(self):
+        """Test that multiple columns are converted correctly."""
+        # Arrange
+        df = pd.DataFrame({
+            "int_col": [1, 2, 3],
+            "float_col": [1.1, 2.2, 3.3],
+            "string_col": ["a", "b", "c"],
+            "bool_col": [True, False, True]
+        })
+        df["int_col"] = df["int_col"].astype("int64")
+        df["float_col"] = df["float_col"].astype("float64")
+        df["string_col"] = df["string_col"].astype("object")
+        
+        dtypes_map = {
+            "int_col": "Int64",
+            "float_col": "Float64",
+            "string_col": "string",
+            "bool_col": "bool"
+        }
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["int_col"].dtype == "Int64"
+        assert result["float_col"].dtype == "Float64"
+        assert result["string_col"].dtype == "string"
+        assert result["bool_col"].dtype == "boolean"
+
+    def test_handles_conversion_errors_gracefully(self, mocker):
+        """Test that conversion errors are logged as warnings but don't fail."""
+        # Arrange
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "col1": ["invalid", "for", "int"],
+            "col2": ["a", "b", "c"]
+        })
+        dtypes_map = {"col1": "Int64"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        # Function should complete without raising
+        assert "col1" in result.columns
+        # Warning should be logged
+        mock_logger.warning.assert_called()
+        warning_call = mock_logger.warning.call_args[0][0]
+        assert "Failed to convert column col1" in warning_call
+
+    def test_handles_nullable_integers(self):
+        """Test that nullable integers with NaN values are handled correctly."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, None],
+            "col2": ["a", "b", "c"]
+        })
+        df["col1"] = df["col1"].astype("Int64")  # Already nullable
+        dtypes_map = {"col1": "Int64"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "Int64"
+        assert pd.isna(result["col1"].iloc[2])
+
+    def test_handles_nullable_floats(self):
+        """Test that nullable floats with NaN values are handled correctly."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1.1, 2.2, None],
+            "col2": ["a", "b", "c"]
+        })
+        df["col1"] = df["col1"].astype("Float64")  # Already nullable
+        dtypes_map = {"col1": "Float64"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "Float64"
+        assert pd.isna(result["col1"].iloc[2])
+
+    def test_returns_same_dataframe_when_no_dtypes_map(self):
+        """Test that function returns original dataframe when dtypes_map is empty."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"]
+        })
+        original_dtypes = df.dtypes.copy()
+        dtypes_map = {}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        pd.testing.assert_frame_equal(result, df)
+        assert result.dtypes.equals(original_dtypes)
+
+
+class TestFilterLoadedDataByLatestTimestamp:
+    """Tests for _filter_loaded_data_by_latest_timestamp function."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, mocker):
+        """Set up common test fixtures."""
+        # Mock service metadata
+        self.mock_metadata = {
+            "test_service": {
+                "timestamp_field": "preprocessing_timestamp"
+            },
+            "preprocessed_posts": {
+                "timestamp_field": "preprocessing_timestamp"
+            }
+        }
+        mocker.patch("lib.db.manage_local_data.MAP_SERVICE_TO_METADATA", self.mock_metadata)
+
+    def test_filters_data_after_timestamp(self, mocker):
+        """Test that data is filtered to include only records after latest_timestamp."""
+        # Arrange
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "preprocessing_timestamp": [
+                "2024-03-01T00:00:00",
+                "2024-03-02T12:00:00",
+                "2024-03-03T00:00:00",
+                "2024-03-04T00:00:00"
+            ],
+            "col1": [1, 2, 3, 4],
+            "col2": ["a", "b", "c", "d"]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 3  # Should include 2024-03-02, 2024-03-03, 2024-03-04
+        assert all(result["preprocessing_timestamp"] >= latest_timestamp)
+        assert "2024-03-01T00:00:00" not in result["preprocessing_timestamp"].values
+        mock_logger.info.assert_called_once_with(f"Fetching data after timestamp={latest_timestamp}")
+
+    def test_filters_data_at_exact_timestamp(self, mocker):
+        """Test that data at exact timestamp is included."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "preprocessing_timestamp": [
+                "2024-03-02T00:00:00",
+                "2024-03-02T12:00:00",
+                "2024-03-03T00:00:00"
+            ],
+            "col1": [1, 2, 3]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 3  # All records should be included (>=)
+        assert all(result["preprocessing_timestamp"] >= latest_timestamp)
+
+    def test_handles_empty_dataframe(self, mocker):
+        """Test that empty dataframe is handled correctly."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame(columns=["preprocessing_timestamp", "col1"])
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 0
+        assert result.columns.equals(df.columns)
+
+    def test_handles_all_data_before_timestamp(self, mocker):
+        """Test that all data before timestamp results in empty dataframe."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "preprocessing_timestamp": [
+                "2024-03-01T00:00:00",
+                "2024-03-01T12:00:00"
+            ],
+            "col1": [1, 2]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 0
+
+    def test_handles_all_data_after_timestamp(self, mocker):
+        """Test that all data after timestamp is included."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "preprocessing_timestamp": [
+                "2024-03-03T00:00:00",
+                "2024-03-04T00:00:00",
+                "2024-03-05T00:00:00"
+            ],
+            "col1": [1, 2, 3]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 3
+        pd.testing.assert_frame_equal(result, df)
+
+    def test_preserves_all_columns(self, mocker):
+        """Test that all columns are preserved in the filtered result."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "preprocessing_timestamp": [
+                "2024-03-01T00:00:00",
+                "2024-03-02T12:00:00",
+                "2024-03-03T00:00:00"
+            ],
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "col3": [True, False, True],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert set(result.columns) == set(df.columns)
+        assert len(result) == 2  # Two records after timestamp
+
+    def test_uses_correct_timestamp_field_for_service(self, mocker):
+        """Test that the correct timestamp field is used based on service."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        # Update metadata to use different timestamp field
+        mock_metadata = {
+            "custom_service": {
+                "timestamp_field": "created_at"
+            }
+        }
+        mocker.patch("lib.db.manage_local_data.MAP_SERVICE_TO_METADATA", mock_metadata)
+        
+        df = pd.DataFrame({
+            "created_at": [
+                "2024-03-01T00:00:00",
+                "2024-03-02T12:00:00",
+                "2024-03-03T00:00:00"
+            ],
+            "col1": [1, 2, 3]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="custom_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 2
+        assert all(result["created_at"] >= latest_timestamp)
+
+    def test_handles_string_timestamps(self, mocker):
+        """Test that string timestamps are compared correctly."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "preprocessing_timestamp": [
+                "2024-03-01T00:00:00",
+                "2024-03-02T12:00:00",
+                "2024-03-03T00:00:00"
+            ],
+            "col1": [1, 2, 3]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 2
+        # Verify string comparison works (lexicographic comparison for ISO format)
+        assert all(result["preprocessing_timestamp"] >= latest_timestamp)
+
+
+class TestConditionallyDropExtraColumns:
+    """Tests for _conditionally_drop_extra_columns function."""
+
+    def test_drops_only_compaction_columns(self):
+        """Test that only compaction columns are dropped, not original data columns."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "row_num": [1, 2, 3],  # Compaction column
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],  # Compaction column
+            "startTimestamp": ["2024-03-01T00:00:00", "2024-03-02T00:00:00", "2024-03-03T00:00:00"],  # Compaction column
+        })
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=None)
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "col2" in result.columns
+        assert "row_num" not in result.columns
+        assert "partition_date" not in result.columns
+        assert "startTimestamp" not in result.columns
+
+    def test_preserves_compaction_columns_in_always_include(self):
+        """Test that compaction columns are preserved when in columns_to_always_include."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+            "row_num": [1, 2, 3],
+        })
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=["partition_date"])
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "partition_date" in result.columns  # Preserved
+        assert "row_num" not in result.columns  # Dropped
+
+    def test_preserves_all_columns_when_no_compaction_columns(self):
+        """Test that all original columns are preserved when no compaction columns exist."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "col3": [True, False, True],
+        })
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=None)
+        
+        # Assert
+        assert set(result.columns) == set(df.columns)
+        pd.testing.assert_frame_equal(result, df)
+
+    def test_handles_empty_dataframe(self):
+        """Test that empty dataframe is handled correctly."""
+        # Arrange
+        df = pd.DataFrame()
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=None)
+        
+        # Assert
+        assert len(result.columns) == 0
+        pd.testing.assert_frame_equal(result, df)
+
+    def test_handles_empty_columns_to_always_include(self):
+        """Test that empty columns_to_always_include list works correctly."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+        })
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=[])
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "partition_date" not in result.columns
+
+    def test_handles_none_columns_to_always_include(self):
+        """Test that None columns_to_always_include is handled correctly."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+        })
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=None)
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "partition_date" not in result.columns
+
+    def test_drops_all_compaction_columns_when_not_in_always_include(self):
+        """Test that all compaction columns are dropped when not in always_include."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "row_num": [1, 2, 3],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+            "startTimestamp": ["2024-03-01T00:00:00", "2024-03-02T00:00:00", "2024-03-03T00:00:00"],
+        })
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=["col1"])
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "row_num" not in result.columns
+        assert "partition_date" not in result.columns
+        assert "startTimestamp" not in result.columns
+
+
+class TestLoadDataFromLocalStorageJsonl:
+    """Tests for _load_data_from_local_storage_jsonl function."""
+
+    def test_preserves_original_columns(self, mocker):
+        """Test that JSONL loader preserves original data columns."""
+        # Arrange
+        mock_read_json = mocker.patch("pandas.read_json")
+        df_with_original_cols = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "col3": [True, False, True],
+        })
+        mock_read_json.return_value = df_with_original_cols
+        
+        # Act
+        result = _load_data_from_local_storage_jsonl(["file1.jsonl"])
+        
+        # Assert
+        assert set(result.columns) == {"col1", "col2", "col3"}
+        pd.testing.assert_frame_equal(result, df_with_original_cols)
+
+    def test_drops_compaction_columns(self, mocker):
+        """Test that JSONL loader drops compaction columns."""
+        # Arrange
+        mock_read_json = mocker.patch("pandas.read_json")
+        df_with_compaction = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+            "row_num": [1, 2, 3],
+        })
+        mock_read_json.return_value = df_with_compaction
+        
+        # Act
+        result = _load_data_from_local_storage_jsonl(["file1.jsonl"])
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "col2" in result.columns
+        assert "partition_date" not in result.columns
+        assert "row_num" not in result.columns
+
+    def test_handles_multiple_files(self, mocker):
+        """Test that JSONL loader handles multiple files correctly."""
+        # Arrange
+        mock_read_json = mocker.patch("pandas.read_json")
+        df1 = pd.DataFrame({"col1": [1, 2], "col2": ["a", "b"]})
+        df2 = pd.DataFrame({"col1": [3, 4], "col2": ["c", "d"]})
+        mock_read_json.side_effect = [df1, df2]
+        
+        # Act
+        result = _load_data_from_local_storage_jsonl(["file1.jsonl", "file2.jsonl"])
+        
+        # Assert
+        assert len(result) == 4
+        assert set(result.columns) == {"col1", "col2"}
+
+
+class TestLoadDataFromLocalStorageDuckdb:
+    """Tests for _load_data_from_local_storage_duckdb function."""
+
+    @pytest.fixture
+    def mock_duckdb_import(self, mocker):
+        """Mock DuckDB class and methods"""
+        mock_duckdb_instance = mocker.MagicMock()
+        mocker.patch("lib.db.manage_local_data.duckDB", mock_duckdb_instance)
+        return mock_duckdb_instance
+
+    def test_preserves_query_columns(self, mocker, mock_duckdb_import):
+        """Test that DuckDB loader preserves columns from query metadata."""
+        # Arrange
+        query_cols = ["col1", "col2", "col3"]
+        df_with_query_cols = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "col3": [True, False, True],
+        })
+        mock_duckdb_import.run_query_as_df.return_value = df_with_query_cols
+        
+        query_metadata = {
+            "tables": [{"name": "test", "columns": query_cols}]
+        }
+        
+        # Act
+        result = _load_data_from_local_storage_duckdb(
+            duckdb_query="SELECT * FROM test",
+            query_metadata=query_metadata,
+            filepaths=["file1.parquet"]
+        )
+        
+        # Assert
+        assert set(result.columns) == set(query_cols)
+        pd.testing.assert_frame_equal(result, df_with_query_cols)
+
+    def test_drops_compaction_columns_not_in_query(self, mocker, mock_duckdb_import):
+        """Test that DuckDB loader drops compaction columns not in query metadata."""
+        # Arrange
+        query_cols = ["col1", "col2"]
+        df_with_compaction = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+            "row_num": [1, 2, 3],
+        })
+        mock_duckdb_import.run_query_as_df.return_value = df_with_compaction
+        
+        query_metadata = {
+            "tables": [{"name": "test", "columns": query_cols}]
+        }
+        
+        # Act
+        result = _load_data_from_local_storage_duckdb(
+            duckdb_query="SELECT * FROM test",
+            query_metadata=query_metadata,
+            filepaths=["file1.parquet"]
+        )
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "col2" in result.columns
+        assert "partition_date" not in result.columns
+        assert "row_num" not in result.columns
+
+    def test_preserves_compaction_columns_in_query(self, mocker, mock_duckdb_import):
+        """Test that DuckDB loader preserves compaction columns when in query metadata."""
+        # Arrange
+        query_cols = ["col1", "partition_date"]  # partition_date is in query
+        df_with_compaction = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+            "row_num": [1, 2, 3],  # Not in query, should be dropped
+        })
+        mock_duckdb_import.run_query_as_df.return_value = df_with_compaction
+        
+        query_metadata = {
+            "tables": [{"name": "test", "columns": query_cols}]
+        }
+        
+        # Act
+        result = _load_data_from_local_storage_duckdb(
+            duckdb_query="SELECT col1, partition_date FROM test",
+            query_metadata=query_metadata,
+            filepaths=["file1.parquet"]
+        )
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "partition_date" in result.columns  # Preserved because in query
+        assert "row_num" not in result.columns  # Dropped because not in query
+
+    def test_handles_multiple_tables_in_metadata(self, mocker, mock_duckdb_import):
+        """Test that DuckDB loader handles multiple tables in query metadata."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "col3": [True, False, True],
+        })
+        mock_duckdb_import.run_query_as_df.return_value = df
+        
+        query_metadata = {
+            "tables": [
+                {"name": "table1", "columns": ["col1", "col2"]},
+                {"name": "table2", "columns": ["col3"]}
+            ]
+        }
+        
+        # Act
+        result = _load_data_from_local_storage_duckdb(
+            duckdb_query="SELECT * FROM table1 JOIN table2",
+            query_metadata=query_metadata,
+            filepaths=["file1.parquet"]
+        )
+        
+        # Assert
+        assert set(result.columns) == {"col1", "col2", "col3"}
