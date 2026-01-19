@@ -99,91 +99,6 @@ def convert_timestamp(x, timestamp_format):
     return pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format="%Y-%m-%d")
 
 
-# TODO: update export to have stronger typing.
-def _generate_batches_for_export(
-    df: pd.DataFrame,
-    timestamp_field: str,
-    timestamp_format: Optional[str] = None,
-) -> list[dict]:
-    """Partitions data by date.
-
-    Returns a list of dicts of the following format:
-    {
-        "latest_record_timestamp": str,
-        "data": pd.DataFrame
-    }
-
-    Transforms the timestamp field to a datetime field and then partitions the
-    data by date. Each day's data is stored in a separate dataframe.
-    """
-    # TODO: need to fix column matching. Don't think these overlap correctly.
-    # should process each dtype correctly. Either need the same cols or need
-    # to process each dtype separately.
-
-    # clean timestamp field if relevant.
-    df[timestamp_field] = df[timestamp_field].apply(truncate_timestamp_string)
-
-    try:
-        # convert to datetime
-        df[f"{timestamp_field}_datetime"] = pd.to_datetime(
-            df[timestamp_field], format=timestamp_format
-        )
-        years = df[f"{timestamp_field}_datetime"].dt.year
-        total_invalid_years = sum(1 for year in years if year < 2024)
-        if total_invalid_years > 0:
-            raise ValueError(
-                f"""
-                Some records have years before 2024. This is impossible and an 
-                error on Bluesky's part, so we're going to coerce those records
-                to a default partition date.
-                Total records affected: {total_invalid_years}.
-                """
-            )
-    except Exception as e:
-        # sometimes weird records come along. We'll set these, as a default,
-        # as being written to a default partition_date.
-        logger.warning(f"Error converting timestamp field to datetime: {e}")
-        df[f"{timestamp_field}_datetime"] = df[timestamp_field].apply(
-            lambda x: convert_timestamp(x, timestamp_format)
-        )
-
-    df["partition_date"] = df[f"{timestamp_field}_datetime"].dt.date
-
-    date_groups = df.groupby("partition_date")
-
-    output: list[dict] = []
-
-    for _, group in date_groups:
-        # timestamps need to be transformed into the default format.
-        latest_record_timestamp = (
-            group[f"{timestamp_field}_datetime"]
-            .max()
-            .strftime(DEFAULT_TIMESTAMP_FORMAT)
-        )
-
-        # drop additional grouping columns
-        group = group.drop(columns=[f"{timestamp_field}_datetime"])
-
-        # transform 'partition_date' to "YYYY-MM-DD" format.
-        group["partition_date"] = (
-            group["partition_date"]
-            .apply(lambda x: x.strftime("%Y-%m-%d"))
-            .astype("string")
-        )
-
-        # convert timestamp back to string type.
-        group[timestamp_field] = group[timestamp_field].astype("string")
-
-        output.append(
-            {
-                "latest_record_timestamp": latest_record_timestamp,
-                "data": group,
-            }
-        )
-
-    return output
-
-
 def _convert_service_name_to_db_name(service: str) -> str:
     """Converts the service name to the version used to define the DB.
 
@@ -531,7 +446,92 @@ def _generate_batches_for_special_cases(df: pd.DataFrame) -> list[dict]:
     ]
 
 
-def generate_batches_for_export(
+# TODO: update export to have stronger typing.
+def _generate_batches_for_export_generic(
+    df: pd.DataFrame,
+    timestamp_field: str,
+    timestamp_format: Optional[str] = None,
+) -> list[dict]:
+    """Partitions data by date.
+
+    Returns a list of dicts of the following format:
+    {
+        "latest_record_timestamp": str,
+        "data": pd.DataFrame
+    }
+
+    Transforms the timestamp field to a datetime field and then partitions the
+    data by date. Each day's data is stored in a separate dataframe.
+    """
+    # TODO: need to fix column matching. Don't think these overlap correctly.
+    # should process each dtype correctly. Either need the same cols or need
+    # to process each dtype separately.
+
+    # clean timestamp field if relevant.
+    df[timestamp_field] = df[timestamp_field].apply(truncate_timestamp_string)
+
+    try:
+        # convert to datetime
+        df[f"{timestamp_field}_datetime"] = pd.to_datetime(
+            df[timestamp_field], format=timestamp_format
+        )
+        years = df[f"{timestamp_field}_datetime"].dt.year
+        total_invalid_years = sum(1 for year in years if year < 2024)
+        if total_invalid_years > 0:
+            raise ValueError(
+                f"""
+                Some records have years before 2024. This is impossible and an 
+                error on Bluesky's part, so we're going to coerce those records
+                to a default partition date.
+                Total records affected: {total_invalid_years}.
+                """
+            )
+    except Exception as e:
+        # sometimes weird records come along. We'll set these, as a default,
+        # as being written to a default partition_date.
+        logger.warning(f"Error converting timestamp field to datetime: {e}")
+        df[f"{timestamp_field}_datetime"] = df[timestamp_field].apply(
+            lambda x: convert_timestamp(x, timestamp_format)
+        )
+
+    df["partition_date"] = df[f"{timestamp_field}_datetime"].dt.date
+
+    date_groups = df.groupby("partition_date")
+
+    output: list[dict] = []
+
+    for _, group in date_groups:
+        # timestamps need to be transformed into the default format.
+        latest_record_timestamp = (
+            group[f"{timestamp_field}_datetime"]
+            .max()
+            .strftime(DEFAULT_TIMESTAMP_FORMAT)
+        )
+
+        # drop additional grouping columns
+        group = group.drop(columns=[f"{timestamp_field}_datetime"])
+
+        # transform 'partition_date' to "YYYY-MM-DD" format.
+        group["partition_date"] = (
+            group["partition_date"]
+            .apply(lambda x: x.strftime("%Y-%m-%d"))
+            .astype("string")
+        )
+
+        # convert timestamp back to string type.
+        group[timestamp_field] = group[timestamp_field].astype("string")
+
+        output.append(
+            {
+                "latest_record_timestamp": latest_record_timestamp,
+                "data": group,
+            }
+        )
+
+    return output
+
+
+def _generate_batches_for_export(
     service: str,
     df: pd.DataFrame,
     timestamp_field: str,
@@ -541,7 +541,7 @@ def generate_batches_for_export(
     for the expected export format."""
     if _determine_if_special_case_chunk_generation(service=service):
         return _generate_batches_for_special_cases(df=df)
-    return _generate_batches_for_export(
+    return _generate_batches_for_export_generic(
         df=df, timestamp_field=timestamp_field, timestamp_format=timestamp_format
     )
 
@@ -701,7 +701,7 @@ def export_data_to_local_storage(
         "timestamp_format", DEFAULT_TIMESTAMP_FORMAT
     )
 
-    batches: list[dict] = generate_batches_for_export(
+    batches: list[dict] = _generate_batches_for_export(
         service=service,
         df=df,
         timestamp_field=timestamp_field,
