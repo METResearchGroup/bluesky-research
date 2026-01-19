@@ -209,14 +209,6 @@ def _convert_service_name_to_db_name(service: str) -> str:
         return service
 
 
-def v2_export_data_to_local_storage():
-    # do some sort of date-level validation?
-    # process each chunk.
-    # ... some stuff ...
-    # export based on format.
-    pass
-
-
 def _export_df_to_local_storage_jsonl(
     df: pd.DataFrame,
     local_export_fp: str,
