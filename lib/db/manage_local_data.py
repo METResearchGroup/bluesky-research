@@ -12,6 +12,7 @@ from lib.constants import (
     current_datetime,
     timestamp_format as DEFAULT_TIMESTAMP_FORMAT,
     default_lookback_days,
+    partition_date_format,
 )
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.db.sql.duckdb_wrapper import DuckDB
@@ -795,12 +796,129 @@ def get_service_pa_schema(
     return pa_schema
 
 
-def _load_data_from_local_storage_parquet():
-    pass
+def _assemble_parquet_kwargs(
+    filepaths: list[str],
+    latest_timestamp: str | None,
+    service: str,
+    schema: pa.Schema | None,
+) -> dict:
+    if latest_timestamp:
+        # filter at least on the date field.
+        # We can't partition data on the timestamp since that's too fine-grained, but we can at least partition on date.
+        # This will give at least the subset of data on the correct date.
+        latest_timestamp_date = (
+            pd.to_datetime(latest_timestamp).date().strftime(partition_date_format)
+        )
+        filters = [("partition_date", ">=", latest_timestamp_date)]
+    else:
+        filters = []
+    kwargs = {"path": filepaths}
+    columns: list[str] = load_service_cols(service)
+    if columns:
+        kwargs["columns"] = columns
+    if schema:
+        kwargs["schema"] = schema
+    if filters:
+        kwargs["filters"] = filters  # type: ignore
+    return kwargs
 
 
-def _load_data_from_local_storage_jsonl():
-    pass
+def _coerce_pyarrow_types_to_pandas_types(
+    df: pd.DataFrame, dtypes_map: dict[str, str]
+) -> pd.DataFrame:
+    """Coerce PyArrow types to pandas types.
+
+    When we pass a PyArrow schema to read_parquet, it will coerce the types
+    to PyArrow types. But pandas can differ in how it translates these. For example,
+
+    PyArrow pa.int64() can be read as pandas int64 (non-nullable) or Int64 (nullable) depending on the data
+    PyArrow pa.string() is often read as pandas object dtype, not string dtype
+    PyArrow pa.bool_() may be read as bool (non-nullable) instead of boolean (nullable)
+
+    The dtype conversion after reading ensures:
+    - Int64 (nullable integer) instead of int64 (non-nullable)
+    - Float64 (nullable float) instead of float64 (non-nullable)
+    - string dtype instead of object dtype
+    - bool/boolean as expected
+
+    This keeps downstream code consistent with the expected nullable pandas
+    dtypes, regardless of what pandas infers from the PyArrow schema.
+    """
+    for col, dtype in dtypes_map.items():
+        if col in df.columns:
+            try:
+                if dtype == "Int64":
+                    df[col] = df[col].astype("Int64")
+                elif dtype == "Float64":
+                    df[col] = df[col].astype("Float64")
+                elif dtype == "bool":
+                    df[col] = df[col].astype("bool")
+                elif dtype == "object":
+                    df[col] = df[col].astype("object")
+                elif dtype == "string":
+                    df[col] = df[col].astype("string")
+            except Exception as e:
+                logger.warning(f"Failed to convert column {col} to type {dtype}: {e}")
+    return df
+
+
+def _load_data_from_local_storage_parquet(
+    filepaths: list[str],
+    latest_timestamp: str | None,
+    service: str,
+    custom_args: dict | None,
+) -> pd.DataFrame:
+    """Load data from local storage using PyArrow.
+
+    Args:
+        filepaths: List of filepaths to load data from
+        latest_timestamp: Only load data after this timestamp
+        service: Name of the service to load data from
+        custom_args: Optional custom arguments for the service. Currently
+        only used for "raw_sync" to specify the record_type (NOTE: this is a
+        bit of hacky legacy code that should be refactored out eventually)
+
+    Returns:
+        DataFrame containing the loaded data
+    """
+    schema: pa.Schema | None = get_service_pa_schema(
+        service=service, custom_args=custom_args
+    )
+    kwargs = _assemble_parquet_kwargs(
+        filepaths=filepaths,
+        latest_timestamp=latest_timestamp,
+        service=service,
+        schema=schema,
+    )
+    df = pd.read_parquet(**kwargs)
+    if schema is not None:
+        # attempt to convert dtypes after the fact, but only for columns that exist
+        if service == "raw_sync":
+            record_type = (
+                custom_args.get("record_type", None)
+                if custom_args is not None
+                else None
+            )
+            if record_type is None:
+                raise ValueError("Must provide record_type when loading raw_sync data.")
+            dtypes_map = MAP_SERVICE_TO_METADATA[service]["dtypes_map"].get(
+                record_type, {}
+            )
+        else:
+            dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", {})
+        df = _coerce_pyarrow_types_to_pandas_types(df=df, dtypes_map=dtypes_map)
+    return df
+
+
+def _load_single_jsonl_file(filepath: str) -> pd.DataFrame:
+    df = pd.read_json(filepath, orient="records", lines=True)
+    return df
+
+
+def _load_data_from_local_storage_jsonl(filepaths: list[str]) -> pd.DataFrame:
+    df = pd.concat([_load_single_jsonl_file(filepath) for filepath in filepaths])
+    df = _conditionally_drop_extra_columns(df=df)
+    return df
 
 
 def _validate_use_duckdb(
@@ -854,6 +972,18 @@ def _load_data_from_local_storage_duckdb(
         df=df,
         columns_to_always_include=duckdb_query_cols,
     )
+    return df
+
+
+def _filter_loaded_data_by_latest_timestamp(
+    df: pd.DataFrame,
+    service: str,
+    latest_timestamp: str,
+) -> pd.DataFrame:
+    """Filter loaded data by latest timestamp."""
+    logger.info(f"Fetching data after timestamp={latest_timestamp}")
+    timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
+    df = df[df[timestamp_field] >= latest_timestamp]  # type: ignore
     return df
 
 
@@ -919,72 +1049,23 @@ def load_data_from_local_storage(
             query_metadata=query_metadata,  # type: ignore
             filepaths=filepaths,
         )
-
     elif source_file_format == "jsonl":
-        df = pd.read_json(filepaths, orient="records", lines=True)
+        df = _load_data_from_local_storage_jsonl(filepaths=filepaths)
     elif source_file_format == "parquet":
-        if latest_timestamp:
-            # filter at least on the date field.
-            # We can't partition data on the timestamp since that's too fine-grained, but we can at least partition on date.
-            # This will give at least the subset of data on the correct date.
-            latest_timestamp_date = (
-                pd.to_datetime(latest_timestamp).date().strftime("%Y-%m-%d")
-            )
-            filters = [("partition_date", ">=", latest_timestamp_date)]
-        else:
-            filters = []
-        kwargs = {"path": filepaths}
-        columns: list[str] = load_service_cols(service)
-        schema: Optional[pa.Schema] = get_service_pa_schema(
-            service=service, custom_args=custom_args
+        df = _load_data_from_local_storage_parquet(
+            filepaths=filepaths,
+            latest_timestamp=latest_timestamp,
+            service=service,
+            custom_args=custom_args,
         )
-        if columns:
-            kwargs["columns"] = columns
-        if schema:
-            kwargs["schema"] = schema
-        if filters:
-            kwargs["filters"] = filters
-        df = pd.read_parquet(**kwargs)
-        if schema:
-            # attempt to convert dtypes after the fact, but only for columns that exist
-            if service == "raw_sync":
-                record_type = custom_args["record_type"]
-                dtypes_map = MAP_SERVICE_TO_METADATA[service]["dtypes_map"][record_type]
-            else:
-                dtypes_map = MAP_SERVICE_TO_METADATA[service].get("dtypes_map", {})
-            for col, dtype in dtypes_map.items():
-                if col in df.columns:  # Only convert if column exists
-                    try:
-                        if dtype == "Int64":
-                            df[col] = df[col].astype("Int64")
-                        elif dtype == "Float64":
-                            df[col] = df[col].astype("Float64")
-                        elif dtype == "bool":
-                            df[col] = df[col].astype("bool")
-                        elif dtype == "object":
-                            df[col] = df[col].astype("object")
-                        elif dtype == "string":
-                            df[col] = df[col].astype("string")
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to convert column {col} to type {dtype}: {e}"
-                        )
 
     if latest_timestamp:
-        logger.info(f"Fetching data after timestamp={latest_timestamp}")
-        timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
-        df = df[df[timestamp_field] >= latest_timestamp]
-    # drop extra columns that are added in during compaction steps.
-    # (these will be added back in during compaction anyways)
-    cols_to_drop = ["row_num", "partition_date", "startTimestamp"]
-    for col in cols_to_drop:
-        # don't drop the column if we explicitly query for it.
-        if duckdb_query is not None:
-            if col in df.columns and col not in duckdb_query_cols:
-                df = df.drop(columns=[col])
-        else:
-            if col in df.columns:
-                df = df.drop(columns=[col])
+        df = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service=service,
+            latest_timestamp=latest_timestamp,
+        )
+
     return df
 
 
