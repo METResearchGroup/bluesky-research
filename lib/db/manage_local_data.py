@@ -9,7 +9,6 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from lib.constants import (
-    current_datetime,
     timestamp_format as DEFAULT_TIMESTAMP_FORMAT,
     default_lookback_days,
     partition_date_format,
@@ -44,11 +43,8 @@ EXTRA_COLUMNS_ADDED_DURING_COMPACTION = [
 ]
 
 
-# TODO: come back to this, as the name + signature doesn't match the docstring
-# (docstring implies arbitrary start_timestamp, but the function doesn't
-# take one).
-def data_is_older_than_lookback(
-    end_timestamp: str, lookback_days: int = default_lookback_days
+def is_older_than_lookback(
+    latest_record_timestamp: str, timestamp_format: str, lookback_days: int
 ) -> bool:
     """Returns True if the data is older than the lookback days.
 
@@ -64,10 +60,14 @@ def data_is_older_than_lookback(
     lead to a maximum staleness < 24 hours past the threshold. We can make
     this more strict if needed.
     """
-    lookback_date = (current_datetime - timedelta(days=lookback_days)).strftime(
-        "%Y-%m-%d"
+    latest_record_ts = pd.to_datetime(latest_record_timestamp, format=timestamp_format)
+    lookback_ts = pd.to_datetime(
+        (pd.Timestamp.utcnow() - timedelta(days=lookback_days)).strftime(
+            timestamp_format
+        ),
+        format=timestamp_format,
     )
-    return end_timestamp < lookback_date
+    return latest_record_ts < lookback_ts
 
 
 # NOTE: come back to this after refactoring `partition_data_by_date`, so
@@ -491,8 +491,24 @@ def _export_df_to_local_storage_parquet(
         raise
 
 
-def determine_local_prefix_for_export() -> str:
+def _determine_local_prefix_for_export() -> str:
     return ""
+
+
+def _determine_storage_tier_for_export(
+    latest_record_timestamp: str, timestamp_format: str, lookback_days: int
+) -> Literal["cache", "active"]:
+    """Determines the storage tier for a given export, based on the
+    latest record timestamp and the lookback days.
+    """
+    if is_older_than_lookback(
+        latest_record_timestamp=latest_record_timestamp,
+        timestamp_format=timestamp_format,
+        lookback_days=lookback_days,
+    ):
+        return "cache"
+    else:
+        return "active"
 
 
 def export_data_to_local_storage(
@@ -601,13 +617,12 @@ def export_data_to_local_storage(
             continue
         end_timestamp: str = chunk["end_timestamp"]
         chunk_df: pd.DataFrame = chunk["data"]
-        file_created_timestamp = generate_current_datetime_str()
-        if data_is_older_than_lookback(
-            end_timestamp=end_timestamp, lookback_days=lookback_days
-        ):
-            storage_tier = "cache"
-        else:
-            storage_tier = "active"
+
+        storage_tier: str = _determine_storage_tier_for_export(
+            latest_record_timestamp=end_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
 
         # drop extra old column from compaction. Keep partition_date.
         # since we use it on writes.
@@ -621,8 +636,8 @@ def export_data_to_local_storage(
         os.makedirs(export_folder_path, exist_ok=True)
 
         if export_format == "jsonl":
+            file_created_timestamp = generate_current_datetime_str()
             filename: str = f"fileCreatedTimestamp={file_created_timestamp}.jsonl"
-
             full_export_filepath: str = os.path.join(export_folder_path, filename)
             _export_df_to_local_storage_jsonl(
                 df=chunk_df, local_export_fp=full_export_filepath
