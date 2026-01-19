@@ -18,7 +18,11 @@ from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.db.sql.duckdb_wrapper import DuckDB
 from lib.datetime_utils import generate_current_datetime_str, truncate_timestamp_string
 from lib.log.logger import get_logger
-from lib.path_utils import crawl_local_prefix, filter_filepaths_by_date_range
+from lib.path_utils import (
+    create_directory_if_not_exists,
+    crawl_local_prefix,
+    filter_filepaths_by_date_range,
+)
 
 logger = get_logger(__name__)
 duckDB = DuckDB()
@@ -592,27 +596,31 @@ def export_data_to_local_storage(
         if data_is_older_than_lookback(
             end_timestamp=end_timestamp, lookback_days=lookback_days
         ):
-            subfolder = "cache"
+            storage_tier = "cache"
         else:
-            subfolder = "active"
-        # drop extra old column from compactions
-        for col in ["row_num", "startTimestamp"]:
-            if col in chunk_df.columns:
-                chunk_df = chunk_df.drop(columns=[col])
+            storage_tier = "active"
+
+        # drop extra old column from compaction. Keep partition_date.
+        # since we use it on writes.
+        chunk_df = _conditionally_drop_extra_columns(
+            df=chunk_df,
+            columns_to_always_include=["partition_date"],
+        )
+
         # /{root path}/{service-specific path}/{cache / active}/{filename}
-        folder_path = os.path.join(local_prefix, subfolder)
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-        local_export_fp = os.path.join(folder_path, filename)
+        export_folder_path: str = os.path.join(local_prefix, storage_tier)
+        create_directory_if_not_exists(export_folder_path)
+
         if export_format == "jsonl":
+            full_export_filepath: str = os.path.join(export_folder_path, filename)
             _export_df_to_local_storage_jsonl(
-                df=chunk_df, local_export_fp=local_export_fp
+                df=chunk_df, local_export_fp=full_export_filepath
             )
         elif export_format == "parquet":
             _export_df_to_local_storage_parquet(
                 df=chunk_df,
                 service=service,
-                export_folder_path=folder_path,
+                export_folder_path=export_folder_path,
                 timestamp_field=timestamp_field,
                 timestamp_format=timestamp_format,
                 custom_args=custom_args,
