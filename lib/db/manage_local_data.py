@@ -205,6 +205,22 @@ def _convert_service_name_to_db_name(service: str) -> str:
         return service
 
 
+def v2_export_data_to_local_storage():
+    # do some sort of date-level validation?
+    # process each chunk.
+    # ... some stuff ...
+    # export based on format.
+    pass
+
+
+def _export_df_to_local_storage_jsonl(
+    df: pd.DataFrame,
+    local_export_fp: str,
+) -> None:
+    """Exports a dataframe to a local storage JSONL file."""
+    df.to_json(local_export_fp, orient="records", lines=True)
+
+
 def export_data_to_local_storage(
     service: str,
     df: pd.DataFrame,
@@ -333,7 +349,9 @@ def export_data_to_local_storage(
             os.makedirs(folder_path)
         local_export_fp = os.path.join(folder_path, filename)
         if export_format == "jsonl":
-            chunk_df.to_json(local_export_fp, orient="records", lines=True)
+            _export_df_to_local_storage_jsonl(
+                df=chunk_df, local_export_fp=local_export_fp
+            )
         elif export_format == "parquet":
             # by default, we partition on the timestamp field. This will
             # allow us to use predicates when doing reads.
