@@ -338,13 +338,77 @@ def _select_partition_date_for_export(
     return output_partition_dates[0]
 
 
+def _convert_pandas_table_to_pyarrow_table(
+    df: pd.DataFrame,
+    service: str,
+    custom_args: dict | None = None
+) -> pa.Table:
+    """Converts a pandas dataframe to a pyarrow table.
+
+    Ensures that pyarrow schemas are strongly enforced on writes. Uses
+    the service's schema and dtypes map to ensure that the dataframe is
+    coerced to the correct types.
+
+    Args:
+        df: Pandas dataframe to convert
+        service: Service name
+        custom_args: Optional custom arguments for the service. Currently
+        only used for "raw_sync" to specify the record_type (NOTE: this is a
+        bit of hacky legacy code that should be refactored out eventually)
+
+    Returns:
+        PyArrow table
+    """
+    schema: Optional[pa.Schema] = get_service_pa_schema(
+        service=service, custom_args=custom_args
+    )
+    if schema:
+        dtypes_map: dict = (
+            _get_service_dtypes_map(
+                service=service, custom_args=custom_args
+            )
+        )
+        df: pd.DataFrame = _coerce_df_to_dtypes_map(df, dtypes_map)
+        table: pa.Table = pa.Table.from_pandas(
+            df[schema.names],
+            schema=schema,
+            preserve_index=False,
+            safe=True,
+        )
+    else:
+        logger.warning(
+            f"[Service = {service}] No PyArrow schema available; skipping schema enforcement. "
+            f"This may lead to schema drift."
+        )
+        table = pa.Table.from_pandas(df, preserve_index=False)
+    return table
+
+
 def _export_df_to_local_storage_parquet(
     df: pd.DataFrame,
     service: str,
+    export_folder_path: str,
     timestamp_field: str,
     timestamp_format: str,
+    custom_args: dict | None = None,
 ) -> None:
-    """Exports a dataframe to a local storage Parquet file."""
+    """Exports a dataframe to a local storage Parquet file.
+    
+    Args:
+        df: Pandas dataframe to export
+        service: Service name
+        export_folder_path: Path to the folder to export the dataframe to. For
+        parquet exports, we just specify the folder itself; parquet determines
+        the names based on hashing.`
+        timestamp_field: Name of the timestamp field used for the service.
+        timestamp_format: Format of the timestamp field
+        custom_args: Optional custom arguments for the service. Currently
+        only used for "raw_sync" to specify the record_type (NOTE: this is a
+        bit of hacky legacy code that should be refactored out eventually)
+
+    Returns:
+        None
+    """
     partition_cols = _get_parquet_partition_cols(service)
     if df.empty:
         logger.warning(
@@ -365,6 +429,16 @@ def _export_df_to_local_storage_parquet(
     partition_date_for_export: str = _select_partition_date_for_export(df=df)
     logger.info(
         f"[Service = {service}, Partition Date = {partition_date_for_export}] Exporting n={len(df)} records to {folder_path}..."
+    )
+    pyarrow_table: pa.Table = _convert_pandas_table_to_pyarrow_table(
+        df=df,
+        service=service,
+        custom_args=custom_args,
+    )
+    pq.write_to_dataset(
+        table=pyarrow_table,
+        root_path=export_folder_path,
+        partition_cols=partition_cols
     )
 
 
@@ -850,9 +924,10 @@ def load_service_cols(service: str) -> list[str]:
     return []
 
 
+# TODO: need to look at this closer and refactor.
 def _get_service_dtypes_map(
-    service: str, custom_args: Optional[dict] = None
-) -> Optional[dict[str, str]]:
+    service: str, custom_args: dict | None = None
+) -> dict[str, str]:
     """Return a copy of the configured dtypes map for a service.
 
     For `raw_sync`, the dtypes map is keyed by `record_type` and must be
@@ -868,7 +943,7 @@ def _get_service_dtypes_map(
                 .get(record_type, {})
             )
     if not dtypes_map:
-        return None
+        return {}
     # Copy to avoid mutating MAP_SERVICE_TO_METADATA.
     return dict(dtypes_map)
 
@@ -944,9 +1019,9 @@ def pd_type_to_pa_type(pd_type):
 
 
 def get_service_pa_schema(
-    service: str, custom_args: Optional[dict] = None
-) -> Optional[pa.Schema]:
-    dtypes_map = _get_service_dtypes_map(service=service, custom_args=custom_args)
+    service: str, custom_args: dict | None = None
+) -> pa.Schema | None:
+    dtypes_map: dict = _get_service_dtypes_map(service=service, custom_args=custom_args)
     # we add this here since when we transform the initial loaded dicts to
     # df (prior to writes), we don't have partition_date yet. However, we
     # want this to exist on read.
@@ -956,9 +1031,8 @@ def get_service_pa_schema(
         pa_schema = pa.schema(
             [(col, pd_type_to_pa_type(dtype)) for col, dtype in dtypes_map.items()]
         )
-    else:
-        pa_schema = None
-    return pa_schema
+        return pa_schema
+    return None
 
 
 def _assemble_parquet_kwargs(
