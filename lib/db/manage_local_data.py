@@ -228,9 +228,7 @@ def _export_df_to_local_storage_jsonl(
             f"Successfully exported {local_export_fp} data to {local_export_fp} as JSONL"
         )
     except Exception as e:
-        logger.error(
-            f"Error exporting {local_export_fp} data to {local_export_fp} as JSONL: {e}"
-        )
+        logger.error(f"Error exporting data to {local_export_fp} as JSONL: {e}")
         raise
 
 
@@ -241,6 +239,20 @@ def _get_parquet_partition_cols(service: str) -> list[str]:
     # thing going on here before where we had used this field? We'll keep it for
     # now and reconsider later once we have more context.
     return MAP_SERVICE_TO_METADATA[service].get("partition_cols", ["partition_date"])
+
+
+def _validate_partition_date_column(df: pd.DataFrame) -> bool:
+    """Validates the partition_date column.
+
+    Returns True if the partition_date column is valid, False otherwise.
+    """
+    try:
+        pd.to_datetime(
+            df["partition_date"], format=partition_date_format, errors="raise"
+        )
+        return df["partition_date"].notna().all()  # type: ignore
+    except Exception:
+        return False
 
 
 def _derive_or_normalize_partition_date_column(
@@ -265,8 +277,9 @@ def _derive_or_normalize_partition_date_column(
     single unified string representation.
     """
 
-    if "partition_date" in df.columns:
-        df["partition_date"] = df["partition_date"].astype("string")
+    partition_date_field_is_valid: bool = _validate_partition_date_column(df)
+
+    if partition_date_field_is_valid:
         return df
 
     if timestamp_field not in df.columns:
