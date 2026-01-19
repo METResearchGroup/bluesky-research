@@ -161,6 +161,36 @@ def _validate_partition_date_column(df: pd.DataFrame) -> bool:
         return False
 
 
+def _apply_partition_date_business_logic_filters(
+    ts_dt: pd.Series,
+    service: str,
+) -> pd.Series:
+    """Apply business-logic filters for partition dates.
+
+    Rules:
+    - Any unparseable timestamps become DEFAULT_ERROR_PARTITION_DATE.
+    - Any timestamps with year < 2024 become DEFAULT_ERROR_PARTITION_DATE.
+
+    This function is intentionally the single place where we encode custom
+    partition-date rules so they don't drift across callers.
+    """
+    ts_dt = pd.to_datetime(ts_dt, errors="coerce")
+
+    invalid_year_mask = ts_dt.dt.year < 2024
+    if bool(invalid_year_mask.any()):  # pandas returns numpy bool; normalize
+        invalid_count = int(invalid_year_mask.sum())
+        logger.warning(
+            f"[Service = {service}] Found n={invalid_count} timestamps with year < 2024; "
+            f"coercing to DEFAULT_ERROR_PARTITION_DATE={DEFAULT_ERROR_PARTITION_DATE}"
+        )
+        ts_dt = ts_dt.mask(invalid_year_mask)
+
+    ts_dt = ts_dt.fillna(
+        pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format=partition_date_format)
+    )
+    return ts_dt
+
+
 def _derive_or_normalize_partition_date_column(
     df: pd.DataFrame,
     service: str,
@@ -182,37 +212,46 @@ def _derive_or_normalize_partition_date_column(
     that to convert to pandas datetime series, and then convert that to a
     single unified string representation.
     """
+    # NOTE: we always end this function by writing `partition_date` back as a
+    # pandas string dtype in `partition_date_format`, even if it was already
+    # present and valid. This prevents subtle dtype drift across callers.
 
     partition_date_field_is_valid: bool = _validate_partition_date_column(df)
 
-    if partition_date_field_is_valid:
-        return df
-
-    if timestamp_field not in df.columns:
-        logger.warning(
-            f"[Service = {service}] timestamp_field={timestamp_field} not found; using DEFAULT_ERROR_PARTITION_DATE={DEFAULT_ERROR_PARTITION_DATE}"
-        )
-        ts_series: pd.Series = pd.Series(
-            [DEFAULT_ERROR_PARTITION_DATE] * len(df)
-        ).astype("string")
+    if partition_date_field_is_valid and "partition_date" in df.columns:
+        # Normalize existing partition_date column to datetime so we can apply
+        # business-logic filters (e.g., year sanity checks), then re-stringify.
+        partition_series = df["partition_date"]
+        if pd.api.types.is_datetime64_any_dtype(partition_series):
+            ts_dt = pd.to_datetime(partition_series, errors="coerce")
+        else:
+            ts_dt = pd.to_datetime(
+                partition_series.astype("string"),
+                format=partition_date_format,
+                errors="coerce",
+            )
     else:
-        ts_series = (
-            df[timestamp_field].apply(truncate_timestamp_string).astype("string")
-        )  # type: ignore
+        # Derive from the service's timestamp field (or impute if missing).
+        if timestamp_field not in df.columns:
+            logger.warning(
+                f"[Service = {service}] timestamp_field={timestamp_field} not found; "
+                f"using DEFAULT_ERROR_PARTITION_DATE={DEFAULT_ERROR_PARTITION_DATE}"
+            )
+            ts_series: pd.Series = pd.Series(
+                [DEFAULT_ERROR_PARTITION_DATE] * len(df)
+            ).astype("string")
+        else:
+            ts_series = (
+                df[timestamp_field].apply(truncate_timestamp_string).astype("string")
+            )  # type: ignore
 
-    # errors="coerce" in pd.to_datetime converts invalid or unparseable
-    # timestamps to NaT (Not a Time) instead of raising an error. This
-    # ensures the function doesn't fail if some values can't be parsed.
-    ts_dt = pd.to_datetime(ts_series, format=timestamp_format, errors="coerce")
+        # errors="coerce" converts invalid/unparseable timestamps to NaT.
+        ts_dt = pd.to_datetime(ts_series, format=timestamp_format, errors="coerce")
 
-    # impute NaNs with DEFAULT_ERROR_PARTITION_DATE.
-    ts_dt = ts_dt.fillna(
-        pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format=partition_date_format)
-    )
+    ts_dt = _apply_partition_date_business_logic_filters(ts_dt=ts_dt, service=service)
 
-    # convert to string format.
+    # Convert to canonical string format.
     df["partition_date"] = ts_dt.dt.strftime(partition_date_format).astype("string")
-
     return df
 
 
@@ -446,11 +485,11 @@ def _generate_batches_for_special_cases(df: pd.DataFrame) -> list[dict]:
     ]
 
 
-# TODO: update export to have stronger typing.
 def _generate_batches_for_export_generic(
     df: pd.DataFrame,
+    service: str,
     timestamp_field: str,
-    timestamp_format: Optional[str] = None,
+    timestamp_format: str,
 ) -> list[dict]:
     """Partitions data by date.
 
@@ -467,34 +506,31 @@ def _generate_batches_for_export_generic(
     # should process each dtype correctly. Either need the same cols or need
     # to process each dtype separately.
 
-    # clean timestamp field if relevant.
-    df[timestamp_field] = df[timestamp_field].apply(truncate_timestamp_string)
+    # Ensure partition_date exists and is canonical string.
+    df = _derive_or_normalize_partition_date_column(
+        df=df,
+        service=service,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
 
-    try:
-        # convert to datetime
-        df[f"{timestamp_field}_datetime"] = pd.to_datetime(
-            df[timestamp_field], format=timestamp_format
+    # Normalize timestamp field and compute a datetime series for latest_record_timestamp.
+    if timestamp_field not in df.columns:
+        logger.warning(
+            f"[Service = {service}] Expected timestamp_field={timestamp_field} not found; "
+            f"using DEFAULT_ERROR_PARTITION_DATE={DEFAULT_ERROR_PARTITION_DATE} for latest_record_timestamp"
         )
-        years = df[f"{timestamp_field}_datetime"].dt.year
-        total_invalid_years = sum(1 for year in years if year < 2024)
-        if total_invalid_years > 0:
-            raise ValueError(
-                f"""
-                Some records have years before 2024. This is impossible and an 
-                error on Bluesky's part, so we're going to coerce those records
-                to a default partition date.
-                Total records affected: {total_invalid_years}.
-                """
-            )
-    except Exception as e:
-        # sometimes weird records come along. We'll set these, as a default,
-        # as being written to a default partition_date.
-        logger.warning(f"Error converting timestamp field to datetime: {e}")
-        df[f"{timestamp_field}_datetime"] = df[timestamp_field].apply(
-            lambda x: convert_timestamp(x, timestamp_format)
-        )
+        ts_series: pd.Series = pd.Series(
+            [DEFAULT_ERROR_PARTITION_DATE] * len(df)
+        ).astype("string")
+    else:
+        ts_series = df[timestamp_field].apply(truncate_timestamp_string).astype("string")  # type: ignore
 
-    df["partition_date"] = df[f"{timestamp_field}_datetime"].dt.date
+    df[timestamp_field] = ts_series
+    ts_dt = pd.to_datetime(ts_series, format=timestamp_format, errors="coerce")
+    ts_dt = _apply_partition_date_business_logic_filters(ts_dt=ts_dt, service=service)
+    dt_helper_col = f"_{timestamp_field}_datetime"
+    df[dt_helper_col] = ts_dt
 
     date_groups = df.groupby("partition_date")
 
@@ -503,20 +539,13 @@ def _generate_batches_for_export_generic(
     for _, group in date_groups:
         # timestamps need to be transformed into the default format.
         latest_record_timestamp = (
-            group[f"{timestamp_field}_datetime"]
+            group[dt_helper_col]
             .max()
             .strftime(DEFAULT_TIMESTAMP_FORMAT)
         )
 
         # drop additional grouping columns
-        group = group.drop(columns=[f"{timestamp_field}_datetime"])
-
-        # transform 'partition_date' to "YYYY-MM-DD" format.
-        group["partition_date"] = (
-            group["partition_date"]
-            .apply(lambda x: x.strftime("%Y-%m-%d"))
-            .astype("string")
-        )
+        group = group.drop(columns=[dt_helper_col])
 
         # convert timestamp back to string type.
         group[timestamp_field] = group[timestamp_field].astype("string")
@@ -542,7 +571,10 @@ def _generate_batches_for_export(
     if _determine_if_special_case_chunk_generation(service=service):
         return _generate_batches_for_special_cases(df=df)
     return _generate_batches_for_export_generic(
-        df=df, timestamp_field=timestamp_field, timestamp_format=timestamp_format
+        df=df,
+        service=service,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
     )
 
 
