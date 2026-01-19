@@ -1,4 +1,6 @@
 """Tests for lib/db/manage_local_data.py"""
+import json
+import os
 import pandas as pd
 import pytest
 from unittest.mock import Mock, patch
@@ -13,8 +15,13 @@ from lib.db.manage_local_data import (
     _coerce_pyarrow_types_to_pandas_types,
     _filter_loaded_data_by_latest_timestamp,
     _conditionally_drop_extra_columns,
+    _derive_or_normalize_partition_date_column,
+    _export_df_to_local_storage_jsonl,
+    _export_df_to_local_storage_parquet,
     _load_data_from_local_storage_jsonl,
     _load_data_from_local_storage_duckdb,
+    _normalize_timestamp_field,
+    _validate_partition_date_column,
 )
 
 MOCK_SERVICE_METADATA = {
@@ -1215,11 +1222,11 @@ class TestExportDataToLocalStorage:
         assert "test_service" in error_call
 
     def test_missing_partition_date_warning(self, mocker, mock_service_metadata):
-        """Test that warning is logged when partition_date column is missing."""
+        """Test that partition_date is derived when missing (single-day chunk)."""
         df_without_partition = pd.DataFrame({
             "col1": [1, 2],
             "col2": ["a", "b"],
-            "preprocessing_timestamp": ["2024-01-01", "2024-01-02"],
+            "preprocessing_timestamp": ["2024-01-01", "2024-01-01"],
         })
         
         mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
@@ -1228,20 +1235,17 @@ class TestExportDataToLocalStorage:
             "data": df_without_partition
         }])
         mocker.patch("os.makedirs")
-        mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
-        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        mock_write = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
         export_data_to_local_storage(
             service="test_service",
             df=df_without_partition
         )
-        
-        # Verify warning was logged for missing partition_date
-        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
-        assert any("partition_date column missing" in call for call in warning_calls)
+
+        mock_write.assert_called_once()
 
     def test_multiple_partition_dates_warning(self, mocker, mock_service_metadata):
-        """Test that warning is logged when multiple unique partition dates are found."""
+        """Multiple partition dates in a single chunk is not supported."""
         df_with_multiple_dates = pd.DataFrame({
             "col1": [1, 2, 3],
             "col2": ["a", "b", "c"],
@@ -1256,16 +1260,13 @@ class TestExportDataToLocalStorage:
         }])
         mocker.patch("os.makedirs")
         mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
-        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
-        
-        export_data_to_local_storage(
-            service="test_service",
-            df=df_with_multiple_dates
-        )
-        
-        # Verify warning was logged for multiple partition dates
-        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
-        assert any("Multiple unique partition dates found" in call for call in warning_calls)
+
+        with pytest.raises(ValueError, match="Multiple partition dates found"):
+            export_data_to_local_storage(
+                service="test_service",
+                df=df_with_multiple_dates
+            )
+
 
     def test_missing_schema_warning(self, mocker, mock_service_metadata, mock_df):
         """Test that warning is logged when schema is None."""
@@ -1291,6 +1292,152 @@ class TestExportDataToLocalStorage:
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
         assert any("No PyArrow schema available" in call for call in warning_calls)
         assert any("schema drift" in call for call in warning_calls)
+
+
+class TestExportDfToLocalStorage:
+    """Unit tests for the refactored export helpers."""
+
+    def test_export_df_to_local_storage_jsonl_writes_jsonl(self, tmp_path):
+        df = pd.DataFrame({"col1": [1, 2], "col2": ["a", "b"]})
+        out_fp = tmp_path / "out.jsonl"
+
+        _export_df_to_local_storage_jsonl(df=df, local_export_fp=str(out_fp))
+
+        assert out_fp.exists()
+        lines = out_fp.read_text().strip().splitlines()
+        assert len(lines) == 2
+        assert json.loads(lines[0]) == {"col1": 1, "col2": "a"}
+
+    @pytest.mark.parametrize(
+        "partition_dates,expected",
+        [
+            (["2024-01-01", "2024-01-02"], True),
+            (["2024/01/01"], False),
+            ([None], False),
+        ],
+    )
+    def test_validate_partition_date_column(self, partition_dates, expected):
+        df = pd.DataFrame({"partition_date": partition_dates})
+        assert bool(_validate_partition_date_column(df)) is expected
+
+    def test_derive_or_normalize_partition_date_column_recomputes_when_invalid(self):
+        df = pd.DataFrame(
+            {
+                "partition_date": ["not-a-date", "not-a-date"],
+                "preprocessing_timestamp": [
+                    "2024-01-01-00:00:00",
+                    "2024-01-01-12:34:56",
+                ],
+            }
+        )
+
+        df2 = _derive_or_normalize_partition_date_column(
+            df=df,
+            service="test_service",
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        assert df2 is df
+        assert df2["partition_date"].tolist() == ["2024-01-01", "2024-01-01"]
+
+    def test_normalize_timestamp_field_converts_datetime_to_string(self):
+        df = pd.DataFrame(
+            {
+                "preprocessing_timestamp": pd.to_datetime(
+                    ["2024-01-01T00:00:00", "2024-01-01T12:34:56"]
+                )
+            }
+        )
+
+        df2 = _normalize_timestamp_field(
+            df=df,
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%dT%H:%M:%S",
+        )
+
+        assert df2 is df
+        assert df2["preprocessing_timestamp"].dtype == "string"
+        assert df2["preprocessing_timestamp"].tolist() == [
+            "2024-01-01T00:00:00",
+            "2024-01-01T12:34:56",
+        ]
+
+    def test_export_df_to_local_storage_parquet_writes_partitioned_dataset(
+        self, mocker, tmp_path
+    ):
+        # Patch service metadata so schema enforcement is deterministic.
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {
+                "test_service": {
+                    "dtypes_map": {
+                        "col1": "Int64",
+                        "preprocessing_timestamp": "string",
+                    }
+                }
+            },
+        )
+
+        df = pd.DataFrame(
+            {
+                "col1": [1, 2],
+                "preprocessing_timestamp": [
+                    "2024-01-01-00:00:00",
+                    "2024-01-01-12:34:56",
+                ],
+            }
+        )
+        out_dir = tmp_path / "dataset"
+        out_dir.mkdir()
+
+        _export_df_to_local_storage_parquet(
+            df=df,
+            service="test_service",
+            export_folder_path=str(out_dir),
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+            custom_args=None,
+        )
+
+        # Expect a partition directory and at least one parquet file.
+        partition_dir = out_dir / "partition_date=2024-01-01"
+        assert partition_dir.exists()
+        parquet_files = []
+        for root, _, files in os.walk(out_dir):
+            for f in files:
+                if f.endswith(".parquet"):
+                    parquet_files.append(os.path.join(root, f))
+        assert len(parquet_files) >= 1
+
+    def test_export_df_to_local_storage_parquet_raises_on_multiple_partition_dates(
+        self, mocker, tmp_path
+    ):
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"test_service": {"dtypes_map": {"col1": "Int64"}}},
+        )
+        df = pd.DataFrame(
+            {
+                "col1": [1, 2],
+                "preprocessing_timestamp": [
+                    "2024-01-01-00:00:00",
+                    "2024-01-02-00:00:00",
+                ],
+            }
+        )
+        out_dir = tmp_path / "dataset"
+        out_dir.mkdir()
+
+        with pytest.raises(ValueError, match="Multiple partition dates found"):
+            _export_df_to_local_storage_parquet(
+                df=df,
+                service="test_service",
+                export_folder_path=str(out_dir),
+                timestamp_field="preprocessing_timestamp",
+                timestamp_format="%Y-%m-%d-%H:%M:%S",
+                custom_args=None,
+            )
 
 
 class TestCoercePyarrowTypesToPandasTypes:
