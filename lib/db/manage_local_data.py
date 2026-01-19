@@ -944,13 +944,27 @@ def _conditionally_drop_extra_columns(
     Drops extra columns that are added in during compaction steps.
     (these will be added back in during compaction anyways)
 
-    Provides an arg, columns_to_always_include, to always include columns
-    that are wanted by downstream callers.
+    Only removes columns that are in EXTRA_COLUMNS_ADDED_DURING_COMPACTION,
+    except those specified in columns_to_always_include. This preserves
+    original data columns while removing only compaction artifacts.
+
+    Args:
+        df: DataFrame to process
+        columns_to_always_include: Columns to preserve even if they are
+            compaction columns. Defaults to empty list.
+
+    Returns:
+        DataFrame with compaction columns removed (except those in
+        columns_to_always_include).
     """
     columns_to_always_include = columns_to_always_include or []
-    for col in df.columns:
-        if col not in columns_to_always_include:
-            df = df.drop(columns=[col])
+    columns_to_drop = set(EXTRA_COLUMNS_ADDED_DURING_COMPACTION) - set(
+        columns_to_always_include
+    )
+    if columns_to_drop:
+        # errors='ignore' makes df.drop skip any columns in columns_to_drop that
+        # do not exist in the DataFrame, avoiding a KeyError.
+        df = df.drop(columns=list(columns_to_drop), errors="ignore")
     return df
 
 
