@@ -409,37 +409,58 @@ def _export_df_to_local_storage_parquet(
     Returns:
         None
     """
-    partition_cols = _get_parquet_partition_cols(service)
-    if df.empty:
-        logger.warning(
-            f"[Service = {service}] Received empty dataframe; skipping parquet export."
+    try:
+        partition_cols = _get_parquet_partition_cols(service)
+        if df.empty:
+            logger.warning(
+                f"[Service = {service}] Received empty dataframe; skipping parquet export."
+            )
+            return
+        df = _derive_or_normalize_partition_date_column(
+            df=df,
+            service=service,
+            timestamp_field=timestamp_field,
+            timestamp_format=timestamp_format,
         )
-        return
-    df = _derive_or_normalize_partition_date_column(
-        df=df,
-        service=service,
-        timestamp_field=timestamp_field,
-        timestamp_format=timestamp_format,
-    )
-    df = _normalize_timestamp_field(
-        df=df,
-        timestamp_field=timestamp_field,
-        timestamp_format=timestamp_format,
-    )
-    partition_date_for_export: str = _select_partition_date_for_export(df=df)
-    logger.info(
-        f"[Service = {service}, Partition Date = {partition_date_for_export}] Exporting n={len(df)} records to {folder_path}..."
-    )
-    pyarrow_table: pa.Table = _convert_pandas_table_to_pyarrow_table(
-        df=df,
-        service=service,
-        custom_args=custom_args,
-    )
-    pq.write_to_dataset(
-        table=pyarrow_table,
-        root_path=export_folder_path,
-        partition_cols=partition_cols
-    )
+        df = _normalize_timestamp_field(
+            df=df,
+            timestamp_field=timestamp_field,
+            timestamp_format=timestamp_format,
+        )
+        partition_date_for_export: str = _select_partition_date_for_export(df=df)
+        logger.info(
+            f"[Service = {service}, Partition Date = {partition_date_for_export}] Exporting n={len(df)} records to {folder_path}..."
+        )
+        pyarrow_table: pa.Table = _convert_pandas_table_to_pyarrow_table(
+            df=df,
+            service=service,
+            custom_args=custom_args,
+        )
+        pq.write_to_dataset(
+            table=pyarrow_table,
+            root_path=export_folder_path,
+            partition_cols=partition_cols
+        )
+    except pa.ArrowException as e:
+        logger.error(
+            f"[Service = {service}] PyArrow error during Parquet export: {e}"
+        )
+        raise
+    except ValueError as e:
+        logger.error(
+            f"[Service = {service}] Data type coercion error during Parquet export: {e}"
+        )
+        raise
+    except (OSError, IOError) as e:
+        logger.error(
+            f"[Service = {service}] File system error during Parquet export to {export_folder_path}: {e}"
+        )
+        raise
+    except Exception as e:
+        logger.error(
+            f"[Service = {service}] Unexpected error exporting data to local storage: {e}"
+        )
+        raise
 
 
 def export_data_to_local_storage(
