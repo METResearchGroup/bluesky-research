@@ -100,7 +100,7 @@ def convert_timestamp(x, timestamp_format):
 
 
 # TODO: update export to have stronger typing.
-def partition_data_by_date(
+def _generate_batches_for_export(
     df: pd.DataFrame,
     timestamp_field: str,
     timestamp_format: Optional[str] = None,
@@ -517,7 +517,7 @@ def _determine_if_special_case_chunk_generation(service: str) -> bool:
     return MAP_SERVICE_TO_METADATA[service].get("skip_date_validation", False)
 
 
-def _generate_export_chunks_for_special_cases(df: pd.DataFrame) -> list[dict]:
+def _generate_batches_for_special_cases(df: pd.DataFrame) -> list[dict]:
     """Catch-all function for generating export chunks for special cases.
 
     There's quite a bit of technical debt around these cases that we can
@@ -531,7 +531,7 @@ def _generate_export_chunks_for_special_cases(df: pd.DataFrame) -> list[dict]:
     ]
 
 
-def _create_batches_for_export(
+def generate_batches_for_export(
     service: str,
     df: pd.DataFrame,
     timestamp_field: str,
@@ -540,8 +540,8 @@ def _create_batches_for_export(
     """Creates batches of data out of the original dataframe, preparing it
     for the expected export format."""
     if _determine_if_special_case_chunk_generation(service=service):
-        return _generate_export_chunks_for_special_cases(df=df)
-    return partition_data_by_date(
+        return _generate_batches_for_special_cases(df=df)
+    return _generate_batches_for_export(
         df=df, timestamp_field=timestamp_field, timestamp_format=timestamp_format
     )
 
@@ -701,7 +701,7 @@ def export_data_to_local_storage(
         "timestamp_format", DEFAULT_TIMESTAMP_FORMAT
     )
 
-    batches: list[dict] = _create_batches_for_export(
+    batches: list[dict] = generate_batches_for_export(
         service=service,
         df=df,
         timestamp_field=timestamp_field,
