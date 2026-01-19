@@ -221,6 +221,153 @@ def _export_df_to_local_storage_jsonl(
     df.to_json(local_export_fp, orient="records", lines=True)
 
 
+def _get_parquet_partition_cols(service: str) -> list[str]:
+    """Gets the partition columns for a service."""
+    # NOTE: partition_cols is never specified in MAP_SERVICE_TO_METADATA, so we'll
+    # default to "partition_date" for now. There must've been a backwards-compatibility
+    # thing going on here before where we had used this field? We'll keep it for
+    # now and reconsider later once we have more context.
+    return MAP_SERVICE_TO_METADATA[service].get("partition_cols", ["partition_date"])
+
+
+def _derive_or_normalize_partition_date_column(
+    df: pd.DataFrame,
+    service: str,
+    timestamp_field: str,
+    timestamp_format: str,
+) -> pd.DataFrame:
+    """Ensure that the partition_date column exists and is a string.
+
+    We have various ways of generating this partition_date column, based on if
+    it's already present, if there's a timestamp field, or by imputation.
+
+    However, it's critical for our writes that we do have a partition_date
+    column, so we need to ensure that it exists and is a valid string.
+
+    Pandas passes DataFrames by reference, so changes will persist. Returning
+    df is just returning the same modified object.
+
+    We grab the current timestamp field and the format that it's in, use
+    that to convert to pandas datetime series, and then convert that to a
+    single unified string representation.
+    """
+
+    if "partition_date" in df.columns:
+        df["partition_date"] = df["partition_date"].astype("string")
+        return df
+
+    if timestamp_field not in df.columns:
+        logger.warning(
+            f"[Service = {service}] timestamp_field={timestamp_field} not found; using DEFAULT_ERROR_PARTITION_DATE={DEFAULT_ERROR_PARTITION_DATE}"
+        )
+        ts_series: pd.Series = pd.Series(
+            [DEFAULT_ERROR_PARTITION_DATE] * len(df)
+        ).astype("string")
+    else:
+        ts_series = (
+            df[timestamp_field].apply(truncate_timestamp_string).astype("string")
+        )  # type: ignore
+
+    # errors="coerce" in pd.to_datetime converts invalid or unparseable
+    # timestamps to NaT (Not a Time) instead of raising an error. This
+    # ensures the function doesn't fail if some values can't be parsed.
+    ts_dt = pd.to_datetime(ts_series, format=timestamp_format, errors="coerce")
+
+    # impute NaNs with DEFAULT_ERROR_PARTITION_DATE.
+    ts_dt = ts_dt.fillna(
+        pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format=partition_date_format)
+    )
+
+    # convert to string format.
+    df["partition_date"] = ts_dt.dt.strftime(partition_date_format).astype("string")
+
+    return df
+
+
+def _normalize_timestamp_field(
+    df: pd.DataFrame,
+    timestamp_field: str,
+    timestamp_format: str,
+) -> pd.DataFrame:
+    """Normalizes the timestamp field to a string.
+
+    If it's a pandas datetime, convert to string, with the given timestamp_format.
+    Else, if not already a string, convert to astype("string") and log the type.
+    """
+    col = df[timestamp_field]
+    if pd.api.types.is_datetime64_any_dtype(col):
+        # convert to string using the given format
+        df[timestamp_field] = col.dt.strftime(timestamp_format).astype("string")
+    elif not pd.api.types.is_string_dtype(col):
+        logger.warning(
+            f"Field '{timestamp_field}' has dtype={col.dtype}. Converting to string."
+        )
+        df[timestamp_field] = col.astype("string")
+    # If already string, do nothing
+    return df
+
+
+def _select_partition_date_for_export(
+    df: pd.DataFrame,
+) -> str:
+    """Selects the partition date to use for export.
+
+    The current usage assumes that each df written only has 1 partition date
+    applicable for it. We enforce that here.
+
+    It can be possible for a df, in theory, to have multiple partition dates,
+    based on upstream data quality issues or based on problems like timezone
+    mismatches. This can be exacerbated by our timestamp-related transformations,
+    such as converting to a pandas datetime series.
+
+    This function lets us select the partition date to use for export. While doing
+    so, it checks to see if there are multiple partition dates, and if so,
+    throws an error. Callers of this function as well as its downstream dependencies
+    depend on one partition date at a time, so we enforce that here.
+    """
+    output_partition_dates = sorted(df["partition_date"].dropna().unique())
+    if len(output_partition_dates) == 0:
+        raise ValueError(
+            "No partition dates found in dataframe. Please ensure that the dataframe has a partition_date column."
+        )
+    if len(output_partition_dates) > 1:
+        raise ValueError(
+            f"Multiple partition dates found in dataframe: {output_partition_dates}. "
+            "This is not supported. Please ensure that the dataframe only has one partition date."
+        )
+    return output_partition_dates[0]
+
+
+def _export_df_to_local_storage_parquet(
+    df: pd.DataFrame,
+    service: str,
+    timestamp_field: str,
+    timestamp_format: str,
+) -> None:
+    """Exports a dataframe to a local storage Parquet file."""
+    partition_cols = _get_parquet_partition_cols(service)
+    if df.empty:
+        logger.warning(
+            f"[Service = {service}] Received empty dataframe; skipping parquet export."
+        )
+        return
+    df = _derive_or_normalize_partition_date_column(
+        df=df,
+        service=service,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
+    df = _normalize_timestamp_field(
+        df=df,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
+    partition_date_for_export: str = _select_partition_date_for_export(df=df)
+    logger.info(
+        f"[Service = {service}, Partition Date = {partition_date_for_export}] Exporting n={len(df)} records to {folder_path}..."
+    )
+
+
 def export_data_to_local_storage(
     service: str,
     df: pd.DataFrame,
