@@ -249,7 +249,7 @@ def _validate_partition_date_column(df: pd.DataFrame) -> bool:
         pd.to_datetime(
             df["partition_date"], format=partition_date_format, errors="raise"
         )
-        return df["partition_date"].notna().all()  # type: ignore
+        return df["partition_date"].notna().all() is True
     except Exception:
         return False
 
@@ -531,6 +531,12 @@ def export_data_to_local_storage(
             }
         ]
     else:
+        # TODO: guarantee invariant “one partition date per chunk”
+        # here, so downstream consumers don't have to worry
+        # about this.
+        # NOTE: also might want to move the "partition date" column
+        # creation here, since I have to know the partition date
+        # to create these chunks correctly.
         chunks: list[dict] = partition_data_by_date(
             df=df,
             timestamp_field=timestamp_field,
