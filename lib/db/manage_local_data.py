@@ -1036,8 +1036,6 @@ def load_data_from_local_storage(
         custom_args=custom_args,
     )
 
-    # TODO: eventually use a strategy pattern to handle jsonl/parquet/duckdb
-    # handoffs.
     if duckdb_query is not None:
         _validate_use_duckdb(
             source_file_format=source_file_format,
