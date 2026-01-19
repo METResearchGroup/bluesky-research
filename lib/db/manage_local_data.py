@@ -18,7 +18,10 @@ from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.db.sql.duckdb_wrapper import DuckDB
 from lib.datetime_utils import generate_current_datetime_str, truncate_timestamp_string
 from lib.log.logger import get_logger
-from lib.path_utils import crawl_local_prefix, filter_filepaths_by_date_range
+from lib.path_utils import (
+    crawl_local_prefix,
+    filter_filepaths_by_date_range,
+)
 
 logger = get_logger(__name__)
 duckDB = DuckDB()
@@ -205,6 +208,289 @@ def _convert_service_name_to_db_name(service: str) -> str:
         return service
 
 
+def _export_df_to_local_storage_jsonl(
+    df: pd.DataFrame,
+    local_export_fp: str,
+) -> None:
+    """Exports a dataframe to a local storage JSONL file.
+
+    Args:
+        df: Pandas dataframe to export
+        local_export_fp: Path to the file to export the dataframe to
+
+    Returns:
+        None
+    """
+    try:
+        df.to_json(local_export_fp, orient="records", lines=True)
+        logger.info(
+            f"Successfully exported {local_export_fp} data to {local_export_fp} as JSONL"
+        )
+    except Exception as e:
+        logger.error(f"Error exporting data to {local_export_fp} as JSONL: {e}")
+        raise
+
+
+def _get_parquet_partition_cols(service: str) -> list[str]:
+    """Gets the partition columns for a service."""
+    # NOTE: partition_cols is never specified in MAP_SERVICE_TO_METADATA, so we'll
+    # default to "partition_date" for now. There must've been a backwards-compatibility
+    # thing going on here before where we had used this field? We'll keep it for
+    # now and reconsider later once we have more context.
+    return MAP_SERVICE_TO_METADATA[service].get("partition_cols", ["partition_date"])
+
+
+def _validate_partition_date_column(df: pd.DataFrame) -> bool:
+    """Validates the partition_date column.
+
+    Returns True if the partition_date column is valid, False otherwise.
+    """
+    try:
+        pd.to_datetime(
+            df["partition_date"], format=partition_date_format, errors="raise"
+        )
+        # Pandas returns numpy bools here; normalize to a Python bool.
+        return bool(df["partition_date"].notna().all())  # type: ignore[arg-type]
+    except Exception:
+        return False
+
+
+def _derive_or_normalize_partition_date_column(
+    df: pd.DataFrame,
+    service: str,
+    timestamp_field: str,
+    timestamp_format: str,
+) -> pd.DataFrame:
+    """Ensure that the partition_date column exists and is a string.
+
+    We have various ways of generating this partition_date column, based on if
+    it's already present, if there's a timestamp field, or by imputation.
+
+    However, it's critical for our writes that we do have a partition_date
+    column, so we need to ensure that it exists and is a valid string.
+
+    Pandas passes DataFrames by reference, so changes will persist. Returning
+    df is just returning the same modified object.
+
+    We grab the current timestamp field and the format that it's in, use
+    that to convert to pandas datetime series, and then convert that to a
+    single unified string representation.
+    """
+
+    partition_date_field_is_valid: bool = _validate_partition_date_column(df)
+
+    if partition_date_field_is_valid:
+        return df
+
+    if timestamp_field not in df.columns:
+        logger.warning(
+            f"[Service = {service}] timestamp_field={timestamp_field} not found; using DEFAULT_ERROR_PARTITION_DATE={DEFAULT_ERROR_PARTITION_DATE}"
+        )
+        ts_series: pd.Series = pd.Series(
+            [DEFAULT_ERROR_PARTITION_DATE] * len(df)
+        ).astype("string")
+    else:
+        ts_series = (
+            df[timestamp_field].apply(truncate_timestamp_string).astype("string")
+        )  # type: ignore
+
+    # errors="coerce" in pd.to_datetime converts invalid or unparseable
+    # timestamps to NaT (Not a Time) instead of raising an error. This
+    # ensures the function doesn't fail if some values can't be parsed.
+    ts_dt = pd.to_datetime(ts_series, format=timestamp_format, errors="coerce")
+
+    # impute NaNs with DEFAULT_ERROR_PARTITION_DATE.
+    ts_dt = ts_dt.fillna(
+        pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format=partition_date_format)
+    )
+
+    # convert to string format.
+    df["partition_date"] = ts_dt.dt.strftime(partition_date_format).astype("string")
+
+    return df
+
+
+def _normalize_timestamp_field(
+    df: pd.DataFrame,
+    timestamp_field: str,
+    timestamp_format: str,
+) -> pd.DataFrame:
+    """Normalizes the timestamp field to a string.
+
+    If it's a pandas datetime, convert to string, with the given timestamp_format.
+    Else, if not already a string, convert to astype("string") and log the type.
+    """
+    if timestamp_field not in df.columns:
+        logger.warning(
+            f"Expected timestamp field '{timestamp_field}' not found in dataframe. Skipping normalization."
+        )
+        return df
+    col = df[timestamp_field]
+    if pd.api.types.is_datetime64_any_dtype(col):
+        # convert to string using the given format
+        df[timestamp_field] = col.dt.strftime(timestamp_format).astype("string")
+    elif not pd.api.types.is_string_dtype(col):
+        logger.warning(
+            f"Field '{timestamp_field}' has dtype={col.dtype}. Converting to string."
+        )
+        df[timestamp_field] = col.astype("string")
+    # If already string, do nothing
+    return df
+
+
+def _select_partition_date_for_export(
+    df: pd.DataFrame,
+) -> str:
+    """Selects the partition date to use for export.
+
+    The current usage assumes that each df written only has 1 partition date
+    applicable for it. We enforce that here.
+
+    It can be possible for a df, in theory, to have multiple partition dates,
+    based on upstream data quality issues or based on problems like timezone
+    mismatches. This can be exacerbated by our timestamp-related transformations,
+    such as converting to a pandas datetime series.
+
+    This function lets us select the partition date to use for export. While doing
+    so, it checks to see if there are multiple partition dates, and if so,
+    throws an error. Callers of this function as well as its downstream dependencies
+    depend on one partition date at a time, so we enforce that here.
+    """
+    output_partition_dates = sorted(df["partition_date"].dropna().unique())
+    if len(output_partition_dates) == 0:
+        raise ValueError(
+            "No partition dates found in dataframe. Please ensure that the dataframe has a partition_date column."
+        )
+    if len(output_partition_dates) > 1:
+        raise ValueError(
+            f"Multiple partition dates found in dataframe: {output_partition_dates}. "
+            "This is not supported. Please ensure that the dataframe only has one partition date."
+        )
+    return output_partition_dates[0]
+
+
+def _convert_pandas_table_to_pyarrow_table(
+    df: pd.DataFrame, service: str, custom_args: dict | None
+) -> pa.Table:
+    """Converts a pandas dataframe to a pyarrow table.
+
+    Ensures that pyarrow schemas are strongly enforced on writes. Uses
+    the service's schema and dtypes map to ensure that the dataframe is
+    coerced to the correct types.
+
+    Args:
+        df: Pandas dataframe to convert
+        service: Service name
+        custom_args: Optional custom arguments for the service. Currently
+        only used for "raw_sync" to specify the record_type (NOTE: this is a
+        bit of hacky legacy code that should be refactored out eventually)
+
+    Returns:
+        PyArrow table
+    """
+    schema: Optional[pa.Schema] = get_service_pa_schema(
+        service=service, custom_args=custom_args
+    )
+    if schema:
+        dtypes_map: dict = _get_service_dtypes_map(
+            service=service, custom_args=custom_args
+        )
+        df = _coerce_df_to_dtypes_map(df, dtypes_map)
+        table: pa.Table = pa.Table.from_pandas(
+            df[schema.names],
+            schema=schema,
+            preserve_index=False,
+            safe=True,
+        )
+    else:
+        logger.warning(
+            f"[Service = {service}] No PyArrow schema available; skipping schema enforcement. "
+            f"This may lead to schema drift."
+        )
+        table = pa.Table.from_pandas(df, preserve_index=False)
+    return table
+
+
+def _export_df_to_local_storage_parquet(
+    df: pd.DataFrame,
+    service: str,
+    export_folder_path: str,
+    timestamp_field: str,
+    timestamp_format: str,
+    custom_args: dict | None = None,
+) -> None:
+    """Exports a dataframe to a local storage Parquet file.
+
+    Args:
+        df: Pandas dataframe to export
+        service: Service name
+        export_folder_path: Path to the folder to export the dataframe to. For
+        parquet exports, we just specify the folder itself; parquet determines
+        the names based on hashing.`
+        timestamp_field: Name of the timestamp field used for the service.
+        timestamp_format: Format of the timestamp field
+        custom_args: Optional custom arguments for the service. Currently
+        only used for "raw_sync" to specify the record_type (NOTE: this is a
+        bit of hacky legacy code that should be refactored out eventually)
+
+    Returns:
+        None
+    """
+    try:
+        partition_cols = _get_parquet_partition_cols(service)
+        if df.empty:
+            logger.warning(
+                f"[Service = {service}] Received empty dataframe; skipping parquet export."
+            )
+            return
+        df = _derive_or_normalize_partition_date_column(
+            df=df,
+            service=service,
+            timestamp_field=timestamp_field,
+            timestamp_format=timestamp_format,
+        )
+        df = _normalize_timestamp_field(
+            df=df,
+            timestamp_field=timestamp_field,
+            timestamp_format=timestamp_format,
+        )
+        partition_date_for_export: str = _select_partition_date_for_export(df=df)
+        logger.info(
+            f"[Service = {service}, Partition Date = {partition_date_for_export}] Exporting n={len(df)} records to {export_folder_path}..."
+        )
+        pyarrow_table: pa.Table = _convert_pandas_table_to_pyarrow_table(
+            df=df,
+            service=service,
+            custom_args=custom_args,
+        )
+        pq.write_to_dataset(
+            table=pyarrow_table,
+            root_path=export_folder_path,
+            partition_cols=partition_cols,
+        )
+        logger.info(
+            f"[Service = {service}] Successfully exported {service} data to {export_folder_path} as Parquet"
+        )
+    except pa.ArrowException as e:
+        logger.error(f"[Service = {service}] PyArrow error during Parquet export: {e}")
+        raise
+    except ValueError as e:
+        logger.error(
+            f"[Service = {service}] Data type coercion error during Parquet export: {e}"
+        )
+        raise
+    except (OSError, IOError) as e:
+        logger.error(
+            f"[Service = {service}] File system error during Parquet export to {export_folder_path}: {e}"
+        )
+        raise
+    except Exception as e:
+        logger.error(
+            f"[Service = {service}] Unexpected error exporting data to local storage: {e}"
+        )
+        raise
+
+
 def export_data_to_local_storage(
     service: str,
     df: pd.DataFrame,
@@ -251,6 +537,12 @@ def export_data_to_local_storage(
             }
         ]
     else:
+        # TODO: guarantee invariant “one partition date per chunk”
+        # here, so downstream consumers don't have to worry
+        # about this.
+        # NOTE: also might want to move the "partition date" column
+        # creation here, since I have to know the partition date
+        # to create these chunks correctly.
         chunks: list[dict] = partition_data_by_date(
             df=df,
             timestamp_field=timestamp_field,
@@ -320,159 +612,37 @@ def export_data_to_local_storage(
         if data_is_older_than_lookback(
             end_timestamp=end_timestamp, lookback_days=lookback_days
         ):
-            subfolder = "cache"
+            storage_tier = "cache"
         else:
-            subfolder = "active"
-        # drop extra old column from compactions
-        for col in ["row_num", "startTimestamp"]:
-            if col in chunk_df.columns:
-                chunk_df = chunk_df.drop(columns=[col])
+            storage_tier = "active"
+
+        # drop extra old column from compaction. Keep partition_date.
+        # since we use it on writes.
+        chunk_df = _conditionally_drop_extra_columns(
+            df=chunk_df,
+            columns_to_always_include=["partition_date"],
+        )
+
         # /{root path}/{service-specific path}/{cache / active}/{filename}
-        folder_path = os.path.join(local_prefix, subfolder)
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-        local_export_fp = os.path.join(folder_path, filename)
+        export_folder_path: str = os.path.join(local_prefix, storage_tier)
+        os.makedirs(export_folder_path, exist_ok=True)
+
         if export_format == "jsonl":
-            chunk_df.to_json(local_export_fp, orient="records", lines=True)
+            full_export_filepath: str = os.path.join(export_folder_path, filename)
+            _export_df_to_local_storage_jsonl(
+                df=chunk_df, local_export_fp=full_export_filepath
+            )
         elif export_format == "parquet":
-            # by default, we partition on the timestamp field. This will
-            # allow us to use predicates when doing reads.
-            partition_cols = MAP_SERVICE_TO_METADATA[service].get(
-                "partition_cols", ["partition_date"]
+            _export_df_to_local_storage_parquet(
+                df=chunk_df,
+                service=service,
+                export_folder_path=export_folder_path,
+                timestamp_field=timestamp_field,
+                timestamp_format=timestamp_format,
+                custom_args=custom_args,
             )
-            if isinstance(partition_cols, str):
-                partition_cols = [partition_cols]
-
-            if chunk_df.empty:
-                logger.warning(
-                    f"[Service = {service}] Received empty dataframe; skipping parquet export."
-                )
-                continue
-
-            # Ensure `partition_date` exists and matches the schema contract (string).
-            # Derive partition_date from timestamp_field when missing:
-            # 1. Extract timestamp field (apply truncate_timestamp_string if it's a string timestamp)
-            # 2. Fallback to DEFAULT_ERROR_PARTITION_DATE if timestamp_field is missing
-            # 3. Parse to datetime (with format if provided, otherwise auto-detect)
-            # 4. Coerce invalid values to NaT, then fill with DEFAULT_ERROR_PARTITION_DATE
-            # 5. Convert to stable string format "%Y-%m-%d" for consistent partitioning
-            if "partition_date" not in chunk_df.columns:
-                logger.warning(
-                    f"[Service = {service}] partition_date column missing; deriving from timestamp_field={timestamp_field}"
-                )
-                if timestamp_field not in chunk_df.columns:
-                    logger.warning(
-                        f"[Service = {service}] timestamp_field={timestamp_field} not found; using DEFAULT_ERROR_PARTITION_DATE={DEFAULT_ERROR_PARTITION_DATE}"
-                    )
-                    ts_series = pd.Series(
-                        [DEFAULT_ERROR_PARTITION_DATE] * len(chunk_df)
-                    )
-                else:
-                    ts_series = chunk_df[timestamp_field].apply(
-                        truncate_timestamp_string
-                    )
-                if timestamp_format:
-                    ts_dt = pd.to_datetime(
-                        ts_series, format=timestamp_format, errors="coerce"
-                    )
-                else:
-                    logger.warning(
-                        f"[Service = {service}] No timestamp_format provided; using auto-detection for timestamp parsing"
-                    )
-                    ts_dt = pd.to_datetime(ts_series, errors="coerce")
-                ts_dt = ts_dt.fillna(
-                    pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format="%Y-%m-%d")
-                )
-                chunk_df["partition_date"] = ts_dt.dt.strftime("%Y-%m-%d").astype(
-                    "string"
-                )
-            else:
-                chunk_df["partition_date"] = chunk_df["partition_date"].astype("string")
-
-            if timestamp_field in chunk_df.columns:
-                # Keep timestamps stable (we typically store them as strings).
-                chunk_df[timestamp_field] = chunk_df[timestamp_field].astype("string")
-
-            # NOTE: we don't use local_export_fp here because we want to
-            # partition on the date field, and Parquet will include the partition
-            # field name in the file path.
-            # Sort partition dates for deterministic selection (previous implementation
-            # used iloc[0] which could be non-deterministic). We select the earliest
-            # date for logging purposes, though Parquet partitioning handles multiple
-            # dates correctly.
-            output_partition_dates = sorted(
-                chunk_df["partition_date"].dropna().unique()
-            )
-            if len(output_partition_dates) > 1:
-                logger.warning(
-                    f"[Service = {service}] Multiple unique partition dates found: {output_partition_dates}. "
-                    f"Parquet will partition correctly, but logging assumes single partition date."
-                )
-            output_partition_date = (
-                output_partition_dates[0] if output_partition_dates else "<unknown>"
-            )
-            logger.info(
-                f"[Service = {service}, Partition Date = {output_partition_date}] Exporting n={len(chunk_df)} records to {folder_path}..."
-            )
-            try:
-                # Strongly enforce schema at write-time (avoid pyarrow inference drift).
-                schema: Optional[pa.Schema] = get_service_pa_schema(
-                    service=service, custom_args=custom_args
-                )
-                if schema:
-                    dtypes_map = (
-                        _get_service_dtypes_map(
-                            service=service, custom_args=custom_args
-                        )
-                        or {}
-                    )
-                    if "partition_date" not in dtypes_map:
-                        dtypes_map["partition_date"] = "string"
-                    chunk_df = _coerce_df_to_dtypes_map(chunk_df, dtypes_map)
-                    table = pa.Table.from_pandas(
-                        chunk_df[schema.names],
-                        schema=schema,
-                        preserve_index=False,
-                        safe=True,
-                    )
-                else:
-                    logger.warning(
-                        f"[Service = {service}] No PyArrow schema available; skipping schema enforcement. "
-                        f"This may lead to schema drift."
-                    )
-                    table = pa.Table.from_pandas(chunk_df, preserve_index=False)
-
-                pq.write_to_dataset(
-                    table=table, root_path=folder_path, partition_cols=partition_cols
-                )
-            except pa.ArrowException as e:
-                logger.error(
-                    f"[Service = {service}, Partition Date = {output_partition_date}] "
-                    f"PyArrow error during Parquet export: {e}"
-                )
-                raise
-            except ValueError as e:
-                logger.error(
-                    f"[Service = {service}, Partition Date = {output_partition_date}] "
-                    f"Data type coercion error during Parquet export: {e}"
-                )
-                raise
-            except (OSError, IOError) as e:
-                logger.error(
-                    f"[Service = {service}, Partition Date = {output_partition_date}] "
-                    f"File system error during Parquet export to {folder_path}: {e}"
-                )
-                raise
-            except Exception as e:
-                logger.error(
-                    f"[Service = {service}, Partition Date = {output_partition_date}] "
-                    f"Unexpected error exporting data to local storage: {e}"
-                )
-                raise
-        export_path = folder_path if export_format == "parquet" else local_export_fp
-        logger.info(
-            f"Successfully exported {service} data ({export_path}) as {export_format}"
-        )  # noqa
+        else:
+            raise ValueError(f"Invalid export format: {export_format}")
 
 
 def get_local_prefix_for_service(
@@ -685,9 +855,10 @@ def load_service_cols(service: str) -> list[str]:
     return []
 
 
+# TODO: need to look at this closer and refactor.
 def _get_service_dtypes_map(
-    service: str, custom_args: Optional[dict] = None
-) -> Optional[dict[str, str]]:
+    service: str, custom_args: dict | None = None
+) -> dict[str, str]:
     """Return a copy of the configured dtypes map for a service.
 
     For `raw_sync`, the dtypes map is keyed by `record_type` and must be
@@ -703,7 +874,7 @@ def _get_service_dtypes_map(
                 .get(record_type, {})
             )
     if not dtypes_map:
-        return None
+        return {}
     # Copy to avoid mutating MAP_SERVICE_TO_METADATA.
     return dict(dtypes_map)
 
@@ -779,9 +950,9 @@ def pd_type_to_pa_type(pd_type):
 
 
 def get_service_pa_schema(
-    service: str, custom_args: Optional[dict] = None
-) -> Optional[pa.Schema]:
-    dtypes_map = _get_service_dtypes_map(service=service, custom_args=custom_args)
+    service: str, custom_args: dict | None = None
+) -> pa.Schema | None:
+    dtypes_map: dict = _get_service_dtypes_map(service=service, custom_args=custom_args)
     # we add this here since when we transform the initial loaded dicts to
     # df (prior to writes), we don't have partition_date yet. However, we
     # want this to exist on read.
@@ -791,9 +962,8 @@ def get_service_pa_schema(
         pa_schema = pa.schema(
             [(col, pd_type_to_pa_type(dtype)) for col, dtype in dtypes_map.items()]
         )
-    else:
-        pa_schema = None
-    return pa_schema
+        return pa_schema
+    return None
 
 
 def _assemble_parquet_kwargs(
