@@ -491,6 +491,10 @@ def _export_df_to_local_storage_parquet(
         raise
 
 
+def determine_local_prefix_for_export() -> str:
+    return ""
+
+
 def export_data_to_local_storage(
     service: str,
     df: pd.DataFrame,
@@ -588,15 +592,6 @@ def export_data_to_local_storage(
         elif service == "raw_sync":
             record_type = custom_args["record_type"]
             local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
-        # elif service == "preprocessed_posts":
-        #     source = custom_args["source"]
-        #     local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
-        # elif service == "ml_inference_perspective_api":
-        #     source = custom_args["source"]
-        #     local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
-        # elif service == "ml_inference_sociopolitical":
-        #     source = custom_args["source"]
-        #     local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
         else:
             # generic processing
             local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
@@ -604,11 +599,9 @@ def export_data_to_local_storage(
             skip_date_validation or (custom_args and "source" in custom_args)
         ):
             continue
-        start_timestamp: str = chunk["start_timestamp"]
         end_timestamp: str = chunk["end_timestamp"]
         chunk_df: pd.DataFrame = chunk["data"]
         file_created_timestamp = generate_current_datetime_str()
-        filename = f"startTimestamp={start_timestamp}_endTimestamp={end_timestamp}_fileCreatedTimestamp={file_created_timestamp}.{export_format}"
         if data_is_older_than_lookback(
             end_timestamp=end_timestamp, lookback_days=lookback_days
         ):
@@ -628,6 +621,8 @@ def export_data_to_local_storage(
         os.makedirs(export_folder_path, exist_ok=True)
 
         if export_format == "jsonl":
+            filename: str = f"fileCreatedTimestamp={file_created_timestamp}.jsonl"
+
             full_export_filepath: str = os.path.join(export_folder_path, filename)
             _export_df_to_local_storage_jsonl(
                 df=chunk_df, local_export_fp=full_export_filepath
