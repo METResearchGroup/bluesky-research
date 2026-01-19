@@ -1410,6 +1410,59 @@ class TestExportDfToLocalStorage:
                     parquet_files.append(os.path.join(root, f))
         assert len(parquet_files) >= 1
 
+    def test_export_df_to_local_storage_parquet_handles_missing_timestamp_field(
+        self, mocker, tmp_path
+    ):
+        """If the timestamp field is missing, we should still export.
+
+        Expected behavior:
+        - partition_date is derived/imputed to DEFAULT_ERROR_PARTITION_DATE
+        - timestamp normalization is skipped (with warning)
+        - schema enforcement may create the missing timestamp column during coercion
+        """
+        import lib.db.manage_local_data as mdl
+
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {
+                "test_service": {
+                    "dtypes_map": {
+                        "col1": "Int64",
+                        "preprocessing_timestamp": "string",
+                    }
+                }
+            },
+        )
+
+        df = pd.DataFrame({"col1": [1, 2]})
+        out_dir = tmp_path / "dataset_missing_ts"
+        out_dir.mkdir()
+
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+
+        _export_df_to_local_storage_parquet(
+            df=df,
+            service="test_service",
+            export_folder_path=str(out_dir),
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+            custom_args=None,
+        )
+
+        # We should warn that the timestamp field was missing (normalization skipped).
+        warning_msgs = [c[0][0] for c in mock_logger.warning.call_args_list]
+        assert any("Expected timestamp field 'preprocessing_timestamp' not found" in m for m in warning_msgs)
+
+        # Expect a partition directory and at least one parquet file under it.
+        partition_dir = out_dir / f"partition_date={mdl.DEFAULT_ERROR_PARTITION_DATE}"
+        assert partition_dir.exists()
+        parquet_files = []
+        for root, _, files in os.walk(out_dir):
+            for f in files:
+                if f.endswith(".parquet"):
+                    parquet_files.append(os.path.join(root, f))
+        assert len(parquet_files) >= 1
+
     def test_export_df_to_local_storage_parquet_raises_on_multiple_partition_dates(
         self, mocker, tmp_path
     ):

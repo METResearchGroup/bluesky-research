@@ -249,7 +249,8 @@ def _validate_partition_date_column(df: pd.DataFrame) -> bool:
         pd.to_datetime(
             df["partition_date"], format=partition_date_format, errors="raise"
         )
-        return df["partition_date"].notna().all() is True
+        # Pandas returns numpy bools here; normalize to a Python bool.
+        return bool(df["partition_date"].notna().all())  # type: ignore[arg-type]
     except Exception:
         return False
 
@@ -319,6 +320,11 @@ def _normalize_timestamp_field(
     If it's a pandas datetime, convert to string, with the given timestamp_format.
     Else, if not already a string, convert to astype("string") and log the type.
     """
+    if timestamp_field not in df.columns:
+        logger.warning(
+            f"Expected timestamp field '{timestamp_field}' not found in dataframe. Skipping normalization."
+        )
+        return df
     col = df[timestamp_field]
     if pd.api.types.is_datetime64_any_dtype(col):
         # convert to string using the given format
