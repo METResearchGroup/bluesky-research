@@ -839,7 +839,7 @@ def _coerce_pyarrow_types_to_pandas_types(
     - Int64 (nullable integer) instead of int64 (non-nullable)
     - Float64 (nullable float) instead of float64 (non-nullable)
     - string dtype instead of object dtype
-    - bool/boolean as expected
+    - boolean (nullable boolean) instead of bool (non-nullable)
 
     This keeps downstream code consistent with the expected nullable pandas
     dtypes, regardless of what pandas infers from the PyArrow schema.
@@ -852,7 +852,9 @@ def _coerce_pyarrow_types_to_pandas_types(
                 elif dtype == "Float64":
                     df[col] = df[col].astype("Float64")
                 elif dtype == "bool":
-                    df[col] = df[col].astype("bool")
+                    # Note: dtypes_map uses "bool" key, but pandas
+                    # nullable boolean is "boolean"
+                    df[col] = df[col].astype("boolean")
                 elif dtype == "object":
                     df[col] = df[col].astype("object")
                 elif dtype == "string":

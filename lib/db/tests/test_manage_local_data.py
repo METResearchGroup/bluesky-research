@@ -1351,7 +1351,7 @@ class TestCoercePyarrowTypesToPandasTypes:
         pd.testing.assert_series_equal(result["col1"], expected)
 
     def test_converts_to_bool(self):
-        """Test that columns are converted to bool dtype."""
+        """Test that columns are converted to boolean (nullable) dtype."""
         # Arrange
         df = pd.DataFrame({
             "col1": [True, False, True],
@@ -1363,8 +1363,8 @@ class TestCoercePyarrowTypesToPandasTypes:
         result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
         
         # Assert
-        assert result["col1"].dtype == "bool"
-        expected = pd.Series([True, False, True], dtype="bool", name="col1")
+        assert result["col1"].dtype == "boolean"
+        expected = pd.Series([True, False, True], dtype="boolean", name="col1")
         pd.testing.assert_series_equal(result["col1"], expected)
 
     def test_converts_to_object(self):
@@ -1429,7 +1429,7 @@ class TestCoercePyarrowTypesToPandasTypes:
         assert result["int_col"].dtype == "Int64"
         assert result["float_col"].dtype == "Float64"
         assert result["string_col"].dtype == "string"
-        assert result["bool_col"].dtype == "bool"
+        assert result["bool_col"].dtype == "boolean"
 
     def test_handles_conversion_errors_gracefully(self, mocker):
         """Test that conversion errors are logged as warnings but don't fail."""
