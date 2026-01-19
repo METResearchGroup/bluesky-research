@@ -22,6 +22,8 @@ from lib.db.manage_local_data import (
     _load_data_from_local_storage_duckdb,
     _normalize_timestamp_field,
     _validate_partition_date_column,
+    is_older_than_lookback,
+    _determine_storage_tier_for_export,
 )
 
 MOCK_SERVICE_METADATA = {
@@ -2224,3 +2226,484 @@ class TestLoadDataFromLocalStorageDuckdb:
         
         # Assert
         assert set(result.columns) == {"col1", "col2", "col3"}
+
+
+class TestIsOlderThanLookback:
+    """Tests for is_older_than_lookback function."""
+
+    def test_returns_true_when_timestamp_is_older_than_lookback(self, mocker):
+        """Test that function returns True when timestamp is older than lookback period.
+        
+        Expected behavior:
+        - Should return True when latest_record_timestamp is older than (current_time - lookback_days)
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-01-10:00:00"  # 4 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is True
+
+    def test_returns_false_when_timestamp_is_newer_than_lookback(self, mocker):
+        """Test that function returns False when timestamp is newer than lookback period.
+        
+        Expected behavior:
+        - Should return False when latest_record_timestamp is newer than (current_time - lookback_days)
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-04-10:00:00"  # 1 day ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is False
+
+    def test_returns_false_when_timestamp_is_exactly_at_lookback_threshold(self, mocker):
+        """Test that function returns False when timestamp is exactly at lookback threshold.
+        
+        Expected behavior:
+        - Should return False when timestamp equals the lookback threshold (strictly older check)
+        - This is the conservative approach mentioned in the docstring
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        latest_record_timestamp = "2024-03-03-12:00:00"  # Exactly at threshold
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is False  # Not strictly older
+
+    def test_returns_true_when_timestamp_is_just_before_lookback_threshold(self, mocker):
+        """Test that function returns True when timestamp is just before lookback threshold.
+        
+        Expected behavior:
+        - Should return True when timestamp is even slightly older than threshold
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        latest_record_timestamp = "2024-03-03-11:59:59"  # Just before threshold
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is True
+
+    def test_handles_different_lookback_days_values(self, mocker):
+        """Test that function works correctly with different lookback_days values.
+        
+        Expected behavior:
+        - Should correctly calculate threshold based on lookback_days parameter
+        """
+        # Arrange
+        # Mock current time to be 2024-03-10-12:00:00
+        mock_now = pd.Timestamp("2024-03-10-12:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-05-10:00:00"  # 5 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        
+        # Act & Assert
+        # With lookback_days=3, threshold is 2024-03-07-12:00:00, so should return True
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=3,
+        )
+        assert result is True
+        
+        # With lookback_days=7, threshold is 2024-03-03-12:00:00, so should return False
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=7,
+        )
+        assert result is False
+
+    def test_handles_different_timestamp_formats(self, mocker):
+        """Test that function works correctly with different timestamp formats.
+        
+        Expected behavior:
+        - Should correctly parse timestamps using the provided format
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05T12:00:00
+        mock_now = pd.Timestamp("2024-03-05T12:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-01T10:00:00"  # 4 days ago
+        timestamp_format = "%Y-%m-%dT%H:%M:%S"  # ISO format
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03T12:00:00
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is True
+
+    def test_handles_zero_lookback_days(self, mocker):
+        """Test that function works correctly with zero lookback_days.
+        
+        Expected behavior:
+        - Should compare against current time when lookback_days=0
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-05-11:00:00"  # 1 hour ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 0  # Threshold is current time
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is True  # Timestamp is older than current time
+
+    def test_handles_large_lookback_days(self, mocker):
+        """Test that function works correctly with large lookback_days values.
+        
+        Expected behavior:
+        - Should correctly calculate threshold for large lookback periods
+        """
+        # Arrange
+        # Mock current time to be 2024-03-10-12:00:00
+        mock_now = pd.Timestamp("2024-03-10-12:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-02-01-00:00:00"  # 38 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 30  # Lookback is 30 days, so threshold is 2024-02-09-12:00:00
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is True  # 38 days ago is older than 30 days ago
+
+    def test_handles_timestamp_at_midnight(self, mocker):
+        """Test that function correctly handles timestamps at midnight boundary.
+        
+        Expected behavior:
+        - Should correctly compare timestamps at day boundaries
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-00:00:00 (midnight)
+        mock_now = pd.Timestamp("2024-03-05-00:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-02-23:59:59"  # Just before 3 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03-00:00:00
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is True  # Timestamp is older than threshold
+
+
+class TestDetermineStorageTierForExport:
+    """Tests for _determine_storage_tier_for_export function."""
+
+    def test_returns_cache_when_timestamp_is_older_than_lookback(self, mocker):
+        """Test that function returns 'cache' when timestamp is older than lookback period.
+        
+        Expected behavior:
+        - Should return 'cache' when is_older_than_lookback returns True
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-01-10:00:00"  # 4 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "cache"
+
+    def test_returns_active_when_timestamp_is_newer_than_lookback(self, mocker):
+        """Test that function returns 'active' when timestamp is newer than lookback period.
+        
+        Expected behavior:
+        - Should return 'active' when is_older_than_lookback returns False
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-04-10:00:00"  # 1 day ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "active"
+
+    def test_returns_active_when_timestamp_is_exactly_at_lookback_threshold(self, mocker):
+        """Test that function returns 'active' when timestamp is exactly at lookback threshold.
+        
+        Expected behavior:
+        - Should return 'active' when timestamp equals threshold (not strictly older)
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        latest_record_timestamp = "2024-03-03-12:00:00"  # Exactly at threshold
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "active"  # Not strictly older, so active
+
+    def test_returns_cache_when_timestamp_is_just_before_lookback_threshold(self, mocker):
+        """Test that function returns 'cache' when timestamp is just before lookback threshold.
+        
+        Expected behavior:
+        - Should return 'cache' when timestamp is even slightly older than threshold
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        latest_record_timestamp = "2024-03-03-11:59:59"  # Just before threshold
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "cache"
+
+    def test_handles_different_lookback_days_values(self, mocker):
+        """Test that function works correctly with different lookback_days values.
+        
+        Expected behavior:
+        - Should correctly determine storage tier based on lookback_days parameter
+        """
+        # Arrange
+        # Mock current time to be 2024-03-10-12:00:00
+        mock_now = pd.Timestamp("2024-03-10-12:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-05-10:00:00"  # 5 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        
+        # Act & Assert
+        # With lookback_days=3, threshold is 2024-03-07-12:00:00, so should return cache
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=3,
+        )
+        assert result == "cache"
+        
+        # With lookback_days=7, threshold is 2024-03-03-12:00:00, so should return active
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=7,
+        )
+        assert result == "active"
+
+    def test_handles_different_timestamp_formats(self, mocker):
+        """Test that function works correctly with different timestamp formats.
+        
+        Expected behavior:
+        - Should correctly parse timestamps using the provided format
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05T12:00:00
+        mock_now = pd.Timestamp("2024-03-05T12:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-01T10:00:00"  # 4 days ago
+        timestamp_format = "%Y-%m-%dT%H:%M:%S"  # ISO format
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03T12:00:00
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "cache"
+
+    def test_handles_zero_lookback_days(self, mocker):
+        """Test that function works correctly with zero lookback_days.
+        
+        Expected behavior:
+        - Should compare against current time when lookback_days=0
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-05-11:00:00"  # 1 hour ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 0  # Threshold is current time
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "cache"  # Timestamp is older than current time
+
+    def test_handles_large_lookback_days(self, mocker):
+        """Test that function works correctly with large lookback_days values.
+        
+        Expected behavior:
+        - Should correctly determine storage tier for large lookback periods
+        """
+        # Arrange
+        # Mock current time to be 2024-03-10-12:00:00
+        mock_now = pd.Timestamp("2024-03-10-12:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-02-01-00:00:00"  # 38 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 30  # Lookback is 30 days, so threshold is 2024-02-09-12:00:00
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "cache"  # 38 days ago is older than 30 days ago
+
+    def test_returns_only_cache_or_active(self, mocker):
+        """Test that function only returns 'cache' or 'active' values.
+        
+        Expected behavior:
+        - Should only return Literal["cache", "active"] values
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2
+        
+        # Act & Assert
+        # Test with old timestamp
+        result_old = _determine_storage_tier_for_export(
+            latest_record_timestamp="2024-03-01-10:00:00",
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        assert result_old in ["cache", "active"]
+        
+        # Test with new timestamp
+        result_new = _determine_storage_tier_for_export(
+            latest_record_timestamp="2024-03-04-10:00:00",
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        assert result_new in ["cache", "active"]
