@@ -181,8 +181,7 @@ def partition_data_by_date(
 
         output.append(
             {
-                "start_timestamp": start_timestamp,
-                "end_timestamp": end_timestamp,
+                "latest_record_timestamp": end_timestamp,
                 "data": group,
             }
         )
@@ -504,7 +503,10 @@ def _determine_local_prefix_for_export(
         return override_local_prefix
 
     # Special Case 2
-    if service == "backfill_sync" and custom_args and "source" in custom_args:
+    if (
+        service == "backfill_sync"
+        and custom_args and "source" in custom_args
+    ):
         return MAP_SERVICE_TO_METADATA[service]["subpaths"][custom_args["source"]]
 
     # Special Case 3
@@ -523,18 +525,18 @@ def _determine_if_special_case_chunk_generation(service: str) -> bool:
     return MAP_SERVICE_TO_METADATA[service].get("skip_date_validation", False)
 
 
-def _generate_export_chunks_for_special_cases(df: pd.DataFrame) -> list[dict]:
+def _generate_export_chunks_for_special_cases(
+    df: pd.DataFrame
+) -> list[dict]:
     """Catch-all function for generating export chunks for special cases.
 
     There's quite a bit of technical debt around these cases that we can
     revisit later.
     """
-    return [
-        {
-            "latest_record_timestamp": generate_current_datetime_str(),
-            "data": df,
-        }
-    ]
+    return [{
+        "latest_record_timestamp": generate_current_datetime_str(),
+        "data": df,
+    }]
 
 
 def _create_batches_for_export(
@@ -548,10 +550,119 @@ def _create_batches_for_export(
     if _determine_if_special_case_chunk_generation(service=service):
         return _generate_export_chunks_for_special_cases(df=df)
     return partition_data_by_date(
-        df=df, timestamp_field=timestamp_field, timestamp_format=timestamp_format
+        df=df,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format
     )
-    pass
 
+
+def _export_batch_backfill_sync(
+    batch_df: pd.DataFrame,
+    service: str,
+    export_format: Literal["jsonl", "parquet"],
+    lookback_days: int,
+):
+    """Special case export for backfill sync.
+    
+    TODO: properly refactor at some point once we resume backfill syncs from the PDS.
+    """
+    if "record_type" in batch_df.columns:
+        record_type_groups: dict[str, pd.DataFrame] = {}
+        for record_type, group_df in batch_df.groupby("record_type"):
+            record_type_groups[record_type] = group_df # type: ignore
+
+        for record_type, group_df in record_type_groups.items():
+            logger.info(
+                f"Exporting {record_type} data for service={service} to local storage for raw_sync..."
+            )
+            export_data_to_local_storage(
+                service="raw_sync",
+                df=group_df,
+                export_format=export_format,
+                lookback_days=lookback_days,
+                custom_args={"record_type": record_type},
+            )
+        logger.info(
+            "Completed writing backfill sync data to local storage."
+        )
+
+def _export_batch_generic(
+    batch_df: pd.DataFrame,
+    service: str,
+    latest_record_timestamp: str,
+    timestamp_field: str,
+    timestamp_format: str,
+    local_prefix: str,
+    export_format: Literal["jsonl", "parquet"],
+    lookback_days: int
+):
+    """Exports a single batch of data to local storage."""
+
+    storage_tier: str = _determine_storage_tier_for_export(
+        latest_record_timestamp=latest_record_timestamp,
+        timestamp_format=timestamp_format,
+        lookback_days=lookback_days,
+    )
+
+    # drop extra old column from compaction. Keep partition_date.
+    # since we use it on writes.
+    batch_df = _conditionally_drop_extra_columns(
+        df=batch_df,
+        columns_to_always_include=["partition_date"],
+    )
+
+    # /{root path}/{service-specific path}/{cache / active}/{filename}
+    export_folder_path: str = os.path.join(local_prefix, storage_tier)
+    os.makedirs(export_folder_path, exist_ok=True)
+
+    if export_format == "jsonl":
+        file_created_timestamp = generate_current_datetime_str()
+        filename: str = f"fileCreatedTimestamp={file_created_timestamp}.jsonl"
+        full_export_filepath: str = os.path.join(export_folder_path, filename)
+        _export_df_to_local_storage_jsonl(
+            df=batch_df, local_export_fp=full_export_filepath
+        )
+    elif export_format == "parquet":
+        _export_df_to_local_storage_parquet(
+            df=batch_df,
+            service=service,
+            export_folder_path=export_folder_path,
+            timestamp_field=timestamp_field,
+            timestamp_format=timestamp_format,
+            custom_args=None,
+        )
+    else:
+        raise ValueError(f"Invalid export format: {export_format}")
+
+def _export_batch(
+    batch_df: pd.DataFrame,
+    service: str,
+    latest_record_timestamp: str,
+    timestamp_field: str,
+    timestamp_format: str,
+    local_prefix: str,
+    export_format: Literal["jsonl", "parquet"],
+    lookback_days: int
+):
+    """Exports a single batch of data to local storage."""
+    if service == "backfill_sync":
+        return _export_batch_backfill_sync(
+            batch_df=batch_df,
+            service=service,
+            export_format=export_format,
+            lookback_days=lookback_days,
+        )
+    else:
+        return _export_batch_generic(
+            batch_df=batch_df,
+            latest_record_timestamp=latest_record_timestamp,
+            service=service,
+            timestamp_field=timestamp_field,
+            timestamp_format=timestamp_format,
+            local_prefix=local_prefix,
+            export_format=export_format,
+            lookback_days=lookback_days,
+        )
 
 def _determine_storage_tier_for_export(
     latest_record_timestamp: str, timestamp_format: str, lookback_days: int
@@ -594,12 +705,8 @@ def export_data_to_local_storage(
     Receives a generic dataframe and exports it to local storage.
     """
     service = _convert_service_name_to_db_name(service)
-    # metadata needs to include timestamp field so that we can figure out what
-    # data is old vs. new
-    timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
-    timestamp_format = MAP_SERVICE_TO_METADATA[service].get(
-        "timestamp_format", DEFAULT_TIMESTAMP_FORMAT
-    )
+    timestamp_field: str = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
+    timestamp_format: str = MAP_SERVICE_TO_METADATA[service].get("timestamp_format", DEFAULT_TIMESTAMP_FORMAT)
 
     batches: list[dict] = _create_batches_for_export(
         service=service,
@@ -608,98 +715,26 @@ def export_data_to_local_storage(
         timestamp_format=timestamp_format,
     )
 
-    skip_date_validation = False  # TODO: delete.
-
-    local_prefix = _determine_local_prefix_for_export(
+    local_prefix: str = _determine_local_prefix_for_export(
         service=service,
         custom_args=custom_args,
         override_local_prefix=override_local_prefix,
     )
 
     for chunk in batches:
-        # processing specific for firehose
-        if override_local_prefix:
-            local_prefix = override_local_prefix
-        elif service == "backfill_sync":
-            if custom_args and "source" in custom_args:
-                local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][
-                    custom_args["source"]
-                ]
-            else:
-                if "record_type" in chunk["data"].columns:
-                    record_type_groups: dict[str, pd.DataFrame] = {}
-                    for record_type, group_df in chunk["data"].groupby("record_type"):
-                        record_type_groups[record_type] = group_df
+        batch_df: pd.DataFrame = chunk["data"]
+        latest_record_timestamp: str = chunk["latest_record_timestamp"]
 
-                    for record_type, group_df in record_type_groups.items():
-                        logger.info(
-                            f"Exporting {record_type} data for service={service} to local storage for raw_sync..."
-                        )
-                        export_data_to_local_storage(
-                            service="raw_sync",
-                            df=group_df,
-                            export_format=export_format,
-                            lookback_days=lookback_days,
-                            custom_args={"record_type": record_type},
-                        )
-                    logger.info(
-                        "Completed writing backfill sync data to local storage."
-                    )
-                    continue
-                else:
-                    raise ValueError(
-                        f"No record_type column found in dataframe for backfill service={service}."
-                    )
-        elif service == "raw_sync":
-            record_type = custom_args["record_type"]
-            local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
-        else:
-            # generic processing
-            local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
-        if service == "backfill_sync" and not (
-            skip_date_validation or (custom_args and "source" in custom_args)
-        ):
-            continue
-
-        latest_record_timestamp: str = chunk["end_timestamp"]
-        chunk_df: pd.DataFrame = chunk["data"]
-
-        storage_tier: str = _determine_storage_tier_for_export(
+        _export_batch(
+            batch_df=batch_df,
             latest_record_timestamp=latest_record_timestamp,
+            service=service,
+            timestamp_field=timestamp_field,
             timestamp_format=timestamp_format,
+            local_prefix=local_prefix,
+            export_format=export_format,
             lookback_days=lookback_days,
         )
-
-        # drop extra old column from compaction. Keep partition_date.
-        # since we use it on writes.
-        chunk_df = _conditionally_drop_extra_columns(
-            df=chunk_df,
-            columns_to_always_include=["partition_date"],
-        )
-
-        # /{root path}/{service-specific path}/{cache / active}/{filename}
-        export_folder_path: str = os.path.join(local_prefix, storage_tier)
-        os.makedirs(export_folder_path, exist_ok=True)
-
-        if export_format == "jsonl":
-            file_created_timestamp = generate_current_datetime_str()
-            filename: str = f"fileCreatedTimestamp={file_created_timestamp}.jsonl"
-            full_export_filepath: str = os.path.join(export_folder_path, filename)
-            _export_df_to_local_storage_jsonl(
-                df=chunk_df, local_export_fp=full_export_filepath
-            )
-        elif export_format == "parquet":
-            _export_df_to_local_storage_parquet(
-                df=chunk_df,
-                service=service,
-                export_folder_path=export_folder_path,
-                timestamp_field=timestamp_field,
-                timestamp_format=timestamp_format,
-                custom_args=custom_args,
-            )
-        else:
-            raise ValueError(f"Invalid export format: {export_format}")
-
 
 def get_local_prefix_for_service(
     service: str, record_type: Optional[str] = None
