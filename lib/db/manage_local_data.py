@@ -99,18 +99,17 @@ def convert_timestamp(x, timestamp_format):
     return pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format="%Y-%m-%d")
 
 
+# TODO: update export to have stronger typing.
 def partition_data_by_date(
     df: pd.DataFrame,
     timestamp_field: str,
     timestamp_format: Optional[str] = None,
-    skip_date_validation: bool = False,
 ) -> list[dict]:
     """Partitions data by date.
 
     Returns a list of dicts of the following format:
     {
-        "start_timestamp": str,
-        "end_timestamp": str,
+        "latest_record_timestamp": str,
         "data": pd.DataFrame
     }
 
@@ -120,8 +119,6 @@ def partition_data_by_date(
     # TODO: need to fix column matching. Don't think these overlap correctly.
     # should process each dtype correctly. Either need the same cols or need
     # to process each dtype separately.
-    if not timestamp_format:
-        timestamp_format = DEFAULT_TIMESTAMP_FORMAT
 
     # clean timestamp field if relevant.
     df[timestamp_field] = df[timestamp_field].apply(truncate_timestamp_string)
@@ -491,8 +488,69 @@ def _export_df_to_local_storage_parquet(
         raise
 
 
-def _determine_local_prefix_for_export() -> str:
-    return ""
+def _determine_local_prefix_for_export(
+    service: str,
+    custom_args: dict | None = None,
+    override_local_prefix: str | None = None,
+) -> str:
+    """Determines the local prefix for a given export, based on the
+    service, custom arguments, and override local prefix.
+
+    NOTE: Includes a few special cases that should be eventually refactored out.
+    """
+
+    # Special Case 1
+    if override_local_prefix:
+        return override_local_prefix
+
+    # Special Case 2
+    if service == "backfill_sync" and custom_args and "source" in custom_args:
+        return MAP_SERVICE_TO_METADATA[service]["subpaths"][custom_args["source"]]
+
+    # Special Case 3
+    if service == "raw_sync" and custom_args and "record_type" in custom_args:
+        return MAP_SERVICE_TO_METADATA[service]["subpaths"][custom_args["record_type"]]
+
+    return MAP_SERVICE_TO_METADATA[service]["local_prefix"]
+
+
+def _determine_if_special_case_chunk_generation(service: str) -> bool:
+    """Catch-all function for determining if special case chunk generation is needed.
+
+    There's quite a bit of technical debt around these cases that we can
+    revisit later.
+    """
+    return MAP_SERVICE_TO_METADATA[service].get("skip_date_validation", False)
+
+
+def _generate_export_chunks_for_special_cases(df: pd.DataFrame) -> list[dict]:
+    """Catch-all function for generating export chunks for special cases.
+
+    There's quite a bit of technical debt around these cases that we can
+    revisit later.
+    """
+    return [
+        {
+            "latest_record_timestamp": generate_current_datetime_str(),
+            "data": df,
+        }
+    ]
+
+
+def _create_batches_for_export(
+    service: str,
+    df: pd.DataFrame,
+    timestamp_field: str,
+    timestamp_format: str,
+) -> list[dict]:
+    """Creates batches of data out of the original dataframe, preparing it
+    for the expected export format."""
+    if _determine_if_special_case_chunk_generation(service=service):
+        return _generate_export_chunks_for_special_cases(df=df)
+    return partition_data_by_date(
+        df=df, timestamp_field=timestamp_field, timestamp_format=timestamp_format
+    )
+    pass
 
 
 def _determine_storage_tier_for_export(
@@ -539,37 +597,26 @@ def export_data_to_local_storage(
     # metadata needs to include timestamp field so that we can figure out what
     # data is old vs. new
     timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
-    timestamp_format = MAP_SERVICE_TO_METADATA[service].get("timestamp_format", None)
-    skip_date_validation = MAP_SERVICE_TO_METADATA[service].get(
-        "skip_date_validation", False
+    timestamp_format = MAP_SERVICE_TO_METADATA[service].get(
+        "timestamp_format", DEFAULT_TIMESTAMP_FORMAT
     )
-    # Override skip_date_validation for backfill_sync if custom_args provides a specific source
-    # NOTE: This is done because the output formatting for backfill syncs is slightly different
-    # from other parts of the pipeline. Should be consolidated at some point.
-    if service == "raw_sync" and custom_args and "record_type" in custom_args:
-        skip_date_validation = False
-    if skip_date_validation:
-        chunks = [
-            {
-                "start_timestamp": generate_current_datetime_str(),
-                "end_timestamp": generate_current_datetime_str(),
-                "data": df,
-            }
-        ]
-    else:
-        # TODO: guarantee invariant “one partition date per chunk”
-        # here, so downstream consumers don't have to worry
-        # about this.
-        # NOTE: also might want to move the "partition date" column
-        # creation here, since I have to know the partition date
-        # to create these chunks correctly.
-        chunks: list[dict] = partition_data_by_date(
-            df=df,
-            timestamp_field=timestamp_field,
-            timestamp_format=timestamp_format,
-            skip_date_validation=skip_date_validation,
-        )
-    for chunk in chunks:
+
+    batches: list[dict] = _create_batches_for_export(
+        service=service,
+        df=df,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
+
+    skip_date_validation = False  # TODO: delete.
+
+    local_prefix = _determine_local_prefix_for_export(
+        service=service,
+        custom_args=custom_args,
+        override_local_prefix=override_local_prefix,
+    )
+
+    for chunk in batches:
         # processing specific for firehose
         if override_local_prefix:
             local_prefix = override_local_prefix
@@ -578,8 +625,6 @@ def export_data_to_local_storage(
                 local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][
                     custom_args["source"]
                 ]
-            elif skip_date_validation:
-                local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
             else:
                 if "record_type" in chunk["data"].columns:
                     record_type_groups: dict[str, pd.DataFrame] = {}
@@ -615,11 +660,12 @@ def export_data_to_local_storage(
             skip_date_validation or (custom_args and "source" in custom_args)
         ):
             continue
-        end_timestamp: str = chunk["end_timestamp"]
+
+        latest_record_timestamp: str = chunk["end_timestamp"]
         chunk_df: pd.DataFrame = chunk["data"]
 
         storage_tier: str = _determine_storage_tier_for_export(
-            latest_record_timestamp=end_timestamp,
+            latest_record_timestamp=latest_record_timestamp,
             timestamp_format=timestamp_format,
             lookback_days=lookback_days,
         )
