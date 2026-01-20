@@ -78,6 +78,7 @@ class S3ParquetBackend:
         tier: StorageTier,
         partition_date: str,
     ) -> list[str]:
+        """Get the URIs for a dataset and partition date."""
         uris: list[str] = []
         prefix_key = self._build_partition_prefix_key(
             dataset=dataset.dataset, tier=tier, partition_date=partition_date
@@ -93,6 +94,32 @@ class S3ParquetBackend:
         for k in parquet_keys:
             uris.append(self._key_to_uri(k))
         return uris
+
+    def _get_uris_for_storage_tier(
+        self,
+        dataset: S3ParquetDatasetRef,
+        tier: StorageTier,
+        partition_dates: list[str],
+    ) -> list[str]:
+        """Get the URIs for a dataset and storage tier."""
+        total_uris: list[str] = []
+        for partition_date in partition_dates:
+            uris: list[str] = self._get_uris_for_partition_date(dataset=dataset, tier=tier, partition_date=partition_date)
+            total_uris.extend(uris)
+        return total_uris
+
+    def _get_uris_for_dataset(
+        self,
+        dataset: S3ParquetDatasetRef,
+        storage_tiers: list[StorageTier],
+        partition_dates: list[str],
+    ) -> list[str]:
+        """Get the URIs for a dataset and storage tiers."""
+        total_uris: list[str] = []
+        for tier in storage_tiers:
+            uris: list[str] = self._get_uris_for_storage_tier(dataset=dataset, tier=tier, partition_dates=partition_dates)
+            total_uris.extend(uris)
+        return total_uris
 
     def list_parquet_uris(
         self,
@@ -144,20 +171,18 @@ class S3ParquetBackend:
             f"storage_tiers={[storage_tier.value for storage_tier in storage_tiers]}, n_days={len(partition_dates)}."
         )
 
-        total_uris: list[str] = []
-        total_files = 0
+        total_uris: list[str] = self._get_uris_for_dataset(
+            dataset=dataset,
+            storage_tiers=storage_tiers,
+            partition_dates=partition_dates,
+        )
+        total_files = len(total_uris)
 
-        for tier in storage_tiers:
-            for day in partition_dates:
-                uris: list[str] = self._get_uris_for_partition_date(
-                    dataset=dataset, tier=tier, partition_date=day
-                )
-                total_files += len(uris)
-                if max_files is not None and total_files >= max_files:
-                    logger.warning(
-                        f"Reached max_files={max_files}; truncating listed URIs."
-                    )
-                    return total_uris[:max_files]
+        if max_files is not None and total_files >= max_files:
+            logger.warning(
+                f"Reached max_files={max_files}; truncating listed URIs."
+            )
+            return total_uris[:max_files]
 
         logger.info(
             f"Listed total_parquet_files={len(total_uris)} for dataset={dataset.dataset}."
