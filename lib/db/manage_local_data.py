@@ -9,7 +9,6 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from lib.constants import (
-    current_datetime,
     timestamp_format as DEFAULT_TIMESTAMP_FORMAT,
     default_lookback_days,
     partition_date_format,
@@ -44,11 +43,8 @@ EXTRA_COLUMNS_ADDED_DURING_COMPACTION = [
 ]
 
 
-# TODO: come back to this, as the name + signature doesn't match the docstring
-# (docstring implies arbitrary start_timestamp, but the function doesn't
-# take one).
-def data_is_older_than_lookback(
-    end_timestamp: str, lookback_days: int = default_lookback_days
+def is_older_than_lookback(
+    latest_record_timestamp: str, timestamp_format: str, lookback_days: int
 ) -> bool:
     """Returns True if the data is older than the lookback days.
 
@@ -64,133 +60,14 @@ def data_is_older_than_lookback(
     lead to a maximum staleness < 24 hours past the threshold. We can make
     this more strict if needed.
     """
-    lookback_date = (current_datetime - timedelta(days=lookback_days)).strftime(
-        "%Y-%m-%d"
+    latest_record_ts = pd.to_datetime(latest_record_timestamp, format=timestamp_format)
+    lookback_ts = pd.to_datetime(
+        (pd.Timestamp.utcnow() - timedelta(days=lookback_days)).strftime(
+            timestamp_format
+        ),
+        format=timestamp_format,
     )
-    return end_timestamp < lookback_date
-
-
-# NOTE: come back to this after refactoring `partition_data_by_date`, so
-# we can see how it's supposed to be used.
-def convert_timestamp(x, timestamp_format):
-    """Attempts to convert a timestamp to a datetime.
-
-    If the timestamp is not in the correct format, it will be converted to a
-    default partition date of 2016-01-01.
-
-    Also checks for the year of the post. Sometimes the timestamp is corrupted
-    and the year is before 2024. In this case, we'll log a warning and return
-    the default partition date.
-    """
-    try:
-        dt = pd.to_datetime(x, format=timestamp_format)
-        if dt.year < 2024:
-            # a bit noisy, plus this is an OK default behavior.
-            # logger.warning(
-            #     f"Timestamp year {dt.year} is before 2024, will try to coerce using {DEFAULT_ERROR_PARTITION_DATE}: {x}."
-            # )
-            pass
-        else:
-            return dt
-    except Exception as e:
-        logger.warning(
-            f"Error converting timestamp ({e}), will try to coerce using {DEFAULT_ERROR_PARTITION_DATE}: {x}."
-        )
-    return pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format="%Y-%m-%d")
-
-
-def partition_data_by_date(
-    df: pd.DataFrame,
-    timestamp_field: str,
-    timestamp_format: Optional[str] = None,
-    skip_date_validation: bool = False,
-) -> list[dict]:
-    """Partitions data by date.
-
-    Returns a list of dicts of the following format:
-    {
-        "start_timestamp": str,
-        "end_timestamp": str,
-        "data": pd.DataFrame
-    }
-
-    Transforms the timestamp field to a datetime field and then partitions the
-    data by date. Each day's data is stored in a separate dataframe.
-    """
-    # TODO: need to fix column matching. Don't think these overlap correctly.
-    # should process each dtype correctly. Either need the same cols or need
-    # to process each dtype separately.
-    if not timestamp_format:
-        timestamp_format = DEFAULT_TIMESTAMP_FORMAT
-
-    # clean timestamp field if relevant.
-    df[timestamp_field] = df[timestamp_field].apply(truncate_timestamp_string)
-
-    try:
-        # convert to datetime
-        df[f"{timestamp_field}_datetime"] = pd.to_datetime(
-            df[timestamp_field], format=timestamp_format
-        )
-        years = df[f"{timestamp_field}_datetime"].dt.year
-        total_invalid_years = sum(1 for year in years if year < 2024)
-        if total_invalid_years > 0 and not skip_date_validation:
-            raise ValueError(
-                f"""
-                Some records have years before 2024. This is impossible and an 
-                error on Bluesky's part, so we're going to coerce those records
-                to a default partition date.
-                Total records affected: {total_invalid_years}.
-                """
-            )
-    except Exception as e:
-        # sometimes weird records come along. We'll set these, as a default,
-        # as being written to a default partition_date.
-        logger.warning(f"Error converting timestamp field to datetime: {e}")
-        df[f"{timestamp_field}_datetime"] = df[timestamp_field].apply(
-            lambda x: convert_timestamp(x, timestamp_format)
-        )
-
-    df["partition_date"] = df[f"{timestamp_field}_datetime"].dt.date
-
-    date_groups = df.groupby("partition_date")
-
-    output: list[dict] = []
-
-    for _, group in date_groups:
-        # timestamps need to be transformed into the default format.
-        start_timestamp = (
-            group[f"{timestamp_field}_datetime"]
-            .min()
-            .strftime(DEFAULT_TIMESTAMP_FORMAT)  # noqa
-        )
-        end_timestamp = (
-            group[f"{timestamp_field}_datetime"]
-            .max()
-            .strftime(DEFAULT_TIMESTAMP_FORMAT)
-        )
-
-        # drop additional grouping columns
-        group = group.drop(columns=[f"{timestamp_field}_datetime"])
-
-        # transform 'partition_date' to "YYYY-MM-DD" format.
-        group["partition_date"] = (
-            group["partition_date"]
-            .apply(lambda x: x.strftime("%Y-%m-%d"))
-            .astype("string")
-        )
-
-        # convert timestamp back to string type.
-        group[timestamp_field] = group[timestamp_field].astype("string")
-
-        output.append(
-            {
-                "start_timestamp": start_timestamp,
-                "end_timestamp": end_timestamp,
-                "data": group,
-            }
-        )
-
-    return output
+    return latest_record_ts < lookback_ts
 
 
 def _convert_service_name_to_db_name(service: str) -> str:
@@ -246,6 +123,8 @@ def _validate_partition_date_column(df: pd.DataFrame) -> bool:
     Returns True if the partition_date column is valid, False otherwise.
     """
     try:
+        if "partition_date" not in df.columns:
+            return False
         pd.to_datetime(
             df["partition_date"], format=partition_date_format, errors="raise"
         )
@@ -253,6 +132,36 @@ def _validate_partition_date_column(df: pd.DataFrame) -> bool:
         return bool(df["partition_date"].notna().all())  # type: ignore[arg-type]
     except Exception:
         return False
+
+
+def _apply_partition_date_business_logic_filters(
+    ts_dt: pd.Series,
+    service: str,
+) -> pd.Series:
+    """Apply business-logic filters for partition dates.
+
+    Rules:
+    - Any unparseable timestamps become DEFAULT_ERROR_PARTITION_DATE.
+    - Any timestamps with year < 2024 become DEFAULT_ERROR_PARTITION_DATE.
+
+    This function is intentionally the single place where we encode custom
+    partition-date rules so they don't drift across callers.
+    """
+    ts_dt = pd.to_datetime(ts_dt, errors="coerce")
+
+    invalid_year_mask = ts_dt.dt.year < 2024
+    if bool(invalid_year_mask.any()):  # pandas returns numpy bool; normalize
+        invalid_count = int(invalid_year_mask.sum())
+        logger.warning(
+            f"[Service = {service}] Found n={invalid_count} timestamps with year < 2024; "
+            f"coercing to DEFAULT_ERROR_PARTITION_DATE={DEFAULT_ERROR_PARTITION_DATE}"
+        )
+        ts_dt = ts_dt.mask(invalid_year_mask)
+
+    ts_dt = ts_dt.fillna(
+        pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format=partition_date_format)
+    )
+    return ts_dt
 
 
 def _derive_or_normalize_partition_date_column(
@@ -276,37 +185,46 @@ def _derive_or_normalize_partition_date_column(
     that to convert to pandas datetime series, and then convert that to a
     single unified string representation.
     """
+    # NOTE: we always end this function by writing `partition_date` back as a
+    # pandas string dtype in `partition_date_format`, even if it was already
+    # present and valid. This prevents subtle dtype drift across callers.
 
     partition_date_field_is_valid: bool = _validate_partition_date_column(df)
 
-    if partition_date_field_is_valid:
-        return df
-
-    if timestamp_field not in df.columns:
-        logger.warning(
-            f"[Service = {service}] timestamp_field={timestamp_field} not found; using DEFAULT_ERROR_PARTITION_DATE={DEFAULT_ERROR_PARTITION_DATE}"
-        )
-        ts_series: pd.Series = pd.Series(
-            [DEFAULT_ERROR_PARTITION_DATE] * len(df)
-        ).astype("string")
+    if partition_date_field_is_valid and "partition_date" in df.columns:
+        # Normalize existing partition_date column to datetime so we can apply
+        # business-logic filters (e.g., year sanity checks), then re-stringify.
+        partition_series = df["partition_date"]
+        if pd.api.types.is_datetime64_any_dtype(partition_series):
+            ts_dt = pd.to_datetime(partition_series, errors="coerce")
+        else:
+            ts_dt = pd.to_datetime(
+                partition_series.astype("string"),
+                format=partition_date_format,
+                errors="coerce",
+            )
     else:
-        ts_series = (
-            df[timestamp_field].apply(truncate_timestamp_string).astype("string")
-        )  # type: ignore
+        # Derive from the service's timestamp field (or impute if missing).
+        if timestamp_field not in df.columns:
+            logger.warning(
+                f"[Service = {service}] timestamp_field={timestamp_field} not found; "
+                f"using DEFAULT_ERROR_PARTITION_DATE={DEFAULT_ERROR_PARTITION_DATE}"
+            )
+            ts_series: pd.Series = pd.Series(
+                [DEFAULT_ERROR_PARTITION_DATE] * len(df)
+            ).astype("string")
+        else:
+            ts_series = (
+                df[timestamp_field].apply(truncate_timestamp_string).astype("string")
+            )  # type: ignore
 
-    # errors="coerce" in pd.to_datetime converts invalid or unparseable
-    # timestamps to NaT (Not a Time) instead of raising an error. This
-    # ensures the function doesn't fail if some values can't be parsed.
-    ts_dt = pd.to_datetime(ts_series, format=timestamp_format, errors="coerce")
+        # errors="coerce" converts invalid/unparseable timestamps to NaT.
+        ts_dt = pd.to_datetime(ts_series, format=timestamp_format, errors="coerce")
 
-    # impute NaNs with DEFAULT_ERROR_PARTITION_DATE.
-    ts_dt = ts_dt.fillna(
-        pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format=partition_date_format)
-    )
+    ts_dt = _apply_partition_date_business_logic_filters(ts_dt=ts_dt, service=service)
 
-    # convert to string format.
+    # Convert to canonical string format.
     df["partition_date"] = ts_dt.dt.strftime(partition_date_format).astype("string")
-
     return df
 
 
@@ -326,6 +244,7 @@ def _normalize_timestamp_field(
         )
         return df
     col = df[timestamp_field]
+
     if pd.api.types.is_datetime64_any_dtype(col):
         # convert to string using the given format
         df[timestamp_field] = col.dt.strftime(timestamp_format).astype("string")
@@ -334,7 +253,33 @@ def _normalize_timestamp_field(
             f"Field '{timestamp_field}' has dtype={col.dtype}. Converting to string."
         )
         df[timestamp_field] = col.astype("string")
-    # If already string, do nothing
+
+    # additional truncation to seconds precision.
+    df[timestamp_field] = (
+        df[timestamp_field].apply(truncate_timestamp_string).astype("string")
+    )  # type: ignore
+
+    return df
+
+
+def _derive_default_timestamp_column(df: pd.DataFrame) -> pd.Series:
+    """If the timestamp column is not present, derive a default timestamp column."""
+    return pd.Series([DEFAULT_ERROR_PARTITION_DATE] * len(df)).astype("string")
+
+
+def _derive_or_normalize_timestamp_column(
+    df: pd.DataFrame,
+    timestamp_field: str,
+    timestamp_format: str,
+) -> pd.DataFrame:
+    """Derives or normalizes the timestamp column."""
+    if timestamp_field not in df.columns:
+        df[timestamp_field] = _derive_default_timestamp_column(df=df)
+    df = _normalize_timestamp_field(
+        df=df,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
     return df
 
 
@@ -443,12 +388,11 @@ def _export_df_to_local_storage_parquet(
                 f"[Service = {service}] Received empty dataframe; skipping parquet export."
             )
             return
-        df = _derive_or_normalize_partition_date_column(
-            df=df,
-            service=service,
-            timestamp_field=timestamp_field,
-            timestamp_format=timestamp_format,
-        )
+        if not _validate_partition_date_column(df):
+            raise ValueError(
+                "Invalid 'partition_date' column for parquet export. "
+                f"Expected pandas string values in format={partition_date_format} with no nulls."
+            )
         df = _normalize_timestamp_field(
             df=df,
             timestamp_field=timestamp_field,
@@ -491,6 +435,267 @@ def _export_df_to_local_storage_parquet(
         raise
 
 
+def _determine_local_prefix_for_export(
+    service: str,
+    custom_args: dict | None = None,
+    override_local_prefix: str | None = None,
+) -> str:
+    """Determines the local prefix for a given export, based on the
+    service, custom arguments, and override local prefix.
+
+    NOTE: Includes a few special cases that should be eventually refactored out.
+    """
+
+    # Special Case 1
+    if override_local_prefix:
+        return override_local_prefix
+
+    # Special Case 2
+    if service == "backfill_sync" and custom_args and "source" in custom_args:
+        return MAP_SERVICE_TO_METADATA[service]["subpaths"][custom_args["source"]]
+
+    # Special Case 3
+    if service == "raw_sync" and custom_args and "record_type" in custom_args:
+        return MAP_SERVICE_TO_METADATA[service]["subpaths"][custom_args["record_type"]]
+
+    return MAP_SERVICE_TO_METADATA[service]["local_prefix"]
+
+
+def _preprocess_df_for_export(
+    df: pd.DataFrame,
+    service: str,
+    timestamp_field: str,
+    timestamp_format: str,
+) -> pd.DataFrame:
+    """Preprocesses the dataframe for export."""
+    df = _derive_or_normalize_partition_date_column(
+        df=df,
+        service=service,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
+    df = _derive_or_normalize_timestamp_column(
+        df=df,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
+    return df
+
+
+def _determine_if_special_case_chunk_generation(service: str) -> bool:
+    """Catch-all function for determining if special case chunk generation is needed.
+
+    There's quite a bit of technical debt around these cases that we can
+    revisit later.
+    """
+    return MAP_SERVICE_TO_METADATA[service].get("skip_date_validation", False)
+
+
+def _generate_batches_for_special_cases(df: pd.DataFrame) -> list[dict]:
+    """Catch-all function for generating export chunks for special cases.
+
+    There's quite a bit of technical debt around these cases that we can
+    revisit later.
+    """
+    return [
+        {
+            "latest_record_timestamp": generate_current_datetime_str(),
+            "data": df,
+        }
+    ]
+
+
+def _generate_batches_for_export_generic(
+    df: pd.DataFrame,
+    timestamp_field: str,
+    timestamp_format: str,
+) -> list[dict]:
+    """Partitions data by date.
+
+    Returns a list of dicts of the following format:
+    {
+        "latest_record_timestamp": str,
+        "data": pd.DataFrame
+    }
+
+    Transforms the timestamp field to a datetime field and then partitions the
+    data by date. Each day's data is stored in a separate dataframe.
+    """
+    batches = df.groupby("partition_date")
+
+    result: list[dict] = []
+
+    for _, batch in batches:
+        ts_series = pd.to_datetime(batch[timestamp_field], format=timestamp_format)
+        latest_record_timestamp: str = ts_series.max().strftime(
+            DEFAULT_TIMESTAMP_FORMAT
+        )
+        result.append(
+            {
+                "latest_record_timestamp": latest_record_timestamp,
+                "data": batch,
+            }
+        )
+
+    return result
+
+
+def _generate_batches_for_export(
+    service: str,
+    df: pd.DataFrame,
+    timestamp_field: str,
+    timestamp_format: str,
+) -> list[dict]:
+    """Creates batches of data out of the original dataframe, preparing it
+    for the expected export format."""
+    # Ensure all export paths (including special cases) have canonical partition_date.
+    if df.empty:
+        raise ValueError(
+            "Received empty dataframe for export. Please ensure that the dataframe is not empty."
+        )
+    df = _preprocess_df_for_export(
+        df=df,
+        service=service,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
+    if _determine_if_special_case_chunk_generation(service=service):
+        return _generate_batches_for_special_cases(df=df)
+    return _generate_batches_for_export_generic(
+        df=df,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
+
+
+def _export_batch_backfill_sync(
+    batch_df: pd.DataFrame,
+    service: str,
+    export_format: Literal["jsonl", "parquet"],
+    lookback_days: int,
+):
+    """Special case export for backfill sync.
+
+    TODO: properly refactor at some point once we resume backfill syncs from the PDS.
+    """
+    if "record_type" in batch_df.columns:
+        record_type_groups: dict[str, pd.DataFrame] = {}
+        for record_type, group_df in batch_df.groupby("record_type"):
+            record_type_groups[record_type] = group_df  # type: ignore
+
+        for record_type, group_df in record_type_groups.items():
+            logger.info(
+                f"Exporting {record_type} data for service={service} to local storage for raw_sync..."
+            )
+            export_data_to_local_storage(
+                service="raw_sync",
+                df=group_df,
+                export_format=export_format,
+                lookback_days=lookback_days,
+                custom_args={"record_type": record_type},
+            )
+        logger.info("Completed writing backfill sync data to local storage.")
+
+
+def _export_batch_generic(
+    batch_df: pd.DataFrame,
+    service: str,
+    latest_record_timestamp: str,
+    timestamp_field: str,
+    timestamp_format: str,
+    local_prefix: str,
+    export_format: Literal["jsonl", "parquet"],
+    lookback_days: int,
+    custom_args: dict | None,
+):
+    """Exports a single batch of data to local storage."""
+
+    storage_tier: str = _determine_storage_tier_for_export(
+        latest_record_timestamp=latest_record_timestamp,
+        timestamp_format=timestamp_format,
+        lookback_days=lookback_days,
+    )
+
+    # drop extra old column from compaction. Keep partition_date.
+    # since we use it on writes.
+    batch_df = _conditionally_drop_extra_columns(
+        df=batch_df,
+        columns_to_always_include=["partition_date"],
+    )
+
+    # /{root path}/{service-specific path}/{cache / active}/{filename}
+    export_folder_path: str = os.path.join(local_prefix, storage_tier)
+    os.makedirs(export_folder_path, exist_ok=True)
+
+    if export_format == "jsonl":
+        file_created_timestamp = generate_current_datetime_str()
+        filename: str = f"fileCreatedTimestamp={file_created_timestamp}.jsonl"
+        full_export_filepath: str = os.path.join(export_folder_path, filename)
+        _export_df_to_local_storage_jsonl(
+            df=batch_df, local_export_fp=full_export_filepath
+        )
+    elif export_format == "parquet":
+        _export_df_to_local_storage_parquet(
+            df=batch_df,
+            service=service,
+            export_folder_path=export_folder_path,
+            timestamp_field=timestamp_field,
+            timestamp_format=timestamp_format,
+            custom_args=custom_args,
+        )
+    else:
+        raise ValueError(f"Invalid export format: {export_format}")
+
+
+def _export_batch(
+    batch_df: pd.DataFrame,
+    service: str,
+    latest_record_timestamp: str,
+    timestamp_field: str,
+    timestamp_format: str,
+    local_prefix: str,
+    export_format: Literal["jsonl", "parquet"],
+    lookback_days: int,
+    custom_args: dict | None,
+):
+    """Exports a single batch of data to local storage."""
+    if service == "backfill_sync":
+        return _export_batch_backfill_sync(
+            batch_df=batch_df,
+            service=service,
+            export_format=export_format,
+            lookback_days=lookback_days,
+        )
+    else:
+        return _export_batch_generic(
+            batch_df=batch_df,
+            latest_record_timestamp=latest_record_timestamp,
+            service=service,
+            timestamp_field=timestamp_field,
+            timestamp_format=timestamp_format,
+            local_prefix=local_prefix,
+            export_format=export_format,
+            lookback_days=lookback_days,
+            custom_args=custom_args,
+        )
+
+
+def _determine_storage_tier_for_export(
+    latest_record_timestamp: str, timestamp_format: str, lookback_days: int
+) -> Literal["cache", "active"]:
+    """Determines the storage tier for a given export, based on the
+    latest record timestamp and the lookback days.
+    """
+    if is_older_than_lookback(
+        latest_record_timestamp=latest_record_timestamp,
+        timestamp_format=timestamp_format,
+        lookback_days=lookback_days,
+    ):
+        return "cache"
+    else:
+        return "active"
+
+
 def export_data_to_local_storage(
     service: str,
     df: pd.DataFrame,
@@ -516,133 +721,39 @@ def export_data_to_local_storage(
     Receives a generic dataframe and exports it to local storage.
     """
     service = _convert_service_name_to_db_name(service)
-    # metadata needs to include timestamp field so that we can figure out what
-    # data is old vs. new
-    timestamp_field = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
-    timestamp_format = MAP_SERVICE_TO_METADATA[service].get("timestamp_format", None)
-    skip_date_validation = MAP_SERVICE_TO_METADATA[service].get(
-        "skip_date_validation", False
+    timestamp_field: str = MAP_SERVICE_TO_METADATA[service]["timestamp_field"]
+    timestamp_format: str = MAP_SERVICE_TO_METADATA[service].get(
+        "timestamp_format", DEFAULT_TIMESTAMP_FORMAT
     )
-    # Override skip_date_validation for backfill_sync if custom_args provides a specific source
-    # NOTE: This is done because the output formatting for backfill syncs is slightly different
-    # from other parts of the pipeline. Should be consolidated at some point.
-    if service == "raw_sync" and custom_args and "record_type" in custom_args:
-        skip_date_validation = False
-    if skip_date_validation:
-        chunks = [
-            {
-                "start_timestamp": generate_current_datetime_str(),
-                "end_timestamp": generate_current_datetime_str(),
-                "data": df,
-            }
-        ]
-    else:
-        # TODO: guarantee invariant “one partition date per chunk”
-        # here, so downstream consumers don't have to worry
-        # about this.
-        # NOTE: also might want to move the "partition date" column
-        # creation here, since I have to know the partition date
-        # to create these chunks correctly.
-        chunks: list[dict] = partition_data_by_date(
-            df=df,
+
+    batches: list[dict] = _generate_batches_for_export(
+        service=service,
+        df=df,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
+
+    local_prefix: str = _determine_local_prefix_for_export(
+        service=service,
+        custom_args=custom_args,
+        override_local_prefix=override_local_prefix,
+    )
+
+    for chunk in batches:
+        batch_df: pd.DataFrame = chunk["data"]
+        latest_record_timestamp: str = chunk["latest_record_timestamp"]
+
+        _export_batch(
+            batch_df=batch_df,
+            latest_record_timestamp=latest_record_timestamp,
+            service=service,
             timestamp_field=timestamp_field,
             timestamp_format=timestamp_format,
-            skip_date_validation=skip_date_validation,
+            local_prefix=local_prefix,
+            export_format=export_format,
+            lookback_days=lookback_days,
+            custom_args=custom_args,
         )
-    for chunk in chunks:
-        # processing specific for firehose
-        if override_local_prefix:
-            local_prefix = override_local_prefix
-        elif service == "backfill_sync":
-            if custom_args and "source" in custom_args:
-                local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][
-                    custom_args["source"]
-                ]
-            elif skip_date_validation:
-                local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
-            else:
-                if "record_type" in chunk["data"].columns:
-                    record_type_groups: dict[str, pd.DataFrame] = {}
-                    for record_type, group_df in chunk["data"].groupby("record_type"):
-                        record_type_groups[record_type] = group_df
-
-                    for record_type, group_df in record_type_groups.items():
-                        logger.info(
-                            f"Exporting {record_type} data for service={service} to local storage for raw_sync..."
-                        )
-                        export_data_to_local_storage(
-                            service="raw_sync",
-                            df=group_df,
-                            export_format=export_format,
-                            lookback_days=lookback_days,
-                            custom_args={"record_type": record_type},
-                        )
-                    logger.info(
-                        "Completed writing backfill sync data to local storage."
-                    )
-                    continue
-                else:
-                    raise ValueError(
-                        f"No record_type column found in dataframe for backfill service={service}."
-                    )
-        elif service == "raw_sync":
-            record_type = custom_args["record_type"]
-            local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][record_type]
-        # elif service == "preprocessed_posts":
-        #     source = custom_args["source"]
-        #     local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
-        # elif service == "ml_inference_perspective_api":
-        #     source = custom_args["source"]
-        #     local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
-        # elif service == "ml_inference_sociopolitical":
-        #     source = custom_args["source"]
-        #     local_prefix = MAP_SERVICE_TO_METADATA[service]["subpaths"][source]
-        else:
-            # generic processing
-            local_prefix = MAP_SERVICE_TO_METADATA[service]["local_prefix"]
-        if service == "backfill_sync" and not (
-            skip_date_validation or (custom_args and "source" in custom_args)
-        ):
-            continue
-        start_timestamp: str = chunk["start_timestamp"]
-        end_timestamp: str = chunk["end_timestamp"]
-        chunk_df: pd.DataFrame = chunk["data"]
-        file_created_timestamp = generate_current_datetime_str()
-        filename = f"startTimestamp={start_timestamp}_endTimestamp={end_timestamp}_fileCreatedTimestamp={file_created_timestamp}.{export_format}"
-        if data_is_older_than_lookback(
-            end_timestamp=end_timestamp, lookback_days=lookback_days
-        ):
-            storage_tier = "cache"
-        else:
-            storage_tier = "active"
-
-        # drop extra old column from compaction. Keep partition_date.
-        # since we use it on writes.
-        chunk_df = _conditionally_drop_extra_columns(
-            df=chunk_df,
-            columns_to_always_include=["partition_date"],
-        )
-
-        # /{root path}/{service-specific path}/{cache / active}/{filename}
-        export_folder_path: str = os.path.join(local_prefix, storage_tier)
-        os.makedirs(export_folder_path, exist_ok=True)
-
-        if export_format == "jsonl":
-            full_export_filepath: str = os.path.join(export_folder_path, filename)
-            _export_df_to_local_storage_jsonl(
-                df=chunk_df, local_export_fp=full_export_filepath
-            )
-        elif export_format == "parquet":
-            _export_df_to_local_storage_parquet(
-                df=chunk_df,
-                service=service,
-                export_folder_path=export_folder_path,
-                timestamp_field=timestamp_field,
-                timestamp_format=timestamp_format,
-                custom_args=custom_args,
-            )
-        else:
-            raise ValueError(f"Invalid export format: {export_format}")
 
 
 def get_local_prefix_for_service(
@@ -780,7 +891,7 @@ def list_filenames(
 
     loaded_filepaths: list[str] = []
 
-    if service == "raw_sync":
+    if service == "raw_sync" and custom_args is not None:
         record_type = custom_args["record_type"]
         logger.info(
             f"Getting study user activity data for record_type={record_type}..."
