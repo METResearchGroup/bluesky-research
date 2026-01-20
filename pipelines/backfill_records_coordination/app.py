@@ -88,6 +88,13 @@ def validate_date_format(ctx, param, value):
     help="Integration service(s) to run. Can be specified multiple times. If not provided, runs all integrations.",
 )
 @click.option(
+    "--source-data-location",
+    type=click.Choice(["local", "s3"]),
+    default="local",
+    show_default=True,
+    help="Where to read posts (and label history) from.",
+)
+@click.option(
     "--backfill-period",
     "-p",
     type=click.Choice(["days", "hours"]),
@@ -165,6 +172,7 @@ def backfill_records(
     add_to_queue: bool,
     run_integrations: bool,
     integrations: tuple[str, ...],
+    source_data_location: str,
     backfill_period: str | None,
     backfill_duration: int | None,
     write_cache_buffer_to_storage: bool,
@@ -207,7 +215,9 @@ def backfill_records(
     )
 
     if add_to_queue:
-        enqueue_svc = _enqueue_service or EnqueueService()
+        enqueue_svc = _enqueue_service or EnqueueService(
+            source_data_location=source_data_location
+        )
         enqueue_service_payload = EnqueueServicePayload(
             record_type=str(record_type),
             integrations=mapped_integration_names,

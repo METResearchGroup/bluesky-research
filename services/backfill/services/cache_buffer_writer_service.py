@@ -1,5 +1,4 @@
 from services.backfill.exceptions import CacheBufferWriterServiceError
-from services.backfill.repositories.adapters import LocalStorageAdapter
 from services.backfill.repositories.repository import BackfillDataRepository
 from services.backfill.services.queue_manager_service import QueueManagerService
 from lib.log.logger import get_logger
@@ -30,13 +29,13 @@ class CacheBufferWriterService:
 
         Args:
             data_repository: Optional BackfillDataRepository instance for dependency injection.
-                              If not provided, creates a new instance using LocalStorageAdapter.
+                If not provided, creates a new instance using the local data source.
             queue_manager_service: Optional QueueManagerService instance for dependency injection.
-                                  If not provided, creates a new instance.
+                If not provided, creates a new instance.
         """
-        self.data_repository = data_repository or BackfillDataRepository(
-            adapter=LocalStorageAdapter()
-        )
+        if data_repository is None:
+            data_repository = BackfillDataRepository.from_source_data_location("local")
+        self.data_repository = data_repository
         self.queue_manager_service = queue_manager_service or QueueManagerService()
 
     def write_cache(self, integration_name: str) -> None:

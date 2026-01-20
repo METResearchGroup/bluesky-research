@@ -6,6 +6,13 @@ import pandas as pd
 
 from services.backfill.exceptions import BackfillDataAdapterError
 from services.backfill.models import PostToEnqueueModel, PostUsedInFeedModel
+from services.backfill.repositories.adapters import (
+    LOCAL_TABLE_NAME,
+    REQUIRED_COLUMNS,
+    S3Adapter,
+)
+from lib.db.manage_s3_data import S3ParquetDatasetRef
+from lib.db.models import StorageTier
 
 
 class TestLocalStorageAdapter_load_all_posts:
@@ -517,20 +524,53 @@ class TestLocalStorageAdapter_get_previously_labeled_post_uris:
 class TestS3Adapter_load_all_posts:
     """Tests for S3Adapter.load_all_posts method."""
 
-    def test_raises_not_implemented_error(self, s3_adapter):
-        """Test that load_all_posts raises NotImplementedError."""
-        # Arrange
+    def test_loads_posts_from_s3_and_converts_to_models(self):
+        """Test that posts are loaded from S3 and converted to PostToEnqueueModel."""
         start_date = "2024-01-01"
         end_date = "2024-01-31"
+        mock_backend = Mock()
+        mock_backend.query_dataset_as_df.return_value = pd.DataFrame(
+            [
+                {
+                    "uri": "test_uri_1",
+                    "text": "test_text_1",
+                    "preprocessing_timestamp": "2024-01-01T00:00:00",
+                },
+                {
+                    "uri": "test_uri_2",
+                    "text": "test_text_2",
+                    "preprocessing_timestamp": "2024-01-02T00:00:00",
+                },
+            ]
+        )
+        s3_adapter = S3Adapter(backend=mock_backend)
 
-        with patch("services.backfill.repositories.adapters.logger") as mock_logger:
-            # Act & Assert
-            with pytest.raises(NotImplementedError) as exc_info:
-                s3_adapter.load_all_posts(start_date=start_date, end_date=end_date)
+        result = s3_adapter.load_all_posts(start_date=start_date, end_date=end_date)
 
-            # Assert
-            assert "S3 data loading is not yet implemented" in str(exc_info.value)
-            mock_logger.warning.assert_called_once()
+        mock_backend.query_dataset_as_df.assert_called_once()
+        call_kwargs = mock_backend.query_dataset_as_df.call_args.kwargs
+        assert call_kwargs["dataset"] == S3ParquetDatasetRef(dataset=LOCAL_TABLE_NAME)
+        assert call_kwargs["storage_tiers"] == [StorageTier.CACHE]
+        assert call_kwargs["start_partition_date"] == start_date
+        assert call_kwargs["end_partition_date"] == end_date
+        assert "query" in call_kwargs
+        assert "query_metadata" in call_kwargs
+        assert len(result) == 2
+        assert all(isinstance(post, PostToEnqueueModel) for post in result)
+        assert result[0].uri == "test_uri_1"
+        assert result[1].uri == "test_uri_2"
+
+    def test_returns_empty_list_when_no_posts(self):
+        """Test that empty list is returned when no posts are found."""
+        start_date = "2024-01-01"
+        end_date = "2024-01-31"
+        mock_backend = Mock()
+        mock_backend.query_dataset_as_df.return_value = pd.DataFrame(columns=REQUIRED_COLUMNS)
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        result = s3_adapter.load_all_posts(start_date=start_date, end_date=end_date)
+
+        assert result == []
 
 
 class TestS3Adapter_load_feed_posts:
@@ -555,27 +595,73 @@ class TestS3Adapter_load_feed_posts:
 class TestS3Adapter_get_previously_labeled_post_uris:
     """Tests for S3Adapter.get_previously_labeled_post_uris method."""
 
-    def test_raises_not_implemented_error(self, s3_adapter):
-        """Test that get_previously_labeled_post_uris raises NotImplementedError."""
-        # Arrange
+    def test_returns_set_of_uris_from_df(self):
+        """Test that get_previously_labeled_post_uris returns a set of URIs from S3 query results."""
         service = "ml_inference_perspective_api"
         id_field = "uri"
         start_date = "2024-01-01"
         end_date = "2024-01-31"
+        mock_backend = Mock()
+        mock_backend.query_dataset_as_df.return_value = pd.DataFrame(
+            [{"uri": "u1"}, {"uri": "u1"}, {"uri": "u2"}]
+        )
+        s3_adapter = S3Adapter(backend=mock_backend)
 
-        with patch("services.backfill.repositories.adapters.logger") as mock_logger:
-            # Act & Assert
-            with pytest.raises(NotImplementedError) as exc_info:
-                s3_adapter.get_previously_labeled_post_uris(
-                    service=service,
-                    id_field=id_field,
-                    start_date=start_date,
-                    end_date=end_date,
-                )
+        result = s3_adapter.get_previously_labeled_post_uris(
+            service=service,
+            id_field=id_field,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
-            # Assert
-            assert "S3 data loading is not yet implemented" in str(exc_info.value)
-            mock_logger.warning.assert_called_once()
+        assert result == {"u1", "u2"}
+        mock_backend.query_dataset_as_df.assert_called_once()
+        call_kwargs = mock_backend.query_dataset_as_df.call_args.kwargs
+        assert call_kwargs["dataset"] == S3ParquetDatasetRef(dataset=service)
+        assert call_kwargs["storage_tiers"] == [StorageTier.CACHE]
+        assert call_kwargs["start_partition_date"] == start_date
+        assert call_kwargs["end_partition_date"] == end_date
+        assert call_kwargs["query"] == f"SELECT {id_field} FROM {service}"
+
+    def test_returns_empty_set_when_df_empty(self):
+        """Test that empty set is returned when no data is found."""
+        service = "ml_inference_perspective_api"
+        id_field = "uri"
+        start_date = "2024-01-01"
+        end_date = "2024-01-31"
+        mock_backend = Mock()
+        mock_backend.query_dataset_as_df.return_value = pd.DataFrame(columns=[id_field])
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        result = s3_adapter.get_previously_labeled_post_uris(
+            service=service,
+            id_field=id_field,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        assert result == set()
+
+    def test_wraps_backend_exceptions_as_backfill_data_adapter_error(self):
+        """Test that backend exceptions are wrapped as BackfillDataAdapterError."""
+        service = "ml_inference_perspective_api"
+        id_field = "uri"
+        start_date = "2024-01-01"
+        end_date = "2024-01-31"
+        mock_backend = Mock()
+        mock_backend.query_dataset_as_df.side_effect = Exception("boom")
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        with pytest.raises(BackfillDataAdapterError) as exc_info:
+            s3_adapter.get_previously_labeled_post_uris(
+                service=service,
+                id_field=id_field,
+                start_date=start_date,
+                end_date=end_date,
+            )
+
+        assert "Failed to load" in str(exc_info.value)
+        assert "boom" in str(exc_info.value)
 
 
 class TestLocalStorageAdapter_deduplicate_feed_posts:

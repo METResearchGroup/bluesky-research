@@ -15,10 +15,27 @@ from services.backfill.models import (
     BackfillPeriod,
 )
 
-
 class TestBackfillCoordinationCliApp(TestCase):
     def setUp(self):
         self.runner = CliRunner()
+
+    def _invoke_add_to_queue(self, extra_args: list[str]):
+        """Helper to invoke the CLI for enqueue-only flows with a standard date range."""
+        return self.runner.invoke(
+            backfill_records,
+            [
+                "--record-type",
+                "posts",
+                "--add-to-queue",
+                "-i",
+                "g",
+                "--start-date",
+                "2024-01-01",
+                "--end-date",
+                "2024-01-31",
+                *extra_args,
+            ],
+        )
         
     def test_resolve_integration_full_names(self):
         """Test that full integration names are returned unchanged."""
@@ -71,6 +88,34 @@ class TestBackfillCoordinationCliApp(TestCase):
         
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("--record-type is required when --add-to-queue is used", result.output)
+
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    def test_add_to_queue_default_source_data_location_is_local(
+        self, mock_enqueue_cls
+    ):
+        """If --source-data-location is not provided, it should default to 'local'."""
+        mock_enqueue = MagicMock()
+        mock_enqueue_cls.return_value = mock_enqueue
+
+        result = self._invoke_add_to_queue(extra_args=[])
+
+        self.assertEqual(result.exit_code, 0)
+        mock_enqueue_cls.assert_called_once_with(source_data_location="local")
+
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    def test_add_to_queue_source_data_location_s3(
+        self, mock_enqueue_cls
+    ):
+        """--source-data-location should be plumbed through to EnqueueService."""
+        mock_enqueue = MagicMock()
+        mock_enqueue_cls.return_value = mock_enqueue
+
+        result = self._invoke_add_to_queue(
+            extra_args=["--source-data-location", "s3"]
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        mock_enqueue_cls.assert_called_once_with(source_data_location="s3")
 
     @patch('pipelines.backfill_records_coordination.app.IntegrationRunnerService')
     @patch('pipelines.backfill_records_coordination.app.EnqueueService')
@@ -166,21 +211,6 @@ class TestBackfillCoordinationCliApp(TestCase):
             "--integrations is required when --run-integrations is used",
             result.output,
         )
-
-    @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
-    def test_write_cache_buffer_to_storage_specific_service(self, mock_service_cls):
-        """Test writing cache buffer for a specific service."""
-        mock_service = MagicMock()
-        mock_service_cls.return_value = mock_service
-
-        result = self.runner.invoke(
-            backfill_records,
-            ['--write-cache-buffer-to-storage', '--service-source-buffer', 'ml_inference_perspective_api']
-        )
-
-        self.assertEqual(result.exit_code, 0)
-        mock_service.write_cache.assert_called_once_with(integration_name='ml_inference_perspective_api')
-        mock_service.clear_cache.assert_not_called()
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     def test_write_cache_buffer_to_storage_specific_service(self, mock_service_cls):

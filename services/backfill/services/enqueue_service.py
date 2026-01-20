@@ -18,12 +18,32 @@ logger = get_logger(__file__)
 class EnqueueService:
     def __init__(
         self,
+        source_data_location: str = "local",
         backfill_data_loader_service: BackfillDataLoaderService | None = None,
         queue_manager_service: QueueManagerService | None = None,
     ):
-        self.backfill_data_loader_service = (
-            backfill_data_loader_service or BackfillDataLoaderService()
-        )
+        """Initialize EnqueueService.
+
+        Args:
+            source_data_location: Data source location ("local" or "s3"). Used to
+                construct BackfillDataLoaderService if not provided.
+            backfill_data_loader_service: Optional BackfillDataLoaderService instance.
+                If not provided, creates one using the source_data_location.
+            queue_manager_service: Optional QueueManagerService instance.
+                If not provided, creates a new instance.
+        """
+        if backfill_data_loader_service is None:
+            from services.backfill.repositories.repository import (
+                BackfillDataRepository,
+            )
+
+            repo = BackfillDataRepository.from_source_data_location(
+                source_data_location
+            )
+            backfill_data_loader_service = BackfillDataLoaderService(
+                data_repository=repo
+            )
+        self.backfill_data_loader_service = backfill_data_loader_service
         self.queue_manager_service = queue_manager_service or QueueManagerService()
 
     def enqueue_records(self, payload: EnqueueServicePayload) -> None:

@@ -3,6 +3,7 @@
 import pandas as pd
 
 from lib.constants import FEED_LOOKBACK_DAYS_DURING_STUDY, study_start_date
+from lib.db.models import StorageTier
 from lib.datetime_utils import (
     calculate_start_end_date_for_lookback,
     get_partition_dates,
@@ -55,7 +56,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
         # anyways). But just a note in case it comes up in the future.
         cached_df: pd.DataFrame = load_data_from_local_storage(
             service=LOCAL_TABLE_NAME,
-            storage_tiers=["cache"],
+            storage_tiers=[StorageTier.CACHE],
             duckdb_query=query,
             query_metadata=query_metadata,
             start_partition_date=start_date,
@@ -130,7 +131,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
         }
         cached_df: pd.DataFrame = load_data_from_local_storage(
             service=POSTS_USED_IN_FEEDS_TABLE_NAME,
-            storage_tiers=["cache"],
+            storage_tiers=[StorageTier.CACHE],
             duckdb_query=query,
             query_metadata=query_metadata,
             partition_date=partition_date,
@@ -220,7 +221,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
             # Load from cache
             cached_df: pd.DataFrame = load_data_from_local_storage(
                 service=service,
-                storage_tiers=["cache"],
+                storage_tiers=[StorageTier.CACHE],
                 duckdb_query=query,
                 query_metadata=query_metadata,
                 start_partition_date=start_date,
@@ -231,7 +232,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
             # Load from active
             active_df: pd.DataFrame = load_data_from_local_storage(
                 service=service,
-                storage_tiers=["active"],
+                storage_tiers=[StorageTier.ACTIVE],
                 duckdb_query=query,
                 query_metadata=query_metadata,
                 start_partition_date=start_date,
@@ -316,7 +317,7 @@ class S3Adapter(BackfillDataAdapter):
 
         df: pd.DataFrame = self.backend.query_dataset_as_df(
             dataset=S3ParquetDatasetRef(dataset=LOCAL_TABLE_NAME),
-            storage_tiers=["cache"],
+            storage_tiers=[StorageTier.CACHE],
             start_partition_date=start_date,
             end_partition_date=end_date,
             query=query,
@@ -361,19 +362,39 @@ class S3Adapter(BackfillDataAdapter):
 
         Returns:
             set[str]: Set of post URIs. Empty set if no data found or on error.
-
-        Raises:
-            NotImplementedError: S3 implementation not yet available.
         """
-        logger.warning(
-            "S3Adapter.get_previously_labeled_post_uris() is not yet implemented. "
-            "Will be implemented in a future PR."
-        )
-        raise NotImplementedError(
-            "S3 data loading is not yet implemented. "
-            "Use LocalStorageAdapter for now. "
-            "S3 support will be added in a future PR."
-        )
+        query = f"SELECT {id_field} FROM {service}"
+        query_metadata = {"tables": [{"name": service, "columns": [id_field]}]}
+
+        try:
+            df: pd.DataFrame = self.backend.query_dataset_as_df(
+                dataset=S3ParquetDatasetRef(dataset=service),
+                storage_tiers=[StorageTier.CACHE],
+                start_partition_date=start_date,
+                end_partition_date=end_date,
+                query=query,
+                query_metadata=query_metadata,
+            )
+            total_records: int = len(df)
+            logger.info(
+                f"Loaded {total_records} post URIs from S3 for service {service}"
+            )
+            if df.empty:
+                return set()
+            if id_field not in df.columns:
+                raise BackfillDataAdapterError(
+                    f"S3 query result missing expected id_field={id_field}. "
+                    f"Got columns={list(df.columns)}"
+                )
+
+            # Ensure we return a Python set of strings (dedup by construction).
+            return set(df[id_field].astype("string"))
+        except BackfillDataAdapterError:
+            raise
+        except Exception as e:
+            raise BackfillDataAdapterError(
+                f"Failed to load {service} post URIs from S3: {e}"
+            ) from e
 
     def write_records_to_storage(self, integration_name: str, records: list[dict]):
         """Write records to storage using the S3 adapter.
