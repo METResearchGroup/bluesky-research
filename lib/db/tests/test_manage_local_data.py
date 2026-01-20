@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import Mock, patch
 
 from lib.aws.s3 import S3
+from lib.db.models import StorageTier
 from lib.db.manage_local_data import (
     _get_all_filenames,
     _get_all_filenames_deprecated_format,
@@ -98,7 +99,7 @@ class TestGetAllFilenames:
         # Mock os.walk to return empty file list
         mocker.patch("os.walk", return_value=[("/data/test_service/active", [], [])])
         
-        result = _get_all_filenames("test_service")
+        result = _get_all_filenames("test_service", storage_tiers=[StorageTier.ACTIVE])
         assert result == []
 
     def test_no_valid_files(self, mocker):
@@ -120,7 +121,7 @@ class TestGetAllFilenames:
         mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = []
 
-        result = _get_all_filenames("test_service", validate_pq_files=True)
+        result = _get_all_filenames("test_service", storage_tiers=[StorageTier.ACTIVE], validate_pq_files=True)
         assert result == []
 
     def test_mixed_valid_invalid_files(self, mocker):
@@ -145,7 +146,7 @@ class TestGetAllFilenames:
         mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = valid_files
 
-        result = _get_all_filenames("test_service", validate_pq_files=True)
+        result = _get_all_filenames("test_service", storage_tiers=[StorageTier.ACTIVE], validate_pq_files=True)
         assert set(result) == set(valid_files)
 
     def test_incorrect_directory_structure(self, mocker):
@@ -166,7 +167,7 @@ class TestGetAllFilenames:
         
         mocker.patch("os.walk", side_effect=mock_walk)
         
-        result = _get_all_filenames("test_service")
+        result = _get_all_filenames("test_service", storage_tiers=[StorageTier.ACTIVE])
         assert result == []
 
 
@@ -197,7 +198,7 @@ class TestGetAllFilenamesDeprecatedFormat:
         # Mock os.walk to return empty file list
         mocker.patch("os.walk", return_value=[("/data/ml_inference_perspective_api/firehose/active", [], [])])
         
-        result = _get_all_filenames_deprecated_format("ml_inference_perspective_api")
+        result = _get_all_filenames_deprecated_format("ml_inference_perspective_api", storage_tiers=[StorageTier.ACTIVE])
         assert result == []
 
     def test_no_valid_files(self, mocker):
@@ -219,7 +220,7 @@ class TestGetAllFilenamesDeprecatedFormat:
         mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = []
 
-        result = _get_all_filenames_deprecated_format("ml_inference_perspective_api", validate_pq_files=True)
+        result = _get_all_filenames_deprecated_format("ml_inference_perspective_api", storage_tiers=[StorageTier.ACTIVE], validate_pq_files=True)
         assert result == []
 
     def test_mixed_valid_invalid_files(self, mocker):
@@ -244,7 +245,7 @@ class TestGetAllFilenamesDeprecatedFormat:
         mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = valid_files
 
-        result = _get_all_filenames_deprecated_format("ml_inference_perspective_api", validate_pq_files=True)
+        result = _get_all_filenames_deprecated_format("ml_inference_perspective_api", storage_tiers=[StorageTier.ACTIVE], validate_pq_files=True)
         assert set(result) == set(valid_files)
 
     def test_incorrect_directory_structure(self, mocker):
@@ -264,7 +265,7 @@ class TestGetAllFilenamesDeprecatedFormat:
         
         mocker.patch("os.walk", side_effect=mock_walk)
         
-        result = _get_all_filenames_deprecated_format("ml_inference_perspective_api")
+        result = _get_all_filenames_deprecated_format("ml_inference_perspective_api", storage_tiers=[StorageTier.ACTIVE])
         assert result == []
 
 
@@ -320,6 +321,7 @@ class TestListFilenames:
 
         result = list_filenames(
             service="preprocessed_posts",
+            storage_tiers=[StorageTier.ACTIVE],
             partition_date="2024-03-02"
         )
 
@@ -358,7 +360,7 @@ class TestListFilenames:
 
         result = list_filenames(
             service="posts",
-            storage_tiers=["active", "cache"],
+            storage_tiers=[StorageTier.ACTIVE, StorageTier.CACHE],
             partition_date="2024-03-02"
         )
 
@@ -403,6 +405,7 @@ class TestListFilenames:
 
         result = list_filenames(
             service="preprocessed_posts",
+            storage_tiers=[StorageTier.ACTIVE],
             start_partition_date="2024-03-01",
             end_partition_date="2024-03-03"
         )
@@ -445,7 +448,7 @@ class TestListFilenames:
 
         result = list_filenames(
             service="posts",
-            storage_tiers=["active", "cache"],
+            storage_tiers=[StorageTier.ACTIVE, StorageTier.CACHE],
             start_partition_date="2024-03-01",
             end_partition_date="2024-03-03"
         )
@@ -487,7 +490,8 @@ class TestListFilenames:
         ]
 
         result = list_filenames(
-            service="preprocessed_posts"
+            service="preprocessed_posts",
+            storage_tiers=[StorageTier.ACTIVE]
         )
 
         assert len(result) == 6  # All files from both discovery methods
@@ -527,7 +531,7 @@ class TestListFilenames:
 
         result = list_filenames(
             service="posts",
-            storage_tiers=["active", "cache"]
+            storage_tiers=[StorageTier.ACTIVE, StorageTier.CACHE]
         )
 
         assert len(result) == 3  # All files
@@ -567,7 +571,7 @@ class TestLoadDataFromLocalStorage:
     @pytest.mark.parametrize("test_params", [
         {
             "service": "test_service", 
-            "directory": "active",
+            "directory": StorageTier.ACTIVE,
             "source_file_format": "parquet",
             "mock_df": pd.DataFrame({
                 "col1": [1, 2],
@@ -596,8 +600,8 @@ class TestLoadDataFromLocalStorage:
         mock_read_parquet.assert_called_once()
 
     @pytest.mark.parametrize("directory,expected_files", [
-        ("active", ["active/file1.parquet"]),
-        ("cache", ["cache/file1.parquet"])
+        (StorageTier.ACTIVE, ["active/file1.parquet"]),
+        (StorageTier.CACHE, ["cache/file1.parquet"])
     ])
     def test_directory_selection(self, directory, expected_files, mocker, mock_service_metadata):
         """Test loading from different directories."""
@@ -641,6 +645,7 @@ class TestLoadDataFromLocalStorage:
             
         result = load_data_from_local_storage(
             service="test_service",
+            storage_tiers=[StorageTier.ACTIVE],
             source_file_format=source_file_format,
         )
         
@@ -656,6 +661,7 @@ class TestLoadDataFromLocalStorage:
         
         load_data_from_local_storage(
             service="test_service",
+            storage_tiers=[StorageTier.ACTIVE],
             duckdb_query=test_query,
             query_metadata=test_metadata
         )
@@ -687,6 +693,7 @@ class TestLoadDataFromLocalStorage:
         
         result = load_data_from_local_storage(
             service="test_service",
+            storage_tiers=[StorageTier.ACTIVE],
             latest_timestamp=test_params["latest_timestamp"]
         )
         
@@ -717,6 +724,7 @@ class TestLoadDataFromLocalStorage:
         
         result = load_data_from_local_storage(
             service="test_service",
+            storage_tiers=[StorageTier.ACTIVE],
             partition_date=test_params["partition_date"]
         )
         
@@ -725,7 +733,7 @@ class TestLoadDataFromLocalStorage:
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            storage_tiers=["active"],
+            storage_tiers=[StorageTier.ACTIVE],
             validate_pq_files=False,
             partition_date=test_params["partition_date"],
             start_partition_date=None,
@@ -750,13 +758,14 @@ class TestLoadDataFromLocalStorage:
         
         load_data_from_local_storage(
             service="test_service",
+            storage_tiers=[StorageTier.ACTIVE],
             start_partition_date=test_params["start_date"],
             end_partition_date=test_params["end_date"]
         )
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            storage_tiers=["active"],
+            storage_tiers=[StorageTier.ACTIVE],
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=test_params["start_date"],
@@ -773,12 +782,12 @@ class TestLoadDataFromLocalStorage:
         
         load_data_from_local_storage(
             service="test_service",
-            storage_tiers=["cache", "active"]
+            storage_tiers=[StorageTier.CACHE, StorageTier.ACTIVE]
         )
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            storage_tiers=["cache", "active"],
+            storage_tiers=[StorageTier.CACHE, StorageTier.ACTIVE],
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=None,
@@ -795,12 +804,13 @@ class TestLoadDataFromLocalStorage:
         
         load_data_from_local_storage(
             service="test_service",
+            storage_tiers=[StorageTier.ACTIVE],
             validate_pq_files=True
         )
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            storage_tiers=["active"],
+            storage_tiers=[StorageTier.ACTIVE],
             validate_pq_files=True,
             partition_date=None,
             start_partition_date=None,
@@ -859,6 +869,7 @@ class TestLoadDataFromLocalStorage:
         # Call function with validation criteria
         result = load_data_from_local_storage(
             service="preprocessed_posts",
+            storage_tiers=[StorageTier.ACTIVE],
             start_partition_date="2024-03-01",
             end_partition_date="2024-03-02"
         )
@@ -914,6 +925,7 @@ class TestLoadDataFromLocalStorage:
         # Call function with validation criteria
         result = load_data_from_local_storage(
             service="fetch_posts_used_in_feeds",
+            storage_tiers=[StorageTier.ACTIVE],
             start_partition_date="2024-03-01",
             end_partition_date="2024-03-02"
         )
@@ -938,12 +950,13 @@ class TestLoadDataFromLocalStorage:
         override_path = "/custom/path"
         load_data_from_local_storage(
             service="test_service",
+            storage_tiers=[StorageTier.ACTIVE],
             override_local_prefix=override_path
         )
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            storage_tiers=["active"],
+            storage_tiers=[StorageTier.ACTIVE],
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=None,
@@ -2967,7 +2980,7 @@ class TestDetermineStorageTierForExport:
         )
         
         # Assert
-        assert result == "cache"
+        assert result == StorageTier.CACHE
 
     def test_returns_active_when_timestamp_is_newer_than_lookback(self, mocker):
         """Test that function returns 'active' when timestamp is newer than lookback period.
@@ -2992,7 +3005,7 @@ class TestDetermineStorageTierForExport:
         )
         
         # Assert
-        assert result == "active"
+        assert result == StorageTier.ACTIVE
 
     def test_returns_active_when_timestamp_is_exactly_at_lookback_threshold(self, mocker):
         """Test that function returns 'active' when timestamp is exactly at lookback threshold.
@@ -3018,7 +3031,7 @@ class TestDetermineStorageTierForExport:
         )
         
         # Assert
-        assert result == "active"  # Not strictly older, so active
+        assert result == StorageTier.ACTIVE  # Not strictly older, so active
 
     def test_returns_cache_when_timestamp_is_just_before_lookback_threshold(self, mocker):
         """Test that function returns 'cache' when timestamp is just before lookback threshold.
@@ -3044,7 +3057,7 @@ class TestDetermineStorageTierForExport:
         )
         
         # Assert
-        assert result == "cache"
+        assert result == StorageTier.CACHE
 
     def test_handles_different_lookback_days_values(self, mocker):
         """Test that function works correctly with different lookback_days values.
@@ -3100,7 +3113,7 @@ class TestDetermineStorageTierForExport:
         )
         
         # Assert
-        assert result == "cache"
+        assert result == StorageTier.CACHE
 
     def test_handles_zero_lookback_days(self, mocker):
         """Test that function works correctly with zero lookback_days.
@@ -3125,7 +3138,7 @@ class TestDetermineStorageTierForExport:
         )
         
         # Assert
-        assert result == "cache"  # Timestamp is older than current time
+        assert result == StorageTier.CACHE  # Timestamp is older than current time
 
     def test_handles_large_lookback_days(self, mocker):
         """Test that function works correctly with large lookback_days values.
@@ -3150,7 +3163,7 @@ class TestDetermineStorageTierForExport:
         )
         
         # Assert
-        assert result == "cache"  # 38 days ago is older than 30 days ago
+        assert result == StorageTier.CACHE  # 38 days ago is older than 30 days ago
 
     def test_returns_only_cache_or_active(self, mocker):
         """Test that function only returns 'cache' or 'active' values.
@@ -3173,7 +3186,7 @@ class TestDetermineStorageTierForExport:
             timestamp_format=timestamp_format,
             lookback_days=lookback_days,
         )
-        assert result_old in ["cache", "active"]
+        assert result_old in [StorageTier.CACHE, StorageTier.ACTIVE]
         
         # Test with new timestamp
         result_new = _determine_storage_tier_for_export(
@@ -3181,4 +3194,4 @@ class TestDetermineStorageTierForExport:
             timestamp_format=timestamp_format,
             lookback_days=lookback_days,
         )
-        assert result_new in ["cache", "active"]
+        assert result_new in [StorageTier.CACHE, StorageTier.ACTIVE]

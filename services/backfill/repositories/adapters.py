@@ -7,6 +7,7 @@ from lib.datetime_utils import (
     calculate_start_end_date_for_lookback,
     get_partition_dates,
 )
+from lib.db.manage_s3_data import S3ParquetBackend, S3ParquetDatasetRef
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
 from services.backfill.exceptions import BackfillDataAdapterError
@@ -284,9 +285,12 @@ class LocalStorageAdapter(BackfillDataAdapter):
 class S3Adapter(BackfillDataAdapter):
     """S3 adapter implementation.
 
-    TODO: Implement S3 data loading in a future PR.
-    This will mirror the LocalStorageAdapter interface but load data from S3.
+    Mirrors the LocalStorageAdapter interface but loads Parquet from the
+    study dataset S3 layout via S3ParquetBackend + DuckDB.
     """
+
+    def __init__(self, backend: S3ParquetBackend | None = None):
+        self.backend = backend or S3ParquetBackend()
 
     def load_all_posts(
         self, start_date: str, end_date: str
@@ -300,15 +304,26 @@ class S3Adapter(BackfillDataAdapter):
         Returns:
             list[PostToEnqueueModel]: List of posts.
         """
-        logger.warning(
-            "S3Adapter.load_all_posts() is not yet implemented. "
-            "Will be implemented in a future PR."
+        table_columns = REQUIRED_COLUMNS.copy()
+        table_columns_str = ", ".join(table_columns)
+        filter_clause = "WHERE text IS NOT NULL AND text != ''"
+        query = (
+            f"SELECT {table_columns_str} FROM {LOCAL_TABLE_NAME} {filter_clause}"
+        ).strip()
+        query_metadata = {
+            "tables": [{"name": LOCAL_TABLE_NAME, "columns": table_columns}]
+        }
+
+        df: pd.DataFrame = self.backend.query_dataset_as_df(
+            dataset=S3ParquetDatasetRef(dataset=LOCAL_TABLE_NAME),
+            storage_tiers=["cache"],
+            start_partition_date=start_date,
+            end_partition_date=end_date,
+            query=query,
+            query_metadata=query_metadata,
         )
-        raise NotImplementedError(
-            "S3 data loading is not yet implemented. "
-            "Use LocalStorageAdapter for now. "
-            "S3 support will be added in a future PR."
-        )
+        dumped_posts: list[dict] = df.to_dict(orient="records")
+        return [PostToEnqueueModel(**post) for post in dumped_posts]
 
     def load_feed_posts(
         self, start_date: str, end_date: str
