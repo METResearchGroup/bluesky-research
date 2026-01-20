@@ -9,6 +9,7 @@ from lib.datetime_utils import (
 )
 from lib.db.manage_s3_data import S3Backend, S3ParquetDatasetRef
 from lib.db.manage_local_data import load_data_from_local_storage
+from lib.db.models import StorageTier
 from lib.log.logger import get_logger
 from services.backfill.exceptions import BackfillDataAdapterError
 from services.backfill.models import PostToEnqueueModel, PostUsedInFeedModel
@@ -55,7 +56,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
         # anyways). But just a note in case it comes up in the future.
         cached_df: pd.DataFrame = load_data_from_local_storage(
             service=LOCAL_TABLE_NAME,
-            storage_tiers=["cache"],
+            storage_tiers=[StorageTier.CACHE],
             duckdb_query=query,
             query_metadata=query_metadata,
             start_partition_date=start_date,
@@ -130,7 +131,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
         }
         cached_df: pd.DataFrame = load_data_from_local_storage(
             service=POSTS_USED_IN_FEEDS_TABLE_NAME,
-            storage_tiers=["cache"],
+            storage_tiers=[StorageTier.CACHE],
             duckdb_query=query,
             query_metadata=query_metadata,
             partition_date=partition_date,
@@ -220,7 +221,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
             # Load from cache
             cached_df: pd.DataFrame = load_data_from_local_storage(
                 service=service,
-                storage_tiers=["cache"],
+                storage_tiers=[StorageTier.CACHE],
                 duckdb_query=query,
                 query_metadata=query_metadata,
                 start_partition_date=start_date,
@@ -231,7 +232,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
             # Load from active
             active_df: pd.DataFrame = load_data_from_local_storage(
                 service=service,
-                storage_tiers=["active"],
+                storage_tiers=[StorageTier.ACTIVE],
                 duckdb_query=query,
                 query_metadata=query_metadata,
                 start_partition_date=start_date,
