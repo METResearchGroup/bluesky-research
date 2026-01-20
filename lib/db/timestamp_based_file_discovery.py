@@ -64,14 +64,17 @@ def _fetch_all_files_after_timestamp_year(
     files_list: list[str] = []
     year_level_paths = _safe_listdir(base_path)
     for year_dir in year_level_paths:
-        if year_dir > timestamp_year:
-            future_year_files: list[str] = _fetch_files_after_timestamp_year(
-                year_dir_path=os.path.join(
-                    base_path,
-                    year_dir,
+        try:
+            if int(year_dir) > int(timestamp_year):
+                future_year_files: list[str] = _fetch_files_after_timestamp_year(
+                    year_dir_path=os.path.join(
+                        base_path,
+                        year_dir,
+                    )
                 )
-            )
-            files_list.extend(future_year_files)
+                files_list.extend(future_year_files)
+        except Exception as e:
+            raise Exception(f"Error fetching year files: {e}") from e
     return files_list
 
 
@@ -88,14 +91,17 @@ def _fetch_all_files_after_timestamp_month(
     files_list: list[str] = []
     month_level_paths = _safe_listdir(year_dir_path)
     for month_dir in month_level_paths:
-        if month_dir > timestamp_month:
-            future_month_files: list[str] = _fetch_files_after_timestamp_month(
-                month_dir_path=os.path.join(
-                    year_dir_path,
-                    month_dir,
+        try:
+            if int(month_dir) > int(timestamp_month):
+                future_month_files: list[str] = _fetch_files_after_timestamp_month(
+                    month_dir_path=os.path.join(
+                        year_dir_path,
+                        month_dir,
+                    )
                 )
-            )
-            files_list.extend(future_month_files)
+                files_list.extend(future_month_files)
+        except Exception as e:
+            raise Exception(f"Error fetching month files: {e}") from e
 
     return files_list
 
@@ -113,14 +119,17 @@ def _fetch_all_files_after_timestamp_day(
     files_list: list[str] = []
     day_level_paths = _safe_listdir(month_dir_path)
     for day_dir in day_level_paths:
-        if day_dir > timestamp_day:
-            future_day_files: list[str] = _fetch_files_after_timestamp_day(
-                day_dir_path=os.path.join(
-                    month_dir_path,
-                    day_dir,
+        try:
+            if int(day_dir) > int(timestamp_day):
+                future_day_files: list[str] = _fetch_files_after_timestamp_day(
+                    day_dir_path=os.path.join(
+                        month_dir_path,
+                        day_dir,
+                    )
                 )
-            )
-            files_list.extend(future_day_files)
+                files_list.extend(future_day_files)
+        except Exception as e:
+            raise Exception(f"Error fetching day files: {e}") from e
 
     return files_list
 
@@ -138,14 +147,17 @@ def _fetch_all_files_after_timestamp_hour(
     files_list: list[str] = []
     hour_level_paths = _safe_listdir(day_dir_path)
     for hour_dir in hour_level_paths:
-        if hour_dir > timestamp_hour:
-            future_minute_files: list[str] = _fetch_files_after_timestamp_hour(
-                hour_dir_path=os.path.join(
-                    day_dir_path,
-                    hour_dir,
+        try:
+            if int(hour_dir) > int(timestamp_hour):
+                future_minute_files: list[str] = _fetch_files_after_timestamp_hour(
+                    hour_dir_path=os.path.join(
+                        day_dir_path,
+                        hour_dir,
+                    )
                 )
-            )
-            files_list.extend(future_minute_files)
+                files_list.extend(future_minute_files)
+        except Exception as e:
+            raise Exception(f"Error fetching hour files: {e}") from e
 
     return files_list
 
@@ -163,14 +175,17 @@ def _fetch_all_files_after_timestamp_minute(
     files_list: list[str] = []
     minute_level_paths = _safe_listdir(hour_dir_path)
     for minute_dir in minute_level_paths:
-        if minute_dir > timestamp_minute:
-            future_minute_files: list[str] = _fetch_files_after_timestamp_minute(
-                minute_dir_path=os.path.join(
-                    hour_dir_path,
-                    minute_dir,
+        try:
+            if int(minute_dir) > int(timestamp_minute):
+                future_minute_files: list[str] = _fetch_files_after_timestamp_minute(
+                    minute_dir_path=os.path.join(
+                        hour_dir_path,
+                        minute_dir,
+                    )
                 )
-            )
-            files_list.extend(future_minute_files)
+                files_list.extend(future_minute_files)
+        except Exception as e:
+            raise Exception(f"Error fetching minute files: {e}") from e
 
     return files_list
 

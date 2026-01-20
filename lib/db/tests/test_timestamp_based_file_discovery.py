@@ -34,7 +34,7 @@ def sample_timestamp_structure():
         ]
         for year, month, day, hour, minute in timestamps:
             dir_path = os.path.join(
-                tmpdir, f"year={year}/month={month}/day={day}/hour={hour}/minute={minute}"
+                tmpdir, f"{year}/{month}/{day}/{hour}/{minute}"
             )
             os.makedirs(dir_path, exist_ok=True)
             test_file_path = os.path.join(dir_path, "test_file.txt")
@@ -115,14 +115,14 @@ class TestFetchFilesAfterTimestampYear:
     def test_fetches_files_after_year(self, sample_timestamp_structure):
         """Test that files are fetched from directories after the year."""
         # Arrange
-        directory_path = os.path.join(sample_timestamp_structure, "year=2024")
+        directory_path = os.path.join(sample_timestamp_structure, "2024")
         
         # Act
         result = _fetch_files_after_timestamp_year(directory_path)
         
         # Assert
         assert len(result) > 0
-        assert all("year=2024" in f for f in result)
+        assert all(f"{os.sep}2024{os.sep}" in f for f in result)
 
 
 class TestFetchFilesAfterTimestampMonth:
@@ -131,14 +131,14 @@ class TestFetchFilesAfterTimestampMonth:
     def test_fetches_files_after_month(self, sample_timestamp_structure):
         """Test that files are fetched from directories after the month."""
         # Arrange
-        directory_path = os.path.join(sample_timestamp_structure, "year=2024", "month=07")
+        directory_path = os.path.join(sample_timestamp_structure, "2024", "07")
         
         # Act
         result = _fetch_files_after_timestamp_month(directory_path)
         
         # Assert
         assert len(result) > 0
-        assert all("month=07" in f for f in result)
+        assert all(f"{os.sep}07{os.sep}" in f for f in result)
 
 
 class TestFetchFilesAfterTimestampDay:
@@ -148,7 +148,7 @@ class TestFetchFilesAfterTimestampDay:
         """Test that files are fetched from directories after the day."""
         # Arrange
         directory_path = os.path.join(
-            sample_timestamp_structure, "year=2024", "month=07", "day=05"
+            sample_timestamp_structure, "2024", "07", "05"
         )
         
         # Act
@@ -156,7 +156,7 @@ class TestFetchFilesAfterTimestampDay:
         
         # Assert
         assert len(result) > 0
-        assert all("day=05" in f for f in result)
+        assert all(f"{os.sep}05{os.sep}" in f for f in result)
 
 
 class TestFetchFilesAfterTimestampHour:
@@ -166,7 +166,7 @@ class TestFetchFilesAfterTimestampHour:
         """Test that files are fetched from directories after the hour."""
         # Arrange
         directory_path = os.path.join(
-            sample_timestamp_structure, "year=2024", "month=07", "day=05", "hour=20"
+            sample_timestamp_structure, "2024", "07", "05", "20"
         )
         
         # Act
@@ -174,7 +174,7 @@ class TestFetchFilesAfterTimestampHour:
         
         # Assert
         assert len(result) > 0
-        assert all("hour=20" in f for f in result)
+        assert all(f"{os.sep}20{os.sep}" in f for f in result)
 
 
 class TestFetchFilesAfterTimestampMinute:
@@ -185,11 +185,11 @@ class TestFetchFilesAfterTimestampMinute:
         # Arrange
         directory_path = os.path.join(
             sample_timestamp_structure,
-            "year=2024",
-            "month=07",
-            "day=05",
-            "hour=20",
-            "minute=59",
+            "2024",
+            "07",
+            "05",
+            "20",
+            "59",
         )
         
         # Act
@@ -197,16 +197,16 @@ class TestFetchFilesAfterTimestampMinute:
         
         # Assert
         assert len(result) > 0
-        assert all("minute=59" in f for f in result)
+        assert all(f"{os.sep}59{os.sep}" in f for f in result)
 
 
 class TestFetchAllFilesAfterTimestampYear:
     """Tests for _fetch_all_files_after_timestamp_year function."""
 
     @pytest.mark.parametrize("target_year,expected_count", [
-        ("year=2023", 6),  # All files in 2024
-        ("year=2024", 0),  # No files after 2024
-        ("year=2025", 0),  # No files after 2025
+        ("2023", 6),  # All files in 2024
+        ("2024", 0),  # No files after 2024
+        ("2025", 0),  # No files after 2025
     ])
     def test_fetches_files_from_future_years(self, sample_timestamp_structure, target_year, expected_count):
         """Test that files are fetched from years greater than target year."""
@@ -220,21 +220,30 @@ class TestFetchAllFilesAfterTimestampYear:
         # Assert
         assert len(result) == expected_count
         if expected_count > 0:
-            assert all("year=2024" in f for f in result)
+            assert all(f"{os.sep}2024{os.sep}" in f for f in result)
+
+    def test_raises_on_non_numeric_year_dir(self, tmp_path):
+        """Non-numeric year directory should raise (new behavior)."""
+        base_path = str(tmp_path)
+        os.makedirs(os.path.join(base_path, "2024"), exist_ok=True)
+        os.makedirs(os.path.join(base_path, "not-a-year"), exist_ok=True)
+
+        with pytest.raises(Exception, match=r"Error fetching year files:"):
+            _fetch_all_files_after_timestamp_year(base_path, "2023")
 
 
 class TestFetchAllFilesAfterTimestampMonth:
     """Tests for _fetch_all_files_after_timestamp_month function."""
 
     @pytest.mark.parametrize("target_month,expected_count", [
-        ("month=01", 5),  # All files in months 07-08 (4 in month=07, 1 in month=08)
-        ("month=07", 1),  # Only files in month 08
-        ("month=08", 0),  # No files after month 08
+        ("01", 5),  # All files in months 07-08 (4 in month=07, 1 in month=08)
+        ("07", 1),  # Only files in month 08
+        ("08", 0),  # No files after month 08
     ])
     def test_fetches_files_from_future_months(self, sample_timestamp_structure, target_month, expected_count):
         """Test that files are fetched from months greater than target month."""
         # Arrange
-        year_dir_path = os.path.join(sample_timestamp_structure, "year=2024")
+        year_dir_path = os.path.join(sample_timestamp_structure, "2024")
         timestamp_month = target_month
         
         # Act
@@ -244,31 +253,43 @@ class TestFetchAllFilesAfterTimestampMonth:
         assert len(result) == expected_count
         if expected_count > 0:
             # Verify all files are from months after target_month
-            month_num = int(target_month.split("=")[1])
+            month_num = int(target_month)
             for f in result:
                 # Extract month from file path
                 parts = f.split(os.sep)
                 file_month = None
                 for part in parts:
-                    if part.startswith("month="):
-                        file_month = int(part.split("=")[1])
+                    if part.isdigit() and len(part) in (1, 2):
+                        # Month is the second segment under year; this is a loose check
+                        # but good enough for these fixtures.
+                        file_month = int(part)
                         break
                 if file_month is not None:
                     assert file_month > month_num, f"File {f} should be from month > {month_num}"
+
+    def test_raises_on_non_numeric_month_dir(self, tmp_path):
+        """Non-numeric month directory should raise (new behavior)."""
+        year_dir_path = os.path.join(str(tmp_path), "2024")
+        os.makedirs(year_dir_path, exist_ok=True)
+        os.makedirs(os.path.join(year_dir_path, "07"), exist_ok=True)
+        os.makedirs(os.path.join(year_dir_path, "not-a-month"), exist_ok=True)
+
+        with pytest.raises(Exception, match=r"Error fetching month files:"):
+            _fetch_all_files_after_timestamp_month(year_dir_path, "06")
 
 
 class TestFetchAllFilesAfterTimestampDay:
     """Tests for _fetch_all_files_after_timestamp_day function."""
 
     @pytest.mark.parametrize("target_day,expected_count", [
-        ("day=05", 1),  # Files on day 06 only (this function doesn't fetch files from same day, different hour)
-        ("day=06", 0),  # No files after day 06 in month 07
-        ("day=07", 0),  # No files after day 07 in month 07
+        ("05", 1),  # Files on day 06 only (this function doesn't fetch files from same day, different hour)
+        ("06", 0),  # No files after day 06 in month 07
+        ("07", 0),  # No files after day 07 in month 07
     ])
     def test_fetches_files_from_future_days(self, sample_timestamp_structure, target_day, expected_count):
         """Test that files are fetched from days greater than target day."""
         # Arrange
-        month_dir_path = os.path.join(sample_timestamp_structure, "year=2024", "month=07")
+        month_dir_path = os.path.join(sample_timestamp_structure, "2024", "07")
         timestamp_day = target_day
         
         # Act
@@ -277,19 +298,29 @@ class TestFetchAllFilesAfterTimestampDay:
         # Assert
         assert len(result) == expected_count
 
+    def test_raises_on_non_numeric_day_dir(self, tmp_path):
+        """Non-numeric day directory should raise (new behavior)."""
+        month_dir_path = os.path.join(str(tmp_path), "2024", "07")
+        os.makedirs(month_dir_path, exist_ok=True)
+        os.makedirs(os.path.join(month_dir_path, "05"), exist_ok=True)
+        os.makedirs(os.path.join(month_dir_path, "not-a-day"), exist_ok=True)
+
+        with pytest.raises(Exception, match=r"Error fetching day files:"):
+            _fetch_all_files_after_timestamp_day(month_dir_path, "04")
+
 
 class TestFetchAllFilesAfterTimestampHour:
     """Tests for _fetch_all_files_after_timestamp_hour function."""
 
     @pytest.mark.parametrize("target_hour,expected_count", [
-        ("hour=20", 1),  # File at hour 21 only (this function doesn't fetch files from same day, different hour in later days)
-        ("hour=21", 0),  # No files after hour 21 on day 05
+        ("20", 1),  # File at hour 21 only (this function doesn't fetch files from same day, different hour in later days)
+        ("21", 0),  # No files after hour 21 on day 05
     ])
     def test_fetches_files_from_future_hours(self, sample_timestamp_structure, target_hour, expected_count):
         """Test that files are fetched from hours greater than target hour."""
         # Arrange
         day_dir_path = os.path.join(
-            sample_timestamp_structure, "year=2024", "month=07", "day=05"
+            sample_timestamp_structure, "2024", "07", "05"
         )
         timestamp_hour = target_hour
         
@@ -299,19 +330,29 @@ class TestFetchAllFilesAfterTimestampHour:
         # Assert
         assert len(result) == expected_count
 
+    def test_raises_on_non_numeric_hour_dir(self, tmp_path):
+        """Non-numeric hour directory should raise (new behavior)."""
+        day_dir_path = os.path.join(str(tmp_path), "2024", "07", "05")
+        os.makedirs(day_dir_path, exist_ok=True)
+        os.makedirs(os.path.join(day_dir_path, "20"), exist_ok=True)
+        os.makedirs(os.path.join(day_dir_path, "not-an-hour"), exist_ok=True)
+
+        with pytest.raises(Exception, match=r"Error fetching hour files:"):
+            _fetch_all_files_after_timestamp_hour(day_dir_path, "19")
+
 
 class TestFetchAllFilesAfterTimestampMinute:
     """Tests for _fetch_all_files_after_timestamp_minute function."""
 
     @pytest.mark.parametrize("target_minute,expected_count", [
-        ("minute=58", 1),  # File at minute=59
-        ("minute=59", 0),  # No files after minute=59
+        ("58", 1),  # File at minute=59
+        ("59", 0),  # No files after minute=59
     ])
     def test_fetches_files_from_future_minutes(self, sample_timestamp_structure, target_minute, expected_count):
         """Test that files are fetched from minutes greater than target minute."""
         # Arrange
         hour_dir_path = os.path.join(
-            sample_timestamp_structure, "year=2024", "month=07", "day=05", "hour=20"
+            sample_timestamp_structure, "2024", "07", "05", "20"
         )
         timestamp_minute = target_minute
         
@@ -321,6 +362,16 @@ class TestFetchAllFilesAfterTimestampMinute:
         # Assert
         assert len(result) == expected_count
 
+    def test_raises_on_non_numeric_minute_dir(self, tmp_path):
+        """Non-numeric minute directory should raise (new behavior)."""
+        hour_dir_path = os.path.join(str(tmp_path), "2024", "07", "05", "20")
+        os.makedirs(hour_dir_path, exist_ok=True)
+        os.makedirs(os.path.join(hour_dir_path, "59"), exist_ok=True)
+        os.makedirs(os.path.join(hour_dir_path, "not-a-minute"), exist_ok=True)
+
+        with pytest.raises(Exception, match=r"Error fetching minute files:"):
+            _fetch_all_files_after_timestamp_minute(hour_dir_path, "58")
+
 
 class TestFindFilesAfterTimestamp:
     """Tests for find_files_after_timestamp function."""
@@ -329,7 +380,7 @@ class TestFindFilesAfterTimestamp:
         """Test that files after given timestamp are found."""
         # Arrange
         base_path = sample_timestamp_structure
-        target_timestamp = "year=2024/month=07/day=05/hour=20/minute=58"
+        target_timestamp = "2024/07/05/20/58"
         
         # Act
         result = find_files_after_timestamp(base_path, target_timestamp)
@@ -337,15 +388,15 @@ class TestFindFilesAfterTimestamp:
         # Assert
         assert len(result) == 4
         # Verify files from later timestamps are included
-        assert any("minute=59" in f for f in result)
-        assert any("hour=21" in f for f in result)
-        assert any("day=06" in f for f in result)
-        assert any("month=08" in f for f in result)
+        assert any(f"{os.sep}59{os.sep}" in f for f in result)
+        assert any(f"{os.sep}21{os.sep}" in f for f in result)
+        assert any(f"{os.sep}06{os.sep}" in f for f in result)
+        assert any(f"{os.sep}08{os.sep}" in f for f in result)
 
     @pytest.mark.parametrize("target_timestamp,expected_count", [
-        ("year=2024/month=07/day=05/hour=20/minute=58", 4),
-        ("year=2024/month=07/day=05/hour=20/minute=59", 3),
-        ("year=2024/month=07/day=05/hour=21/minute=00", 3),  # hour=21 minute=01, day=06, month=08
+        ("2024/07/05/20/58", 4),
+        ("2024/07/05/20/59", 3),
+        ("2024/07/05/21/00", 3),  # hour=21 minute=01, day=06, month=08
     ])
     def test_finds_correct_number_of_files(self, sample_timestamp_structure, target_timestamp, expected_count):
         """Test that correct number of files are found for various timestamps."""
@@ -362,17 +413,17 @@ class TestFindFilesAfterTimestamp:
         """Test that empty list is returned when no files exist after timestamp."""
         # Arrange
         base_path = str(tmp_path)
-        target_timestamp = "year=2024/month=01/day=01/hour=00/minute=00"
+        target_timestamp = "2024/01/01/00/00"
         # Create directory structure with files before timestamp
         old_dir = os.path.join(
-            base_path, "year=2023", "month=12", "day=31", "hour=23", "minute=59"
+            base_path, "2023", "12", "31", "23", "59"
         )
         os.makedirs(old_dir, exist_ok=True)
         with open(os.path.join(old_dir, "old_file.txt"), "w") as f:
             f.write("old content")
         # Create complete empty year=2024/month=01/day=01/hour=00 directory structure
-        day_dir = os.path.join(base_path, "year=2024", "month=01", "day=01")
-        hour_dir = os.path.join(day_dir, "hour=00")
+        day_dir = os.path.join(base_path, "2024", "01", "01")
+        hour_dir = os.path.join(day_dir, "00")
         os.makedirs(hour_dir, exist_ok=True)
         
         # Act
@@ -385,9 +436,9 @@ class TestFindFilesAfterTimestamp:
         """Test that empty directory structure returns empty list."""
         # Arrange
         base_path = str(tmp_path)
-        target_timestamp = "year=2024/month=01/day=01/hour=00/minute=00"
+        target_timestamp = "2024/01/01/00/00"
         # Create complete empty directory structure so os.listdir doesn't fail
-        hour_dir = os.path.join(base_path, "year=2024", "month=01", "day=01", "hour=00")
+        hour_dir = os.path.join(base_path, "2024", "01", "01", "00")
         os.makedirs(hour_dir, exist_ok=True)
         
         # Act
