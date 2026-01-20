@@ -99,7 +99,7 @@ class TestGetAllFilenames:
         # Mock os.walk to return empty file list
         mocker.patch("os.walk", return_value=[("/data/test_service/active", [], [])])
         
-        result = _get_all_filenames("test_service")
+        result = _get_all_filenames("test_service", storage_tiers=[StorageTier.ACTIVE])
         assert result == []
 
     def test_no_valid_files(self, mocker):
@@ -146,7 +146,7 @@ class TestGetAllFilenames:
         mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = valid_files
 
-        result = _get_all_filenames("test_service", validate_pq_files=True)
+        result = _get_all_filenames("test_service", storage_tiers=[StorageTier.ACTIVE], validate_pq_files=True)
         assert set(result) == set(valid_files)
 
     def test_incorrect_directory_structure(self, mocker):
@@ -167,7 +167,7 @@ class TestGetAllFilenames:
         
         mocker.patch("os.walk", side_effect=mock_walk)
         
-        result = _get_all_filenames("test_service")
+        result = _get_all_filenames("test_service", storage_tiers=[StorageTier.ACTIVE])
         assert result == []
 
 
@@ -245,7 +245,7 @@ class TestGetAllFilenamesDeprecatedFormat:
         mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = valid_files
 
-        result = _get_all_filenames_deprecated_format("ml_inference_perspective_api", validate_pq_files=True)
+        result = _get_all_filenames_deprecated_format("ml_inference_perspective_api", storage_tiers=[StorageTier.ACTIVE], validate_pq_files=True)
         assert set(result) == set(valid_files)
 
     def test_incorrect_directory_structure(self, mocker):
