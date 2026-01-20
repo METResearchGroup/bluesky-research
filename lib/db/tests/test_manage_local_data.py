@@ -152,16 +152,16 @@ class TestGetAllFilenames:
         """Test with files in new format structure.
         
         The function should only look in paths that match the expected structure
-        (service/directory/partition_date=*/file.parquet), so files in deprecated format
+        (service/directory/partition_date=*/file.parquet), so files in alternative structure
         (service/firehose|most_liked/directory/partition_date=*/file.parquet) should be ignored.
         """
         # Mock os.walk to return different results based on the path being walked
         def mock_walk(path):
             if 'firehose' in path or 'most_liked' in path:
-                # Files in deprecated format should be ignored
+                # Files in alternative structure should be ignored
                 return [(path, [], ["file1.parquet", "file2.parquet"])]
             else:
-                # No files found in correct format paths
+                # No files found in expected structure paths
                 return [(path, [], [])]
         
         mocker.patch("os.walk", side_effect=mock_walk)
@@ -289,16 +289,17 @@ class TestListFilenames:
         mocker.patch("lib.db.manage_local_data.MAP_SERVICE_TO_METADATA", mock_metadata)
         return mock_metadata
 
-    def test_deprecated_format_partition_date(self, mocker):
-        """Test listing files for service that uses both formats with partition_date filter.
+    def test_multiple_file_discovery_methods_partition_date(self, mocker):
+        """Test listing files for service that uses multiple file discovery methods with partition_date filter.
         
-        Tests that list_filenames correctly filters files for a service using both deprecated
-        and current formats (preprocessed_posts) when given a specific partition_date.
+        Tests that list_filenames correctly filters files for a service that calls both
+        _get_all_filenames_deprecated_format and _get_all_filenames (e.g., preprocessed_posts)
+        when given a specific partition_date.
         
         Expected behavior:
         - Should call both _get_all_filenames_deprecated_format and _get_all_filenames
         - Should return only files matching partition_date="2024-03-02"
-        - Should include files from both formats
+        - Should include files from both discovery methods
         - Should exclude files from other partition dates
         """
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
@@ -324,7 +325,7 @@ class TestListFilenames:
 
         assert len(result) == 3
         assert all("2024-03-02" in f for f in result)
-        # Verify files from both formats are included
+        # Verify files from both discovery methods are included
         assert any("firehose" in f for f in result)
         assert any("most_liked" in f for f in result)
         assert any(f == "/data/preprocessed_posts/active/partition_date=2024-03-02/file6.parquet" for f in result)
@@ -332,18 +333,18 @@ class TestListFilenames:
         mock_get_deprecated.assert_called_once()
         mock_get_current.assert_called_once()
 
-    def test_current_format_partition_date(self, mocker):
-        """Test listing files for current format service with partition_date filter.
+    def test_single_file_discovery_method_partition_date(self, mocker):
+        """Test listing files for service that uses single file discovery method with partition_date filter.
         
-        Tests that list_filenames correctly filters files for a service using only current format
-        (posts) when given a specific partition_date.
+        Tests that list_filenames correctly filters files for a service that calls only
+        _get_all_filenames (e.g., posts) when given a specific partition_date.
         
         Expected behavior:
         - Should call only _get_all_filenames
         - Should NOT call _get_all_filenames_deprecated_format
         - Should return only files matching partition_date="2024-03-02"
         - Should include files from both cache and active directories if specified
-        - Should exclude files from other partition dates and deprecated format
+        - Should exclude files from other partition dates
         """
         mock_get_current = mocker.patch("lib.db.manage_local_data._get_all_filenames")
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
@@ -369,16 +370,17 @@ class TestListFilenames:
         mock_get_current.assert_called_once()
         mock_get_deprecated.assert_not_called()
 
-    def test_deprecated_format_date_range(self, mocker):
-        """Test listing files for service using both formats with date range filter.
+    def test_multiple_file_discovery_methods_date_range(self, mocker):
+        """Test listing files for service that uses multiple file discovery methods with date range filter.
         
-        Tests that list_filenames correctly filters files for a service using both deprecated
-        and current formats (preprocessed_posts) when given start and end partition dates.
+        Tests that list_filenames correctly filters files for a service that calls both
+        _get_all_filenames_deprecated_format and _get_all_filenames (e.g., preprocessed_posts)
+        when given start and end partition dates.
         
         Expected behavior:
         - Should call both _get_all_filenames_deprecated_format and _get_all_filenames
         - Should return files with dates between 2024-03-01 and 2024-03-03 inclusive
-        - Should include files from both formats
+        - Should include files from both discovery methods
         - Should exclude files outside date range
         """
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
@@ -405,11 +407,11 @@ class TestListFilenames:
             end_partition_date="2024-03-03"
         )
 
-        assert len(result) == 5  # 3 from deprecated + 2 from current format
+        assert len(result) == 5  # 3 from first discovery method + 2 from second discovery method
         assert all("2024-03-0" in f for f in result)
         assert not any("2024-02-28" in f for f in result)
         assert not any("2024-03-04" in f for f in result)
-        # Verify files from both formats are included
+        # Verify files from both discovery methods are included
         assert any("firehose" in f for f in result)
         assert any("most_liked" in f for f in result)
         assert any(f == "/data/preprocessed_posts/active/partition_date=2024-03-01/file7.parquet" for f in result)
@@ -417,18 +419,18 @@ class TestListFilenames:
         mock_get_deprecated.assert_called_once()
         mock_get_current.assert_called_once()
 
-    def test_current_format_date_range(self, mocker):
-        """Test listing files for current format service with date range filter.
+    def test_single_file_discovery_method_date_range(self, mocker):
+        """Test listing files for service that uses single file discovery method with date range filter.
         
-        Tests that list_filenames correctly filters files for a service using only current format
-        (posts) when given start and end partition dates.
+        Tests that list_filenames correctly filters files for a service that calls only
+        _get_all_filenames (e.g., posts) when given start and end partition dates.
         
         Expected behavior:
         - Should call only _get_all_filenames
         - Should NOT call _get_all_filenames_deprecated_format
         - Should return files with dates between 2024-03-01 and 2024-03-03 inclusive
         - Should include files from both cache and active directories if specified
-        - Should exclude files outside date range and deprecated format
+        - Should exclude files outside date range
         """
         mock_get_current = mocker.patch("lib.db.manage_local_data._get_all_filenames")
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
@@ -455,6 +457,90 @@ class TestListFilenames:
         
         mock_get_current.assert_called_once()
         mock_get_deprecated.assert_not_called()
+
+    def test_multiple_file_discovery_methods_no_date_filter(self, mocker):
+        """Test listing files for service that uses multiple file discovery methods without date filter.
+        
+        Tests that list_filenames returns all files when no date parameters are provided
+        for a service that calls both _get_all_filenames_deprecated_format and _get_all_filenames
+        (e.g., preprocessed_posts).
+        
+        Expected behavior:
+        - Should call both _get_all_filenames_deprecated_format and _get_all_filenames
+        - Should return ALL files from both discovery methods without filtering
+        - Should NOT call filter_filepaths_by_date_range
+        """
+        mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
+        mock_get_current = mocker.patch("lib.db.manage_local_data._get_all_filenames")
+        mock_filter = mocker.patch("lib.db.manage_local_data.filter_filepaths_by_date_range")
+        
+        mock_get_deprecated.return_value = [
+            "/data/preprocessed_posts/firehose/active/partition_date=2024-03-01/file1.parquet",
+            "/data/preprocessed_posts/firehose/active/partition_date=2024-03-02/file2.parquet",
+            "/data/preprocessed_posts/most_liked/active/partition_date=2024-03-03/file3.parquet"
+        ]
+        
+        mock_get_current.return_value = [
+            "/data/preprocessed_posts/active/partition_date=2024-03-01/file4.parquet",
+            "/data/preprocessed_posts/active/partition_date=2024-03-02/file5.parquet",
+            "/data/preprocessed_posts/active/partition_date=2024-03-03/file6.parquet"
+        ]
+
+        result = list_filenames(
+            service="preprocessed_posts"
+        )
+
+        assert len(result) == 6  # All files from both discovery methods
+        # Verify files from both discovery methods are included
+        assert any("firehose" in f for f in result)
+        assert any("most_liked" in f for f in result)
+        assert any("partition_date=2024-03-01" in f for f in result)
+        assert any("partition_date=2024-03-02" in f for f in result)
+        assert any("partition_date=2024-03-03" in f for f in result)
+        
+        mock_get_deprecated.assert_called_once()
+        mock_get_current.assert_called_once()
+        # Should NOT call filter_filepaths_by_date_range when no dates provided
+        mock_filter.assert_not_called()
+
+    def test_single_file_discovery_method_no_date_filter(self, mocker):
+        """Test listing files for service that uses single file discovery method without date filter.
+        
+        Tests that list_filenames returns all files when no date parameters are provided
+        for a service that calls only _get_all_filenames (e.g., posts).
+        
+        Expected behavior:
+        - Should call only _get_all_filenames
+        - Should NOT call _get_all_filenames_deprecated_format
+        - Should return ALL files without filtering
+        - Should NOT call filter_filepaths_by_date_range
+        """
+        mock_get_current = mocker.patch("lib.db.manage_local_data._get_all_filenames")
+        mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
+        mock_filter = mocker.patch("lib.db.manage_local_data.filter_filepaths_by_date_range")
+        
+        mock_get_current.return_value = [
+            "/data/posts/active/partition_date=2024-03-01/file1.parquet",
+            "/data/posts/active/partition_date=2024-03-02/file2.parquet",
+            "/data/posts/cache/partition_date=2024-03-03/file3.parquet"
+        ]
+
+        result = list_filenames(
+            service="posts",
+            storage_tiers=["active", "cache"]
+        )
+
+        assert len(result) == 3  # All files
+        assert any("/active/" in f for f in result)
+        assert any("/cache/" in f for f in result)
+        assert any("partition_date=2024-03-01" in f for f in result)
+        assert any("partition_date=2024-03-02" in f for f in result)
+        assert any("partition_date=2024-03-03" in f for f in result)
+        
+        mock_get_current.assert_called_once()
+        mock_get_deprecated.assert_not_called()
+        # Should NOT call filter_filepaths_by_date_range when no dates provided
+        mock_filter.assert_not_called()
 
 class TestLoadDataFromLocalStorage:
     @pytest.fixture
@@ -736,7 +822,7 @@ class TestLoadDataFromLocalStorage:
         - Should call both filename functions for preprocessed_posts
         - Should filter combined filepaths with filter_filepaths_by_date_range
         - Should only return files matching validation criteria
-        - Should handle both deprecated and current format paths
+        - Should handle paths from both file discovery methods
         """
         # Mock the filename retrieval functions
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
@@ -744,22 +830,22 @@ class TestLoadDataFromLocalStorage:
         mock_filter = mocker.patch("lib.db.manage_local_data.filter_filepaths_by_date_range")
         mock_read_parquet = mocker.patch("pandas.read_parquet")
 
-        # Set up test files in both formats
-        deprecated_files = [
+        # Set up test files from both discovery methods
+        files_from_first_method = [
             "/data/preprocessed_posts/firehose/active/partition_date=2024-03-01/file1.parquet",
             "/data/preprocessed_posts/most_liked/active/partition_date=2024-03-02/file2.parquet",
             "/data/preprocessed_posts/firehose/active/partition_date=2024-03-03/file3.parquet"
         ]
         
-        current_files = [
+        files_from_second_method = [
             "/data/preprocessed_posts/active/partition_date=2024-03-01/file4.parquet",
             "/data/preprocessed_posts/active/partition_date=2024-03-02/file5.parquet",
             "/data/preprocessed_posts/active/partition_date=2024-03-03/file6.parquet"
         ]
 
         # Mock return values
-        mock_get_deprecated.return_value = deprecated_files
-        mock_get_current.return_value = current_files
+        mock_get_deprecated.return_value = files_from_first_method
+        mock_get_current.return_value = files_from_second_method
         
         # Mock filtering to filter some files
         filtered_files = [
@@ -781,7 +867,7 @@ class TestLoadDataFromLocalStorage:
         mock_get_deprecated.assert_called_once()
         mock_get_current.assert_called_once()
         mock_filter.assert_called_once_with(
-            filepaths=deprecated_files + current_files,
+            filepaths=files_from_first_method + files_from_second_method,
             partition_date=None,
             start_partition_date="2024-03-01", 
             end_partition_date="2024-03-02"
@@ -796,10 +882,10 @@ class TestLoadDataFromLocalStorage:
         3. Filters out files not matching validation criteria
         
         Expected behavior:
-        - Should only call _get_all_filenames (not deprecated format)
+        - Should only call _get_all_filenames (not _get_all_filenames_deprecated_format)
         - Should filter filepaths with filter_filepaths_by_date_range
         - Should only return files matching validation criteria
-        - Should handle standard format paths
+        - Should handle standard service paths
         """
         # Mock the filename retrieval functions
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")

@@ -938,12 +938,14 @@ def list_filenames(
             )
         )
 
-    loaded_filepaths = filter_filepaths_by_date_range(
-        filepaths=loaded_filepaths,
-        partition_date=partition_date,
-        start_partition_date=start_partition_date,
-        end_partition_date=end_partition_date,
-    )
+    # Only filter by date if at least one date parameter is provided
+    if partition_date or start_partition_date or end_partition_date:
+        loaded_filepaths = filter_filepaths_by_date_range(
+            filepaths=loaded_filepaths,
+            partition_date=partition_date,
+            start_partition_date=start_partition_date,
+            end_partition_date=end_partition_date,
+        )
 
     if override_local_prefix:
         loaded_filepaths = [
