@@ -16,11 +16,16 @@ from lib.db.manage_local_data import (
     _filter_loaded_data_by_latest_timestamp,
     _conditionally_drop_extra_columns,
     _derive_or_normalize_partition_date_column,
+    _determine_if_special_case_chunk_generation,
     _export_df_to_local_storage_jsonl,
     _export_df_to_local_storage_parquet,
+    _generate_batches_for_export,
+    _generate_batches_for_export_generic,
+    _generate_batches_for_special_cases,
     _load_data_from_local_storage_jsonl,
     _load_data_from_local_storage_duckdb,
     _normalize_timestamp_field,
+    _preprocess_df_for_export,
     _validate_partition_date_column,
     is_older_than_lookback,
     _determine_storage_tier_for_export,
@@ -931,17 +936,22 @@ class TestExportDataToLocalStorage:
         return pd.DataFrame({
             "col1": [1, 2],
             "col2": ["a", "b"],
-            "preprocessing_timestamp": ["2024-01-01", "2024-01-01"],
+            "preprocessing_timestamp": ["2024-01-01-00:00:00", "2024-01-01-12:34:56"],
+            "partition_date": ["2024-01-01", "2024-01-01"],
             "record_type": ["post", "post"]
         })
 
     def test_basic_export(self, mocker, mock_service_metadata, mock_df, tmp_path):
         """Test basic export functionality."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
@@ -954,11 +964,15 @@ class TestExportDataToLocalStorage:
 
     def test_override_local_prefix(self, mocker, mock_service_metadata, mock_df, tmp_path):
         """Test export with overridden local prefix."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mock_makedirs = mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
@@ -976,11 +990,15 @@ class TestExportDataToLocalStorage:
 
     def test_export_with_custom_args(self, mocker, mock_service_metadata, mock_df):
         """Test export with custom arguments."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
@@ -995,11 +1013,15 @@ class TestExportDataToLocalStorage:
 
     def test_export_formats(self, mocker, mock_service_metadata, mock_df):
         """Test different export formats."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_to_json = mocker.patch.object(pd.DataFrame, "to_json")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
@@ -1022,12 +1044,15 @@ class TestExportDataToLocalStorage:
         
     def test_raw_sync_service(self, mocker, mock_service_metadata, mock_df):
         """Test export with raw sync service."""
-        # Mock the partition_data_by_date function
-        mock_partition = mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01", 
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mock_batches = mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
@@ -1044,13 +1069,20 @@ class TestExportDataToLocalStorage:
         file_path = mock_write_to_dataset.call_args[1]["root_path"]
         assert file_path == '/data/raw_sync/create/post/cache'
         
-        # Verify that partition_data_by_date was called
-        mock_partition.assert_called_once()
+        # Verify that batching was invoked
+        mock_batches.assert_called_once()
         
     def test_skip_date_validation(self, mocker, mock_service_metadata, mock_df):
         """Test export with skip_date_validation=True from configuration."""
-        # Mock the date validation function to track if it's called
-        mock_partition = mocker.patch("lib.db.manage_local_data.partition_data_by_date")
+        mock_batches = mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch.dict(
             "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
             {"backfill_sync": {
@@ -1071,19 +1103,23 @@ class TestExportDataToLocalStorage:
             df=mock_df
         )
         
-        # Verify that partition_data_by_date was NOT called due to skipping validation
-        mock_partition.assert_not_called()
+        # Verify we still batch and export
+        mock_batches.assert_called_once()
         
         # Verify the export still occurred
         mock_write_to_dataset.assert_called_once()
 
     def test_value_error_handling(self, mocker, mock_service_metadata, mock_df):
         """Test that ValueError from dtype coercion is caught and re-raised."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_coerce = mocker.patch("lib.db.manage_local_data._coerce_df_to_dtypes_map")
         mock_logger = mocker.patch("lib.db.manage_local_data.logger")
@@ -1109,11 +1145,15 @@ class TestExportDataToLocalStorage:
         """Test that PyArrow exceptions are caught and re-raised with proper logging."""
         import pyarrow as pa
         
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         mock_logger = mocker.patch("lib.db.manage_local_data.logger")
@@ -1137,11 +1177,15 @@ class TestExportDataToLocalStorage:
 
     def test_os_error_handling(self, mocker, mock_service_metadata, mock_df):
         """Test that OSError from file system operations is caught and re-raised."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         # Mock os.makedirs to prevent real file system errors
         mocker.patch("lib.db.manage_local_data.os.makedirs")
         mocker.patch("lib.db.manage_local_data.os.path.exists", return_value=False)
@@ -1167,11 +1211,15 @@ class TestExportDataToLocalStorage:
 
     def test_io_error_handling(self, mocker, mock_service_metadata, mock_df):
         """Test that IOError from file system operations is caught and re-raised."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         # Mock os.makedirs to prevent real file system errors
         mocker.patch("lib.db.manage_local_data.os.makedirs")
         mocker.patch("lib.db.manage_local_data.os.path.exists", return_value=False)
@@ -1197,11 +1245,15 @@ class TestExportDataToLocalStorage:
 
     def test_unexpected_exception_handling(self, mocker, mock_service_metadata, mock_df):
         """Test that unexpected exceptions are caught and re-raised."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         mock_logger = mocker.patch("lib.db.manage_local_data.logger")
@@ -1228,14 +1280,18 @@ class TestExportDataToLocalStorage:
         df_without_partition = pd.DataFrame({
             "col1": [1, 2],
             "col2": ["a", "b"],
-            "preprocessing_timestamp": ["2024-01-01", "2024-01-01"],
+            "preprocessing_timestamp": ["2024-01-01-00:00:00", "2024-01-01-12:34:56"],
         })
         
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": df_without_partition
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": df_without_partition,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_write = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
@@ -1251,15 +1307,19 @@ class TestExportDataToLocalStorage:
         df_with_multiple_dates = pd.DataFrame({
             "col1": [1, 2, 3],
             "col2": ["a", "b", "c"],
-            "preprocessing_timestamp": ["2024-01-01", "2024-01-02", "2024-01-03"],
+            "preprocessing_timestamp": ["2024-01-01-00:00:00", "2024-01-02-00:00:00", "2024-01-03-00:00:00"],
             "partition_date": ["2024-01-01", "2024-01-02", "2024-01-03"],
         })
         
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-03",
-            "data": df_with_multiple_dates
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-03-00:00:00",
+                    "data": df_with_multiple_dates,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
 
@@ -1272,11 +1332,15 @@ class TestExportDataToLocalStorage:
 
     def test_missing_schema_warning(self, mocker, mock_service_metadata, mock_df):
         """Test that warning is logged when schema is None."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         mock_get_schema = mocker.patch("lib.db.manage_local_data.get_service_pa_schema")
@@ -1294,6 +1358,266 @@ class TestExportDataToLocalStorage:
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
         assert any("No PyArrow schema available" in call for call in warning_calls)
         assert any("schema drift" in call for call in warning_calls)
+
+
+class TestDetermineIfSpecialCaseChunkGeneration:
+    """Tests for `_determine_if_special_case_chunk_generation`."""
+
+    def test_returns_true_when_skip_date_validation_true(self, mocker):
+        """Test that services with `skip_date_validation=True` are treated as special cases."""
+        # Arrange
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"svc": {"skip_date_validation": True}},
+            clear=True,
+        )
+
+        # Act
+        result = _determine_if_special_case_chunk_generation(service="svc")
+
+        # Assert
+        assert result is True
+
+    def test_returns_false_when_flag_missing_or_false(self, mocker):
+        """Test that missing/false `skip_date_validation` returns False."""
+        # Arrange
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"svc_missing": {}, "svc_false": {"skip_date_validation": False}},
+            clear=True,
+        )
+
+        # Act
+        result_missing = _determine_if_special_case_chunk_generation(service="svc_missing")
+        result_false = _determine_if_special_case_chunk_generation(service="svc_false")
+
+        # Assert
+        assert result_missing is False
+        assert result_false is False
+
+
+class TestGenerateBatchesForSpecialCases:
+    """Tests for `_generate_batches_for_special_cases`."""
+
+    def test_returns_single_batch_with_generated_timestamp(self, mocker):
+        """Test that special-case batching returns one batch and uses `generate_current_datetime_str`."""
+        # Arrange
+        df = pd.DataFrame({"col1": [1, 2]})
+        mocker.patch(
+            "lib.db.manage_local_data.generate_current_datetime_str",
+            return_value="2024-01-01-00:00:00",
+        )
+
+        # Act
+        result = _generate_batches_for_special_cases(df=df)
+
+        # Assert
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["latest_record_timestamp"] == "2024-01-01-00:00:00"
+        assert result[0]["data"] is df
+
+
+class TestGenerateBatchesForExportGeneric:
+    """Tests for `_generate_batches_for_export_generic`."""
+
+    def test_partitions_by_partition_date_and_sets_latest_record_timestamp_from_parsed_series(self):
+        """Test that generic batching groups by `partition_date` and computes per-partition max timestamp."""
+        # Arrange
+        df = pd.DataFrame(
+            {
+                "partition_date": ["2024-01-01", "2024-01-01", "2024-01-02"],
+                "preprocessing_timestamp": [
+                    "2024-01-01-00:00:00",
+                    "2024-01-01-12:34:56",
+                    "2024-01-02-01:02:03",
+                ],
+                "col1": [1, 2, 3],
+            }
+        )
+
+        # Act
+        result = _generate_batches_for_export_generic(
+            df=df,
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        # Assert
+        assert len(result) == 2
+        by_partition_date: dict[str, dict] = {}
+        for batch in result:
+            batch_df = batch["data"]
+            assert batch_df["partition_date"].nunique() == 1
+            partition_date = batch_df["partition_date"].iloc[0]
+            by_partition_date[partition_date] = batch
+
+        assert set(by_partition_date.keys()) == {"2024-01-01", "2024-01-02"}
+        assert by_partition_date["2024-01-01"]["latest_record_timestamp"] == "2024-01-01-12:34:56"
+        assert by_partition_date["2024-01-02"]["latest_record_timestamp"] == "2024-01-02-01:02:03"
+
+
+class TestPreprocessDfForExport:
+    """Tests for `_preprocess_df_for_export`."""
+
+    def test_derives_partition_date_when_missing(self, mocker):
+        """Test that preprocessing derives canonical `partition_date` when missing."""
+        # Arrange
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"test_service": {"timestamp_field": "preprocessing_timestamp"}},
+            clear=False,
+        )
+        df = pd.DataFrame(
+            {
+                "col1": [1, 2],
+                "preprocessing_timestamp": [
+                    "2024-01-01-00:00:00",
+                    "2024-01-01-12:34:56",
+                ],
+            }
+        )
+
+        # Act
+        result = _preprocess_df_for_export(
+            df=df,
+            service="test_service",
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        # Assert
+        assert result is df
+        assert "partition_date" in result.columns
+        assert result["partition_date"].tolist() == ["2024-01-01", "2024-01-01"]
+
+    def test_imputes_default_timestamp_when_missing_timestamp_field(self, mocker):
+        """Test that preprocessing imputes missing timestamp_field and sets `partition_date` to DEFAULT_ERROR_PARTITION_DATE."""
+        # Arrange
+        import lib.db.manage_local_data as mdl
+
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"test_service": {"timestamp_field": "preprocessing_timestamp"}},
+            clear=False,
+        )
+        df = pd.DataFrame({"col1": [1, 2]})
+
+        # Act
+        result = _preprocess_df_for_export(
+            df=df,
+            service="test_service",
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        # Assert
+        assert result is df
+        assert "preprocessing_timestamp" in result.columns
+        assert "partition_date" in result.columns
+        assert result["partition_date"].tolist() == [mdl.DEFAULT_ERROR_PARTITION_DATE] * 2
+
+
+class TestGenerateBatchesForExport:
+    """Tests for `_generate_batches_for_export`."""
+
+    def test_raises_on_empty_df(self):
+        """Test that empty dataframes are rejected early."""
+        # Arrange
+        df = pd.DataFrame()
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="Received empty dataframe for export"):
+            _generate_batches_for_export(
+                service="test_service",
+                df=df,
+                timestamp_field="preprocessing_timestamp",
+                timestamp_format="%Y-%m-%d-%H:%M:%S",
+            )
+
+    def test_special_case_routes_to_special_case_generator(self, mocker):
+        """Test that special-case services route to `_generate_batches_for_special_cases`."""
+        # Arrange
+        df_in = pd.DataFrame({"col1": [1]})
+        df_preprocessed = pd.DataFrame({"col1": [1], "partition_date": ["2024-01-01"]})
+
+        mock_preprocess = mocker.patch(
+            "lib.db.manage_local_data._preprocess_df_for_export",
+            return_value=df_preprocessed,
+        )
+        mock_special_case = mocker.patch(
+            "lib.db.manage_local_data._determine_if_special_case_chunk_generation",
+            return_value=True,
+        )
+        mock_special_batches = mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_special_cases",
+            return_value=[{"latest_record_timestamp": "t", "data": df_preprocessed}],
+        )
+        mock_generic_batches = mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export_generic"
+        )
+
+        # Act
+        result = _generate_batches_for_export(
+            service="test_service",
+            df=df_in,
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        # Assert
+        mock_preprocess.assert_called_once()
+        mock_special_case.assert_called_once_with(service="test_service")
+        mock_special_batches.assert_called_once_with(df=df_preprocessed)
+        mock_generic_batches.assert_not_called()
+        assert result == [{"latest_record_timestamp": "t", "data": df_preprocessed}]
+
+    def test_non_special_case_routes_to_generic_generator(self, mocker):
+        """Test that non-special-case services route to `_generate_batches_for_export_generic`."""
+        # Arrange
+        df_in = pd.DataFrame({"col1": [1]})
+        df_preprocessed = pd.DataFrame(
+            {
+                "col1": [1],
+                "partition_date": ["2024-01-01"],
+                "preprocessing_timestamp": ["2024-01-01-00:00:00"],
+            }
+        )
+
+        mock_preprocess = mocker.patch(
+            "lib.db.manage_local_data._preprocess_df_for_export",
+            return_value=df_preprocessed,
+        )
+        mock_special_case = mocker.patch(
+            "lib.db.manage_local_data._determine_if_special_case_chunk_generation",
+            return_value=False,
+        )
+        mock_generic_batches = mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export_generic",
+            return_value=[{"latest_record_timestamp": "t", "data": df_preprocessed}],
+        )
+        mock_special_batches = mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_special_cases"
+        )
+
+        # Act
+        result = _generate_batches_for_export(
+            service="test_service",
+            df=df_in,
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        # Assert
+        mock_preprocess.assert_called_once()
+        mock_special_case.assert_called_once_with(service="test_service")
+        mock_special_batches.assert_not_called()
+        mock_generic_batches.assert_called_once_with(
+            df=df_preprocessed,
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+        assert result == [{"latest_record_timestamp": "t", "data": df_preprocessed}]
 
 
 class TestExportDfToLocalStorage:
@@ -1843,7 +2167,12 @@ class TestFilterLoadedDataByLatestTimestamp:
         """Test that empty dataframe is handled correctly."""
         # Arrange
         mocker.patch("lib.db.manage_local_data.logger")
-        df = pd.DataFrame(columns=["preprocessing_timestamp", "col1"])
+        df = pd.DataFrame(
+            {
+                "preprocessing_timestamp": pd.Series(dtype="string"),
+                "col1": pd.Series(dtype="Int64"),
+            }
+        )
         latest_timestamp = "2024-03-02T00:00:00"
         
         # Act

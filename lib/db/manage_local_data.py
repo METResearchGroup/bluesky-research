@@ -606,6 +606,7 @@ def _export_batch_generic(
     local_prefix: str,
     export_format: Literal["jsonl", "parquet"],
     lookback_days: int,
+    custom_args: dict | None,
 ):
     """Exports a single batch of data to local storage."""
 
@@ -640,7 +641,7 @@ def _export_batch_generic(
             export_folder_path=export_folder_path,
             timestamp_field=timestamp_field,
             timestamp_format=timestamp_format,
-            custom_args=None,
+            custom_args=custom_args,
         )
     else:
         raise ValueError(f"Invalid export format: {export_format}")
@@ -655,6 +656,7 @@ def _export_batch(
     local_prefix: str,
     export_format: Literal["jsonl", "parquet"],
     lookback_days: int,
+    custom_args: dict | None,
 ):
     """Exports a single batch of data to local storage."""
     if service == "backfill_sync":
@@ -674,6 +676,7 @@ def _export_batch(
             local_prefix=local_prefix,
             export_format=export_format,
             lookback_days=lookback_days,
+            custom_args=custom_args,
         )
 
 
@@ -749,6 +752,7 @@ def export_data_to_local_storage(
             local_prefix=local_prefix,
             export_format=export_format,
             lookback_days=lookback_days,
+            custom_args=custom_args,
         )
 
 
