@@ -35,11 +35,11 @@ def _write_json_records_to_local_store(
     if compressed:
         if not export_filepath.endswith(".gz"):
             export_filepath += ".gz"
-        with gzip.open(export_filepath, "wt") as f:
+        with gzip.open(export_filepath, "wt", encoding="utf-8") as f:
             for record in records:
                 f.write(json.dumps(record) + "\n")
     else:
-        with open(export_filepath, "w") as f:
+        with open(export_filepath, "w", encoding="utf-8") as f:
             for record in records:
                 f.write(json.dumps(record) + "\n")
 

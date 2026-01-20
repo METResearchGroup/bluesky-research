@@ -202,7 +202,7 @@ def _convert_service_name_to_db_name(service: str) -> str:
     Anyways, due for a refactoring later.
     """
     if service == "preprocess_raw_data":
-        print("Converting 'preprocess_raw_data' to 'preprocessed_posts'...")
+        logger.info("Converting 'preprocess_raw_data' to 'preprocessed_posts'...")
         return "preprocessed_posts"
     else:
         return service
@@ -1088,7 +1088,10 @@ def _load_single_jsonl_file(filepath: str) -> pd.DataFrame:
 
 
 def _load_data_from_local_storage_jsonl(filepaths: list[str]) -> pd.DataFrame:
-    df = pd.concat([_load_single_jsonl_file(filepath) for filepath in filepaths])
+    if not filepaths:
+        df = pd.DataFrame()
+    else:
+        df = pd.concat([_load_single_jsonl_file(filepath) for filepath in filepaths])
     df = _conditionally_drop_extra_columns(df=df)
     return df
 
