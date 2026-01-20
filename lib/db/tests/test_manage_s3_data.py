@@ -10,6 +10,7 @@ from lib.db.manage_s3_data import (
     S3ParquetDatasetRef,
     STUDY_ROOT_KEY_PREFIX,
 )
+from lib.db.models import StorageTier
 from lib.db.sql.duckdb_wrapper import DuckDB
 
 
@@ -18,10 +19,10 @@ def test_list_parquet_uris_single_date_filters_and_converts_to_s3_uris():
 
     dataset = S3ParquetDatasetRef(dataset="preprocessed_posts")
     partition_date = "2024-11-13"
-    tier = "cache"
+    tier = StorageTier.CACHE
 
     expected_prefix = (
-        f"{STUDY_ROOT_KEY_PREFIX}/{dataset.dataset}/{tier}/partition_date={partition_date}/"
+        f"{STUDY_ROOT_KEY_PREFIX}/{dataset.dataset}/{tier.value}/partition_date={partition_date}/"
     )
 
     # Include a non-parquet key to ensure filtering.
@@ -35,7 +36,7 @@ def test_list_parquet_uris_single_date_filters_and_converts_to_s3_uris():
     backend = S3ParquetBackend(s3=mock_s3, duckdb_engine=DuckDB())
     uris = backend.list_parquet_uris(
         dataset=dataset,
-        storage_tiers=[tier],  # type: ignore[arg-type]
+        storage_tiers=[tier],
         partition_date=partition_date,
     )
 

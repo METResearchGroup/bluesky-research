@@ -1,6 +1,7 @@
 import os
 from typing import Literal
 
+from lib.db.models import StorageTier
 from lib.validate_parquet import validated_pq_files_within_directory
 
 
@@ -31,10 +32,9 @@ def fetch_unique_filepaths_in_directory(
 
 
 # TODO: move over testing.
-# TODO: add stronger typing to "directories" parameter.
 def crawl_local_prefix(
     local_prefix: str,
-    directories: list[Literal["cache", "active"]] = ["active"],
+    storage_tiers: list[StorageTier],
     validate_pq_files: bool = False,
 ) -> list[str]:
     """Crawls the local prefix and returns all filepaths.
@@ -45,8 +45,8 @@ def crawl_local_prefix(
     loaded_filepaths: list[str] = []
     seen_filepaths: set[str] = set()
 
-    for directory in directories:
-        directory_filepath = os.path.join(local_prefix, directory)
+    for storage_tier in storage_tiers:
+        directory_filepath = os.path.join(local_prefix, storage_tier.value)
         if validate_pq_files:
             validated_filepaths: list[str] = validated_pq_files_within_directory(
                 directory_filepath
