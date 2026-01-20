@@ -461,6 +461,27 @@ def _determine_local_prefix_for_export(
     return MAP_SERVICE_TO_METADATA[service]["local_prefix"]
 
 
+def _preprocess_df_for_export(
+    df: pd.DataFrame,
+    service: str,
+    timestamp_field: str,
+    timestamp_format: str,
+) -> pd.DataFrame:
+    """Preprocesses the dataframe for export."""
+    df = _derive_or_normalize_partition_date_column(
+        df=df,
+        service=service,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
+    df = _derive_or_normalize_timestamp_column(
+        df=df,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
+    return df
+
+
 def _determine_if_special_case_chunk_generation(service: str) -> bool:
     """Catch-all function for determining if special case chunk generation is needed.
 
@@ -486,9 +507,7 @@ def _generate_batches_for_special_cases(df: pd.DataFrame) -> list[dict]:
 
 def _generate_batches_for_export_generic(
     df: pd.DataFrame,
-    service: str,
     timestamp_field: str,
-    timestamp_format: str,
 ) -> list[dict]:
     """Partitions data by date.
 
@@ -501,20 +520,6 @@ def _generate_batches_for_export_generic(
     Transforms the timestamp field to a datetime field and then partitions the
     data by date. Each day's data is stored in a separate dataframe.
     """
-    # Ensure partition_date exists and is canonical string.
-    df = _derive_or_normalize_partition_date_column(
-        df=df,
-        service=service,
-        timestamp_field=timestamp_field,
-        timestamp_format=timestamp_format,
-    )
-
-    df = _derive_or_normalize_timestamp_column(
-        df=df,
-        timestamp_field=timestamp_field,
-        timestamp_format=timestamp_format,
-    )
-
     batches = df.groupby("partition_date")
 
     result: list[dict] = []
@@ -542,21 +547,19 @@ def _generate_batches_for_export(
     """Creates batches of data out of the original dataframe, preparing it
     for the expected export format."""
     # Ensure all export paths (including special cases) have canonical partition_date.
-    if not df.empty:
-        df = _derive_or_normalize_partition_date_column(
-            df=df,
-            service=service,
-            timestamp_field=timestamp_field,
-            timestamp_format=timestamp_format,
+    if df.empty:
+        raise ValueError(
+            "Received empty dataframe for export. Please ensure that the dataframe is not empty."
         )
-    if _determine_if_special_case_chunk_generation(service=service):
-        return _generate_batches_for_special_cases(df=df)
-    return _generate_batches_for_export_generic(
+    df = _preprocess_df_for_export(
         df=df,
         service=service,
         timestamp_field=timestamp_field,
         timestamp_format=timestamp_format,
     )
+    if _determine_if_special_case_chunk_generation(service=service):
+        return _generate_batches_for_special_cases(df=df)
+    return _generate_batches_for_export_generic(df=df, timestamp_field=timestamp_field)
 
 
 def _export_batch_backfill_sync(
