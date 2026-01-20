@@ -4,56 +4,27 @@ This module intentionally sits between:
 - `lib/aws/s3.py` (raw S3 listing primitives)
 - `services/...` adapters (domain/business logic, SQL, model conversion)
 
-It provides a small set of *backend primitives*:
-- list parquet URIs for a dataset and partition-date filters
-- run DuckDB queries over those URIs and return pandas DataFrames
-
 Study dataset layout (hardcoded for now):
   s3://bluesky-research/bluesky_research/2024_nature_paper_study_data/{dataset}/{tier}/partition_date=YYYY-MM-DD/*.parquet
-
-Manual smoke test (real AWS):
-  - Ensure your AWS credentials are available (e.g., `AWS_PROFILE` or env vars).
-  - Then run a short script (example):
-
-    ```python
-    from lib.db.manage_s3_data import S3ParquetBackend, S3ParquetDatasetRef
-
-    backend = S3ParquetBackend()
-    df = backend.query_dataset_as_df(
-        dataset=S3ParquetDatasetRef(dataset="preprocessed_posts"),
-        storage_tiers=["cache"],
-        partition_date="2024-11-13",
-        query="SELECT uri, text, preprocessing_timestamp FROM preprocessed_posts LIMIT 5",
-        query_metadata={
-            "tables": [
-                {
-                    "name": "preprocessed_posts",
-                    "columns": ["uri", "text", "preprocessing_timestamp"],
-                }
-            ]
-        },
-    )
-    print(df.head())
-    ```
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 import pandas as pd
 
+from lib.db.models import StorageTier
 from lib.db.sql.duckdb_wrapper import DuckDB
 from lib.datetime_utils import get_partition_dates
 from lib.log.logger import get_logger
 
+# This is OK to have here, as we care about 
 if TYPE_CHECKING:
     from lib.aws.s3 import S3
 
 logger = get_logger(__name__)
-
-StorageTier = Literal["cache", "active"]
 
 # Study-specific constants (hardcoded for now).
 STUDY_BUCKET = "bluesky-research"
@@ -75,7 +46,7 @@ class S3ParquetBackend:
         s3: Optional["S3"] = None,
         duckdb_engine: Optional[DuckDB] = None,
         aws_region: str | None = None,
-        storage_tier_default: StorageTier = "cache",
+        storage_tier_default: StorageTier = StorageTier.CACHE,
     ) -> None:
         if s3 is None:
             # Lazy import to avoid requiring boto3 at import-time for callers/tests
@@ -100,7 +71,7 @@ class S3ParquetBackend:
         # Example:
         # bluesky_research/2024_nature_paper_study_data/preprocessed_posts/cache/partition_date=2024-11-13/
         return (
-            f"{STUDY_ROOT_KEY_PREFIX}/{dataset}/{tier}/partition_date={partition_date}/"
+            f"{STUDY_ROOT_KEY_PREFIX}/{dataset}/{tier.value}/partition_date={partition_date}/"
         )
 
     def list_parquet_uris(
@@ -165,7 +136,7 @@ class S3ParquetBackend:
                 parquet_keys = [k for k in keys if k.endswith(".parquet")]
                 if parquet_keys:
                     logger.info(
-                        f"[dataset={dataset.dataset} tier={tier} partition_date={day}] "
+                        f"[dataset={dataset.dataset} tier={tier.value} partition_date={day}] "
                         f"Found n_files={len(parquet_keys)} parquet objects."
                     )
 

@@ -13,6 +13,7 @@ from lib.constants import (
     default_lookback_days,
     partition_date_format,
 )
+from lib.db.models import StorageTier
 from lib.db.service_constants import MAP_SERVICE_TO_METADATA
 from lib.db.sql.duckdb_wrapper import DuckDB
 from lib.datetime_utils import generate_current_datetime_str, truncate_timestamp_string
@@ -610,7 +611,7 @@ def _export_batch_generic(
 ):
     """Exports a single batch of data to local storage."""
 
-    storage_tier: str = _determine_storage_tier_for_export(
+    storage_tier: StorageTier = _determine_storage_tier_for_export(
         latest_record_timestamp=latest_record_timestamp,
         timestamp_format=timestamp_format,
         lookback_days=lookback_days,
@@ -682,7 +683,7 @@ def _export_batch(
 
 def _determine_storage_tier_for_export(
     latest_record_timestamp: str, timestamp_format: str, lookback_days: int
-) -> Literal["cache", "active"]:
+) -> StorageTier:
     """Determines the storage tier for a given export, based on the
     latest record timestamp and the lookback days.
     """
@@ -691,9 +692,9 @@ def _determine_storage_tier_for_export(
         timestamp_format=timestamp_format,
         lookback_days=lookback_days,
     ):
-        return "cache"
+        return StorageTier.CACHE
     else:
-        return "active"
+        return StorageTier.ACTIVE
 
 
 def export_data_to_local_storage(
@@ -786,7 +787,7 @@ def get_local_prefixes_for_service(service: str) -> list[str]:
 
 def _get_all_filenames(
     service: str,
-    storage_tiers: list[Literal["cache", "active"]] = ["active"],
+    storage_tiers: list[StorageTier],
     validate_pq_files: bool = False,
     record_type: Optional[str] = None,
 ) -> list[str]:
@@ -808,14 +809,14 @@ def _get_all_filenames(
 
     return crawl_local_prefix(
         local_prefix=root_local_prefix,
-        directories=storage_tiers,
+        storage_tiers=storage_tiers,
         validate_pq_files=validate_pq_files,
     )
 
 
 def _get_all_filenames_deprecated_format(
     service: str,
-    storage_tiers: list[Literal["cache", "active"]] = ["active"],
+    storage_tiers: list[StorageTier],
     validate_pq_files: bool = False,
     source_types: Optional[list[Literal["firehose", "most_liked"]]] = None,
 ) -> list[str]:
@@ -852,7 +853,7 @@ def _get_all_filenames_deprecated_format(
         raise ValueError(f"Service {service} is not supported for deprecated format.")
 
     root_local_prefix = get_local_prefix_for_service(service)
-
+    
     if not source_types:
         source_types = ["firehose", "most_liked"]
     else:
@@ -868,7 +869,7 @@ def _get_all_filenames_deprecated_format(
         loaded_filepaths.extend(
             crawl_local_prefix(
                 local_prefix=local_prefix,
-                directories=storage_tiers,
+                storage_tiers=storage_tiers,
                 validate_pq_files=validate_pq_files,
             )
         )
@@ -878,7 +879,7 @@ def _get_all_filenames_deprecated_format(
 
 def list_filenames(
     service: str,
-    storage_tiers: list[Literal["cache", "active"]] = ["active"],
+    storage_tiers: list[StorageTier],
     validate_pq_files: bool = False,
     partition_date: str | None = None,
     start_partition_date: str | None = None,
@@ -1292,7 +1293,7 @@ def _filter_loaded_data_by_latest_timestamp(
 
 def load_data_from_local_storage(
     service: str,
-    storage_tiers: list[Literal["cache", "active"]] | None = None,
+    storage_tiers: list[StorageTier],
     source_file_format: Literal["jsonl", "parquet"] = "parquet",
     partition_date: str | None = None,
     start_partition_date: str | None = None,
@@ -1309,7 +1310,7 @@ def load_data_from_local_storage(
 
     Args:
         service: Name of the service to load data from
-        storage_tiers: Which storage tiers to load from (["cache"], ["active"], or ["cache", "active"])
+        storage_tiers: Which storage tiers to load from ([StorageTier.CACHE], [StorageTier.ACTIVE], or [StorageTier.CACHE, StorageTier.ACTIVE])
         source_file_format: Format of the source data files ("jsonl" or "parquet")
         partition_date: Specific partition date to load
         start_partition_date: Start of partition date range to load
@@ -1324,8 +1325,6 @@ def load_data_from_local_storage(
         custom_args: Optional custom arguments for the service
     """
     service = _convert_service_name_to_db_name(service)
-    if storage_tiers is None:
-        storage_tiers = ["active"]
 
     filepaths: list[str] = list_filenames(
         service=service,
@@ -1396,7 +1395,7 @@ def load_latest_data(
 
 def delete_records_for_service(
     service: str,
-    storage_tiers: list[Literal["cache", "active"]] = ["active"],
+    storage_tiers: list[StorageTier],
     partition_date: Optional[str] = None,
     start_partition_date: Optional[str] = None,
     end_partition_date: Optional[str] = None,
