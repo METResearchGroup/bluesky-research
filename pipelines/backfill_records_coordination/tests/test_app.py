@@ -72,6 +72,104 @@ class TestBackfillCoordinationCliApp(TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("--record-type is required when --add-to-queue is used", result.output)
 
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    @patch("pipelines.backfill_records_coordination.app.BackfillDataLoaderService")
+    @patch("pipelines.backfill_records_coordination.app._build_backfill_data_repository")
+    def test_add_to_queue_default_source_data_location_is_local(
+        self, mock_build_repo, mock_loader_cls, mock_enqueue_cls
+    ):
+        """If --source-data-location is not provided, it should default to 'local'."""
+        mock_build_repo.return_value = MagicMock()
+        mock_loader_cls.return_value = MagicMock()
+        mock_enqueue = MagicMock()
+        mock_enqueue_cls.return_value = mock_enqueue
+
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                "--record-type",
+                "posts",
+                "--add-to-queue",
+                "-i",
+                "g",
+                "--start-date",
+                "2024-01-01",
+                "--end-date",
+                "2024-01-31",
+            ],
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        mock_build_repo.assert_called_once_with(source_data_location="local")
+
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    @patch("pipelines.backfill_records_coordination.app.BackfillDataLoaderService")
+    @patch("pipelines.backfill_records_coordination.app._build_backfill_data_repository")
+    def test_add_to_queue_source_data_location_s3(
+        self, mock_build_repo, mock_loader_cls, mock_enqueue_cls
+    ):
+        """--source-data-location should be plumbed through to repository construction."""
+        mock_build_repo.return_value = MagicMock()
+        mock_loader_cls.return_value = MagicMock()
+        mock_enqueue = MagicMock()
+        mock_enqueue_cls.return_value = mock_enqueue
+
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                "--record-type",
+                "posts",
+                "--add-to-queue",
+                "-i",
+                "g",
+                "--start-date",
+                "2024-01-01",
+                "--end-date",
+                "2024-01-31",
+                "--source-data-location",
+                "s3",
+            ],
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        mock_build_repo.assert_called_once_with(source_data_location="s3")
+
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    @patch("pipelines.backfill_records_coordination.app.BackfillDataLoaderService")
+    @patch("pipelines.backfill_records_coordination.app._build_backfill_data_repository")
+    def test_injects_backfill_data_loader_service_into_enqueue_service(
+        self, mock_build_repo, mock_loader_cls, mock_enqueue_cls
+    ):
+        """CLI should build a repository and inject it into BackfillDataLoaderService and EnqueueService."""
+        repo = MagicMock()
+        loader = MagicMock()
+        enqueue_svc = MagicMock()
+        mock_build_repo.return_value = repo
+        mock_loader_cls.return_value = loader
+        mock_enqueue_cls.return_value = enqueue_svc
+
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                "--record-type",
+                "posts",
+                "--add-to-queue",
+                "-i",
+                "g",
+                "--start-date",
+                "2024-01-01",
+                "--end-date",
+                "2024-01-31",
+                "--source-data-location",
+                "s3",
+            ],
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        mock_build_repo.assert_called_once_with(source_data_location="s3")
+        mock_loader_cls.assert_called_once_with(data_repository=repo)
+        mock_enqueue_cls.assert_called_once_with(backfill_data_loader_service=loader)
+
     @patch('pipelines.backfill_records_coordination.app.IntegrationRunnerService')
     @patch('pipelines.backfill_records_coordination.app.EnqueueService')
     def test_backfill_specific_integrations(self, mock_enqueue_cls, mock_integration_runner_cls):

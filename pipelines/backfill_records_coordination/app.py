@@ -18,6 +18,11 @@ from services.backfill.services.integration_runner_service import (
 from services.backfill.services.cache_buffer_writer_service import (
     CacheBufferWriterService,
 )
+from services.backfill.services.backfill_data_loader_service import (
+    BackfillDataLoaderService,
+)
+from services.backfill.repositories.adapters import LocalStorageAdapter, S3Adapter
+from services.backfill.repositories.repository import BackfillDataRepository
 
 logger = get_logger(__name__)
 
@@ -44,6 +49,17 @@ def validate_date_format(ctx, param, value):
         return datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d")
     except ValueError:
         raise click.BadParameter("Invalid date format. Please use YYYY-MM-DD format.")
+
+
+def _build_backfill_data_repository(
+    source_data_location: str,
+) -> BackfillDataRepository:
+    """Build the data repository used for loading posts and label history."""
+    if source_data_location == "local":
+        return BackfillDataRepository(adapter=LocalStorageAdapter())
+    if source_data_location == "s3":
+        return BackfillDataRepository(adapter=S3Adapter())
+    raise ValueError(f"Invalid source_data_location: {source_data_location}")
 
 
 @click.command()
@@ -86,6 +102,13 @@ def validate_date_format(ctx, param, value):
     ),
     multiple=True,
     help="Integration service(s) to run. Can be specified multiple times. If not provided, runs all integrations.",
+)
+@click.option(
+    "--source-data-location",
+    type=click.Choice(["local", "s3"]),
+    default="local",
+    show_default=True,
+    help="Where to read posts (and label history) from.",
 )
 @click.option(
     "--backfill-period",
@@ -165,6 +188,7 @@ def backfill_records(
     add_to_queue: bool,
     run_integrations: bool,
     integrations: tuple[str, ...],
+    source_data_location: str,
     backfill_period: str | None,
     backfill_duration: int | None,
     write_cache_buffer_to_storage: bool,
@@ -207,7 +231,13 @@ def backfill_records(
     )
 
     if add_to_queue:
-        enqueue_svc = _enqueue_service or EnqueueService()
+        repo = _build_backfill_data_repository(
+            source_data_location=source_data_location
+        )
+        data_loader = BackfillDataLoaderService(data_repository=repo)
+        enqueue_svc = _enqueue_service or EnqueueService(
+            backfill_data_loader_service=data_loader
+        )
         enqueue_service_payload = EnqueueServicePayload(
             record_type=str(record_type),
             integrations=mapped_integration_names,
@@ -230,8 +260,12 @@ def backfill_records(
         )
 
     if write_cache_buffer_to_storage:
+        repo = _build_backfill_data_repository(
+            source_data_location=source_data_location
+        )
         cache_buffer_writer_svc = (
-            _cache_buffer_writer_service or CacheBufferWriterService()
+            _cache_buffer_writer_service
+            or CacheBufferWriterService(data_repository=repo)
         )
         if not bypass_write:
             cache_buffer_writer_svc.write_cache(
