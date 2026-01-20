@@ -7,7 +7,7 @@ from lib.datetime_utils import (
     calculate_start_end_date_for_lookback,
     get_partition_dates,
 )
-from lib.db.manage_s3_data import S3ParquetBackend, S3ParquetDatasetRef
+from lib.db.manage_s3_data import S3Backend, S3ParquetDatasetRef
 from lib.db.manage_local_data import load_data_from_local_storage
 from lib.log.logger import get_logger
 from services.backfill.exceptions import BackfillDataAdapterError
@@ -286,11 +286,11 @@ class S3Adapter(BackfillDataAdapter):
     """S3 adapter implementation.
 
     Mirrors the LocalStorageAdapter interface but loads Parquet from the
-    study dataset S3 layout via S3ParquetBackend + DuckDB.
+    study dataset S3 layout via S3Backend + DuckDB.
     """
 
-    def __init__(self, backend: S3ParquetBackend | None = None):
-        self.backend = backend or S3ParquetBackend()
+    def __init__(self, backend: S3Backend | None = None):
+        self.backend = backend or S3Backend()
 
     def load_all_posts(
         self, start_date: str, end_date: str

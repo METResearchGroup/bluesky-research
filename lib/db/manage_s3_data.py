@@ -38,8 +38,8 @@ class S3ParquetDatasetRef:
     dataset: str
 
 
-class S3ParquetBackend:
-    """Study S3 Parquet backend primitives (listing + DuckDB execution)."""
+class S3Backend:
+    """S3 backend primitives (listing + DuckDB execution)."""
 
     def __init__(
         self,

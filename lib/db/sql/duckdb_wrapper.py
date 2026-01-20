@@ -163,8 +163,7 @@ class DuckDB:
             query=query,
             mode=mode,
             filepaths=filepaths,
-            query_metadata=query_metadata,
-            aws_region=aws_region,
+            query_metadata=query_metadata
         )
         self._export_query_metrics(metrics)
         return df
