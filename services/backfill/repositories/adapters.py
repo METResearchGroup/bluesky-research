@@ -317,7 +317,7 @@ class S3Adapter(BackfillDataAdapter):
 
         df: pd.DataFrame = self.backend.query_dataset_as_df(
             dataset=S3ParquetDatasetRef(dataset=LOCAL_TABLE_NAME),
-            storage_tiers=["cache"],
+            storage_tiers=[StorageTier.CACHE],
             start_partition_date=start_date,
             end_partition_date=end_date,
             query=query,
