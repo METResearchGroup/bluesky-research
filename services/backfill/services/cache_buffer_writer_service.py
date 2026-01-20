@@ -22,24 +22,19 @@ class CacheBufferWriterService:
 
     def __init__(
         self,
-        source_data_location: str = "local",
         data_repository: BackfillDataRepository | None = None,
         queue_manager_service: QueueManagerService | None = None,
     ):
         """Initialize the cache buffer writer service.
 
         Args:
-            source_data_location: Data source location ("local" or "s3"). Used to
-                construct BackfillDataRepository if not provided.
             data_repository: Optional BackfillDataRepository instance for dependency injection.
-                If not provided, creates a new instance using source_data_location.
+                If not provided, creates a new instance using the local data source.
             queue_manager_service: Optional QueueManagerService instance for dependency injection.
                 If not provided, creates a new instance.
         """
         if data_repository is None:
-            data_repository = BackfillDataRepository.from_source_data_location(
-                source_data_location
-            )
+            data_repository = BackfillDataRepository.from_source_data_location("local")
         self.data_repository = data_repository
         self.queue_manager_service = queue_manager_service or QueueManagerService()
 
