@@ -2,7 +2,6 @@
 
 from typing import Optional, Any
 import re
-import os
 
 import duckdb
 from duckdb import DuckDBPyConnection
@@ -36,17 +35,17 @@ def _escape_sql_string_literal(value: str) -> str:
 def _is_s3_filepath(filepath: str) -> bool:
     return filepath.startswith("s3://")
 
+
 def _assert_s3_secret_present(conn: DuckDBPyConnection, s3_path: str) -> None:
     # 1) Check that some S3 secret exists for the path
-    which = conn.execute(
-        "FROM which_secret(?, 's3');", [s3_path]
-    ).df()
+    which = conn.execute("FROM which_secret(?, 's3');", [s3_path]).df()
 
     if which.empty or which["name"].isna().all():
         raise ValueError(
             f"No DuckDB S3 secret configured for path {s3_path}. "
             "Create a persistent secret using `lib/db/sql/init_duckdb_aws_access.py` before starting this service."
         )
+
 
 def _enable_s3_httpfs(conn: DuckDBPyConnection) -> None:
     """Enable reading `s3://...` paths in DuckDB for this connection."""
@@ -84,9 +83,16 @@ class DuckDB:
             DuckDB connection configured for Parquet querying
         """
         conn = duckdb.connect(":memory:")
+
+        # set up S3 access if any files are clearly for S3. We can use the exact
+        # same semantics as if it were local; the only difference is that we
+        # pass in S3 prefixes instead of filepaths.
+
         if any(_is_s3_filepath(fp) for fp in filepaths):
+            logger.info("Using S3 access mode for DuckDB.")
             _assert_s3_secret_present(conn=conn, s3_path=filepaths[0])
             _enable_s3_httpfs(conn=conn)
+
         files_str = ",".join([f"'{_escape_sql_string_literal(f)}'" for f in filepaths])
 
         # If specific columns are requested, only read those
@@ -112,7 +118,7 @@ class DuckDB:
         query: str,
         mode: str = "default",
         filepaths: Optional[list[str]] = None,
-        query_metadata: Optional[dict[str, Any]] = None
+        query_metadata: Optional[dict[str, Any]] = None,
     ) -> pd.DataFrame:
         """Run a query and return the result as a pandas DataFrame.
 
@@ -155,15 +161,12 @@ class DuckDB:
         query: str,
         mode: str = "default",
         filepaths: Optional[list[str]] = None,
-        query_metadata: Optional[dict[str, Any]] = None
+        query_metadata: Optional[dict[str, Any]] = None,
     ) -> pd.DataFrame:
         """Run a query and return the result as a pandas DataFrame."""
         # the decorator returns a tuple of the df and the metrics.
         df, metrics = self._run_query_as_df(
-            query=query,
-            mode=mode,
-            filepaths=filepaths,
-            query_metadata=query_metadata
+            query=query, mode=mode, filepaths=filepaths, query_metadata=query_metadata
         )
         self._export_query_metrics(metrics)
         return df
