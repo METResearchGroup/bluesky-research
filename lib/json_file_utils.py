@@ -17,12 +17,12 @@ def load_jsonl_data(filepath: str) -> list[dict]:
 
 
 def _load_json_data_from_directory(directory: str) -> list[dict]:
-    """Load JSON data from a directory."""
+    """Load JSON data from a directory. Each .json file must contain a dict object."""
     data: list[dict] = []
     for file in os.listdir(directory):
         if file.endswith(".json"):
             with open(os.path.join(directory, file), "r", encoding="utf-8") as f:
-                data.extend(json.load(f))
+                data.append(json.load(f))
     return data
 
 
