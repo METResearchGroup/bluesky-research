@@ -70,35 +70,6 @@ def is_older_than_lookback(
     return latest_record_ts < lookback_ts
 
 
-# NOTE: come back to this after refactoring `partition_data_by_date`, so
-# we can see how it's supposed to be used.
-def convert_timestamp(x, timestamp_format):
-    """Attempts to convert a timestamp to a datetime.
-
-    If the timestamp is not in the correct format, it will be converted to a
-    default partition date of 2016-01-01.
-
-    Also checks for the year of the post. Sometimes the timestamp is corrupted
-    and the year is before 2024. In this case, we'll log a warning and return
-    the default partition date.
-    """
-    try:
-        dt = pd.to_datetime(x, format=timestamp_format)
-        if dt.year < 2024:
-            # a bit noisy, plus this is an OK default behavior.
-            # logger.warning(
-            #     f"Timestamp year {dt.year} is before 2024, will try to coerce using {DEFAULT_ERROR_PARTITION_DATE}: {x}."
-            # )
-            pass
-        else:
-            return dt
-    except Exception as e:
-        logger.warning(
-            f"Error converting timestamp ({e}), will try to coerce using {DEFAULT_ERROR_PARTITION_DATE}: {x}."
-        )
-    return pd.to_datetime(DEFAULT_ERROR_PARTITION_DATE, format="%Y-%m-%d")
-
-
 def _convert_service_name_to_db_name(service: str) -> str:
     """Converts the service name to the version used to define the DB.
 
