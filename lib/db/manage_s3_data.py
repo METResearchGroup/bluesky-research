@@ -71,7 +71,7 @@ class S3ParquetBackend:
         # Example:
         # bluesky_research/2024_nature_paper_study_data/preprocessed_posts/cache/partition_date=2024-11-13/
         return (
-            f"{STUDY_ROOT_KEY_PREFIX}/{dataset}/{tier}/partition_date={partition_date}/"
+            f"{STUDY_ROOT_KEY_PREFIX}/{dataset}/{tier.value}/partition_date={partition_date}/"
         )
 
     def list_parquet_uris(
@@ -136,7 +136,7 @@ class S3ParquetBackend:
                 parquet_keys = [k for k in keys if k.endswith(".parquet")]
                 if parquet_keys:
                     logger.info(
-                        f"[dataset={dataset.dataset} tier={tier} partition_date={day}] "
+                        f"[dataset={dataset.dataset} tier={tier.value} partition_date={day}] "
                         f"Found n_files={len(parquet_keys)} parquet objects."
                     )
 

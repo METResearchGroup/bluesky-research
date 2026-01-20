@@ -50,7 +50,7 @@ def test_list_parquet_uris_single_date_filters_and_converts_to_s3_uris():
 def test_list_parquet_uris_date_range_lists_each_day(monkeypatch):
     mock_s3 = Mock()
     dataset = S3ParquetDatasetRef(dataset="preprocessed_posts")
-    tier = "cache"
+    tier = StorageTier.CACHE
 
     monkeypatch.setattr(
         "lib.db.manage_s3_data.get_partition_dates",
@@ -65,14 +65,14 @@ def test_list_parquet_uris_date_range_lists_each_day(monkeypatch):
     backend = S3ParquetBackend(s3=mock_s3, duckdb_engine=DuckDB())
     uris = backend.list_parquet_uris(
         dataset=dataset,
-        storage_tiers=[tier],  # type: ignore[arg-type]
+        storage_tiers=[tier],
         start_partition_date="2024-11-13",
         end_partition_date="2024-11-14",
     )
 
     expected_prefixes = [
-        f"{STUDY_ROOT_KEY_PREFIX}/{dataset.dataset}/{tier}/partition_date=2024-11-13/",
-        f"{STUDY_ROOT_KEY_PREFIX}/{dataset.dataset}/{tier}/partition_date=2024-11-14/",
+        f"{STUDY_ROOT_KEY_PREFIX}/{dataset.dataset}/{tier.value}/partition_date=2024-11-13/",
+        f"{STUDY_ROOT_KEY_PREFIX}/{dataset.dataset}/{tier.value}/partition_date=2024-11-14/",
     ]
     assert mock_s3.list_keys_given_prefix.call_count == 2
     assert [c.kwargs["prefix"] for c in mock_s3.list_keys_given_prefix.call_args_list] == expected_prefixes
