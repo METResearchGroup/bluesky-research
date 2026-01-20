@@ -887,7 +887,7 @@ def list_filenames(
 
     loaded_filepaths: list[str] = []
 
-    if service == "raw_sync":
+    if service == "raw_sync" and custom_args is not None:
         record_type = custom_args["record_type"]
         logger.info(
             f"Getting study user activity data for record_type={record_type}..."
