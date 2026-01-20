@@ -14,6 +14,7 @@ from services.backfill.models import (
     IntegrationRunnerServicePayload,
     BackfillPeriod,
 )
+from services.backfill.repositories.repository import BackfillDataRepository
 
 
 class TestBackfillCoordinationCliApp(TestCase):
@@ -73,14 +74,10 @@ class TestBackfillCoordinationCliApp(TestCase):
         self.assertIn("--record-type is required when --add-to-queue is used", result.output)
 
     @patch("pipelines.backfill_records_coordination.app.EnqueueService")
-    @patch("pipelines.backfill_records_coordination.app.BackfillDataLoaderService")
-    @patch("pipelines.backfill_records_coordination.app._build_backfill_data_repository")
     def test_add_to_queue_default_source_data_location_is_local(
-        self, mock_build_repo, mock_loader_cls, mock_enqueue_cls
+        self, mock_enqueue_cls
     ):
         """If --source-data-location is not provided, it should default to 'local'."""
-        mock_build_repo.return_value = MagicMock()
-        mock_loader_cls.return_value = MagicMock()
         mock_enqueue = MagicMock()
         mock_enqueue_cls.return_value = mock_enqueue
 
@@ -100,17 +97,13 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_build_repo.assert_called_once_with(source_data_location="local")
+        mock_enqueue_cls.assert_called_once_with(source_data_location="local")
 
     @patch("pipelines.backfill_records_coordination.app.EnqueueService")
-    @patch("pipelines.backfill_records_coordination.app.BackfillDataLoaderService")
-    @patch("pipelines.backfill_records_coordination.app._build_backfill_data_repository")
     def test_add_to_queue_source_data_location_s3(
-        self, mock_build_repo, mock_loader_cls, mock_enqueue_cls
+        self, mock_enqueue_cls
     ):
-        """--source-data-location should be plumbed through to repository construction."""
-        mock_build_repo.return_value = MagicMock()
-        mock_loader_cls.return_value = MagicMock()
+        """--source-data-location should be plumbed through to EnqueueService."""
         mock_enqueue = MagicMock()
         mock_enqueue_cls.return_value = mock_enqueue
 
@@ -132,21 +125,18 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_build_repo.assert_called_once_with(source_data_location="s3")
+        mock_enqueue_cls.assert_called_once_with(source_data_location="s3")
 
+    @patch("pipelines.backfill_records_coordination.app.BackfillDataRepository")
     @patch("pipelines.backfill_records_coordination.app.EnqueueService")
-    @patch("pipelines.backfill_records_coordination.app.BackfillDataLoaderService")
-    @patch("pipelines.backfill_records_coordination.app._build_backfill_data_repository")
-    def test_injects_backfill_data_loader_service_into_enqueue_service(
-        self, mock_build_repo, mock_loader_cls, mock_enqueue_cls
+    def test_injects_source_data_location_into_enqueue_service(
+        self, mock_enqueue_cls, mock_repo_cls
     ):
-        """CLI should build a repository and inject it into BackfillDataLoaderService and EnqueueService."""
-        repo = MagicMock()
-        loader = MagicMock()
-        enqueue_svc = MagicMock()
-        mock_build_repo.return_value = repo
-        mock_loader_cls.return_value = loader
-        mock_enqueue_cls.return_value = enqueue_svc
+        """CLI should pass source_data_location to EnqueueService, which builds repository internally."""
+        mock_repo = MagicMock()
+        mock_repo_cls.from_source_data_location.return_value = mock_repo
+        mock_enqueue = MagicMock()
+        mock_enqueue_cls.return_value = mock_enqueue
 
         result = self.runner.invoke(
             backfill_records,
@@ -166,9 +156,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         )
 
         self.assertEqual(result.exit_code, 0)
-        mock_build_repo.assert_called_once_with(source_data_location="s3")
-        mock_loader_cls.assert_called_once_with(data_repository=repo)
-        mock_enqueue_cls.assert_called_once_with(backfill_data_loader_service=loader)
+        mock_enqueue_cls.assert_called_once_with(source_data_location="s3")
 
     @patch('pipelines.backfill_records_coordination.app.IntegrationRunnerService')
     @patch('pipelines.backfill_records_coordination.app.EnqueueService')

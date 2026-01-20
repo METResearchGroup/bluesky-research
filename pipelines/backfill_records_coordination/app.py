@@ -260,12 +260,9 @@ def backfill_records(
         )
 
     if write_cache_buffer_to_storage:
-        repo = _build_backfill_data_repository(
-            source_data_location=source_data_location
-        )
         cache_buffer_writer_svc = (
             _cache_buffer_writer_service
-            or CacheBufferWriterService(data_repository=repo)
+            or CacheBufferWriterService(source_data_location=source_data_location)
         )
         if not bypass_write:
             cache_buffer_writer_svc.write_cache(

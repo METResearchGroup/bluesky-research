@@ -1,6 +1,7 @@
 """Repository for backfill data loading operations using adapter pattern."""
 
 from services.backfill.models import PostToEnqueueModel
+from services.backfill.repositories.adapters import LocalStorageAdapter, S3Adapter
 from services.backfill.repositories.base import BackfillDataAdapter
 
 
@@ -23,6 +24,27 @@ class BackfillDataRepository:
         if not isinstance(adapter, BackfillDataAdapter):
             raise ValueError("Adapter must be an instance of BackfillDataAdapter.")
         self.adapter = adapter
+
+    @classmethod
+    def from_source_data_location(
+        cls, source_data_location: str
+    ) -> "BackfillDataRepository":
+        """Factory method to create repository with appropriate adapter.
+
+        Args:
+            source_data_location: Data source location ("local" or "s3")
+
+        Returns:
+            BackfillDataRepository: Repository instance with appropriate adapter
+
+        Raises:
+            ValueError: If source_data_location is invalid
+        """
+        if source_data_location == "local":
+            return cls(adapter=LocalStorageAdapter())
+        if source_data_location == "s3":
+            return cls(adapter=S3Adapter())
+        raise ValueError(f"Invalid source_data_location: {source_data_location}")
 
     def load_all_posts(
         self, start_date: str, end_date: str
