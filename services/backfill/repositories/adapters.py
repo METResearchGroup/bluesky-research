@@ -375,7 +375,10 @@ class S3Adapter(BackfillDataAdapter):
                 query=query,
                 query_metadata=query_metadata,
             )
-
+            total_records: int = len(df)
+            logger.info(
+                f"Loaded {total_records} post URIs from S3 for service {service}"
+            )
             if df.empty:
                 return set()
             if id_field not in df.columns:
