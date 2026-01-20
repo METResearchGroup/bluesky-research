@@ -18,11 +18,6 @@ from services.backfill.services.integration_runner_service import (
 from services.backfill.services.cache_buffer_writer_service import (
     CacheBufferWriterService,
 )
-from services.backfill.services.backfill_data_loader_service import (
-    BackfillDataLoaderService,
-)
-from services.backfill.repositories.adapters import LocalStorageAdapter, S3Adapter
-from services.backfill.repositories.repository import BackfillDataRepository
 
 logger = get_logger(__name__)
 
@@ -49,17 +44,6 @@ def validate_date_format(ctx, param, value):
         return datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d")
     except ValueError:
         raise click.BadParameter("Invalid date format. Please use YYYY-MM-DD format.")
-
-
-def _build_backfill_data_repository(
-    source_data_location: str,
-) -> BackfillDataRepository:
-    """Build the data repository used for loading posts and label history."""
-    if source_data_location == "local":
-        return BackfillDataRepository(adapter=LocalStorageAdapter())
-    if source_data_location == "s3":
-        return BackfillDataRepository(adapter=S3Adapter())
-    raise ValueError(f"Invalid source_data_location: {source_data_location}")
 
 
 @click.command()
@@ -231,12 +215,8 @@ def backfill_records(
     )
 
     if add_to_queue:
-        repo = _build_backfill_data_repository(
-            source_data_location=source_data_location
-        )
-        data_loader = BackfillDataLoaderService(data_repository=repo)
         enqueue_svc = _enqueue_service or EnqueueService(
-            backfill_data_loader_service=data_loader
+            source_data_location=source_data_location
         )
         enqueue_service_payload = EnqueueServicePayload(
             record_type=str(record_type),

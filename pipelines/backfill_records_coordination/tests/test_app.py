@@ -14,8 +14,6 @@ from services.backfill.models import (
     IntegrationRunnerServicePayload,
     BackfillPeriod,
 )
-from services.backfill.repositories.repository import BackfillDataRepository
-
 
 class TestBackfillCoordinationCliApp(TestCase):
     def setUp(self):
@@ -127,14 +125,11 @@ class TestBackfillCoordinationCliApp(TestCase):
         self.assertEqual(result.exit_code, 0)
         mock_enqueue_cls.assert_called_once_with(source_data_location="s3")
 
-    @patch("pipelines.backfill_records_coordination.app.BackfillDataRepository")
     @patch("pipelines.backfill_records_coordination.app.EnqueueService")
     def test_injects_source_data_location_into_enqueue_service(
-        self, mock_enqueue_cls, mock_repo_cls
+        self, mock_enqueue_cls
     ):
         """CLI should pass source_data_location to EnqueueService, which builds repository internally."""
-        mock_repo = MagicMock()
-        mock_repo_cls.from_source_data_location.return_value = mock_repo
         mock_enqueue = MagicMock()
         mock_enqueue_cls.return_value = mock_enqueue
 
