@@ -3,6 +3,7 @@
 import pandas as pd
 
 from lib.constants import FEED_LOOKBACK_DAYS_DURING_STUDY, study_start_date
+from lib.db.models import StorageTier
 from lib.datetime_utils import (
     calculate_start_end_date_for_lookback,
     get_partition_dates,
@@ -55,7 +56,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
         # anyways). But just a note in case it comes up in the future.
         cached_df: pd.DataFrame = load_data_from_local_storage(
             service=LOCAL_TABLE_NAME,
-            storage_tiers=["cache"],
+            storage_tiers=[StorageTier.CACHE],
             duckdb_query=query,
             query_metadata=query_metadata,
             start_partition_date=start_date,
@@ -130,7 +131,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
         }
         cached_df: pd.DataFrame = load_data_from_local_storage(
             service=POSTS_USED_IN_FEEDS_TABLE_NAME,
-            storage_tiers=["cache"],
+            storage_tiers=[StorageTier.CACHE],
             duckdb_query=query,
             query_metadata=query_metadata,
             partition_date=partition_date,
@@ -220,7 +221,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
             # Load from cache
             cached_df: pd.DataFrame = load_data_from_local_storage(
                 service=service,
-                storage_tiers=["cache"],
+                storage_tiers=[StorageTier.CACHE],
                 duckdb_query=query,
                 query_metadata=query_metadata,
                 start_partition_date=start_date,
@@ -231,7 +232,7 @@ class LocalStorageAdapter(BackfillDataAdapter):
             # Load from active
             active_df: pd.DataFrame = load_data_from_local_storage(
                 service=service,
-                storage_tiers=["active"],
+                storage_tiers=[StorageTier.ACTIVE],
                 duckdb_query=query,
                 query_metadata=query_metadata,
                 start_partition_date=start_date,
@@ -316,7 +317,7 @@ class S3Adapter(BackfillDataAdapter):
 
         df: pd.DataFrame = self.backend.query_dataset_as_df(
             dataset=S3ParquetDatasetRef(dataset=LOCAL_TABLE_NAME),
-            storage_tiers=["cache"],
+            storage_tiers=[StorageTier.CACHE],
             start_partition_date=start_date,
             end_partition_date=end_date,
             query=query,
