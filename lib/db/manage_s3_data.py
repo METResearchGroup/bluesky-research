@@ -72,6 +72,36 @@ class S3ParquetBackend:
         # bluesky_research/2024_nature_paper_study_data/preprocessed_posts/cache/partition_date=2024-11-13/
         return f"{STUDY_ROOT_KEY_PREFIX}/{dataset}/{tier.value}/partition_date={partition_date}/"
 
+    def _get_validated_partition_dates(
+        self,
+        partition_date: str | None = None,
+        start_partition_date: str | None = None,
+        end_partition_date: str | None = None,
+        max_days: int | None = None,
+    ) -> list[str]:
+        """Get the validated partition dates."""
+        if partition_date and (start_partition_date or end_partition_date):
+            raise ValueError(
+                "Provide either partition_date OR start_partition_date/end_partition_date, not both."
+            )
+
+        if partition_date:
+            partition_dates = [partition_date]
+        elif start_partition_date and end_partition_date:
+            partition_dates = get_partition_dates(
+                start_date=start_partition_date, end_date=end_partition_date
+            )
+        else:
+            raise ValueError(
+                "Must provide either partition_date or start_partition_date/end_partition_date."
+            )
+
+        if max_days is not None and len(partition_dates) > max_days:
+            raise ValueError(
+                f"Refusing to list n_days={len(partition_dates)} > max_days={max_days}."
+            )
+        return partition_dates
+
     def _get_uris_for_partition_date(
         self,
         dataset: S3ParquetDatasetRef,
@@ -104,7 +134,9 @@ class S3ParquetBackend:
         """Get the URIs for a dataset and storage tier."""
         total_uris: list[str] = []
         for partition_date in partition_dates:
-            uris: list[str] = self._get_uris_for_partition_date(dataset=dataset, tier=tier, partition_date=partition_date)
+            uris: list[str] = self._get_uris_for_partition_date(
+                dataset=dataset, tier=tier, partition_date=partition_date
+            )
             total_uris.extend(uris)
         return total_uris
 
@@ -117,7 +149,9 @@ class S3ParquetBackend:
         """Get the URIs for a dataset and storage tiers."""
         total_uris: list[str] = []
         for tier in storage_tiers:
-            uris: list[str] = self._get_uris_for_storage_tier(dataset=dataset, tier=tier, partition_dates=partition_dates)
+            uris: list[str] = self._get_uris_for_storage_tier(
+                dataset=dataset, tier=tier, partition_dates=partition_dates
+            )
             total_uris.extend(uris)
         return total_uris
 
@@ -145,26 +179,12 @@ class S3ParquetBackend:
         if storage_tiers is None:
             storage_tiers = [self.storage_tier_default]
 
-        if partition_date and (start_partition_date or end_partition_date):
-            raise ValueError(
-                "Provide either partition_date OR start_partition_date/end_partition_date, not both."
-            )
-
-        if partition_date:
-            partition_dates = [partition_date]
-        elif start_partition_date and end_partition_date:
-            partition_dates = get_partition_dates(
-                start_date=start_partition_date, end_date=end_partition_date
-            )
-        else:
-            raise ValueError(
-                "Must provide either partition_date or start_partition_date/end_partition_date."
-            )
-
-        if max_days is not None and len(partition_dates) > max_days:
-            raise ValueError(
-                f"Refusing to list n_days={len(partition_dates)} > max_days={max_days}."
-            )
+        partition_dates: list[str] = self._get_validated_partition_dates(
+            partition_date=partition_date,
+            start_partition_date=start_partition_date,
+            end_partition_date=end_partition_date,
+            max_days=max_days,
+        )
 
         logger.info(
             f"Listing S3 parquet URIs for dataset={dataset.dataset}, "
@@ -179,9 +199,7 @@ class S3ParquetBackend:
         total_files = len(total_uris)
 
         if max_files is not None and total_files >= max_files:
-            logger.warning(
-                f"Reached max_files={max_files}; truncating listed URIs."
-            )
+            logger.warning(f"Reached max_files={max_files}; truncating listed URIs.")
             return total_uris[:max_files]
 
         logger.info(
