@@ -20,7 +20,7 @@ from lib.db.sql.duckdb_wrapper import DuckDB
 from lib.datetime_utils import get_partition_dates
 from lib.log.logger import get_logger
 
-# This is OK to have here, as we care about 
+# This is OK to have here, as we care about
 if TYPE_CHECKING:
     from lib.aws.s3 import S3
 
@@ -70,9 +70,7 @@ class S3ParquetBackend:
     ) -> str:
         # Example:
         # bluesky_research/2024_nature_paper_study_data/preprocessed_posts/cache/partition_date=2024-11-13/
-        return (
-            f"{STUDY_ROOT_KEY_PREFIX}/{dataset}/{tier.value}/partition_date={partition_date}/"
-        )
+        return f"{STUDY_ROOT_KEY_PREFIX}/{dataset}/{tier.value}/partition_date={partition_date}/"
 
     def list_parquet_uris(
         self,
@@ -121,7 +119,7 @@ class S3ParquetBackend:
 
         logger.info(
             f"Listing S3 parquet URIs for dataset={dataset.dataset}, "
-            f"storage_tiers={storage_tiers}, n_days={len(partition_dates)}."
+            f"storage_tiers={[storage_tier.value for storage_tier in storage_tiers]}, n_days={len(partition_dates)}."
         )
 
         uris: list[str] = []
