@@ -20,7 +20,7 @@ from lib.db.sql.duckdb_wrapper import DuckDB
 from lib.datetime_utils import get_partition_dates
 from lib.log.logger import get_logger
 
-# This is OK to have here, as we care about 
+# This is OK to have here, as we care about
 if TYPE_CHECKING:
     from lib.aws.s3 import S3
 
@@ -68,34 +68,32 @@ class S3Backend:
     ) -> str:
         # Example:
         # bluesky_research/2024_nature_paper_study_data/preprocessed_posts/cache/partition_date=2024-11-13/
-        return (
-            f"{STUDY_ROOT_KEY_PREFIX}/{dataset}/{tier.value}/partition_date={partition_date}/"
-        )
+        return f"{STUDY_ROOT_KEY_PREFIX}/{dataset}/{tier.value}/partition_date={partition_date}/"
 
-    def list_parquet_uris(
+    def _return_valid_partition_dates(
         self,
-        dataset: S3ParquetDatasetRef,
-        storage_tiers: list[StorageTier] | None = None,
         partition_date: str | None = None,
         start_partition_date: str | None = None,
         end_partition_date: str | None = None,
         max_days: int | None = None,
-        max_files: int | None = None,
     ) -> list[str]:
-        """Return DuckDB-readable URIs like `s3://bucket/key`.
+        """Returns a list of valid partition dates based on the input parameters.
 
-        Listing strategy is intentionally *bounded*:
-        - If `partition_date` is given, list only that day's prefix.
-        - Else, if `start_partition_date` and `end_partition_date` are given, enumerate
-          all days in the range and list each day prefix.
+        Args:
+            partition_date: A specific partition date to list.
+            start_partition_date: The start of a partition date range to list.
+            end_partition_date: The end of a partition date range to list.
+            max_days: The maximum number of days to list.
 
-        Note: Listing without any partition-date filter is intentionally not supported
-        to avoid accidental large scans.
+        Returns:
+            A list of valid partition dates.
+
+        Raises:
+            ValueError: If the input parameters are invalid.
+                - Provide either partition_date OR start_partition_date/end_partition_date, not both.
+                - Must provide either partition_date or start_partition_date/end_partition_date.
+                - Refusing to list n_days > max_days.
         """
-
-        if storage_tiers is None:
-            storage_tiers = [self.storage_tier_default]
-
         if partition_date and (start_partition_date or end_partition_date):
             raise ValueError(
                 "Provide either partition_date OR start_partition_date/end_partition_date, not both."
@@ -117,31 +115,75 @@ class S3Backend:
                 f"Refusing to list n_days={len(partition_dates)} > max_days={max_days}."
             )
 
+        return partition_dates
+
+    def _get_keys_for_partition_date(
+        self,
+        dataset: S3ParquetDatasetRef,
+        tier: StorageTier,
+        partition_date: str,
+    ) -> list[str]:
+        """Returns a list of parquet keys for a given partition date."""
+        uris: list[str] = []
+        prefix_key = self._build_partition_prefix_key(
+            dataset=dataset.dataset, tier=tier, partition_date=partition_date
+        )
+        keys = self.s3.list_keys_given_prefix(prefix=prefix_key)
+        parquet_keys = [k for k in keys if k.endswith(".parquet")]
+        if parquet_keys:
+            logger.info(
+                f"[dataset={dataset.dataset} tier={tier.value} partition_date={partition_date}] "
+                f"Found n_files={len(parquet_keys)} parquet objects."
+            )
+
+        for k in parquet_keys:
+            uris.append(self._key_to_uri(k))
+        return uris
+
+    def list_parquet_uris(
+        self,
+        dataset: S3ParquetDatasetRef,
+        storage_tiers: list[StorageTier],
+        partition_date: str | None = None,
+        start_partition_date: str | None = None,
+        end_partition_date: str | None = None,
+        max_days: int | None = None,
+        max_files: int | None = None,
+    ) -> list[str]:
+        """Return DuckDB-readable URIs like `s3://bucket/key`.
+
+        Listing strategy is intentionally *bounded*:
+        - If `partition_date` is given, list only that day's prefix.
+        - Else, if `start_partition_date` and `end_partition_date` are given, enumerate
+          all days in the range and list each day prefix.
+
+        Note: Listing without any partition-date filter is intentionally not supported
+        to avoid accidental large scans.
+        """
+        partition_dates = self._return_valid_partition_dates(
+            partition_date=partition_date,
+            start_partition_date=start_partition_date,
+            end_partition_date=end_partition_date,
+            max_days=max_days,
+        )
+
         logger.info(
             f"Listing S3 parquet URIs for dataset={dataset.dataset}, "
             f"storage_tiers={storage_tiers}, n_days={len(partition_dates)}."
         )
 
-        uris: list[str] = []
+        total_uris: list[str] = []
         total_files = 0
 
         for tier in storage_tiers:
             for day in partition_dates:
-                prefix_key = self._build_partition_prefix_key(
-                    dataset=dataset.dataset, tier=tier, partition_date=day
+                uris = self._get_keys_for_partition_date(
+                    dataset=dataset,
+                    tier=tier,
+                    partition_date=day,
                 )
-                keys = self.s3.list_keys_given_prefix(prefix=prefix_key)
-                parquet_keys = [k for k in keys if k.endswith(".parquet")]
-                if parquet_keys:
-                    logger.info(
-                        f"[dataset={dataset.dataset} tier={tier.value} partition_date={day}] "
-                        f"Found n_files={len(parquet_keys)} parquet objects."
-                    )
-
-                for k in parquet_keys:
-                    uris.append(self._key_to_uri(k))
-
-                total_files += len(parquet_keys)
+                total_uris.extend(uris)
+                total_files += len(uris)
 
                 if max_files is not None and total_files >= max_files:
                     logger.warning(
@@ -162,10 +204,7 @@ class S3Backend:
     ) -> pd.DataFrame:
         """Run DuckDB over the parquet URIs and return a pandas DataFrame."""
         return self.duckdb_engine.run_query_as_df(
-            query=query,
-            mode="parquet",
-            filepaths=uris,
-            query_metadata=query_metadata
+            query=query, mode="parquet", filepaths=uris, query_metadata=query_metadata
         )
 
     def query_dataset_as_df(
