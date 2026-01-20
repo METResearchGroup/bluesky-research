@@ -938,8 +938,9 @@ def list_filenames(
             )
         )
 
-    # Only filter by date if at least one date parameter is provided
-    if partition_date or start_partition_date or end_partition_date:
+    # Only filter by date if valid date parameters are provided
+    # Valid cases: partition_date alone, or both start_partition_date and end_partition_date
+    if partition_date or (start_partition_date and end_partition_date):
         loaded_filepaths = filter_filepaths_by_date_range(
             filepaths=loaded_filepaths,
             partition_date=partition_date,
