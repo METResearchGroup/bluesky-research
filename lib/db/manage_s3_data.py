@@ -1,11 +1,11 @@
-"""Study-specific helpers for loading Parquet data from S3 with DuckDB.
+"""S3 backend for loading Parquet data from the study dataset.
+
+S3 study dataset layout (hardcoded for now):
+  s3://bluesky-research/bluesky_research/2024_nature_paper_study_data/{dataset}/{tier}/partition_date=YYYY-MM-DD/*.parquet
 
 This module intentionally sits between:
 - `lib/aws/s3.py` (raw S3 listing primitives)
 - `services/...` adapters (domain/business logic, SQL, model conversion)
-
-Study dataset layout (hardcoded for now):
-  s3://bluesky-research/bluesky_research/2024_nature_paper_study_data/{dataset}/{tier}/partition_date=YYYY-MM-DD/*.parquet
 """
 
 from __future__ import annotations
