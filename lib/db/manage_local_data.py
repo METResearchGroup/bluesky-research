@@ -508,6 +508,7 @@ def _generate_batches_for_special_cases(df: pd.DataFrame) -> list[dict]:
 def _generate_batches_for_export_generic(
     df: pd.DataFrame,
     timestamp_field: str,
+    timestamp_format: str,
 ) -> list[dict]:
     """Partitions data by date.
 
@@ -525,8 +526,9 @@ def _generate_batches_for_export_generic(
     result: list[dict] = []
 
     for _, batch in batches:
-        latest_record_timestamp: str = (
-            batch[timestamp_field].max().strftime(DEFAULT_TIMESTAMP_FORMAT)
+        ts_series = pd.to_datetime(batch[timestamp_field], format=timestamp_format)
+        latest_record_timestamp: str = ts_series.max().strftime(
+            DEFAULT_TIMESTAMP_FORMAT
         )
         result.append(
             {
@@ -559,7 +561,11 @@ def _generate_batches_for_export(
     )
     if _determine_if_special_case_chunk_generation(service=service):
         return _generate_batches_for_special_cases(df=df)
-    return _generate_batches_for_export_generic(df=df, timestamp_field=timestamp_field)
+    return _generate_batches_for_export_generic(
+        df=df,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
 
 
 def _export_batch_backfill_sync(
