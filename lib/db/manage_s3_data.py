@@ -72,6 +72,28 @@ class S3ParquetBackend:
         # bluesky_research/2024_nature_paper_study_data/preprocessed_posts/cache/partition_date=2024-11-13/
         return f"{STUDY_ROOT_KEY_PREFIX}/{dataset}/{tier.value}/partition_date={partition_date}/"
 
+    def _get_uris_for_partition_date(
+        self,
+        dataset: S3ParquetDatasetRef,
+        tier: StorageTier,
+        partition_date: str,
+    ) -> list[str]:
+        uris: list[str] = []
+        prefix_key = self._build_partition_prefix_key(
+            dataset=dataset.dataset, tier=tier, partition_date=partition_date
+        )
+        keys = self.s3.list_keys_given_prefix(prefix=prefix_key)
+        parquet_keys = [k for k in keys if k.endswith(".parquet")]
+        if parquet_keys:
+            logger.info(
+                f"[dataset={dataset.dataset} tier={tier.value} partition_date={partition_date}] "
+                f"Found n_files={len(parquet_keys)} parquet objects."
+            )
+
+        for k in parquet_keys:
+            uris.append(self._key_to_uri(k))
+        return uris
+
     def list_parquet_uris(
         self,
         dataset: S3ParquetDatasetRef,
@@ -122,37 +144,25 @@ class S3ParquetBackend:
             f"storage_tiers={[storage_tier.value for storage_tier in storage_tiers]}, n_days={len(partition_dates)}."
         )
 
-        uris: list[str] = []
+        total_uris: list[str] = []
         total_files = 0
 
         for tier in storage_tiers:
             for day in partition_dates:
-                prefix_key = self._build_partition_prefix_key(
-                    dataset=dataset.dataset, tier=tier, partition_date=day
+                uris: list[str] = self._get_uris_for_partition_date(
+                    dataset=dataset, tier=tier, partition_date=day
                 )
-                keys = self.s3.list_keys_given_prefix(prefix=prefix_key)
-                parquet_keys = [k for k in keys if k.endswith(".parquet")]
-                if parquet_keys:
-                    logger.info(
-                        f"[dataset={dataset.dataset} tier={tier.value} partition_date={day}] "
-                        f"Found n_files={len(parquet_keys)} parquet objects."
-                    )
-
-                for k in parquet_keys:
-                    uris.append(self._key_to_uri(k))
-
-                total_files += len(parquet_keys)
-
+                total_files += len(uris)
                 if max_files is not None and total_files >= max_files:
                     logger.warning(
                         f"Reached max_files={max_files}; truncating listed URIs."
                     )
-                    return uris[:max_files]
+                    return total_uris[:max_files]
 
         logger.info(
-            f"Listed total_parquet_files={len(uris)} for dataset={dataset.dataset}."
+            f"Listed total_parquet_files={len(total_uris)} for dataset={dataset.dataset}."
         )
-        return uris
+        return total_uris
 
     def query_parquet_as_df(
         self,
