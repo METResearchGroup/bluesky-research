@@ -117,7 +117,7 @@ class S3Backend:
 
         return partition_dates
 
-    def _get_keys_for_partition_date(
+    def _get_parquet_keys_for_partition_date(
         self,
         dataset: S3ParquetDatasetRef,
         tier: StorageTier,
@@ -150,7 +150,7 @@ class S3Backend:
         max_days: int | None = None,
         max_files: int | None = None,
     ) -> list[str]:
-        """Return DuckDB-readable URIs like `s3://bucket/key`.
+        """Return DuckDB-readable S3 URIs (specifically for parquet files) like `s3://bucket/key`.
 
         Listing strategy is intentionally *bounded*:
         - If `partition_date` is given, list only that day's prefix.
@@ -173,28 +173,28 @@ class S3Backend:
         )
 
         total_uris: list[str] = []
-        total_files = 0
+        total_files_listed: int = 0
 
         for tier in storage_tiers:
             for day in partition_dates:
-                uris = self._get_keys_for_partition_date(
+                uris = self._get_parquet_keys_for_partition_date(
                     dataset=dataset,
                     tier=tier,
                     partition_date=day,
                 )
                 total_uris.extend(uris)
-                total_files += len(uris)
+                total_files_listed += len(uris)
 
-                if max_files is not None and total_files >= max_files:
+                if max_files is not None and total_files_listed >= max_files:
                     logger.warning(
                         f"Reached max_files={max_files}; truncating listed URIs."
                     )
-                    return uris[:max_files]
+                    return total_uris[:max_files]
 
         logger.info(
-            f"Listed total_parquet_files={len(uris)} for dataset={dataset.dataset}."
+            f"Listed total_parquet_files={total_files_listed} for dataset={dataset.dataset}."
         )
-        return uris
+        return total_uris
 
     def query_parquet_as_df(
         self,
@@ -211,8 +211,8 @@ class S3Backend:
         self,
         dataset: S3ParquetDatasetRef,
         query: str,
-        query_metadata: dict | None = None,
-        storage_tiers: list[StorageTier] | None = None,
+        query_metadata: dict,
+        storage_tiers: list[StorageTier],
         partition_date: str | None = None,
         start_partition_date: str | None = None,
         end_partition_date: str | None = None,
@@ -220,7 +220,7 @@ class S3Backend:
         max_files: int | None = None,
     ) -> pd.DataFrame:
         """List parquet URIs for the dataset and execute a DuckDB query over them."""
-        uris = self.list_parquet_uris(
+        s3_uris: list[str] = self.list_parquet_uris(
             dataset=dataset,
             storage_tiers=storage_tiers,
             partition_date=partition_date,
@@ -230,7 +230,7 @@ class S3Backend:
             max_files=max_files,
         )
         return self.query_parquet_as_df(
-            uris=uris,
+            uris=s3_uris,
             query=query,
             query_metadata=query_metadata,
         )
