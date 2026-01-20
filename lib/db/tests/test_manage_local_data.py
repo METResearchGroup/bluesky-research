@@ -1322,6 +1322,10 @@ class TestExportDfToLocalStorage:
         df = pd.DataFrame({"partition_date": partition_dates})
         assert bool(_validate_partition_date_column(df)) is expected
 
+    def test_validate_partition_date_column_returns_false_if_missing(self):
+        df = pd.DataFrame({"col1": [1]})
+        assert bool(_validate_partition_date_column(df)) is False
+
     def test_derive_or_normalize_partition_date_column_recomputes_when_invalid(self):
         df = pd.DataFrame(
             {
@@ -1342,6 +1346,31 @@ class TestExportDfToLocalStorage:
 
         assert df2 is df
         assert df2["partition_date"].tolist() == ["2024-01-01", "2024-01-01"]
+
+    def test_derive_or_normalize_partition_date_column_coerces_year_lt_2024(self):
+        import lib.db.manage_local_data as mdl
+
+        df = pd.DataFrame(
+            {
+                "preprocessing_timestamp": [
+                    "2019-01-01-00:00:00",
+                    "2024-01-01-00:00:00",
+                ],
+            }
+        )
+
+        df2 = _derive_or_normalize_partition_date_column(
+            df=df,
+            service="test_service",
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        assert df2 is df
+        assert df2["partition_date"].tolist() == [
+            mdl.DEFAULT_ERROR_PARTITION_DATE,
+            "2024-01-01",
+        ]
 
     def test_normalize_timestamp_field_converts_datetime_to_string(self):
         df = pd.DataFrame(
@@ -1384,6 +1413,7 @@ class TestExportDfToLocalStorage:
         df = pd.DataFrame(
             {
                 "col1": [1, 2],
+                "partition_date": ["2024-01-01", "2024-01-01"],
                 "preprocessing_timestamp": [
                     "2024-01-01-00:00:00",
                     "2024-01-01-12:34:56",
@@ -1412,6 +1442,35 @@ class TestExportDfToLocalStorage:
                     parquet_files.append(os.path.join(root, f))
         assert len(parquet_files) >= 1
 
+    def test_export_df_to_local_storage_parquet_raises_if_partition_date_missing(
+        self, mocker, tmp_path
+    ):
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"test_service": {"dtypes_map": {"col1": "Int64"}}},
+        )
+        df = pd.DataFrame(
+            {
+                "col1": [1, 2],
+                "preprocessing_timestamp": [
+                    "2024-01-01-00:00:00",
+                    "2024-01-01-12:34:56",
+                ],
+            }
+        )
+        out_dir = tmp_path / "dataset_missing_partition_date"
+        out_dir.mkdir()
+
+        with pytest.raises(ValueError, match="Invalid 'partition_date' column"):
+            _export_df_to_local_storage_parquet(
+                df=df,
+                service="test_service",
+                export_folder_path=str(out_dir),
+                timestamp_field="preprocessing_timestamp",
+                timestamp_format="%Y-%m-%d-%H:%M:%S",
+                custom_args=None,
+            )
+
     def test_export_df_to_local_storage_parquet_handles_missing_timestamp_field(
         self, mocker, tmp_path
     ):
@@ -1436,7 +1495,9 @@ class TestExportDfToLocalStorage:
             },
         )
 
-        df = pd.DataFrame({"col1": [1, 2]})
+        df = pd.DataFrame(
+            {"col1": [1, 2], "partition_date": [mdl.DEFAULT_ERROR_PARTITION_DATE] * 2}
+        )
         out_dir = tmp_path / "dataset_missing_ts"
         out_dir.mkdir()
 
@@ -1475,6 +1536,7 @@ class TestExportDfToLocalStorage:
         df = pd.DataFrame(
             {
                 "col1": [1, 2],
+                "partition_date": ["2024-01-01", "2024-01-02"],
                 "preprocessing_timestamp": [
                     "2024-01-01-00:00:00",
                     "2024-01-02-00:00:00",
