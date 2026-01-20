@@ -152,6 +152,8 @@ def _validate_partition_date_column(df: pd.DataFrame) -> bool:
     Returns True if the partition_date column is valid, False otherwise.
     """
     try:
+        if "partition_date" not in df.columns:
+            return False
         pd.to_datetime(
             df["partition_date"], format=partition_date_format, errors="raise"
         )
@@ -279,7 +281,33 @@ def _normalize_timestamp_field(
             f"Field '{timestamp_field}' has dtype={col.dtype}. Converting to string."
         )
         df[timestamp_field] = col.astype("string")
-    # If already string, do nothing
+
+    # additional truncation to seconds precision.
+    df[timestamp_field] = (
+        df[timestamp_field].apply(truncate_timestamp_string).astype("string")
+    )  # type: ignore
+
+    return df
+
+
+def _derive_default_timestamp_column(df: pd.DataFrame) -> pd.Series:
+    """If the timestamp column is not present, derive a default timestamp column."""
+    return pd.Series([DEFAULT_ERROR_PARTITION_DATE] * len(df)).astype("string")
+
+
+def _derive_or_normalize_timestamp_column(
+    df: pd.DataFrame,
+    timestamp_field: str,
+    timestamp_format: str,
+) -> pd.DataFrame:
+    """Derives or normalizes the timestamp column."""
+    if timestamp_field not in df.columns:
+        df[timestamp_field] = _derive_default_timestamp_column(df=df)
+    df = _normalize_timestamp_field(
+        df=df,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
     return df
 
 
@@ -388,12 +416,11 @@ def _export_df_to_local_storage_parquet(
                 f"[Service = {service}] Received empty dataframe; skipping parquet export."
             )
             return
-        df = _derive_or_normalize_partition_date_column(
-            df=df,
-            service=service,
-            timestamp_field=timestamp_field,
-            timestamp_format=timestamp_format,
-        )
+        if not _validate_partition_date_column(df):
+            raise ValueError(
+                "Invalid 'partition_date' column for parquet export. "
+                f"Expected pandas string values in format={partition_date_format} with no nulls."
+            )
         df = _normalize_timestamp_field(
             df=df,
             timestamp_field=timestamp_field,
@@ -502,10 +529,6 @@ def _generate_batches_for_export_generic(
     Transforms the timestamp field to a datetime field and then partitions the
     data by date. Each day's data is stored in a separate dataframe.
     """
-    # TODO: need to fix column matching. Don't think these overlap correctly.
-    # should process each dtype correctly. Either need the same cols or need
-    # to process each dtype separately.
-
     # Ensure partition_date exists and is canonical string.
     df = _derive_or_normalize_partition_date_column(
         df=df,
@@ -514,19 +537,13 @@ def _generate_batches_for_export_generic(
         timestamp_format=timestamp_format,
     )
 
-    # Normalize timestamp field and compute a datetime series for latest_record_timestamp.
-    if timestamp_field not in df.columns:
-        logger.warning(
-            f"[Service = {service}] Expected timestamp_field={timestamp_field} not found; "
-            f"using DEFAULT_ERROR_PARTITION_DATE={DEFAULT_ERROR_PARTITION_DATE} for latest_record_timestamp"
-        )
-        ts_series: pd.Series = pd.Series(
-            [DEFAULT_ERROR_PARTITION_DATE] * len(df)
-        ).astype("string")
-    else:
-        ts_series = df[timestamp_field].apply(truncate_timestamp_string).astype("string")  # type: ignore
+    df = _derive_or_normalize_timestamp_column(
+        df=df,
+        timestamp_field=timestamp_field,
+        timestamp_format=timestamp_format,
+    )
 
-    df[timestamp_field] = ts_series
+    ts_series = df[timestamp_field]
     ts_dt = pd.to_datetime(ts_series, format=timestamp_format, errors="coerce")
     ts_dt = _apply_partition_date_business_logic_filters(ts_dt=ts_dt, service=service)
     dt_helper_col = f"_{timestamp_field}_datetime"
@@ -539,16 +556,17 @@ def _generate_batches_for_export_generic(
     for _, group in date_groups:
         # timestamps need to be transformed into the default format.
         latest_record_timestamp = (
-            group[dt_helper_col]
-            .max()
-            .strftime(DEFAULT_TIMESTAMP_FORMAT)
+            group[dt_helper_col].max().strftime(DEFAULT_TIMESTAMP_FORMAT)
         )
 
         # drop additional grouping columns
         group = group.drop(columns=[dt_helper_col])
 
-        # convert timestamp back to string type.
-        group[timestamp_field] = group[timestamp_field].astype("string")
+        group = _normalize_timestamp_field(
+            df=group,
+            timestamp_field=timestamp_field,
+            timestamp_format=timestamp_format,
+        )
 
         output.append(
             {
@@ -568,6 +586,14 @@ def _generate_batches_for_export(
 ) -> list[dict]:
     """Creates batches of data out of the original dataframe, preparing it
     for the expected export format."""
+    # Ensure all export paths (including special cases) have canonical partition_date.
+    if not df.empty:
+        df = _derive_or_normalize_partition_date_column(
+            df=df,
+            service=service,
+            timestamp_field=timestamp_field,
+            timestamp_format=timestamp_format,
+        )
     if _determine_if_special_case_chunk_generation(service=service):
         return _generate_batches_for_special_cases(df=df)
     return _generate_batches_for_export_generic(
