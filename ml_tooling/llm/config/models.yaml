@@ -25,7 +25,14 @@ models:
       "gpt-4":
         llm_inference_kwargs: {}
       "gpt-5-nano":
-        llm_inference_kwargs: {}
+        llm_inference_kwargs: {
+          # From LiteLLM error message:
+          # gpt-5 models (including gpt-5-codex) don't support temperature=0.0.
+          # Only temperature=1 is supported. For gpt-5.1, temperature is
+          # supported when reasoning_effort='none' (or not specified, as it
+          #defaults to 'none').
+          temperature: 1
+        }
   
   gemini:
     llm_inference_kwargs:
