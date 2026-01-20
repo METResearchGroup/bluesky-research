@@ -314,9 +314,9 @@ class Queue:
     def batch_add_items_to_queue(
         self,
         items: list[dict],
-        metadata: dict | None,
-        batch_size: int | None,
-        batch_write_size: int | None,
+        metadata: dict | None = None,
+        batch_size: int | None = None,
+        batch_write_size: int | None = None,
     ) -> None:
         """Add multiple items to queue, processing in chunks for memory
         efficiency.
