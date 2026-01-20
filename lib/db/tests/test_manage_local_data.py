@@ -1103,8 +1103,11 @@ class TestExportDataToLocalStorage:
             df=mock_df
         )
         
-        # Verify we still batch and export
-        mock_batches.assert_called_once()
+        # Verify we still batch and export. `backfill_sync` exports by delegating to a nested
+        # `raw_sync` export, so batching is invoked once per service.
+        assert mock_batches.call_count == 2
+        services = [c.kwargs["service"] for c in mock_batches.call_args_list]
+        assert sorted(services) == ["backfill_sync", "raw_sync"]
         
         # Verify the export still occurred
         mock_write_to_dataset.assert_called_once()
@@ -1282,25 +1285,20 @@ class TestExportDataToLocalStorage:
             "col2": ["a", "b"],
             "preprocessing_timestamp": ["2024-01-01-00:00:00", "2024-01-01-12:34:56"],
         })
-        
-        mocker.patch(
-            "lib.db.manage_local_data._generate_batches_for_export",
-            return_value=[
-                {
-                    "latest_record_timestamp": "2024-01-01-12:34:56",
-                    "data": df_without_partition,
-                }
-            ],
-        )
+
         mocker.patch("os.makedirs")
-        mock_write = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
-        
+        mock_export_parquet = mocker.patch(
+            "lib.db.manage_local_data._export_df_to_local_storage_parquet"
+        )
+
         export_data_to_local_storage(
             service="test_service",
             df=df_without_partition
         )
 
-        mock_write.assert_called_once()
+        mock_export_parquet.assert_called_once()
+        exported_df = mock_export_parquet.call_args.kwargs["df"]
+        assert exported_df["partition_date"].tolist() == ["2024-01-01", "2024-01-01"]
 
     def test_multiple_partition_dates_warning(self, mocker, mock_service_metadata):
         """Multiple partition dates in a single chunk is not supported."""
