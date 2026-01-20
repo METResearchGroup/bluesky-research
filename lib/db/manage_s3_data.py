@@ -45,7 +45,6 @@ class S3ParquetBackend:
         self,
         s3: Optional["S3"] = None,
         duckdb_engine: Optional[DuckDB] = None,
-        aws_region: str | None = None,
         storage_tier_default: StorageTier = StorageTier.CACHE,
     ) -> None:
         if s3 is None:
@@ -57,7 +56,6 @@ class S3ParquetBackend:
         else:
             self.s3 = s3
         self.duckdb_engine = duckdb_engine or DuckDB()
-        self.aws_region = aws_region
         self.storage_tier_default = storage_tier_default
 
     @staticmethod
@@ -167,8 +165,7 @@ class S3ParquetBackend:
             query=query,
             mode="parquet",
             filepaths=uris,
-            query_metadata=query_metadata,
-            aws_region=self.aws_region,
+            query_metadata=query_metadata
         )
 
     def query_dataset_as_df(

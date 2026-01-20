@@ -36,22 +36,21 @@ def _escape_sql_string_literal(value: str) -> str:
 def _is_s3_filepath(filepath: str) -> bool:
     return filepath.startswith("s3://")
 
+def _assert_s3_secret_present(conn: DuckDBPyConnection, s3_path: str) -> None:
+    # 1) Check that some S3 secret exists for the path
+    which = conn.execute(
+        "FROM which_secret(?, 's3');", [s3_path]
+    ).df()
 
-def _enable_s3_httpfs(conn: DuckDBPyConnection, aws_region: str | None = None) -> None:
-    """Enable reading `s3://...` paths in DuckDB for this connection.
+    if which.empty or which["name"].isna().all():
+        raise ValueError(
+            f"No DuckDB S3 secret configured for path {s3_path}. "
+            "Create a persistent secret using `lib/db/sql/init_duckdb_aws_access.py` before starting this service."
+        )
 
-    DuckDB requires `httpfs` to access S3. We also attempt to configure S3
-    authentication via the credential chain so DuckDB can reuse the same
-    AWS configuration as boto3 / the runtime environment.
-    """
+def _enable_s3_httpfs(conn: DuckDBPyConnection) -> None:
+    """Enable reading `s3://...` paths in DuckDB for this connection."""
     global _DUCKDB_S3_EXTENSIONS_ENABLED
-
-    # Prefer an explicit aws_region if provided, else fall back to common env vars.
-    region = (
-        aws_region
-        or os.environ.get("AWS_REGION")
-        or os.environ.get("AWS_DEFAULT_REGION")
-    )
 
     # Extensions: safe to call repeatedly; ignore "already installed/loaded" errors.
     for stmt in ["INSTALL httpfs", "LOAD httpfs", "INSTALL aws", "LOAD aws"]:
@@ -60,41 +59,6 @@ def _enable_s3_httpfs(conn: DuckDBPyConnection, aws_region: str | None = None) -
         except Exception as e:
             # DuckDB can throw if already installed/loaded; treat as non-fatal.
             logger.debug(f"Ignoring DuckDB extension error for '{stmt}': {e}")
-
-    # Prefer the modern secrets manager w/ credential chain provider.
-    # This should pick up ~/.aws configs, env vars, IAM role creds, etc.
-    # If the secret already exists, ignore.
-    try:
-        if region:
-            conn.execute(
-                f"CREATE SECRET s3_credential_chain (TYPE s3, PROVIDER credential_chain, REGION '{_escape_sql_string_literal(region)}')"
-            )
-        else:
-            conn.execute(
-                "CREATE SECRET s3_credential_chain (TYPE s3, PROVIDER credential_chain)"
-            )
-    except Exception as e:
-        msg = str(e).lower()
-        if "already exists" in msg or "exists" in msg:
-            pass
-        else:
-            # Fall back to legacy settings if region is available; otherwise re-raise.
-            if region:
-                try:
-                    conn.execute(
-                        f"SET s3_region='{_escape_sql_string_literal(region)}'"
-                    )
-                except Exception as e2:
-                    raise RuntimeError(
-                        "Failed to configure DuckDB for S3 access. "
-                        "Tried secrets-based credential chain and legacy region setting."
-                    ) from e2
-            else:
-                raise RuntimeError(
-                    "Failed to configure DuckDB for S3 access using secrets-based credential chain. "
-                    "If this environment requires explicit credentials, set AWS_REGION/AWS_DEFAULT_REGION "
-                    "and ensure AWS credentials are available to DuckDB."
-                ) from e
 
     _DUCKDB_S3_EXTENSIONS_ENABLED = True
 
@@ -110,7 +74,6 @@ class DuckDB:
         filepaths: list[str],
         tables: Optional[list[dict[str, Any]]] = None,
         table_name: Optional[str] = DEFAULT_TABLE_NAME,
-        aws_region: str | None = None,
     ) -> DuckDBPyConnection:
         """Create a DuckDB connection for querying Parquet files.
 
@@ -122,7 +85,8 @@ class DuckDB:
         """
         conn = duckdb.connect(":memory:")
         if any(_is_s3_filepath(fp) for fp in filepaths):
-            _enable_s3_httpfs(conn=conn, aws_region=aws_region)
+            _assert_s3_secret_present(conn=conn, s3_path=filepaths[0])
+            _enable_s3_httpfs(conn=conn)
         files_str = ",".join([f"'{_escape_sql_string_literal(f)}'" for f in filepaths])
 
         # If specific columns are requested, only read those
@@ -148,8 +112,7 @@ class DuckDB:
         query: str,
         mode: str = "default",
         filepaths: Optional[list[str]] = None,
-        query_metadata: Optional[dict[str, Any]] = None,
-        aws_region: str | None = None,
+        query_metadata: Optional[dict[str, Any]] = None
     ) -> pd.DataFrame:
         """Run a query and return the result as a pandas DataFrame.
 
@@ -180,9 +143,7 @@ class DuckDB:
                         expected_columns.extend([str(c) for c in cols])
                 return pd.DataFrame(columns=pd.Index(expected_columns))
             parquet_conn = self.create_parquet_connection(
-                filepaths=filepaths,
-                tables=query_metadata.get("tables", None),
-                aws_region=aws_region,
+                filepaths=filepaths, tables=query_metadata.get("tables", None)
             )
             df = parquet_conn.execute(query).df()
         else:
@@ -194,8 +155,7 @@ class DuckDB:
         query: str,
         mode: str = "default",
         filepaths: Optional[list[str]] = None,
-        query_metadata: Optional[dict[str, Any]] = None,
-        aws_region: str | None = None,
+        query_metadata: Optional[dict[str, Any]] = None
     ) -> pd.DataFrame:
         """Run a query and return the result as a pandas DataFrame."""
         # the decorator returns a tuple of the df and the metrics.
