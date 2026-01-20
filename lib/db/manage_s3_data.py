@@ -158,7 +158,7 @@ class S3ParquetBackend:
     def list_parquet_uris(
         self,
         dataset: S3ParquetDatasetRef,
-        storage_tiers: list[StorageTier] | None = None,
+        storage_tiers: list[StorageTier],
         partition_date: str | None = None,
         start_partition_date: str | None = None,
         end_partition_date: str | None = None,
@@ -175,10 +175,6 @@ class S3ParquetBackend:
         Note: Listing without any partition-date filter is intentionally not supported
         to avoid accidental large scans.
         """
-
-        if storage_tiers is None:
-            storage_tiers = [self.storage_tier_default]
-
         partition_dates: list[str] = self._get_validated_partition_dates(
             partition_date=partition_date,
             start_partition_date=start_partition_date,
@@ -225,9 +221,9 @@ class S3ParquetBackend:
     def query_dataset_as_df(
         self,
         dataset: S3ParquetDatasetRef,
+        storage_tiers: list[StorageTier],
         query: str,
         query_metadata: dict | None = None,
-        storage_tiers: list[StorageTier] | None = None,
         partition_date: str | None = None,
         start_partition_date: str | None = None,
         end_partition_date: str | None = None,
