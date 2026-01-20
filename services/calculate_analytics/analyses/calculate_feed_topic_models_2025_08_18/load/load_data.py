@@ -129,7 +129,6 @@ class DataLoader:
                     {"name": "ml_inference_sociopolitical", "columns": table_columns}
                 ]
             },
-            export_format="duckdb",
         )
 
         # Apply sampling for training mode
@@ -273,7 +272,6 @@ class DataLoader:
             query_metadata={
                 "tables": [{"name": "preprocessed_posts", "columns": table_columns}]
             },
-            export_format="duckdb",
         )
         return df
 

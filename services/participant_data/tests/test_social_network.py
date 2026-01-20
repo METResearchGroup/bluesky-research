@@ -190,7 +190,7 @@ class TestLoadUserSocialNetworkMap:
         mock_load_data.assert_called_once_with(
             service="scraped_user_social_network",
             latest_timestamp=None,
-            use_all_data=True,
+            storage_tiers=["cache", "active"],
             validate_pq_files=True,
         )
 

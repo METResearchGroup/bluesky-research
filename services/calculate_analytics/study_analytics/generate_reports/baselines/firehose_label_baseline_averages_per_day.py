@@ -9,9 +9,12 @@ import os
 
 import pandas as pd
 
-from lib.datetime_utils import generate_current_datetime_str
+from lib.datetime_utils import (
+    calculate_start_end_date_for_lookback,
+    generate_current_datetime_str,
+    get_partition_dates,
+)
 from lib.db.manage_local_data import load_data_from_local_storage
-from lib.datetime_utils import calculate_start_end_date_for_lookback, get_partition_dates
 
 
 current_filedir = os.path.dirname(os.path.abspath(__file__))
@@ -26,7 +29,7 @@ def load_average_perspective_api_labels_for_partition_date(partition_date: str) 
     )
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_perspective_api",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=start,
         end_partition_date=end,
     )
@@ -67,7 +70,7 @@ def load_average_ime_labels_for_partition_date(partition_date: str) -> dict:
     )
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_ime",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=start,
         end_partition_date=end,
     )
@@ -90,7 +93,7 @@ def load_average_sociopolitical_labels_for_partition_date(partition_date: str) -
     )
     df: pd.DataFrame = load_data_from_local_storage(
         service="ml_inference_sociopolitical",
-        directory="cache",
+        storage_tiers=["cache"],
         start_partition_date=start,
         end_partition_date=end,
     )

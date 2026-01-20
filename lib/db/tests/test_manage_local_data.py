@@ -1,21 +1,34 @@
 """Tests for lib/db/manage_local_data.py"""
+import json
 import os
-from tempfile import TemporaryDirectory
-
 import pandas as pd
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
+from unittest.mock import Mock, patch
 
 from lib.aws.s3 import S3
 from lib.db.manage_local_data import (
-    find_files_after_timestamp,
     _get_all_filenames,
     _get_all_filenames_deprecated_format,
-    _validate_filepaths,
     list_filenames,
     load_data_from_local_storage,
     export_data_to_local_storage,
+    _coerce_pyarrow_types_to_pandas_types,
+    _filter_loaded_data_by_latest_timestamp,
+    _conditionally_drop_extra_columns,
+    _derive_or_normalize_partition_date_column,
+    _determine_if_special_case_chunk_generation,
+    _export_df_to_local_storage_jsonl,
+    _export_df_to_local_storage_parquet,
+    _generate_batches_for_export,
+    _generate_batches_for_export_generic,
+    _generate_batches_for_special_cases,
+    _load_data_from_local_storage_jsonl,
+    _load_data_from_local_storage_duckdb,
+    _normalize_timestamp_field,
+    _preprocess_df_for_export,
+    _validate_partition_date_column,
+    is_older_than_lookback,
+    _determine_storage_tier_for_export,
 )
 
 MOCK_SERVICE_METADATA = {
@@ -44,40 +57,6 @@ def test_create_partition_key_based_on_timestamp(timestamp_str, expected):
         assert (
             s3.create_partition_key_based_on_timestamp(timestamp_str) == expected
         )
-
-
-# Setup for find_files_after_timestamp tests
-
-
-@pytest.fixture
-def setup_directory_structure():
-    """Create a temporary directory with test files."""
-    with TemporaryDirectory() as tmpdir:
-        # Create sample directory structures and test files
-        timestamps = [
-            ("2024", "01", "01", "01", "01"),  # shouldn't be included
-            ("2024", "07", "01", "01", "01"),  # shouldn't be included
-            ("2024", "07", "05", "20", "59"),
-            ("2024", "07", "05", "21", "01"),
-            ("2024", "07", "06", "01", "01"),
-            ("2024", "08", "01", "01", "01"),
-        ]
-        for year, month, day, hour, minute in timestamps:
-            dir_path = os.path.join(tmpdir, f"year={year}/month={month}/day={day}/hour={hour}/minute={minute}")
-            os.makedirs(dir_path, exist_ok=True)
-            test_file_path = os.path.join(dir_path, "test_file.txt")
-            with open(test_file_path, "w") as f:
-                f.write(f"This is a test file for {year}/{month}/{day} {hour}:{minute}.")
-        yield tmpdir
-
-
-def test_find_files_after_timestamp(setup_directory_structure):
-    """Test find_files_after_timestamp"""
-    base_path = setup_directory_structure
-    # A minute before the test file's timestamp
-    target_timestamp = "year=2024/month=07/day=05/hour=20/minute=58"
-    files_found = find_files_after_timestamp(base_path, target_timestamp)
-    assert len(files_found) == 4
 
 
 @pytest.fixture
@@ -138,7 +117,7 @@ class TestGetAllFilenames:
         mocker.patch("os.walk", return_value=[("/data/test_service/active", [], test_files)])
         
         # Mock validated_pq_files_within_directory to return empty list (no valid files)
-        mock_validate = mocker.patch("lib.db.manage_local_data.validated_pq_files_within_directory")
+        mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = []
 
         result = _get_all_filenames("test_service", validate_pq_files=True)
@@ -163,7 +142,7 @@ class TestGetAllFilenames:
         mocker.patch("os.walk", return_value=[("/data/test_service/active", [], all_files)])
         
         # Mock validation to return only valid files
-        mock_validate = mocker.patch("lib.db.manage_local_data.validated_pq_files_within_directory")
+        mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = valid_files
 
         result = _get_all_filenames("test_service", validate_pq_files=True)
@@ -173,16 +152,16 @@ class TestGetAllFilenames:
         """Test with files in new format structure.
         
         The function should only look in paths that match the expected structure
-        (service/directory/partition_date=*/file.parquet), so files in deprecated format
+        (service/directory/partition_date=*/file.parquet), so files in alternative structure
         (service/firehose|most_liked/directory/partition_date=*/file.parquet) should be ignored.
         """
         # Mock os.walk to return different results based on the path being walked
         def mock_walk(path):
             if 'firehose' in path or 'most_liked' in path:
-                # Files in deprecated format should be ignored
+                # Files in alternative structure should be ignored
                 return [(path, [], ["file1.parquet", "file2.parquet"])]
             else:
-                # No files found in correct format paths
+                # No files found in expected structure paths
                 return [(path, [], [])]
         
         mocker.patch("os.walk", side_effect=mock_walk)
@@ -237,7 +216,7 @@ class TestGetAllFilenamesDeprecatedFormat:
         mocker.patch("os.walk", return_value=[("/data/ml_inference_perspective_api/firehose/active", [], test_files)])
         
         # Mock validated_pq_files_within_directory to return empty list (no valid files)
-        mock_validate = mocker.patch("lib.db.manage_local_data.validated_pq_files_within_directory")
+        mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = []
 
         result = _get_all_filenames_deprecated_format("ml_inference_perspective_api", validate_pq_files=True)
@@ -262,7 +241,7 @@ class TestGetAllFilenamesDeprecatedFormat:
         mocker.patch("os.walk", return_value=[("/data/ml_inference_perspective_api/source_type/active", [], all_files)])
         
         # Mock validation to return only valid files
-        mock_validate = mocker.patch("lib.db.manage_local_data.validated_pq_files_within_directory")
+        mock_validate = mocker.patch("lib.path_utils.validated_pq_files_within_directory")
         mock_validate.return_value = valid_files
 
         result = _get_all_filenames_deprecated_format("ml_inference_perspective_api", validate_pq_files=True)
@@ -289,147 +268,6 @@ class TestGetAllFilenamesDeprecatedFormat:
         assert result == []
 
 
-class TestValidateFilepaths:
-    """Test suite for _validate_filepaths function."""
-
-    def test_no_filepaths(self):
-        """Test validation of empty filepaths list.
-        
-        Expected behavior:
-        - Should return empty list when no filepaths are provided
-        - Should not raise any errors
-        """
-        result = _validate_filepaths("test_service", [])
-        assert result == []
-
-    def test_both_partition_and_range_dates(self):
-        """Test validation when both partition_date and date range are provided.
-        
-        Expected behavior:
-        - Should raise ValueError with message about not using both together
-        - Should fail before attempting to validate any files
-        """
-        with pytest.raises(ValueError, match="Cannot use partition_date and start_partition_date or end_partition_date together."):
-            _validate_filepaths(
-                "test_service",
-                ["test.parquet"],
-                partition_date="2024-03-01",
-                start_partition_date="2024-03-01",
-                end_partition_date="2024-03-02"
-            )
-
-    def test_partition_date_no_matches(self):
-        """Test validation when partition_date matches no files.
-        
-        Expected behavior:
-        - Should return empty list when no files match the partition date
-        - Should not include files from other partition dates
-        - Should not raise any errors
-        """
-        test_files = [
-            "/data/test_service/active/partition_date=2024-03-01/file1.parquet",
-            "/data/test_service/active/partition_date=2024-03-02/file2.parquet"
-        ]
-        result = _validate_filepaths(
-            "test_service",
-            test_files,
-            partition_date="2024-03-03"
-        )
-        assert result == []
-
-    def test_partition_date_with_matches(self):
-        """Test validation when partition_date matches files.
-        
-        Expected behavior:
-        - Should return only files matching the exact partition date
-        - Should maintain file paths in their original format
-        - Should not include files from other partition dates
-        """
-        test_files = [
-            "/data/test_service/active/partition_date=2024-03-01/file1.parquet",
-            "/data/test_service/active/partition_date=2024-03-02/file2.parquet"
-        ]
-        result = _validate_filepaths(
-            "test_service",
-            test_files,
-            partition_date="2024-03-01"
-        )
-        assert result == ["/data/test_service/active/partition_date=2024-03-01/file1.parquet"]
-
-    def test_date_range_no_matches(self):
-        """Test validation when date range matches no files.
-        
-        Expected behavior:
-        - Should return empty list when no files fall within date range
-        - Should not include files outside the date range
-        - Should not raise any errors
-        """
-        test_files = [
-            "/data/test_service/active/partition_date=2024-03-01/file1.parquet",
-            "/data/test_service/active/partition_date=2024-03-02/file2.parquet"
-        ]
-        result = _validate_filepaths(
-            "test_service",
-            test_files,
-            start_partition_date="2024-03-03",
-            end_partition_date="2024-03-04"
-        )
-        assert result == []
-
-    def test_date_range_with_matches(self):
-        """Test validation when date range matches files.
-        
-        Expected behavior:
-        - Should return all files with partition dates within range (inclusive)
-        - Should maintain file paths in their original format
-        - Should not include files outside the date range
-        - Should handle multiple matching files correctly
-        """
-        test_files = [
-            "/data/test_service/active/partition_date=2024-03-01/file1.parquet",
-            "/data/test_service/active/partition_date=2024-03-02/file2.parquet",
-            "/data/test_service/active/partition_date=2024-03-03/file3.parquet"
-        ]
-        result = _validate_filepaths(
-            "test_service",
-            test_files,
-            start_partition_date="2024-03-01",
-            end_partition_date="2024-03-02"
-        )
-        assert set(result) == {
-            "/data/test_service/active/partition_date=2024-03-01/file1.parquet",
-            "/data/test_service/active/partition_date=2024-03-02/file2.parquet"
-        }
-
-    def test_only_start_date(self):
-        """Test validation when only start_partition_date is provided.
-        
-        Expected behavior:
-        - Should raise ValueError with message about requiring both dates
-        - Should fail before attempting to validate any files
-        """
-        with pytest.raises(ValueError, match="Both start_partition_date and end_partition_date must be provided together."):
-            _validate_filepaths(
-                "test_service",
-                ["test.parquet"],
-                start_partition_date="2024-03-01"
-            )
-
-    def test_only_end_date(self):
-        """Test validation when only end_partition_date is provided.
-        
-        Expected behavior:
-        - Should raise ValueError with message about requiring both dates
-        - Should fail before attempting to validate any files
-        """
-        with pytest.raises(ValueError, match="Both start_partition_date and end_partition_date must be provided together."):
-            _validate_filepaths(
-                "test_service",
-                ["test.parquet"],
-                end_partition_date="2024-03-02"
-            )
-
-
 class TestListFilenames:
     """Test suite for list_filenames function."""
     
@@ -451,16 +289,17 @@ class TestListFilenames:
         mocker.patch("lib.db.manage_local_data.MAP_SERVICE_TO_METADATA", mock_metadata)
         return mock_metadata
 
-    def test_deprecated_format_partition_date(self, mocker):
-        """Test listing files for service that uses both formats with partition_date filter.
+    def test_multiple_file_discovery_methods_partition_date(self, mocker):
+        """Test listing files for service that uses multiple file discovery methods with partition_date filter.
         
-        Tests that list_filenames correctly filters files for a service using both deprecated
-        and current formats (preprocessed_posts) when given a specific partition_date.
+        Tests that list_filenames correctly filters files for a service that calls both
+        _get_all_filenames_deprecated_format and _get_all_filenames (e.g., preprocessed_posts)
+        when given a specific partition_date.
         
         Expected behavior:
         - Should call both _get_all_filenames_deprecated_format and _get_all_filenames
         - Should return only files matching partition_date="2024-03-02"
-        - Should include files from both formats
+        - Should include files from both discovery methods
         - Should exclude files from other partition dates
         """
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
@@ -486,7 +325,7 @@ class TestListFilenames:
 
         assert len(result) == 3
         assert all("2024-03-02" in f for f in result)
-        # Verify files from both formats are included
+        # Verify files from both discovery methods are included
         assert any("firehose" in f for f in result)
         assert any("most_liked" in f for f in result)
         assert any(f == "/data/preprocessed_posts/active/partition_date=2024-03-02/file6.parquet" for f in result)
@@ -494,18 +333,18 @@ class TestListFilenames:
         mock_get_deprecated.assert_called_once()
         mock_get_current.assert_called_once()
 
-    def test_current_format_partition_date(self, mocker):
-        """Test listing files for current format service with partition_date filter.
+    def test_single_file_discovery_method_partition_date(self, mocker):
+        """Test listing files for service that uses single file discovery method with partition_date filter.
         
-        Tests that list_filenames correctly filters files for a service using only current format
-        (posts) when given a specific partition_date.
+        Tests that list_filenames correctly filters files for a service that calls only
+        _get_all_filenames (e.g., posts) when given a specific partition_date.
         
         Expected behavior:
         - Should call only _get_all_filenames
         - Should NOT call _get_all_filenames_deprecated_format
         - Should return only files matching partition_date="2024-03-02"
         - Should include files from both cache and active directories if specified
-        - Should exclude files from other partition dates and deprecated format
+        - Should exclude files from other partition dates
         """
         mock_get_current = mocker.patch("lib.db.manage_local_data._get_all_filenames")
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
@@ -519,7 +358,7 @@ class TestListFilenames:
 
         result = list_filenames(
             service="posts",
-            directories=["active", "cache"],
+            storage_tiers=["active", "cache"],
             partition_date="2024-03-02"
         )
 
@@ -531,16 +370,17 @@ class TestListFilenames:
         mock_get_current.assert_called_once()
         mock_get_deprecated.assert_not_called()
 
-    def test_deprecated_format_date_range(self, mocker):
-        """Test listing files for service using both formats with date range filter.
+    def test_multiple_file_discovery_methods_date_range(self, mocker):
+        """Test listing files for service that uses multiple file discovery methods with date range filter.
         
-        Tests that list_filenames correctly filters files for a service using both deprecated
-        and current formats (preprocessed_posts) when given start and end partition dates.
+        Tests that list_filenames correctly filters files for a service that calls both
+        _get_all_filenames_deprecated_format and _get_all_filenames (e.g., preprocessed_posts)
+        when given start and end partition dates.
         
         Expected behavior:
         - Should call both _get_all_filenames_deprecated_format and _get_all_filenames
         - Should return files with dates between 2024-03-01 and 2024-03-03 inclusive
-        - Should include files from both formats
+        - Should include files from both discovery methods
         - Should exclude files outside date range
         """
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
@@ -567,11 +407,11 @@ class TestListFilenames:
             end_partition_date="2024-03-03"
         )
 
-        assert len(result) == 5  # 3 from deprecated + 2 from current format
+        assert len(result) == 5  # 3 from first discovery method + 2 from second discovery method
         assert all("2024-03-0" in f for f in result)
         assert not any("2024-02-28" in f for f in result)
         assert not any("2024-03-04" in f for f in result)
-        # Verify files from both formats are included
+        # Verify files from both discovery methods are included
         assert any("firehose" in f for f in result)
         assert any("most_liked" in f for f in result)
         assert any(f == "/data/preprocessed_posts/active/partition_date=2024-03-01/file7.parquet" for f in result)
@@ -579,18 +419,18 @@ class TestListFilenames:
         mock_get_deprecated.assert_called_once()
         mock_get_current.assert_called_once()
 
-    def test_current_format_date_range(self, mocker):
-        """Test listing files for current format service with date range filter.
+    def test_single_file_discovery_method_date_range(self, mocker):
+        """Test listing files for service that uses single file discovery method with date range filter.
         
-        Tests that list_filenames correctly filters files for a service using only current format
-        (posts) when given start and end partition dates.
+        Tests that list_filenames correctly filters files for a service that calls only
+        _get_all_filenames (e.g., posts) when given start and end partition dates.
         
         Expected behavior:
         - Should call only _get_all_filenames
         - Should NOT call _get_all_filenames_deprecated_format
         - Should return files with dates between 2024-03-01 and 2024-03-03 inclusive
         - Should include files from both cache and active directories if specified
-        - Should exclude files outside date range and deprecated format
+        - Should exclude files outside date range
         """
         mock_get_current = mocker.patch("lib.db.manage_local_data._get_all_filenames")
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
@@ -605,7 +445,7 @@ class TestListFilenames:
 
         result = list_filenames(
             service="posts",
-            directories=["active", "cache"],
+            storage_tiers=["active", "cache"],
             start_partition_date="2024-03-01",
             end_partition_date="2024-03-03"
         )
@@ -617,6 +457,90 @@ class TestListFilenames:
         
         mock_get_current.assert_called_once()
         mock_get_deprecated.assert_not_called()
+
+    def test_multiple_file_discovery_methods_no_date_filter(self, mocker):
+        """Test listing files for service that uses multiple file discovery methods without date filter.
+        
+        Tests that list_filenames returns all files when no date parameters are provided
+        for a service that calls both _get_all_filenames_deprecated_format and _get_all_filenames
+        (e.g., preprocessed_posts).
+        
+        Expected behavior:
+        - Should call both _get_all_filenames_deprecated_format and _get_all_filenames
+        - Should return ALL files from both discovery methods without filtering
+        - Should NOT call filter_filepaths_by_date_range
+        """
+        mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
+        mock_get_current = mocker.patch("lib.db.manage_local_data._get_all_filenames")
+        mock_filter = mocker.patch("lib.db.manage_local_data.filter_filepaths_by_date_range")
+        
+        mock_get_deprecated.return_value = [
+            "/data/preprocessed_posts/firehose/active/partition_date=2024-03-01/file1.parquet",
+            "/data/preprocessed_posts/firehose/active/partition_date=2024-03-02/file2.parquet",
+            "/data/preprocessed_posts/most_liked/active/partition_date=2024-03-03/file3.parquet"
+        ]
+        
+        mock_get_current.return_value = [
+            "/data/preprocessed_posts/active/partition_date=2024-03-01/file4.parquet",
+            "/data/preprocessed_posts/active/partition_date=2024-03-02/file5.parquet",
+            "/data/preprocessed_posts/active/partition_date=2024-03-03/file6.parquet"
+        ]
+
+        result = list_filenames(
+            service="preprocessed_posts"
+        )
+
+        assert len(result) == 6  # All files from both discovery methods
+        # Verify files from both discovery methods are included
+        assert any("firehose" in f for f in result)
+        assert any("most_liked" in f for f in result)
+        assert any("partition_date=2024-03-01" in f for f in result)
+        assert any("partition_date=2024-03-02" in f for f in result)
+        assert any("partition_date=2024-03-03" in f for f in result)
+        
+        mock_get_deprecated.assert_called_once()
+        mock_get_current.assert_called_once()
+        # Should NOT call filter_filepaths_by_date_range when no dates provided
+        mock_filter.assert_not_called()
+
+    def test_single_file_discovery_method_no_date_filter(self, mocker):
+        """Test listing files for service that uses single file discovery method without date filter.
+        
+        Tests that list_filenames returns all files when no date parameters are provided
+        for a service that calls only _get_all_filenames (e.g., posts).
+        
+        Expected behavior:
+        - Should call only _get_all_filenames
+        - Should NOT call _get_all_filenames_deprecated_format
+        - Should return ALL files without filtering
+        - Should NOT call filter_filepaths_by_date_range
+        """
+        mock_get_current = mocker.patch("lib.db.manage_local_data._get_all_filenames")
+        mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
+        mock_filter = mocker.patch("lib.db.manage_local_data.filter_filepaths_by_date_range")
+        
+        mock_get_current.return_value = [
+            "/data/posts/active/partition_date=2024-03-01/file1.parquet",
+            "/data/posts/active/partition_date=2024-03-02/file2.parquet",
+            "/data/posts/cache/partition_date=2024-03-03/file3.parquet"
+        ]
+
+        result = list_filenames(
+            service="posts",
+            storage_tiers=["active", "cache"]
+        )
+
+        assert len(result) == 3  # All files
+        assert any("/active/" in f for f in result)
+        assert any("/cache/" in f for f in result)
+        assert any("partition_date=2024-03-01" in f for f in result)
+        assert any("partition_date=2024-03-02" in f for f in result)
+        assert any("partition_date=2024-03-03" in f for f in result)
+        
+        mock_get_current.assert_called_once()
+        mock_get_deprecated.assert_not_called()
+        # Should NOT call filter_filepaths_by_date_range when no dates provided
+        mock_filter.assert_not_called()
 
 class TestLoadDataFromLocalStorage:
     @pytest.fixture
@@ -644,7 +568,7 @@ class TestLoadDataFromLocalStorage:
         {
             "service": "test_service", 
             "directory": "active",
-            "export_format": "parquet",
+            "source_file_format": "parquet",
             "mock_df": pd.DataFrame({
                 "col1": [1, 2],
                 "col2": ["a", "b"],
@@ -662,8 +586,8 @@ class TestLoadDataFromLocalStorage:
         
         result = load_data_from_local_storage(
             service=test_params["service"],
-            directory=test_params["directory"],
-            export_format=test_params["export_format"]
+            storage_tiers=[test_params["directory"]],
+            source_file_format=test_params["source_file_format"]
         )
         
         assert isinstance(result, pd.DataFrame)
@@ -684,12 +608,12 @@ class TestLoadDataFromLocalStorage:
         
         load_data_from_local_storage(
             service="test_service",
-            directory=directory
+            storage_tiers=[directory]
         )
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            directories=[directory],
+            storage_tiers=[directory],
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=None,
@@ -699,46 +623,39 @@ class TestLoadDataFromLocalStorage:
             custom_args=None
         )
 
-    @pytest.mark.parametrize("export_format,mock_data", [
+    @pytest.mark.parametrize("source_file_format,mock_data", [
         ("parquet", pd.DataFrame({"col1": [1,2]}).astype({"col1": "Int64"})),
-        ("jsonl", pd.DataFrame({"col1": [1,2]}).astype({"col1": "Int64"})),
-        ("duckdb", pd.DataFrame({"col1": [1,2]}).astype({"col1": "Int64"}))
+        ("jsonl", pd.DataFrame({"col1": [1,2]}).astype({"col1": "Int64"}))
     ])
-    def test_export_formats(self, export_format, mock_data, mocker, mock_service_metadata, mock_duckdb_import):
-        """Test different export formats."""
+    def test_source_file_formats(self, source_file_format, mock_data, mocker, mock_service_metadata):
+        """Test different source file formats."""
         mock_read_parquet = mocker.patch("pandas.read_parquet")
         mock_read_json = mocker.patch("pandas.read_json")
         mock_list_filenames = mocker.patch("lib.db.manage_local_data.list_filenames")
         
         mock_list_filenames.return_value = ["file1"]
-        if export_format == "parquet":
+        if source_file_format == "parquet":
             mock_read_parquet.return_value = mock_data
-        elif export_format == "jsonl":
+        elif source_file_format == "jsonl":
             mock_read_json.return_value = mock_data
-        else:
-            mock_duckdb_import.run_query_as_df.return_value = mock_data
             
         result = load_data_from_local_storage(
             service="test_service",
-            export_format=export_format,
-            duckdb_query="SELECT * FROM test" if export_format == "duckdb" else None,
-            query_metadata={"tables": [{"name": "test", "columns": ["col1"]}]} if export_format == "duckdb" else None
+            source_file_format=source_file_format,
         )
         
         assert isinstance(result, pd.DataFrame)
-        if export_format == "duckdb":
-            mock_duckdb_import.run_query_as_df.assert_called_once()
 
     def test_duckdb_query(self, mocker, mock_service_metadata, mock_duckdb_import):
         """Test DuckDB query execution."""
         mock_list_filenames = mocker.patch("lib.db.manage_local_data.list_filenames")
+        mock_duckdb_import.run_query_as_df.return_value = pd.DataFrame({"col1": [1,2]})
         
         test_query = "SELECT * FROM test"
         test_metadata = {"tables": [{"name": "test", "columns": ["col1"]}]}
         
         load_data_from_local_storage(
             service="test_service",
-            export_format="duckdb",
             duckdb_query=test_query,
             query_metadata=test_metadata
         )
@@ -773,8 +690,12 @@ class TestLoadDataFromLocalStorage:
             latest_timestamp=test_params["latest_timestamp"]
         )
         
+        # Verify timestamp filtering works correctly
         assert all(pd.to_datetime(result["col1"]) >= pd.to_datetime(test_params["latest_timestamp"]))
-        pd.testing.assert_frame_equal(result, test_params["mock_data"])
+        # Result should contain all columns from mock_df (including partition_date)
+        expected = mock_df.copy()
+        expected = expected[expected["col1"] >= test_params["latest_timestamp"]]
+        pd.testing.assert_frame_equal(result, expected)
 
     @pytest.mark.parametrize("test_params", [
         {
@@ -799,11 +720,12 @@ class TestLoadDataFromLocalStorage:
             partition_date=test_params["partition_date"]
         )
         
-        pd.testing.assert_frame_equal(result, test_params["mock_data"])
+        # Result should contain all columns from mock_df (including partition_date)
+        pd.testing.assert_frame_equal(result, mock_df)
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            directories=["active"],
+            storage_tiers=["active"],
             validate_pq_files=False,
             partition_date=test_params["partition_date"],
             start_partition_date=None,
@@ -834,7 +756,7 @@ class TestLoadDataFromLocalStorage:
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            directories=["active"],
+            storage_tiers=["active"],
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=test_params["start_date"],
@@ -844,19 +766,19 @@ class TestLoadDataFromLocalStorage:
             custom_args=None
         )
 
-    def test_use_all_data(self, mocker, mock_service_metadata):
-        """Test use_all_data flag."""
+    def test_storage_tiers_all(self, mocker, mock_service_metadata):
+        """Test storage_tiers with both cache and active."""
         mock_list_filenames = mocker.patch("lib.db.manage_local_data.list_filenames")
         mock_read_parquet = mocker.patch("pandas.read_parquet")
         
         load_data_from_local_storage(
             service="test_service",
-            use_all_data=True
+            storage_tiers=["cache", "active"]
         )
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            directories=["cache", "active"],
+            storage_tiers=["cache", "active"],
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=None,
@@ -878,7 +800,7 @@ class TestLoadDataFromLocalStorage:
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            directories=["active"],
+            storage_tiers=["active"],
             validate_pq_files=True,
             partition_date=None,
             start_partition_date=None,
@@ -893,45 +815,46 @@ class TestLoadDataFromLocalStorage:
         
         Tests that load_data_from_local_storage correctly:
         1. Calls both _get_all_filenames_deprecated_format and _get_all_filenames for preprocessed_posts
-        2. Validates the combined filepaths using _validate_filepaths
+        2. Filters the combined filepaths using filter_filepaths_by_date_range
         3. Filters out files not matching the validation criteria
         
         Expected behavior:
         - Should call both filename functions for preprocessed_posts
-        - Should validate combined filepaths with _validate_filepaths
+        - Should filter combined filepaths with filter_filepaths_by_date_range
         - Should only return files matching validation criteria
-        - Should handle both deprecated and current format paths
+        - Should handle paths from both file discovery methods
         """
         # Mock the filename retrieval functions
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
         mock_get_current = mocker.patch("lib.db.manage_local_data._get_all_filenames")
-        mock_validate = mocker.patch("lib.db.manage_local_data._validate_filepaths")
+        mock_filter = mocker.patch("lib.db.manage_local_data.filter_filepaths_by_date_range")
         mock_read_parquet = mocker.patch("pandas.read_parquet")
 
-        # Set up test files in both formats
-        deprecated_files = [
+        # Set up test files from both discovery methods
+        files_from_first_method = [
             "/data/preprocessed_posts/firehose/active/partition_date=2024-03-01/file1.parquet",
             "/data/preprocessed_posts/most_liked/active/partition_date=2024-03-02/file2.parquet",
             "/data/preprocessed_posts/firehose/active/partition_date=2024-03-03/file3.parquet"
         ]
         
-        current_files = [
+        files_from_second_method = [
             "/data/preprocessed_posts/active/partition_date=2024-03-01/file4.parquet",
             "/data/preprocessed_posts/active/partition_date=2024-03-02/file5.parquet",
             "/data/preprocessed_posts/active/partition_date=2024-03-03/file6.parquet"
         ]
 
         # Mock return values
-        mock_get_deprecated.return_value = deprecated_files
-        mock_get_current.return_value = current_files
+        mock_get_deprecated.return_value = files_from_first_method
+        mock_get_current.return_value = files_from_second_method
         
-        # Mock validation to filter some files
-        validated_files = [
+        # Mock filtering to filter some files
+        filtered_files = [
             "/data/preprocessed_posts/firehose/active/partition_date=2024-03-01/file1.parquet",
             "/data/preprocessed_posts/active/partition_date=2024-03-01/file4.parquet",
             "/data/preprocessed_posts/active/partition_date=2024-03-02/file5.parquet"
         ]
-        mock_validate.return_value = validated_files
+        mock_filter.return_value = filtered_files
+        mock_read_parquet.return_value = pd.DataFrame({"col1": [1, 2, 3]})
         
         # Call function with validation criteria
         result = load_data_from_local_storage(
@@ -943,9 +866,8 @@ class TestLoadDataFromLocalStorage:
         # Verify correct functions were called
         mock_get_deprecated.assert_called_once()
         mock_get_current.assert_called_once()
-        mock_validate.assert_called_once_with(
-            service="preprocessed_posts",
-            filepaths=deprecated_files + current_files,
+        mock_filter.assert_called_once_with(
+            filepaths=files_from_first_method + files_from_second_method,
             partition_date=None,
             start_partition_date="2024-03-01", 
             end_partition_date="2024-03-02"
@@ -956,19 +878,19 @@ class TestLoadDataFromLocalStorage:
         
         Tests that load_data_from_local_storage correctly:
         1. Only calls _get_all_filenames for standard services
-        2. Validates filepaths using _validate_filepaths
+        2. Filters filepaths using filter_filepaths_by_date_range
         3. Filters out files not matching validation criteria
         
         Expected behavior:
-        - Should only call _get_all_filenames (not deprecated format)
-        - Should validate filepaths with _validate_filepaths
+        - Should only call _get_all_filenames (not _get_all_filenames_deprecated_format)
+        - Should filter filepaths with filter_filepaths_by_date_range
         - Should only return files matching validation criteria
-        - Should handle standard format paths
+        - Should handle standard service paths
         """
         # Mock the filename retrieval functions
         mock_get_deprecated = mocker.patch("lib.db.manage_local_data._get_all_filenames_deprecated_format")
         mock_get_current = mocker.patch("lib.db.manage_local_data._get_all_filenames")
-        mock_validate = mocker.patch("lib.db.manage_local_data._validate_filepaths")
+        mock_filter = mocker.patch("lib.db.manage_local_data.filter_filepaths_by_date_range")
         mock_read_parquet = mocker.patch("pandas.read_parquet")
 
         # Set up test files
@@ -981,12 +903,13 @@ class TestLoadDataFromLocalStorage:
         # Mock return values
         mock_get_current.return_value = test_files
         
-        # Mock validation to filter some files
-        validated_files = [
+        # Mock filtering to filter some files
+        filtered_files = [
             "/data/fetch_posts_used_in_feeds/active/partition_date=2024-03-01/file1.parquet",
             "/data/fetch_posts_used_in_feeds/active/partition_date=2024-03-02/file2.parquet"
         ]
-        mock_validate.return_value = validated_files
+        mock_filter.return_value = filtered_files
+        mock_read_parquet.return_value = pd.DataFrame({"col1": [1, 2]})
 
         # Call function with validation criteria
         result = load_data_from_local_storage(
@@ -998,8 +921,7 @@ class TestLoadDataFromLocalStorage:
         # Verify correct functions were called
         mock_get_deprecated.assert_not_called()
         mock_get_current.assert_called_once()
-        mock_validate.assert_called_once_with(
-            service="fetch_posts_used_in_feeds",
+        mock_filter.assert_called_once_with(
             filepaths=test_files,
             partition_date=None,
             start_partition_date="2024-03-01",
@@ -1021,7 +943,7 @@ class TestLoadDataFromLocalStorage:
         
         mock_list_filenames.assert_called_with(
             service="test_service",
-            directories=["active"],
+            storage_tiers=["active"],
             validate_pq_files=False,
             partition_date=None,
             start_partition_date=None,
@@ -1100,17 +1022,22 @@ class TestExportDataToLocalStorage:
         return pd.DataFrame({
             "col1": [1, 2],
             "col2": ["a", "b"],
-            "preprocessing_timestamp": ["2024-01-01", "2024-01-01"],
+            "preprocessing_timestamp": ["2024-01-01-00:00:00", "2024-01-01-12:34:56"],
+            "partition_date": ["2024-01-01", "2024-01-01"],
             "record_type": ["post", "post"]
         })
 
     def test_basic_export(self, mocker, mock_service_metadata, mock_df, tmp_path):
         """Test basic export functionality."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
@@ -1123,11 +1050,15 @@ class TestExportDataToLocalStorage:
 
     def test_override_local_prefix(self, mocker, mock_service_metadata, mock_df, tmp_path):
         """Test export with overridden local prefix."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mock_makedirs = mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
@@ -1145,11 +1076,15 @@ class TestExportDataToLocalStorage:
 
     def test_export_with_custom_args(self, mocker, mock_service_metadata, mock_df):
         """Test export with custom arguments."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
@@ -1164,11 +1099,15 @@ class TestExportDataToLocalStorage:
 
     def test_export_formats(self, mocker, mock_service_metadata, mock_df):
         """Test different export formats."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_to_json = mocker.patch.object(pd.DataFrame, "to_json")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
@@ -1191,12 +1130,15 @@ class TestExportDataToLocalStorage:
         
     def test_raw_sync_service(self, mocker, mock_service_metadata, mock_df):
         """Test export with raw sync service."""
-        # Mock the partition_data_by_date function
-        mock_partition = mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01", 
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mock_batches = mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         
@@ -1213,13 +1155,20 @@ class TestExportDataToLocalStorage:
         file_path = mock_write_to_dataset.call_args[1]["root_path"]
         assert file_path == '/data/raw_sync/create/post/cache'
         
-        # Verify that partition_data_by_date was called
-        mock_partition.assert_called_once()
+        # Verify that batching was invoked
+        mock_batches.assert_called_once()
         
     def test_skip_date_validation(self, mocker, mock_service_metadata, mock_df):
         """Test export with skip_date_validation=True from configuration."""
-        # Mock the date validation function to track if it's called
-        mock_partition = mocker.patch("lib.db.manage_local_data.partition_data_by_date")
+        mock_batches = mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch.dict(
             "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
             {"backfill_sync": {
@@ -1240,19 +1189,26 @@ class TestExportDataToLocalStorage:
             df=mock_df
         )
         
-        # Verify that partition_data_by_date was NOT called due to skipping validation
-        mock_partition.assert_not_called()
+        # Verify we still batch and export. `backfill_sync` exports by delegating to a nested
+        # `raw_sync` export, so batching is invoked once per service.
+        assert mock_batches.call_count == 2
+        services = [c.kwargs["service"] for c in mock_batches.call_args_list]
+        assert sorted(services) == ["backfill_sync", "raw_sync"]
         
         # Verify the export still occurred
         mock_write_to_dataset.assert_called_once()
 
     def test_value_error_handling(self, mocker, mock_service_metadata, mock_df):
         """Test that ValueError from dtype coercion is caught and re-raised."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_coerce = mocker.patch("lib.db.manage_local_data._coerce_df_to_dtypes_map")
         mock_logger = mocker.patch("lib.db.manage_local_data.logger")
@@ -1278,11 +1234,15 @@ class TestExportDataToLocalStorage:
         """Test that PyArrow exceptions are caught and re-raised with proper logging."""
         import pyarrow as pa
         
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         mock_logger = mocker.patch("lib.db.manage_local_data.logger")
@@ -1306,11 +1266,15 @@ class TestExportDataToLocalStorage:
 
     def test_os_error_handling(self, mocker, mock_service_metadata, mock_df):
         """Test that OSError from file system operations is caught and re-raised."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         # Mock os.makedirs to prevent real file system errors
         mocker.patch("lib.db.manage_local_data.os.makedirs")
         mocker.patch("lib.db.manage_local_data.os.path.exists", return_value=False)
@@ -1336,11 +1300,15 @@ class TestExportDataToLocalStorage:
 
     def test_io_error_handling(self, mocker, mock_service_metadata, mock_df):
         """Test that IOError from file system operations is caught and re-raised."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         # Mock os.makedirs to prevent real file system errors
         mocker.patch("lib.db.manage_local_data.os.makedirs")
         mocker.patch("lib.db.manage_local_data.os.path.exists", return_value=False)
@@ -1366,11 +1334,15 @@ class TestExportDataToLocalStorage:
 
     def test_unexpected_exception_handling(self, mocker, mock_service_metadata, mock_df):
         """Test that unexpected exceptions are caught and re-raised."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mock_write_to_dataset = mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         mock_logger = mocker.patch("lib.db.manage_local_data.logger")
@@ -1393,65 +1365,66 @@ class TestExportDataToLocalStorage:
         assert "test_service" in error_call
 
     def test_missing_partition_date_warning(self, mocker, mock_service_metadata):
-        """Test that warning is logged when partition_date column is missing."""
+        """Test that partition_date is derived when missing (single-day chunk)."""
         df_without_partition = pd.DataFrame({
             "col1": [1, 2],
             "col2": ["a", "b"],
-            "preprocessing_timestamp": ["2024-01-01", "2024-01-02"],
+            "preprocessing_timestamp": ["2024-01-01-00:00:00", "2024-01-01-12:34:56"],
         })
-        
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": df_without_partition
-        }])
+
         mocker.patch("os.makedirs")
-        mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
-        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
-        
+        mock_export_parquet = mocker.patch(
+            "lib.db.manage_local_data._export_df_to_local_storage_parquet"
+        )
+
         export_data_to_local_storage(
             service="test_service",
             df=df_without_partition
         )
-        
-        # Verify warning was logged for missing partition_date
-        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
-        assert any("partition_date column missing" in call for call in warning_calls)
+
+        mock_export_parquet.assert_called_once()
+        exported_df = mock_export_parquet.call_args.kwargs["df"]
+        assert exported_df["partition_date"].tolist() == ["2024-01-01", "2024-01-01"]
 
     def test_multiple_partition_dates_warning(self, mocker, mock_service_metadata):
-        """Test that warning is logged when multiple unique partition dates are found."""
+        """Multiple partition dates in a single chunk is not supported."""
         df_with_multiple_dates = pd.DataFrame({
             "col1": [1, 2, 3],
             "col2": ["a", "b", "c"],
-            "preprocessing_timestamp": ["2024-01-01", "2024-01-02", "2024-01-03"],
+            "preprocessing_timestamp": ["2024-01-01-00:00:00", "2024-01-02-00:00:00", "2024-01-03-00:00:00"],
             "partition_date": ["2024-01-01", "2024-01-02", "2024-01-03"],
         })
         
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-03",
-            "data": df_with_multiple_dates
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-03-00:00:00",
+                    "data": df_with_multiple_dates,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
-        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
-        
-        export_data_to_local_storage(
-            service="test_service",
-            df=df_with_multiple_dates
-        )
-        
-        # Verify warning was logged for multiple partition dates
-        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
-        assert any("Multiple unique partition dates found" in call for call in warning_calls)
+
+        with pytest.raises(ValueError, match="Multiple partition dates found"):
+            export_data_to_local_storage(
+                service="test_service",
+                df=df_with_multiple_dates
+            )
+
 
     def test_missing_schema_warning(self, mocker, mock_service_metadata, mock_df):
         """Test that warning is logged when schema is None."""
-        mocker.patch("lib.db.manage_local_data.partition_data_by_date", return_value=[{
-            "start_timestamp": "2024-01-01",
-            "end_timestamp": "2024-01-01",
-            "data": mock_df
-        }])
+        mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export",
+            return_value=[
+                {
+                    "latest_record_timestamp": "2024-01-01-12:34:56",
+                    "data": mock_df,
+                }
+            ],
+        )
         mocker.patch("os.makedirs")
         mocker.patch("lib.db.manage_local_data.pq.write_to_dataset")
         mock_get_schema = mocker.patch("lib.db.manage_local_data.get_service_pa_schema")
@@ -1469,3 +1442,1743 @@ class TestExportDataToLocalStorage:
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
         assert any("No PyArrow schema available" in call for call in warning_calls)
         assert any("schema drift" in call for call in warning_calls)
+
+
+class TestDetermineIfSpecialCaseChunkGeneration:
+    """Tests for `_determine_if_special_case_chunk_generation`."""
+
+    def test_returns_true_when_skip_date_validation_true(self, mocker):
+        """Test that services with `skip_date_validation=True` are treated as special cases."""
+        # Arrange
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"svc": {"skip_date_validation": True}},
+            clear=True,
+        )
+
+        # Act
+        result = _determine_if_special_case_chunk_generation(service="svc")
+
+        # Assert
+        assert result is True
+
+    def test_returns_false_when_flag_missing_or_false(self, mocker):
+        """Test that missing/false `skip_date_validation` returns False."""
+        # Arrange
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"svc_missing": {}, "svc_false": {"skip_date_validation": False}},
+            clear=True,
+        )
+
+        # Act
+        result_missing = _determine_if_special_case_chunk_generation(service="svc_missing")
+        result_false = _determine_if_special_case_chunk_generation(service="svc_false")
+
+        # Assert
+        assert result_missing is False
+        assert result_false is False
+
+
+class TestGenerateBatchesForSpecialCases:
+    """Tests for `_generate_batches_for_special_cases`."""
+
+    def test_returns_single_batch_with_generated_timestamp(self, mocker):
+        """Test that special-case batching returns one batch and uses `generate_current_datetime_str`."""
+        # Arrange
+        df = pd.DataFrame({"col1": [1, 2]})
+        mocker.patch(
+            "lib.db.manage_local_data.generate_current_datetime_str",
+            return_value="2024-01-01-00:00:00",
+        )
+
+        # Act
+        result = _generate_batches_for_special_cases(df=df)
+
+        # Assert
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["latest_record_timestamp"] == "2024-01-01-00:00:00"
+        assert result[0]["data"] is df
+
+
+class TestGenerateBatchesForExportGeneric:
+    """Tests for `_generate_batches_for_export_generic`."""
+
+    def test_partitions_by_partition_date_and_sets_latest_record_timestamp_from_parsed_series(self):
+        """Test that generic batching groups by `partition_date` and computes per-partition max timestamp."""
+        # Arrange
+        df = pd.DataFrame(
+            {
+                "partition_date": ["2024-01-01", "2024-01-01", "2024-01-02"],
+                "preprocessing_timestamp": [
+                    "2024-01-01-00:00:00",
+                    "2024-01-01-12:34:56",
+                    "2024-01-02-01:02:03",
+                ],
+                "col1": [1, 2, 3],
+            }
+        )
+
+        # Act
+        result = _generate_batches_for_export_generic(
+            df=df,
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        # Assert
+        assert len(result) == 2
+        by_partition_date: dict[str, dict] = {}
+        for batch in result:
+            batch_df = batch["data"]
+            assert batch_df["partition_date"].nunique() == 1
+            partition_date = batch_df["partition_date"].iloc[0]
+            by_partition_date[partition_date] = batch
+
+        assert set(by_partition_date.keys()) == {"2024-01-01", "2024-01-02"}
+        assert by_partition_date["2024-01-01"]["latest_record_timestamp"] == "2024-01-01-12:34:56"
+        assert by_partition_date["2024-01-02"]["latest_record_timestamp"] == "2024-01-02-01:02:03"
+
+
+class TestPreprocessDfForExport:
+    """Tests for `_preprocess_df_for_export`."""
+
+    def test_derives_partition_date_when_missing(self, mocker):
+        """Test that preprocessing derives canonical `partition_date` when missing."""
+        # Arrange
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"test_service": {"timestamp_field": "preprocessing_timestamp"}},
+            clear=False,
+        )
+        df = pd.DataFrame(
+            {
+                "col1": [1, 2],
+                "preprocessing_timestamp": [
+                    "2024-01-01-00:00:00",
+                    "2024-01-01-12:34:56",
+                ],
+            }
+        )
+
+        # Act
+        result = _preprocess_df_for_export(
+            df=df,
+            service="test_service",
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        # Assert
+        assert result is df
+        assert "partition_date" in result.columns
+        assert result["partition_date"].tolist() == ["2024-01-01", "2024-01-01"]
+
+    def test_imputes_default_timestamp_when_missing_timestamp_field(self, mocker):
+        """Test that preprocessing imputes missing timestamp_field and sets `partition_date` to DEFAULT_ERROR_PARTITION_DATE."""
+        # Arrange
+        import lib.db.manage_local_data as mdl
+
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"test_service": {"timestamp_field": "preprocessing_timestamp"}},
+            clear=False,
+        )
+        df = pd.DataFrame({"col1": [1, 2]})
+
+        # Act
+        result = _preprocess_df_for_export(
+            df=df,
+            service="test_service",
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        # Assert
+        assert result is df
+        assert "preprocessing_timestamp" in result.columns
+        assert "partition_date" in result.columns
+        assert result["partition_date"].tolist() == [mdl.DEFAULT_ERROR_PARTITION_DATE] * 2
+
+
+class TestGenerateBatchesForExport:
+    """Tests for `_generate_batches_for_export`."""
+
+    def test_raises_on_empty_df(self):
+        """Test that empty dataframes are rejected early."""
+        # Arrange
+        df = pd.DataFrame()
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="Received empty dataframe for export"):
+            _generate_batches_for_export(
+                service="test_service",
+                df=df,
+                timestamp_field="preprocessing_timestamp",
+                timestamp_format="%Y-%m-%d-%H:%M:%S",
+            )
+
+    def test_special_case_routes_to_special_case_generator(self, mocker):
+        """Test that special-case services route to `_generate_batches_for_special_cases`."""
+        # Arrange
+        df_in = pd.DataFrame({"col1": [1]})
+        df_preprocessed = pd.DataFrame({"col1": [1], "partition_date": ["2024-01-01"]})
+
+        mock_preprocess = mocker.patch(
+            "lib.db.manage_local_data._preprocess_df_for_export",
+            return_value=df_preprocessed,
+        )
+        mock_special_case = mocker.patch(
+            "lib.db.manage_local_data._determine_if_special_case_chunk_generation",
+            return_value=True,
+        )
+        mock_special_batches = mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_special_cases",
+            return_value=[{"latest_record_timestamp": "t", "data": df_preprocessed}],
+        )
+        mock_generic_batches = mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export_generic"
+        )
+
+        # Act
+        result = _generate_batches_for_export(
+            service="test_service",
+            df=df_in,
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        # Assert
+        mock_preprocess.assert_called_once()
+        mock_special_case.assert_called_once_with(service="test_service")
+        mock_special_batches.assert_called_once_with(df=df_preprocessed)
+        mock_generic_batches.assert_not_called()
+        assert result == [{"latest_record_timestamp": "t", "data": df_preprocessed}]
+
+    def test_non_special_case_routes_to_generic_generator(self, mocker):
+        """Test that non-special-case services route to `_generate_batches_for_export_generic`."""
+        # Arrange
+        df_in = pd.DataFrame({"col1": [1]})
+        df_preprocessed = pd.DataFrame(
+            {
+                "col1": [1],
+                "partition_date": ["2024-01-01"],
+                "preprocessing_timestamp": ["2024-01-01-00:00:00"],
+            }
+        )
+
+        mock_preprocess = mocker.patch(
+            "lib.db.manage_local_data._preprocess_df_for_export",
+            return_value=df_preprocessed,
+        )
+        mock_special_case = mocker.patch(
+            "lib.db.manage_local_data._determine_if_special_case_chunk_generation",
+            return_value=False,
+        )
+        mock_generic_batches = mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_export_generic",
+            return_value=[{"latest_record_timestamp": "t", "data": df_preprocessed}],
+        )
+        mock_special_batches = mocker.patch(
+            "lib.db.manage_local_data._generate_batches_for_special_cases"
+        )
+
+        # Act
+        result = _generate_batches_for_export(
+            service="test_service",
+            df=df_in,
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        # Assert
+        mock_preprocess.assert_called_once()
+        mock_special_case.assert_called_once_with(service="test_service")
+        mock_special_batches.assert_not_called()
+        mock_generic_batches.assert_called_once_with(
+            df=df_preprocessed,
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+        assert result == [{"latest_record_timestamp": "t", "data": df_preprocessed}]
+
+
+class TestExportDfToLocalStorage:
+    """Unit tests for the refactored export helpers."""
+
+    def test_export_df_to_local_storage_jsonl_writes_jsonl(self, tmp_path):
+        df = pd.DataFrame({"col1": [1, 2], "col2": ["a", "b"]})
+        out_fp = tmp_path / "out.jsonl"
+
+        _export_df_to_local_storage_jsonl(df=df, local_export_fp=str(out_fp))
+
+        assert out_fp.exists()
+        lines = out_fp.read_text().strip().splitlines()
+        assert len(lines) == 2
+        assert json.loads(lines[0]) == {"col1": 1, "col2": "a"}
+
+    @pytest.mark.parametrize(
+        "partition_dates,expected",
+        [
+            (["2024-01-01", "2024-01-02"], True),
+            (["2024/01/01"], False),
+            ([None], False),
+        ],
+    )
+    def test_validate_partition_date_column(self, partition_dates, expected):
+        df = pd.DataFrame({"partition_date": partition_dates})
+        assert bool(_validate_partition_date_column(df)) is expected
+
+    def test_validate_partition_date_column_returns_false_if_missing(self):
+        df = pd.DataFrame({"col1": [1]})
+        assert bool(_validate_partition_date_column(df)) is False
+
+    def test_derive_or_normalize_partition_date_column_recomputes_when_invalid(self):
+        df = pd.DataFrame(
+            {
+                "partition_date": ["not-a-date", "not-a-date"],
+                "preprocessing_timestamp": [
+                    "2024-01-01-00:00:00",
+                    "2024-01-01-12:34:56",
+                ],
+            }
+        )
+
+        df2 = _derive_or_normalize_partition_date_column(
+            df=df,
+            service="test_service",
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        assert df2 is df
+        assert df2["partition_date"].tolist() == ["2024-01-01", "2024-01-01"]
+
+    def test_derive_or_normalize_partition_date_column_coerces_year_lt_2024(self):
+        import lib.db.manage_local_data as mdl
+
+        df = pd.DataFrame(
+            {
+                "preprocessing_timestamp": [
+                    "2019-01-01-00:00:00",
+                    "2024-01-01-00:00:00",
+                ],
+            }
+        )
+
+        df2 = _derive_or_normalize_partition_date_column(
+            df=df,
+            service="test_service",
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+        )
+
+        assert df2 is df
+        assert df2["partition_date"].tolist() == [
+            mdl.DEFAULT_ERROR_PARTITION_DATE,
+            "2024-01-01",
+        ]
+
+    def test_normalize_timestamp_field_converts_datetime_to_string(self):
+        df = pd.DataFrame(
+            {
+                "preprocessing_timestamp": pd.to_datetime(
+                    ["2024-01-01T00:00:00", "2024-01-01T12:34:56"]
+                )
+            }
+        )
+
+        df2 = _normalize_timestamp_field(
+            df=df,
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%dT%H:%M:%S",
+        )
+
+        assert df2 is df
+        assert df2["preprocessing_timestamp"].dtype == "string"
+        assert df2["preprocessing_timestamp"].tolist() == [
+            "2024-01-01T00:00:00",
+            "2024-01-01T12:34:56",
+        ]
+
+    def test_export_df_to_local_storage_parquet_writes_partitioned_dataset(
+        self, mocker, tmp_path
+    ):
+        # Patch service metadata so schema enforcement is deterministic.
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {
+                "test_service": {
+                    "dtypes_map": {
+                        "col1": "Int64",
+                        "preprocessing_timestamp": "string",
+                    }
+                }
+            },
+        )
+
+        df = pd.DataFrame(
+            {
+                "col1": [1, 2],
+                "partition_date": ["2024-01-01", "2024-01-01"],
+                "preprocessing_timestamp": [
+                    "2024-01-01-00:00:00",
+                    "2024-01-01-12:34:56",
+                ],
+            }
+        )
+        out_dir = tmp_path / "dataset"
+        out_dir.mkdir()
+
+        _export_df_to_local_storage_parquet(
+            df=df,
+            service="test_service",
+            export_folder_path=str(out_dir),
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+            custom_args=None,
+        )
+
+        # Expect a partition directory and at least one parquet file.
+        partition_dir = out_dir / "partition_date=2024-01-01"
+        assert partition_dir.exists()
+        parquet_files = []
+        for root, _, files in os.walk(out_dir):
+            for f in files:
+                if f.endswith(".parquet"):
+                    parquet_files.append(os.path.join(root, f))
+        assert len(parquet_files) >= 1
+
+    def test_export_df_to_local_storage_parquet_raises_if_partition_date_missing(
+        self, mocker, tmp_path
+    ):
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"test_service": {"dtypes_map": {"col1": "Int64"}}},
+        )
+        df = pd.DataFrame(
+            {
+                "col1": [1, 2],
+                "preprocessing_timestamp": [
+                    "2024-01-01-00:00:00",
+                    "2024-01-01-12:34:56",
+                ],
+            }
+        )
+        out_dir = tmp_path / "dataset_missing_partition_date"
+        out_dir.mkdir()
+
+        with pytest.raises(ValueError, match="Invalid 'partition_date' column"):
+            _export_df_to_local_storage_parquet(
+                df=df,
+                service="test_service",
+                export_folder_path=str(out_dir),
+                timestamp_field="preprocessing_timestamp",
+                timestamp_format="%Y-%m-%d-%H:%M:%S",
+                custom_args=None,
+            )
+
+    def test_export_df_to_local_storage_parquet_handles_missing_timestamp_field(
+        self, mocker, tmp_path
+    ):
+        """If the timestamp field is missing, we should still export.
+
+        Expected behavior:
+        - partition_date is derived/imputed to DEFAULT_ERROR_PARTITION_DATE
+        - timestamp normalization is skipped (with warning)
+        - schema enforcement may create the missing timestamp column during coercion
+        """
+        import lib.db.manage_local_data as mdl
+
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {
+                "test_service": {
+                    "dtypes_map": {
+                        "col1": "Int64",
+                        "preprocessing_timestamp": "string",
+                    }
+                }
+            },
+        )
+
+        df = pd.DataFrame(
+            {"col1": [1, 2], "partition_date": [mdl.DEFAULT_ERROR_PARTITION_DATE] * 2}
+        )
+        out_dir = tmp_path / "dataset_missing_ts"
+        out_dir.mkdir()
+
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+
+        _export_df_to_local_storage_parquet(
+            df=df,
+            service="test_service",
+            export_folder_path=str(out_dir),
+            timestamp_field="preprocessing_timestamp",
+            timestamp_format="%Y-%m-%d-%H:%M:%S",
+            custom_args=None,
+        )
+
+        # We should warn that the timestamp field was missing (normalization skipped).
+        warning_msgs = [c[0][0] for c in mock_logger.warning.call_args_list]
+        assert any("Expected timestamp field 'preprocessing_timestamp' not found" in m for m in warning_msgs)
+
+        # Expect a partition directory and at least one parquet file under it.
+        partition_dir = out_dir / f"partition_date={mdl.DEFAULT_ERROR_PARTITION_DATE}"
+        assert partition_dir.exists()
+        parquet_files = []
+        for root, _, files in os.walk(out_dir):
+            for f in files:
+                if f.endswith(".parquet"):
+                    parquet_files.append(os.path.join(root, f))
+        assert len(parquet_files) >= 1
+
+    def test_export_df_to_local_storage_parquet_raises_on_multiple_partition_dates(
+        self, mocker, tmp_path
+    ):
+        mocker.patch.dict(
+            "lib.db.manage_local_data.MAP_SERVICE_TO_METADATA",
+            {"test_service": {"dtypes_map": {"col1": "Int64"}}},
+        )
+        df = pd.DataFrame(
+            {
+                "col1": [1, 2],
+                "partition_date": ["2024-01-01", "2024-01-02"],
+                "preprocessing_timestamp": [
+                    "2024-01-01-00:00:00",
+                    "2024-01-02-00:00:00",
+                ],
+            }
+        )
+        out_dir = tmp_path / "dataset"
+        out_dir.mkdir()
+
+        with pytest.raises(ValueError, match="Multiple partition dates found"):
+            _export_df_to_local_storage_parquet(
+                df=df,
+                service="test_service",
+                export_folder_path=str(out_dir),
+                timestamp_field="preprocessing_timestamp",
+                timestamp_format="%Y-%m-%d-%H:%M:%S",
+                custom_args=None,
+            )
+
+
+class TestCoercePyarrowTypesToPandasTypes:
+    """Tests for _coerce_pyarrow_types_to_pandas_types function."""
+
+    def test_converts_int64_to_int64(self):
+        """Test that int64 columns are converted to Int64 (nullable integer)."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"]
+        })
+        df["col1"] = df["col1"].astype("int64")  # Non-nullable int
+        dtypes_map = {"col1": "Int64"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "Int64"
+        expected = pd.Series([1, 2, 3], dtype="Int64", name="col1")
+        pd.testing.assert_series_equal(result["col1"], expected)
+
+    def test_converts_float64_to_float64(self):
+        """Test that float64 columns are converted to Float64 (nullable float)."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1.1, 2.2, 3.3],
+            "col2": ["a", "b", "c"]
+        })
+        df["col1"] = df["col1"].astype("float64")  # Non-nullable float
+        dtypes_map = {"col1": "Float64"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "Float64"
+        expected = pd.Series([1.1, 2.2, 3.3], dtype="Float64", name="col1")
+        pd.testing.assert_series_equal(result["col1"], expected)
+
+    def test_converts_object_to_string(self):
+        """Test that object dtype columns are converted to string dtype."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": ["a", "b", "c"],
+            "col2": [1, 2, 3]
+        })
+        df["col1"] = df["col1"].astype("object")  # Object dtype
+        dtypes_map = {"col1": "string"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "string"
+        expected = pd.Series(["a", "b", "c"], dtype="string", name="col1")
+        pd.testing.assert_series_equal(result["col1"], expected)
+
+    def test_converts_to_bool(self):
+        """Test that columns are converted to boolean (nullable) dtype."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [True, False, True],
+            "col2": ["a", "b", "c"]
+        })
+        dtypes_map = {"col1": "bool"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "boolean"
+        expected = pd.Series([True, False, True], dtype="boolean", name="col1")
+        pd.testing.assert_series_equal(result["col1"], expected)
+
+    def test_converts_to_object(self):
+        """Test that columns are converted to object dtype."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"]
+        })
+        dtypes_map = {"col1": "object"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "object"
+        expected = pd.Series([1, 2, 3], dtype="object", name="col1")
+        pd.testing.assert_series_equal(result["col1"], expected)
+
+    def test_handles_missing_columns_gracefully(self):
+        """Test that missing columns in dtypes_map are ignored."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"]
+        })
+        dtypes_map = {"col1": "Int64", "missing_col": "string"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "col2" in result.columns
+        assert "missing_col" not in result.columns
+        assert result["col1"].dtype == "Int64"
+
+    def test_handles_multiple_columns(self):
+        """Test that multiple columns are converted correctly."""
+        # Arrange
+        df = pd.DataFrame({
+            "int_col": [1, 2, 3],
+            "float_col": [1.1, 2.2, 3.3],
+            "string_col": ["a", "b", "c"],
+            "bool_col": [True, False, True]
+        })
+        df["int_col"] = df["int_col"].astype("int64")
+        df["float_col"] = df["float_col"].astype("float64")
+        df["string_col"] = df["string_col"].astype("object")
+        
+        dtypes_map = {
+            "int_col": "Int64",
+            "float_col": "Float64",
+            "string_col": "string",
+            "bool_col": "bool"
+        }
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["int_col"].dtype == "Int64"
+        assert result["float_col"].dtype == "Float64"
+        assert result["string_col"].dtype == "string"
+        assert result["bool_col"].dtype == "boolean"
+
+    def test_handles_conversion_errors_gracefully(self, mocker):
+        """Test that conversion errors are logged as warnings but don't fail."""
+        # Arrange
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "col1": ["invalid", "for", "int"],
+            "col2": ["a", "b", "c"]
+        })
+        dtypes_map = {"col1": "Int64"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        # Function should complete without raising
+        assert "col1" in result.columns
+        # Warning should be logged
+        mock_logger.warning.assert_called()
+        warning_call = mock_logger.warning.call_args[0][0]
+        assert "Failed to convert column col1" in warning_call
+
+    def test_handles_nullable_integers(self):
+        """Test that nullable integers with NaN values are handled correctly."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, None],
+            "col2": ["a", "b", "c"]
+        })
+        df["col1"] = df["col1"].astype("Int64")  # Already nullable
+        dtypes_map = {"col1": "Int64"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "Int64"
+        assert pd.isna(result["col1"].iloc[2])
+
+    def test_handles_nullable_floats(self):
+        """Test that nullable floats with NaN values are handled correctly."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1.1, 2.2, None],
+            "col2": ["a", "b", "c"]
+        })
+        df["col1"] = df["col1"].astype("Float64")  # Already nullable
+        dtypes_map = {"col1": "Float64"}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        assert result["col1"].dtype == "Float64"
+        assert pd.isna(result["col1"].iloc[2])
+
+    def test_returns_same_dataframe_when_no_dtypes_map(self):
+        """Test that function returns original dataframe when dtypes_map is empty."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"]
+        })
+        original_dtypes = df.dtypes.copy()
+        dtypes_map = {}
+        
+        # Act
+        result = _coerce_pyarrow_types_to_pandas_types(df, dtypes_map)
+        
+        # Assert
+        pd.testing.assert_frame_equal(result, df)
+        assert result.dtypes.equals(original_dtypes)
+
+
+class TestFilterLoadedDataByLatestTimestamp:
+    """Tests for _filter_loaded_data_by_latest_timestamp function."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, mocker):
+        """Set up common test fixtures."""
+        # Mock service metadata
+        self.mock_metadata = {
+            "test_service": {
+                "timestamp_field": "preprocessing_timestamp"
+            },
+            "preprocessed_posts": {
+                "timestamp_field": "preprocessing_timestamp"
+            }
+        }
+        mocker.patch("lib.db.manage_local_data.MAP_SERVICE_TO_METADATA", self.mock_metadata)
+
+    def test_filters_data_after_timestamp(self, mocker):
+        """Test that data is filtered to include only records after latest_timestamp."""
+        # Arrange
+        mock_logger = mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "preprocessing_timestamp": [
+                "2024-03-01T00:00:00",
+                "2024-03-02T12:00:00",
+                "2024-03-03T00:00:00",
+                "2024-03-04T00:00:00"
+            ],
+            "col1": [1, 2, 3, 4],
+            "col2": ["a", "b", "c", "d"]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 3  # Should include 2024-03-02, 2024-03-03, 2024-03-04
+        assert all(result["preprocessing_timestamp"] >= latest_timestamp)
+        assert "2024-03-01T00:00:00" not in result["preprocessing_timestamp"].values
+        mock_logger.info.assert_called_once_with(f"Fetching data after timestamp={latest_timestamp}")
+
+    def test_filters_data_at_exact_timestamp(self, mocker):
+        """Test that data at exact timestamp is included."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "preprocessing_timestamp": [
+                "2024-03-02T00:00:00",
+                "2024-03-02T12:00:00",
+                "2024-03-03T00:00:00"
+            ],
+            "col1": [1, 2, 3]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 3  # All records should be included (>=)
+        assert all(result["preprocessing_timestamp"] >= latest_timestamp)
+
+    def test_handles_empty_dataframe(self, mocker):
+        """Test that empty dataframe is handled correctly."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame(
+            {
+                "preprocessing_timestamp": pd.Series(dtype="string"),
+                "col1": pd.Series(dtype="Int64"),
+            }
+        )
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 0
+        assert result.columns.equals(df.columns)
+
+    def test_handles_all_data_before_timestamp(self, mocker):
+        """Test that all data before timestamp results in empty dataframe."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "preprocessing_timestamp": [
+                "2024-03-01T00:00:00",
+                "2024-03-01T12:00:00"
+            ],
+            "col1": [1, 2]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 0
+
+    def test_handles_all_data_after_timestamp(self, mocker):
+        """Test that all data after timestamp is included."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "preprocessing_timestamp": [
+                "2024-03-03T00:00:00",
+                "2024-03-04T00:00:00",
+                "2024-03-05T00:00:00"
+            ],
+            "col1": [1, 2, 3]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 3
+        pd.testing.assert_frame_equal(result, df)
+
+    def test_preserves_all_columns(self, mocker):
+        """Test that all columns are preserved in the filtered result."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "preprocessing_timestamp": [
+                "2024-03-01T00:00:00",
+                "2024-03-02T12:00:00",
+                "2024-03-03T00:00:00"
+            ],
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "col3": [True, False, True],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert set(result.columns) == set(df.columns)
+        assert len(result) == 2  # Two records after timestamp
+
+    def test_uses_correct_timestamp_field_for_service(self, mocker):
+        """Test that the correct timestamp field is used based on service."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        # Update metadata to use different timestamp field
+        mock_metadata = {
+            "custom_service": {
+                "timestamp_field": "created_at"
+            }
+        }
+        mocker.patch("lib.db.manage_local_data.MAP_SERVICE_TO_METADATA", mock_metadata)
+        
+        df = pd.DataFrame({
+            "created_at": [
+                "2024-03-01T00:00:00",
+                "2024-03-02T12:00:00",
+                "2024-03-03T00:00:00"
+            ],
+            "col1": [1, 2, 3]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="custom_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 2
+        assert all(result["created_at"] >= latest_timestamp)
+
+    def test_handles_string_timestamps(self, mocker):
+        """Test that string timestamps are compared correctly."""
+        # Arrange
+        mocker.patch("lib.db.manage_local_data.logger")
+        df = pd.DataFrame({
+            "preprocessing_timestamp": [
+                "2024-03-01T00:00:00",
+                "2024-03-02T12:00:00",
+                "2024-03-03T00:00:00"
+            ],
+            "col1": [1, 2, 3]
+        })
+        latest_timestamp = "2024-03-02T00:00:00"
+        
+        # Act
+        result = _filter_loaded_data_by_latest_timestamp(
+            df=df,
+            service="test_service",
+            latest_timestamp=latest_timestamp
+        )
+        
+        # Assert
+        assert len(result) == 2
+        # Verify string comparison works (lexicographic comparison for ISO format)
+        assert all(result["preprocessing_timestamp"] >= latest_timestamp)
+
+
+class TestConditionallyDropExtraColumns:
+    """Tests for _conditionally_drop_extra_columns function."""
+
+    def test_drops_only_compaction_columns(self):
+        """Test that only compaction columns are dropped, not original data columns."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "row_num": [1, 2, 3],  # Compaction column
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],  # Compaction column
+            "startTimestamp": ["2024-03-01T00:00:00", "2024-03-02T00:00:00", "2024-03-03T00:00:00"],  # Compaction column
+        })
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=None)
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "col2" in result.columns
+        assert "row_num" not in result.columns
+        assert "partition_date" not in result.columns
+        assert "startTimestamp" not in result.columns
+
+    def test_preserves_compaction_columns_in_always_include(self):
+        """Test that compaction columns are preserved when in columns_to_always_include."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+            "row_num": [1, 2, 3],
+        })
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=["partition_date"])
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "partition_date" in result.columns  # Preserved
+        assert "row_num" not in result.columns  # Dropped
+
+    def test_preserves_all_columns_when_no_compaction_columns(self):
+        """Test that all original columns are preserved when no compaction columns exist."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "col3": [True, False, True],
+        })
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=None)
+        
+        # Assert
+        assert set(result.columns) == set(df.columns)
+        pd.testing.assert_frame_equal(result, df)
+
+    def test_handles_empty_dataframe(self):
+        """Test that empty dataframe is handled correctly."""
+        # Arrange
+        df = pd.DataFrame()
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=None)
+        
+        # Assert
+        assert len(result.columns) == 0
+        pd.testing.assert_frame_equal(result, df)
+
+    def test_handles_empty_columns_to_always_include(self):
+        """Test that empty columns_to_always_include list works correctly."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+        })
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=[])
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "partition_date" not in result.columns
+
+    def test_handles_none_columns_to_always_include(self):
+        """Test that None columns_to_always_include is handled correctly."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+        })
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=None)
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "partition_date" not in result.columns
+
+    def test_drops_all_compaction_columns_when_not_in_always_include(self):
+        """Test that all compaction columns are dropped when not in always_include."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "row_num": [1, 2, 3],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+            "startTimestamp": ["2024-03-01T00:00:00", "2024-03-02T00:00:00", "2024-03-03T00:00:00"],
+        })
+        
+        # Act
+        result = _conditionally_drop_extra_columns(df, columns_to_always_include=["col1"])
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "row_num" not in result.columns
+        assert "partition_date" not in result.columns
+        assert "startTimestamp" not in result.columns
+
+
+class TestLoadDataFromLocalStorageJsonl:
+    """Tests for _load_data_from_local_storage_jsonl function."""
+
+    def test_preserves_original_columns(self, mocker):
+        """Test that JSONL loader preserves original data columns."""
+        # Arrange
+        mock_read_json = mocker.patch("pandas.read_json")
+        df_with_original_cols = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "col3": [True, False, True],
+        })
+        mock_read_json.return_value = df_with_original_cols
+        
+        # Act
+        result = _load_data_from_local_storage_jsonl(["file1.jsonl"])
+        
+        # Assert
+        assert set(result.columns) == {"col1", "col2", "col3"}
+        pd.testing.assert_frame_equal(result, df_with_original_cols)
+
+    def test_drops_compaction_columns(self, mocker):
+        """Test that JSONL loader drops compaction columns."""
+        # Arrange
+        mock_read_json = mocker.patch("pandas.read_json")
+        df_with_compaction = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+            "row_num": [1, 2, 3],
+        })
+        mock_read_json.return_value = df_with_compaction
+        
+        # Act
+        result = _load_data_from_local_storage_jsonl(["file1.jsonl"])
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "col2" in result.columns
+        assert "partition_date" not in result.columns
+        assert "row_num" not in result.columns
+
+    def test_handles_multiple_files(self, mocker):
+        """Test that JSONL loader handles multiple files correctly."""
+        # Arrange
+        mock_read_json = mocker.patch("pandas.read_json")
+        df1 = pd.DataFrame({"col1": [1, 2], "col2": ["a", "b"]})
+        df2 = pd.DataFrame({"col1": [3, 4], "col2": ["c", "d"]})
+        mock_read_json.side_effect = [df1, df2]
+        
+        # Act
+        result = _load_data_from_local_storage_jsonl(["file1.jsonl", "file2.jsonl"])
+        
+        # Assert
+        assert len(result) == 4
+        assert set(result.columns) == {"col1", "col2"}
+
+
+class TestLoadDataFromLocalStorageDuckdb:
+    """Tests for _load_data_from_local_storage_duckdb function."""
+
+    @pytest.fixture
+    def mock_duckdb_import(self, mocker):
+        """Mock DuckDB class and methods"""
+        mock_duckdb_instance = mocker.MagicMock()
+        mocker.patch("lib.db.manage_local_data.duckDB", mock_duckdb_instance)
+        return mock_duckdb_instance
+
+    def test_preserves_query_columns(self, mocker, mock_duckdb_import):
+        """Test that DuckDB loader preserves columns from query metadata."""
+        # Arrange
+        query_cols = ["col1", "col2", "col3"]
+        df_with_query_cols = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "col3": [True, False, True],
+        })
+        mock_duckdb_import.run_query_as_df.return_value = df_with_query_cols
+        
+        query_metadata = {
+            "tables": [{"name": "test", "columns": query_cols}]
+        }
+        
+        # Act
+        result = _load_data_from_local_storage_duckdb(
+            duckdb_query="SELECT * FROM test",
+            query_metadata=query_metadata,
+            filepaths=["file1.parquet"]
+        )
+        
+        # Assert
+        assert set(result.columns) == set(query_cols)
+        pd.testing.assert_frame_equal(result, df_with_query_cols)
+
+    def test_drops_compaction_columns_not_in_query(self, mocker, mock_duckdb_import):
+        """Test that DuckDB loader drops compaction columns not in query metadata."""
+        # Arrange
+        query_cols = ["col1", "col2"]
+        df_with_compaction = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+            "row_num": [1, 2, 3],
+        })
+        mock_duckdb_import.run_query_as_df.return_value = df_with_compaction
+        
+        query_metadata = {
+            "tables": [{"name": "test", "columns": query_cols}]
+        }
+        
+        # Act
+        result = _load_data_from_local_storage_duckdb(
+            duckdb_query="SELECT * FROM test",
+            query_metadata=query_metadata,
+            filepaths=["file1.parquet"]
+        )
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "col2" in result.columns
+        assert "partition_date" not in result.columns
+        assert "row_num" not in result.columns
+
+    def test_preserves_compaction_columns_in_query(self, mocker, mock_duckdb_import):
+        """Test that DuckDB loader preserves compaction columns when in query metadata."""
+        # Arrange
+        query_cols = ["col1", "partition_date"]  # partition_date is in query
+        df_with_compaction = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "partition_date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+            "row_num": [1, 2, 3],  # Not in query, should be dropped
+        })
+        mock_duckdb_import.run_query_as_df.return_value = df_with_compaction
+        
+        query_metadata = {
+            "tables": [{"name": "test", "columns": query_cols}]
+        }
+        
+        # Act
+        result = _load_data_from_local_storage_duckdb(
+            duckdb_query="SELECT col1, partition_date FROM test",
+            query_metadata=query_metadata,
+            filepaths=["file1.parquet"]
+        )
+        
+        # Assert
+        assert "col1" in result.columns
+        assert "partition_date" in result.columns  # Preserved because in query
+        assert "row_num" not in result.columns  # Dropped because not in query
+
+    def test_handles_multiple_tables_in_metadata(self, mocker, mock_duckdb_import):
+        """Test that DuckDB loader handles multiple tables in query metadata."""
+        # Arrange
+        df = pd.DataFrame({
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "col3": [True, False, True],
+        })
+        mock_duckdb_import.run_query_as_df.return_value = df
+        
+        query_metadata = {
+            "tables": [
+                {"name": "table1", "columns": ["col1", "col2"]},
+                {"name": "table2", "columns": ["col3"]}
+            ]
+        }
+        
+        # Act
+        result = _load_data_from_local_storage_duckdb(
+            duckdb_query="SELECT * FROM table1 JOIN table2",
+            query_metadata=query_metadata,
+            filepaths=["file1.parquet"]
+        )
+        
+        # Assert
+        assert set(result.columns) == {"col1", "col2", "col3"}
+
+
+class TestIsOlderThanLookback:
+    """Tests for is_older_than_lookback function."""
+
+    def test_returns_true_when_timestamp_is_older_than_lookback(self, mocker):
+        """Test that function returns True when timestamp is older than lookback period.
+        
+        Expected behavior:
+        - Should return True when latest_record_timestamp is older than (current_time - lookback_days)
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-01-10:00:00"  # 4 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is True
+
+    def test_returns_false_when_timestamp_is_newer_than_lookback(self, mocker):
+        """Test that function returns False when timestamp is newer than lookback period.
+        
+        Expected behavior:
+        - Should return False when latest_record_timestamp is newer than (current_time - lookback_days)
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-04-10:00:00"  # 1 day ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is False
+
+    def test_returns_false_when_timestamp_is_exactly_at_lookback_threshold(self, mocker):
+        """Test that function returns False when timestamp is exactly at lookback threshold.
+        
+        Expected behavior:
+        - Should return False when timestamp equals the lookback threshold (strictly older check)
+        - This is the conservative approach mentioned in the docstring
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        latest_record_timestamp = "2024-03-03-12:00:00"  # Exactly at threshold
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is False  # Not strictly older
+
+    def test_returns_true_when_timestamp_is_just_before_lookback_threshold(self, mocker):
+        """Test that function returns True when timestamp is just before lookback threshold.
+        
+        Expected behavior:
+        - Should return True when timestamp is even slightly older than threshold
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        latest_record_timestamp = "2024-03-03-11:59:59"  # Just before threshold
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is True
+
+    def test_handles_different_lookback_days_values(self, mocker):
+        """Test that function works correctly with different lookback_days values.
+        
+        Expected behavior:
+        - Should correctly calculate threshold based on lookback_days parameter
+        """
+        # Arrange
+        # Mock current time to be 2024-03-10-12:00:00
+        mock_now = pd.Timestamp("2024-03-10-12:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-05-10:00:00"  # 5 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        
+        # Act & Assert
+        # With lookback_days=3, threshold is 2024-03-07-12:00:00, so should return True
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=3,
+        )
+        assert result is True
+        
+        # With lookback_days=7, threshold is 2024-03-03-12:00:00, so should return False
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=7,
+        )
+        assert result is False
+
+    def test_handles_different_timestamp_formats(self, mocker):
+        """Test that function works correctly with different timestamp formats.
+        
+        Expected behavior:
+        - Should correctly parse timestamps using the provided format
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05T12:00:00
+        mock_now = pd.Timestamp("2024-03-05T12:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-01T10:00:00"  # 4 days ago
+        timestamp_format = "%Y-%m-%dT%H:%M:%S"  # ISO format
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03T12:00:00
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is True
+
+    def test_handles_zero_lookback_days(self, mocker):
+        """Test that function works correctly with zero lookback_days.
+        
+        Expected behavior:
+        - Should compare against current time when lookback_days=0
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-05-11:00:00"  # 1 hour ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 0  # Threshold is current time
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is True  # Timestamp is older than current time
+
+    def test_handles_large_lookback_days(self, mocker):
+        """Test that function works correctly with large lookback_days values.
+        
+        Expected behavior:
+        - Should correctly calculate threshold for large lookback periods
+        """
+        # Arrange
+        # Mock current time to be 2024-03-10-12:00:00
+        mock_now = pd.Timestamp("2024-03-10-12:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-02-01-00:00:00"  # 38 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 30  # Lookback is 30 days, so threshold is 2024-02-09-12:00:00
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is True  # 38 days ago is older than 30 days ago
+
+    def test_handles_timestamp_at_midnight(self, mocker):
+        """Test that function correctly handles timestamps at midnight boundary.
+        
+        Expected behavior:
+        - Should correctly compare timestamps at day boundaries
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-00:00:00 (midnight)
+        mock_now = pd.Timestamp("2024-03-05-00:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-02-23:59:59"  # Just before 3 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03-00:00:00
+        
+        # Act
+        result = is_older_than_lookback(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result is True  # Timestamp is older than threshold
+
+
+class TestDetermineStorageTierForExport:
+    """Tests for _determine_storage_tier_for_export function."""
+
+    def test_returns_cache_when_timestamp_is_older_than_lookback(self, mocker):
+        """Test that function returns 'cache' when timestamp is older than lookback period.
+        
+        Expected behavior:
+        - Should return 'cache' when is_older_than_lookback returns True
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-01-10:00:00"  # 4 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "cache"
+
+    def test_returns_active_when_timestamp_is_newer_than_lookback(self, mocker):
+        """Test that function returns 'active' when timestamp is newer than lookback period.
+        
+        Expected behavior:
+        - Should return 'active' when is_older_than_lookback returns False
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-04-10:00:00"  # 1 day ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "active"
+
+    def test_returns_active_when_timestamp_is_exactly_at_lookback_threshold(self, mocker):
+        """Test that function returns 'active' when timestamp is exactly at lookback threshold.
+        
+        Expected behavior:
+        - Should return 'active' when timestamp equals threshold (not strictly older)
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        latest_record_timestamp = "2024-03-03-12:00:00"  # Exactly at threshold
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "active"  # Not strictly older, so active
+
+    def test_returns_cache_when_timestamp_is_just_before_lookback_threshold(self, mocker):
+        """Test that function returns 'cache' when timestamp is just before lookback threshold.
+        
+        Expected behavior:
+        - Should return 'cache' when timestamp is even slightly older than threshold
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        # Lookback is 2 days, so threshold is 2024-03-03-12:00:00
+        latest_record_timestamp = "2024-03-03-11:59:59"  # Just before threshold
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "cache"
+
+    def test_handles_different_lookback_days_values(self, mocker):
+        """Test that function works correctly with different lookback_days values.
+        
+        Expected behavior:
+        - Should correctly determine storage tier based on lookback_days parameter
+        """
+        # Arrange
+        # Mock current time to be 2024-03-10-12:00:00
+        mock_now = pd.Timestamp("2024-03-10-12:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-05-10:00:00"  # 5 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        
+        # Act & Assert
+        # With lookback_days=3, threshold is 2024-03-07-12:00:00, so should return cache
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=3,
+        )
+        assert result == "cache"
+        
+        # With lookback_days=7, threshold is 2024-03-03-12:00:00, so should return active
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=7,
+        )
+        assert result == "active"
+
+    def test_handles_different_timestamp_formats(self, mocker):
+        """Test that function works correctly with different timestamp formats.
+        
+        Expected behavior:
+        - Should correctly parse timestamps using the provided format
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05T12:00:00
+        mock_now = pd.Timestamp("2024-03-05T12:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-01T10:00:00"  # 4 days ago
+        timestamp_format = "%Y-%m-%dT%H:%M:%S"  # ISO format
+        lookback_days = 2  # Lookback is 2 days, so threshold is 2024-03-03T12:00:00
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "cache"
+
+    def test_handles_zero_lookback_days(self, mocker):
+        """Test that function works correctly with zero lookback_days.
+        
+        Expected behavior:
+        - Should compare against current time when lookback_days=0
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-03-05-11:00:00"  # 1 hour ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 0  # Threshold is current time
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "cache"  # Timestamp is older than current time
+
+    def test_handles_large_lookback_days(self, mocker):
+        """Test that function works correctly with large lookback_days values.
+        
+        Expected behavior:
+        - Should correctly determine storage tier for large lookback periods
+        """
+        # Arrange
+        # Mock current time to be 2024-03-10-12:00:00
+        mock_now = pd.Timestamp("2024-03-10-12:00:00", tz="UTC")
+        mocker.patch("pandas.Timestamp.utcnow", return_value=mock_now)
+        
+        latest_record_timestamp = "2024-02-01-00:00:00"  # 38 days ago
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 30  # Lookback is 30 days, so threshold is 2024-02-09-12:00:00
+        
+        # Act
+        result = _determine_storage_tier_for_export(
+            latest_record_timestamp=latest_record_timestamp,
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        
+        # Assert
+        assert result == "cache"  # 38 days ago is older than 30 days ago
+
+    def test_returns_only_cache_or_active(self, mocker):
+        """Test that function only returns 'cache' or 'active' values.
+        
+        Expected behavior:
+        - Should only return Literal["cache", "active"] values
+        """
+        # Arrange
+        # Mock current time to be 2024-03-05-12:00:00
+        mock_now = pd.Timestamp("2024-03-05-12:00:00", tz="UTC")
+        mocker.patch("lib.db.manage_local_data.pd.Timestamp.utcnow", return_value=mock_now)
+        
+        timestamp_format = "%Y-%m-%d-%H:%M:%S"
+        lookback_days = 2
+        
+        # Act & Assert
+        # Test with old timestamp
+        result_old = _determine_storage_tier_for_export(
+            latest_record_timestamp="2024-03-01-10:00:00",
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        assert result_old in ["cache", "active"]
+        
+        # Test with new timestamp
+        result_new = _determine_storage_tier_for_export(
+            latest_record_timestamp="2024-03-04-10:00:00",
+            timestamp_format=timestamp_format,
+            lookback_days=lookback_days,
+        )
+        assert result_new in ["cache", "active"]
