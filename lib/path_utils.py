@@ -1,5 +1,4 @@
 import os
-from typing import Literal
 
 from lib.db.models import StorageTier
 from lib.validate_parquet import validated_pq_files_within_directory
