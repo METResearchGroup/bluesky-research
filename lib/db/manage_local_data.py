@@ -273,6 +273,7 @@ def _normalize_timestamp_field(
         )
         return df
     col = df[timestamp_field]
+
     if pd.api.types.is_datetime64_any_dtype(col):
         # convert to string using the given format
         df[timestamp_field] = col.dt.strftime(timestamp_format).astype("string")
@@ -543,39 +544,22 @@ def _generate_batches_for_export_generic(
         timestamp_format=timestamp_format,
     )
 
-    ts_series = df[timestamp_field]
-    ts_dt = pd.to_datetime(ts_series, format=timestamp_format, errors="coerce")
-    ts_dt = _apply_partition_date_business_logic_filters(ts_dt=ts_dt, service=service)
-    dt_helper_col = f"_{timestamp_field}_datetime"
-    df[dt_helper_col] = ts_dt
+    batches = df.groupby("partition_date")
 
-    date_groups = df.groupby("partition_date")
+    result: list[dict] = []
 
-    output: list[dict] = []
-
-    for _, group in date_groups:
-        # timestamps need to be transformed into the default format.
-        latest_record_timestamp = (
-            group[dt_helper_col].max().strftime(DEFAULT_TIMESTAMP_FORMAT)
+    for _, batch in batches:
+        latest_record_timestamp: str = (
+            batch[timestamp_field].max().strftime(DEFAULT_TIMESTAMP_FORMAT)
         )
-
-        # drop additional grouping columns
-        group = group.drop(columns=[dt_helper_col])
-
-        group = _normalize_timestamp_field(
-            df=group,
-            timestamp_field=timestamp_field,
-            timestamp_format=timestamp_format,
-        )
-
-        output.append(
+        result.append(
             {
                 "latest_record_timestamp": latest_record_timestamp,
-                "data": group,
+                "data": batch,
             }
         )
 
-    return output
+    return result
 
 
 def _generate_batches_for_export(
