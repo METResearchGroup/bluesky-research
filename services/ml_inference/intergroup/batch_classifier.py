@@ -9,7 +9,10 @@ It owns I/O (queue exports) and batching; the classifier stays pure.
 
 from __future__ import annotations
 
+import sys
 from typing import Optional
+
+from tqdm import tqdm
 
 from lib.batching_utils import create_batches, update_batching_progress
 from lib.helper import track_performance
@@ -30,6 +33,7 @@ from services.ml_inference.models import (
 )
 
 logger = get_logger(__name__)
+
 
 @track_performance
 def run_batch_classification(
@@ -59,36 +63,56 @@ def run_batch_classification(
 
     classifier = IntergroupClassifier()
 
-    for i, batch in enumerate(batches):
-        update_batching_progress(
-            batch_index=i,
-            batch_interval=10,
-            total_batches=total_batches,
-            logger=logger,
-        )
+    # Create tqdm progress bar (conditional on interactive terminal)
+    pbar = tqdm(
+        batches,
+        desc="Classifying batches",
+        unit="batch",
+        disable=not sys.stderr.isatty(),  # Disable in CI/CD
+        file=sys.stderr,  # Write to stderr to avoid log conflicts
+    )
 
-        uri_to_batch_id = {p.uri: p.batch_id for p in batch}
-
-        label_models: list[IntergroupLabelModel] = classifier.classify_batch(batch)
-        successful_labels, failed_labels = (
-            split_labels_into_successful_and_failed_labels(labels=label_models)
-        )
-
-        if len(failed_labels) > 0:
-            updated_total_failed_count: int = _manage_failed_labels(
-                failed_labels=failed_labels,
-                uri_to_batch_id=uri_to_batch_id,
-                total_failed_so_far=total_failed,
+    try:
+        for i, batch in enumerate(pbar):
+            update_batching_progress(
+                batch_index=i,
+                batch_interval=10,
+                total_batches=total_batches,
+                logger=logger,
             )
-            total_failed = updated_total_failed_count
 
-        if len(successful_labels) > 0:
-            updated_total_successful_count: int = _manage_successful_labels(
-                successful_labels=successful_labels,
-                uri_to_batch_id=uri_to_batch_id,
-                total_successful_so_far=total_successful,
+            uri_to_batch_id = {p.uri: p.batch_id for p in batch}
+
+            label_models: list[IntergroupLabelModel] = classifier.classify_batch(batch)
+            successful_labels, failed_labels = (
+                split_labels_into_successful_and_failed_labels(labels=label_models)
             )
-            total_successful = updated_total_successful_count
+
+            if len(failed_labels) > 0:
+                updated_total_failed_count: int = _manage_failed_labels(
+                    failed_labels=failed_labels,
+                    uri_to_batch_id=uri_to_batch_id,
+                    total_failed_so_far=total_failed,
+                )
+                total_failed = updated_total_failed_count
+
+            if len(successful_labels) > 0:
+                updated_total_successful_count: int = _manage_successful_labels(
+                    successful_labels=successful_labels,
+                    uri_to_batch_id=uri_to_batch_id,
+                    total_successful_so_far=total_successful,
+                )
+                total_successful = updated_total_successful_count
+
+            # Update progress bar with live counts
+            pbar.set_postfix(
+                {
+                    "successful": total_successful,
+                    "failed": total_failed,
+                }
+            )
+    finally:
+        pbar.close()  # Explicitly close progress bar
 
     return BatchClassificationMetadataModel(
         total_batches=total_batches,
