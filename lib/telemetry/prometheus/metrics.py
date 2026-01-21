@@ -14,6 +14,12 @@ REQUEST_ERRORS_TOTAL = Counter(
     ["service", "endpoint"],
 )
 
+REQUEST_SUCCESS_TOTAL = Counter(
+    "service_request_success_total",
+    "Total number of HTTP/API requests that succeeded",
+    ["service", "endpoint"],
+)
+
 REQUEST_LATENCY_SECONDS = Histogram(
     "service_request_latency_seconds",
     "Request latency histogram",

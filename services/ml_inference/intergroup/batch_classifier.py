@@ -14,6 +14,7 @@ from typing import Optional
 from lib.batching_utils import create_batches, update_batching_progress
 from lib.helper import track_performance
 from lib.log.logger import get_logger
+from lib.telemetry.prometheus.prometheus import Prometheus
 from services.ml_inference.export_data import (
     attach_batch_id_to_label_dicts,
     return_failed_labels_to_input_queue,
@@ -30,6 +31,69 @@ from services.ml_inference.models import (
 )
 
 logger = get_logger(__name__)
+prometheus = Prometheus()
+
+
+def _extract_endpoint_from_classify_batch(
+    classifier: IntergroupClassifier,
+    batch: list[PostToLabelModel],
+    llm_model_name: str | None = None,
+) -> str:
+    """Extract endpoint label from classify_batch arguments.
+
+    Creates a normalized endpoint that includes the model name for better
+    metric granularity. This allows tracking metrics per model.
+
+    Args:
+        classifier: The IntergroupClassifier instance
+        batch: List of posts to classify
+        llm_model_name: Optional model name override
+
+    Returns:
+        Endpoint string like "/batch_completion/{model}" or "/batch_completion"
+    """
+    if llm_model_name:
+        # Normalize model name (remove provider prefix if present)
+        model = (
+            llm_model_name.split("/")[-1] if "/" in llm_model_name else llm_model_name
+        )
+        return f"/batch_completion/{model}"
+    return "/batch_completion"
+
+
+@prometheus.track_http_request(
+    service="llm_service", extract_endpoint=_extract_endpoint_from_classify_batch
+)
+def _instrumented_classify_batch(
+    classifier: IntergroupClassifier,
+    batch: list[PostToLabelModel],
+    llm_model_name: str | None = None,
+) -> list[IntergroupLabelModel]:
+    """Wrapper to instrument classify_batch HTTP requests.
+
+    This function wraps the classifier.classify_batch() call to add Prometheus
+    instrumentation. It tracks:
+    - Total number of batch classification requests
+    - Successful request count
+    - Error count (failed batch classifications)
+    - Request latency (time to complete batch)
+
+    The endpoint label includes the model name for better metric granularity,
+    allowing you to track performance per model.
+
+    Args:
+        classifier: IntergroupClassifier instance
+        batch: List of posts to classify
+        llm_model_name: Optional model name override
+
+    Returns:
+        List of IntergroupLabelModel instances
+
+    Raises:
+        Same exceptions as classifier.classify_batch()
+    """
+    return classifier.classify_batch(batch=batch, llm_model_name=llm_model_name)
+
 
 @track_performance
 def run_batch_classification(
@@ -42,6 +106,11 @@ def run_batch_classification(
     PostToLabelModel instances from `Queue.load_dict_items_from_queue()` payloads.
 
     Returns BatchClassificationMetadataModel with classification results metadata.
+
+    Instrumentation:
+    - Each batch classification call is instrumented via _instrumented_classify_batch
+    - Metrics are tracked per model (if model name is provided)
+    - All HTTP requests to LLM service are automatically tracked
     """
     if not posts:
         return BatchClassificationMetadataModel(
@@ -69,7 +138,12 @@ def run_batch_classification(
 
         uri_to_batch_id = {p.uri: p.batch_id for p in batch}
 
-        label_models: list[IntergroupLabelModel] = classifier.classify_batch(batch)
+        # Use instrumented wrapper instead of direct classifier call
+        # This tracks all HTTP requests to the LLM service
+        label_models: list[IntergroupLabelModel] = _instrumented_classify_batch(
+            classifier=classifier,
+            batch=batch,
+        )
         successful_labels, failed_labels = (
             split_labels_into_successful_and_failed_labels(labels=label_models)
         )
