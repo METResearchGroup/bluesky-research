@@ -1,5 +1,7 @@
 """Service for interacting with LLM providers via LiteLLM."""
 
+import logging
+import os
 import threading
 from typing import Any, TypeVar
 
@@ -27,7 +29,33 @@ class LLMService:
         Note: Providers are initialized lazily when first used to avoid
         requiring API keys for all providers when only one is needed.
         """
-        pass
+        self._configure_litellm_logging()
+
+    def _configure_litellm_logging(self) -> None:
+        """Configure logging to suppress LiteLLM info and debug logs.
+
+        This method:
+        1. Sets the LITELLM_LOG environment variable to ERROR (if not already set)
+        2. Configures Python logging to suppress LiteLLM loggers by setting their
+           level to ERROR and disabling propagation
+        """
+        # Set environment variable to suppress INFO/DEBUG logs at LiteLLM library level
+        if "LITELLM_LOG" not in os.environ:
+            os.environ["LITELLM_LOG"] = "ERROR"
+
+        # Configure Python logging for LiteLLM loggers
+        # These logger names are based on LiteLLM's internal logging structure
+        litellm_logger_names = [
+            "litellm",
+            "litellm.proxy",
+            "litellm.router",
+            "litellm.litellm_core_utils",
+        ]
+
+        for logger_name in litellm_logger_names:
+            logger = logging.getLogger(logger_name)
+            logger.setLevel(logging.ERROR)
+            logger.propagate = False
 
     def _get_provider_for_model(self, model: str) -> LLMProviderProtocol:
         """Get the provider instance for a given model.
