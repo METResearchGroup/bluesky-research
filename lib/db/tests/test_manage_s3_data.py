@@ -87,6 +87,7 @@ def test_list_parquet_uris_rejects_partition_date_and_range():
     with pytest.raises(ValueError):
         backend.list_parquet_uris(
             dataset=S3ParquetDatasetRef(dataset="preprocessed_posts"),
+            storage_tiers=[StorageTier.CACHE],
             partition_date="2024-11-13",
             start_partition_date="2024-11-13",
             end_partition_date="2024-11-13",
