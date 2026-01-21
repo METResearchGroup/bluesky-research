@@ -74,7 +74,6 @@ def run_batch_classification(
 
     try:
         for i, batch in enumerate(pbar):
-            # Keep existing logging
             update_batching_progress(
                 batch_index=i,
                 batch_interval=10,
