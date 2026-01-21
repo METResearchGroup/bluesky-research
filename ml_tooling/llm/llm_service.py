@@ -59,7 +59,7 @@ class LLMService:
         for logger_name in litellm_logger_names:
             logger = logging.getLogger(logger_name)
             logger.setLevel(logging.ERROR)
-            logger.propagate = False
+            logger.propagate = True
 
     def _get_provider_for_model(self, model: str) -> LLMProviderProtocol:
         """Get the provider instance for a given model.
