@@ -576,20 +576,622 @@ class TestS3Adapter_load_all_posts:
 class TestS3Adapter_load_feed_posts:
     """Tests for S3Adapter.load_feed_posts method."""
 
-    def test_raises_not_implemented_error(self, s3_adapter):
-        """Test that load_feed_posts raises NotImplementedError."""
+    def test_loads_feed_posts_with_date_partitioning(self):
+        """Test that feed posts are loaded with date partitioning."""
+        # Arrange
+        start_date = "2024-01-01"
+        end_date = "2024-01-03"
+        partition_dates = ["2024-01-01", "2024-01-02", "2024-01-03"]
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        with patch(
+            "services.backfill.repositories.adapters.get_partition_dates"
+        ) as mock_get_partition_dates, patch.object(
+            s3_adapter, "_load_feed_posts_for_date"
+        ) as mock_load_for_date:
+            mock_get_partition_dates.return_value = partition_dates
+            mock_load_for_date.side_effect = [
+                [
+                    PostToEnqueueModel(
+                        uri="uri_1",
+                        text="test_text",
+                        preprocessing_timestamp="2024-01-01T00:00:00",
+                    )
+                ],
+                [
+                    PostToEnqueueModel(
+                        uri="uri_2",
+                        text="test_text",
+                        preprocessing_timestamp="2024-01-02T00:00:00",
+                    )
+                ],
+                [
+                    PostToEnqueueModel(
+                        uri="uri_3",
+                        text="test_text",
+                        preprocessing_timestamp="2024-01-03T00:00:00",
+                    )
+                ],
+            ]
+
+            # Act
+            result = s3_adapter.load_feed_posts(start_date=start_date, end_date=end_date)
+
+            # Assert
+            mock_get_partition_dates.assert_called_once_with(
+                start_date=start_date, end_date=end_date
+            )
+            assert mock_load_for_date.call_count == 3
+            assert len(result) == 3
+            assert result[0].uri == "uri_1"
+            assert result[1].uri == "uri_2"
+            assert result[2].uri == "uri_3"
+
+    def test_returns_empty_list_when_no_partition_dates(self):
+        """Test that empty list is returned when no partition dates."""
         # Arrange
         start_date = "2024-01-01"
         end_date = "2024-01-31"
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
 
-        with patch("services.backfill.repositories.adapters.logger") as mock_logger:
+        with patch(
+            "services.backfill.repositories.adapters.get_partition_dates"
+        ) as mock_get_partition_dates:
+            mock_get_partition_dates.return_value = []
+
+            # Act
+            result = s3_adapter.load_feed_posts(start_date=start_date, end_date=end_date)
+
+            # Assert
+            assert result == []
+
+    def test_deduplicates_posts_across_partition_dates(self):
+        """Test that deduplication works across multiple dates."""
+        # Arrange
+        start_date = "2024-01-01"
+        end_date = "2024-01-02"
+        partition_dates = ["2024-01-01", "2024-01-02"]
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        with patch(
+            "services.backfill.repositories.adapters.get_partition_dates"
+        ) as mock_get_partition_dates, patch.object(
+            s3_adapter, "_load_feed_posts_for_date"
+        ) as mock_load_for_date:
+            mock_get_partition_dates.return_value = partition_dates
+            # Same URI appears in both dates
+            mock_load_for_date.side_effect = [
+                [
+                    PostToEnqueueModel(
+                        uri="uri_1",
+                        text="test_text_1",
+                        preprocessing_timestamp="2024-01-01T00:00:00",
+                    )
+                ],
+                [
+                    PostToEnqueueModel(
+                        uri="uri_1",
+                        text="test_text_2",
+                        preprocessing_timestamp="2024-01-02T00:00:00",
+                    )
+                ],
+            ]
+
+            # Act
+            result = s3_adapter.load_feed_posts(start_date=start_date, end_date=end_date)
+
+            # Assert
+            assert len(result) == 1
+            assert result[0].uri == "uri_1"
+            assert result[0].text == "test_text_1"  # First occurrence kept
+
+    def test_handles_backend_exceptions(self):
+        """Test that exceptions are wrapped in BackfillDataAdapterError."""
+        # Arrange
+        start_date = "2024-01-01"
+        end_date = "2024-01-31"
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        with patch(
+            "services.backfill.repositories.adapters.get_partition_dates"
+        ) as mock_get_partition_dates, patch.object(
+            s3_adapter, "_load_feed_posts_for_date"
+        ) as mock_load_for_date:
+            mock_get_partition_dates.return_value = ["2024-01-01"]
+            mock_load_for_date.side_effect = Exception("Backend error")
+
             # Act & Assert
-            with pytest.raises(NotImplementedError) as exc_info:
+            with pytest.raises(BackfillDataAdapterError) as exc_info:
                 s3_adapter.load_feed_posts(start_date=start_date, end_date=end_date)
 
             # Assert
-            assert "S3 data loading is not yet implemented" in str(exc_info.value)
-            mock_logger.warning.assert_called_once()
+            assert "Failed to load feed posts from S3" in str(exc_info.value)
+            assert "Backend error" in str(exc_info.value)
+
+
+class TestS3Adapter_load_feed_posts_for_date:
+    """Tests for S3Adapter._load_feed_posts_for_date method."""
+
+    def test_loads_feed_posts_for_single_date(self):
+        """Test loading feed posts for a single partition date."""
+        # Arrange
+        partition_date = "2024-01-01"
+        posts_used_in_feeds = [
+            PostUsedInFeedModel(uri="uri1"),
+            PostUsedInFeedModel(uri="uri2"),
+        ]
+        candidate_pool_posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="text1", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri2", text="text2", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri3", text="text3", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+        ]
+        lookback_start = "2023-12-25"
+        lookback_end = "2024-01-01"
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        with patch.object(
+            s3_adapter, "_load_posts_used_in_feeds_for_date"
+        ) as mock_load_feeds, patch(
+            "services.backfill.repositories.adapters.calculate_start_end_date_for_lookback"
+        ) as mock_calc_lookback, patch.object(
+            s3_adapter, "_load_candidate_pool_posts_for_date"
+        ) as mock_load_candidates, patch.object(
+            s3_adapter, "_get_candidate_pool_posts_used_in_feeds_for_date"
+        ) as mock_get_filtered:
+            mock_load_feeds.return_value = posts_used_in_feeds
+            mock_calc_lookback.return_value = (lookback_start, lookback_end)
+            mock_load_candidates.return_value = candidate_pool_posts
+            mock_get_filtered.return_value = candidate_pool_posts[:2]
+
+            # Act
+            result = s3_adapter._load_feed_posts_for_date(partition_date=partition_date)
+
+            # Assert
+            mock_load_feeds.assert_called_once_with(partition_date)
+            mock_calc_lookback.assert_called_once()
+            mock_load_candidates.assert_called_once_with(
+                lookback_start_date=lookback_start, lookback_end_date=lookback_end
+            )
+            mock_get_filtered.assert_called_once_with(
+                candidate_pool_posts=candidate_pool_posts,
+                posts_used_in_feeds=posts_used_in_feeds,
+            )
+            assert len(result) == 2
+
+    def test_returns_empty_list_when_no_posts_used_in_feeds(self):
+        """Test that empty list is returned when no posts used in feeds."""
+        # Arrange
+        partition_date = "2024-01-01"
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        with patch.object(
+            s3_adapter, "_load_posts_used_in_feeds_for_date"
+        ) as mock_load_feeds, patch(
+            "services.backfill.repositories.adapters.calculate_start_end_date_for_lookback"
+        ) as mock_calc_lookback, patch.object(
+            s3_adapter, "_load_candidate_pool_posts_for_date"
+        ), patch.object(
+            s3_adapter, "_get_candidate_pool_posts_used_in_feeds_for_date"
+        ) as mock_get_filtered:
+            mock_load_feeds.return_value = []
+            mock_calc_lookback.return_value = ("2023-12-25", "2024-01-01")
+            mock_get_filtered.return_value = []
+
+            # Act
+            result = s3_adapter._load_feed_posts_for_date(partition_date=partition_date)
+
+            # Assert
+            assert result == []
+
+    def test_calculates_lookback_dates_correctly(self):
+        """Test that lookback date calculation is called correctly."""
+        # Arrange
+        partition_date = "2024-01-01"
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        with patch.object(
+            s3_adapter, "_load_posts_used_in_feeds_for_date"
+        ) as mock_load_feeds, patch(
+            "services.backfill.repositories.adapters.calculate_start_end_date_for_lookback"
+        ) as mock_calc_lookback, patch.object(
+            s3_adapter, "_load_candidate_pool_posts_for_date"
+        ) as mock_load_candidates, patch.object(
+            s3_adapter, "_get_candidate_pool_posts_used_in_feeds_for_date"
+        ) as mock_get_filtered:
+            mock_load_feeds.return_value = [PostUsedInFeedModel(uri="uri1")]
+            mock_calc_lookback.return_value = ("2023-12-25", "2024-01-01")
+            mock_load_candidates.return_value = []
+            mock_get_filtered.return_value = []
+
+            # Act
+            s3_adapter._load_feed_posts_for_date(partition_date=partition_date)
+
+            # Assert
+            mock_calc_lookback.assert_called_once_with(
+                partition_date=partition_date,
+                num_days_lookback=4,  # FEED_LOOKBACK_DAYS_DURING_STUDY
+                min_lookback_date="2024-09-29",  # study_start_date
+            )
+
+    def test_filters_candidate_pool_correctly(self):
+        """Test that filtering logic is applied correctly."""
+        # Arrange
+        partition_date = "2024-01-01"
+        posts_used_in_feeds = [PostUsedInFeedModel(uri="uri1")]
+        candidate_pool_posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="text1", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri2", text="text2", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+        ]
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        with patch.object(
+            s3_adapter, "_load_posts_used_in_feeds_for_date"
+        ) as mock_load_feeds, patch(
+            "services.backfill.repositories.adapters.calculate_start_end_date_for_lookback"
+        ) as mock_calc_lookback, patch.object(
+            s3_adapter, "_load_candidate_pool_posts_for_date"
+        ) as mock_load_candidates, patch.object(
+            s3_adapter, "_get_candidate_pool_posts_used_in_feeds_for_date"
+        ) as mock_get_filtered:
+            mock_load_feeds.return_value = posts_used_in_feeds
+            mock_calc_lookback.return_value = ("2023-12-25", "2024-01-01")
+            mock_load_candidates.return_value = candidate_pool_posts
+            mock_get_filtered.return_value = candidate_pool_posts[:1]
+
+            # Act
+            result = s3_adapter._load_feed_posts_for_date(partition_date=partition_date)
+
+            # Assert
+            mock_get_filtered.assert_called_once_with(
+                candidate_pool_posts=candidate_pool_posts,
+                posts_used_in_feeds=posts_used_in_feeds,
+            )
+            assert len(result) == 1
+            assert result[0].uri == "uri1"
+
+
+class TestS3Adapter_load_posts_used_in_feeds_for_date:
+    """Tests for S3Adapter._load_posts_used_in_feeds_for_date method."""
+
+    def test_loads_posts_used_in_feeds_for_date(self):
+        """Test loading posts used in feeds for a specific date."""
+        # Arrange
+        partition_date = "2024-01-01"
+        mock_backend = Mock()
+        mock_backend.query_dataset_as_df.return_value = pd.DataFrame(
+            [{"uri": "uri1"}, {"uri": "uri2"}]
+        )
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        # Act
+        result = s3_adapter._load_posts_used_in_feeds_for_date(
+            partition_date=partition_date
+        )
+
+        # Assert
+        mock_backend.query_dataset_as_df.assert_called_once()
+        call_kwargs = mock_backend.query_dataset_as_df.call_args.kwargs
+        assert call_kwargs["dataset"] == S3ParquetDatasetRef(dataset="fetch_posts_used_in_feeds")
+        assert call_kwargs["storage_tiers"] == [StorageTier.CACHE]
+        assert call_kwargs["partition_date"] == partition_date
+        assert len(result) == 2
+        assert all(isinstance(post, PostUsedInFeedModel) for post in result)
+        assert result[0].uri == "uri1"
+        assert result[1].uri == "uri2"
+
+    def test_returns_empty_list_when_no_data(self):
+        """Test that empty list is returned when no data found."""
+        # Arrange
+        partition_date = "2024-01-01"
+        mock_backend = Mock()
+        mock_backend.query_dataset_as_df.return_value = pd.DataFrame([])
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        # Act
+        result = s3_adapter._load_posts_used_in_feeds_for_date(
+            partition_date=partition_date
+        )
+
+        # Assert
+        assert result == []
+
+    def test_uses_correct_dataset_and_partition_date(self):
+        """Test that query uses correct dataset and partition date."""
+        # Arrange
+        partition_date = "2024-01-15"
+        mock_backend = Mock()
+        mock_backend.query_dataset_as_df.return_value = pd.DataFrame([])
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        # Act
+        s3_adapter._load_posts_used_in_feeds_for_date(partition_date=partition_date)
+
+        # Assert
+        call_kwargs = mock_backend.query_dataset_as_df.call_args.kwargs
+        assert call_kwargs["dataset"] == S3ParquetDatasetRef(dataset="fetch_posts_used_in_feeds")
+        assert call_kwargs["partition_date"] == partition_date
+        assert "SELECT uri FROM fetch_posts_used_in_feeds" in call_kwargs["query"]
+
+    def test_converts_to_post_used_in_feed_models(self):
+        """Test that results are converted to PostUsedInFeedModel instances."""
+        # Arrange
+        partition_date = "2024-01-01"
+        mock_backend = Mock()
+        mock_backend.query_dataset_as_df.return_value = pd.DataFrame(
+            [{"uri": "uri1"}, {"uri": "uri2"}, {"uri": "uri3"}]
+        )
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        # Act
+        result = s3_adapter._load_posts_used_in_feeds_for_date(
+            partition_date=partition_date
+        )
+
+        # Assert
+        assert len(result) == 3
+        assert all(isinstance(post, PostUsedInFeedModel) for post in result)
+        assert [post.uri for post in result] == ["uri1", "uri2", "uri3"]
+
+    def test_wraps_backend_exceptions(self):
+        """Test that backend exceptions are wrapped in BackfillDataAdapterError."""
+        # Arrange
+        partition_date = "2024-01-01"
+        mock_backend = Mock()
+        mock_backend.query_dataset_as_df.side_effect = Exception("S3 error")
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        # Act & Assert
+        with pytest.raises(BackfillDataAdapterError) as exc_info:
+            s3_adapter._load_posts_used_in_feeds_for_date(partition_date=partition_date)
+
+        # Assert
+        assert "Failed to load posts used in feeds from S3" in str(exc_info.value)
+        assert partition_date in str(exc_info.value)
+        assert "S3 error" in str(exc_info.value)
+
+
+class TestS3Adapter_load_candidate_pool_posts_for_date:
+    """Tests for S3Adapter._load_candidate_pool_posts_for_date method."""
+
+    def test_loads_candidate_pool_posts_for_date(self):
+        """Test that candidate pool posts are loaded using load_all_posts."""
+        # Arrange
+        lookback_start = "2023-12-25"
+        lookback_end = "2024-01-01"
+        expected_posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="text1", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+        ]
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        with patch.object(s3_adapter, "load_all_posts") as mock_load_all:
+            mock_load_all.return_value = expected_posts
+
+            # Act
+            result = s3_adapter._load_candidate_pool_posts_for_date(
+                lookback_start_date=lookback_start, lookback_end_date=lookback_end
+            )
+
+            # Assert
+            mock_load_all.assert_called_once_with(
+                start_date=lookback_start, end_date=lookback_end
+            )
+            assert result == expected_posts
+
+    def test_passes_correct_lookback_dates(self):
+        """Test that date range is passed correctly to load_all_posts."""
+        # Arrange
+        lookback_start = "2023-12-20"
+        lookback_end = "2024-01-05"
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        with patch.object(s3_adapter, "load_all_posts") as mock_load_all:
+            mock_load_all.return_value = []
+
+            # Act
+            s3_adapter._load_candidate_pool_posts_for_date(
+                lookback_start_date=lookback_start, lookback_end_date=lookback_end
+            )
+
+            # Assert
+            mock_load_all.assert_called_once_with(
+                start_date=lookback_start, end_date=lookback_end
+            )
+
+
+class TestS3Adapter_get_candidate_pool_posts_used_in_feeds_for_date:
+    """Tests for S3Adapter._get_candidate_pool_posts_used_in_feeds_for_date method."""
+
+    def test_filters_posts_by_uris_in_feeds(self):
+        """Test that posts are filtered to only those used in feeds."""
+        # Arrange
+        candidate_pool_posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="text1", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri2", text="text2", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri3", text="text3", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+        ]
+        posts_used_in_feeds = [
+            PostUsedInFeedModel(uri="uri1"),
+            PostUsedInFeedModel(uri="uri3"),
+        ]
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        # Act
+        result = s3_adapter._get_candidate_pool_posts_used_in_feeds_for_date(
+            candidate_pool_posts=candidate_pool_posts,
+            posts_used_in_feeds=posts_used_in_feeds,
+        )
+
+        # Assert
+        assert len(result) == 2
+        assert result[0].uri == "uri1"
+        assert result[1].uri == "uri3"
+
+    def test_returns_empty_list_when_no_matching_posts(self):
+        """Test that empty list is returned when no posts match."""
+        # Arrange
+        candidate_pool_posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="text1", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+        ]
+        posts_used_in_feeds = [PostUsedInFeedModel(uri="uri2")]
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        # Act
+        result = s3_adapter._get_candidate_pool_posts_used_in_feeds_for_date(
+            candidate_pool_posts=candidate_pool_posts,
+            posts_used_in_feeds=posts_used_in_feeds,
+        )
+
+        # Assert
+        assert result == []
+
+    def test_returns_empty_list_when_empty_candidate_pool(self):
+        """Test that empty list is returned when candidate pool is empty."""
+        # Arrange
+        candidate_pool_posts = []
+        posts_used_in_feeds = [PostUsedInFeedModel(uri="uri1")]
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        # Act
+        result = s3_adapter._get_candidate_pool_posts_used_in_feeds_for_date(
+            candidate_pool_posts=candidate_pool_posts,
+            posts_used_in_feeds=posts_used_in_feeds,
+        )
+
+        # Assert
+        assert result == []
+
+
+class TestS3Adapter_deduplicate_feed_posts:
+    """Tests for S3Adapter._deduplicate_feed_posts method."""
+
+    def test_deduplicates_posts_with_same_uri(self):
+        """Test that duplicate posts with the same URI are deduplicated, keeping only the first occurrence."""
+        # Arrange
+        posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="text1", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri1", text="text2", preprocessing_timestamp="2024-01-02T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri2", text="text3", preprocessing_timestamp="2024-01-03T00:00:00"
+            ),
+        ]
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        # Act
+        result = s3_adapter._deduplicate_feed_posts(posts=posts)
+
+        # Assert
+        assert len(result) == 2
+        assert result[0].uri == "uri1"
+        assert result[0].text == "text1"
+        assert result[0].preprocessing_timestamp == "2024-01-01T00:00:00"
+        assert result[1].uri == "uri2"
+        assert result[1].text == "text3"
+
+    def test_returns_all_posts_when_no_duplicates(self):
+        """Test that all posts are returned when there are no duplicate URIs."""
+        # Arrange
+        posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="text1", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri2", text="text2", preprocessing_timestamp="2024-01-02T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri3", text="text3", preprocessing_timestamp="2024-01-03T00:00:00"
+            ),
+        ]
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        # Act
+        result = s3_adapter._deduplicate_feed_posts(posts=posts)
+
+        # Assert
+        assert len(result) == 3
+        assert result[0].uri == "uri1"
+        assert result[1].uri == "uri2"
+        assert result[2].uri == "uri3"
+
+    def test_returns_empty_list_when_no_posts(self):
+        """Test that empty list is returned when input is empty."""
+        # Arrange
+        posts = []
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        # Act
+        result = s3_adapter._deduplicate_feed_posts(posts=posts)
+
+        # Assert
+        assert result == []
+
+    def test_keeps_first_occurrence_when_multiple_duplicates(self):
+        """Test that the first occurrence is kept when there are multiple duplicates of the same URI."""
+        # Arrange
+        posts = [
+            PostToEnqueueModel(
+                uri="uri1", text="first", preprocessing_timestamp="2024-01-01T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri1", text="second", preprocessing_timestamp="2024-01-02T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri1", text="third", preprocessing_timestamp="2024-01-03T00:00:00"
+            ),
+            PostToEnqueueModel(
+                uri="uri2", text="other", preprocessing_timestamp="2024-01-04T00:00:00"
+            ),
+        ]
+        mock_backend = Mock()
+        s3_adapter = S3Adapter(backend=mock_backend)
+
+        # Act
+        result = s3_adapter._deduplicate_feed_posts(posts=posts)
+
+        # Assert
+        assert len(result) == 2
+        assert result[0].uri == "uri1"
+        assert result[0].text == "first"
+        assert result[1].uri == "uri2"
 
 
 class TestS3Adapter_get_previously_labeled_post_uris:
