@@ -3,16 +3,20 @@
 import pytest
 from pydantic import ValidationError
 
-from services.backfill.models import EnqueueServicePayload
+from services.backfill.models import (
+    BackfillPeriod,
+    EnqueueServicePayload,
+    IntegrationRunnerConfigurationPayload,
+)
 
 
 class TestEnqueueServicePayload_validate_record_type:
     """Tests for EnqueueServicePayload.validate_record_type validator."""
 
     def test_accepts_valid_record_type_all_posts(self):
-        """Test that 'all_posts' is accepted as valid record type."""
+        """Test that 'posts' is accepted as valid record type."""
         # Arrange
-        record_type = "all_posts"
+        record_type = "posts"
 
         # Act
         payload = EnqueueServicePayload(
@@ -26,9 +30,9 @@ class TestEnqueueServicePayload_validate_record_type:
         assert payload.record_type == record_type
 
     def test_accepts_valid_record_type_feed_posts(self):
-        """Test that 'feed_posts' is accepted as valid record type."""
+        """Test that 'posts_used_in_feeds' is accepted as valid record type."""
         # Arrange
-        record_type = "feed_posts"
+        record_type = "posts_used_in_feeds"
 
         # Act
         payload = EnqueueServicePayload(
@@ -79,7 +83,7 @@ class TestEnqueueServicePayload_validate_record_type:
 
         # Assert
         error_msg = str(exc_info.value)
-        assert "all_posts" in error_msg.lower() or "feed_posts" in error_msg.lower()
+        assert "posts" in error_msg.lower() or "posts_used_in_feeds" in error_msg.lower()
 
 
 class TestEnqueueServicePayload_validate_dates_exist:
@@ -93,7 +97,7 @@ class TestEnqueueServicePayload_validate_dates_exist:
 
         # Act
         payload = EnqueueServicePayload(
-            record_type="all_posts",
+            record_type="posts",
             integrations=["ml_inference_perspective_api"],
             start_date=start_date,
             end_date=end_date,
@@ -112,7 +116,7 @@ class TestEnqueueServicePayload_validate_dates_exist:
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             EnqueueServicePayload(
-                record_type="all_posts",
+                record_type="posts",
                 integrations=["ml_inference_perspective_api"],
                 start_date=start_date,
                 end_date=end_date,
@@ -134,7 +138,7 @@ class TestEnqueueServicePayload_validate_dates_exist:
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             EnqueueServicePayload(
-                record_type="all_posts",
+                record_type="posts",
                 integrations=["ml_inference_perspective_api"],
                 start_date=start_date,
                 end_date=end_date,
@@ -159,7 +163,7 @@ class TestEnqueueServicePayload_validate_date_range:
 
         # Act
         payload = EnqueueServicePayload(
-            record_type="all_posts",
+            record_type="posts",
             integrations=["ml_inference_perspective_api"],
             start_date=start_date,
             end_date=end_date,
@@ -178,7 +182,7 @@ class TestEnqueueServicePayload_validate_date_range:
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             EnqueueServicePayload(
-                record_type="all_posts",
+                record_type="posts",
                 integrations=["ml_inference_perspective_api"],
                 start_date=start_date,
                 end_date=end_date,
@@ -200,7 +204,7 @@ class TestEnqueueServicePayload_validate_date_range:
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             EnqueueServicePayload(
-                record_type="all_posts",
+                record_type="posts",
                 integrations=["ml_inference_perspective_api"],
                 start_date=start_date,
                 end_date=end_date,
@@ -222,7 +226,7 @@ class TestEnqueueServicePayload_validate_date_range:
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             EnqueueServicePayload(
-                record_type="all_posts",
+                record_type="posts",
                 integrations=["ml_inference_perspective_api"],
                 start_date=start_date,
                 end_date=end_date,
@@ -244,7 +248,7 @@ class TestEnqueueServicePayload_integrations:
 
         # Act
         payload = EnqueueServicePayload(
-            record_type="all_posts",
+            record_type="posts",
             integrations=integrations,
             start_date="2024-01-01",
             end_date="2024-01-31",
@@ -260,7 +264,7 @@ class TestEnqueueServicePayload_integrations:
 
         # Act
         payload = EnqueueServicePayload(
-            record_type="all_posts",
+            record_type="posts",
             integrations=integrations,
             start_date="2024-01-01",
             end_date="2024-01-31",
@@ -277,11 +281,75 @@ class TestEnqueueServicePayload_integrations:
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             EnqueueServicePayload(
-                record_type="all_posts",
+                record_type="posts",
                 integrations=integrations,
                 start_date="2024-01-01",
                 end_date="2024-01-31",
             )
+
+
+class TestIntegrationRunnerConfigurationPayload:
+    """Tests for IntegrationRunnerConfigurationPayload model."""
+
+    def test_max_records_per_run_defaults_to_none(self):
+        """Test that max_records_per_run defaults to None when not provided."""
+        # Arrange & Act
+        payload = IntegrationRunnerConfigurationPayload(
+            integration_name="ml_inference_intergroup",
+            backfill_period=BackfillPeriod.DAYS,
+            backfill_duration=None,
+        )
+
+        # Assert
+        assert payload.max_records_per_run is None
+
+    def test_max_records_per_run_accepts_positive_integer(self):
+        """Test that max_records_per_run accepts positive integer values."""
+        # Arrange
+        expected = 123
+
+        # Act
+        payload = IntegrationRunnerConfigurationPayload(
+            integration_name="ml_inference_intergroup",
+            backfill_period=BackfillPeriod.DAYS,
+            backfill_duration=None,
+            max_records_per_run=expected,
+        )
+
+        # Assert
+        assert payload.max_records_per_run == expected
+
+    def test_max_records_per_run_accepts_zero(self):
+        """Test that max_records_per_run accepts 0 as a valid value."""
+        # Arrange
+        expected = 0
+
+        # Act
+        payload = IntegrationRunnerConfigurationPayload(
+            integration_name="ml_inference_intergroup",
+            backfill_period=BackfillPeriod.DAYS,
+            backfill_duration=None,
+            max_records_per_run=expected,
+        )
+
+        # Assert
+        assert payload.max_records_per_run == expected
+
+    def test_max_records_per_run_serialization(self):
+        """Test that max_records_per_run is included in model serialization."""
+        # Arrange
+        payload = IntegrationRunnerConfigurationPayload(
+            integration_name="ml_inference_intergroup",
+            backfill_period=BackfillPeriod.DAYS,
+            backfill_duration=7,
+            max_records_per_run=10,
+        )
+
+        # Act
+        result = payload.model_dump()
+
+        # Assert
+        assert result["max_records_per_run"] == 10
 
         # Assert
         errors = exc_info.value.errors()

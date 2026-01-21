@@ -144,7 +144,7 @@ def get_posts_to_classify(
         raise ValueError(f"Missing required columns: {missing_columns}")
 
     # Select only requested columns
-    dicts = posts_df[columns].to_dict(orient="records")
+    dicts = posts_df[columns].to_dict(orient="records")  # type: ignore[arg-type]
 
     return [PostToLabelModel(**row) for row in dicts]
 
