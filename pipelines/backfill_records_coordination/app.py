@@ -109,6 +109,12 @@ def validate_date_format(ctx, param, value):
     help="Duration of backfill period",
 )
 @click.option(
+    "--max-records-per-run",
+    type=int,
+    default=None,
+    help="Maximum number of records to process per integration run. If not provided, processes all available records.",
+)
+@click.option(
     "--write-cache-buffer-to-storage",
     is_flag=True,
     default=False,
@@ -175,6 +181,7 @@ def backfill_records(
     source_data_location: str,
     backfill_period: str | None,
     backfill_duration: int | None,
+    max_records_per_run: int | None,
     write_cache_buffer_to_storage: bool,
     service_source_buffer: str | None,
     clear_queue: bool,
@@ -212,6 +219,7 @@ def backfill_records(
         bypass_write=bypass_write,
         start_date=start_date,
         end_date=end_date,
+        max_records_per_run=max_records_per_run,
     )
 
     if add_to_queue:
@@ -234,6 +242,7 @@ def backfill_records(
             mapped_integration_names=mapped_integration_names,
             backfill_period=backfill_period,
             backfill_duration=backfill_duration,
+            max_records_per_run=max_records_per_run,
         )
         integration_runner_svc.run_integrations(
             payload=integration_runner_service_payload
@@ -280,6 +289,7 @@ def _create_integration_runner_payload(
     mapped_integration_names: list[str],
     backfill_period: str | None,
     backfill_duration: int | None,
+    max_records_per_run: int | None,
 ) -> IntegrationRunnerServicePayload:
     """Creates an IntegrationRunnerServicePayload from integration names and backfill parameters.
 
@@ -306,6 +316,7 @@ def _create_integration_runner_payload(
             integration_name=integration_name,
             backfill_period=BackfillPeriod(integration_backfill_period),
             backfill_duration=integration_backfill_duration,
+            max_records_per_run=max_records_per_run,
         )
         for integration_name in mapped_integration_names
     ]
@@ -376,6 +387,7 @@ def run_validation_checks(
     bypass_write: bool,
     start_date: str | None,
     end_date: str | None,
+    max_records_per_run: int | None,
 ):
     """Validates CLI arguments and raises click.UsageError if invalid."""
     # Validate that record_type is provided when add_to_queue is True
@@ -410,6 +422,10 @@ def run_validation_checks(
         raise click.UsageError(
             "--bypass-write requires --write-cache-buffer-to-storage and --clear-queue"
         )
+
+    # Validate max_records_per_run usage
+    if max_records_per_run is not None and max_records_per_run < 0:
+        raise click.UsageError("--max-records-per-run must be >= 0")
 
 
 if __name__ == "__main__":

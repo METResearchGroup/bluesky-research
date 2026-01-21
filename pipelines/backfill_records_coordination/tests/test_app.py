@@ -78,6 +78,52 @@ class TestBackfillCoordinationCliApp(TestCase):
         integration_names = [config.integration_name for config in payload.integration_configs]
         self.assertIn('ml_inference_perspective_api', integration_names)
         self.assertIn('ml_inference_sociopolitical', integration_names)
+        for config in payload.integration_configs:
+            self.assertIsNone(config.max_records_per_run)
+
+    @patch("pipelines.backfill_records_coordination.app.IntegrationRunnerService")
+    def test_run_integrations_with_max_records_per_run(self, mock_service_cls):
+        """Test that --max-records-per-run is plumbed through to IntegrationRunnerService payload."""
+        # Arrange
+        mock_service = MagicMock()
+        mock_service_cls.return_value = mock_service
+
+        # Act
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                "--run-integrations",
+                "-i",
+                "p",
+                "--max-records-per-run",
+                "123",
+            ],
+        )
+
+        # Assert
+        self.assertEqual(result.exit_code, 0)
+        mock_service.run_integrations.assert_called_once()
+        payload = mock_service.run_integrations.call_args[1]["payload"]
+        self.assertEqual(len(payload.integration_configs), 1)
+        self.assertEqual(payload.integration_configs[0].max_records_per_run, 123)
+
+    def test_run_integrations_rejects_negative_max_records_per_run(self):
+        """Test that --max-records-per-run must be >= 0."""
+        # Act
+        result = self.runner.invoke(
+            backfill_records,
+            [
+                "--run-integrations",
+                "-i",
+                "p",
+                "--max-records-per-run",
+                "-1",
+            ],
+        )
+
+        # Assert
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--max-records-per-run must be >= 0", result.output)
 
     def test_add_to_queue_requires_record_type(self):
         """Test that add_to_queue requires record_type."""
@@ -687,6 +733,7 @@ class TestBackfillCoordinationCliApp(TestCase):
             mapped_integration_names=['ml_inference_perspective_api'],
             backfill_period=None,
             backfill_duration=None,
+            max_records_per_run=None,
         )
         
         self.assertIsInstance(payload, IntegrationRunnerServicePayload)
@@ -695,6 +742,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         self.assertEqual(config.integration_name, 'ml_inference_perspective_api')
         self.assertEqual(config.backfill_period, BackfillPeriod.DAYS)  # Default
         self.assertIsNone(config.backfill_duration)
+        self.assertIsNone(config.max_records_per_run)
 
     def test_create_integration_runner_payload_custom_values(self):
         """Test _create_integration_runner_payload with custom values."""
@@ -702,6 +750,7 @@ class TestBackfillCoordinationCliApp(TestCase):
             mapped_integration_names=['ml_inference_perspective_api', 'ml_inference_sociopolitical'],
             backfill_period='hours',
             backfill_duration=5,
+            max_records_per_run=25,
         )
         
         self.assertIsInstance(payload, IntegrationRunnerServicePayload)
@@ -709,6 +758,7 @@ class TestBackfillCoordinationCliApp(TestCase):
         for config in payload.integration_configs:
             self.assertEqual(config.backfill_period, BackfillPeriod.HOURS)
             self.assertEqual(config.backfill_duration, 5)
+            self.assertEqual(config.max_records_per_run, 25)
 
     @patch('pipelines.backfill_records_coordination.app.CacheBufferWriterService')
     @patch('pipelines.backfill_records_coordination.app.IntegrationRunnerService')

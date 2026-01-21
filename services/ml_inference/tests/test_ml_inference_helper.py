@@ -6,13 +6,15 @@ This test suite verifies the functionality of ML inference helper functions:
 
 import json
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from services.ml_inference.helper import (
     get_posts_to_classify,
+    orchestrate_classification,
 )
+from services.ml_inference.config import InferenceConfig
 from services.ml_inference.models import PostToLabelModel
 
 # Create a mock datetime class that supports subtraction
@@ -201,3 +203,149 @@ class TestGetPostsToClassify:
             min_timestamp=override_timestamp,
             status="pending"
         )
+
+
+class TestOrchestrateClassification:
+    """Tests for orchestrate_classification function."""
+
+    @pytest.fixture
+    def sample_posts(self) -> list[PostToLabelModel]:
+        """Sample PostToLabelModel objects for testing orchestration limiting."""
+        return [
+            PostToLabelModel(
+                uri=f"at://example/{i}",
+                text=f"post {i}",
+                preprocessing_timestamp="2024-01-01-12:00:00",
+                batch_id=i,
+                batch_metadata="{}",
+            )
+            for i in range(5)
+        ]
+
+    def test_max_records_per_run_limits_posts_correctly(self, sample_posts):
+        """Test that max_records_per_run slices posts before calling classification function."""
+        # Arrange
+        classification_func = Mock(return_value={"ok": True})
+        config = InferenceConfig(
+            inference_type="perspective_api",
+            queue_inference_type="perspective_api",
+            classification_func=classification_func,
+        )
+
+        with patch(
+            "services.ml_inference.helper.determine_backfill_latest_timestamp",
+            return_value=None,
+        ), patch(
+            "services.ml_inference.helper.get_posts_to_classify",
+            return_value=sample_posts,
+        ):
+            # Act
+            result = orchestrate_classification(
+                config=config,
+                max_records_per_run=2,
+            )
+
+        # Assert
+        assert result.total_classified_posts == 2
+        classification_func.assert_called_once()
+        call_kwargs = classification_func.call_args.kwargs
+        assert len(call_kwargs["posts"]) == 2
+
+    def test_max_records_per_run_none_processes_all_posts(self, sample_posts):
+        """Test that max_records_per_run=None leaves the post list unchanged."""
+        # Arrange
+        classification_func = Mock(return_value={"ok": True})
+        config = InferenceConfig(
+            inference_type="perspective_api",
+            queue_inference_type="perspective_api",
+            classification_func=classification_func,
+        )
+
+        with patch(
+            "services.ml_inference.helper.determine_backfill_latest_timestamp",
+            return_value=None,
+        ), patch(
+            "services.ml_inference.helper.get_posts_to_classify",
+            return_value=sample_posts,
+        ):
+            # Act
+            result = orchestrate_classification(config=config, max_records_per_run=None)
+
+        # Assert
+        assert result.total_classified_posts == 5
+        call_kwargs = classification_func.call_args.kwargs
+        assert len(call_kwargs["posts"]) == 5
+
+    def test_max_records_per_run_zero_processes_no_posts(self, sample_posts):
+        """Test that max_records_per_run=0 results in an early return with zero posts classified."""
+        # Arrange
+        classification_func = Mock(return_value={"ok": True})
+        config = InferenceConfig(
+            inference_type="perspective_api",
+            queue_inference_type="perspective_api",
+            classification_func=classification_func,
+            empty_result_message="No posts to classify. Exiting...",
+        )
+
+        with patch(
+            "services.ml_inference.helper.determine_backfill_latest_timestamp",
+            return_value=None,
+        ), patch(
+            "services.ml_inference.helper.get_posts_to_classify",
+            return_value=sample_posts,
+        ):
+            # Act
+            result = orchestrate_classification(config=config, max_records_per_run=0)
+
+        # Assert
+        assert result.total_classified_posts == 0
+        classification_func.assert_not_called()
+
+    def test_max_records_per_run_negative_raises_value_error(self, sample_posts):
+        """Test that max_records_per_run < 0 raises ValueError."""
+        # Arrange
+        classification_func = Mock(return_value={"ok": True})
+        config = InferenceConfig(
+            inference_type="perspective_api",
+            queue_inference_type="perspective_api",
+            classification_func=classification_func,
+        )
+
+        with patch(
+            "services.ml_inference.helper.determine_backfill_latest_timestamp",
+            return_value=None,
+        ), patch(
+            "services.ml_inference.helper.get_posts_to_classify",
+            return_value=sample_posts,
+        ):
+            # Act & Assert
+            with pytest.raises(ValueError, match="max_records_per_run must be >= 0"):
+                orchestrate_classification(config=config, max_records_per_run=-1)
+
+    def test_logs_when_limiting_occurs(self, sample_posts):
+        """Test that orchestration logs when it limits the number of posts."""
+        # Arrange
+        classification_func = Mock(return_value={"ok": True})
+        config = InferenceConfig(
+            inference_type="perspective_api",
+            queue_inference_type="perspective_api",
+            classification_func=classification_func,
+        )
+
+        with patch(
+            "services.ml_inference.helper.determine_backfill_latest_timestamp",
+            return_value=None,
+        ), patch(
+            "services.ml_inference.helper.get_posts_to_classify",
+            return_value=sample_posts,
+        ), patch(
+            "services.ml_inference.helper.logger"
+        ) as mock_logger:
+            # Act
+            orchestrate_classification(config=config, max_records_per_run=2)
+
+            # Assert
+            assert any(
+                "Limited posts from" in str(call.args[0])
+                for call in mock_logger.info.call_args_list
+            )

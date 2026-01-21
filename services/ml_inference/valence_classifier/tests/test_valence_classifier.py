@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import patch
 from services.ml_inference.valence_classifier import valence_classifier
+from services.ml_inference.valence_classifier.valence_classifier import classify_latest_posts
 from services.ml_inference.models import PostToLabelModel
 
 @pytest.fixture
@@ -141,3 +142,30 @@ def test_classify_latest_posts_event_passthrough():
                 assert result.inference_metadata == expected_result["inference_metadata"]
                 assert result.inference_type == expected_result["inference_type"]
                 assert result.inference_timestamp == expected_result["inference_timestamp"]
+
+
+def test_passes_max_records_per_run_to_orchestrate_classification():
+    """Test that max_records_per_run is passed through to orchestrate_classification."""
+    # Arrange
+    from services.ml_inference.models import ClassificationSessionModel
+
+    expected_max = 9
+    expected_result = ClassificationSessionModel(
+        inference_type="valence_classifier",
+        inference_timestamp="2024-01-01T00:00:00Z",
+        total_classified_posts=0,
+        inference_metadata={},
+    )
+
+    with patch(
+        "services.ml_inference.valence_classifier.valence_classifier.orchestrate_classification"
+    ) as mock_orchestrate:
+        mock_orchestrate.return_value = expected_result
+
+        # Act
+        result = classify_latest_posts(max_records_per_run=expected_max)
+
+        # Assert
+        assert isinstance(result, ClassificationSessionModel)
+        call_kwargs = mock_orchestrate.call_args[1]
+        assert call_kwargs["max_records_per_run"] == expected_max

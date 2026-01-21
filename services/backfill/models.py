@@ -65,6 +65,7 @@ class IntegrationRunnerConfigurationPayload(BaseModel):
     integration_name: str
     backfill_period: BackfillPeriod
     backfill_duration: int | None = Field(default=None)
+    max_records_per_run: int | None = Field(default=None, ge=0)
 
 
 class IntegrationRunnerServicePayload(BaseModel):

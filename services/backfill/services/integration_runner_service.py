@@ -114,6 +114,7 @@ class IntegrationRunnerService:
         return {
             "backfill_period": payload.backfill_period.value,
             "backfill_duration": payload.backfill_duration,
+            "max_records_per_run": payload.max_records_per_run,
             "run_classification": True,  # TODO: need to deprecate run_classification. Here for backwards compatibility.
             "previous_run_metadata": None,  # TODO: need to deprecate previous_run_metadata. Here for backwards compatibility.
             "event": None,  # TODO: need to deprecate event. Here for backwards compatibility.

@@ -144,9 +144,25 @@ def get_posts_to_classify(
         raise ValueError(f"Missing required columns: {missing_columns}")
 
     # Select only requested columns
-    dicts = posts_df[columns].to_dict(orient="records")
+    dicts = posts_df[columns].to_dict(orient="records")  # type: ignore[arg-type]
 
     return [PostToLabelModel(**row) for row in dicts]
+
+
+def cap_max_records_for_run(
+    posts_to_classify: list[PostToLabelModel],
+    max_records_per_run: int,
+) -> list[PostToLabelModel]:
+    if max_records_per_run < 0:
+        raise ValueError("max_records_per_run must be >= 0")
+    original_count = len(posts_to_classify)
+    capped_posts_to_classify = posts_to_classify[:max_records_per_run]
+    if len(capped_posts_to_classify) < original_count:
+        logger.info(
+            f"Limited posts from {original_count} to {len(capped_posts_to_classify)} "
+            f"(max_records_per_run={max_records_per_run})"
+        )
+    return capped_posts_to_classify
 
 
 @track_performance
@@ -154,6 +170,7 @@ def orchestrate_classification(
     config: InferenceConfig,
     backfill_period: Optional[Literal["days", "hours"]] = None,
     backfill_duration: Optional[int] = None,
+    max_records_per_run: Optional[int] = None,
     run_classification: bool = True,
     previous_run_metadata: Optional[dict] = None,
     event: Optional[dict] = None,
@@ -170,6 +187,7 @@ def orchestrate_classification(
         config: InferenceConfig instance defining the inference type behavior
         backfill_period: Time unit for backfilling ("days" or "hours")
         backfill_duration: Number of time units to backfill
+        max_records_per_run: Maximum number of records to process in this run. If None, processes all available records.
         run_classification: Whether to run classification (True) or just export cached results (False)
         previous_run_metadata: Metadata from previous runs to avoid duplicates
         event: Original event/payload for traceability and strategy-specific config
@@ -192,6 +210,12 @@ def orchestrate_classification(
             timestamp=backfill_latest_timestamp,
             previous_run_metadata=previous_run_metadata,
         )
+        if max_records_per_run is not None:
+            posts_to_classify = cap_max_records_for_run(
+                posts_to_classify=posts_to_classify,
+                max_records_per_run=max_records_per_run,
+            )
+
         logger.info(config.get_log_message(len(posts_to_classify)))
 
         if len(posts_to_classify) == 0:

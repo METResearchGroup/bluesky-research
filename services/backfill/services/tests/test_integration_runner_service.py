@@ -156,6 +156,7 @@ class TestIntegrationRunnerService_create_integration_dispatch_payload:
         expected = {
             "backfill_period": "days",
             "backfill_duration": 123,
+            "max_records_per_run": None,
             "run_classification": True,
             "previous_run_metadata": None,
             "event": None,
@@ -166,6 +167,23 @@ class TestIntegrationRunnerService_create_integration_dispatch_payload:
 
         # Assert
         assert result == expected
+
+    def test_includes_max_records_per_run_when_provided(self):
+        """Test that dispatch payload includes max_records_per_run when set on configuration payload."""
+        # Arrange
+        service = IntegrationRunnerService()
+        config_payload = IntegrationRunnerConfigurationPayload(
+            integration_name="ml_inference_ime",
+            backfill_period=BackfillPeriod.DAYS,
+            backfill_duration=123,
+            max_records_per_run=7,
+        )
+
+        # Act
+        result = service._create_integration_dispatch_payload(payload=config_payload)
+
+        # Assert
+        assert result["max_records_per_run"] == 7
 
 
 class TestIntegrationRunnerService_run_single_integration:
@@ -179,8 +197,13 @@ class TestIntegrationRunnerService_run_single_integration:
             integration_name="ml_inference_ime",
             backfill_period=BackfillPeriod.DAYS,
             backfill_duration=7,
+            max_records_per_run=3,
         )
-        dispatch_payload = {"backfill_period": "days", "backfill_duration": 7}
+        dispatch_payload = {
+            "backfill_period": "days",
+            "backfill_duration": 7,
+            "max_records_per_run": 3,
+        }
         integration_fn = Mock()
 
         with patch.object(
@@ -209,8 +232,13 @@ class TestIntegrationRunnerService_run_single_integration:
             integration_name="ml_inference_ime",
             backfill_period=BackfillPeriod.DAYS,
             backfill_duration=None,
+            max_records_per_run=None,
         )
-        dispatch_payload = {"backfill_period": "days", "backfill_duration": None}
+        dispatch_payload = {
+            "backfill_period": "days",
+            "backfill_duration": None,
+            "max_records_per_run": None,
+        }
         integration_fn = Mock(side_effect=Exception("boom"))
 
         with patch.object(
