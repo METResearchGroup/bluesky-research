@@ -1,7 +1,5 @@
 """Service for interacting with LLM providers via LiteLLM."""
 
-import logging
-import os
 import threading
 from typing import Any, TypeVar
 
@@ -28,7 +26,7 @@ class LLMService:
 
         Args:
             verbose: If False (default), suppresses LiteLLM info and debug logs.
-                    If True, enables verbose logging from LiteLLM.
+                    If True, does not suppress LiteLLM logs (uses LiteLLM defaults).
 
         Note: Providers are initialized lazily when first used to avoid
         requiring API keys for all providers when only one is needed.
@@ -39,27 +37,11 @@ class LLMService:
     def _suppress_litellm_logging(self) -> None:
         """Configure logging to suppress LiteLLM info and debug logs.
 
-        This method:
-        1. Sets the LITELLM_LOG environment variable to ERROR
-        2. Configures Python logging to suppress LiteLLM loggers by setting their
-           level to ERROR and disabling propagation
+        See https://github.com/BerriAI/litellm/issues/6813
         """
-        # Set environment variable to suppress INFO/DEBUG logs at LiteLLM library level
-        os.environ["LITELLM_LOG"] = "ERROR"
+        import logging
 
-        # Configure Python logging for LiteLLM loggers
-        # These logger names are based on LiteLLM's internal logging structure
-        litellm_logger_names = [
-            "litellm",
-            "litellm.proxy",
-            "litellm.router",
-            "litellm.litellm_core_utils",
-        ]
-
-        for logger_name in litellm_logger_names:
-            logger = logging.getLogger(logger_name)
-            logger.setLevel(logging.ERROR)
-            logger.propagate = True
+        logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 
     def _get_provider_for_model(self, model: str) -> LLMProviderProtocol:
         """Get the provider instance for a given model.
