@@ -335,6 +335,24 @@ class TestIntegrationRunnerConfigurationPayload:
         # Assert
         assert payload.max_records_per_run == expected
 
+    def test_max_records_per_run_negative_raises(self):
+        """Test that max_records_per_run raises ValidationError for negative values."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValidationError) as exc_info:
+            IntegrationRunnerConfigurationPayload(
+                integration_name="ml_inference_intergroup",
+                backfill_period=BackfillPeriod.DAYS,
+                backfill_duration=None,
+                max_records_per_run=-1,
+            )
+
+        # Assert
+        errors = exc_info.value.errors()
+        assert len(errors) > 0
+        error = errors[0]
+        assert error["type"] == "greater_than_equal"
+        assert error["loc"] == ("max_records_per_run",)
+
     def test_max_records_per_run_serialization(self):
         """Test that max_records_per_run is included in model serialization."""
         # Arrange
