@@ -35,6 +35,7 @@ IME_CONFIG = IMEConfig(
 def classify_latest_posts(
     backfill_period: Optional[Literal["days", "hours"]] = None,
     backfill_duration: Optional[int] = None,
+    max_records_per_run: Optional[int] = None,
     run_classification: bool = True,
     previous_run_metadata: Optional[dict] = None,
     event: Optional[dict] = None,
@@ -49,6 +50,7 @@ def classify_latest_posts(
         config=IME_CONFIG,
         backfill_period=backfill_period,
         backfill_duration=backfill_duration,
+        max_records_per_run=max_records_per_run,
         run_classification=run_classification,
         previous_run_metadata=previous_run_metadata,
         event=event,
