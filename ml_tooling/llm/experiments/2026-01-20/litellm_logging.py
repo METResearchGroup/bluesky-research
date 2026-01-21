@@ -1,24 +1,35 @@
-"""Demonstration script showing LiteLLM logging before and after suppression.
+"""Demonstration script showing LiteLLM logging with verbose=True vs verbose=False.
 
 This script demonstrates the difference between:
-1. Using LiteLLM directly (shows verbose info/debug logs)
-2. Using LiteLLM through our module (logs are suppressed)
+1. Using LLMService with verbose=True (shows verbose info/debug logs)
+2. Using LLMService with verbose=False (logs are suppressed)
 
 Run this script to see the before/after comparison.
 """
 
+import os
+import warnings
+
+from lib.load_env_vars import EnvVarsContainer
 from pydantic import BaseModel, Field
 
-# ============================================================================
-# Section 1: BEFORE FIX - Direct LiteLLM import (shows verbose logs)
-# ============================================================================
-print("=" * 80)
-print("SECTION 1: BEFORE FIX - Direct LiteLLM import")
-print("=" * 80)
-print("You should see verbose INFO/DEBUG logs from LiteLLM below:\n")
+# Suppress Pydantic serialization warnings for cleaner output
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
-# Import litellm directly (bypassing our module's logging configuration)
-import litellm  # noqa: E402
+# Suppress retry logger warnings from ml_tooling.llm.retry
+import logging
+
+retry_logger = logging.getLogger("ml_tooling.llm.retry")
+retry_logger.setLevel(logging.ERROR)
+
+# Load environment variables (including OPENAI_API_KEY) from .env file
+# This must be done before importing LLMService
+api_key = EnvVarsContainer.get_env_var("OPENAI_API_KEY")
+if api_key:
+    os.environ["OPENAI_API_KEY"] = api_key
+    print(f"✓ Loaded OPENAI_API_KEY from .env file (key length: {len(api_key)})\n")
+else:
+    print("⚠ OPENAI_API_KEY not found in .env file - API calls will fail\n")
 
 # Define a simple response model for structured output
 class SimpleResponse(BaseModel):
@@ -27,55 +38,65 @@ class SimpleResponse(BaseModel):
     confidence: float = Field(description="Confidence score between 0 and 1")
 
 
-# Make a minimal request using direct litellm.completion
-# This will show verbose logs because we haven't configured logging suppression
-print("Making request with direct litellm import...")
-print("(Look for INFO/DEBUG logs from LiteLLM above this line)\n")
+# ============================================================================
+# Section 1: LLMService with verbose=True (shows verbose logs)
+# ============================================================================
+print("=" * 80)
+print("SECTION 1: LLMService with verbose=True")
+print("=" * 80)
+print("You should see verbose INFO/DEBUG logs from LiteLLM below:\n")
+
+from ml_tooling.llm.llm_service import LLMService  # noqa: E402
+
+# Create service instance with verbose=True (logging NOT suppressed)
+service_verbose = LLMService(verbose=True)
+
+# Make a request using LLMService with verbose logging enabled
+print("Making request through LLMService(verbose=True)...")
+print("(You SHOULD see INFO/DEBUG logs from LiteLLM above this line)\n")
 
 try:
-    response = litellm.completion(
-        model="gpt-5-nano",
+    response = service_verbose.structured_completion(
         messages=[{"role": "user", "content": "Say 'Hello' in one word."}],
-        max_tokens=10,
+        response_model=SimpleResponse,
+        model="gpt-4o-mini",
+        max_tokens=100,
     )
-    print(f"Response (direct import): {response.choices[0].message.content}\n")
+    print(f"Response (verbose=True): {response.answer}")
+    print(f"Confidence: {response.confidence}\n")
 except Exception as e:
-    print(f"Error (this is expected if API keys aren't configured): {e}\n")
+    print(f"Error: {e}\n")
 
 print("\n" + "=" * 80)
 print("END OF SECTION 1")
 print("=" * 80 + "\n\n")
 
 # ============================================================================
-# Section 2: AFTER FIX - Using LLMService (logs suppressed)
+# Section 2: LLMService with verbose=False (logs suppressed)
 # ============================================================================
 print("=" * 80)
-print("SECTION 2: AFTER FIX - Using LLMService")
+print("SECTION 2: LLMService with verbose=False (default)")
 print("=" * 80)
 print("You should see NO verbose logs from LiteLLM below:\n")
 
-# Now import and use LLMService, which triggers logging suppression in __init__
-from ml_tooling.llm.llm_service import LLMService  # noqa: E402
+# Create service instance with verbose=False (default) - logging IS suppressed
+service_suppressed = LLMService(verbose=False)
 
-# Create service instance (this triggers logging suppression in __init__)
-service = LLMService()
-
-# Make the same request using LLMService
-# This should NOT show verbose logs because logging is suppressed in LLMService.__init__
-print("Making request through LLMService (logging should be suppressed)...")
+# Make the same request using LLMService with logging suppressed
+print("Making request through LLMService(verbose=False)...")
 print("(You should NOT see INFO/DEBUG logs from LiteLLM above this line)\n")
 
 try:
-    response = service.structured_completion(
+    response = service_suppressed.structured_completion(
         messages=[{"role": "user", "content": "Say 'Hello' in one word."}],
         response_model=SimpleResponse,
         model="gpt-4o-mini",
-        max_tokens=10,
+        max_tokens=100,
     )
-    print(f"Response (through module): {response.answer}")
+    print(f"Response (verbose=False): {response.answer}")
     print(f"Confidence: {response.confidence}\n")
 except Exception as e:
-    print(f"Error (this is expected if API keys aren't configured): {e}\n")
+    print(f"Error: {e}\n")
 
 print("\n" + "=" * 80)
 print("END OF SECTION 2")
