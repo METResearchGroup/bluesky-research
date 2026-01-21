@@ -350,9 +350,3 @@ class TestIntegrationRunnerConfigurationPayload:
 
         # Assert
         assert result["max_records_per_run"] == 10
-
-        # Assert
-        errors = exc_info.value.errors()
-        assert len(errors) > 0
-        error = errors[0]
-        assert error["type"] in ["value_error", "string_too_short", "too_short"]

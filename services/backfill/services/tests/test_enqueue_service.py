@@ -64,7 +64,7 @@ class TestEnqueueService_enqueue_records:
     def sample_payload(self):
         """Sample EnqueueServicePayload for testing."""
         return EnqueueServicePayload(
-            record_type="all_posts",
+            record_type="posts",
             integrations=["ml_inference_perspective_api", "ml_inference_sociopolitical"],
             start_date="2024-01-01",
             end_date="2024-01-31",
@@ -116,7 +116,7 @@ class TestEnqueueService_enqueue_records:
         """Test that single integration is handled correctly."""
         # Arrange
         payload = EnqueueServicePayload(
-            record_type="feed_posts",
+            record_type="posts_used_in_feeds",
             integrations=["ml_inference_perspective_api"],
             start_date="2024-01-01",
             end_date="2024-01-31",
