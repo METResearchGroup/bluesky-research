@@ -122,7 +122,7 @@ if __name__ == "__main__":
     ), patch(
         "services.ml_inference.intergroup.batch_classifier.return_failed_labels_to_input_queue",
         side_effect=_mock_return_failed_labels_to_input_queue,
-    ), patch.object(sys.stdout, "isatty", return_value=True):
+    ), patch.object(sys.stderr, "isatty", return_value=True):
         from services.ml_inference.intergroup.batch_classifier import run_batch_classification
 
         result = run_batch_classification(posts=posts, batch_size=DEFAULT_BATCH_SIZE)

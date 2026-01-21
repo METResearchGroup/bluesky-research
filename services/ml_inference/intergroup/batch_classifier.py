@@ -68,7 +68,7 @@ def run_batch_classification(
         batches,
         desc="Classifying batches",
         unit="batch",
-        disable=not sys.stdout.isatty(),  # Disable in CI/CD
+        disable=not sys.stderr.isatty(),  # Disable in CI/CD
         file=sys.stderr,  # Write to stderr to avoid log conflicts
     )
 
