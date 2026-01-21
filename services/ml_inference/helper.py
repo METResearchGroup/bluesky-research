@@ -149,6 +149,22 @@ def get_posts_to_classify(
     return [PostToLabelModel(**row) for row in dicts]
 
 
+def cap_max_records_for_run(
+    posts_to_classify: list[PostToLabelModel],
+    max_records_per_run: int,
+) -> list[PostToLabelModel]:
+    if max_records_per_run < 0:
+        raise ValueError("max_records_per_run must be >= 0")
+    original_count = len(posts_to_classify)
+    capped_posts_to_classify = posts_to_classify[:max_records_per_run]
+    if len(capped_posts_to_classify) < original_count:
+        logger.info(
+            f"Limited posts from {original_count} to {len(capped_posts_to_classify)} "
+            f"(max_records_per_run={max_records_per_run})"
+        )
+    return capped_posts_to_classify
+
+
 @track_performance
 def orchestrate_classification(
     config: InferenceConfig,
@@ -195,15 +211,10 @@ def orchestrate_classification(
             previous_run_metadata=previous_run_metadata,
         )
         if max_records_per_run is not None:
-            if max_records_per_run < 0:
-                raise ValueError("max_records_per_run must be >= 0")
-            original_count = len(posts_to_classify)
-            posts_to_classify = posts_to_classify[:max_records_per_run]
-            if len(posts_to_classify) < original_count:
-                logger.info(
-                    f"Limited posts from {original_count} to {len(posts_to_classify)} "
-                    f"(max_records_per_run={max_records_per_run})"
-                )
+            posts_to_classify = cap_max_records_for_run(
+                posts_to_classify=posts_to_classify,
+                max_records_per_run=max_records_per_run,
+            )
 
         logger.info(config.get_log_message(len(posts_to_classify)))
 
