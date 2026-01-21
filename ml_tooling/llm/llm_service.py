@@ -23,25 +23,29 @@ T = TypeVar("T", bound=BaseModel)
 class LLMService:
     """LLM service for making API requests via LiteLLM."""
 
-    def __init__(self):
+    def __init__(self, verbose: bool = False):
         """Initialize the LLM service.
+
+        Args:
+            verbose: If False (default), suppresses LiteLLM info and debug logs.
+                    If True, enables verbose logging from LiteLLM.
 
         Note: Providers are initialized lazily when first used to avoid
         requiring API keys for all providers when only one is needed.
         """
-        self._configure_litellm_logging()
+        if not verbose:
+            self._suppress_litellm_logging()
 
-    def _configure_litellm_logging(self) -> None:
+    def _suppress_litellm_logging(self) -> None:
         """Configure logging to suppress LiteLLM info and debug logs.
 
         This method:
-        1. Sets the LITELLM_LOG environment variable to ERROR (if not already set)
+        1. Sets the LITELLM_LOG environment variable to ERROR
         2. Configures Python logging to suppress LiteLLM loggers by setting their
            level to ERROR and disabling propagation
         """
         # Set environment variable to suppress INFO/DEBUG logs at LiteLLM library level
-        if "LITELLM_LOG" not in os.environ:
-            os.environ["LITELLM_LOG"] = "ERROR"
+        os.environ["LITELLM_LOG"] = "ERROR"
 
         # Configure Python logging for LiteLLM loggers
         # These logger names are based on LiteLLM's internal logging structure
