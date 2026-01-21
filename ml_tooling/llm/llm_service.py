@@ -21,13 +21,27 @@ T = TypeVar("T", bound=BaseModel)
 class LLMService:
     """LLM service for making API requests via LiteLLM."""
 
-    def __init__(self):
+    def __init__(self, verbose: bool = False):
         """Initialize the LLM service.
+
+        Args:
+            verbose: If False (default), suppresses LiteLLM info and debug logs.
+                    If True, does not suppress LiteLLM logs (uses LiteLLM defaults).
 
         Note: Providers are initialized lazily when first used to avoid
         requiring API keys for all providers when only one is needed.
         """
-        pass
+        if not verbose:
+            self._suppress_litellm_logging()
+
+    def _suppress_litellm_logging(self) -> None:
+        """Configure logging to suppress LiteLLM info and debug logs.
+
+        See https://github.com/BerriAI/litellm/issues/6813
+        """
+        import logging
+
+        logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 
     def _get_provider_for_model(self, model: str) -> LLMProviderProtocol:
         """Get the provider instance for a given model.
