@@ -533,7 +533,7 @@ class TestCapMaxRecordsForRun:
         result_batch_ids = {post.batch_id for post in result}
         assert result_batch_ids == expected_batch_ids
 
-    def test_handles_single_post_batches(self, posts_multiple_batches):
+    def test_handles_single_post_batches(self):
         """Test handles single post batches correctly."""
         # Arrange
         # Each post has different batch_id (0, 0, 1, 1, 2, 2)
