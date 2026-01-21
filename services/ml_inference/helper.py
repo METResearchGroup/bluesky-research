@@ -1,5 +1,6 @@
 """Helper tooling for ML inference."""
 
+from collections import defaultdict
 import json
 from typing import Literal, Optional
 
@@ -153,16 +154,68 @@ def cap_max_records_for_run(
     posts_to_classify: list[PostToLabelModel],
     max_records_per_run: int,
 ) -> list[PostToLabelModel]:
+    """Caps the number of records to process, ensuring only complete batches are included.
+
+    This function groups posts by batch_id and only includes complete batches. It iterates
+    through batches in order and adds all posts from each batch until adding the next batch
+    would exceed max_records_per_run. This ensures that downstream processing that clears
+    completed posts by batch_id doesn't accidentally delete partially processed batches.
+
+    Args:
+        posts_to_classify: List of posts to classify
+        max_records_per_run: Maximum number of records to process. The actual number may be
+            slightly less if needed to include only complete batches.
+
+    Returns:
+        List of posts to classify, containing only complete batches up to the limit.
+    """
     if max_records_per_run < 0:
         raise ValueError("max_records_per_run must be >= 0")
+
     original_count = len(posts_to_classify)
-    capped_posts_to_classify = posts_to_classify[:max_records_per_run]
-    if len(capped_posts_to_classify) < original_count:
+
+    # If no limit or limit is greater than or equal to all posts, return all
+    if max_records_per_run == 0:
+        return []
+    if max_records_per_run >= original_count:
+        return posts_to_classify
+
+    # Group posts by batch_id, preserving order of first appearance
+    batches: dict[int, list[PostToLabelModel]] = defaultdict(list)
+    batch_order: list[int] = []
+
+    for post in posts_to_classify:
+        batch_id = post.batch_id
+        if batch_id not in batches:
+            batch_order.append(batch_id)
+        batches[batch_id].append(post)
+
+    # Iterate through batches and add complete batches until we'd exceed the limit
+    capped_posts: list[PostToLabelModel] = []
+    current_count = 0
+
+    for batch_id in batch_order:
+        batch_posts: list[PostToLabelModel] = batches[batch_id]
+        batch_size: int = len(batch_posts)
+
+        # Check if adding this batch would exceed the limit
+        if (current_count + batch_size) > max_records_per_run:
+            # Don't add this batch - we'd exceed the limit
+            break
+
+        # Add all posts from this batch
+        capped_posts.extend(batch_posts)
+        current_count += batch_size
+
+    if len(capped_posts) < original_count:
+        num_batches_included = len(set(post.batch_id for post in capped_posts))
         logger.info(
-            f"Limited posts from {original_count} to {len(capped_posts_to_classify)} "
-            f"(max_records_per_run={max_records_per_run})"
+            f"Limited posts from {original_count} to {len(capped_posts)} "
+            f"(max_records_per_run={max_records_per_run}, "
+            f"included {num_batches_included} complete batches)"
         )
-    return capped_posts_to_classify
+
+    return capped_posts
 
 
 @track_performance
