@@ -1,8 +1,8 @@
-"""Demonstration script showing LiteLLM logging with verbose=True vs verbose=False.
+"""Demonstration script showing LiteLLM logging with default vs suppressed settings.
 
 This script demonstrates the difference between:
-1. Using LLMService with verbose=True (shows verbose info/debug logs)
-2. Using LLMService with verbose=False (logs are suppressed)
+1. Using LLMService with verbose=True (does not suppress; uses LiteLLM defaults)
+2. Using LLMService with verbose=False (suppresses LiteLLM info/debug logs)
 
 Run this script to see the before/after comparison.
 """
@@ -16,9 +16,15 @@ from pydantic import BaseModel, Field
 # Suppress Pydantic serialization warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
-# Suppress retry logger warnings from ml_tooling.llm.retry
+# Ensure Python logging is actually visible. This does NOT change LiteLLM settings;
+# it only ensures INFO-level logs have a handler to print to stderr/stdout.
 import logging
 
+root_logger = logging.getLogger()
+if not root_logger.handlers:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(name)s - %(message)s")
+
+# Suppress retry logger warnings from ml_tooling.llm.retry
 retry_logger = logging.getLogger("ml_tooling.llm.retry")
 retry_logger.setLevel(logging.ERROR)
 
@@ -44,16 +50,21 @@ class SimpleResponse(BaseModel):
 print("=" * 80)
 print("SECTION 1: LLMService with verbose=True")
 print("=" * 80)
-print("You should see verbose INFO/DEBUG logs from LiteLLM below:\n")
+print("This section uses LiteLLM DEFAULT logging behavior (not suppressed).\n")
+if os.environ.get("LITELLM_LOG"):
+    print(
+        f"NOTE: Your environment has LITELLM_LOG={os.environ['LITELLM_LOG']!r}. "
+        "This can change what LiteLLM prints.\n"
+    )
 
 from ml_tooling.llm.llm_service import LLMService  # noqa: E402
 
-# Create service instance with verbose=True (logging NOT suppressed)
+# Create service instance with verbose=True (do not suppress; use LiteLLM defaults)
 service_verbose = LLMService(verbose=True)
 
 # Make a request using LLMService with verbose logging enabled
 print("Making request through LLMService(verbose=True)...")
-print("(You SHOULD see INFO/DEBUG logs from LiteLLM above this line)\n")
+print("(If LiteLLM emits INFO logs by default, you should see them above this line)\n")
 
 try:
     response = service_verbose.structured_completion(
