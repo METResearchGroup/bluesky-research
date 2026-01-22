@@ -117,7 +117,7 @@ class TestLocalStorageAdapter_load_feed_posts:
         partition_dates = ["2024-01-01", "2024-01-02", "2024-01-03"]
 
         with patch(
-            "services.backfill.repositories.adapters.get_partition_dates"
+            "services.backfill.repositories.base.get_partition_dates"
         ) as mock_get_partition_dates, patch.object(
             local_storage_adapter, "_load_feed_posts_for_date"
         ) as mock_load_for_date:
@@ -166,7 +166,7 @@ class TestLocalStorageAdapter_load_feed_posts:
         end_date = "2024-01-31"
 
         with patch(
-            "services.backfill.repositories.adapters.get_partition_dates"
+            "services.backfill.repositories.base.get_partition_dates"
         ) as mock_get_partition_dates:
             mock_get_partition_dates.return_value = []
 
@@ -205,7 +205,7 @@ class TestLocalStorageAdapter_load_feed_posts_for_date:
         with patch.object(
             local_storage_adapter, "_load_posts_used_in_feeds_for_date"
         ) as mock_load_feeds, patch(
-            "services.backfill.repositories.adapters.calculate_start_end_date_for_lookback"
+            "services.backfill.repositories.base.calculate_start_end_date_for_lookback"
         ) as mock_calc_lookback, patch.object(
             local_storage_adapter, "_load_candidate_pool_posts_for_date"
         ) as mock_load_candidates, patch.object(
@@ -239,7 +239,7 @@ class TestLocalStorageAdapter_load_feed_posts_for_date:
         with patch.object(
             local_storage_adapter, "_load_posts_used_in_feeds_for_date"
         ) as mock_load_feeds, patch(
-            "services.backfill.repositories.adapters.calculate_start_end_date_for_lookback"
+            "services.backfill.repositories.base.calculate_start_end_date_for_lookback"
         ) as mock_calc_lookback, patch.object(
             local_storage_adapter, "_load_candidate_pool_posts_for_date"
         ), patch.object(
@@ -586,7 +586,7 @@ class TestS3Adapter_load_feed_posts:
         s3_adapter = S3Adapter(backend=mock_backend)
 
         with patch(
-            "services.backfill.repositories.adapters.get_partition_dates"
+            "services.backfill.repositories.base.get_partition_dates"
         ) as mock_get_partition_dates, patch.object(
             s3_adapter, "_load_feed_posts_for_date"
         ) as mock_load_for_date:
@@ -637,7 +637,7 @@ class TestS3Adapter_load_feed_posts:
         s3_adapter = S3Adapter(backend=mock_backend)
 
         with patch(
-            "services.backfill.repositories.adapters.get_partition_dates"
+            "services.backfill.repositories.base.get_partition_dates"
         ) as mock_get_partition_dates:
             mock_get_partition_dates.return_value = []
 
@@ -657,7 +657,7 @@ class TestS3Adapter_load_feed_posts:
         s3_adapter = S3Adapter(backend=mock_backend)
 
         with patch(
-            "services.backfill.repositories.adapters.get_partition_dates"
+            "services.backfill.repositories.base.get_partition_dates"
         ) as mock_get_partition_dates, patch.object(
             s3_adapter, "_load_feed_posts_for_date"
         ) as mock_load_for_date:
@@ -697,7 +697,7 @@ class TestS3Adapter_load_feed_posts:
         s3_adapter = S3Adapter(backend=mock_backend)
 
         with patch(
-            "services.backfill.repositories.adapters.get_partition_dates"
+            "services.backfill.repositories.base.get_partition_dates"
         ) as mock_get_partition_dates, patch.object(
             s3_adapter, "_load_feed_posts_for_date"
         ) as mock_load_for_date:
@@ -709,7 +709,7 @@ class TestS3Adapter_load_feed_posts:
                 s3_adapter.load_feed_posts(start_date=start_date, end_date=end_date)
 
             # Assert
-            assert "Failed to load feed posts from S3" in str(exc_info.value)
+            assert "Failed to load feed posts" in str(exc_info.value)
             assert "Backend error" in str(exc_info.value)
 
 
@@ -743,7 +743,7 @@ class TestS3Adapter_load_feed_posts_for_date:
         with patch.object(
             s3_adapter, "_load_posts_used_in_feeds_for_date"
         ) as mock_load_feeds, patch(
-            "services.backfill.repositories.adapters.calculate_start_end_date_for_lookback"
+            "services.backfill.repositories.base.calculate_start_end_date_for_lookback"
         ) as mock_calc_lookback, patch.object(
             s3_adapter, "_load_candidate_pool_posts_for_date"
         ) as mock_load_candidates, patch.object(
@@ -779,7 +779,7 @@ class TestS3Adapter_load_feed_posts_for_date:
         with patch.object(
             s3_adapter, "_load_posts_used_in_feeds_for_date"
         ) as mock_load_feeds, patch(
-            "services.backfill.repositories.adapters.calculate_start_end_date_for_lookback"
+            "services.backfill.repositories.base.calculate_start_end_date_for_lookback"
         ) as mock_calc_lookback, patch.object(
             s3_adapter, "_load_candidate_pool_posts_for_date"
         ), patch.object(
@@ -805,7 +805,7 @@ class TestS3Adapter_load_feed_posts_for_date:
         with patch.object(
             s3_adapter, "_load_posts_used_in_feeds_for_date"
         ) as mock_load_feeds, patch(
-            "services.backfill.repositories.adapters.calculate_start_end_date_for_lookback"
+            "services.backfill.repositories.base.calculate_start_end_date_for_lookback"
         ) as mock_calc_lookback, patch.object(
             s3_adapter, "_load_candidate_pool_posts_for_date"
         ) as mock_load_candidates, patch.object(
@@ -845,7 +845,7 @@ class TestS3Adapter_load_feed_posts_for_date:
         with patch.object(
             s3_adapter, "_load_posts_used_in_feeds_for_date"
         ) as mock_load_feeds, patch(
-            "services.backfill.repositories.adapters.calculate_start_end_date_for_lookback"
+            "services.backfill.repositories.base.calculate_start_end_date_for_lookback"
         ) as mock_calc_lookback, patch.object(
             s3_adapter, "_load_candidate_pool_posts_for_date"
         ) as mock_load_candidates, patch.object(
