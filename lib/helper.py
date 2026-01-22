@@ -9,6 +9,7 @@ date-math call sites.
 
 from datetime import datetime, timezone, timedelta
 from functools import wraps
+import inspect
 import logging
 from memory_profiler import memory_usage
 import threading
@@ -146,6 +147,38 @@ def track_memory_usage(func):
     - Growth rate: Memory growth rate in MB/second (useful for leak detection in long-running functions)
     """
 
+    # `memory_profiler.memory_usage((func, ...))` does not support async functions and can
+    # execute them incorrectly (e.g., creating un-awaited coroutines). For coroutine
+    # functions, we fall back to lightweight before/after sampling.
+    if inspect.iscoroutinefunction(func):
+        # Intentionally return a *sync* wrapper that produces an awaitable. This keeps
+        # the decorated callable from being a coroutine function (important because
+        # `unittest.mock.patch` will otherwise replace it with an `AsyncMock`, and some
+        # existing tests set `return_value` to a coroutine).
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            async def _runner():
+                mem_baseline = memory_usage(-1, interval=0.1, timeout=0.1)[0]
+                result = await func(*args, **kwargs)
+                mem_end = memory_usage(-1, interval=0.1, timeout=0.1)[0]
+
+                func_name = func.__name__
+                print(  # noqa
+                    "\n".join(
+                        [
+                            f"Memory usage for {func_name} (async):",
+                            f"  Baseline: {mem_baseline:.2f} MB",
+                            f"  End: {mem_end:.2f} MB (delta: {mem_end - mem_baseline:.2f} MB)",
+                            "  Note: peak/average/growth-rate are not available for async functions",
+                        ]
+                    )
+                )
+                return result
+
+            return _runner()
+
+        return wrapper
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         # Get baseline memory before execution (single sample)
@@ -205,6 +238,53 @@ def track_performance(func):
     - Memory increase: Peak memory minus baseline (shows function's contribution)
     - Growth rate: Memory growth rate in MB/second (useful for leak detection in long-running functions)
     """
+
+    # `memory_profiler.memory_usage((func, ...))` does not support async functions and can
+    # execute them incorrectly (e.g., creating un-awaited coroutines). For coroutine
+    # functions, we fall back to lightweight before/after sampling.
+    if inspect.iscoroutinefunction(func):
+        # Intentionally return a *sync* wrapper that produces an awaitable. This keeps
+        # the decorated callable from being a coroutine function (important because
+        # `unittest.mock.patch` will otherwise replace it with an `AsyncMock`, and some
+        # existing tests set `return_value` to a coroutine).
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            async def _runner():
+                start_time = time.time()
+                mem_baseline = memory_usage(-1, interval=0.1, timeout=0.1)[0]
+
+                result = await func(*args, **kwargs)
+
+                mem_end = memory_usage(-1, interval=0.1, timeout=0.1)[0]
+                end_time = time.time()
+
+                execution_time_seconds = round(end_time - start_time)
+                execution_time_minutes = execution_time_seconds // 60
+                execution_time_leftover_seconds = execution_time_seconds - (
+                    60 * execution_time_minutes
+                )
+
+                try:
+                    func_name = func.__name__
+                except AttributeError:
+                    func_name = func.__class__.__name__
+
+                print(  # noqa
+                    "\n".join(
+                        [
+                            f"Execution time for {func_name}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds",
+                            f"Memory usage for {func_name} (async):",
+                            f"  Baseline: {mem_baseline:.2f} MB",
+                            f"  End: {mem_end:.2f} MB (delta: {mem_end - mem_baseline:.2f} MB)",
+                            "  Note: peak/average/growth-rate are not available for async functions",
+                        ]
+                    )
+                )
+                return result
+
+            return _runner()
+
+        return wrapper
 
     @wraps(func)
     def wrapper(*args, **kwargs):

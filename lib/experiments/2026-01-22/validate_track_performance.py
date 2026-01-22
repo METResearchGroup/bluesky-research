@@ -9,6 +9,7 @@ measure comprehensive memory metrics during function execution:
 - Growth rate: Memory growth rate in MB/s (useful for leak detection)
 """
 
+import asyncio
 import time
 from lib.helper import track_memory_usage, track_performance
 
@@ -51,6 +52,22 @@ def test_long_running_with_growth(duration_seconds: int, growth_mb_per_second: f
     return len(chunks)
 
 
+@track_memory_usage
+async def test_async_memory_allocation(size_mb: int):
+    """Async test function to ensure async-decorated functions work."""
+    data = allocate_memory(size_mb)
+    await asyncio.sleep(0.2)
+    return len(data)
+
+
+@track_performance
+async def test_async_performance_tracking(size_mb: int):
+    """Async performance test to ensure async-decorated functions work."""
+    data = allocate_memory(size_mb)
+    await asyncio.sleep(0.2)
+    return len(data)
+
+
 def main():
     """Run validation tests."""
     print("=" * 60)
@@ -79,6 +96,17 @@ def main():
     print("\nTest: Simulating memory growth over 5 seconds")
     result = test_long_running_with_growth(duration_seconds=5, growth_mb_per_second=10.0)
     print(f"Result: {result} chunks allocated")
+
+    print("\n" + "=" * 60)
+    print("Testing async function support (regression test)")
+    print("=" * 60)
+    print("\nTest: Async allocate 10 MB")
+    result = asyncio.run(test_async_memory_allocation(10))
+    print(f"Result: {result} elements allocated")
+
+    print("\nTest: Async performance allocate 10 MB")
+    result = asyncio.run(test_async_performance_tracking(10))
+    print(f"Result: {result} elements allocated")
     
     print("\n" + "=" * 60)
     print("Validation complete!")
