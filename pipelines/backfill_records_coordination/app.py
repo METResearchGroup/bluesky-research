@@ -5,7 +5,6 @@ from datetime import datetime
 
 import click
 
-from lib.aws.s3 import S3
 from lib.log.logger import get_logger
 from services.backfill.models import (
     EnqueueServicePayload,
@@ -277,6 +276,7 @@ def backfill_records(
 
 def _run_migrate_to_s3(mapped_integration_names: list[str]) -> None:
     """Initialize migration tracker for integration-scoped prefixes and run migration to S3."""
+    from lib.aws.s3 import S3
     from scripts.migrate_research_data_to_s3.integration_prefixes import (
         prefixes_for_integrations,
     )
