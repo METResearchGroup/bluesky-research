@@ -810,7 +810,7 @@ class TestMigrateToS3(TestCase):
         )
 
     @patch("pipelines.backfill_records_coordination.app.os.makedirs")
-    @patch("pipelines.backfill_records_coordination.app.S3")
+    @patch("lib.aws.s3.S3")
     @patch(
         "scripts.migrate_research_data_to_s3.run_migration.run_migration_for_prefixes"
     )
@@ -860,9 +860,20 @@ class TestMigrateToS3(TestCase):
         mock_s3_cls.assert_called_once_with(create_client_flag=True)
 
     @patch(
+        "scripts.migrate_research_data_to_s3.run_migration.run_migration_for_prefixes"
+    )
+    @patch(
+        "scripts.migrate_research_data_to_s3.migration_tracker.MigrationTracker"
+    )
+    @patch(
         "scripts.migrate_research_data_to_s3.integration_prefixes.prefixes_for_integrations"
     )
-    def test_migrate_to_s3_no_op_when_no_prefixes(self, mock_prefixes: MagicMock):
+    def test_migrate_to_s3_no_op_when_no_prefixes(
+        self,
+        mock_prefixes: MagicMock,
+        mock_tracker_cls: MagicMock,
+        mock_run: MagicMock,
+    ):
         """Test that --migrate-to-s3 with no matching prefixes skips init and run."""
         mock_prefixes.return_value = []
 
@@ -873,9 +884,11 @@ class TestMigrateToS3(TestCase):
 
         self.assertEqual(result.exit_code, 0)
         mock_prefixes.assert_called_once_with(["ml_inference_intergroup"])
+        mock_tracker_cls.assert_not_called()
+        mock_run.assert_not_called()
 
     @patch("pipelines.backfill_records_coordination.app.os.makedirs")
-    @patch("pipelines.backfill_records_coordination.app.S3")
+    @patch("lib.aws.s3.S3")
     @patch(
         "scripts.migrate_research_data_to_s3.run_migration.run_migration_for_prefixes"
     )
@@ -961,7 +974,7 @@ class TestMigrateToS3(TestCase):
             "scripts.migrate_research_data_to_s3.run_migration.run_migration_for_prefixes"
         ), patch(
             "scripts.migrate_research_data_to_s3.initialize_migration_tracker_db.initialize_migration_tracker_db"
-        ), patch("pipelines.backfill_records_coordination.app.S3"), patch(
+        ), patch("lib.aws.s3.S3"), patch(
             "pipelines.backfill_records_coordination.app.os.makedirs"
         ):
             result = self.runner.invoke(
