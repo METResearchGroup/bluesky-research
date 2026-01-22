@@ -505,9 +505,14 @@ class Queue:
         with sqlite3.connect(self.db_path) as conn:
             placeholders = ",".join("?" for _ in ids_list)
             query = f"DELETE FROM {self._queue_table_sql} WHERE id IN ({placeholders})"
+            total_items_before_delete = self.get_queue_length()
             cursor = conn.execute(query, tuple(ids_list))
             deleted_count = cursor.rowcount
+            total_items_after_delete = self.get_queue_length()
             logger.info(f"Deleted {deleted_count} items from queue.")
+            logger.info(
+                f"Total items before delete: {total_items_before_delete}\tTotal items after delete: {total_items_after_delete}"
+            )
             return deleted_count
 
     def clear_queue(self) -> int:
