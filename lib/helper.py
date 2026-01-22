@@ -201,21 +201,27 @@ def _track_memory_usage_sync(func):
         mem_baseline = memory_usage(-1, interval=0.1, timeout=0.1)[0]
 
         # Use memory_usage() to profile the function execution itself
-        # This returns (mem_usage_list, retval) where mem_usage_list contains
-        # memory samples taken during function execution
-        mem_usage_result = memory_usage((func, args, kwargs), interval=0.1)  # type: ignore[arg-type]
+        # Use retval=True so we don't have to call the function again.
+        # This should return (mem_usage_list, retval) where mem_usage_list contains
+        # memory samples taken during function execution.
+        mem_usage_result = memory_usage(
+            (func, args, kwargs),  # type: ignore[arg-type]
+            interval=0.1,
+            retval=True,
+            max_iterations=1,
+        )
 
         # Extract result and memory measurements
         if isinstance(mem_usage_result, tuple) and len(mem_usage_result) == 2:
             mem_usage_list, result = mem_usage_result
         else:
-            # Fallback if memory_usage returns unexpected format
-            if isinstance(mem_usage_result, list) and len(mem_usage_result) > 0:
-                mem_usage_list = mem_usage_result
-                result = func(*args, **kwargs)
-            else:
-                mem_usage_list = []
-                result = func(*args, **kwargs)
+            # Defensive fallback: if memory_profiler returns just samples, avoid
+            # re-executing side-effectful functions by returning the samples and
+            # running the function once only as a last resort.
+            mem_usage_list = (
+                mem_usage_result if isinstance(mem_usage_result, list) else []
+            )
+            result = func(*args, **kwargs)
 
         # Calculate comprehensive memory statistics
         stats = _calculate_memory_stats(mem_usage_list, mem_baseline)
@@ -326,7 +332,13 @@ def _track_performance_sync(func):
         mem_baseline = memory_usage(-1, interval=0.1, timeout=0.1)[0]
 
         # Use memory_usage() to profile the function execution itself
-        mem_usage_result = memory_usage((func, args, kwargs), interval=0.1)  # type: ignore[arg-type]
+        # Use retval=True so we don't have to call the function again.
+        mem_usage_result = memory_usage(
+            (func, args, kwargs),  # type: ignore[arg-type]
+            interval=0.1,
+            retval=True,
+            max_iterations=1,
+        )
 
         end_time = time.time()
 
@@ -334,13 +346,13 @@ def _track_performance_sync(func):
         if isinstance(mem_usage_result, tuple) and len(mem_usage_result) == 2:
             mem_usage_list, result = mem_usage_result
         else:
-            # Fallback if memory_usage returns unexpected format
-            if isinstance(mem_usage_result, list) and len(mem_usage_result) > 0:
-                mem_usage_list = mem_usage_result
-                result = func(*args, **kwargs)
-            else:
-                mem_usage_list = []
-                result = func(*args, **kwargs)
+            # Defensive fallback: if memory_profiler returns just samples, avoid
+            # re-executing side-effectful functions by returning the samples and
+            # running the function once only as a last resort.
+            mem_usage_list = (
+                mem_usage_result if isinstance(mem_usage_result, list) else []
+            )
+            result = func(*args, **kwargs)
 
         execution_time_seconds = round(end_time - start_time)
         execution_time_minutes = execution_time_seconds // 60
