@@ -288,23 +288,27 @@ def _run_migrate_to_s3(mapped_integration_names: list[str]) -> None:
         run_migration_for_prefixes,
     )
 
-    prefixes = prefixes_for_integrations(mapped_integration_names)
-    if not prefixes:
-        logger.warning(
-            "No migration prefixes match integrations, skipping migration to S3."
-        )
-        return
+    try:
+        prefixes = prefixes_for_integrations(mapped_integration_names)
+        if not prefixes:
+            logger.warning(
+                "No migration prefixes match integrations, skipping migration to S3."
+            )
+            return
 
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    db_dir = os.path.join(current_dir, ".migration_tracker")
-    os.makedirs(db_dir, exist_ok=True)
-    db_path = os.path.join(db_dir, "migration_tracker_backfill.db")
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        db_dir = os.path.join(current_dir, ".migration_tracker")
+        os.makedirs(db_dir, exist_ok=True)
+        db_path = os.path.join(db_dir, "migration_tracker_backfill.db")
 
-    migration_tracker_db = MigrationTracker(db_path=db_path)
-    initialize_migration_tracker_db(prefixes, migration_tracker_db)
+        migration_tracker_db = MigrationTracker(db_path=db_path)
+        initialize_migration_tracker_db(prefixes, migration_tracker_db)
 
-    s3_client = S3(create_client_flag=True)
-    run_migration_for_prefixes(prefixes, migration_tracker_db, s3_client)
+        s3_client = S3(create_client_flag=True)
+        run_migration_for_prefixes(prefixes, migration_tracker_db, s3_client)
+    except Exception as e:
+        logger.error(f"Error migrating to S3: {e}")
+        raise e
 
 
 def manage_queue_clearing(
