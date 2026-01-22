@@ -132,6 +132,16 @@ def run_migration_for_all_prefixes(
         run_migration_for_single_prefix(prefix, migration_tracker_db, s3_client)
 
 
+def run_migration_for_prefixes(
+    prefixes: list[str],
+    migration_tracker_db: MigrationTracker,
+    s3_client: S3,
+) -> None:
+    """Run migration only for the given prefixes."""
+    for prefix in tqdm(prefixes, desc="Processing prefixes"):
+        run_migration_for_single_prefix(prefix, migration_tracker_db, s3_client)
+
+
 if __name__ == "__main__":
     migration_tracker_db = MigrationTracker()
     s3_client = S3(create_client_flag=True)

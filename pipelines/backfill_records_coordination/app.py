@@ -1,9 +1,11 @@
 """CLI app for triggering backfill of records and writing cache buffers."""
 
+import os
 from datetime import datetime
 
 import click
 
+from lib.aws.s3 import S3
 from lib.log.logger import get_logger
 from services.backfill.models import (
     EnqueueServicePayload,
@@ -173,6 +175,12 @@ def validate_date_format(ctx, param, value):
     default=False,
     help="Clear all output queues for specified integrations. Will prompt for confirmation.",
 )
+@click.option(
+    "--migrate-to-s3",
+    is_flag=True,
+    default=False,
+    help="Initialize migration tracker DB for integration-scoped prefixes and run migration to S3. Requires --integrations.",
+)
 def backfill_records(
     record_type: str | None,
     add_to_queue: bool,
@@ -190,6 +198,7 @@ def backfill_records(
     end_date: str | None,
     clear_input_queues: bool,
     clear_output_queues: bool,
+    migrate_to_s3: bool,
     _enqueue_service: EnqueueService | None = None,
     _integration_runner_service: IntegrationRunnerService | None = None,
     _cache_buffer_writer_service: CacheBufferWriterService | None = None,
@@ -220,6 +229,7 @@ def backfill_records(
         start_date=start_date,
         end_date=end_date,
         max_records_per_run=max_records_per_run,
+        migrate_to_s3=migrate_to_s3,
     )
 
     if add_to_queue:
@@ -260,6 +270,41 @@ def backfill_records(
             cache_buffer_writer_svc.clear_cache(
                 integration_name=str(service_source_buffer)
             )
+
+    if migrate_to_s3:
+        _run_migrate_to_s3(mapped_integration_names=mapped_integration_names)
+
+
+def _run_migrate_to_s3(mapped_integration_names: list[str]) -> None:
+    """Initialize migration tracker for integration-scoped prefixes and run migration to S3."""
+    from scripts.migrate_research_data_to_s3.integration_prefixes import (
+        prefixes_for_integrations,
+    )
+    from scripts.migrate_research_data_to_s3.initialize_migration_tracker_db import (
+        initialize_migration_tracker_db,
+    )
+    from scripts.migrate_research_data_to_s3.migration_tracker import MigrationTracker
+    from scripts.migrate_research_data_to_s3.run_migration import (
+        run_migration_for_prefixes,
+    )
+
+    prefixes = prefixes_for_integrations(mapped_integration_names)
+    if not prefixes:
+        logger.warning(
+            "No migration prefixes match integrations, skipping migration to S3."
+        )
+        return
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    db_dir = os.path.join(current_dir, ".migration_tracker")
+    os.makedirs(db_dir, exist_ok=True)
+    db_path = os.path.join(db_dir, "migration_tracker_backfill.db")
+
+    migration_tracker_db = MigrationTracker(db_path=db_path)
+    initialize_migration_tracker_db(prefixes, migration_tracker_db)
+
+    s3_client = S3(create_client_flag=True)
+    run_migration_for_prefixes(prefixes, migration_tracker_db, s3_client)
 
 
 def manage_queue_clearing(
@@ -388,6 +433,7 @@ def run_validation_checks(
     start_date: str | None,
     end_date: str | None,
     max_records_per_run: int | None,
+    migrate_to_s3: bool = False,
 ):
     """Validates CLI arguments and raises click.UsageError if invalid."""
     # Validate that record_type is provided when add_to_queue is True
@@ -398,6 +444,11 @@ def run_validation_checks(
     if run_integrations and (not integrations):
         raise click.UsageError(
             "--integrations is required when --run-integrations is used"
+        )
+
+    if migrate_to_s3 and (not integrations):
+        raise click.UsageError(
+            "--integrations is required when --migrate-to-s3 is used"
         )
 
     # Validate that add_to_queue requires both start_date and end_date

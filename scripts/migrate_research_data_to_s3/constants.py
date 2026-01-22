@@ -13,6 +13,8 @@ PREFIXES_TO_MIGRATE = [
     "ml_inference_sociopolitical/cache",
     "ml_inference_valence_classifier/active",
     "ml_inference_valence_classifier/cache",
+    "ml_inference_intergroup/active",
+    "ml_inference_intergroup/cache",
     "post_scores/active",
     "post_scores/cache",
     "preprocessed_posts/firehose/cache",
