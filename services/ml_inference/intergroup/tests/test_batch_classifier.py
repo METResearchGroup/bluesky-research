@@ -620,10 +620,10 @@ class TestManageFailedLabels:
                 uri=f"uri_{i}",
                 text=f"test post {i}",
                 preprocessing_timestamp="2024-01-01-12:00:00",
-            was_successfully_labeled=False,
-            label=-1,
-            reason="API_ERROR",
-            label_timestamp=TEST_LABEL_TIMESTAMP,
+                was_successfully_labeled=False,
+                label=-1,
+                reason="API_ERROR",
+                label_timestamp=TEST_LABEL_TIMESTAMP,
         )
             for i in range(label_count)
         ]
