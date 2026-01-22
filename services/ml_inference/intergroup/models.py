@@ -20,5 +20,8 @@ class IntergroupLabelModel(BaseModel):
     was_successfully_labeled: bool = Field(
         ..., description="Whether the post was successfully labeled."
     )
+    label_timestamp: str = Field(
+        ..., description="The timestamp when the label was generated."
+    )
     reason: Optional[str] = Field(default=None, description="The reason for the label.")
     label: int = Field(..., description="The label for the post.")
