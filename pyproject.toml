@@ -135,6 +135,7 @@ include = [
     "transform*",
     "query_interface*",
     "pipelines*",
+    "scripts*",
 ]
 exclude = [
     "demos*", 
