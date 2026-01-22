@@ -135,6 +135,7 @@ include = [
     "transform*",
     "query_interface*",
     "pipelines*",
+    "scripts*",
 ]
 exclude = [
     "demos*", 
@@ -372,4 +373,5 @@ paths = [
     "orchestration",
     "transform",
     "feed_api",
+    "scripts",
 ]

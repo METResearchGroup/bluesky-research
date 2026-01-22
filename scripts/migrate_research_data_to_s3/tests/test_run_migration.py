@@ -15,6 +15,7 @@ sys.modules["boto3"] = MagicMock()
 from scripts.migrate_research_data_to_s3.run_migration import (
     create_progress_callback,
     migrate_file_to_s3,
+    run_migration_for_prefixes,
 )
 
 
@@ -143,4 +144,48 @@ class TestMigrateFileToS3:
         assert call_args is not None
         # Check that Callback parameter is provided
         assert "Callback" in call_args.kwargs or len(call_args.args) >= 4
+
+
+class TestRunMigrationForPrefixes:
+    """Tests for run_migration_for_prefixes function."""
+
+    @patch(
+        "scripts.migrate_research_data_to_s3.run_migration.run_migration_for_single_prefix"
+    )
+    def test_calls_run_migration_for_single_prefix_per_prefix(
+        self, mock_run_single: MagicMock
+    ):
+        """Test that run_migration_for_prefixes calls run_migration_for_single_prefix for each prefix."""
+        # Arrange
+        prefixes = ["ml_inference_intergroup/active", "ml_inference_intergroup/cache"]
+        mock_tracker = MagicMock()
+        mock_s3 = MagicMock()
+
+        # Act
+        run_migration_for_prefixes(prefixes, mock_tracker, mock_s3)
+
+        # Assert
+        assert mock_run_single.call_count == 2
+        mock_run_single.assert_any_call(
+            "ml_inference_intergroup/active", mock_tracker, mock_s3
+        )
+        mock_run_single.assert_any_call(
+            "ml_inference_intergroup/cache", mock_tracker, mock_s3
+        )
+
+    @patch(
+        "scripts.migrate_research_data_to_s3.run_migration.run_migration_for_single_prefix"
+    )
+    def test_empty_prefixes_no_calls(self, mock_run_single: MagicMock):
+        """Test that run_migration_for_prefixes with empty list does not call run_migration_for_single_prefix."""
+        # Arrange
+        prefixes: list[str] = []
+        mock_tracker = MagicMock()
+        mock_s3 = MagicMock()
+
+        # Act
+        run_migration_for_prefixes(prefixes, mock_tracker, mock_s3)
+
+        # Assert
+        mock_run_single.assert_not_called()
 
