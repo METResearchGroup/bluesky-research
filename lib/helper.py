@@ -80,18 +80,114 @@ def track_function_runtime(func):
     return wrapper
 
 
+def _calculate_memory_stats(mem_usage_list: list, mem_baseline: float) -> dict:
+    """Calculate comprehensive memory statistics from a list of memory samples.
+
+    Args:
+        mem_usage_list: List of memory usage samples in MB
+        mem_baseline: Baseline memory before function execution in MB
+
+    Returns:
+        Dictionary with memory statistics: peak, average, end, increase, growth_rate
+    """
+    if not isinstance(mem_usage_list, list) or len(mem_usage_list) == 0:
+        return {
+            "peak": float(mem_baseline),
+            "average": float(mem_baseline),
+            "end": float(mem_baseline),
+            "increase": 0.0,
+            "growth_rate": None,
+        }
+
+    # Convert all to float
+    mem_samples = [float(x) for x in mem_usage_list]
+
+    peak_memory = max(mem_samples)
+    avg_memory = sum(mem_samples) / len(mem_samples)
+    end_memory = mem_samples[-1]
+    memory_increase = peak_memory - mem_baseline
+
+    # Calculate growth rate (MB/second) using linear regression slope
+    # Only if we have enough samples (at least 10)
+    growth_rate = None
+    if len(mem_samples) >= 10:
+        # Simple linear regression: y = mx + b
+        # x = time index (0, 1, 2, ...), y = memory value
+        n = len(mem_samples)
+        sum_x = sum(range(n))
+        sum_y = sum(mem_samples)
+        sum_xy = sum(i * mem for i, mem in enumerate(mem_samples))
+        sum_x2 = sum(i * i for i in range(n))
+
+        # Slope m = (n*sum(xy) - sum(x)*sum(y)) / (n*sum(x^2) - sum(x)^2)
+        denominator = n * sum_x2 - sum_x * sum_x
+        if denominator != 0:
+            slope = (n * sum_xy - sum_x * sum_y) / denominator
+            # Convert to MB/second (assuming 0.1 second intervals)
+            growth_rate = slope / 0.1
+
+    return {
+        "peak": peak_memory,
+        "average": avg_memory,
+        "end": end_memory,
+        "increase": memory_increase,
+        "growth_rate": growth_rate,
+    }
+
+
 def track_memory_usage(func):
-    """Tracks the memory usage of a function."""
+    """Tracks the memory usage of a function.
+
+    Tracks comprehensive memory metrics:
+    - Peak memory: Maximum memory used during execution (critical for OOM prevention)
+    - Average memory: Mean memory usage over execution time (useful for capacity planning)
+    - End memory: Memory at function completion (shows retained memory)
+    - Memory increase: Peak memory minus baseline (shows function's contribution)
+    - Growth rate: Memory growth rate in MB/second (useful for leak detection in long-running functions)
+    """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        mem_before = memory_usage(-1, interval=0.1, timeout=1)
-        result = func(*args, **kwargs)
-        mem_after = memory_usage(-1, interval=0.1, timeout=1)
+        # Get baseline memory before execution (single sample)
+        mem_baseline = memory_usage(-1, interval=0.1, timeout=0.1)[0]
 
-        print(
-            f"Memory usage for {func.__name__}: {max(mem_after) - min(mem_before)} MB"
-        )  # noqa
+        # Use memory_usage() to profile the function execution itself
+        # This returns (mem_usage_list, retval) where mem_usage_list contains
+        # memory samples taken during function execution
+        mem_usage_result = memory_usage((func, args, kwargs), interval=0.1)  # type: ignore[arg-type]
+
+        # Extract result and memory measurements
+        if isinstance(mem_usage_result, tuple) and len(mem_usage_result) == 2:
+            mem_usage_list, result = mem_usage_result
+        else:
+            # Fallback if memory_usage returns unexpected format
+            if isinstance(mem_usage_result, list) and len(mem_usage_result) > 0:
+                mem_usage_list = mem_usage_result
+                result = func(*args, **kwargs)
+            else:
+                mem_usage_list = []
+                result = func(*args, **kwargs)
+
+        # Calculate comprehensive memory statistics
+        stats = _calculate_memory_stats(mem_usage_list, mem_baseline)
+
+        # Build output message
+        func_name = func.__name__
+        output_lines = [
+            f"Memory usage for {func_name}:",
+            f"  Peak: {stats['peak']:.2f} MB (increase: {stats['increase']:.2f} MB)",
+            f"  Average: {stats['average']:.2f} MB",
+            f"  End: {stats['end']:.2f} MB",
+        ]
+
+        # Add growth rate if available (for long-running functions)
+        if stats["growth_rate"] is not None:
+            growth_indicator = "⚠️" if stats["growth_rate"] > 1.0 else "✓"
+            output_lines.append(
+                f"  Growth rate: {stats['growth_rate']:.2f} MB/s {growth_indicator}"
+            )
+
+        print("\n".join(output_lines))  # noqa
 
         return result
 
@@ -99,31 +195,72 @@ def track_memory_usage(func):
 
 
 def track_performance(func):
-    """Tracks both the runtime and memory usage of a function."""
+    """Tracks both the runtime and memory usage of a function.
+
+    Tracks comprehensive performance metrics:
+    - Execution time: Total runtime in minutes and seconds
+    - Peak memory: Maximum memory used during execution (critical for OOM prevention)
+    - Average memory: Mean memory usage over execution time (useful for capacity planning)
+    - End memory: Memory at function completion (shows retained memory)
+    - Memory increase: Peak memory minus baseline (shows function's contribution)
+    - Growth rate: Memory growth rate in MB/second (useful for leak detection in long-running functions)
+    """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
         start_time = time.time()
-        mem_before = memory_usage(-1, interval=0.1, timeout=1)
 
-        result = func(*args, **kwargs)
+        # Get baseline memory before execution (single sample)
+        mem_baseline = memory_usage(-1, interval=0.1, timeout=0.1)[0]
+
+        # Use memory_usage() to profile the function execution itself
+        mem_usage_result = memory_usage((func, args, kwargs), interval=0.1)  # type: ignore[arg-type]
 
         end_time = time.time()
-        mem_after = memory_usage(-1, interval=0.1, timeout=1)
+
+        # Extract result and memory measurements
+        if isinstance(mem_usage_result, tuple) and len(mem_usage_result) == 2:
+            mem_usage_list, result = mem_usage_result
+        else:
+            # Fallback if memory_usage returns unexpected format
+            if isinstance(mem_usage_result, list) and len(mem_usage_result) > 0:
+                mem_usage_list = mem_usage_result
+                result = func(*args, **kwargs)
+            else:
+                mem_usage_list = []
+                result = func(*args, **kwargs)
 
         execution_time_seconds = round(end_time - start_time)
         execution_time_minutes = execution_time_seconds // 60
         execution_time_leftover_seconds = execution_time_seconds - (
             60 * execution_time_minutes
         )
+
+        # Calculate comprehensive memory statistics
+        stats = _calculate_memory_stats(mem_usage_list, mem_baseline)
+
         try:
             func_name = func.__name__
         except AttributeError:
             func_name = func.__class__.__name__
-        print(
-            f"Execution time for {func_name}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds"
-        )  # noqa
-        print(f"Memory usage for {func_name}: {max(mem_after) - min(mem_before)} MB")  # noqa
+
+        # Build output message
+        output_lines = [
+            f"Execution time for {func_name}: {execution_time_minutes} minutes, {execution_time_leftover_seconds} seconds",
+            f"Memory usage for {func_name}:",
+            f"  Peak: {stats['peak']:.2f} MB (increase: {stats['increase']:.2f} MB)",
+            f"  Average: {stats['average']:.2f} MB",
+            f"  End: {stats['end']:.2f} MB",
+        ]
+
+        # Add growth rate if available (for long-running functions)
+        if stats["growth_rate"] is not None:
+            growth_indicator = "⚠️" if stats["growth_rate"] > 1.0 else "✓"
+            output_lines.append(
+                f"  Growth rate: {stats['growth_rate']:.2f} MB/s {growth_indicator}"
+            )
+
+        print("\n".join(output_lines))  # noqa
         return result
 
     return wrapper
