@@ -82,7 +82,8 @@ class TestRunBatchClassification:
 
         Expected behavior:
             - Should process batch and return correct counts
-            - Should call write_posts_to_cache for successful labels
+            - Should call write_posts_to_output_queue_only for successful labels
+            - Should delete batch_ids at end after all minibatches complete
         """
         # Arrange
         post_dicts = [
@@ -131,8 +132,10 @@ class TestRunBatchClassification:
         mock_split_labels.return_value = ([successful_label, successful_label_2], [])
 
         with patch(
-            "services.ml_inference.intergroup.batch_classifier.write_posts_to_cache"
-        ) as mock_write:
+            "services.ml_inference.intergroup.batch_classifier.write_posts_to_output_queue_only"
+        ) as mock_write, patch(
+            "services.ml_inference.intergroup.batch_classifier.delete_batch_ids_from_input_queue"
+        ) as mock_delete:
             # Act
             result = run_batch_classification(posts=posts)
 
@@ -141,6 +144,8 @@ class TestRunBatchClassification:
             assert result.total_posts_successfully_labeled == 2
             assert result.total_posts_failed_to_label == 0
             mock_write.assert_called_once()
+            # Deletion happens at end after all minibatches complete
+            mock_delete.assert_called_once()
 
     def test_single_batch_all_failed_labels(
         self, mock_create_batches, mock_update_batching_progress, mock_classifier, mock_split_labels
@@ -199,7 +204,8 @@ class TestRunBatchClassification:
 
         Expected behavior:
             - Should handle both successful and failed labels correctly
-            - Should call both write_posts_to_cache and return_failed_labels_to_input_queue
+            - Should call both write_posts_to_output_queue_only and return_failed_labels_to_input_queue
+            - Should delete batch_ids at end after all minibatches complete
         """
         # Arrange
         post_dicts = [
@@ -249,10 +255,12 @@ class TestRunBatchClassification:
         mock_split_labels.return_value = ([successful_label], [failed_label])
 
         with patch(
-            "services.ml_inference.intergroup.batch_classifier.write_posts_to_cache"
+            "services.ml_inference.intergroup.batch_classifier.write_posts_to_output_queue_only"
         ) as mock_write, patch(
             "services.ml_inference.intergroup.batch_classifier.return_failed_labels_to_input_queue"
-        ) as mock_return_failed:
+        ) as mock_return_failed, patch(
+            "services.ml_inference.intergroup.batch_classifier.delete_batch_ids_from_input_queue"
+        ) as mock_delete:
             # Act
             result = run_batch_classification(posts=posts)
 
@@ -262,6 +270,8 @@ class TestRunBatchClassification:
             assert result.total_posts_failed_to_label == 1
             mock_write.assert_called_once()
             mock_return_failed.assert_called_once()
+            # Deletion happens at end after all minibatches complete
+            mock_delete.assert_called_once()
 
     def test_multiple_batches(
         self, mock_create_batches, mock_update_batching_progress, mock_classifier, mock_split_labels
@@ -313,8 +323,10 @@ class TestRunBatchClassification:
         ]
 
         with patch(
-            "services.ml_inference.intergroup.batch_classifier.write_posts_to_cache"
-        ) as mock_write:
+            "services.ml_inference.intergroup.batch_classifier.write_posts_to_output_queue_only"
+        ) as mock_write, patch(
+            "services.ml_inference.intergroup.batch_classifier.delete_batch_ids_from_input_queue"
+        ) as mock_delete:
             # Act
             result = run_batch_classification(posts=posts, batch_size=2)
 
@@ -323,6 +335,8 @@ class TestRunBatchClassification:
             assert result.total_posts_successfully_labeled == 4
             assert result.total_posts_failed_to_label == 0
             assert mock_write.call_count == 2
+            # Deletion happens at end after all minibatches complete
+            mock_delete.assert_called_once()
 
     def test_custom_batch_size(
         self, mock_create_batches, mock_update_batching_progress, mock_classifier, mock_split_labels
@@ -363,7 +377,9 @@ class TestRunBatchClassification:
         mock_split_labels.return_value = ([successful_label], [])
 
         with patch(
-            "services.ml_inference.intergroup.batch_classifier.write_posts_to_cache"
+            "services.ml_inference.intergroup.batch_classifier.write_posts_to_output_queue_only"
+        ), patch(
+            "services.ml_inference.intergroup.batch_classifier.delete_batch_ids_from_input_queue"
         ):
             # Act
             run_batch_classification(posts=posts, batch_size=10)
@@ -411,7 +427,9 @@ class TestRunBatchClassification:
         mock_split_labels.return_value = ([successful_label], [])
 
         with patch(
-            "services.ml_inference.intergroup.batch_classifier.write_posts_to_cache"
+            "services.ml_inference.intergroup.batch_classifier.write_posts_to_output_queue_only"
+        ), patch(
+            "services.ml_inference.intergroup.batch_classifier.delete_batch_ids_from_input_queue"
         ):
             # Act
             run_batch_classification(posts=posts)
@@ -485,7 +503,9 @@ class TestRunBatchClassification:
         ) as mock_attach:
             mock_attach.return_value = []
             with patch(
-                "services.ml_inference.intergroup.batch_classifier.write_posts_to_cache"
+                "services.ml_inference.intergroup.batch_classifier.write_posts_to_output_queue_only"
+            ), patch(
+                "services.ml_inference.intergroup.batch_classifier.delete_batch_ids_from_input_queue"
             ):
                 # Act
                 run_batch_classification(posts=posts)
@@ -534,7 +554,9 @@ class TestRunBatchClassification:
         mock_split_labels.return_value = ([successful_label], [])
 
         with patch(
-            "services.ml_inference.intergroup.batch_classifier.write_posts_to_cache"
+            "services.ml_inference.intergroup.batch_classifier.write_posts_to_output_queue_only"
+        ), patch(
+            "services.ml_inference.intergroup.batch_classifier.delete_batch_ids_from_input_queue"
         ):
             # Act
             result = run_batch_classification(posts=posts)
@@ -547,6 +569,148 @@ class TestRunBatchClassification:
             assert result.total_batches >= 0
             assert result.total_posts_successfully_labeled >= 0
             assert result.total_posts_failed_to_label >= 0
+
+    def test_batch_completion_tracking_deferred_deletion(
+        self, mock_create_batches, mock_update_batching_progress, mock_classifier, mock_split_labels
+    ):
+        """Test that batch_ids are only deleted after ALL posts from that batch are processed.
+
+        Expected behavior:
+            - Should write posts to output queue during minibatch processing
+            - Should track completion per batch_id (counting both successful and failed)
+            - Should only delete batch_ids at the END after all minibatches complete
+            - Should delete all completed batch_ids in a single call
+        """
+        # Arrange: 4 posts from batch_id 100, 2 posts from batch_id 200
+        post_dicts = [
+            {
+                "uri": f"uri_{i}",
+                "text": f"test post {i}",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
+                "batch_id": 100 if i < 4 else 200,
+                "batch_metadata": "{}",
+            }
+            for i in range(6)
+        ]
+        posts = [PostToLabelModel(**d) for d in post_dicts]
+        # Split into 2 minibatches of 3 posts each
+        batch_1 = posts[:3]  # 3 posts from batch_id 100
+        batch_2 = posts[3:]  # 1 post from batch_id 100, 2 from batch_id 200
+        mock_create_batches.return_value = [batch_1, batch_2]
+
+        successful_labels = [
+            IntergroupLabelModel(
+                uri=f"uri_{i}",
+                text=f"test post {i}",
+                preprocessing_timestamp="2024-01-01-12:00:00",
+                was_successfully_labeled=True,
+                label=1,
+                label_timestamp=TEST_LABEL_TIMESTAMP,
+            )
+            for i in range(6)
+        ]
+
+        mock_classifier_instance = Mock()
+        mock_classifier_instance.classify_batch.side_effect = [
+            successful_labels[:3],
+            successful_labels[3:],
+        ]
+        mock_classifier.return_value = mock_classifier_instance
+
+        mock_split_labels.side_effect = [
+            (successful_labels[:3], []),
+            (successful_labels[3:], []),
+        ]
+
+        with patch(
+            "services.ml_inference.intergroup.batch_classifier.write_posts_to_output_queue_only"
+        ) as mock_write, patch(
+            "services.ml_inference.intergroup.batch_classifier.delete_batch_ids_from_input_queue"
+        ) as mock_delete:
+            # Act
+            result = run_batch_classification(posts=posts, batch_size=3)
+
+            # Assert
+            assert result.total_batches == 2
+            assert result.total_posts_successfully_labeled == 6
+            # Should write to output queue twice (once per minibatch)
+            assert mock_write.call_count == 2
+            # Should delete batch_ids ONCE at the end, with both completed batch_ids
+            mock_delete.assert_called_once()
+            deleted_batch_ids = mock_delete.call_args[1]["batch_ids"]
+            assert set(deleted_batch_ids) == {100, 200}  # Both batch_ids completed
+
+    def test_deletion_happens_at_end_not_during_loop(
+        self, mock_create_batches, mock_update_batching_progress, mock_classifier, mock_split_labels
+    ):
+        """Test that deletion happens at the end, not during minibatch processing.
+
+        Expected behavior:
+            - write_posts_to_output_queue_only should be called during loop
+            - delete_batch_ids_from_input_queue should be called AFTER loop completes
+            - This ensures partial processing doesn't lose data on interruption
+        """
+        # Arrange
+        post_dicts = [
+            {
+                "uri": f"uri_{i}",
+                "text": f"test post {i}",
+                "preprocessing_timestamp": "2024-01-01-12:00:00",
+                "batch_id": 1,
+                "batch_metadata": "{}",
+            }
+            for i in range(4)
+        ]
+        posts = [PostToLabelModel(**d) for d in post_dicts]
+        batch_1 = posts[:2]
+        batch_2 = posts[2:]
+        mock_create_batches.return_value = [batch_1, batch_2]
+
+        successful_labels = [
+            IntergroupLabelModel(
+                uri=f"uri_{i}",
+                text=f"test post {i}",
+                preprocessing_timestamp="2024-01-01-12:00:00",
+                was_successfully_labeled=True,
+                label=1,
+                label_timestamp=TEST_LABEL_TIMESTAMP,
+            )
+            for i in range(4)
+        ]
+
+        mock_classifier_instance = Mock()
+        mock_classifier_instance.classify_batch.side_effect = [
+            successful_labels[:2],
+            successful_labels[2:],
+        ]
+        mock_classifier.return_value = mock_classifier_instance
+
+        mock_split_labels.side_effect = [
+            (successful_labels[:2], []),
+            (successful_labels[2:], []),
+        ]
+
+        with patch(
+            "services.ml_inference.intergroup.batch_classifier.write_posts_to_output_queue_only"
+        ) as mock_write, patch(
+            "services.ml_inference.intergroup.batch_classifier.delete_batch_ids_from_input_queue"
+        ) as mock_delete:
+            # Act
+            run_batch_classification(posts=posts, batch_size=2)
+
+            # Assert: Verify call order - writes happen during loop, delete happens after
+            write_calls = mock_write.call_count
+            delete_calls = mock_delete.call_count
+            
+            # Both minibatches should write during processing
+            assert write_calls == 2
+            # Deletion should happen once at the end
+            assert delete_calls == 1
+            
+            # Verify delete was called with the completed batch_id
+            mock_delete.assert_called_once()
+            deleted_batch_ids = mock_delete.call_args[1]["batch_ids"]
+            assert 1 in deleted_batch_ids
 
 
 class TestManageFailedLabels:
@@ -572,7 +736,7 @@ class TestManageFailedLabels:
         """Test with empty failed_labels list.
 
         Expected behavior:
-            - Should return total_failed_so_far unchanged
+            - Should return (total_failed_so_far, []) tuple
             - Should still call return_failed_labels_to_input_queue with empty list
         """
         # Arrange
@@ -589,7 +753,8 @@ class TestManageFailedLabels:
         )
 
         # Assert
-        assert result == 5
+        assert isinstance(result, tuple)
+        assert result == (5, [])
         mock_return_failed.assert_called_once_with(
             inference_type="intergroup",
             failed_label_models=[],
@@ -610,7 +775,7 @@ class TestManageFailedLabels:
         Expected behavior:
             - Should attach batch_id to labels
             - Should call return_failed_labels_to_input_queue
-            - Should return updated total count
+            - Should return (updated_total_count, failed_label_models) tuple
         """
         # Arrange
         from services.ml_inference.models import LabelWithBatchId
@@ -653,7 +818,9 @@ class TestManageFailedLabels:
         )
 
         # Assert
-        assert result == expected_total
+        assert isinstance(result, tuple)
+        assert result[0] == expected_total
+        assert result[1] == labels_with_batch_id
         mock_attach_batch_id.assert_called_once()
         mock_return_failed.assert_called_once_with(
             inference_type="intergroup",
@@ -805,7 +972,9 @@ class TestManageFailedLabels:
         )
 
         # Assert
-        assert result == 12
+        assert isinstance(result, tuple)
+        assert result[0] == 12
+        assert len(result[1]) == 2
 
 
 class TestManageSuccessfulLabels:
@@ -821,9 +990,9 @@ class TestManageSuccessfulLabels:
 
     @pytest.fixture
     def mock_write_posts(self):
-        """Mock write_posts_to_cache function."""
+        """Mock write_posts_to_output_queue_only function."""
         with patch(
-            "services.ml_inference.intergroup.batch_classifier.write_posts_to_cache"
+            "services.ml_inference.intergroup.batch_classifier.write_posts_to_output_queue_only"
         ) as mock:
             yield mock
 
@@ -831,8 +1000,8 @@ class TestManageSuccessfulLabels:
         """Test with empty successful_labels list.
 
         Expected behavior:
-            - Should return total_successful_so_far unchanged
-            - Should still call write_posts_to_cache with empty list
+            - Should return (total_successful_so_far, []) tuple
+            - Should still call write_posts_to_output_queue_only with empty list
         """
         # Arrange
         successful_labels = []
@@ -848,7 +1017,8 @@ class TestManageSuccessfulLabels:
         )
 
         # Assert
-        assert result == 3
+        assert isinstance(result, tuple)
+        assert result == (3, [])
         mock_write_posts.assert_called_once_with(
             inference_type="intergroup",
             posts=[],
@@ -859,8 +1029,8 @@ class TestManageSuccessfulLabels:
 
         Expected behavior:
             - Should attach batch_id to label
-            - Should call write_posts_to_cache
-            - Should return updated total count
+            - Should call write_posts_to_output_queue_only
+            - Should return (updated_total_count, [label_with_batch_id]) tuple
         """
         # Arrange
         from services.ml_inference.models import LabelWithBatchId
@@ -896,7 +1066,9 @@ class TestManageSuccessfulLabels:
         )
 
         # Assert
-        assert result == 1
+        assert isinstance(result, tuple)
+        assert result[0] == 1
+        assert result[1] == [label_with_batch_id]
         mock_attach_batch_id.assert_called_once()
         mock_write_posts.assert_called_once_with(
             inference_type="intergroup",
@@ -908,8 +1080,8 @@ class TestManageSuccessfulLabels:
 
         Expected behavior:
             - Should attach batch_ids to all labels
-            - Should call write_posts_to_cache with all labels
-            - Should return updated total count
+            - Should call write_posts_to_output_queue_only with all labels
+            - Should return (updated_total_count, labels_with_batch_id) tuple
         """
         # Arrange
         from services.ml_inference.models import LabelWithBatchId
@@ -951,7 +1123,9 @@ class TestManageSuccessfulLabels:
         )
 
         # Assert
-        assert result == 8
+        assert isinstance(result, tuple)
+        assert result[0] == 8
+        assert result[1] == labels_with_batch_id
         mock_write_posts.assert_called_once_with(
             inference_type="intergroup",
             posts=labels_with_batch_id,
@@ -1006,7 +1180,7 @@ class TestManageSuccessfulLabels:
     def test_write_posts_called_with_correct_parameters(
         self, mock_attach_batch_id, mock_write_posts
     ):
-        """Test that write_posts_to_cache is called with correct parameters.
+        """Test that write_posts_to_output_queue_only is called with correct parameters.
 
         Expected behavior:
             - Should call with inference_type="intergroup"
@@ -1096,4 +1270,6 @@ class TestManageSuccessfulLabels:
         )
 
         # Assert
-        assert result == 19
+        assert isinstance(result, tuple)
+        assert result[0] == 19
+        assert len(result[1]) == 4

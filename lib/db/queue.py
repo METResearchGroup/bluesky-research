@@ -508,7 +508,9 @@ class Queue:
             total_items_before_delete = self.get_queue_length()
             cursor = conn.execute(query, tuple(ids_list))
             deleted_count = cursor.rowcount
-            total_items_after_delete = self.get_queue_length()
+            # Avoid querying queue length again here: get_queue_length() opens a new connection
+            # and may not see the uncommitted delete from `conn`, which makes logs misleading.
+            total_items_after_delete = max(total_items_before_delete - deleted_count, 0)
             logger.info(f"Deleted {deleted_count} items from queue.")
             logger.info(
                 f"Total items before delete: {total_items_before_delete}\tTotal items after delete: {total_items_after_delete}"
