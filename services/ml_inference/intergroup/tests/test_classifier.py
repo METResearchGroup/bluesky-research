@@ -26,6 +26,9 @@ from services.ml_inference.intergroup.models import (
 )
 from services.ml_inference.models import PostToLabelModel
 
+# Test timestamp constant for IntergroupLabelModel instances
+TEST_LABEL_TIMESTAMP = "2024-01-01-12:00:00"
+
 
 class TestIntergroupClassifierClassifyBatch:
     """Tests for IntergroupClassifier.classify_batch method."""
@@ -232,6 +235,7 @@ class TestIntergroupClassifierClassifyBatch:
                     preprocessing_timestamp="2024-01-01-12:00:00",
                     was_successfully_labeled=True,
                     label=1,
+                    label_timestamp=TEST_LABEL_TIMESTAMP,
                 )
             ]
 
@@ -532,6 +536,7 @@ class TestIntergroupClassifierClassifyBatch:
                     was_successfully_labeled=False,
                     reason="Error",
                     label=-1,
+                    label_timestamp=TEST_LABEL_TIMESTAMP,
                 )
             ]
 

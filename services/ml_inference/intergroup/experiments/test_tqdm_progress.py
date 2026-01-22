@@ -14,9 +14,11 @@ from __future__ import annotations
 import random
 import sys
 import time
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from lib.batching_utils import create_batches
+from lib.constants import timestamp_format
 from services.ml_inference.intergroup.constants import DEFAULT_BATCH_SIZE
 from services.ml_inference.intergroup.models import IntergroupLabelModel
 from services.ml_inference.models import PostToLabelModel
@@ -38,6 +40,7 @@ class FakeIntergroupClassifier:
         # Simulate LLM API call delay (0.5-2 seconds per batch)
         time.sleep(random.uniform(0.5, 2.0))
 
+        label_timestamp = datetime.now(timezone.utc).strftime(timestamp_format)
         # Simulate occasional failures (e.g., rate limits, transient API errors)
         if random.random() < self.failure_rate:
             return [
@@ -48,6 +51,7 @@ class FakeIntergroupClassifier:
                     was_successfully_labeled=False,
                     reason="Mock LLM API error (rate limit exceeded)",
                     label=-1,
+                    label_timestamp=label_timestamp,
                 )
                 for post in batch
             ]
@@ -60,6 +64,7 @@ class FakeIntergroupClassifier:
                 was_successfully_labeled=True,
                 reason=None,
                 label=random.randint(0, 1),  # Mock binary label
+                label_timestamp=label_timestamp,
             )
             for post in batch
         ]
