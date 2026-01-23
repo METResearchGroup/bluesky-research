@@ -151,7 +151,7 @@ def export_synthetic_records(
     return export_path
 
 def main():
-    total_records = 20
+    total_records = 60
     prop_intergroup = 0.5
     llm_service: LLMService = get_llm_service()
 
