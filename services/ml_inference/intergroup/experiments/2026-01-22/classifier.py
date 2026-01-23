@@ -7,6 +7,7 @@ Batched version is the IntergroupBatchedClassifier
 """
 
 from datetime import datetime, timezone
+import time
 
 from pydantic import ValidationError
 
@@ -58,6 +59,7 @@ class IntergroupClassifier:
         """Classifies a single batch of posts."""
         batch_prompts = self._generate_batch_prompts(batch=batch)
         try:
+            serial_start_time = time.time()
             llm_responses: list[LabelChoiceModel] = (
                 self.llm_service.structured_batch_completion(
                     prompts=batch_prompts,
@@ -66,6 +68,9 @@ class IntergroupClassifier:
                     role="user",
                 )
             )
+            serial_end_time = time.time()
+            serial_runtime = serial_end_time - serial_start_time
+            print(f"Serial runtime: {serial_runtime} seconds")
             return self._merge_llm_responses_with_batch(
                 batch=batch, llm_responses=llm_responses
             )
@@ -173,6 +178,7 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
         batch_prompt = self._generate_batch_prompt(batch=batch)
         try:
             # should be a list of 1
+            batched_start_time = time.time()
             batched_llm_responses: list[BatchedLabelChoiceModel] = (
                 self.llm_service.structured_batch_completion(
                     prompts=[batch_prompt],
@@ -181,9 +187,23 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
                     role="user",
                 )
             )
+            batched_end_time = time.time()
+            batched_runtime = batched_end_time - batched_start_time
+            print(f"Batched runtime: {batched_runtime} seconds")
             return self._merge_batched_llm_responses_with_batch(
                 batch=batch, batched_llm_responses=batched_llm_responses
             )
+            # batched_llm_responses: BatchedLabelChoiceModel = (
+            #     self.llm_service.structured_completion(
+            #         messages=[{"role": "user", "content": batch_prompt}],
+            #         response_model=BatchedLabelChoiceModel,
+            #         model=llm_model_name
+            #     )
+            # )
+            # return self._merge_batched_llm_responses_with_batch(
+            #     batch=batch,
+            #     batched_llm_responses=[batched_llm_responses]
+            # )
         except (
             LLMAuthError,
             LLMInvalidRequestError,

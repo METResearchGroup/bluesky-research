@@ -41,14 +41,14 @@ For each, only output your label (0 or 1)
 
 Your output should look like this:
 
-{
+{{
     "labels": [
-        \{"label": 0}\},
-        \{"label": 1}\},
-        \{"label": 0}\},
+        {{"label": 0}},
+        {{"label": 1}},
+        {{"label": 0}},
         ...
     ]
-}
+}}
 
 TEXTS:
 

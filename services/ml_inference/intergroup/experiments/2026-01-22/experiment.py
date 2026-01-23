@@ -91,29 +91,20 @@ def run_experiment():
     batch, ground_truth_labels = create_batch(posts=df, batch_size=10)
 
     # Experiment 1: Run with serial classifier.
-    serial_start_time = time.time()
     serial_labels: list[IntergroupLabelModel] = serial_classifier.classify_batch(batch=batch)
-    serial_end_time = time.time()
-    serial_runtime = serial_end_time - serial_start_time
-    print(f"Serial runtime: {serial_runtime} seconds")
     serial_accuracy = calculate_accuracy(
         ground_truth_labels=ground_truth_labels,
         labels=[label.label for label in serial_labels],
     )
     print(f"Serial accuracy: {serial_accuracy}")
+
     # Experiment 2: Run with batched classifier.
-    batched_start_time = time.time()
     batched_labels: list[IntergroupLabelModel] = batched_classifier.classify_batch(batch=batch)
-    batched_end_time = time.time()
-    batched_runtime = batched_end_time - batched_start_time
-    print(f"Batched runtime: {batched_runtime} seconds")
     batched_accuracy = calculate_accuracy(
         ground_truth_labels=ground_truth_labels,
         labels=[label.label for label in batched_labels],
     )
     print(f"Batched accuracy: {batched_accuracy}")
-
-    return serial_accuracy, batched_accuracy
 
 if __name__ == "__main__":
     run_experiment()
