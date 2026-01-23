@@ -6,7 +6,7 @@ import pandas as pd
 from services.ml_inference.models import PostToLabelModel
 from services.ml_inference.intergroup.models import IntergroupLabelModel
 
-from .classifier import IntergroupClassifier, IntergroupBatchedClassifier
+from classifier import IntergroupClassifier, IntergroupBatchedClassifier
 
 serial_classifier = IntergroupClassifier()
 batched_classifier = IntergroupBatchedClassifier()
@@ -34,12 +34,20 @@ def create_batch(
         list[PostToLabelModel]: List of posts.
         list[int]: List of ground truth labels.
     """
-    posts = posts.sample(n=batch_size)
+    sampled_posts = posts.sample(n=batch_size)
     posts_list: list[PostToLabelModel] = []
     ground_truth_labels: list[int] = []
-    for post in posts.to_dict(orient="records"):
-        posts_list.append(PostToLabelModel(**post))
-        ground_truth_labels.append(post["label"])
+    for post in sampled_posts.to_dict(orient="records"):
+        posts_list.append(
+            PostToLabelModel(
+                uri=post["uri"],
+                text=post["text"],
+                preprocessing_timestamp="test-timestamp",
+                batch_id=1,
+                batch_metadata="{}",
+            )
+        )
+        ground_truth_labels.append(post["gold_label"])
     return posts_list, ground_truth_labels
 
 def calculate_accuracy(ground_truth_labels: list[int], labels: list[int]) -> float:

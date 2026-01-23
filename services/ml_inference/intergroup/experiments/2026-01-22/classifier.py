@@ -29,7 +29,7 @@ from services.ml_inference.intergroup.models import (
 from services.ml_inference.intergroup.prompts import INTERGROUP_PROMPT
 from services.ml_inference.models import PostToLabelModel
 
-from .prompts import BATCHED_INTERGROUP_PROMPT
+from prompts import BATCHED_INTERGROUP_PROMPT
 
 logger = get_logger(__name__)
 
