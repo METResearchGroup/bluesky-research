@@ -228,9 +228,6 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
         each concurrent request batch containing 20 prompts, and each prompt
         containing 5 posts.
         """
-        # e.g., if we have 400 posts, concurrent request count is 20, and prompt batch size is 5,
-        # we will have 4 concurrent request batches, each concurrent request batch
-        # containing 20 prompts, and each prompt containing 5 posts.
         prompt_batches: list[PromptBatchModel] = self._create_prompt_batches(
             batch=batch, prompt_batch_size=prompt_batch_size,
         )
