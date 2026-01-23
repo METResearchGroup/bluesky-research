@@ -3,6 +3,7 @@ import time
 
 import pandas as pd
 
+from services.ml_inference.intergroup.constants import DEFAULT_BATCH_SIZE
 from services.ml_inference.models import PostToLabelModel
 from services.ml_inference.intergroup.models import IntergroupLabelModel
 
@@ -89,7 +90,7 @@ def run_experiment():
     "prompt batch size" parameter.
     """
     df = load_posts()
-    batch, ground_truth_labels = create_batch(posts=df, batch_size=10)
+    batch, ground_truth_labels = create_batch(posts=df, batch_size=DEFAULT_BATCH_SIZE)
 
     # Experiment 1: Run with serial classifier.
     serial_labels: list[IntergroupLabelModel] = serial_classifier.classify_batch(batch=batch)
