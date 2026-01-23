@@ -34,7 +34,8 @@ def create_batch(
         list[PostToLabelModel]: List of posts.
         list[int]: List of ground truth labels.
     """
-    sampled_posts = posts.sample(n=batch_size)
+    sampled_posts = posts.sample(n=batch_size, replace=True)
+    print(f"Sampled {len(sampled_posts)} posts")
     posts_list: list[PostToLabelModel] = []
     ground_truth_labels: list[int] = []
     for post in sampled_posts.to_dict(orient="records"):
