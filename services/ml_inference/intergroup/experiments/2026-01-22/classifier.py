@@ -7,10 +7,10 @@ Batched version is the IntergroupBatchedClassifier
 """
 
 from datetime import datetime, timezone
-import time
 
 from pydantic import ValidationError
 
+from lib.batching_utils import create_batches
 from lib.constants import timestamp_format
 from lib.log.logger import get_logger
 from ml_tooling.llm.prompt_utils import generate_batch_prompts
@@ -185,17 +185,6 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
             return self._merge_batched_llm_responses_with_batch(
                 batch=batch, batched_llm_responses=batched_llm_responses
             )
-            # batched_llm_responses: BatchedLabelChoiceModel = (
-            #     self.llm_service.structured_completion(
-            #         messages=[{"role": "user", "content": batch_prompt}],
-            #         response_model=BatchedLabelChoiceModel,
-            #         model=llm_model_name
-            #     )
-            # )
-            # return self._merge_batched_llm_responses_with_batch(
-            #     batch=batch,
-            #     batched_llm_responses=[batched_llm_responses]
-            # )
         except (
             LLMAuthError,
             LLMInvalidRequestError,
@@ -217,6 +206,105 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
             # NOTE: we currently treat the entire batch as failed, which is
             # our current design choice.
             return self._generate_failed_labels(batch=batch, reason=str(e))
+
+    def classify_batch_with_prompt_batching(
+        self,
+        batch: list[PostToLabelModel],
+        concurrent_request_count: int,
+        prompt_batch_size: int,
+        llm_model_name: str = DEFAULT_LLM_MODEL_NAME,
+    ):
+        """Classifies a single batch of posts with concurrent requests.
+        
+        Splits up a single batch of posts into concurrent requests, where
+        each request has a prompt of size prompt_batch_size.
+        """
+        # e.g., if we have 400 posts, concurrent request count is 20, and prompt batch size is 5,
+        # we will have 4 concurrent request batches, each concurrent request batch
+        # containing 20 prompts, and each prompt containing 5 posts.
+        concurrent_request_batches = self._create_concurrent_request_batches(batch=batch, prompt_batch_size=prompt_batch_size, concurrent_request_count=concurrent_request_count)
+        total_results: list[IntergroupLabelModel] = []
+
+        # loop through each concurrent request batch and then run all the
+        # prompts in that batch concurrently.
+        for prompts_for_concurrent_request_batch in concurrent_request_batches:
+            labels_for_concurrent_request_batch: list[IntergroupLabelModel] = []
+            try:
+                batched_llm_responses: list[BatchedLabelChoiceModel] = (
+                    self.llm_service.structured_batch_completion(
+                        prompts=prompts_for_concurrent_request_batch,
+                        response_model=BatchedLabelChoiceModel,
+                        model=llm_model_name,
+                        role="user",
+                    )
+                )
+                labels_for_concurrent_request_batch = self._merge_batched_llm_responses_with_batch(
+                    batch=batch, batched_llm_responses=batched_llm_responses
+                )
+            except (
+                LLMAuthError,
+                LLMInvalidRequestError,
+                LLMPermissionDeniedError,
+                LLMUnrecoverableError,
+            ) as e:
+                # Non-retryable errors: configuration issues, let them propagate
+                # These indicate problems that need immediate attention
+                logger.error(
+                    f"Non-retryable error encountered while classifying concurrent request batch: {e}",
+                    exc_info=True,
+                )
+                labels_for_concurrent_request_batch = self._generate_failed_labels(batch=batch, reason=str(e))
+            except (LLMException, ValueError, ValidationError) as e:
+                # Retryable errors that exhausted all retries: generate failed labels
+                # These indicate transient issues or persistent validation problems
+                logger.error(
+                    f"Failed to classify batch after retries exhausted: {e}",
+                    exc_info=True,
+                )
+                logger.info(f"Generating failed labels for batch due to error: {e}")
+                # Generate failed labels for all posts in the batch.
+                # NOTE: we currently treat the entire batch as failed, which is
+                # our current design choice.
+                labels_for_concurrent_request_batch = self._generate_failed_labels(batch=batch, reason=str(e))
+            finally:
+                total_results.extend(labels_for_concurrent_request_batch)
+
+        return total_results
+
+    def _create_single_concurrent_request_batch(
+        self,
+        batch: list[PostToLabelModel],
+        prompt_batch_size: int,
+    ) -> list[str]:
+        """Creates a list of prompts to run concurrently as one batch."""
+        batches_per_prompt: list[list[PostToLabelModel]] = (
+            create_batches(batch_list=batch, batch_size=prompt_batch_size)
+        )
+        prompts: list[str] = [
+            self._generate_batch_prompt(batch=batch)
+            for batch in batches_per_prompt
+        ]
+        return prompts
+    
+    # TODO: figure out what to do if not divisible. Can just truncate
+    # the last batch (e.g., get whatever is left).
+    def _create_concurrent_request_batches(
+        self,
+        batch: list[PostToLabelModel],
+        prompt_batch_size: int,
+        concurrent_request_count: int,
+    ) -> list[list[str]]:
+        """Given a batch of post, create a nested list of prompts, where
+        each inner list is a batch of prompts that will be run concurrently.
+        """
+        records_per_concurrent_request_batch: list[list[PostToLabelModel]] = (
+            create_batches(batch_list=batch, batch_size=concurrent_request_count)
+        )
+        concurrent_request_batches: list[list[str]] = [
+            self._create_single_concurrent_request_batch(batch=batch, prompt_batch_size=prompt_batch_size)
+            for batch in records_per_concurrent_request_batch
+        ]
+        return concurrent_request_batches
 
     def _generate_batch_prompt(
         self,

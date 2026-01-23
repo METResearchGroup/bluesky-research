@@ -48,7 +48,6 @@ par with having 'n' posts run as 'n' requests in parallel, both from a runtime
 and an accuracy perspective.
 """
 
-from datetime import datetime, timezone
 import json
 import os
 import statistics
@@ -58,7 +57,6 @@ import pandas as pd
 from pydantic import BaseModel
 import matplotlib.pyplot as plt
 
-from lib.constants import timestamp_format
 from lib.datetime_utils import generate_current_datetime_str
 from classifier import IntergroupClassifier, IntergroupBatchedClassifier
 from load_data import load_posts, create_batch
