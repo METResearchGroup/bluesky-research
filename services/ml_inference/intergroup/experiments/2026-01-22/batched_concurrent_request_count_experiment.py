@@ -298,7 +298,7 @@ def run_experiment(batch_sizes: list[int], prompt_batch_size: int, n_runs: int =
 
 
 if __name__ == "__main__":
-    batch_sizes = BATCH_SIZES[:4]
+    batch_sizes = BATCH_SIZES
     prompt_batch_size = 5
     run_experiment(
         batch_sizes=batch_sizes,
