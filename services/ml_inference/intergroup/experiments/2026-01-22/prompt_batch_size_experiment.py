@@ -48,6 +48,7 @@ par with having 'n' posts run as 'n' requests in parallel, both from a runtime
 and an accuracy perspective.
 """
 
+from datetime import datetime, timezone
 import json
 import os
 import time
@@ -56,6 +57,7 @@ import pandas as pd
 from pydantic import BaseModel
 import matplotlib.pyplot as plt
 
+from lib.constants import timestamp_format
 from lib.datetime_utils import generate_current_datetime_str
 from classifier import IntergroupClassifier, IntergroupBatchedClassifier
 from load_data import load_posts, create_batch
@@ -106,7 +108,13 @@ def run_new_classifier_approach(
     ground_truth_labels: list[int],
 ) -> ClassifierResultsModel:
     start_time = time.time()
-    prompt_batched_labels: list[IntergroupLabelModel] = prompt_batched_classifier.classify_batch(batch=batch)
+    try:
+        prompt_batched_labels: list[IntergroupLabelModel] = prompt_batched_classifier.classify_batch(batch=batch)
+    except Exception as e:
+        batch_size = len(batch)
+        print(f"Error classifying batch for batch size {batch_size}: {e}")
+        prompt_batched_labels = prompt_batched_classifier._generate_failed_labels(batch=batch, reason=str(e))
+
     prompt_batched_accuracy = calculate_accuracy(
         ground_truth_labels=ground_truth_labels,
         labels=[label.label for label in prompt_batched_labels],
@@ -119,6 +127,7 @@ def run_new_classifier_approach(
     )
 
 def run_experiment_for_single_batch_size(batch_size: int) -> ExperimentResultsModel:
+    print(f"Running experiment for batch size {batch_size}")
     df: pd.DataFrame = load_posts()
     batch, ground_truth_labels = create_batch(posts=df, batch_size=batch_size)
 
@@ -130,6 +139,7 @@ def run_experiment_for_single_batch_size(batch_size: int) -> ExperimentResultsMo
         batch=batch,
         ground_truth_labels=ground_truth_labels,
     )
+    print(f"Experiment for batch size {batch_size} completed")
     return ExperimentResultsModel(
         batch_size=batch_size,
         current_classifier_results=current_classifier_results,
@@ -184,10 +194,14 @@ def generate_visualizations(total_metrics: list[ExperimentResultsModel], export_
     _generate_accuracy_vs_batch_size_plot(total_metrics=total_metrics, export_dir=export_dir)
     print(f"Visualizations generated and exported to {export_dir}")
 
-def run_experiment():
+def run_experiment(batch_sizes: list[int]):
     total_metrics: list[ExperimentResultsModel] = []
-    for batch_size in BATCH_SIZES:
+    for batch_size in batch_sizes:
         metrics = run_experiment_for_single_batch_size(batch_size)
         total_metrics.append(metrics)
     export_metrics(total_metrics=total_metrics, export_dir=export_dir)
     generate_visualizations(total_metrics=total_metrics, export_dir=export_dir)
+
+if __name__ == "__main__":
+    batch_sizes = BATCH_SIZES[:2]
+    run_experiment(batch_sizes=batch_sizes)
