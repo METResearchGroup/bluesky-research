@@ -1,6 +1,6 @@
 v1_prompt = ""
 
-batched_prompt = """
+BATCHED_INTERGROUP_PROMPT = """
 
 You are a helpful assistant. Your job is to analyze a single social media post and answer a binary classification question.
 
@@ -53,4 +53,6 @@ Your output should look like this:
 TEXTS:
 
 {enumerated_texts}
+
+Provide your output.
 """
