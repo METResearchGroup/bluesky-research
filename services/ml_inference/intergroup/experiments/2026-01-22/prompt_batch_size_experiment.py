@@ -48,6 +48,146 @@ par with having 'n' posts run as 'n' requests in parallel, both from a runtime
 and an accuracy perspective.
 """
 
-def run_experiment():
-    pass
+import json
+import os
+import time
 
+import pandas as pd
+from pydantic import BaseModel
+import matplotlib.pyplot as plt
+
+from lib.datetime_utils import generate_current_datetime_str
+from classifier import IntergroupClassifier, IntergroupBatchedClassifier
+from load_data import load_posts, create_batch
+from metrics import calculate_accuracy
+from services.ml_inference.models import PostToLabelModel
+from services.ml_inference.intergroup.models import IntergroupLabelModel
+
+export_dir = os.path.join(
+    os.path.dirname(__file__),
+    "prompt_batch_size_experiment_results",
+    generate_current_datetime_str(),
+)
+
+class ClassifierResultsModel(BaseModel):
+    accuracy: float
+    runtime_seconds: float
+
+class ExperimentResultsModel(BaseModel):
+    batch_size: int
+    current_classifier_results: ClassifierResultsModel
+    prompt_batched_classifier_results: ClassifierResultsModel
+
+BATCH_SIZES = [1, 2, 3, 5, 8, 10, 12, 15, 20, 25, 30]
+
+current_classifier = IntergroupClassifier()
+prompt_batched_classifier = IntergroupBatchedClassifier()
+
+
+def run_current_classifier_approach(
+    batch: list[PostToLabelModel],
+    ground_truth_labels: list[int],
+) -> ClassifierResultsModel:
+    start_time = time.time()
+    current_labels: list[IntergroupLabelModel] = current_classifier.classify_batch(batch=batch)
+    current_accuracy = calculate_accuracy(
+        ground_truth_labels=ground_truth_labels,
+        labels=[label.label for label in current_labels],
+    )
+    end_time = time.time()
+    runtime_seconds = end_time - start_time
+    return ClassifierResultsModel(
+        accuracy=current_accuracy,
+        runtime_seconds=runtime_seconds,
+    )
+
+def run_new_classifier_approach(
+    batch: list[PostToLabelModel],
+    ground_truth_labels: list[int],
+) -> ClassifierResultsModel:
+    start_time = time.time()
+    prompt_batched_labels: list[IntergroupLabelModel] = prompt_batched_classifier.classify_batch(batch=batch)
+    prompt_batched_accuracy = calculate_accuracy(
+        ground_truth_labels=ground_truth_labels,
+        labels=[label.label for label in prompt_batched_labels],
+    )
+    end_time = time.time()
+    runtime_seconds = end_time - start_time
+    return ClassifierResultsModel(
+        accuracy=prompt_batched_accuracy,
+        runtime_seconds=runtime_seconds,
+    )
+
+def run_experiment_for_single_batch_size(batch_size: int) -> ExperimentResultsModel:
+    df: pd.DataFrame = load_posts()
+    batch, ground_truth_labels = create_batch(posts=df, batch_size=batch_size)
+
+    current_classifier_results = run_current_classifier_approach(
+        batch=batch,
+        ground_truth_labels=ground_truth_labels,
+    )
+    prompt_batched_classifier_results = run_new_classifier_approach(
+        batch=batch,
+        ground_truth_labels=ground_truth_labels,
+    )
+    return ExperimentResultsModel(
+        batch_size=batch_size,
+        current_classifier_results=current_classifier_results,
+        prompt_batched_classifier_results=prompt_batched_classifier_results,
+    )
+
+def export_metrics(total_metrics: list[ExperimentResultsModel], export_dir: str):
+    os.makedirs(export_dir, exist_ok=True)
+    print(f"Exporting metrics to {export_dir}")
+    dumped_metrics = [metric.model_dump() for metric in total_metrics]
+    export_path = os.path.join(export_dir, "metrics.json")
+    with open(export_path, "w") as f:
+        json.dump(dumped_metrics, f)
+    print(f"Metrics exported to {export_path}")
+
+def _generate_runtime_vs_batch_size_plot(total_metrics: list[ExperimentResultsModel], export_dir: str):
+    df = pd.DataFrame([metric.model_dump() for metric in total_metrics])
+    batch_sizes = df["batch_size"]
+    current_runtimes = df["current_classifier_results"].apply(lambda x: x["runtime_seconds"])
+    prompt_batched_runtimes = df["prompt_batched_classifier_results"].apply(lambda x: x["runtime_seconds"])
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(batch_sizes, current_runtimes, label="Current", linestyle="--", color="blue")
+    plt.plot(batch_sizes, prompt_batched_runtimes, label="Prompt Batched", linestyle="-", color="blue")
+    plt.xlabel("Batch Size")
+    plt.ylabel("Runtime (seconds)")
+    plt.title("Runtime vs. Batch Size")
+    plt.legend()
+    plt.savefig(os.path.join(export_dir, "runtime_vs_batch_size.png"))
+    plt.close()
+
+def _generate_accuracy_vs_batch_size_plot(total_metrics: list[ExperimentResultsModel], export_dir: str):
+    df = pd.DataFrame([metric.model_dump() for metric in total_metrics])
+    batch_sizes = df["batch_size"]
+    current_accuracy = df["current_classifier_results"].apply(lambda x: x["accuracy"])
+    prompt_batched_accuracy = df["prompt_batched_classifier_results"].apply(lambda x: x["accuracy"])
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(batch_sizes, current_accuracy, label="Current", linestyle="--", color="blue")
+    plt.plot(batch_sizes, prompt_batched_accuracy, label="Prompt Batched", linestyle="-", color="blue")
+    plt.xlabel("Batch Size")
+    plt.ylabel("Accuracy")
+    plt.title("Accuracy vs. Batch Size")
+    plt.legend()
+    plt.savefig(os.path.join(export_dir, "accuracy_vs_batch_size.png"))
+    plt.close()
+
+def generate_visualizations(total_metrics: list[ExperimentResultsModel], export_dir: str):
+    os.makedirs(export_dir, exist_ok=True)
+    print(f"Generating visualizations to {export_dir}")
+    _generate_runtime_vs_batch_size_plot(total_metrics=total_metrics, export_dir=export_dir)
+    _generate_accuracy_vs_batch_size_plot(total_metrics=total_metrics, export_dir=export_dir)
+    print(f"Visualizations generated and exported to {export_dir}")
+
+def run_experiment():
+    total_metrics: list[ExperimentResultsModel] = []
+    for batch_size in BATCH_SIZES:
+        metrics = run_experiment_for_single_batch_size(batch_size)
+        total_metrics.append(metrics)
+    export_metrics(total_metrics=total_metrics, export_dir=export_dir)
+    generate_visualizations(total_metrics=total_metrics, export_dir=export_dir)
