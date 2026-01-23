@@ -37,9 +37,6 @@ export_dir = os.path.join(
     generate_current_datetime_str(),
 )
 
-# Constant: prompt batch size is fixed at 5
-PROMPT_BATCH_SIZE = 5
-
 class ClassifierResultsModel(BaseModel):
     accuracy: float
     runtime_seconds: float
@@ -56,19 +53,20 @@ current_classifier = IntergroupClassifier()
 prompt_batched_classifier = IntergroupBatchedClassifier()
 
 
-def calculate_concurrent_request_count(batch_size: int) -> int:
+def calculate_concurrent_request_count(batch_size: int, prompt_batch_size: int) -> int:
     """Calculate concurrent request count based on batch size.
     
-    For a given batch_size, we want to run batch_size / PROMPT_BATCH_SIZE
-    concurrent requests, each containing PROMPT_BATCH_SIZE posts.
+    For a given batch_size, we want to run batch_size / prompt_batch_size
+    concurrent requests, each containing prompt_batch_size posts.
     
     Args:
         batch_size: Total number of posts in the batch
+        prompt_batch_size: Number of posts per prompt
         
     Returns:
         Number of concurrent requests to make (rounded up to ensure all posts are covered)
     """
-    return max(1, math.ceil(batch_size / PROMPT_BATCH_SIZE))
+    return max(1, math.ceil(batch_size / prompt_batch_size))
 
 
 def run_current_classifier_approach(
@@ -100,6 +98,7 @@ def run_new_classifier_approach(
     batch: list[PostToLabelModel],
     ground_truth_labels: list[int],
     concurrent_request_count: int,
+    prompt_batch_size: int,
 ) -> ClassifierResultsModel:
     """Run the new classifier approach (prompt batching with concurrent requests)."""
     start_time = time.time()
@@ -108,7 +107,7 @@ def run_new_classifier_approach(
             prompt_batched_classifier.classify_batch_with_prompt_batching(
                 batch=batch,
                 concurrent_request_count=concurrent_request_count,
-                prompt_batch_size=PROMPT_BATCH_SIZE,
+                prompt_batch_size=prompt_batch_size,
             )
         )
     except Exception as e:
@@ -130,7 +129,7 @@ def run_new_classifier_approach(
     )
 
 
-def run_experiment_for_single_batch_size(batch_size: int) -> ExperimentResultsModel:
+def run_experiment_for_single_batch_size(batch_size: int, prompt_batch_size: int) -> ExperimentResultsModel:
     print(f"Running experiment for batch size {batch_size}")
     df: pd.DataFrame = load_posts()
     batch, ground_truth_labels = create_batch(posts=df, batch_size=batch_size)
@@ -144,11 +143,12 @@ def run_experiment_for_single_batch_size(batch_size: int) -> ExperimentResultsMo
 
     # Classifier 2: Run the new classifier approach
     # (prompt batching with concurrent requests)
-    concurrent_request_count = calculate_concurrent_request_count(batch_size=batch_size)
+    concurrent_request_count = calculate_concurrent_request_count(batch_size=batch_size, prompt_batch_size=prompt_batch_size)
     prompt_batched_classifier_results = run_new_classifier_approach(
         batch=batch,
         ground_truth_labels=ground_truth_labels,
         concurrent_request_count=concurrent_request_count,
+        prompt_batch_size=prompt_batch_size,
     )
     print(f"Experiment for batch size {batch_size} completed")
     return ExperimentResultsModel(
@@ -270,11 +270,12 @@ def generate_visualizations(
     print(f"Visualizations generated and exported to {export_dir}")
 
 
-def run_experiment(batch_sizes: list[int], n_runs: int = 3) -> None:
+def run_experiment(batch_sizes: list[int], prompt_batch_size: int, n_runs: int = 3) -> None:
     """Run experiments for multiple batch sizes, with each batch size run n_runs times.
     
     Args:
         batch_sizes: List of batch sizes to test.
+        prompt_batch_size: Number of posts per prompt.
         n_runs: Number of times to run each batch size experiment (default: 3).
                 Results will be averaged across runs.
     """
@@ -284,7 +285,7 @@ def run_experiment(batch_sizes: list[int], n_runs: int = 3) -> None:
         results: list[ExperimentResultsModel] = []
         for run_num in range(1, n_runs + 1):
             print(f"  Run {run_num}/{n_runs} for batch size {batch_size}")
-            result = run_experiment_for_single_batch_size(batch_size)
+            result = run_experiment_for_single_batch_size(batch_size, prompt_batch_size)
             results.append(result)
         print(f"[BATCH SIZE {batch_size}]: Completed {n_runs} runs for batch size {batch_size}, averaged results")
 
@@ -297,5 +298,9 @@ def run_experiment(batch_sizes: list[int], n_runs: int = 3) -> None:
 
 
 if __name__ == "__main__":
-    batch_sizes = BATCH_SIZES
-    run_experiment(batch_sizes=batch_sizes)
+    batch_sizes = BATCH_SIZES[:4]
+    prompt_batch_size = 5
+    run_experiment(
+        batch_sizes=batch_sizes,
+        prompt_batch_size=prompt_batch_size,
+    )
