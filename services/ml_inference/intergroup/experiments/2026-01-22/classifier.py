@@ -226,11 +226,23 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
         # e.g., if we have 400 posts, concurrent request count is 20, and prompt batch size is 5,
         # we will have 4 concurrent request batches, each concurrent request batch
         # containing 20 prompts, and each prompt containing 5 posts.
-        prompt_batches: list[PromptBatchModel] = self._create_prompt_batches(batch=batch, prompt_batch_size=prompt_batch_size)
-        concurrent_request_batches: list[list[PromptBatchModel]] = self._create_concurrent_request_batches(prompt_batches=prompt_batches, concurrent_request_count=concurrent_request_count)
+        prompt_batches: list[PromptBatchModel] = self._create_prompt_batches(
+            batch=batch, prompt_batch_size=prompt_batch_size,
+        )
+        concurrent_request_batches: list[list[PromptBatchModel]] = (
+            self._create_concurrent_request_batches(
+                prompt_batches=prompt_batches,
+                concurrent_request_count=concurrent_request_count,
+            )
+        )
         total_results: list[IntergroupLabelModel] = []
         for concurrent_request_batch in concurrent_request_batches:
-            labels_for_concurrent_request_batch = self._classify_single_concurrent_request_batch(concurrent_request_batch=concurrent_request_batch, llm_model_name=llm_model_name)
+            labels_for_concurrent_request_batch = (
+                self._classify_single_concurrent_request_batch(
+                    concurrent_request_batch=concurrent_request_batch,
+                    llm_model_name=llm_model_name,
+                )
+            )
             total_results.extend(labels_for_concurrent_request_batch)
 
         return total_results
