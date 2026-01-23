@@ -222,6 +222,11 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
         
         Splits up a single batch of posts into concurrent requests, where
         each request has a prompt of size prompt_batch_size.
+
+        For example, if we have 400 posts, concurrent request count is 20, and
+        prompt batch size is 5, then we will have 4 concurrent request batches,
+        each concurrent request batch containing 20 prompts, and each prompt
+        containing 5 posts.
         """
         # e.g., if we have 400 posts, concurrent request count is 20, and prompt batch size is 5,
         # we will have 4 concurrent request batches, each concurrent request batch
