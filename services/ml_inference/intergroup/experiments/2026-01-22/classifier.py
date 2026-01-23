@@ -217,7 +217,7 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
         concurrent_request_count: int,
         prompt_batch_size: int,
         llm_model_name: str = DEFAULT_LLM_MODEL_NAME,
-    ):
+    ) -> list[IntergroupLabelModel]:
         """Classifies a single batch of posts with concurrent requests.
         
         Splits up a single batch of posts into concurrent requests, where
@@ -227,7 +227,34 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
         prompt batch size is 5, then we will have 4 concurrent request batches,
         each concurrent request batch containing 20 prompts, and each prompt
         containing 5 posts.
+    
+        Args:
+            batch: List of posts to classify
+            concurrent_request_count: Number of concurrent requests to make (must be > 0)
+            prompt_batch_size: Number of posts per prompt (must be > 0)
+            llm_model_name: Model name to use for classification
+            
+        Returns:
+            List of IntergroupLabelModel instances, one per post in the input batch
+            
+        Raises:
+            ValueError: If concurrent_request_count or prompt_batch_size are <= 0
         """
+        # Input validation
+        if concurrent_request_count <= 0:
+            raise ValueError(
+                f"concurrent_request_count must be > 0, got {concurrent_request_count}"
+            )
+        if prompt_batch_size <= 0:
+            raise ValueError(
+                f"prompt_batch_size must be > 0, got {prompt_batch_size}"
+            )
+        
+        # Handle empty batch
+        if not batch:
+            logger.info("Empty batch provided, returning empty list")
+            return []
+        
         prompt_batches: list[PromptBatchModel] = self._create_prompt_batches(
             batch=batch, prompt_batch_size=prompt_batch_size,
         )
@@ -283,9 +310,17 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
         self,
         concurrent_request_batch: list[PromptBatchModel],
         llm_model_name: str = DEFAULT_LLM_MODEL_NAME,
-    ):
+    ) -> list[IntergroupLabelModel]:
         """Given a single concurrent request batch, classify all the prompts in
-        that batch."""
+        that batch.
+        
+        Args:
+            concurrent_request_batch: List of prompt batches to classify concurrently
+            llm_model_name: Model name to use for classification
+            
+        Returns:
+            List of IntergroupLabelModel instances for all posts in the concurrent request batch
+        """
         prompt_id_to_prompt_batch: dict[int, PromptBatchModel] = {
             prompt_batch.prompt_batch_id: prompt_batch
             for prompt_batch in concurrent_request_batch
@@ -320,6 +355,12 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
                     role="user",
                 )
             )
+            # Validate that we got the expected number of responses
+            if len(batched_llm_responses) != len(prompt_ids_list):
+                raise ValueError(
+                    f"Number of LLM responses ({len(batched_llm_responses)}) does not match "
+                    f"number of prompts ({len(prompt_ids_list)})."
+                )
             # TODO: move to a helper function.
             for (prompt_id, batched_llm_response) in zip(prompt_ids_list, batched_llm_responses):
                 prompt_batch = prompt_id_to_prompt_batch[prompt_id]
