@@ -259,12 +259,13 @@ def run_experiment(batch_sizes: list[int], n_runs: int = 3) -> None:
     """
     total_metrics: list[ExperimentResultsModel] = []
     for batch_size in batch_sizes:
-        print(f"Running {n_runs} experiments for batch size {batch_size}")
+        print(f"[BATCH SIZE {batch_size}]: Running {n_runs} experiments for batch size {batch_size}")
         results: list[ExperimentResultsModel] = []
         for run_num in range(1, n_runs + 1):
             print(f"  Run {run_num}/{n_runs} for batch size {batch_size}")
             result = run_experiment_for_single_batch_size(batch_size)
             results.append(result)
+        print(f"[BATCH SIZE {batch_size}]: Completed {n_runs} runs for batch size {batch_size}, averaged results")
 
         aggregated_result: ExperimentResultsModel = aggregate_experiment_results(results)
         total_metrics.append(aggregated_result)
@@ -274,5 +275,5 @@ def run_experiment(batch_sizes: list[int], n_runs: int = 3) -> None:
     generate_visualizations(total_metrics=total_metrics, export_dir=export_dir, n_runs=n_runs)
 
 if __name__ == "__main__":
-    batch_sizes = BATCH_SIZES[:2]
+    batch_sizes = BATCH_SIZES
     run_experiment(batch_sizes=batch_sizes)
