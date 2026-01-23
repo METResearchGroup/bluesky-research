@@ -304,6 +304,13 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
 
         labels_for_concurrent_request_batch: list[IntergroupLabelModel] = []
 
+        # Collect all posts from concurrent_request_batch for error handling
+        all_posts_in_concurrent_batch: list[PostToLabelModel] = [
+            post
+            for prompt_batch in concurrent_request_batch
+            for post in prompt_batch.prompt_batch
+        ]
+
         try:
             batched_llm_responses: list[BatchedLabelChoiceModel] = (
                 self.llm_service.structured_batch_completion(
@@ -321,34 +328,30 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
                 )
                 labels_for_concurrent_request_batch.extend(labels_for_single_request_batch)
             
-        # TODO: fix the `labels_for_concurrent_request_batch` handled in
-        # exceptions here, as these are incorrect.
         except (
             LLMAuthError,
             LLMInvalidRequestError,
             LLMPermissionDeniedError,
             LLMUnrecoverableError,
-        ) as e:
+        ):
             # Non-retryable errors: configuration issues, let them propagate
             # These indicate problems that need immediate attention
-            logger.error(
-                f"Non-retryable error encountered while classifying concurrent request batch: {e}",
-                exc_info=True,
-            )
-            labels_for_concurrent_request_batch = self._generate_failed_labels(batch=batch, reason=str(e))
+            raise
 
         except (LLMException, ValueError, ValidationError) as e:
             # Retryable errors that exhausted all retries: generate failed labels
             # These indicate transient issues or persistent validation problems
             logger.error(
-                f"Failed to classify batch after retries exhausted: {e}",
+                f"Failed to classify concurrent request batch after retries exhausted: {e}",
                 exc_info=True,
             )
-            logger.info(f"Generating failed labels for batch due to error: {e}")
-            # Generate failed labels for all posts in the batch.
-            # NOTE: we currently treat the entire batch as failed, which is
+            logger.info(f"Generating failed labels for concurrent request batch due to error: {e}")
+            # Generate failed labels for all posts in the concurrent request batch.
+            # NOTE: we currently treat the entire concurrent request batch as failed, which is
             # our current design choice.
-            labels_for_concurrent_request_batch = self._generate_failed_labels(batch=batch, reason=str(e))
+            labels_for_concurrent_request_batch = self._generate_failed_labels(
+                batch=all_posts_in_concurrent_batch, reason=str(e)
+            )
 
         return labels_for_concurrent_request_batch
 
