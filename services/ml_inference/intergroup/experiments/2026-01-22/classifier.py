@@ -320,13 +320,29 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
                     role="user",
                 )
             )
+            # TODO: move to a helper function.
             for (prompt_id, batched_llm_response) in zip(prompt_ids_list, batched_llm_responses):
                 prompt_batch = prompt_id_to_prompt_batch[prompt_id]
-                labels_for_single_request_batch = self._merge_batched_llm_responses_with_batch(
-                    batch=prompt_batch.prompt_batch,
-                    batched_llm_responses=[batched_llm_response]
-                )
-                labels_for_concurrent_request_batch.extend(labels_for_single_request_batch)
+                try:
+                    labels_for_single_request_batch = self._merge_batched_llm_responses_with_batch(
+                        batch=prompt_batch.prompt_batch,
+                        batched_llm_responses=[batched_llm_response]
+                    )
+                    labels_for_concurrent_request_batch.extend(labels_for_single_request_batch)
+                except (ValueError, ValidationError) as e:
+                    # Per-prompt-batch validation error (e.g., wrong number of labels)
+                    # Generate failed labels only for this specific prompt batch
+                    logger.error(
+                        f"Failed to merge LLM response for prompt batch {prompt_id} "
+                        f"(contains {len(prompt_batch.prompt_batch)} posts): {e}",
+                        exc_info=True,
+                    )
+                    failed_labels = self._generate_failed_labels(
+                        batch=prompt_batch.prompt_batch,
+                        reason=f"Validation error for prompt batch {prompt_id}: {str(e)}"
+                    )
+                    labels_for_concurrent_request_batch.extend(failed_labels)
+                    # Continue processing remaining prompt batches
             
         except (
             LLMAuthError,
@@ -338,9 +354,9 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
             # These indicate problems that need immediate attention
             raise
 
-        except (LLMException, ValueError, ValidationError) as e:
-            # Retryable errors that exhausted all retries: generate failed labels
-            # These indicate transient issues or persistent validation problems
+        except (LLMException) as e:
+            # LLM service-level errors (retries exhausted, network issues, etc.)
+            # These affect the entire concurrent request batch
             logger.error(
                 f"Failed to classify concurrent request batch after retries exhausted: {e}",
                 exc_info=True,
