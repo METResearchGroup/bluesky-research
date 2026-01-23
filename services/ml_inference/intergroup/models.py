@@ -9,6 +9,12 @@ class LabelChoiceModel(BaseModel):
     label: int = Field(..., description="The binary label for the post (0 or 1).")
 
 
+class BatchedLabelChoiceModel(BaseModel):
+    """Model for batched label choice."""
+
+    labels: list[LabelChoiceModel] = Field(..., description="The labels for the posts.")
+
+
 class IntergroupLabelModel(BaseModel):
     """Model for intergroup label."""
 
