@@ -262,7 +262,7 @@ class IntergroupBatchedClassifier(IntergroupClassifier):
             PromptBatchModel(
                 prompt_batch_id=i,
                 prompt_batch=prompt_batch,
-                prompt=self._generate_batch_prompt(batch=batch)
+                prompt=self._generate_batch_prompt(batch=prompt_batch)
             )
             for i, prompt_batch in enumerate(prompt_batches)
         ]
