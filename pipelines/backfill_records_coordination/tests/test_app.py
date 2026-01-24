@@ -147,6 +147,72 @@ class TestBackfillCoordinationCliApp(TestCase):
         mock_enqueue_cls.assert_called_once_with(source_data_location="local")
 
     @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    def test_add_to_queue_plumbs_sampling_flags_into_payload(self, mock_enqueue_cls):
+        """Test that sampling flags are passed through to EnqueueServicePayload."""
+        # Arrange
+        mock_enqueue = MagicMock()
+        mock_enqueue_cls.return_value = mock_enqueue
+
+        # Act
+        result = self._invoke_add_to_queue(
+            extra_args=["--sample-records", "--sample-proportion", "0.25"]
+        )
+
+        # Assert
+        self.assertEqual(result.exit_code, 0)
+        mock_enqueue.enqueue_records.assert_called_once()
+        enqueue_payload = mock_enqueue.enqueue_records.call_args[1]["payload"]
+        self.assertTrue(enqueue_payload.sample_records)
+        self.assertEqual(enqueue_payload.sample_proportion, 0.25)
+
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    def test_add_to_queue_sampling_requires_proportion(self, mock_enqueue_cls):
+        """Test that --sample-records requires --sample-proportion."""
+        # Arrange
+        mock_enqueue_cls.return_value = MagicMock()
+
+        # Act
+        result = self._invoke_add_to_queue(extra_args=["--sample-records"])
+
+        # Assert
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn(
+            "--sample-proportion is required when --sample-records is used",
+            result.output,
+        )
+
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    def test_add_to_queue_sampling_rejects_out_of_range_proportion(self, mock_enqueue_cls):
+        """Test that --sample-proportion must be in [0, 1]."""
+        # Arrange
+        mock_enqueue_cls.return_value = MagicMock()
+
+        # Act
+        result = self._invoke_add_to_queue(
+            extra_args=["--sample-records", "--sample-proportion", "1.1"]
+        )
+
+        # Assert
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--sample-proportion must be between 0 and 1", result.output)
+
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
+    def test_add_to_queue_rejects_proportion_without_sampling_flag(self, mock_enqueue_cls):
+        """Test that --sample-proportion is only valid when --sample-records is set."""
+        # Arrange
+        mock_enqueue_cls.return_value = MagicMock()
+
+        # Act
+        result = self._invoke_add_to_queue(extra_args=["--sample-proportion", "0.25"])
+
+        # Assert
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn(
+            "--sample-proportion is only valid when --sample-records is used",
+            result.output,
+        )
+
+    @patch("pipelines.backfill_records_coordination.app.EnqueueService")
     def test_add_to_queue_source_data_location_s3(
         self, mock_enqueue_cls
     ):
