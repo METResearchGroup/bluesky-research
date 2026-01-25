@@ -9,6 +9,7 @@ It owns I/O (queue exports) and batching; the classifier stays pure.
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 import sys
 from typing import Optional
 
@@ -19,9 +20,10 @@ from lib.helper import track_performance
 from lib.log.logger import get_logger
 from services.ml_inference.export_data import (
     attach_batch_id_to_label_dicts,
+    delete_batch_ids_from_input_queue,
     return_failed_labels_to_input_queue,
     split_labels_into_successful_and_failed_labels,
-    write_posts_to_cache,
+    write_posts_to_output_queue_only,
 )
 from services.ml_inference.intergroup.classifier import IntergroupClassifier
 from services.ml_inference.intergroup.constants import DEFAULT_BATCH_SIZE
@@ -53,6 +55,12 @@ def run_batch_classification(
             total_posts_successfully_labeled=0,
             total_posts_failed_to_label=0,
         )
+
+    # Track completion per input-queue batch_id so we only delete once ALL posts from that
+    # batch have been processed (success or failure).
+    batch_id_counts = Counter(p.batch_id for p in posts)
+    batch_id_processed: dict[int, int] = defaultdict(int)
+    completed_batch_ids: set[int] = set()
 
     batches: list[list[PostToLabelModel]] = create_batches(
         batch_list=posts, batch_size=batch_size
@@ -88,21 +96,34 @@ def run_batch_classification(
                 split_labels_into_successful_and_failed_labels(labels=label_models)
             )
 
+            failed_label_models: list[LabelWithBatchId] = []
             if len(failed_labels) > 0:
-                updated_total_failed_count: int = _manage_failed_labels(
+                updated_total_failed_count, failed_label_models = _manage_failed_labels(
                     failed_labels=failed_labels,
                     uri_to_batch_id=uri_to_batch_id,
                     total_failed_so_far=total_failed,
                 )
                 total_failed = updated_total_failed_count
 
+            successful_label_models: list[LabelWithBatchId] = []
             if len(successful_labels) > 0:
-                updated_total_successful_count: int = _manage_successful_labels(
-                    successful_labels=successful_labels,
-                    uri_to_batch_id=uri_to_batch_id,
-                    total_successful_so_far=total_successful,
+                updated_total_successful_count, successful_label_models = (
+                    _manage_successful_labels(
+                        successful_labels=successful_labels,
+                        uri_to_batch_id=uri_to_batch_id,
+                        total_successful_so_far=total_successful,
+                    )
                 )
                 total_successful = updated_total_successful_count
+
+            # Count both successful and failed against the ORIGINAL input-queue batch_id.
+            for labeled_post in successful_label_models + failed_label_models:
+                batch_id_processed[labeled_post.batch_id] += 1
+                if (
+                    batch_id_processed[labeled_post.batch_id]
+                    == batch_id_counts[labeled_post.batch_id]
+                ):
+                    completed_batch_ids.add(labeled_post.batch_id)
 
             # Update progress bar with live counts
             pbar.set_postfix(
@@ -113,6 +134,13 @@ def run_batch_classification(
             )
     finally:
         pbar.close()  # Explicitly close progress bar
+
+    # After ALL minibatches are processed, delete only the batch_ids that are complete.
+    if completed_batch_ids:
+        delete_batch_ids_from_input_queue(
+            inference_type="intergroup",
+            batch_ids=completed_batch_ids,
+        )
 
     return BatchClassificationMetadataModel(
         total_batches=total_batches,
@@ -125,7 +153,7 @@ def _manage_failed_labels(
     failed_labels: list[IntergroupLabelModel],
     uri_to_batch_id: dict[str, int],
     total_failed_so_far: int,
-) -> int:
+) -> tuple[int, list[LabelWithBatchId]]:
     """Manages failed labels and returns the updated total number of
     failed labels.
     """
@@ -140,28 +168,30 @@ def _manage_failed_labels(
         inference_type="intergroup",
         failed_label_models=failed_label_models,
     )
-    return total_failed_so_far + len(failed_label_models)
+    return total_failed_so_far + len(failed_label_models), failed_label_models
 
 
 def _manage_successful_labels(
     successful_labels: list[IntergroupLabelModel],
     uri_to_batch_id: dict[str, int],
     total_successful_so_far: int,
-) -> int:
+) -> tuple[int, list[LabelWithBatchId]]:
     """Manages successful labels and returns the updated total number of
     successful labels.
 
     Attaches batch_id to labels for queue management operations.
     Creates validated LabelWithBatchId instances.
     """
-    # Use helper function - enforces contract and documents intent
     successful_label_models: list[LabelWithBatchId] = attach_batch_id_to_label_dicts(
         labels=[label.model_dump() for label in successful_labels],
         uri_to_batch_id=uri_to_batch_id,
     )
     logger.info(f"Successfully labeled {len(successful_label_models)} posts.")
-    write_posts_to_cache(
+    write_posts_to_output_queue_only(
         inference_type="intergroup",
         posts=successful_label_models,
     )
-    return total_successful_so_far + len(successful_label_models)
+    return (
+        total_successful_so_far + len(successful_label_models),
+        successful_label_models,
+    )
