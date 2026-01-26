@@ -12,3 +12,10 @@ repos:
     rev: v3.0.0
     hooks:
       - id: complexipy
+  - repo: local
+    hooks:
+      - id: ty-check
+        name: ty check (non-blocking)
+        entry: uv run ty check --output-format concise --respect-ignore-files --exclude "**/*.ipynb" --exclude "assets/" --exclude "demos/" --exclude "deprecated/" --exclude "experiments/" --exclude "terraform/" --exit-zero
+        language: system
+        pass_filenames: false
