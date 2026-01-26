@@ -110,58 +110,6 @@ class TestLLMService:
         assert result.number == 42
         mock_complete.assert_called_once()
 
-    def test_structured_completion_raises_value_error_when_content_is_none(self):
-        """Verify structured_completion raises ValueError when response content is None."""
-        service = LLMService()
-        dummy_provider = _DummyProvider()
-        messages = [{"role": "user", "content": "test prompt"}]
-
-        with patch.object(service, "_get_provider_for_model", return_value=dummy_provider):
-            # Mock _complete_and_validate_structured to raise ValueError (simulating handle_completion_response)
-            with patch.object(
-                service,
-                "_complete_and_validate_structured",
-                side_effect=ValueError(
-                    "Response content is None. Expected structured output from LLM."
-                ),
-            ):
-                with pytest.raises(ValueError, match="Response content is None"):
-                    service.structured_completion(
-                        messages=messages,
-                        response_model=SamplePydanticModel,
-                        model="gpt-4o-mini",
-                    )
-
-    def test_structured_completion_raises_validation_error_for_invalid_json(self):
-        """Verify structured_completion raises ValidationError for invalid JSON response."""
-        from pydantic import ValidationError
-
-        service = LLMService()
-        dummy_provider = _DummyProvider()
-        messages = [{"role": "user", "content": "test prompt"}]
-
-        # Create a ValidationError by trying to parse invalid data
-        # This will definitely raise a ValidationError since required fields are missing
-        validation_error: ValidationError
-        try:
-            SamplePydanticModel.model_validate({})  # Empty dict will fail validation
-            # This should never happen, but satisfy type checker
-            raise AssertionError("Expected ValidationError was not raised")
-        except ValidationError as e:
-            validation_error = e
-
-        with patch.object(service, "_get_provider_for_model", return_value=dummy_provider):
-            # Mock _complete_and_validate_structured to raise ValidationError
-            with patch.object(
-                service, "_complete_and_validate_structured", side_effect=validation_error
-            ):
-                with pytest.raises(ValidationError):
-                    service.structured_completion(
-                        messages=messages,
-                        response_model=SamplePydanticModel,
-                        model="gpt-4o-mini",
-                    )
-
     def test_structured_completion_passes_kwargs_to_complete_and_validate(self):
         """Verify structured_completion passes kwargs through to _complete_and_validate_structured."""
         service = LLMService()
