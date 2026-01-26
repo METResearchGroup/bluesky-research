@@ -1,6 +1,6 @@
 """Service for enqueuing records."""
 
-import hashlib
+import random
 
 from lib.log.logger import get_logger
 from services.backfill.models import (
@@ -16,29 +16,23 @@ from services.backfill.services.queue_manager_service import QueueManagerService
 
 logger = get_logger(__file__)
 
+DEFAULT_SAMPLE_PROPORTION = 1.0
 
-def _deterministically_sample_posts_by_uri(
+
+def _sample_posts(
     posts: list[PostToEnqueueModel], sample_proportion: float
 ) -> list[PostToEnqueueModel]:
-    """Deterministically sample posts by hashing `uri`.
-
-    This is intended to produce a stable sample across:
-    - integrations (sampling is applied once on a shared base set)
-    - machines/runs (no RNG state/seed required)
-    """
+    """Randomly samples posts by proportion."""
     if sample_proportion <= 0.0:
         return []
     if sample_proportion >= 1.0:
         return posts
 
-    sampled: list[PostToEnqueueModel] = []
-    denom = float(2**64)
-    for post in posts:
-        digest = hashlib.sha256(post.uri.encode("utf-8")).digest()
-        bucket = int.from_bytes(digest[:8], "big") / denom
-        if bucket < sample_proportion:
-            sampled.append(post)
-    return sampled
+    sample_size = int(len(posts) * sample_proportion)
+    if sample_size == 0:
+        return []
+
+    return random.sample(posts, sample_size)
 
 
 class EnqueueService:
@@ -92,16 +86,19 @@ class EnqueueService:
             )
             logger.info(f"Loaded {len(base_posts)} base posts (scope={post_scope}).")
 
-            sampled_base_posts: list[PostToEnqueueModel] = base_posts
             if payload.sample_records:
-                sampled_base_posts = _deterministically_sample_posts_by_uri(
-                    posts=base_posts,
-                    sample_proportion=float(payload.sample_proportion or 1.0),
+                sample_proportion: float = float(
+                    payload.sample_proportion or DEFAULT_SAMPLE_PROPORTION
+                )
+                sampled_base_posts: list[PostToEnqueueModel] = _sample_posts(
+                    posts=base_posts, sample_proportion=sample_proportion
                 )
                 logger.info(
-                    f"Sampled base posts (proportion={payload.sample_proportion}): "
+                    f"Sampled base posts (proportion={sample_proportion}): "
                     f"{len(base_posts)} -> {len(sampled_base_posts)}"
                 )
+            else:
+                sampled_base_posts = base_posts
 
             total_integrations: int = len(payload.integrations)
             for i, integration_name in enumerate(payload.integrations):
