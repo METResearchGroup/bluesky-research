@@ -37,46 +37,18 @@ class BackfillDataLoaderService:
         start_date: str,
         end_date: str,
     ) -> list[PostToEnqueueModel]:
-        """Load posts for a scope and remove ones already labeled by an integration."""
-        posts = self.load_posts_by_scope(
+        posts: list[PostToEnqueueModel] = self._load_posts(
             post_scope=post_scope,
             start_date=start_date,
             end_date=end_date,
         )
-        return self.filter_out_previously_classified_posts(
+        filtered_posts: list[PostToEnqueueModel] = self._filter_posts(
             posts=posts,
             integration_name=integration_name,
             start_date=start_date,
             end_date=end_date,
         )
-
-    def load_posts_by_scope(
-        self,
-        post_scope: PostScope,
-        start_date: str,
-        end_date: str,
-    ) -> list[PostToEnqueueModel]:
-        """Load base posts for a given scope (no integration-specific filtering)."""
-        return self._load_posts(
-            post_scope=post_scope,
-            start_date=start_date,
-            end_date=end_date,
-        )
-
-    def filter_out_previously_classified_posts(
-        self,
-        posts: list[PostToEnqueueModel],
-        integration_name: str,
-        start_date: str,
-        end_date: str,
-    ) -> list[PostToEnqueueModel]:
-        """Filter out posts already classified by the integration."""
-        return self._filter_posts(
-            posts=posts,
-            integration_name=integration_name,
-            start_date=start_date,
-            end_date=end_date,
-        )
+        return filtered_posts
 
     def _load_posts(
         self,

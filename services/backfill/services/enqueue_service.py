@@ -78,7 +78,7 @@ class EnqueueService:
         try:
             post_scope = PostScope(payload.record_type)
             base_posts: list[PostToEnqueueModel] = (
-                self.backfill_data_loader_service.load_posts_by_scope(
+                self.backfill_data_loader_service._load_posts(
                     post_scope=post_scope,
                     start_date=payload.start_date,
                     end_date=payload.end_date,
@@ -105,7 +105,7 @@ class EnqueueService:
                 logger.info(
                     f"[Progress: {i+1}/{total_integrations}] Enqueuing records for integration: {integration_name}"
                 )
-                posts_to_enqueue = self.backfill_data_loader_service.filter_out_previously_classified_posts(
+                posts_to_enqueue = self.backfill_data_loader_service._filter_posts(
                     posts=sampled_base_posts,
                     integration_name=integration_name,
                     start_date=payload.start_date,

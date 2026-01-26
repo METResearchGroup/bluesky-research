@@ -78,8 +78,8 @@ class TestEnqueueService_enqueue_records:
     ):
         """Test that records are enqueued for all specified integrations."""
         # Arrange
-        mock_data_loader.load_posts_by_scope.return_value = sample_posts
-        mock_data_loader.filter_out_previously_classified_posts.return_value = (
+        mock_data_loader._load_posts.return_value = sample_posts
+        mock_data_loader._filter_posts.return_value = (
             sample_posts
         )
 
@@ -88,18 +88,18 @@ class TestEnqueueService_enqueue_records:
             service.enqueue_records(payload=sample_payload)
 
             # Assert
-            mock_data_loader.load_posts_by_scope.assert_called_once_with(
+            mock_data_loader._load_posts.assert_called_once_with(
                 post_scope=PostScope.ALL_POSTS,
                 start_date=sample_payload.start_date,
                 end_date=sample_payload.end_date,
             )
             assert (
-                mock_data_loader.filter_out_previously_classified_posts.call_count == 2
+                mock_data_loader._filter_posts.call_count == 2
             )
             assert mock_queue_manager.insert_posts_to_queue.call_count == 2
             # Verify first integration
             first_call_args = (
-                mock_data_loader.filter_out_previously_classified_posts.call_args_list[0]
+                mock_data_loader._filter_posts.call_args_list[0]
             )
             assert (
                 first_call_args.kwargs["integration_name"]
@@ -108,7 +108,7 @@ class TestEnqueueService_enqueue_records:
             assert first_call_args.kwargs["posts"] == sample_posts
             # Verify second integration
             second_call_args = (
-                mock_data_loader.filter_out_previously_classified_posts.call_args_list[
+                mock_data_loader._filter_posts.call_args_list[
                     1
                 ]
             )
@@ -123,8 +123,8 @@ class TestEnqueueService_enqueue_records:
     ):
         """Test that progress is logged for each integration."""
         # Arrange
-        mock_data_loader.load_posts_by_scope.return_value = sample_posts
-        mock_data_loader.filter_out_previously_classified_posts.return_value = (
+        mock_data_loader._load_posts.return_value = sample_posts
+        mock_data_loader._filter_posts.return_value = (
             sample_posts
         )
 
@@ -149,8 +149,8 @@ class TestEnqueueService_enqueue_records:
             start_date="2024-01-01",
             end_date="2024-01-31",
         )
-        mock_data_loader.load_posts_by_scope.return_value = sample_posts
-        mock_data_loader.filter_out_previously_classified_posts.return_value = (
+        mock_data_loader._load_posts.return_value = sample_posts
+        mock_data_loader._filter_posts.return_value = (
             sample_posts
         )
 
@@ -158,8 +158,8 @@ class TestEnqueueService_enqueue_records:
         service.enqueue_records(payload=payload)
 
         # Assert
-        mock_data_loader.load_posts_by_scope.assert_called_once()
-        mock_data_loader.filter_out_previously_classified_posts.assert_called_once()
+        mock_data_loader._load_posts.assert_called_once()
+        mock_data_loader._filter_posts.assert_called_once()
         mock_queue_manager.insert_posts_to_queue.assert_called_once()
 
     def test_raises_enqueue_service_error_on_exception(
@@ -167,7 +167,7 @@ class TestEnqueueService_enqueue_records:
     ):
         """Test that EnqueueServiceError is raised when exception occurs."""
         # Arrange
-        mock_data_loader.load_posts_by_scope.side_effect = Exception("Test error")
+        mock_data_loader._load_posts.side_effect = Exception("Test error")
 
         with patch("services.backfill.services.enqueue_service.logger") as mock_logger:
             # Act & Assert
@@ -184,8 +184,8 @@ class TestEnqueueService_enqueue_records:
         """Test that integrations are processed sequentially."""
         # Arrange
         call_order = []
-        mock_data_loader.load_posts_by_scope.return_value = sample_posts
-        mock_data_loader.filter_out_previously_classified_posts.side_effect = (
+        mock_data_loader._load_posts.return_value = sample_posts
+        mock_data_loader._filter_posts.side_effect = (
             lambda **kwargs: call_order.append(("filter", kwargs["integration_name"]))
             or sample_posts
         )
@@ -224,9 +224,9 @@ class TestEnqueueService_enqueue_records:
             sample_records=True,
             sample_proportion=0.123,
         )
-        mock_data_loader.load_posts_by_scope.return_value = sample_posts
+        mock_data_loader._load_posts.return_value = sample_posts
         expected_sample = [sample_posts[0]]
-        mock_data_loader.filter_out_previously_classified_posts.return_value = (
+        mock_data_loader._filter_posts.return_value = (
             expected_sample
         )
 
@@ -244,14 +244,10 @@ class TestEnqueueService_enqueue_records:
                 sample_proportion=float(payload.sample_proportion),
             )
             first_filter_call = (
-                mock_data_loader.filter_out_previously_classified_posts.call_args_list[
-                    0
-                ]
+                mock_data_loader._filter_posts.call_args_list[0]
             )
             second_filter_call = (
-                mock_data_loader.filter_out_previously_classified_posts.call_args_list[
-                    1
-                ]
+                mock_data_loader._filter_posts.call_args_list[1]
             )
             assert first_filter_call.kwargs["posts"] == expected_sample
             assert second_filter_call.kwargs["posts"] == expected_sample
