@@ -15,7 +15,7 @@ from services.backfill.services.backfill_data_loader_service import (
 from services.backfill.services.queue_manager_service import QueueManagerService
 from services.backfill.services.enqueue_service import (
     EnqueueService,
-    _deterministically_sample_posts_by_uri,
+    _sample_posts,
 )
 
 
@@ -213,6 +213,7 @@ class TestEnqueueService_enqueue_records:
         """Test that sampling happens once and the sampled base is passed to each integration filter.
 
         This guards the requirement that the *same* sample is used across integrations.
+        Note: The sample is random but consistent within a single run.
         """
         # Arrange
         payload = EnqueueServicePayload(
@@ -230,13 +231,14 @@ class TestEnqueueService_enqueue_records:
         )
 
         with patch(
-            "services.backfill.services.enqueue_service._deterministically_sample_posts_by_uri",
+            "services.backfill.services.enqueue_service._sample_posts",
             return_value=expected_sample,
         ) as mock_sample:
             # Act
             service.enqueue_records(payload=payload)
 
             # Assert
+            assert payload.sample_proportion is not None  # Type narrowing for type checker
             mock_sample.assert_called_once_with(
                 posts=sample_posts,
                 sample_proportion=float(payload.sample_proportion),
@@ -256,8 +258,8 @@ class TestEnqueueService_enqueue_records:
             assert mock_queue_manager.insert_posts_to_queue.call_count == 2
 
 
-class Test_deterministically_sample_posts_by_uri:
-    """Tests for _deterministically_sample_posts_by_uri helper."""
+class TestSamplePosts:
+    """Tests for _sample_posts helper."""
 
     def test_returns_empty_list_for_zero_proportion(self, sample_posts):
         """Test that 0.0 returns an empty sample."""
@@ -265,7 +267,7 @@ class Test_deterministically_sample_posts_by_uri:
         sample_proportion = 0.0
 
         # Act
-        result = _deterministically_sample_posts_by_uri(
+        result = _sample_posts(
             posts=sample_posts, sample_proportion=sample_proportion
         )
 
@@ -278,26 +280,114 @@ class Test_deterministically_sample_posts_by_uri:
         sample_proportion = 1.0
 
         # Act
-        result = _deterministically_sample_posts_by_uri(
+        result = _sample_posts(
             posts=sample_posts, sample_proportion=sample_proportion
         )
 
         # Assert
         assert result == sample_posts
 
-    def test_is_deterministic_across_repeated_calls(self, sample_posts):
-        """Test that sampling is deterministic for the same inputs."""
+    def test_sample_size_is_approximately_correct(self, sample_posts):
+        """Test that sample size matches proportion (within rounding bounds)."""
         # Arrange
         sample_proportion = 0.5
 
         # Act
-        first = _deterministically_sample_posts_by_uri(
-            posts=sample_posts, sample_proportion=sample_proportion
-        )
-        second = _deterministically_sample_posts_by_uri(
+        result = _sample_posts(
             posts=sample_posts, sample_proportion=sample_proportion
         )
 
         # Assert
-        assert first == second
-        assert all(isinstance(p, PostToEnqueueModel) for p in first)
+        # With 2 posts and 0.5 proportion, should get 1 post (int(2 * 0.5) = 1)
+        assert len(result) == 1
+        assert all(isinstance(p, PostToEnqueueModel) for p in result)
+
+    def test_very_small_proportion_returns_empty(self, sample_posts):
+        """Test that very small proportions that round to 0 return empty list."""
+        # Arrange
+        sample_proportion = 0.01  # int(2 * 0.01) = 0
+
+        # Act
+        result = _sample_posts(
+            posts=sample_posts, sample_proportion=sample_proportion
+        )
+
+        # Assert
+        assert result == []
+
+    def test_sample_contains_no_duplicates(self):
+        """Test that sampled posts contain no duplicates."""
+        # Arrange
+        many_posts = [
+            PostToEnqueueModel(
+                uri=f"test_uri_{i}",
+                text=f"test_text_{i}",
+                preprocessing_timestamp="2024-01-01T00:00:00",
+            )
+            for i in range(100)
+        ]
+        sample_proportion = 0.3  # Should get 30 posts
+
+        # Act
+        result = _sample_posts(
+            posts=many_posts, sample_proportion=sample_proportion
+        )
+
+        # Assert
+        assert len(result) == len(set(p.uri for p in result))  # No duplicate URIs
+        assert len(result) == int(len(many_posts) * sample_proportion)
+
+    def test_sample_is_subset_of_original(self, sample_posts):
+        """Test that all sampled posts are from the original list."""
+        # Arrange
+        sample_proportion = 0.5
+        original_uris = {post.uri for post in sample_posts}
+
+        # Act
+        result = _sample_posts(
+            posts=sample_posts, sample_proportion=sample_proportion
+        )
+
+        # Assert
+        assert all(post.uri in original_uris for post in result)
+
+    def test_sample_size_never_exceeds_population(self):
+        """Test that sample size never exceeds the population size."""
+        # Arrange
+        posts = [
+            PostToEnqueueModel(
+                uri=f"test_uri_{i}",
+                text=f"test_text_{i}",
+                preprocessing_timestamp="2024-01-01T00:00:00",
+            )
+            for i in range(10)
+        ]
+        sample_proportion = 0.5
+
+        # Act
+        result = _sample_posts(
+            posts=posts, sample_proportion=sample_proportion
+        )
+
+        # Assert
+        assert len(result) <= len(posts)
+        assert len(result) == 5  # int(10 * 0.5)
+
+    def test_handles_single_post_correctly(self):
+        """Test sampling behavior with a single post."""
+        # Arrange
+        single_post = [
+            PostToEnqueueModel(
+                uri="test_uri_1",
+                text="test_text_1",
+                preprocessing_timestamp="2024-01-01T00:00:00",
+            )
+        ]
+
+        # Act & Assert - proportion 0.5 should return empty (int(1 * 0.5) = 0)
+        result = _sample_posts(posts=single_post, sample_proportion=0.5)
+        assert result == []
+
+        # Act & Assert - proportion 1.0 should return the post
+        result = _sample_posts(posts=single_post, sample_proportion=1.0)
+        assert result == single_post
