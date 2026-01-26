@@ -288,6 +288,90 @@ class TestEnqueueServicePayload_integrations:
             )
 
 
+class TestEnqueueServicePayload_validate_sampling_config:
+    """Tests for EnqueueServicePayload.validate_sampling_config model validator."""
+
+    def test_accepts_defaults_when_sampling_disabled(self):
+        """Test that sampling defaults are accepted when not enabled."""
+        # Arrange & Act
+        payload = EnqueueServicePayload(
+            record_type="posts",
+            integrations=["ml_inference_perspective_api"],
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+        )
+
+        # Assert
+        assert payload.sample_records is False
+        assert payload.sample_proportion is None
+
+    def test_raises_when_sample_records_true_and_no_proportion(self):
+        """Test that enabling sampling requires a sample_proportion."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValidationError) as exc_info:
+            EnqueueServicePayload(
+                record_type="posts",
+                integrations=["ml_inference_perspective_api"],
+                start_date="2024-01-01",
+                end_date="2024-01-31",
+                sample_records=True,
+                sample_proportion=None,
+            )
+
+        # Assert
+        assert "sample_proportion is required" in str(exc_info.value)
+
+    @pytest.mark.parametrize("proportion", [-0.1, 1.1])
+    def test_raises_when_proportion_out_of_range(self, proportion: float):
+        """Test that sample_proportion must be within [0, 1]."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValidationError) as exc_info:
+            EnqueueServicePayload(
+                record_type="posts",
+                integrations=["ml_inference_perspective_api"],
+                start_date="2024-01-01",
+                end_date="2024-01-31",
+                sample_records=True,
+                sample_proportion=proportion,
+            )
+
+        # Assert
+        assert "between 0 and 1" in str(exc_info.value)
+
+    @pytest.mark.parametrize("proportion", [0.0, 1.0])
+    def test_accepts_boundary_values(self, proportion: float):
+        """Test that 0.0 and 1.0 are accepted when sampling is enabled."""
+        # Arrange & Act
+        payload = EnqueueServicePayload(
+            record_type="posts",
+            integrations=["ml_inference_perspective_api"],
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+            sample_records=True,
+            sample_proportion=proportion,
+        )
+
+        # Assert
+        assert payload.sample_records is True
+        assert payload.sample_proportion == proportion
+
+    def test_raises_when_proportion_provided_but_sampling_disabled(self):
+        """Test that sample_proportion cannot be set unless sample_records is enabled."""
+        # Arrange & Act & Assert
+        with pytest.raises(ValidationError) as exc_info:
+            EnqueueServicePayload(
+                record_type="posts",
+                integrations=["ml_inference_perspective_api"],
+                start_date="2024-01-01",
+                end_date="2024-01-31",
+                sample_records=False,
+                sample_proportion=0.5,
+            )
+
+        # Assert
+        assert "only be set when sample_records is enabled" in str(exc_info.value)
+
+
 class TestIntegrationRunnerConfigurationPayload:
     """Tests for IntegrationRunnerConfigurationPayload model."""
 

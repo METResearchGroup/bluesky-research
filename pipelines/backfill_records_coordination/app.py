@@ -163,6 +163,18 @@ def validate_date_format(ctx, param, value):
     help="End date for backfill (YYYY-MM-DD format, inclusive). If provided with start-date, only processes records within date range.",
 )
 @click.option(
+    "--sample-records",
+    is_flag=True,
+    default=False,
+    help="If set, sample records before enqueuing. Sampling is applied once and shared across integrations for a given run.",
+)
+@click.option(
+    "--sample-proportion",
+    type=float,
+    default=None,
+    help="Proportion of records to keep when --sample-records is set. Must be between 0 and 1 (inclusive).",
+)
+@click.option(
     "--clear-input-queues",
     is_flag=True,
     default=False,
@@ -195,6 +207,8 @@ def backfill_records(
     bypass_write: bool,
     start_date: str | None,
     end_date: str | None,
+    sample_records: bool,
+    sample_proportion: float | None,
     clear_input_queues: bool,
     clear_output_queues: bool,
     migrate_to_s3: bool,
@@ -229,6 +243,8 @@ def backfill_records(
         end_date=end_date,
         max_records_per_run=max_records_per_run,
         migrate_to_s3=migrate_to_s3,
+        sample_records=sample_records,
+        sample_proportion=sample_proportion,
     )
 
     if add_to_queue:
@@ -240,6 +256,8 @@ def backfill_records(
             integrations=mapped_integration_names,
             start_date=str(start_date),
             end_date=str(end_date),
+            sample_records=sample_records,
+            sample_proportion=sample_proportion,
         )
         enqueue_svc.enqueue_records(payload=enqueue_service_payload)
 
@@ -437,6 +455,8 @@ def run_validation_checks(
     start_date: str | None,
     end_date: str | None,
     max_records_per_run: int | None,
+    sample_records: bool = False,
+    sample_proportion: float | None = None,
     migrate_to_s3: bool = False,
 ):
     """Validates CLI arguments and raises click.UsageError if invalid."""
@@ -481,6 +501,19 @@ def run_validation_checks(
     # Validate max_records_per_run usage
     if max_records_per_run is not None and max_records_per_run < 0:
         raise click.UsageError("--max-records-per-run must be >= 0")
+
+    # Validate sampling flags
+    if add_to_queue and sample_records:
+        if sample_proportion is None:
+            raise click.UsageError(
+                "--sample-proportion is required when --sample-records is used"
+            )
+        if not (0.0 <= sample_proportion <= 1.0):
+            raise click.UsageError("--sample-proportion must be between 0 and 1")
+    if add_to_queue and (not sample_records) and (sample_proportion is not None):
+        raise click.UsageError(
+            "--sample-proportion is only valid when --sample-records is used"
+        )
 
 
 if __name__ == "__main__":
