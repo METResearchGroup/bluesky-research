@@ -26,6 +26,10 @@ payloads = {
         "description": "Enqueue records only, skip running integrations",
         "command": "python app.py --record-type posts --integrations ml_inference_perspective_api --add-to-queue --start-date 2024-01-01 --end-date 2024-01-31",
     },
+    "perspective_api_enqueue_only_sampled": {
+        "description": "Enqueue records only with deterministic sampling shared across integrations",
+        "command": "python app.py --record-type posts --integrations ml_inference_perspective_api --add-to-queue --start-date 2024-01-01 --end-date 2024-01-31 --sample-records --sample-proportion 0.1",
+    },
     "perspective_api_run_integration_only": {
         "description": "Run integrations only (process existing queued records)",
         "command": "python app.py --record-type posts --integrations ml_inference_perspective_api --run-integrations",

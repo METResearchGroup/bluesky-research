@@ -1,15 +1,4 @@
-INTERGROUP_PROMPT = """
-You are a helpful assistant. Your job is to analyze a single social media post and answer a binary classification question.
-
-## Task
-
-Decide whether the post involves intergroup discussion. In social psychology, intergroup refers to interactions or situations that involve two or more groups that define themselves—or are defined by others—as distinct based on characteristics such as identity, beliefs, status, affiliation, or other boundaries.
-
-- If you judge that the post describes, reports, or implies intergroup discussion, respond with: "1"
-- If the post is unrelated, speaks only about individuals, is ambiguous, or describes within-group matters, respond with: "0"
-
-Only output your label. ONLY output 0 or 1.
-
+INTERGROUP_EXAMPLES = """
 ## Examples
 
 Post: "Customers are upset because the management changed the return policy."
@@ -32,6 +21,26 @@ Answer: 0
 
 Post: "Several men argued loudly outside the bar."
 Answer: 0
+"""
+
+INTERGROUP_SYSTEM_PROMPT = f"""
+You are a helpful assistant. Your job is to analyze a single social media post and answer a binary classification question
+
+## Task
+
+Decide whether the post involves intergroup discussion. In social psychology, intergroup refers to interactions or situations that involve two or more groups that define themselves—or are defined by others—as distinct based on characteristics such as identity, beliefs, status, affiliation, or other boundaries.
+
+- If you judge that the post describes, reports, or implies intergroup discussion, respond with: "1"
+- If the post is unrelated, speaks only about individuals, is ambiguous, or describes within-group matters, respond with: "0"
+
+Only output your label. ONLY output 0 or 1.
+
+{INTERGROUP_EXAMPLES}
+"""
+
+INTERGROUP_PROMPT = f"""
+
+{INTERGROUP_SYSTEM_PROMPT}
 
 Post: {input}
 Answer:
