@@ -2138,11 +2138,85 @@ sqlite> .exit
   - `python -m pipelines.backfill_records_coordination.app --add-to-queue --record-type posts_used_in_feeds --integrations g --start-date 2024-11-02 --end-date 2024-11-08 --source-data-location s3 --sample-records --sample-proportion 0.2`
 
 ```bash
-
+...
+2026-01-26 19:43:07,159 INFO [logger.py]: Loaded 0 post URIs from S3 for service ml_inference_intergroup
+2026-01-26 19:43:07,203 INFO [logger.py]: Creating new SQLite DB for queue input_ml_inference_intergroup...
+2026-01-26 19:43:07,401 INFO [logger.py]: Writing 93761 items as 94 minibatches to DB.
+2026-01-26 19:43:07,401 INFO [logger.py]: Writing 94 minibatches to DB as 4 batches...
+2026-01-26 19:43:07,401 INFO [logger.py]: Processing batch 1/4...
+2026-01-26 19:43:07,512 INFO [logger.py]: Inserted 93761 posts into queue for integration: ml_inference_intergroup
+2026-01-26 19:43:07,518 INFO [logger.py]: [Progress: 1/1] Completed enqueuing records for integration: ml_inference_intergroup
+2026-01-26 19:43:07,518 INFO [logger.py]: [Progress: 1/1] Enqueuing records completed successfully.
 ```
 
 - [ ] Running integrations:
-  - `python -m pipelines.backfill_records_coordination.app --run-integrations --integrations g --max-records-per-run 10000`
+  - `python -m pipelines.backfill_records_coordination.app --run-integrations --integrations g --max-records-per-run 20000`
+
+Iteration 1: 20,000
+
+```bash
+(base) ➜  bluesky-research git:(start-intergroup-backfills) ✗ uv run python -m pipelines.backfill_records_coordination.app --run-integrations --integrations g --max-records-per-run 20000
+2026-01-26 19:45:27,184 INFO [logger.py]: No connection provided, creating a new in-memory connection.
+2026-01-26 19:45:27,284 INFO [logger.py]: Not clearing any queues.
+2026-01-26 19:45:27,284 INFO [logger.py]: Running integrations: ml_inference_intergroup
+2026-01-26 19:45:27,284 INFO [logger.py]: Running integration 1 of 1: ml_inference_intergroup
+2026-01-26 19:45:34,130 INFO [logger.py]: Loading existing SQLite DB for queue input_ml_inference_intergroup...
+2026-01-26 19:45:34,132 INFO [logger.py]: Current queue size: 94 items
+2026-01-26 19:45:34,425 INFO [logger.py]: Loaded 93761 posts to classify.
+2026-01-26 19:45:34,426 INFO [logger.py]: Getting posts to classify for inference type intergroup.
+2026-01-26 19:45:34,426 INFO [logger.py]: Latest inference timestamp: None
+2026-01-26 19:45:34,476 INFO [logger.py]: After dropping duplicates, 93761 posts remain.
+2026-01-26 19:45:34,546 INFO [logger.py]: After filtering, 92400 posts remain.
+Execution time for get_posts_to_classify: 0 minutes, 2 seconds
+Memory usage for get_posts_to_classify: 209.078125 MB
+2026-01-26 19:45:36,043 INFO [logger.py]: Limited posts from 92400 to 19705 (max_records_per_run=20000, included 20 complete batches)
+2026-01-26 19:45:36,064 INFO [logger.py]: Classifying 19705 posts with intergroup classifier...
+Classifying batches:   0%|                                                                                  | 0/40 [00:00<?, ?batch/s]2026-01-26 19:45:37,131 INFO [logger.py]: [Completion percentage: 0%] Processing batch 0/40...
+
+...
+
+2026-01-26 20:13:51,026 INFO [logger.py]: Adding 205 posts to the output queue.
+2026-01-26 20:13:51,026 INFO [logger.py]: Writing 205 items as 1 minibatches to DB.
+2026-01-26 20:13:51,026 INFO [logger.py]: Writing 1 minibatches to DB as 1 batches...
+2026-01-26 20:13:51,027 INFO [logger.py]: Processing batch 1/1...
+2026-01-26 20:13:51,029 INFO [logger.py]: Deleting 1 batch IDs from the input queue.
+2026-01-26 20:13:51,029 INFO [logger.py]: Deleted 0 items from queue.
+Classifying batches: 100%|█████████████████████████████████████████████| 40/40 [28:13<00:00, 42.35s/batch, successful=19705, failed=0]
+Execution time for run_batch_classification: 28 minutes, 15 seconds
+Memory usage for run_batch_classification: -75.59375 MB
+Execution time for orchestrate_classification: 28 minutes, 20 seconds
+Memory usage for orchestrate_classification: 3.359375 MB
+Execution time for classify_latest_posts: 28 minutes, 22 seconds
+Memory usage for classify_latest_posts: 3.34375 MB
+2026-01-26 20:13:54,222 INFO [logger.py]: Integration 1 of 1: ml_inference_intergroup completed successfully
+2026-01-26 20:13:54,224 INFO [logger.py]: Integrations completed successfully: ml_inference_intergroup
+```
+
+Iteration 2: I decided to do the rest, so 80,000.
+
+```bash
+(base) ➜  bluesky-research git:(start-intergroup-backfills) ✗ uv run python -m pipelines.backfill_records_coordination.app --run-integrations --integrations g --max-records-per-run 80000
+2026-01-26 20:14:39,793 INFO [logger.py]: No connection provided, creating a new in-memory connection.
+2026-01-26 20:14:39,894 INFO [logger.py]: Not clearing any queues.
+2026-01-26 20:14:39,894 INFO [logger.py]: Running integrations: ml_inference_intergroup
+2026-01-26 20:14:39,894 INFO [logger.py]: Running integration 1 of 1: ml_inference_intergroup
+2026-01-26 20:14:46,464 INFO [logger.py]: Loading existing SQLite DB for queue input_ml_inference_intergroup...
+2026-01-26 20:14:46,471 INFO [logger.py]: Current queue size: 74 items
+2026-01-26 20:14:46,737 INFO [logger.py]: Loaded 73761 posts to classify.
+2026-01-26 20:14:46,737 INFO [logger.py]: Getting posts to classify for inference type intergroup.
+2026-01-26 20:14:46,737 INFO [logger.py]: Latest inference timestamp: None
+2026-01-26 20:14:46,772 INFO [logger.py]: After dropping duplicates, 73761 posts remain.
+2026-01-26 20:14:46,833 INFO [logger.py]: After filtering, 72695 posts remain.
+Execution time for get_posts_to_classify: 0 minutes, 2 seconds
+Memory usage for get_posts_to_classify: 162.640625 MB
+2026-01-26 20:14:48,160 INFO [logger.py]: Classifying 72695 posts with intergroup classifier...
+Classifying batches:   0%|                                                                                 | 0/146 [00:00<?, ?batch/s]2026-01-26 20:14:49,236 INFO [logger.py]: [Completion percentage: 0%] Processing batch 0/146...
+
+...
+
+
+```
+
 - [ ] Writing cache to storage:
   - `python -m pipelines.backfill_records_coordination.app --write-cache-buffer-to-storage --service-source-buffer ml_inference_intergroup`
 
