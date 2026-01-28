@@ -42,6 +42,6 @@ INTERGROUP_PROMPT = f"""
 
 {INTERGROUP_SYSTEM_PROMPT}
 
-Post: {input}
+Post: {{prompt_input}}
 Answer:
 """
