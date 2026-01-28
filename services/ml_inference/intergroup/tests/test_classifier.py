@@ -1177,5 +1177,76 @@ class TestIntergroupClassifierGenerateBatchPrompts:
         call_kwargs = mock_generate_batch_prompts.call_args[1]
         assert call_kwargs["batch"] == posts
         assert call_kwargs["prompt_template"] == INTERGROUP_PROMPT
-        assert call_kwargs["template_variable_to_model_field_mapping"] == {"input": "text"}
+        assert call_kwargs["template_variable_to_model_field_mapping"] == {"prompt_input": "text"}
+
+    def test_prompt_interpolation_contains_post_text(self):
+        """Test that prompt interpolation correctly includes post text in generated prompts.
+
+        Expected behavior:
+            - Should generate prompts without mocking generate_batch_prompts
+            - Generated prompt should contain the post text
+            - Generated prompt should contain the system prompt and examples
+        """
+        # Arrange
+        post = PostToLabelModel(
+            uri="uri_1",
+            text="Students from two rival schools teamed up for a community project.",
+            preprocessing_timestamp="2024-01-01-12:00:00",
+            batch_id=1,
+            batch_metadata="{}",
+        )
+
+        classifier = IntergroupClassifier()
+
+        # Act
+        result = classifier._generate_batch_prompts(batch=[post])
+
+        # Assert
+        assert len(result) == 1
+        prompt = result[0]
+        # Verify the post text appears in the prompt
+        assert post.text in prompt
+        # Verify the prompt structure is correct
+        assert "You are a helpful assistant" in prompt
+        assert "## Task" in prompt
+        assert "## Examples" in prompt
+        assert "Post:" in prompt
+        assert "Answer:" in prompt
+        # Verify the post text appears after "Post:"
+        assert f'Post: {post.text}' in prompt or f'Post: "{post.text}"' in prompt
+
+    def test_prompt_interpolation_multiple_posts(self):
+        """Test that prompt interpolation works correctly for multiple posts.
+
+        Expected behavior:
+            - Should generate separate prompts for each post
+            - Each prompt should contain its corresponding post text
+            - All prompts should have the same system prompt structure
+        """
+        # Arrange
+        posts = [
+            PostToLabelModel(
+                uri=f"uri_{i}",
+                text=f"Test post content {i}: Customers are upset.",
+                preprocessing_timestamp="2024-01-01-12:00:00",
+                batch_id=i,
+                batch_metadata="{}",
+            )
+            for i in range(3)
+        ]
+
+        classifier = IntergroupClassifier()
+
+        # Act
+        result = classifier._generate_batch_prompts(batch=posts)
+
+        # Assert
+        assert len(result) == 3
+        # Verify each prompt contains its corresponding post text
+        for i, prompt in enumerate(result):
+            assert posts[i].text in prompt
+            assert "You are a helpful assistant" in prompt
+            assert "## Task" in prompt
+            assert "## Examples" in prompt
+            assert f'Post: {posts[i].text}' in prompt or f'Post: "{posts[i].text}"' in prompt
 

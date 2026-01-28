@@ -149,5 +149,5 @@ class IntergroupClassifier:
         return generate_batch_prompts(
             batch=batch,
             prompt_template=INTERGROUP_PROMPT,
-            template_variable_to_model_field_mapping={"input": "text"},
+            template_variable_to_model_field_mapping={"prompt_input": "text"},
         )
